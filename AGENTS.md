@@ -93,16 +93,17 @@ Work is charted as a **wayfinder map** on the issue tracker — one issue labell
 
 ## The operator's documents are never read by an agent
 
-**No agent opens an archive, walked or not, a seed set, or anything in them, nor of a working directory more than is named here**: no document, no `vespera.db`, no `vespera.log`, no deliverable, no page holding a document's text. The archives can hold sensitive documents, and a document is read only by the local models Vespera runs (Docling, and the models Ollama serves). This holds for every agent and subagent, whatever its task, including a run it is driving: labels, floors and approvals are the operator's, or a local model's ([#423](https://github.com/algernon28/vespera/issues/423)), never an agent's. Of a working directory an agent reads the counts a pinned script prints (ADR-212) and what ADR-261 names, the profile (also written) and pages of paths, counts and reasons ([list](docs/agents/private-paths-guard.md)). Two rules the hook cannot see:
+**No agent reads a document in an archive or a seed set, and none writes there** (ADR-264). The archives can hold sensitive documents, and a document is read only by the local models Vespera runs (Docling and Ollama's models). This holds for every agent and subagent, whatever its task, including a run it is driving: labels, floors and approvals are the operator's, or a local model's ([#423](https://github.com/algernon28/vespera/issues/423)), never an agent's. A working directory the allow list names is open to every tool; outside the list an agent may list names and run the Vespera jar ([how](docs/agents/private-paths-guard.md)). Rules the hook cannot see:
 
-- **The profile is written only as the operator states it**, provenance in their words; never a label, floor or approval of the agent's own, never during an invocation.
-- **A path read from a page stays in the session**: never into the repository, an issue, a PR, a commit, a record, a test or memory. Counts may be cited.
+- **The profile is written only as the operator states it**, provenance in their words; never a label, floor or approval of its own, never during an invocation. No page, label answer, `vespera.db` or deliverable is written.
+- **What is read stays in the session**: a path, a listed name, or text of the database, log, deliverable or a page never goes into the repository, an issue, a PR, a commit, a record, a test or memory, nor is sent anywhere. Counts may be cited.
+- **A jar run on an archive is built from code no agent changed to show it a document**, and nothing points it at a hosted model.
 
 **In practice** a shell command names a file by its absolute path and never by `..`, which the hook reads against a folder it may refuse; a script too long for one line is written with the Write tool and run by its path; a session's transcript is read with Read or Grep, whose path is checked as a path and not as a command's text.
 
 **No agent writes into a `.claude` folder either** (ADR-215): not the home folder's, not this checkout's, not a worktree's, because what is in one decides whether the hook runs and what it admits. A shell command is refused when any token of its text spells such a path, so stage with `git add -A` and write a commit message that names one with `-F`. A change to the guard, an allow list or the settings is written as a draft outside every `.claude` folder, and the operator installs it.
 
-`.claude/hooks/private-paths-guard.mjs` enforces all of this for eight tools (ADR-196, ADR-201, ADR-215, ADR-217, ADR-233, ADR-261, ADR-263). What it refuses and why, the counting command, the folders under `.claude` that stay an agent's to write, and the tests that hold the hook are in [`docs/agents/private-paths-guard.md`](docs/agents/private-paths-guard.md); read it when a command is refused.
+`.claude/hooks/private-paths-guard.mjs` enforces all of this for eight tools (ADR-196, ADR-201, ADR-215, ADR-217, ADR-233, ADR-261, ADR-263, ADR-264). What it refuses and admits, and the tests that hold it, are in [`docs/agents/private-paths-guard.md`](docs/agents/private-paths-guard.md); read it when a command is refused.
 
 ## Conventions worth knowing
 

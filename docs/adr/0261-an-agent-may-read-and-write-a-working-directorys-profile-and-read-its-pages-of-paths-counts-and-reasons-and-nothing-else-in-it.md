@@ -2,6 +2,8 @@
 
 > **Extended — see [ADR-263](0263-an-agent-may-read-the-page-the-boilerplate-floor-is-read-off.md).** `document-frequency.html`, which stage 3 writes, joins §2's list, to Read only. The rest of this record stands.
 
+> **Partly amended — see [ADR-264](0264-the-private-paths-guard-refuses-only-what-reads-or-writes-outside-the-allow-list-and-a-working-directory-is-open-as-the-place-it-lies-in.md).** A working directory the allow list names is open to every tool, every file in it, so the admission by name no longer decides: §1's "and nothing else" and its "The counting script of ADR-212 stays the only way into `vespera.db`"; §2's table, as what the guard admits; §3, §4, §5 and §8; §9's first two items; Decided here 3 to 5; and the Tests' K303, K305 to K309, K501 to K514, K516 and K517, which now claim the call is let through. §2's "The label file is read and not written" and "No page is written" stand as rules of conduct, no longer held by the guard. §6 and §7 stand, and that record's §5 extends §7 to text read in a working directory and to names listed in an archive.
+
 - **Date**: 2026-10-14
 - **Status**: accepted on 2026-10-14.
 - **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), in these places and no others:

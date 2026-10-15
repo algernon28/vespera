@@ -161,7 +161,7 @@ A value the pipeline requires and does not have. Not a pause — supply the valu
 _Avoid_: approval step, pause. Also "checkpoint" **for this concept**: a gate is not a point work resumes from, and the word now names one (see Checkpoint below).
 
 **Archive**:
-The operator's files as they lie on disk, whether or not any walk has observed them: what Vespera is pointed at and curates. The files, never a path. Vespera writes nothing into it: everything an invocation writes goes in a working directory (ADR-054), and the deliverable references the surviving originals where they are instead of copying them. An archive can hold sensitive documents, so a document is read only by the local models Vespera runs, and no agent opens an archive (ADR-196).
+The operator's files as they lie on disk, whether or not any walk has observed them: what Vespera is pointed at and curates. The files, never a path. Vespera writes nothing into it: everything an invocation writes goes in a working directory (ADR-054), and the deliverable references the surviving originals where they are instead of copying them. An archive can hold sensitive documents, so a document is read only by the local models Vespera runs, and no agent reads a document in an archive or writes there, though it may list the names in one (ADR-196, ADR-264).
 _Avoid_: knowledge base (what Vespera makes from an archive, never the archive itself), repository (this project's git checkout), dataset, source folder
 
 **Corpus root**:

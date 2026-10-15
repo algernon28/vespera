@@ -10,6 +10,10 @@
 // guard's own .claude leads to, and on Windows a name of dots with a stream name, and the I cases are
 // held to it. docs/adr/0261 admits a few files directly in a working directory by name, to Read and, for
 // profile.yaml, to Edit and Write, and K301, K302, K304 and the K4 and K5 cases are held to it.
+// docs/adr/0264 amends those records: the guard refuses, outside the allow list, only what reads a file
+// or writes, and lets through Glob and a shell command whose every program is a lister or the Vespera jar;
+// a working directory is open as the place it lies in, and no search is refused for what lies beneath it.
+// The K6 cases and W10 are held to it, and so is every case whose claim it changed, each keeping its id.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -222,8 +226,9 @@ put(`${T}/built/note.txt`, "fixture\n");
 put(`${T}/built/target/run/vespera.db`);
 put(`${T}/built/node_modules/package/vespera.lock`);
 put(`${T}/built/.git/vespera.lock`);
-// More folders than the walk down looks at, 10,000, under an allowed root that holds no working
-// directory. Built for real: a switch that lowered the bound for a test would be a way round it.
+// More folders than the walk down from a search root looked at, 10,000, under an allowed root that holds
+// no working directory. Since docs/adr/0264 no walk is made, and N509 holds that a search this wide is
+// let through.
 const WIDE = `${H}/.jdks`;
 const MORE_FOLDERS_THAN_THE_WALK_LOOKS_AT = 10_050;
 mkdirSync(WIDE, { recursive: true });
@@ -505,15 +510,15 @@ const cases = [
   ["D09", "Read under the home folder's Documents, which the allow list does not name", "Read", { file_path: `${H}/Documents/x.txt` }, REFUSED],
   ["D10", "Read of the repository's parent, written <repository>/..", "Read", { file_path: `${C}/..` }, REFUSED],
 
-  /* A working directory is refused wherever it is, under an allowed root too. */
-  ["D11", "Read of a report in a working directory under the temp folder", "Read", { file_path: `${WD}/report.html` }, REFUSED],
-  ["D12", "Read of vespera.db itself", "Read", { file_path: `${WD}/vespera.db` }, REFUSED],
-  ["D13", "Read of a deliverable page two folders down a working directory", "Read", { file_path: `${WD}/deliverable/run/index.md` }, REFUSED],
-  ["D14", "Read of a path in a working directory that does not exist yet", "Read", { file_path: `${WD}/not-written-yet.html` }, REFUSED],
-  ["D15", "Read of the log in a folder holding only vespera.lock", "Read", { file_path: `${LOCKED}/vespera.log` }, REFUSED],
-  ["D16", "Read by a relative path, with a working directory as the current directory", "Read", { file_path: "report.html" }, REFUSED, { cwd: WD }],
-  ["D17", "Grep whose path is a working directory", "Grep", { pattern: "x", path: WD }, REFUSED],
-  ["D18", "Glob whose path is a working directory", "Glob", { pattern: "**/*", path: WD }, REFUSED],
+  /* A working directory under an allowed root is open as that root is (docs/adr/0264). */
+  ["D11", "Read of a report in a working directory under the temp folder", "Read", { file_path: `${WD}/report.html` }, ALLOWED],
+  ["D12", "Read of vespera.db itself", "Read", { file_path: `${WD}/vespera.db` }, ALLOWED],
+  ["D13", "Read of a deliverable page two folders down a working directory", "Read", { file_path: `${WD}/deliverable/run/index.md` }, ALLOWED],
+  ["D14", "Read of a path in a working directory that does not exist yet", "Read", { file_path: `${WD}/not-written-yet.html` }, ALLOWED],
+  ["D15", "Read of the log in a folder holding only vespera.lock", "Read", { file_path: `${LOCKED}/vespera.log` }, ALLOWED],
+  ["D16", "Read by a relative path, with a working directory as the current directory", "Read", { file_path: "report.html" }, ALLOWED, { cwd: WD }],
+  ["D17", "Grep whose path is a working directory", "Grep", { pattern: "x", path: WD }, ALLOWED],
+  ["D18", "Glob whose path is a working directory", "Glob", { pattern: "**/*", path: WD }, ALLOWED],
 
   /* Absolute paths written in a shell command. */
   ["E01", "echo of a path on a drive no allowed root is on", "Bash", { command: `echo ${NO_DRIVE}` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
@@ -522,10 +527,10 @@ const cases = [
   ["E04", "cat under ~/Documents", "Bash", { command: "cat ~/Documents/x.txt" }, REFUSED],
   ["E05", "cat under $HOME/Documents", "Bash", { command: "cat $HOME/Documents/x.txt" }, REFUSED],
   ["E06", "cat under ${HOME}/Documents", "Bash", { command: "cat ${HOME}/Documents/x.txt" }, REFUSED],
-  ["E07", "cat of the log in a working directory, by its absolute path", "Bash", { command: `cat ${WD}/vespera.log` }, REFUSED, { windows: ONLY_WINDOWS.shellAbsolute }],
+  ["E07", "cat of the log in a working directory, by its absolute path", "Bash", { command: `cat ${WD}/vespera.log` }, ALLOWED, { windows: ONLY_WINDOWS.shellAbsolute }],
   ["E08", "cat of a file under no allowed root, by its absolute path", "Bash", { command: `cat ${O}/doc.txt` }, REFUSED, { windows: ONLY_WINDOWS.shellAbsolute }],
   ["E09", "a refused path followed by a comma, which hides nothing", "Bash", { command: `echo ${NO_DRIVE}, and more` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["E10", "ls of an absolute path that leaves the repository through ..", "Bash", { command: `ls ${C}/../outside/doc.txt` }, REFUSED, { windows: ONLY_WINDOWS.shellAbsolute }],
+  ["E10", "ls of an absolute path that leaves the repository through ..", "Bash", { command: `ls ${C}/../outside/doc.txt` }, ALLOWED, { windows: ONLY_WINDOWS.shellAbsolute }],
 
   /* 1. A doubled separator after the drive is still a drive path. */
   ["R101", "cat of a drive path with two slashes after the colon", "Bash", { command: "cat Q://no-such-folder/x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
@@ -546,67 +551,68 @@ const cases = [
   ["R301", "cat of a relative path four folders up", "Bash", { command: "cat ../../../../somewhere/doc.txt" }, REFUSED],
   ["R302", "cat of a relative path into a folder beside the repository", "Bash", { command: "cat ../outside/doc.txt" }, REFUSED],
   ["R303", "cd to .. from the repository, where .. is itself outside the allow list", "Bash", { command: "cd .. && cat outside/doc.txt" }, REFUSED],
-  ["R304", "cat of a relative path into a working directory", "Bash", { command: "cat working-directory/report.html" }, REFUSED, { cwd: T }],
-  ["R305", "sqlite3 on a relative path to vespera.db", "Bash", { command: "sqlite3 working-directory/vespera.db .tables" }, REFUSED, { cwd: T }],
+  ["R304", "cat of a relative path into a working directory", "Bash", { command: "cat working-directory/report.html" }, ALLOWED, { cwd: T }],
+  ["R305", "sqlite3 on a relative path to vespera.db", "Bash", { command: "sqlite3 working-directory/vespera.db .tables" }, ALLOWED, { cwd: T }],
   ["R306", "Get-Content of a relative path written with backslashes", "PowerShell", { command: String.raw`Get-Content ..\outside\doc.txt` }, REFUSED, { windows: ONLY_WINDOWS.powerShell }],
-  ["R307", "a command naming no path, with a working directory as the current directory", "Bash", { command: "ls" }, REFUSED, { cwd: WD }],
-  ["R308", "a command naming no path, with a current directory outside the allow list", "Bash", { command: "ls" }, REFUSED, { cwd: O }],
+  ["R307", "a command naming no path, with a working directory as the current directory", "Bash", { command: "ls" }, ALLOWED, { cwd: WD }],
+  ["R308", "a command naming no path, with a current directory outside the allow list", "Bash", { command: "ls" }, ALLOWED, { cwd: O }],
 
   /* 4. Every field a search tool takes a path or a pattern in. */
-  ["R401", "Grep whose glob climbs out of its path into a working directory", "Grep", { pattern: "x", path: `${T}/scratch`, glob: "../working-directory/*.html" }, REFUSED],
+  ["R401", "Grep whose glob climbs out of its path into a working directory", "Grep", { pattern: "x", path: `${T}/scratch`, glob: "../working-directory/*.html" }, ALLOWED],
   ["R402", "Grep whose glob climbs out of its path and out of the allow list", "Grep", { pattern: "x", path: `${T}/scratch`, glob: "../../outside/**" }, REFUSED],
-  ["R403", "Grep of the repository with an absolute glob into a working directory", "Grep", { pattern: "x", path: C, glob: `${WD}/**` }, REFUSED],
-  ["R404", "Glob with an absolute pattern outside the allow list", "Glob", { pattern: `${O}/**/*` }, REFUSED],
-  ["R405", "Glob with an absolute pattern on a drive no allowed root is on", "Glob", { pattern: "Q:/no-such-folder/**/*.pdf" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["R406", "Glob with an absolute pattern into a working directory", "Glob", { pattern: `${WD}/**/*.html` }, REFUSED],
-  ["R407", "Glob with a relative pattern that leaves the repository", "Glob", { pattern: "../outside/**" }, REFUSED],
-  ["R408", "Glob whose pattern climbs out of its path into a working directory", "Glob", { pattern: "../working-directory/**", path: `${T}/scratch` }, REFUSED],
+  ["R403", "Grep of the repository with an absolute glob into a working directory", "Grep", { pattern: "x", path: C, glob: `${WD}/**` }, ALLOWED],
+  ["R404", "Glob with an absolute pattern outside the allow list", "Glob", { pattern: `${O}/**/*` }, ALLOWED],
+  ["R405", "Glob with an absolute pattern on a drive no allowed root is on", "Glob", { pattern: "Q:/no-such-folder/**/*.pdf" }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["R406", "Glob with an absolute pattern into a working directory", "Glob", { pattern: `${WD}/**/*.html` }, ALLOWED],
+  ["R407", "Glob with a relative pattern that leaves the repository", "Glob", { pattern: "../outside/**" }, ALLOWED],
+  ["R408", "Glob whose pattern climbs out of its path into a working directory", "Glob", { pattern: "../working-directory/**", path: `${T}/scratch` }, ALLOWED],
   ["R409", "Grep with no path, with a current directory outside the allow list", "Grep", { pattern: "x" }, REFUSED, { cwd: O }],
-  ["R410", "Glob with no path, with a current directory outside the allow list", "Glob", { pattern: "**/*" }, REFUSED, { cwd: O }],
-  ["R411", "Grep with no path, with a working directory as the current directory", "Grep", { pattern: "x" }, REFUSED, { cwd: WD }],
-  ["R412", "Glob with no path, with a working directory as the current directory", "Glob", { pattern: "**/*" }, REFUSED, { cwd: WD }],
+  ["R410", "Glob with no path, with a current directory outside the allow list", "Glob", { pattern: "**/*" }, ALLOWED, { cwd: O }],
+  ["R411", "Grep with no path, with a working directory as the current directory", "Grep", { pattern: "x" }, ALLOWED, { cwd: WD }],
+  ["R412", "Glob with no path, with a working directory as the current directory", "Glob", { pattern: "**/*" }, ALLOWED, { cwd: WD }],
 
-  /* 4, continued. A search that starts above a working directory reaches into it. */
-  ["R413", "Grep with no path, with a current directory that holds a working directory", "Grep", { pattern: "x" }, REFUSED, { cwd: T }],
-  ["R414", "Glob with no path, with a current directory that holds a working directory", "Glob", { pattern: "**/*" }, REFUSED, { cwd: T }],
-  ["R415", "Grep whose path holds a working directory", "Grep", { pattern: "x", path: T }, REFUSED],
-  ["R416", "Glob whose path holds a working directory", "Glob", { pattern: "**/*.html", path: T }, REFUSED],
-  ["R417", "Grep whose glob names a working directory beneath its path", "Grep", { pattern: "x", path: T, glob: "working-directory/**" }, REFUSED],
-  ["R418", "Glob whose pattern names a working directory beneath its path", "Glob", { pattern: "working-directory/**/*.html", path: T }, REFUSED],
-  ["R419", "Grep whose path holds a working directory two folders further down", "Grep", { pattern: "x", path: DEEP }, REFUSED],
+  /* 4, continued. A search that starts above a working directory under an allowed root reaches only
+     what is open, and is let through (docs/adr/0264). */
+  ["R413", "Grep with no path, with a current directory that holds a working directory", "Grep", { pattern: "x" }, ALLOWED, { cwd: T }],
+  ["R414", "Glob with no path, with a current directory that holds a working directory", "Glob", { pattern: "**/*" }, ALLOWED, { cwd: T }],
+  ["R415", "Grep whose path holds a working directory", "Grep", { pattern: "x", path: T }, ALLOWED],
+  ["R416", "Glob whose path holds a working directory", "Glob", { pattern: "**/*.html", path: T }, ALLOWED],
+  ["R417", "Grep whose glob names a working directory beneath its path", "Grep", { pattern: "x", path: T, glob: "working-directory/**" }, ALLOWED],
+  ["R418", "Glob whose pattern names a working directory beneath its path", "Glob", { pattern: "working-directory/**/*.html", path: T }, ALLOWED],
+  ["R419", "Grep whose path holds a working directory two folders further down", "Grep", { pattern: "x", path: DEEP }, ALLOWED],
 
   /* 5. Forms that resolve somewhere other than where they read. */
-  ["R501", "ls of <repository>/.., whose dots are part of the path", "Bash", { command: `ls ${C}/..` }, REFUSED, { windows: ONLY_WINDOWS.shellAbsolute }],
-  ["R502", "ls of ~/.m2/.., which is the home folder", "Bash", { command: "ls ~/.m2/.." }, REFUSED],
+  ["R501", "ls of <repository>/.., whose dots are part of the path", "Bash", { command: `ls ${C}/..` }, ALLOWED, { windows: ONLY_WINDOWS.shellAbsolute }],
+  ["R502", "ls of ~/.m2/.., which is the home folder", "Bash", { command: "ls ~/.m2/.." }, ALLOWED],
   ["R503", "Read through a link under the temp folder that leads outside the allow list", "Read", { file_path: `${LINKS}/out/doc.txt` }, REFUSED, { needsLink: true }],
   ["R504", "Grep whose path is such a link", "Grep", { pattern: "x", path: `${LINKS}/out` }, REFUSED, { needsLink: true }],
-  ["R505", "Read through a link that leads into a working directory", "Read", { file_path: `${LINKS}/to-working-directory/report.html` }, REFUSED, { needsLink: true }],
+  ["R505", "Read through a link that leads into a working directory", "Read", { file_path: `${LINKS}/to-working-directory/report.html` }, ALLOWED, { needsLink: true }],
 
   /* N1. A relative path is read against every directory the command names, not the current directory alone. */
-  ["N101", "cd to an allowed folder, then cat of a relative path into a working directory beneath it", "Bash", { command: "cd .. && cat working-directory/report.html" }, REFUSED, { cwd: `${T}/scratch` }],
-  ["N102", "cd to an allowed folder by its absolute path, then cat into a working directory beneath it", "Bash", { command: `cd ${T} && cat working-directory/report.html` }, REFUSED, { windows: ONLY_WINDOWS.shellAbsolute }],
-  ["N103", "git -C naming an allowed folder, then a relative path into a working directory beneath it", "Bash", { command: "git -C .. show working-directory/report.html" }, REFUSED, { cwd: `${T}/scratch` }],
-  ["N104", "git -C naming an allowed folder by its absolute path, then a path into a working directory beneath it", "Bash", { command: `git -C ${T} show working-directory/report.html` }, REFUSED, { windows: ONLY_WINDOWS.shellAbsolute }],
-  ["N105", "pushd to an allowed folder, then cat into a working directory beneath it", "Bash", { command: "pushd .. && cat working-directory/report.html" }, REFUSED, { cwd: `${T}/scratch` }],
-  ["N106", "Set-Location to an allowed folder, then Get-Content into a working directory beneath it", "PowerShell", { command: String.raw`Set-Location ..; Get-Content working-directory\report.html` }, REFUSED, { cwd: `${T}/scratch`, windows: ONLY_WINDOWS.powerShell }],
+  ["N101", "cd to an allowed folder, then cat of a relative path into a working directory beneath it", "Bash", { command: "cd .. && cat working-directory/report.html" }, ALLOWED, { cwd: `${T}/scratch` }],
+  ["N102", "cd to an allowed folder by its absolute path, then cat into a working directory beneath it", "Bash", { command: `cd ${T} && cat working-directory/report.html` }, ALLOWED, { windows: ONLY_WINDOWS.shellAbsolute }],
+  ["N103", "git -C naming an allowed folder, then a relative path into a working directory beneath it", "Bash", { command: "git -C .. show working-directory/report.html" }, ALLOWED, { cwd: `${T}/scratch` }],
+  ["N104", "git -C naming an allowed folder by its absolute path, then a path into a working directory beneath it", "Bash", { command: `git -C ${T} show working-directory/report.html` }, ALLOWED, { windows: ONLY_WINDOWS.shellAbsolute }],
+  ["N105", "pushd to an allowed folder, then cat into a working directory beneath it", "Bash", { command: "pushd .. && cat working-directory/report.html" }, ALLOWED, { cwd: `${T}/scratch` }],
+  ["N106", "Set-Location to an allowed folder, then Get-Content into a working directory beneath it", "PowerShell", { command: String.raw`Set-Location ..; Get-Content working-directory\report.html` }, ALLOWED, { cwd: `${T}/scratch`, windows: ONLY_WINDOWS.powerShell }],
   ["N107", "cd to .., then a relative path that leaves the allow list from there and not from the current directory", "Bash", { command: "cd .. && cat ../outside/doc.txt" }, REFUSED, { cwd: `${C}/src` }],
-  ["N108", "two cd in a row, the second relative to the first, then a path into a working directory", "Bash", { command: "cd .. && cd deep && cat a/b/notes.txt" }, REFUSED, { cwd: `${T}/scratch` }],
-  ["N109", "a command with a directory option of its own, env -C, then a path into a working directory", "Bash", { command: "env -C .. cat working-directory/report.html" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["N108", "two cd in a row, the second relative to the first, then a path into a working directory", "Bash", { command: "cd .. && cd deep && cat a/b/notes.txt" }, ALLOWED, { cwd: `${T}/scratch` }],
+  ["N109", "a command with a directory option of its own, env -C, then a path into a working directory", "Bash", { command: "env -C .. cat working-directory/report.html" }, ALLOWED, { cwd: `${T}/scratch` }],
   ["N110", "cd to a folder of the repository, then ls of a name beneath it", "Bash", { command: `cd ${C}/src && ls main` }, ALLOWED],
   ["N111", "git -C naming the repository, then a relative path", "Bash", { command: `git -C ${C} log -- docs` }, ALLOWED, { cwd: `${T}/scratch` }],
   ["N112", "cd to a folder of the repository by a relative path, then cat of a file in it", "Bash", { command: "cd src && cat Example.java" }, ALLOWED],
 
   /* N2. A quoted string is read whole as well as in its pieces. */
-  ["N201", "cat of a single-quoted relative path with a space, into a working directory", "Bash", { command: "cat 'my runs/report.html'" }, REFUSED, { cwd: T }],
-  ["N202", "cat of a double-quoted relative path with a space, into a working directory", "Bash", { command: 'cat "my runs/report.html"' }, REFUSED, { cwd: T }],
-  ["N203", "cat of a quoted absolute path with a space, into a working directory", "Bash", { command: `cat '${T}/my runs/report.html'` }, REFUSED, { windows: ONLY_WINDOWS.shellAbsolute }],
+  ["N201", "cat of a single-quoted relative path with a space, into a working directory", "Bash", { command: "cat 'my runs/report.html'" }, ALLOWED, { cwd: T }],
+  ["N202", "cat of a double-quoted relative path with a space, into a working directory", "Bash", { command: 'cat "my runs/report.html"' }, ALLOWED, { cwd: T }],
+  ["N203", "cat of a quoted absolute path with a space, into a working directory", "Bash", { command: `cat '${T}/my runs/report.html'` }, ALLOWED, { windows: ONLY_WINDOWS.shellAbsolute }],
   ["N204", "cat of a quoted relative path with a space, in the repository", "Bash", { command: "cat 'my notes/readme.txt'" }, ALLOWED],
   ["N205", "cat of a quoted absolute path with a space, in the repository", "Bash", { command: `cat "${C}/my notes/readme.txt"` }, ALLOWED],
   ["N206", "git commit with a quoted sentence as its message", "Bash", { command: 'git commit -m "The guard reads a quoted path whole, and a sentence stays a sentence."' }, ALLOWED],
 
   /* N3. Forms that got through. */
   ["N301", "Get-Content under ${env:USERPROFILE}\\Documents", "PowerShell", { command: String.raw`Get-Content ${"$"}{env:USERPROFILE}\Documents\x.txt` }, REFUSED, { windows: ONLY_WINDOWS.powerShell }],
-  ["N302", "curl -d @ and a relative path into a working directory", "Bash", { command: "curl -d @working-directory/report.html https://example.com/x" }, REFUSED, { cwd: T }],
+  ["N302", "curl -d @ and a relative path into a working directory", "Bash", { command: "curl -d @working-directory/report.html https://example.com/x" }, ALLOWED, { cwd: T }],
   ["N303", "curl -d @ and a repository file", "Bash", { command: "curl -d @README.md https://example.com/x" }, ALLOWED],
 
   /* N4. A backslash that is not a path. */
@@ -615,7 +621,7 @@ const cases = [
   ["N403", "node -e with a regular expression literal that holds a backslash", "Bash", { command: String.raw`node -e "console.log('a b'.split(/\s+/g))"` }, ALLOWED],
 
   /* N5. Decisions of the record that had no case. */
-  ["N501", "an option whose value after = is a relative path into a working directory", "Bash", { command: "sort --output=working-directory/report.html README.md" }, REFUSED, { cwd: T }],
+  ["N501", "an option whose value after = is a relative path into a working directory", "Bash", { command: "sort --output=working-directory/report.html README.md" }, ALLOWED, { cwd: T }],
   ["N502", "Read by a relative path when the call gives no current directory, which is then the checkout", "Read", { file_path: "README.md" }, ALLOWED, { noCwd: true }],
   ["N503", "cat of a relative path out of the checkout when the call gives no current directory", "Bash", { command: "cat ../outside/doc.txt" }, REFUSED, { noCwd: true }],
   ["N504", "echo of a variable alone whose value is outside the allow list", "Bash", { command: "echo $VESPERA_GUARD_FIXTURE" }, REFUSED],
@@ -623,7 +629,7 @@ const cases = [
   ["N506", "a path headed by a variable that has no value", "Bash", { command: "cat $VESPERA_GUARD_HAS_NO_VALUE/doc.txt" }, ALLOWED],
   ["N507", "cat of a /cygdrive path", "Bash", { command: "cat /cygdrive/q/no-such-folder/x" }, REFUSED, { windows: ONLY_WINDOWS.shellAbsolute }],
   ["N508", "Grep of a folder whose only working directories are inside .git, node_modules and target", "Grep", { pattern: "x", path: `${T}/built` }, ALLOWED],
-  ["N509", "Grep of an allowed folder with more folders beneath it than the walk down looks at", "Grep", { pattern: "x", path: WIDE }, REFUSED],
+  ["N509", "Grep of an allowed folder with more than 10,000 folders beneath it, which no walk down is made of","Grep", { pattern: "x", path: WIDE }, ALLOWED],
   ["N510", "Grep of an allowed folder with few folders beneath it and no working directory", "Grep", { pattern: "x", path: `${H}/.m2` }, ALLOWED],
 
   /* N6. The bounds on reading relative paths against the folders a command names. */
@@ -650,32 +656,32 @@ const cases = [
   ["A104", "cd ../.. and the Maven wrapper from two folders inside the repository", "Bash", { command: "cd ../.. && ./mvnw -q test" }, ALLOWED, { cwd: `${C}/src/main` }],
   ["A105", "cd to .., an allowed folder, then cat of a relative path that stays out of every working directory", "Bash", { command: "cd .. && cat scratch/note.txt" }, ALLOWED, { cwd: `${T}/scratch` }],
   ["A106", "cd .. written twice from two folders inside the repository, which climbs twice and no further", "Bash", { command: "cd .. && cd .. && ls" }, ALLOWED, { cwd: `${C}/src/main` }],
-  ["A107", "cd .. written twice, then a relative path into a working directory two folders up", "Bash", { command: "cd .. && cd .. && cat working-directory/report.html" }, REFUSED, { cwd: `${DEEP}/a` }],
-  ["A108", "cd to a folder by a relative name with no .. in it, then cat into a working directory beneath it", "Bash", { command: "cd deep && cat a/b/notes.txt" }, REFUSED, { cwd: T }],
-  ["A109", "git -C naming a folder by a relative name with no .. in it, then a path into a working directory beneath it", "Bash", { command: "git -C deep show a/b/notes.txt" }, REFUSED, { cwd: T }],
-  ["A110", "Set-Location to a folder by a relative name with no .. in it, then Get-Content into a working directory beneath it", "PowerShell", { command: String.raw`Set-Location deep; Get-Content a\b\notes.txt` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["A107", "cd .. written twice, then a relative path into a working directory two folders up", "Bash", { command: "cd .. && cd .. && cat working-directory/report.html" }, ALLOWED, { cwd: `${DEEP}/a` }],
+  ["A108", "cd to a folder by a relative name with no .. in it, then cat into a working directory beneath it", "Bash", { command: "cd deep && cat a/b/notes.txt" }, ALLOWED, { cwd: T }],
+  ["A109", "git -C naming a folder by a relative name with no .. in it, then a path into a working directory beneath it", "Bash", { command: "git -C deep show a/b/notes.txt" }, ALLOWED, { cwd: T }],
+  ["A110", "Set-Location to a folder by a relative name with no .. in it, then Get-Content into a working directory beneath it", "PowerShell", { command: String.raw`Set-Location deep; Get-Content a\b\notes.txt` }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
   ["A111", "from one folder inside the repository, a path through .. beside a bare .., which read together leave the allow list", "Bash", { command: "cp ../README.md .." }, REFUSED, { cwd: `${C}/src` }],
 
   /* A2. One letter and a colon is a drive as written, before any punctuation is trimmed from it. */
-  ["A201", "ls of a drive letter, a colon and a dot", "Bash", { command: "ls Q:." }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["A202", "ls of a drive letter, a colon and two dots", "Bash", { command: "ls Q:.." }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["A201", "ls of a drive letter, a colon and a dot", "Bash", { command: "ls Q:." }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["A202", "ls of a drive letter, a colon and two dots", "Bash", { command: "ls Q:.." }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
   ["A203", "Set-Location to a drive letter, a colon and a dot, then Get-Content of a relative path", "PowerShell", { command: String.raw`Set-Location Q:.; Get-Content folder\doc.txt` }, REFUSED, { windows: ONLY_WINDOWS.powerShell }],
   ["A204", "a drive path that ends a sentence, followed by a full stop", "Bash", { command: `echo see ${NO_DRIVE}.` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
 
   /* A3. A path that is not a whole token: after an escaped space, or in a list. */
-  ["A301", "cat of a relative path whose space is escaped with a backslash, into a working directory", "Bash", { command: String.raw`cat my\ runs/report.html` }, REFUSED, { cwd: T }],
-  ["A302", "cat of a brace list, one of whose items climbs into a working directory", "Bash", { command: "cat {note.txt,../working-directory/report.html}" }, REFUSED, { cwd: `${T}/scratch` }],
-  ["A303", "Get-Content of a comma list, one of whose items climbs into a working directory", "PowerShell", { command: "Get-Content note.txt,../working-directory/report.html" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["A301", "cat of a relative path whose space is escaped with a backslash, into a working directory", "Bash", { command: String.raw`cat my\ runs/report.html` }, ALLOWED, { cwd: T }],
+  ["A302", "cat of a brace list, one of whose items climbs into a working directory", "Bash", { command: "cat {note.txt,../working-directory/report.html}" }, ALLOWED, { cwd: `${T}/scratch` }],
+  ["A303", "Get-Content of a comma list, one of whose items climbs into a working directory", "PowerShell", { command: "Get-Content note.txt,../working-directory/report.html" }, ALLOWED, { cwd: `${T}/scratch` }],
   ["A304", "cat of a repository path whose space is escaped with a backslash", "Bash", { command: String.raw`cat my\ notes/readme.txt` }, ALLOWED],
 
   /* A7. A path on a drive with no separator after the colon is judged from the drive's root and as a relative path. */
-  ["A701", "such a path that is allowed from the drive's root and lands in a working directory under the current directory", "Bash", { command: `cat ${ON_THE_FIXTURES_DRIVE}${T.slice(3)}/scratch/note.txt` }, REFUSED, { cwd: `${T}/mirror`, windows: ONLY_WINDOWS.drive }],
+  ["A701", "such a path that is allowed from the drive's root and lands in a working directory under the current directory", "Bash", { command: `cat ${ON_THE_FIXTURES_DRIVE}${T.slice(3)}/scratch/note.txt` }, ALLOWED, { cwd: `${T}/mirror`, windows: ONLY_WINDOWS.drive }],
 
   /* What the record says of two Windows spellings, which had no case. */
   ["C101", "docker with a volume between two one-letter names, written as a token of its own", "Bash", { command: "docker run -v a:b image" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["C102", "Read of a report through the working directory's own stream name", "Read", { file_path: `${WD}::$INDEX_ALLOCATION/report.html` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["C103", "cat of a relative path through the working directory's own stream name", "Bash", { command: "cat working-directory::$INDEX_ALLOCATION/report.html" }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
-  ["C104", "Read of a report in a working directory by its data stream name", "Read", { file_path: `${WD}/report.html::$DATA` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["C102", "Read of a report through the working directory's own stream name", "Read", { file_path: `${WD}::$INDEX_ALLOCATION/report.html` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["C103", "cat of a relative path through the working directory's own stream name", "Bash", { command: "cat working-directory::$INDEX_ALLOCATION/report.html" }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.drive }],
+  ["C104", "Read of a report in a working directory by its data stream name", "Read", { file_path: `${WD}/report.html::$DATA` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
 
   /* L1. A link is followed before the check, through every tool and through a link to a link. R503 and
      R504 hold a link that leads outside the allow list, and R505 one that leads into a folder holding
@@ -683,27 +689,27 @@ const cases = [
   ["L101", "Read through a link under the temp folder that leads to a folder inside the allow list", "Read", { file_path: `${LINKS}/inside/note.txt` }, ALLOWED, { needsFurtherLinks: true }],
   ["L102", "Grep whose path is such a link", "Grep", { pattern: "x", path: `${LINKS}/inside` }, ALLOWED, { needsFurtherLinks: true }],
   ["L103", "Write of a path that does not exist yet, through such a link", "Write", { file_path: `${LINKS}/inside/not-written-yet.txt`, content: "x" }, ALLOWED, { needsFurtherLinks: true }],
-  ["L104", "cat of a relative path through a link that leads into a working directory", "Bash", { command: "cat links/to-working-directory/report.html" }, REFUSED, { cwd: T, needsLink: true }],
-  ["L105", "Grep whose path is a link that leads into a working directory", "Grep", { pattern: "x", path: `${LINKS}/to-working-directory` }, REFUSED, { needsLink: true }],
-  ["L106", "Glob whose pattern names such a link beneath its path", "Glob", { pattern: "to-working-directory/**", path: LINKS }, REFUSED, { needsLink: true }],
-  ["L107", "Read through a link to a link that leads into a working directory", "Read", { file_path: `${LINKS}/hop/report.html` }, REFUSED, { needsFurtherLinks: true }],
+  ["L104", "cat of a relative path through a link that leads into a working directory", "Bash", { command: "cat links/to-working-directory/report.html" }, ALLOWED, { cwd: T, needsLink: true }],
+  ["L105", "Grep whose path is a link that leads into a working directory", "Grep", { pattern: "x", path: `${LINKS}/to-working-directory` }, ALLOWED, { needsLink: true }],
+  ["L106", "Glob whose pattern names such a link beneath its path", "Glob", { pattern: "to-working-directory/**", path: LINKS }, ALLOWED, { needsLink: true }],
+  ["L107", "Read through a link to a link that leads into a working directory", "Read", { file_path: `${LINKS}/hop/report.html` }, ALLOWED, { needsFurtherLinks: true }],
 
   /* L2. A path that holds .. is read twice, and either reading refuses: folded as text, and as the file
      system walks it, where a .. is taken from the folder the path before it leads to. links/in leads to
      deep/a, so links/in/.. is links/ as text and deep/ as walked, and deep/a/b is a working directory. */
-  ["L201", "Read of a path that climbs with .. out of a link, into a working directory beside where the link leads", "Read", { file_path: `${LINKS}/in/../a/b/notes.txt` }, REFUSED, { needsFurtherLinks: true }],
-  ["L202", "Grep whose path climbs out of a link into such a working directory", "Grep", { pattern: "x", path: `${LINKS}/in/../a/b` }, REFUSED, { needsFurtherLinks: true }],
-  ["L203", "Grep whose path is a link and .., the parent of where the link leads, which holds a working directory", "Grep", { pattern: "x", path: `${LINKS}/in/..` }, REFUSED, { needsFurtherLinks: true }],
-  ["L204", "Glob whose pattern climbs out of a link beneath its path into such a working directory", "Glob", { pattern: "in/../a/b/*.txt", path: LINKS }, REFUSED, { needsFurtherLinks: true }],
-  ["L205", "Grep whose glob climbs out of a link beneath its path into such a working directory", "Grep", { pattern: "x", path: LINKS, glob: "in/../a/b/*.txt" }, REFUSED, { needsFurtherLinks: true }],
-  ["L206", "Glob with an absolute pattern that climbs out of a link into such a working directory", "Glob", { pattern: `${LINKS}/in/../a/b/*.txt` }, REFUSED, { needsFurtherLinks: true }],
-  ["L207", "cat of a relative path that climbs out of a link into such a working directory", "Bash", { command: "cat links/in/../a/b/notes.txt" }, REFUSED, { cwd: T, needsFurtherLinks: true }],
-  ["L208", "cd through a link, then cat of a relative path that climbs out of where the link leads", "Bash", { command: "cd in && cat ../a/b/notes.txt" }, REFUSED, { cwd: LINKS, needsFurtherLinks: true }],
-  ["L209", "cat of a relative path that climbs, with a link as the current directory", "Bash", { command: "cat ../a/b/notes.txt" }, REFUSED, { cwd: `${LINKS}/in`, needsFurtherLinks: true }],
-  ["L210", "Read by a relative path that climbs, with a link as the current directory", "Read", { file_path: "../a/b/notes.txt" }, REFUSED, { cwd: `${LINKS}/in`, needsFurtherLinks: true }],
-  ["L211", "cd through a link, cd -P to .., which is the parent of where the link leads, then cat into a working directory beneath it", "Bash", { command: "cd in && cd -P .. && cat a/b/notes.txt" }, REFUSED, { cwd: LINKS, needsFurtherLinks: true }],
-  ["L212", "Read of a path that climbs out of a link to a link, into such a working directory", "Read", { file_path: `${LINKS}/via/../a/b/notes.txt` }, REFUSED, { needsFurtherLinks: true }],
-  ["L213", "Get-Content of a relative path that climbs out of a link, written with backslashes", "PowerShell", { command: String.raw`Get-Content links\in\..\a\b\notes.txt` }, REFUSED, { cwd: T, needsFurtherLinks: true, windows: ONLY_WINDOWS.powerShell }],
+  ["L201", "Read of a path that climbs with .. out of a link, into a working directory beside where the link leads", "Read", { file_path: `${LINKS}/in/../a/b/notes.txt` }, ALLOWED, { needsFurtherLinks: true }],
+  ["L202", "Grep whose path climbs out of a link into such a working directory", "Grep", { pattern: "x", path: `${LINKS}/in/../a/b` }, ALLOWED, { needsFurtherLinks: true }],
+  ["L203", "Grep whose path is a link and .., the parent of where the link leads, which holds a working directory", "Grep", { pattern: "x", path: `${LINKS}/in/..` }, ALLOWED, { needsFurtherLinks: true }],
+  ["L204", "Glob whose pattern climbs out of a link beneath its path into such a working directory", "Glob", { pattern: "in/../a/b/*.txt", path: LINKS }, ALLOWED, { needsFurtherLinks: true }],
+  ["L205", "Grep whose glob climbs out of a link beneath its path into such a working directory", "Grep", { pattern: "x", path: LINKS, glob: "in/../a/b/*.txt" }, ALLOWED, { needsFurtherLinks: true }],
+  ["L206", "Glob with an absolute pattern that climbs out of a link into such a working directory", "Glob", { pattern: `${LINKS}/in/../a/b/*.txt` }, ALLOWED, { needsFurtherLinks: true }],
+  ["L207", "cat of a relative path that climbs out of a link into such a working directory", "Bash", { command: "cat links/in/../a/b/notes.txt" }, ALLOWED, { cwd: T, needsFurtherLinks: true }],
+  ["L208", "cd through a link, then cat of a relative path that climbs out of where the link leads", "Bash", { command: "cd in && cat ../a/b/notes.txt" }, ALLOWED, { cwd: LINKS, needsFurtherLinks: true }],
+  ["L209", "cat of a relative path that climbs, with a link as the current directory", "Bash", { command: "cat ../a/b/notes.txt" }, ALLOWED, { cwd: `${LINKS}/in`, needsFurtherLinks: true }],
+  ["L210", "Read by a relative path that climbs, with a link as the current directory", "Read", { file_path: "../a/b/notes.txt" }, ALLOWED, { cwd: `${LINKS}/in`, needsFurtherLinks: true }],
+  ["L211", "cd through a link, cd -P to .., which is the parent of where the link leads, then cat into a working directory beneath it", "Bash", { command: "cd in && cd -P .. && cat a/b/notes.txt" }, ALLOWED, { cwd: LINKS, needsFurtherLinks: true }],
+  ["L212", "Read of a path that climbs out of a link to a link, into such a working directory", "Read", { file_path: `${LINKS}/via/../a/b/notes.txt` }, ALLOWED, { needsFurtherLinks: true }],
+  ["L213", "Get-Content of a relative path that climbs out of a link, written with backslashes", "PowerShell", { command: String.raw`Get-Content links\in\..\a\b\notes.txt` }, ALLOWED, { cwd: T, needsFurtherLinks: true, windows: ONLY_WINDOWS.powerShell }],
   ["L214", "Read of a path that climbs out of a link and stays inside the allow list and out of every working directory", "Read", { file_path: `${LINKS}/inside/../scratch/note.txt` }, ALLOWED, { needsFurtherLinks: true }],
   ["L215", "cat of such a relative path", "Bash", { command: "cat links/inside/../scratch/note.txt" }, ALLOWED, { cwd: T, needsFurtherLinks: true }],
   ["L216", "cat of a relative path that climbs out of a link to a file beside a working directory and not in one", "Bash", { command: "cat links/in/../note.txt" }, ALLOWED, { cwd: T, needsFurtherLinks: true }],
@@ -721,18 +727,18 @@ const cases = [
   ["G101", "Get-ChildItem of .. and a folder, with a space after the comma, from one folder inside the repository", "PowerShell", { command: "Get-ChildItem .., main" }, ALLOWED, { cwd: `${C}/src` }],
   ["G102", "Get-ChildItem of the same two with no space after the comma", "PowerShell", { command: "Get-ChildItem ..,main" }, ALLOWED, { cwd: `${C}/src` }],
   ["G103", "a .. followed by a closing brace, from one folder inside the repository", "Bash", { command: "echo ..}" }, ALLOWED, { cwd: `${C}/src` }],
-  ["G104", "Get-ChildItem of .. written twice with a comma between, which climbs twice", "PowerShell", { command: "Get-ChildItem .., .." }, REFUSED, { cwd: `${C}/src` }],
-  ["G105", "ls of .. followed by a comma, from the repository, where one climb leaves the allow list", "Bash", { command: "ls ..," }, REFUSED],
-  ["G106", "ls of .. led by a comma, from the repository", "Bash", { command: "ls ,.." }, REFUSED],
-  ["G107", "cat of a relative path into a working directory, followed by a comma", "Bash", { command: "cat ../working-directory/report.html, and more" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["G104", "Get-ChildItem of .. written twice with a comma between, which climbs twice", "PowerShell", { command: "Get-ChildItem .., .." }, ALLOWED, { cwd: `${C}/src` }],
+  ["G105", "ls of .. followed by a comma, from the repository, where one climb leaves the allow list", "Bash", { command: "ls ..," }, ALLOWED],
+  ["G106", "ls of .. led by a comma, from the repository", "Bash", { command: "ls ,.." }, ALLOWED],
+  ["G107", "cat of a relative path into a working directory, followed by a comma", "Bash", { command: "cat ../working-directory/report.html, and more" }, ALLOWED, { cwd: `${T}/scratch` }],
 
   /* G2. Spellings that are no path: a key of an object in a quoted string, and the braces of a variable.
      Each allowed case stands beside the refusals the rule must leave standing. */
   ["G201", "gh with a quoted jq object whose key is one letter", "Bash", { command: "gh api repos/algernon28/vespera/issues/432 --jq '{t:.title}'" }, ALLOWED],
   ["G202", "node -e with a quoted object literal whose keys are one letter each", "Bash", { command: 'node -e "console.log(JSON.stringify({a:1,b:2}))"' }, ALLOWED],
   ["G203", "gh with a quoted jq object whose second one-letter key follows a comma and a space", "Bash", { command: "gh pr list --json number,title --jq '.[] | {n:.number, t:.title}'" }, ALLOWED],
-  ["G204", "a quoted key of one letter whose value is a relative path into a working directory", "Bash", { command: "jq '{t:../working-directory/report.html}'" }, REFUSED, { cwd: `${T}/scratch` }],
-  ["G205", "ls of a comma list, outside quotes, whose second path is a drive letter, a colon and two dots", "Bash", { command: "ls x,Q:.." }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G204", "a quoted key of one letter whose value is a relative path into a working directory", "Bash", { command: "jq '{t:../working-directory/report.html}'" }, ALLOWED, { cwd: `${T}/scratch` }],
+  ["G205", "ls of a comma list, outside quotes, whose second path is a drive letter, a colon and two dots", "Bash", { command: "ls x,Q:.." }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
   ["G206", "cat of a brace list, outside quotes, one of whose paths is a drive letter, a colon and a dot", "Bash", { command: "cat {x,Q:.}" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["G207", "such a brace list inside a command substitution in double quotes, where the shell does expand it", "Bash", { command: 'echo "$(cat {x,Q:.})"' }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["G208", "a quoted command whose token is a drive letter, a colon and a name, after no comma and no brace", "Bash", { command: "bash -c 'cat Q:x'" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
@@ -740,18 +746,18 @@ const cases = [
   ["G210", "an option whose value after = is a drive letter, a colon and a dot", "Bash", { command: "sort --file=Q:. README.md" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["G211", "cat of a quoted path headed by ${TMPDIR}, whose next folder has a one-letter name", "Bash", { command: 'cat "${TMPDIR}/x"' }, ALLOWED],
   ["G212", "cat of a quoted path headed by ${TMPDIR}, under the temp folder", "Bash", { command: 'cat "${TMPDIR}/scratch/note.txt"' }, ALLOWED],
-  ["G213", "cat of a path headed by ${TMPDIR} into a working directory", "Bash", { command: "cat ${TMPDIR}/working-directory/report.html" }, REFUSED],
-  ["G214", "cat of a comma list headed by ${TMPDIR}, whose second path climbs into a working directory", "Bash", { command: "cat ${TMPDIR}/scratch/note.txt,../working-directory/report.html" }, REFUSED, { cwd: `${T}/scratch` }],
-  ["G215", "a variable in braces that has no value, followed by a relative path into a working directory", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE}../working-directory/report.html" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["G213", "cat of a path headed by ${TMPDIR} into a working directory", "Bash", { command: "cat ${TMPDIR}/working-directory/report.html" }, ALLOWED],
+  ["G214", "cat of a comma list headed by ${TMPDIR}, whose second path climbs into a working directory", "Bash", { command: "cat ${TMPDIR}/scratch/note.txt,../working-directory/report.html" }, ALLOWED, { cwd: `${T}/scratch` }],
+  ["G215", "a variable in braces that has no value, followed by a relative path into a working directory", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE}../working-directory/report.html" }, ALLOWED, { cwd: `${T}/scratch` }],
   ["G216", "echo of a one-letter variable with a default value", "Bash", { command: "echo ${f:-none}" }, ALLOWED],
-  ["G217", "cat of a variable whose default value is a relative path into a working directory", "Bash", { command: "cat ${OUT:-../working-directory/report.html}" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["G217", "cat of a variable whose default value is a relative path into a working directory", "Bash", { command: "cat ${OUT:-../working-directory/report.html}" }, ALLOWED, { cwd: `${T}/scratch` }],
   ["G218", "cat of a variable whose default value is a drive letter, a colon and a dot", "Bash", { command: "cat ${x:-Q:.}" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["G219", "Get-Content of ${Q:-x}, which PowerShell reads as a name on drive Q and not as a default value", "PowerShell", { command: "Get-Content ${Q:-x}" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["G220", "PowerShell's ${Q:x}, which is what a name on drive Q holds", "PowerShell", { command: "${Q:x}" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
 
   /* G4. The @ is taken off a token as it is written, before any punctuation is trimmed from its end. */
-  ["G401", "ls of @ and a drive letter, a colon and a dot", "Bash", { command: "ls @Q:." }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["G402", "ls of @ and a drive letter, a colon and two dots", "Bash", { command: "ls @Q:.." }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["G401", "ls of @ and a drive letter, a colon and a dot", "Bash", { command: "ls @Q:." }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["G402", "ls of @ and a drive letter, a colon and two dots", "Bash", { command: "ls @Q:.." }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
   ["G403", "curl -d @ and a bare drive", "Bash", { command: "curl -d @Q: https://example.com/x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["G404", "an option whose value after = is @ and a drive letter, a colon and a dot", "Bash", { command: "curl --data=@Q:. https://example.com/x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
 
@@ -762,10 +768,10 @@ const cases = [
   ["L307", "Read of a link that leads to a name that is not there, followed at once by ..", "Read", { file_path: `${LINKS}/nowhere/..` }, ALLOWED, { needsFurtherLinks: true }],
 
   /* G5. A variable in braces that is a whole token is replaced by its value, as one with a path after it is. */
-  ["G501", "cd to a quoted ${TMPDIR}, then cat of a relative path into a working directory beneath it", "Bash", { command: 'cd "${TMPDIR}" && cat working-directory/report.html' }, REFUSED],
-  ["G502", "git -C ${TMPDIR}, then a relative path into a working directory beneath it", "Bash", { command: "git -C ${TMPDIR} show working-directory/report.html" }, REFUSED],
+  ["G501", "cd to a quoted ${TMPDIR}, then cat of a relative path into a working directory beneath it", "Bash", { command: 'cd "${TMPDIR}" && cat working-directory/report.html' }, ALLOWED],
+  ["G502", "git -C ${TMPDIR}, then a relative path into a working directory beneath it", "Bash", { command: "git -C ${TMPDIR} show working-directory/report.html" }, ALLOWED],
   ["G503", "cd to ${HOME}, which the allow list does not name", "Bash", { command: "cd ${HOME} && cat Documents/x.txt" }, REFUSED],
-  ["G504", "ls of ${USERPROFILE}, which the allow list does not name", "Bash", { command: "ls ${USERPROFILE}" }, REFUSED],
+  ["G504", "ls of ${USERPROFILE}, which the allow list does not name", "Bash", { command: "ls ${USERPROFILE}" }, ALLOWED],
   ["G505", "ls of ${TMPDIR}, which the allow list names", "Bash", { command: "ls ${TMPDIR}" }, ALLOWED],
 
   /* G6. A one-letter key is a key only in a brace group of a quoted string every member of which is a
@@ -781,21 +787,19 @@ const cases = [
 
   /* G7. A variable with a word for when it has no value is read with its value in its place and with
      the word in its place, and the word runs to the brace that closes the variable. */
-  ["G701", "cat of ${TMPDIR:-word} followed by a path into a working directory", "Bash", { command: "cat ${TMPDIR:-some}/working-directory/report.html" }, REFUSED],
+  ["G701", "cat of ${TMPDIR:-word} followed by a path into a working directory", "Bash", { command: "cat ${TMPDIR:-some}/working-directory/report.html" }, ALLOWED],
   ["G702", "cat of ${TMPDIR:-word} followed by a path under the temp folder", "Bash", { command: "cat ${TMPDIR:-some}/scratch/note.txt" }, ALLOWED],
   ["G703", "echo of ${TMPDIR:-word} followed by a folder with a one-letter name", "Bash", { command: "echo ${TMPDIR:-x}/y" }, ALLOWED],
-  ["G704", "cat of a variable whose word is a variable whose word climbs into a working directory", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${VESPERA_GUARD_NOR_THIS:-../working-directory/report.html}}" }, REFUSED, { cwd: `${T}/scratch` }],
-  ["G705", "cat of a variable whose word is ${TMPDIR} and a path into a working directory", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${TMPDIR}/working-directory/report.html}" }, REFUSED],
+  ["G704", "cat of a variable whose word is a variable whose word climbs into a working directory", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${VESPERA_GUARD_NOR_THIS:-../working-directory/report.html}}" }, ALLOWED, { cwd: `${T}/scratch` }],
+  ["G705", "cat of a variable whose word is ${TMPDIR} and a path into a working directory", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${TMPDIR}/working-directory/report.html}" }, ALLOWED],
   ["G706", "cat of a variable whose word is ${TMPDIR} and a path under the temp folder", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${TMPDIR}/scratch/out.log}" }, ALLOWED],
 
   /* K1. docs/adr/0212: node, the counting script beside the guard, and a folder that directly holds
      vespera.db, and nothing else, is admitted.
-     The working directory is named relatively from the temp folder wherever the case allows it, so that
-     the ordinary reading refuses it on every platform. A rooted POSIX path in a command is not read
-     (ADR-196 section 5), so on Linux the ordinary reading had nothing to refuse in K102's and K106's
-     working directory; since docs/adr/0215 it refuses the script's own path, which lies in a closed
-     .claude folder, on every platform. So each K1 case is let through by the admission and by nothing
-     else: the command is recognised before any path or text of it is read (docs/adr/0215 section 10). */
+     Since docs/adr/0215 the ordinary reading refuses the script's own path, which lies in a closed
+     .claude folder, on every platform, and since docs/adr/0264 it no longer refuses a working directory
+     the allow list names. So each K1 case is let through by the admission and by nothing else: the
+     command is recognised before any path or text of it is read (docs/adr/0215 section 10). */
   ["K101", "the counting command, naming the working directory by a relative path", "Bash", { command: `node ${C}/${COUNTS} working-directory` }, ALLOWED, { cwd: T }],
   ["K102", "the counting command, naming the script by a relative path and the working directory by an absolute one", "Bash", { command: `node ${COUNTS} ${WD}` }, ALLOWED],
   ["K103", "the counting command, naming a working directory whose name holds a space, in single quotes", "Bash", { command: `node ${C}/${COUNTS} 'my runs'` }, ALLOWED, { cwd: T }],
@@ -805,8 +809,9 @@ const cases = [
 
   /* K2. Every other form stays refused: the command is three words, two of them bare or single-quoted,
      naming the pinned script and a folder that directly holds vespera.db, run from an allowed current
-     directory. Each is read as before and refused as a path into a working directory, and since
-     docs/adr/0215 also for naming a path in .claude/hooks. */
+     directory. Each is read as before and refused for naming a path in .claude/hooks (docs/adr/0215).
+     K219 to K221 name no such path, and since docs/adr/0264 are let through: the working directory they
+     name lies under an allowed root, and is open as that root is. */
   ["K201", "the counting script given vespera.db itself, a file inside the working directory", "Bash", { command: `node ${C}/${COUNTS} working-directory/vespera.db` }, REFUSED, { cwd: T }],
   ["K202", "the counting script given a folder inside the working directory", "Bash", { command: `node ${C}/${COUNTS} working-directory/deliverable` }, REFUSED, { cwd: T }],
   ["K203", "the counting script given a folder holding vespera.lock and no vespera.db", "Bash", { command: `node ${C}/${COUNTS} locked` }, REFUSED, { cwd: T }],
@@ -825,10 +830,10 @@ const cases = [
   ["K216", "the counting command with a .. in the working directory's path", "Bash", { command: `node ${C}/${COUNTS} scratch/../working-directory` }, REFUSED, { cwd: T }],
   ["K217", "the counting command in Bash with the working directory written with backslashes outside quotes", "Bash", { command: `node ${C}/${COUNTS} ${back(WD)}` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["K218", "another script of the hooks folder given a working directory", "Bash", { command: `node ${C}/${GUARD} working-directory` }, REFUSED, { cwd: T }],
-  ["K219", "a copy of the counting script outside the hooks folder given a working directory", "Bash", { command: "node scratch/working-directory-counts.mjs working-directory" }, REFUSED, { cwd: T }],
-  ["K220", "node -e given vespera.db", "Bash", { command: `node -e "require('node:sqlite')" working-directory/vespera.db` }, REFUSED, { cwd: T }],
-  ["K221", "sqlite3 asking vespera.db for a count", "Bash", { command: `sqlite3 working-directory/vespera.db "SELECT COUNT(*) FROM verdict"` }, REFUSED, { cwd: T }],
-  ["K222", "the counting command run with a working directory as the current directory", "Bash", { command: `node ${C}/${COUNTS} .` }, REFUSED, { cwd: WD }],
+  ["K219", "a copy of the counting script outside the hooks folder given a working directory", "Bash", { command: "node scratch/working-directory-counts.mjs working-directory" }, ALLOWED, { cwd: T }],
+  ["K220", "node -e given vespera.db", "Bash", { command: `node -e "require('node:sqlite')" working-directory/vespera.db` }, ALLOWED, { cwd: T }],
+  ["K221", "sqlite3 asking vespera.db for a count", "Bash", { command: `sqlite3 working-directory/vespera.db "SELECT COUNT(*) FROM verdict"` }, ALLOWED, { cwd: T }],
+  ["K222", "the counting command run with a working directory as the current directory", "Bash", { command: `node ${C}/${COUNTS} .` }, ALLOWED, { cwd: WD }],
   ["K223", "the counting command inside bash -c", "Bash", { command: `bash -c 'node ${C}/${COUNTS} working-directory'` }, REFUSED, { cwd: T }],
   ["K225", "the counting command with :x after the script, an alternate data stream", "Bash", { command: `node ${C}/${COUNTS}:x working-directory` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
   ["K226", "the counting command in PowerShell followed by ; and another command", "PowerShell", { command: `node ${back(`${C}/${COUNTS}`)} working-directory; Get-ChildItem` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
@@ -841,18 +846,18 @@ const cases = [
   ["K231", "the counting command run with the folder the script is in as the current directory", "Bash", { command: `node working-directory-counts.mjs ${WD}` }, REFUSED, { cwd: `${C}/${HOOKS}` }],
 
   /* K3. What docs/adr/0212 refused, named in one place: every file a working directory holds. docs/adr/0261
-     admits three of them to Read, profile.yaml, the label file and the review list, which carry no text of
-     a document, and K301, K302 and K304 claim that. The labelling page carries document openings, the
-     arrangement page the titles of documents, and the rest stay refused with them. */
+     admitted three of them to Read, and docs/adr/0264 opens them all, the labelling page with its document
+     openings, the arrangement page with the titles of documents, the log and the database among them,
+     because the operator chose to open them. */
   ["K301", "Read of profile.yaml in a working directory", "Read", { file_path: `${WD}/profile.yaml` }, ALLOWED],
   ["K302", "Read of relevance-labels.yaml in a working directory", "Read", { file_path: `${WD}/relevance-labels.yaml` }, ALLOWED],
-  ["K303", "Read of the labelling page, which carries document openings", "Read", { file_path: `${WD}/relevance-labelling.html` }, REFUSED],
+  ["K303", "Read of the labelling page, which carries document openings", "Read", { file_path: `${WD}/relevance-labelling.html` }, ALLOWED],
   ["K304", "Read of the review list", "Read", { file_path: `${WD}/extraction-failures.html` }, ALLOWED],
-  ["K305", "Read of the arrangement page, which carries the titles of documents", "Read", { file_path: `${WD}/arrangement.html` }, REFUSED],
-  ["K306", "Read of vespera.log", "Read", { file_path: `${WD}/vespera.log` }, REFUSED],
-  ["K307", "Read of a log vespera.log has rolled into", "Read", { file_path: `${WD}/vespera.2026-10-08.0.log` }, REFUSED],
-  ["K308", "Read of the deliverable's CSV", "Read", { file_path: `${WD}/deliverable/run/documents.csv` }, REFUSED],
-  ["K309", "Grep of vespera.db", "Grep", { pattern: "COUNT", path: `${WD}/vespera.db` }, REFUSED],
+  ["K305", "Read of the arrangement page, which carries the titles of documents", "Read", { file_path: `${WD}/arrangement.html` }, ALLOWED],
+  ["K306", "Read of vespera.log", "Read", { file_path: `${WD}/vespera.log` }, ALLOWED],
+  ["K307", "Read of a log vespera.log has rolled into", "Read", { file_path: `${WD}/vespera.2026-10-08.0.log` }, ALLOWED],
+  ["K308", "Read of the deliverable's CSV", "Read", { file_path: `${WD}/deliverable/run/documents.csv` }, ALLOWED],
+  ["K309", "Grep of vespera.db", "Grep", { pattern: "COUNT", path: `${WD}/vespera.db` }, ALLOWED],
 
   /* K4. docs/adr/0261: Read of profile.yaml, the label file and the six pages of paths, counts and reasons,
      and Edit and Write of profile.yaml, directly in a working directory, are let through. */
@@ -867,33 +872,99 @@ const cases = [
   ["K409", "Read of the cluster-sizes page", "Read", { file_path: `${WD}/cluster-sizes.html` }, ALLOWED],
   ["K410", "Read of profile.yaml by a relative path, with the working directory as the current directory", "Read", { file_path: "profile.yaml" }, ALLOWED, { cwd: WD }],
   ["K411", "Read of profile.yaml through a link to the working directory", "Read", { file_path: `${LINKS}/to-working-directory/profile.yaml` }, ALLOWED, { needsLink: true }],
-  // The name is compared folded to one case on Windows only, where the file system opens PROFILE.YAML as
-  // profile.yaml; elsewhere it is another name, and is refused.
-  ["K412", `Read of PROFILE.YAML in a working directory, ${windows ? "which Windows opens as profile.yaml" : "which is another name off Windows"}`, "Read", { file_path: `${WD}/PROFILE.YAML` }, windows ? ALLOWED : REFUSED],
+  // docs/adr/0261 compared the name folded to one case on Windows only. Since docs/adr/0264 no name is
+  // compared: every name in a working directory under an allowed root is open, on every platform.
+  ["K412", "Read of PROFILE.YAML in a working directory", "Read", { file_path: `${WD}/PROFILE.YAML` }, ALLOWED],
   // docs/adr/0263: the page the boilerplate floor is read off joins the six.
   ["K413", "Read of the document-frequency page", "Read", { file_path: `${WD}/document-frequency.html` }, ALLOWED],
 
-  /* K5. docs/adr/0261: everything else stays refused: a page or the label file to a tool that writes,
+  /* K5. What docs/adr/0261 refused beside what it admitted: a page or the label file to a tool that writes,
      profile.yaml to any tool but Read, Edit and Write and to every shell command, an admitted name
      anywhere but directly in a working directory or under any spelling but its own, a page while it is
-     being written, a second name of another file, and a working directory the allow list does not name. */
-  ["K501", "Write of the review list", "Write", { file_path: `${WD}/extraction-failures.html`, content: "x" }, REFUSED],
-  ["K502", "Edit of the survivor list", "Edit", { file_path: `${WD}/extraction-survivors.html`, old_string: "a", new_string: "b" }, REFUSED],
-  ["K503", "Write of relevance-labels.yaml, whose answers are the operator's or a local model's", "Write", { file_path: `${WD}/relevance-labels.yaml`, content: "x" }, REFUSED],
-  ["K504", "NotebookEdit of profile.yaml", "NotebookEdit", { notebook_path: `${WD}/profile.yaml`, new_source: "x" }, REFUSED],
-  ["K505", "Grep whose path is profile.yaml", "Grep", { pattern: "seedFolder", path: `${WD}/profile.yaml` }, REFUSED],
-  ["K506", "Glob of the working directory for profile.yaml", "Glob", { pattern: "profile.yaml", path: WD }, REFUSED],
-  ["K507", "cat of profile.yaml", "Bash", { command: "cat working-directory/profile.yaml" }, REFUSED, { cwd: T }],
-  ["K508", "sed -i on profile.yaml", "Bash", { command: "sed -i s/null/x/ working-directory/profile.yaml" }, REFUSED, { cwd: T }],
-  ["K509", "Get-Content of profile.yaml", "PowerShell", { command: String.raw`Get-Content working-directory\profile.yaml` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
-  ["K510", "Read of a file named profile.yaml in a folder of the working directory", "Read", { file_path: `${WD}/deliverable/profile.yaml` }, REFUSED],
-  ["K511", "Read of the review list while it is being written, as its .part file", "Read", { file_path: `${WD}/extraction-failures.html.part` }, REFUSED],
-  ["K512", "Read of profile.yaml with a stream name after it", "Read", { file_path: `${WD}/profile.yaml:x` }, REFUSED],
-  ["K513", "Read of profile.yaml with a dot after it", "Read", { file_path: `${WD}/profile.yaml.` }, REFUSED],
-  ["K514", "Read of profile.yaml with a space after it", "Read", { file_path: `${WD}/profile.yaml ` }, REFUSED],
+     being written, and a second name of another file. Since docs/adr/0264 each is let through, as it is
+     anywhere under an allowed root; what an agent writes there is bound by the written rule. K515 stays
+     refused: a working directory the allow list does not name is outside it. */
+  ["K501", "Write of the review list", "Write", { file_path: `${WD}/extraction-failures.html`, content: "x" }, ALLOWED],
+  ["K502", "Edit of the survivor list", "Edit", { file_path: `${WD}/extraction-survivors.html`, old_string: "a", new_string: "b" }, ALLOWED],
+  ["K503", "Write of relevance-labels.yaml, whose answers are the operator's or a local model's", "Write", { file_path: `${WD}/relevance-labels.yaml`, content: "x" }, ALLOWED],
+  ["K504", "NotebookEdit of profile.yaml", "NotebookEdit", { notebook_path: `${WD}/profile.yaml`, new_source: "x" }, ALLOWED],
+  ["K505", "Grep whose path is profile.yaml", "Grep", { pattern: "seedFolder", path: `${WD}/profile.yaml` }, ALLOWED],
+  ["K506", "Glob of the working directory for profile.yaml", "Glob", { pattern: "profile.yaml", path: WD }, ALLOWED],
+  ["K507", "cat of profile.yaml", "Bash", { command: "cat working-directory/profile.yaml" }, ALLOWED, { cwd: T }],
+  ["K508", "sed -i on profile.yaml", "Bash", { command: "sed -i s/null/x/ working-directory/profile.yaml" }, ALLOWED, { cwd: T }],
+  ["K509", "Get-Content of profile.yaml", "PowerShell", { command: String.raw`Get-Content working-directory\profile.yaml` }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["K510", "Read of a file named profile.yaml in a folder of the working directory", "Read", { file_path: `${WD}/deliverable/profile.yaml` }, ALLOWED],
+  ["K511", "Read of the review list while it is being written, as its .part file", "Read", { file_path: `${WD}/extraction-failures.html.part` }, ALLOWED],
+  ["K512", "Read of profile.yaml with a stream name after it", "Read", { file_path: `${WD}/profile.yaml:x` }, ALLOWED],
+  ["K513", "Read of profile.yaml with a dot after it", "Read", { file_path: `${WD}/profile.yaml.` }, ALLOWED],
+  ["K514", "Read of profile.yaml with a space after it", "Read", { file_path: `${WD}/profile.yaml ` }, ALLOWED],
   ["K515", "Write of profile.yaml in a working directory under no allowed root", "Write", { file_path: `${O}/counted/profile.yaml`, content: "x" }, REFUSED],
-  ["K516", "Read of vespera.lock", "Read", { file_path: `${LOCKED}/vespera.lock` }, REFUSED],
-  ["K517", "Read of a review list that is a second name of a file outside the working directory", "Read", { file_path: `${HARD_LINKED}/extraction-failures.html` }, REFUSED, { needsHardLink: true }],
+  ["K516", "Read of vespera.lock", "Read", { file_path: `${LOCKED}/vespera.lock` }, ALLOWED],
+  ["K517", "Read of a review list that is a second name of a file outside the working directory", "Read", { file_path: `${HARD_LINKED}/extraction-failures.html` }, ALLOWED, { needsHardLink: true }],
+
+  /* K6. docs/adr/0264: outside the allow list, which the guard takes for what may be an archive, what
+     reads a file or writes is refused, and what prints names is let through. ../outside, from the
+     checkout, is the fixture's folder under no allowed root, named relatively so that every platform
+     reads it (a rooted POSIX path in a command is not read, docs/adr/0196 section 5). D02, D06 and D07
+     hold Read, Write and Edit there, and R302 holds cat. */
+  ["K601", "Glob whose path is a folder under no allowed root", "Glob", { pattern: "**/*", path: O }, ALLOWED],
+  ["K602", "Glob whose path is a working directory under no allowed root", "Glob", { pattern: "**/*", path: `${O}/counted` }, ALLOWED],
+  ["K603", "Grep whose path is a folder under no allowed root", "Grep", { pattern: "x", path: O }, REFUSED],
+  ["K604", "Read of vespera.db in a working directory under no allowed root, which is outside the allow list", "Read", { file_path: `${O}/counted/vespera.db` }, REFUSED],
+
+  /* K6, continued. A shell command naming such a path is let through when every program it runs is a
+     lister, bare: ls, dir, stat, Get-ChildItem, gci, Get-Item or Test-Path, the PowerShell names in any
+     case; and it has no redirect but to /dev/null or $null and 2>&1. */
+  ["K610", "ls of a folder under no allowed root", "Bash", { command: "ls ../outside" }, ALLOWED],
+  ["K611", "dir of such a folder", "Bash", { command: "dir ../outside" }, ALLOWED],
+  ["K612", "stat of a file in it", "Bash", { command: "stat ../outside/doc.txt" }, ALLOWED],
+  ["K613", "Get-ChildItem of such a folder", "PowerShell", { command: "Get-ChildItem ../outside" }, ALLOWED],
+  ["K614", "gci of such a folder", "PowerShell", { command: "gci ../outside" }, ALLOWED],
+  ["K615", "Get-Item of a file in it", "PowerShell", { command: "Get-Item ../outside/doc.txt" }, ALLOWED],
+  ["K616", "Test-Path of a file in it", "PowerShell", { command: "Test-Path ../outside/doc.txt" }, ALLOWED],
+  ["K617", "Get-ChildItem written in another case", "PowerShell", { command: "get-childitem ../outside" }, ALLOWED],
+  ["K618", "ls with options, then stat, after a semicolon", "Bash", { command: "ls -la ../outside; stat ../outside/doc.txt" }, ALLOWED],
+  ["K619", "ls with its errors sent to /dev/null", "Bash", { command: "ls ../outside 2>/dev/null" }, ALLOWED],
+  ["K620", "ls with its errors joined to its output", "Bash", { command: "ls ../outside 2>&1" }, ALLOWED],
+  ["K621", "Get-ChildItem with its errors sent to $null", "PowerShell", { command: "Get-ChildItem ../outside 2>$null" }, ALLOWED],
+
+  /* K6, continued. Every other command naming such a path stays refused: a program that prints or copies
+     a file's content, runs code, writes, or lists by options that read a file; a lister fed or followed
+     by another program, or by a redirect; a program named by a path or after an assignment; and a lister
+     naming a closed .claude folder, which docs/adr/0215 refuses whatever the program. */
+  ["K630", "Get-Content of a file under no allowed root", "PowerShell", { command: "Get-Content ../outside/doc.txt" }, REFUSED],
+  ["K631", "type of such a file", "Bash", { command: "type ../outside/doc.txt" }, REFUSED],
+  ["K632", "python run on such a file", "Bash", { command: "python ../outside/doc.txt" }, REFUSED],
+  ["K633", "cp of such a file into the repository", "Bash", { command: "cp ../outside/doc.txt copied.txt" }, REFUSED],
+  ["K634", "rm of such a file", "Bash", { command: "rm ../outside/doc.txt" }, REFUSED],
+  ["K635", "mv of such a file", "Bash", { command: "mv ../outside/doc.txt ../outside/moved.txt" }, REFUSED],
+  ["K636", "find in such a folder, which -exec and -printf would make read and write", "Bash", { command: "find ../outside -name doc.txt" }, REFUSED],
+  ["K637", "du of such a folder, whose --files0-from reads a file's text as names and prints them", "Bash", { command: "du -s ../outside" }, REFUSED],
+  ["K638", "ls of such a folder piped into head, which names no path", "Bash", { command: "ls ../outside | head" }, REFUSED],
+  ["K639", "ls of such a folder redirected to a file", "Bash", { command: "ls ../outside > listing.txt" }, REFUSED],
+  ["K640", "ls of what a command substitution of cat prints", "Bash", { command: "ls $(cat ../outside/doc.txt)" }, REFUSED],
+  ["K641", "ls of what a backtick substitution of cat prints", "Bash", { command: "ls `cat ../outside/doc.txt`" }, REFUSED],
+  ["K642", "Get-ChildItem of what a parenthesised Get-Content returns", "PowerShell", { command: "Get-ChildItem (Get-Content ../outside/doc.txt)" }, REFUSED],
+  ["K643", "ls of such a folder, then && and cat of a file in it", "Bash", { command: "ls ../outside && cat ../outside/doc.txt" }, REFUSED],
+  ["K644", "a program named ls by a path, which may be any program", "Bash", { command: "./ls ../outside" }, REFUSED],
+  ["K645", "ls after an assignment of a variable", "Bash", { command: "LC_ALL=C ls ../outside" }, REFUSED],
+  ["K646", "ls of such a folder and of the checkout's .claude", "Bash", { command: "ls ../outside .claude" }, REFUSED],
+
+  /* K6, continued. The Vespera jar run on such a root: java or java.exe, bare or by a path, quoted or not,
+     no option before -jar, a jar named vespera-<anything>.jar, run, and at most a root and --db-dir.
+     The root is the one word of it the allow list does not decide: the jar, java, the --db-dir value and
+     the current directory, where Vespera writes its working directory, are checked as every path is. */
+  ["K650", "java -jar on the Vespera jar, run on a root under no allowed root", "Bash", { command: "java -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside" }, ALLOWED],
+  ["K651", "the same with java named by its path under ~/.jdks", "Bash", { command: "~/.jdks/openjdk-26.0.2.1/bin/java -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside" }, ALLOWED],
+  ["K652", "the same in PowerShell, with java.exe by a quoted Windows path after the call operator and the root on a drive no allowed root is on", "PowerShell", { command: String.raw`& '${back(H)}\.jdks\jdk 26\bin\java.exe' -jar ${back(C)}\target\vespera-0.0.1-SNAPSHOT.jar run Q:\archive` }, ALLOWED, { windows: ONLY_WINDOWS.powerShell }],
+  ["K653", "the same with --db-dir naming a folder under the temp folder", "Bash", { command: `java -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside --db-dir=${T}/scratch/wd` }, ALLOWED],
+  ["K654", "the same with --db-dir naming a folder under no allowed root, where Vespera would write", "Bash", { command: "java -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside --db-dir=../outside/wd" }, REFUSED],
+  ["K655", "java -jar on another jar, run on such a root", "Bash", { command: "java -jar target/other-0.0.1.jar run ../outside" }, REFUSED],
+  ["K656", "java with -javaagent before -jar on the Vespera jar", "Bash", { command: "java -javaagent:agent.jar -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside" }, REFUSED],
+  ["K657", "java with -Xmx before -jar on the Vespera jar", "Bash", { command: "java -Xmx4g -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside" }, REFUSED],
+  ["K658", "the Vespera jar's label command on a file under no allowed root", "Bash", { command: "java -jar target/vespera-0.0.1-SNAPSHOT.jar label ../outside/doc.txt" }, REFUSED],
+  ["K659", "the Vespera jar run on such a root with a Spring property among its arguments", "Bash", { command: "java -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside --spring.ai.ollama.base-url=https://example.com" }, REFUSED],
+  ["K660", "the Vespera jar run from a current directory under no allowed root, where it would write .vespera", "Bash", { command: "java -jar ../checkout/target/vespera-0.0.1-SNAPSHOT.jar run ." }, REFUSED, { cwd: O }],
 ];
 
 /* ---------- the .claude folders, held to docs/adr/0215 ---------- */
@@ -1016,7 +1087,8 @@ const NO_SHORT_NAME = "this volume gives the fixture's .claude no 8.3 name";
 
 /* H. Under the home folder's .claude, what the allow list does not name is refused to every tool, for
    reading as for writing, by ~, $HOME, ${HOME} and a relative path that climbs out of the memory
-   directory. One path through each tool that can name it. */
+   directory, but to Glob, which prints names and reads no file, and since docs/adr/0264 is let through
+   outside the allow list. One path through each tool that can name it. */
 for (const [nn, name, whatItIs] of CLOSED_UNDER_HOME) {
   const p = `${HC}/${name}`;
   const of = `~/.claude/${name}, ${whatItIs}`;
@@ -1026,7 +1098,7 @@ for (const [nn, name, whatItIs] of CLOSED_UNDER_HOME) {
     [`H${nn}03`, `Write of ${of}`, "Write", { file_path: p, content: "x" }, REFUSED],
     [`H${nn}04`, `NotebookEdit of ${of}`, "NotebookEdit", { notebook_path: p, new_source: "x" }, REFUSED],
     [`H${nn}05`, `Grep whose path is ${of}`, "Grep", { pattern: "x", path: p }, REFUSED],
-    [`H${nn}06`, `Glob whose pattern names, beneath its path, ${of}`, "Glob", { pattern: leafOf(p), path: folderOf(p) }, REFUSED],
+    [`H${nn}06`, `Glob whose pattern names, beneath its path, ${of}`, "Glob", { pattern: leafOf(p), path: folderOf(p) }, ALLOWED],
     [`H${nn}07`, `cat, by ~, of ${of}`, "Bash", { command: `cat ~/.claude/${name}` }, REFUSED],
     [`H${nn}08`, `a redirect, by $HOME, into ${of}`, "Bash", { command: `echo x >> $HOME/.claude/${name}` }, REFUSED],
     [`H${nn}09`, `cat, by \${HOME}, of ${of}`, "Bash", { command: `cat \${HOME}/.claude/${name}` }, REFUSED],
@@ -1092,7 +1164,7 @@ cases.push(
 
   /* Q1. A .claude folder itself, and a folder in it that is closed, is refused to a shell command, as
      what it names and as its current directory. A search reads, and is let through. The home folder's
-     .claude is outside the allow list, and is refused to every tool. */
+     .claude is outside the allow list, and is refused to every tool but Glob (docs/adr/0264). */
   ["Q101", "ls of the checkout's .claude", "Bash", { command: "ls .claude" }, REFUSED],
   ["Q102", "rm -rf of the folder the guard is in", "Bash", { command: "rm -rf .claude/hooks" }, REFUSED],
   ["Q103", "Remove-Item of the checkout's .claude", "PowerShell", { command: "Remove-Item .claude -Recurse" }, REFUSED],
@@ -1107,7 +1179,7 @@ cases.push(
   ["Q112", "ls of ~/.claude/projects/.., which is the home folder's .claude", "Bash", { command: "ls ~/.claude/projects/.." }, REFUSED],
   ["Q113", "cd to ~/.claude/projects, then cat of a relative path that climbs to the settings beside it", "Bash", { command: "cd ~/.claude/projects && cat ../settings.json" }, REFUSED, { cwd: `${C}/src` }],
   ["Q114", "Grep whose path is the home folder's .claude", "Grep", { pattern: "x", path: HC }, REFUSED],
-  ["Q115", "Glob with an absolute pattern over the home folder's .claude", "Glob", { pattern: `${HC}/**/*.json` }, REFUSED],
+  ["Q115", "Glob with an absolute pattern over the home folder's .claude", "Glob", { pattern: `${HC}/**/*.json` }, ALLOWED],
 
   /* Q2. A worktree is a checkout of its own beneath worktrees, and stays writable outside its .claude. */
   ["Q201", "Write of a source file in a worktree", "Write", { file_path: `${WT}/src/Example.java`, content: "x" }, ALLOWED],
@@ -1333,37 +1405,37 @@ for (const [nn, rel, whatItIs, asPath, asText] of BOTH_ROUTES) {
 cases.push(
   /* Z1. A PowerShell command that names a working directory with a dot, two dots, a space or a stream
      name after its name, or after the name of a file in it. Z101 is the call the issue measured. */
-  ["Z101", "Get-Content of a report through the working directory's name with a dot after it", "PowerShell", { command: "Get-Content working-directory./report.html" }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
-  ["Z102", "Get-Content of a report through the working directory's name with two dots after it, written with a backslash", "PowerShell", { command: String.raw`Get-Content working-directory..\report.html` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
-  ["Z103", "Get-Content, quoted, with a space after the working directory's name, whose token is cut at the space and is then the working directory itself", "PowerShell", { command: String.raw`Get-Content 'working-directory \report.html'` }, REFUSED, { cwd: T }],
-  ["Z104", "Get-Content, quoted, with a space after the name of a working directory whose name holds a space", "PowerShell", { command: String.raw`Get-Content 'my runs \report.html'` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
-  ["Z105", "Get-Content, quoted, with a dot after the name of a working directory whose name holds a space", "PowerShell", { command: String.raw`Get-Content 'my runs.\report.html'` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
-  ["Z106", "Get-Content, quoted, through the working directory's own stream name", "PowerShell", { command: String.raw`Get-Content 'working-directory::$INDEX_ALLOCATION\report.html'` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
-  ["Z107", "Get-Content with a dot after the file's name, in a folder that is the working directory by its plain name", "PowerShell", { command: "Get-Content working-directory/report.html." }, REFUSED, { cwd: T }],
-  ["Z108", "Get-Content, quoted, of the file's data stream, in a folder that is the working directory by its plain name", "PowerShell", { command: "Get-Content 'working-directory/report.html::$DATA'" }, REFUSED, { cwd: T }],
-  ["Z109", "Get-Content of the log through the name of a folder holding only vespera.lock, with a dot after it", "PowerShell", { command: String.raw`Get-Content locked.\vespera.log` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
-  ["Z110", "Set-Location to the working directory's name with a dot and a space after it, whose dot ends the token and is taken off", "PowerShell", { command: "Set-Location working-directory. ; Get-Content report.html" }, REFUSED, { cwd: T }],
-  ["Z111", "Set-Location to the working directory's name with a dot and a backslash after it, then Get-Content of a plain name", "PowerShell", { command: String.raw`Set-Location working-directory.\; Get-Content report.html` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
-  ["Z112", "Set-Location to an allowed folder named with a dot after it, then Get-Content into a working directory beneath the folder it opens", "PowerShell", { command: String.raw`Set-Location deep.\; Get-Content a\b\notes.txt` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
-  ["Z113", "Get-ChildItem of a plain name, quoted, that is a working directory's name with a dot and a space after it", "PowerShell", { command: "Get-ChildItem 'my runs. '" }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z101", "Get-Content of a report through the working directory's name with a dot after it", "PowerShell", { command: "Get-Content working-directory./report.html" }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z102", "Get-Content of a report through the working directory's name with two dots after it, written with a backslash", "PowerShell", { command: String.raw`Get-Content working-directory..\report.html` }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z103", "Get-Content, quoted, with a space after the working directory's name, whose token is cut at the space and is then the working directory itself", "PowerShell", { command: String.raw`Get-Content 'working-directory \report.html'` }, ALLOWED, { cwd: T }],
+  ["Z104", "Get-Content, quoted, with a space after the name of a working directory whose name holds a space", "PowerShell", { command: String.raw`Get-Content 'my runs \report.html'` }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z105", "Get-Content, quoted, with a dot after the name of a working directory whose name holds a space", "PowerShell", { command: String.raw`Get-Content 'my runs.\report.html'` }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z106", "Get-Content, quoted, through the working directory's own stream name", "PowerShell", { command: String.raw`Get-Content 'working-directory::$INDEX_ALLOCATION\report.html'` }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z107", "Get-Content with a dot after the file's name, in a folder that is the working directory by its plain name", "PowerShell", { command: "Get-Content working-directory/report.html." }, ALLOWED, { cwd: T }],
+  ["Z108", "Get-Content, quoted, of the file's data stream, in a folder that is the working directory by its plain name", "PowerShell", { command: "Get-Content 'working-directory/report.html::$DATA'" }, ALLOWED, { cwd: T }],
+  ["Z109", "Get-Content of the log through the name of a folder holding only vespera.lock, with a dot after it", "PowerShell", { command: String.raw`Get-Content locked.\vespera.log` }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z110", "Set-Location to the working directory's name with a dot and a space after it, whose dot ends the token and is taken off", "PowerShell", { command: "Set-Location working-directory. ; Get-Content report.html" }, ALLOWED, { cwd: T }],
+  ["Z111", "Set-Location to the working directory's name with a dot and a backslash after it, then Get-Content of a plain name", "PowerShell", { command: String.raw`Set-Location working-directory.\; Get-Content report.html` }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z112", "Set-Location to an allowed folder named with a dot after it, then Get-Content into a working directory beneath the folder it opens", "PowerShell", { command: String.raw`Set-Location deep.\; Get-Content a\b\notes.txt` }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
+  ["Z113", "Get-ChildItem of a plain name, quoted, that is a working directory's name with a dot and a space after it", "PowerShell", { command: "Get-ChildItem 'my runs. '" }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
   ["Z114", "Get-ChildItem of three dots beneath the working directory's name, which PowerShell opens as the working directory", "PowerShell", { command: "Get-ChildItem working-directory/..." }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
   ["Z115", "Get-ChildItem of three dots beneath the working directory, by its drive path", "PowerShell", { command: `Get-ChildItem ${WD}/...` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
 
   /* Z2. The same spellings through the file tools and the search tools, whose paths go through the same
      readings. */
-  ["Z201", "Read of a report through the working directory's name with a dot after it", "Read", { file_path: `${WD}./report.html` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["Z202", "Write of a page not there yet, through that name", "Write", { file_path: `${WD}./a-new-page.html`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["Z203", "Edit of a report through that name", "Edit", { file_path: `${WD}./report.html`, old_string: "a", new_string: "b" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["Z204", "NotebookEdit of a notebook through that name", "NotebookEdit", { notebook_path: `${WD}./notes.ipynb`, new_source: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["Z205", "Read of a report through the working directory's name with two dots after it", "Read", { file_path: `${WD}../report.html` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["Z206", "Read of a report through the working directory's name with a space after it", "Read", { file_path: `${WD} /report.html` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["Z207", "Read by a relative path through the working directory's name with a dot after it", "Read", { file_path: "working-directory./report.html" }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
-  ["Z208", "Read of the log through the name of a folder holding only vespera.lock, with a dot after it", "Read", { file_path: `${LOCKED}./vespera.log` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["Z209", "Grep whose path is the working directory's name with a dot after it", "Grep", { pattern: "x", path: `${WD}.` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["Z210", "Glob whose path is that name", "Glob", { pattern: "**/*", path: `${WD}.` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["Z211", "Glob with an absolute pattern through that name", "Glob", { pattern: `${WD}./**/*.html` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["Z212", "Grep whose glob climbs out of its path to that name", "Grep", { pattern: "x", path: `${T}/scratch`, glob: "../working-directory./*.html" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["Z213", "Read of a report with a dot after the file's name, in the working directory by its plain name", "Read", { file_path: `${WD}/report.html.` }, REFUSED],
+  ["Z201", "Read of a report through the working directory's name with a dot after it", "Read", { file_path: `${WD}./report.html` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["Z202", "Write of a page not there yet, through that name", "Write", { file_path: `${WD}./a-new-page.html`, content: "x" }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["Z203", "Edit of a report through that name", "Edit", { file_path: `${WD}./report.html`, old_string: "a", new_string: "b" }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["Z204", "NotebookEdit of a notebook through that name", "NotebookEdit", { notebook_path: `${WD}./notes.ipynb`, new_source: "x" }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["Z205", "Read of a report through the working directory's name with two dots after it", "Read", { file_path: `${WD}../report.html` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["Z206", "Read of a report through the working directory's name with a space after it", "Read", { file_path: `${WD} /report.html` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["Z207", "Read by a relative path through the working directory's name with a dot after it", "Read", { file_path: "working-directory./report.html" }, ALLOWED, { cwd: T, windows: ONLY_WINDOWS.drive }],
+  ["Z208", "Read of the log through the name of a folder holding only vespera.lock, with a dot after it", "Read", { file_path: `${LOCKED}./vespera.log` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["Z209", "Grep whose path is the working directory's name with a dot after it", "Grep", { pattern: "x", path: `${WD}.` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["Z210", "Glob whose path is that name", "Glob", { pattern: "**/*", path: `${WD}.` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["Z211", "Glob with an absolute pattern through that name", "Glob", { pattern: `${WD}./**/*.html` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["Z212", "Grep whose glob climbs out of its path to that name", "Grep", { pattern: "x", path: `${T}/scratch`, glob: "../working-directory./*.html" }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["Z213", "Read of a report with a dot after the file's name, in the working directory by its plain name", "Read", { file_path: `${WD}/report.html.` }, ALLOWED],
 
   /* Z3. A name made only of dots, spaces or a stream name, which is neither . nor .., is refused on
      Windows, where what it opens has not been measured. */
@@ -1458,7 +1530,7 @@ cases.push(
   ["I402", "Read of ~/.claude/settings.json, which the allow list does not name", "Read", { file_path: "~/.claude/settings.json" }, REFUSED],
   ["I403", "Write under ~/Documents", "Write", { file_path: "~/Documents/new.txt", content: "x" }, REFUSED],
   ["I404", "Grep whose path is ~/Documents", "Grep", { pattern: "x", path: "~/Documents" }, REFUSED],
-  ["I405", "Glob whose pattern begins at ~/Documents", "Glob", { pattern: "~/Documents/**/*.txt" }, REFUSED],
+  ["I405", "Glob whose pattern begins at ~/Documents", "Glob", { pattern: "~/Documents/**/*.txt" }, ALLOWED],
   ["I406", "Read of ~ and a backslash before Documents", "Read", { file_path: String.raw`~\Documents\x.txt` }, REFUSED],
   ["I407", "Read of ~/.m2/settings.xml, which the allow list names", "Read", { file_path: "~/.m2/settings.xml" }, ALLOWED],
   ["I408", "Write into the memory directory by ~", "Write", { file_path: "~/.claude/projects/fixture-project/memory/a-new-note.md", content: "x" }, ALLOWED],
@@ -1482,7 +1554,7 @@ cases.push(
   ["I602", "Write beneath a name of one dot and a stream name", "Write", { file_path: `${T}/scratch/.:x/note.txt`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["I603", "Get-Content beneath a name of two dots and a stream name, by a relative path", "PowerShell", { command: String.raw`Get-Content scratch\..:x\note.txt` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
   ["I604", "Write of the checkout's settings through a stream name of .claude that holds a line terminator", "Write", { file_path: `${C}/.claude:x\ny/settings.json`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["I605", "Read of a report through a stream name of the working directory that holds a line terminator", "Read", { file_path: `${WD}:x\ny/report.html` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["I605", "Read of a report through a stream name of the working directory that holds a line terminator", "Read", { file_path: `${WD}:x\ny/report.html` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
@@ -1580,6 +1652,12 @@ test("W08 allowed: Read of ~/.claude/settings.json when the local allow list nam
 
 test("W09 allowed: Read of ~/.claude/.credentials.json when the local allow list names ~/.claude whole", () => {
   claim(widened("Read", { file_path: `${HC}/.credentials.json` }), ALLOWED, `Read of ${HC}/.credentials.json under ${WIDENED_LIST}`);
+});
+
+// docs/adr/0264 lets a command of listers through outside the allow list and lifts nothing else: a place
+// named for reading only stays refused to every shell command, as docs/adr/0215 has it.
+test("W10 refused: ls under a folder the local allow list names for reading only", () => {
+  claim(widened("Bash", { command: "ls ~/Documents" }), REFUSED, `ls ~/Documents under ${WIDENED_LIST}`);
 });
 
 /* ---------- a read line beneath a plain line, held to docs/adr/0217 ---------- */

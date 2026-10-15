@@ -1,5 +1,7 @@
 # ADR-263 — An agent may read the page the boilerplate floor is read off
 
+> **Partly amended — see [ADR-264](0264-the-private-paths-guard-refuses-only-what-reads-or-writes-outside-the-allow-list-and-a-working-directory-is-open-as-the-place-it-lies-in.md).** The admission of `document-frequency.html` by name below is no longer needed: the page is open, to every tool, as every file of a working directory the allow list names is. What the page carries, and that the floor stays the operator's, stand.
+
 - **Date**: 2026-10-15
 - **Status**: accepted on 2026-10-15.
 - **Amends**: [ADR-261](0261-an-agent-may-read-and-write-a-working-directorys-profile-and-read-its-pages-of-paths-counts-and-reasons-and-nothing-else-in-it.md), in these places and no others: §2's table, which gains `document-frequency.html` with Read and no Edit or Write, and its Context table, which gains the page's row. It carries a note at its head.

@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-261](0261-an-agent-may-read-and-write-a-working-directorys-profile-and-read-its-pages-of-paths-counts-and-reasons-and-nothing-else-in-it.md).** These passages below are no longer the whole of the decision, and that record says what replaces each: §1's "and nothing else in it" and "The script is the only way in", since the script is the only way into `vespera.db` and that record names the files a file tool opens; §1's refused bullet "every file in the working directory as a file", which no longer refuses `profile.yaml`, `relevance-labels.yaml` or the six pages that record names; and §8's K301, K302 and K304, which now claim the call is let through, so that "*Each must stay green*" holds for the other six. Everything else in this record stands.
 
+> **Partly amended — see [ADR-264](0264-the-private-paths-guard-refuses-only-what-reads-or-writes-outside-the-allow-list-and-a-working-directory-is-open-as-the-place-it-lies-in.md).** These passages below are no longer the whole of the decision: §1's "and nothing else in it" and "The script is the only way in", since every file of a working directory the allow list names is open to every tool; §7, since `vespera.log` is open with the rest; and §8's K219 to K221, which now claim the call is let through. The counting command, the script, what it prints and its pin stand, and the script stays admitted.
+
 - **Date**: 2026-10-08
 - **Status**: accepted on 2026-10-08.
 - **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), in these places and no others:
