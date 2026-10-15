@@ -1,5 +1,7 @@
 # ADR-080 — The boilerplate floor is a gate, applied before signatures are computed
 
+> **Partly amended — see [ADR-260](0260-a-shingle-reaches-the-boilerplate-floor-by-exact-decimal-arithmetic.md).** A shingle *reaches* `floor × shingled_document_count` where its `document_count` is at least `ceil(floor × shingled_document_count)`, the product taken in exact decimal arithmetic on the floor's shortest decimal, not in `double`. The rest of this record stands.
+
 - **Date**: 2026-09-06
 - **Status**: accepted
 - **Amends**: none (settles what ADR-074 deferred: it named `boilerplateDocumentFrequencyFloor` and said where the floor is applied is stage 4's to decide)

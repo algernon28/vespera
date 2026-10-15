@@ -125,7 +125,7 @@ A walk that has not finished is never used by a later stage. Nothing downstream 
 
 ## Stage 4 — content redundancy
 
-**Set first:** `boilerplateDocumentFrequencyFloor` in `profile.yaml`, read off the reports as the README's table says. Set `embeddingModel` in the same edit, and make sure `seedFolder` is there: all three are settable now, and setting them together saves you an invocation each.
+**Set first:** `boilerplateDocumentFrequencyFloor` in `profile.yaml`, read off `vespera.db` as the README says under the table of values to decide: no report shows it. Set `embeddingModel` in the same edit, and make sure `seedFolder` is there: all three are settable now, and setting them together saves you an invocation each.
 
 **Run:** `vespera run <root>`
 

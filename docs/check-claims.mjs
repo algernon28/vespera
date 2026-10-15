@@ -83,14 +83,18 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
 
 /* ---------- how many decisions ---------- */
 
+// The count and the highest number used to be written by hand in AGENTS.md and the index, and every record added
+// edited the same two lines, so two records added at once conflicted on both (ADR-259). Neither is written now: the
+// directory holds the records and the last file is the highest. What is checked is that no sentence brings one back.
 {
-  const NAME = "the ADR count";
-  const m = claim(/\bholds (\d+) decisions\b/, NAME);
-  if (m) {
-    const claimed = Number(m[1]);
-    if (claimed === adrFiles.length) pass(NAME, `${claimed} decisions`);
-    else fail(NAME, `${AGENTS} says ${claimed}; ${ADR_DIR} holds ${adrFiles.length}`);
-  }
+  const NAME = "no hand-kept count of the decision records";
+  const kept = [
+    [AGENTS, text, /\bholds \d+ decisions\b/, "a count of the records"],
+    [AGENTS, text, /decisions, ADR-001 to ADR-\d{3}\b/, "the highest record"],
+    [ADR_INDEX, adrIndex, /ADR-001 through ADR-\d{3}\b/, "the highest record"],
+  ].filter(([, doc, re]) => re.test(doc));
+  if (kept.length) fail(NAME, kept.map(([where, , , what]) => `${where} states ${what}`).join("; ") + `: the directory holds both`);
+  else pass(NAME, `neither ${AGENTS} nor ${ADR_INDEX} states how many records there are or the highest`);
 }
 
 /* ---------- where the reconstituted records stop ---------- */
@@ -117,23 +121,10 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
 /* ---------- what docs/adr/README.md claims about the decision record ---------- */
 
 // A third document making state claims, and outside every guard until ADR-129. Its
-// range line had drifted behind the files and its boundary sentence named ADR-065
-// where AGENTS.md and the tree both say ADR-050. The two claims rot at different
-// rates and are checked for different things. The range changes on every ADR, so it
-// is checked for currency against the highest id on disk -- the same failure mode as
-// the count line above. The boundary changes never, so it is checked for agreement
+// boundary sentence named ADR-065 where AGENTS.md and the tree both say ADR-050. The
+// boundary changes never, so it is checked for agreement
 // with AGENTS.md's own sentence: the one check here that reads two documents against
 // each other rather than one against the tree.
-{
-  const NAME = "the ADR index range";
-  const m = claim(/One file per architecture decision, ADR-001 through ADR-(\d{3})\./, NAME, adrIndex);
-  if (m) {
-    const highest = Math.max(...adrById.keys());
-    if (Number(m[1]) === highest) pass(NAME, `ADR-001 through ADR-${m[1]}`);
-    else fail(NAME, `${ADR_INDEX} says through ADR-${m[1]}; the highest record is ADR-${String(highest).padStart(3, "0")}`);
-  }
-}
-
 {
   const NAME = "the ADR index boundary";
   const index = claim(/New decisions continue from ADR-(\d{3}) and carry their own full text/, NAME, adrIndex);
@@ -564,6 +555,138 @@ function readmeSection(heading, name) {
 
     if (wrong.length) fail(NAME, wrong.join("; "));
     else pass(NAME, `${jar}; ${services.join(", ")} from ${COMPOSE} on ${published.join(", ")}; built from ${context[1]}; ${model[1]}`);
+  }
+}
+
+/* ---------- what the decision records say of themselves, and what they link to ---------- */
+
+// ADR-249 and ADR-253 hold a record to its decision and keep out of it whether a run was made and the history of
+// its making; `ADecisionRecordHoldsItsDecisionAndNoHistoryTest` holds the words in `./mvnw test`. The same words are
+// read here, from the one list both read (ADR-258), so that a record that breaks the rule fails the claims job in
+// seconds and not at the end of a four-minute build. A link from one record to another by its file name is also
+// resolved, which nothing did: a record renamed, or a name mistyped, left a link that opened nothing.
+const MARKERS = "docs/decision-record-markers.txt";
+
+/** A Java pattern in the list as a JavaScript one: a leading (?i) becomes the flag. */
+function markerPattern(source, whole = false) {
+  const insensitive = source.startsWith("(?i)");
+  const body = insensitive ? source.slice(4) : source;
+  return new RegExp(whole ? `^(?:${body})$` : body, insensitive ? "i" : "");
+}
+
+{
+  const NAME = "the decision records' own words";
+  if (!existsSync(MARKERS)) {
+    fail(NAME, `${MARKERS} is missing: it holds the words ADR-249 and ADR-253 keep out of a record (ADR-258)`);
+  } else {
+    const markers = new Map();
+    for (const line of readFileSync(MARKERS, "utf8").split(/\r?\n/)) {
+      if (!line || line.startsWith("#")) continue;
+      const tab = line.indexOf("\t");
+      markers.set(line.slice(0, tab), line.slice(tab + 1));
+    }
+    const wanted = ["runMadeOrNot", "status", "acceptedOnADate", "accepted", "historyFromTheFirstWithout", "historyInAnyRecord", "indexRow", "firstWithoutHistory"];
+    const lacking = wanted.filter((k) => !markers.has(k));
+    if (lacking.length) {
+      fail(NAME, `${MARKERS} lacks ${lacking.join(", ")}`);
+    } else {
+      const runMade = markerPattern(markers.get("runMadeOrNot"));
+      const status = new RegExp(markers.get("status"), "gm");
+      const acceptedOnADate = markerPattern(markers.get("acceptedOnADate"), true);
+      const accepted = markerPattern(markers.get("accepted"), true);
+      const wide = markerPattern(markers.get("historyFromTheFirstWithout"));
+      const narrow = markerPattern(markers.get("historyInAnyRecord"));
+      const indexRow = new RegExp(markers.get("indexRow"));
+      const first = Number(markers.get("firstWithoutHistory"));
+      const problems = [];
+      for (const file of readdirSync(ADR_DIR).filter((f) => f.endsWith(".md")).sort()) {
+        const number = /^\d{4}-/.test(file) ? Number(file.slice(0, 4)) : -1;
+        const body = readFileSync(join(ADR_DIR, file), "utf8");
+        const lines = body.split(/\r?\n/);
+        const said = (kind, line) => problems.push(`${file.slice(0, 4)} ${kind}: ${line.trim().slice(0, 90)}`);
+        for (const line of lines) if (runMade.test(line)) said("says whether a run was made", line);
+        for (const m of body.matchAll(status)) {
+          if (!accepted.test(m[1])) said("has a Status that is more than acceptance", m[1]);
+          else if (number >= first && !acceptedOnADate.test(m[1])) said("has a Status that is not the date it was accepted", m[1]);
+        }
+        for (const line of lines) {
+          if (narrow.test(line)) said("tells its making", line);
+          else if (number >= first && wide.test(line)) said("tells its making", line);
+          else if (number === -1 && file === "README.md" && indexRow.test(line) && Number(indexRow.exec(line)[1]) >= first && wide.test(line)) said("tells its making in the index", line);
+        }
+      }
+      if (problems.length) fail(NAME, `${problems.length} line(s): ${problems.slice(0, 5).join("; ")}${problems.length > 5 ? "; …" : ""}`);
+      else pass(NAME, `no record or index line tells whether a run was made or the history of its making`);
+    }
+  }
+}
+
+{
+  const NAME = "the links between decision records";
+  const byNumber = new Map(adrFiles.map((f) => [f.slice(0, 4), f]));
+  const broken = [];
+  let linked = 0;
+  for (const file of readdirSync(ADR_DIR).filter((f) => f.endsWith(".md")).sort()) {
+    const body = readFileSync(join(ADR_DIR, file), "utf8");
+    for (const m of body.matchAll(/\]\((\d{4}-[^)\s#/]*\.md)(?:#[^)\s]*)?\)/g)) {
+      linked++;
+      if (adrFiles.includes(m[1])) continue;
+      const now = byNumber.get(m[1].slice(0, 4));
+      broken.push(`${file.slice(0, 4)} links ${m[1].slice(0, 60)}${now ? `, now ${now.slice(0, 60)}` : ", which no record has"}`);
+    }
+  }
+  if (broken.length) fail(NAME, `${broken.length} of ${linked} open nothing: ${broken.slice(0, 4).join("; ")}${broken.length > 4 ? "; …" : ""}`);
+  else pass(NAME, `${linked} links to a record by its file name, every one a record`);
+}
+
+/* ---------- how an agent works under the guard ---------- */
+
+// The guard refuses a command by what its text names, and an agent that did not know how found out by being refused,
+// over and over (ADR-259). AGENTS.md says the three habits that avoid it; this holds that it still does.
+{
+  const NAME = "how a command is written under the guard";
+  const habits = [/names a file by its absolute path and never by `\.\.`/, /written with the Write tool and run by its path/, /transcript is read with Read or Grep/];
+  const lacking = habits.filter((re) => !re.test(text));
+  if (lacking.length) fail(NAME, `${AGENTS} lacks ${lacking.length} of the 3 habits that spare a refusal: ${lacking.map(String).join(", ")}`);
+  else pass(NAME, `${AGENTS} names the 3 habits: absolute paths, scripts written then run, transcripts read with the file tools`);
+}
+
+/* ---------- how the review register is updated ---------- */
+
+// The register is a published page whose read echoes the whole page, which a pass over it paid for every time. Its
+// findings and meta lines are a data file beside the page, edited by docs/review-register.mjs; the procedure is
+// docs/review-register.md. What is held is that the procedure names every command the script has and the data file.
+{
+  const NAME = "the review register's update procedure";
+  const DOC = "docs/review-register.md";
+  const SCRIPT = "docs/review-register.mjs";
+  if (!existsSync(DOC)) fail(NAME, `${DOC} is missing: it says how ${SCRIPT} updates the register's data file`);
+  else {
+    const doc = readFileSync(DOC, "utf8");
+    const commands = [...readFileSync(SCRIPT, "utf8").matchAll(/case "(\w+)":/g)].map((m) => m[1]);
+    const lacking = [...commands.map((c) => `review-register.mjs ${c}`), "register-data.js"].filter((w) => !doc.includes(w));
+    if (lacking.length) fail(NAME, `${DOC} does not name ${lacking.join(", ")}`);
+    else pass(NAME, `${DOC} names the data file and the ${commands.length} commands of ${SCRIPT}`);
+  }
+}
+
+/* ---------- the standard a test is reviewed against ---------- */
+
+// A test written by a pass of fixes was, for nine passes, the thing the next pass found fault with: a claim that
+// could not fail, a name that said what it did not run, a plan matched by a loose substring. REVIEW.md
+// is what a reviewer reads before the diff, and AGENTS.md points an author to it. What is held is that both stand
+// and that REVIEW.md keeps its seven standards.
+{
+  const NAME = "the standard a test is reviewed against";
+  const DOC = "REVIEW.md";
+  const standards = ["Can fail", "Says what it runs", "Matches the whole thing", "One claim, one place", "Holds its decision", "Order and identity", "Shares its setup"];
+  if (!existsSync(DOC)) fail(NAME, `${DOC} is missing: it holds the standard a test is reviewed against`);
+  else {
+    const doc = readFileSync(DOC, "utf8");
+    const lacking = standards.filter((s) => !new RegExp(`^### ${s}\\b`, "m").test(doc));
+    if (lacking.length) fail(NAME, `${DOC} lacks ${lacking.join(", ")}`);
+    else if (!text.includes(DOC)) fail(NAME, `${AGENTS} does not point to ${DOC}`);
+    else pass(NAME, `${DOC} keeps its ${standards.length} standards and ${AGENTS} points to it`);
   }
 }
 

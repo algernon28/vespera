@@ -34,10 +34,11 @@ package io.algernon.vespera.profile;
  *     confidence is never computed) never crosses this floor, whatever it is set to.
  * @param boilerplateDocumentFrequencyFloor stage 3's eventual boilerplate threshold (ADR-074): a
  *     proportion (0 to 1) of a shingle-parameter identity's {@code shingled_document_count} (the
- *     {@code similarity.shingle_corpus_size} denominator), above which a shingle's measured document
- *     frequency would mark it as boilerplate. Ships unset, per <b>observe before enforce</b> — stage 3
- *     only measures document frequency (ADR-038); stage 4 (out of scope here) is where this floor
- *     would actually exclude a shingle from dedup, and nothing here reads it yet. Stated as a
+ *     {@code similarity.shingle_corpus_size} denominator): a shingle whose measured document
+ *     frequency is at least {@code ceil(floor × N)}, taken in exact decimal arithmetic (ADR-260), is
+ *     boilerplate. Ships unset, per <b>observe before enforce</b> — stage 3 only measures document
+ *     frequency (ADR-038); stage 4 reads this floor (ADR-080) and excludes those shingles from
+ *     dedup. Stated as a
  *     proportion rather than an absolute count because a footer in 400 of 500 documents and one in
  *     400 of 400,000 are different phenomena — the values {@code similarity} itself stores stay
  *     counts regardless (ADR-073's "counters, never ratios"). Unlike {@code

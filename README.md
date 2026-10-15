@@ -49,7 +49,7 @@ Vespera writes reports beside the database. Each one measures something; none of
 | The value | Read | Which reports |
 |---|---|---|
 | `seedFolder` | your own knowledge of the archive | — |
-| `boilerplateDocumentFrequencyFloor` | how many documents share the same passages | `format-mix.html` |
+| `boilerplateDocumentFrequencyFloor` | how many documents share the same passages | none: read it off `vespera.db`, as below |
 | `embeddingModel` | whichever model you can serve locally | — |
 | `relevanceScoreFloor` | what each possible cut would cost you, in documents | `relevance-labelling.html`, `cluster-sizes.html`, `seed-corpus-comparison.html` |
 | `degenerateOutputConfidenceFloor` | how well the text extraction went | `confidence-distribution.html` |
@@ -59,6 +59,20 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `generationContextWindow` | how much your own machine can read in one go | — |
 | `logTimestampShareFloor` | how much of each text file begins with a date or a time | `format-mix.html` |
 | `outOfScopeNameEndings` | which files, of no known kind or text, you know are not documents by the ending of their name | `format-mix.html` |
+
+No report shows `boilerplateDocumentFrequencyFloor`'s measurement. Stage 3 stores it in `vespera.db`: for each passage of five words found in two documents or more, `shingle_document_frequency` holds how many documents it is in, and `shingle_corpus_size` holds how many documents were measured. The floor is a share between 0 and 1 of the second: a passage is boilerplate, and is left out when documents are compared, when the documents it is found in number at least the floor times the documents measured. A passage is stored as a number, not as its words.
+
+This prints how many passages are found in each share of the documents. Run it from the directory you run `vespera` from, with Python on your machine, while no `vespera` command is running and no `vespera.db-wal` lies beside `vespera.db` (if one does, *Where things live* says what to do); it reads the database without writing to it and leaves no file beside it:
+
+```
+python -c "import sqlite3,sys;db=sqlite3.connect('file:.vespera/vespera.db?mode=ro&immutable=1',uri=True);run=sys.argv[1] if sys.argv[1:] else db.execute('select r.id from run r join finished_step s on s.run_id=r.id and s.step=r.stage where r.stage=? order by r.rowid desc limit 1',['content-census']).fetchone()[0];print('run',run);[print(r) for r in db.execute('select 100*f.document_count/c.shingled_document_count/100.0 as share,count(*),min(f.document_count),c.shingled_document_count from shingle_document_frequency f join shingle_corpus_size c on c.run_id=f.run_id and c.shingle_parameter_identity=f.shingle_parameter_identity where f.run_id=? group by share order by share',[run])]"
+```
+
+If you moved the working directory, put its `vespera.db` in place of `.vespera/vespera.db`.
+
+The first line names the content census it read: of the content censuses that finished, the one whose run was created last. That need not be the one you mean, because putting a value back to an earlier one, or running a second archive in the same working directory, goes back to a run created earlier. Stage 3's line in the output of `vespera run` names the run it used, as `Stage 3 (content census) finished under run <id>` or `Stage 3 (content census) was already recorded under run <id>`. If that id is not the one printed, run the command again with the id at the end, after a space. Each line after the first is a share of the documents, rounded down to the hundredth, then how many passages are found in that share, the fewest documents any of them is found in, and how many documents were measured; the third divided by the fourth is the exact share of the least-shared of them. If the command stops with `TypeError: 'NoneType' object is not subscriptable`, no content census has finished in that database. If it stops with `unable to open database file`, there is no `vespera.db` where it looked, and it has made none: run it from the directory you run `vespera` from, or name the moved `vespera.db`. If it stops with `no such table: run`, the `vespera.db` it opened holds no ledger, as an empty file of that name does: check that it is the working directory's. If it prints the `run` line and nothing else, no run with that id stored any passages.
+
+To choose the floor, pick a line and set the floor to the share it prints: every passage on that line and on the lines after it is then boilerplate, and none on the lines before. Taking the line's third number as k and its fourth as N, k divided by N does the same, written in full or cut off after at least as many decimal places as N has digits: for 7 of 25, 0.28. Every passage found in k documents or more is then boilerplate, and none found in fewer. Do not round k divided by N up: 2 / 3 rounded up to 0.67 leaves out the passages found in 2 of 3 documents.
 
 Six of these are **optional** and none of them is one of the five stops; all six are here so that you know they exist.
 
@@ -114,7 +128,7 @@ Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vesp
 
 One command at a time uses a working directory. A second command started on it while the first is still running, from a second terminal or from an IDE, refuses at once with one line naming the command that holds it, its process id and when it started, and exits 1; the first carries on. Wait for the first to finish, or stop it, and run the second again. `vespera.lock` stays in the working directory after every command and is harmless: a command that crashed or was killed releases it as its process ends. Do not delete it while a command is running, because that lets a second one start. If a step fails saying the database file is held by another process, something other than Vespera, such as a database browser, has `vespera.db` open; close it and run the same command again.
 
-While a command is running, two more files sit beside `vespera.db`: `vespera.db-wal`, SQLite's write-ahead log, which holds the most recent changes, and `vespera.db-shm`, its index. When the command ends they are folded back into `vespera.db` and deleted, unless something else, such as a database browser, still has the database open. To copy the working directory, copy it after the command has ended and `vespera.db-wal` is gone. If `vespera.db-wal` is still there, or you have to copy while a command is running, copy all three files together, or the copy is missing the latest changes. Keep the working directory on a disk attached to the machine that runs Vespera, not on a network share: the database relies on shared memory that only works on a local disk.
+While a command is running, two more files sit beside `vespera.db`: `vespera.db-wal`, SQLite's write-ahead log, which holds the most recent changes, and `vespera.db-shm`, its index. When the command ends they are folded back into `vespera.db` and deleted, unless something else, such as a database browser, still has the database open. If `vespera.db-wal` is still there when no command is running, something left it behind: a command cut short, or something else that had the database open when the last command ended, even if it has closed since. Close whatever still has the database open, then run one `vespera` command, `vespera run` again for instance, with nothing else open on the database: it opens `vespera.db` as it starts, and when it ends it folds `vespera.db-wal` back into `vespera.db` and deletes both files beside it. `vespera run` also carries on the run, and once it reaches the relevance questions it writes `relevance-labels.yaml` anew: if you are answering them, record your answers with `vespera label` first. To copy the working directory, copy it after the command has ended and `vespera.db-wal` is gone. If `vespera.db-wal` is still there, or you have to copy while a command is running, copy all three files together, or the copy is missing the latest changes. Keep the working directory on a disk attached to the machine that runs Vespera, not on a network share: the database relies on shared memory that only works on a local disk.
 
 The database also keeps its temporary files in the working directory, not in the system's temporary folder. It writes them while a step has it sort a great many rows and removes them itself; on Windows they show there under names beginning `etilqs_`, and they are no part of a copy. They grow with the archive and can run to gigabytes on a large one, so the disk that holds the working directory needs that much free while a command runs.
 
@@ -188,10 +202,10 @@ To check that the converter is using the card, run this. It prints `True` when i
 docker compose -p vespera exec docling-serve python -c "import torch;print(torch.cuda.is_available())"
 ```
 
-To check that Vespera recorded the card's image, run this from the directory you run `vespera` from, once a run has converted something, with Python on your machine. It prints what the newest conversion run in the ledger was keyed on, and the image is the part after `image=`. After your first run on the card, that is `vespera/docling-serve-cu128-libreoffice`:
+To check that Vespera recorded the card's image, run this from the directory you run `vespera` from, once a run has converted something, with Python on your machine, while no `vespera` command is running and no `vespera.db-wal` lies beside `vespera.db` (if one does, *Where things live* says what to do). It prints what the newest conversion run in the ledger was keyed on, and the image is the part after `image=`. After your first run on the card, that is `vespera/docling-serve-cu128-libreoffice`:
 
 ```
-python -c "import sqlite3;print(sqlite3.connect('file:.vespera/vespera.db?mode=ro',uri=True).execute('select config_consumed from run where stage=? order by rowid desc limit 1',['extraction']).fetchone())"
+python -c "import sqlite3;print(sqlite3.connect('file:.vespera/vespera.db?mode=ro&immutable=1',uri=True).execute('select config_consumed from run where stage=? order by rowid desc limit 1',['extraction']).fetchone())"
 ```
 
 If you moved the working directory, put its `vespera.db` in place of `.vespera/vespera.db`.

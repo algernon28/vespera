@@ -12,7 +12,9 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -35,7 +37,9 @@ import org.junit.jupiter.api.Test;
  * nothing else. Records from ADR-237 on are held to the wider set above as well, which would also catch words such
  * as the review list's or a session's that older records use of the system itself.
  *
- * <p>It reads text, so it sees the words it looks for and no paraphrase of them.
+ * <p>It reads text, so it sees the words it looks for and no paraphrase of them. The words are in {@code
+ * docs/decision-record-markers.txt}, which {@code docs/check-claims.mjs} reads as well (ADR-258), so that a
+ * record that breaks the rule also fails the claims job, in seconds.
  */
 @Epic("Architecture")
 @Feature("Decision records")
@@ -45,31 +49,66 @@ class ADecisionRecordHoldsItsDecisionAndNoHistoryTest {
 
     private static final Path DECISION_RECORDS = Path.of("docs", "adr");
 
+    /**
+     * The words, from the one list the claims job reads too ({@code docs/check-claims.mjs}, ADR-258): a line is
+     * a name, a tab and a regular expression, and a line that starts with {@code #} is a comment.
+     */
+    private static final Path THE_MARKERS = Path.of("docs", "decision-record-markers.txt");
+
+    private static final Map<String, String> MARKERS = markers();
+
     /** The first record held to carry no history of its making. */
-    private static final int FIRST_WITHOUT_HISTORY = 237;
+    private static final int FIRST_WITHOUT_HISTORY = Integer.parseInt(MARKERS.get("firstWithoutHistory"));
 
-    private static final Pattern A_RUN_MADE_OR_NOT = Pattern.compile(
-            "(?i)(\\bruns?\\b[^.|]{0,60}\\b(has|have|had|was|were)\\s+(not\\s+)?(yet\\s+)?been\\s+made"
-                    + "|no\\s+`?vespera run`?\\s+(has|had|was)"
-                    + "|no\\s+run\\s+(has|had|was)\\s+(yet\\s+)?(been\\s+)?made)");
+    private static final Pattern A_RUN_MADE_OR_NOT = Pattern.compile(MARKERS.get("runMadeOrNot"));
 
-    private static final Pattern STATUS = Pattern.compile("^- \\*\\*Status\\*\\*: (.*)$", Pattern.MULTILINE);
+    private static final Pattern STATUS = Pattern.compile(MARKERS.get("status"), Pattern.MULTILINE);
 
-    private static final Pattern ACCEPTED_ON_A_DATE = Pattern.compile("accepted on \\d{4}-\\d{2}-\\d{2}\\.");
+    private static final Pattern ACCEPTED_ON_A_DATE = Pattern.compile(MARKERS.get("acceptedOnADate"));
 
-    private static final Pattern HISTORY = Pattern.compile(
-            "(?i)(\\breview(?!\\s+list)(?!List)\\w*\\b|\\bsession\\b|/pull/\\d+|\\bfailed first\\b|\\bfailed on\\b"
-                    + "|operator's (answer|word|call)|operator answered|\\./mvnw|\\bregister\\b|`[0-9a-f]{7}`)");
+    private static final Pattern HISTORY = Pattern.compile(MARKERS.get("historyFromTheFirstWithout"));
 
-    private static final Pattern ACCEPTED = Pattern.compile("accepted(?: on \\d{4}-\\d{2}-\\d{2})?\\.?");
+    private static final Pattern ACCEPTED = Pattern.compile(MARKERS.get("accepted"));
 
     /** What marks the history of a record's making in any record, and never the system's own vocabulary. */
-    private static final Pattern HISTORY_IN_ANY_RECORD = Pattern.compile(
-            "(?i)(/pull/\\d+|`(?=[0-9a-f]{0,39}\\d)(?=[0-9a-f]{0,39}[a-f])[0-9a-f]{7,40}`|operator's (answer|word|call)"
-                    + "|operator answered|review register|\\bfailed first\\b|\\bthe session that\\b|architect review"
-                    + "|code review|\\bon the call of\\b)");
+    private static final Pattern HISTORY_IN_ANY_RECORD = Pattern.compile(MARKERS.get("historyInAnyRecord"));
 
-    private static final Pattern INDEX_ROW = Pattern.compile("^\\| \\[ADR-(\\d+)\\]");
+    private static final Pattern INDEX_ROW = Pattern.compile(MARKERS.get("indexRow"));
+
+    private static Map<String, String> markers() {
+        Map<String, String> read = new LinkedHashMap<>();
+        try {
+            for (String line : Files.readAllLines(THE_MARKERS)) {
+                if (line.isEmpty() || line.startsWith("#")) {
+                    continue;
+                }
+                int tab = line.indexOf('\t');
+                read.put(line.substring(0, tab), line.substring(tab + 1));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return read;
+    }
+
+    @Test
+    @Story("A record holds its decision")
+    @DisplayName("The list of words both checks read holds every marker the rules need, and each is a pattern")
+    @Link(name = "ADR-258", url = Adr.THE_RECORDS_RULES_ARE_CHECKED_IN_THE_CLAIMS_JOB_TOO, type = "adr")
+    void theListHoldsEveryMarkerTheRulesNeed() {
+        List<String> needed = List.of(
+                "runMadeOrNot", "status", "accepted", "acceptedOnADate", "historyFromTheFirstWithout",
+                "historyInAnyRecord", "indexRow", "firstWithoutHistory");
+
+        claim(
+                "the list names each of the eight markers once, and the claims job reads the same eight",
+                () -> assertThat(MARKERS.keySet()).containsExactlyInAnyOrderElementsOf(needed));
+        claim(
+                "each marker but the number of the first record is a regular expression that compiles",
+                () -> needed.stream()
+                        .filter(name -> !name.equals("firstWithoutHistory"))
+                        .forEach(name -> assertThat(Pattern.compile(MARKERS.get(name))).isNotNull()));
+    }
 
     @Test
     @Story("A record holds its decision")

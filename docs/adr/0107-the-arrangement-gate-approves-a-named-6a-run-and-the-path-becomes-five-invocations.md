@@ -8,7 +8,7 @@
 
 [ADR-022](0022-stage-6-splits-into-arrangement-6a-then-generation-6b.md) gates generation on a human reading the arrangement. [ADR-105](0105-stage-6a-names-the-arrangement-stage-5-already-built-and-unattributed-is-struck.md) gave 6a rows to write and [ADR-106](0106-a-cluster-gets-a-derived-label-from-6a-and-a-generated-title-from-6b.md) gave each cluster a derived label, so there is now something a person can actually review. What was never decided is how the approval is expressed, and what it costs the operator's path.
 
-**This is a gate in [ADR-031](0031-gates-are-required-inputs-not-pauses.md)'s sense, and not the `RelevanceFloor` case.** That class is explicitly *not* a gate, and its javadoc says why: the run is what produces the data the threshold is calibrated from, so gating on it would mean never producing the report that lets anyone set it. The arrangement is the opposite — 6a has already run, written its rows and written its report before approval is asked for. So [ADR-080](0080-the-boilerplate-floor-is-a-gate-applied-before-signatures-are-computed.md)'s shape applies unchanged.
+**This is a gate in [ADR-031](0031-human-gates-are-optional.md)'s sense, and not the `RelevanceFloor` case.** That class is explicitly *not* a gate, and its javadoc says why: the run is what produces the data the threshold is calibrated from, so gating on it would mean never producing the report that lets anyone set it. The arrangement is the opposite — 6a has already run, written its rows and written its report before approval is asked for. So [ADR-080](0080-the-boilerplate-floor-is-a-gate-applied-before-signatures-are-computed.md)'s shape applies unchanged.
 
 ## Decision
 
