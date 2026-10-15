@@ -33,6 +33,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.job.Job;
+import org.springframework.batch.core.job.JobExecution;
+import org.springframework.batch.core.job.JobInstance;
+import org.springframework.batch.core.job.SimpleJob;
+import org.springframework.batch.core.job.parameters.JobParameters;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -83,23 +89,8 @@ class ProgressPageInvocationTest {
     private static final String HEADER =
             ReportPage.headerRow("Step", "State", "Read", "Written", "Skipped", "Duration", "Progress");
 
-    /** The job's fifteen steps, in the order it runs them. */
-    private static final List<String> STEPS_IN_JOB_ORDER = List.of(
-            StepNames.CENSUS,
-            StepNames.BYTE_LEVEL_REDUCTION,
-            StepNames.EXTRACTION,
-            StepNames.CONTENT_CENSUS,
-            StepNames.REDUNDANCY_SIGNATURE,
-            StepNames.CONTENT_REDUNDANCY,
-            StepNames.SEED_EXTRACTION,
-            StepNames.SEED_CORPUS_COMPARISON,
-            StepNames.EMBEDDING_SCORING,
-            StepNames.RELEVANCE_SCORING,
-            StepNames.RELEVANCE_FLOOR,
-            StepNames.CLUSTERING,
-            StepNames.RELEVANCE_REPORT,
-            StepNames.ARRANGEMENT,
-            StepNames.GENERATION);
+    /** A table row's first cell: the step it is about. A header row's cells are {@code <th>} and are not read. */
+    private static final Pattern A_ROWS_STEP = Pattern.compile("<tr><td>([^<]*)</td>");
 
     private static final Pattern WRITTEN_AT =
             Pattern.compile("Written at ([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})");
@@ -149,6 +140,9 @@ class ProgressPageInvocationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private Job vesperaJob;
 
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger rootLogger;
@@ -243,12 +237,13 @@ class ProgressPageInvocationTest {
                 "the page says the invocation has ended, and how, and carries no reload, so a browser that has"
                         + " it open stops asking for it",
                 () -> assertThat(page).contains(ENDED_COMPLETED).doesNotContain(RELOAD).doesNotContain(RUNNING));
+        List<String> steps = stepsInJobOrder();
         claim(
                 "its table has the seven columns in their order, and a row for each of the job's "
-                        + STEPS_IN_JOB_ORDER.size() + " steps in the order the job runs them",
+                        + steps.size() + " steps in the order the job runs them",
                 () -> assertThat(page)
                         .contains(HEADER)
-                        .containsSubsequence(STEPS_IN_JOB_ORDER.stream().map(ReportPage::textCell).toList()));
+                        .containsSubsequence(steps.stream().map(ReportPage::textCell).toList()));
         claim(
                 "and no step is shown running on a page written after the job ended",
                 () -> assertThat(page).doesNotContain(ReportPage.textCell("running")));
@@ -378,6 +373,37 @@ class ProgressPageInvocationTest {
                         .isRegularFile()
                         .content(StandardCharsets.UTF_8)
                         .contains(ENDED_COMPLETED));
+    }
+
+    @Test
+    @Story("The page lists the steps the job runs, in the order it runs them")
+    @DisplayName("The page has one row for each step of the job, in the job's own order, and no other row")
+    void thePageListsExactlyTheJobsStepsInTheJobsOrder(@TempDir Path elsewhere) throws IOException {
+        List<String> steps = stepsInJobOrder();
+        ProgressPage progressPage = new ProgressPage(elsewhere, Duration.ofSeconds(5), java.time.Clock.systemUTC());
+        JobExecution execution = new JobExecution(1L, new JobInstance(1L, VesperaJobConfiguration.JOB_NAME), new JobParameters());
+
+        progressPage.beforeJob(execution);
+        execution.setStatus(BatchStatus.COMPLETED);
+        progressPage.afterJob(execution);
+
+        List<String> rows = new java.util.ArrayList<>();
+        Matcher row = A_ROWS_STEP.matcher(Files.readString(elsewhere.resolve(PAGE), StandardCharsets.UTF_8));
+        while (row.find()) {
+            rows.add(row.group(1));
+        }
+        claim(
+                "the page's rows name the job's " + steps.size() + " steps, read off the job itself, in the order the"
+                        + " job runs them, and no other: a step added to the job and not to the page has no row",
+                () -> assertThat(rows).containsExactlyElementsOf(steps));
+    }
+
+    /** The job's steps in the order it runs them, as the job itself lists them: a simple job of steps in sequence. */
+    private List<String> stepsInJobOrder() {
+        claim(
+                "the job is a sequence of steps, so the order its steps are listed in is the order it runs them",
+                () -> assertThat(vesperaJob).isInstanceOf(SimpleJob.class));
+        return List.copyOf(((SimpleJob) vesperaJob).getStepNames());
     }
 
     /** A row's first two cells: the step as the job names it, and its state. */
