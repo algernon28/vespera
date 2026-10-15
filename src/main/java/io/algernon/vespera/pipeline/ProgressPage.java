@@ -161,6 +161,7 @@ final class ProgressPage implements JobExecutionListener {
         appenders.clear();
         synchronized (writing) {
             ended = true;
+            this.jobExecution = jobExecution;
             write(true);
         }
     }
