@@ -34,6 +34,7 @@ It is admitted by ADR-261 §4 as the other pages are: by its whole name, directl
 
 - **`.claude/hooks/private-paths-guard.mjs`**: `document-frequency.html` joins `READ_IN_A_WORKING_DIRECTORY`; its header and its refusal text say seven pages, and the header cites this record. It lies in a closed `.claude` folder, so the operator puts it in place (ADR-215 §7).
 - **`src/test/hooks/private-paths-guard.test.mjs`**: the fixture's working directory holds the page, and K413 is added (Tests).
+- **`AGENTS.md`** adds ADR-263 to the records the guard enforces.
 - **`docs/agents/private-paths-guard.md`** names the page among the admitted files, and the records the hook is held to.
 - **Not** `.claude/allowed-paths.txt`, `.claude/settings.json`, the wrapper, the counting script, or anything under `src/main`.
 
@@ -51,7 +52,7 @@ It is admitted by ADR-261 §4 as the other pages are: by its whole name, directl
 ## Alternatives weighed
 
 - **The operator copying the page out of the working directory.** It needs no change, and costs a step for every run; ADR-261 rejected it for the other pages.
-- **The ADR-212 counting script printing the shares.** Rejected: the page already holds them, and the script's output is pinned by hash.
+- **The ADR-212 counting script printing the shares.** Rejected: the page already holds them, and a new count is a change to the script and to the guard's pinned hash (ADR-212 §5).
 
 ## Tests
 
@@ -61,4 +62,4 @@ It is admitted by ADR-261 §4 as the other pages are: by its whole name, directl
 | --- | --- |
 | K413 | Read of the document-frequency page is let through |
 
-**Not pinned, and why**: Write, Edit, Grep, a shell command, a subfolder copy and a `.part` file of this page, each held for every admitted name by K501 to K517 through the same check.
+**Not pinned, and why**: Write, Edit, Grep, a shell command, a subfolder copy and a `.part` file of this page, each held by K501 to K517 for one admitted name; the check that refuses them does not depend on which admitted name it is.
