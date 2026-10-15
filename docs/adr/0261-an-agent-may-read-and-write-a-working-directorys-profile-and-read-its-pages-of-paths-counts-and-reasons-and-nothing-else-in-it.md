@@ -92,7 +92,7 @@ Everything else in a working directory, to every tool, as ADR-196 and ADR-212 ha
 The guard's working-directory check (ADR-196 §2) lets a path through only when every one of these holds, on **every reading** of the path the guard makes: its text with `..` folded, the path as the file system walks it (ADR-201), and on Windows the path as Windows opens its names (ADR-217). A call is refused if any reading fails.
 
 1. **The tool** is Read for a name of §2's first column, and Edit or Write for `profile.yaml`. Every other tool is admitted nothing in a working directory.
-2. **The allow list has already admitted the path**, as for every path (ADR-196 §2). The admission lifts the working-directory refusal and nothing before it, so a working directory the allow list does not name admits nothing, and the guard asks the file system nothing it did not ask before.
+2. **The allow list has already admitted the path**, as for every path (ADR-196 §2). The admission lifts the working-directory refusal and nothing before it, so a working directory the allow list does not name admits nothing, and the guard asks the file system nothing about a path the allow list has not admitted.
 3. **The name is the last name of the path, compared whole**: character for character, folded to one case on Windows only, where the file system folds it too, as ADR-212 §4.2 compares the script word. So:
    - **a stream name** after the name, `profile.yaml:x` or `profile.yaml::$DATA`, is another name, and refused;
    - **a dot or a space after the name**, `profile.yaml.` or `profile.yaml `, is another name as written, and refused, though Windows opens it as `profile.yaml`: the reading as written fails;
@@ -171,8 +171,9 @@ ADR-201 records that a hook that runs out of time lets the call through. The che
 - **Whether the arrangement can be shown without its labels**, for instance by cluster size and seed path alone. The cluster-sizes page carries that much already.
 - **`vespera.log`**, which stays refused as ADR-198 and ADR-212 §7 have it.
 - **A file of an admitted name whose content something other than Vespera wrote**: an operator who pastes a document's text into a provenance, or a program that writes one of these names. The guard checks the name and the file's kind, never its content, and the written rule is all there is.
-- **The moment between the guard's answer and the tool's read**, in which a link or a second name can be put where the file was. It is ADR-215 §8's item, and joins ADR-196 §5's list for these files.
+- **The moment between the guard's answer and the tool's read**, in which a link or a second name can be put where the file was. It is ADR-215 §8's item, and is of the kind ADR-196 §5 lists for these files.
 - **`mcp__*` tools and Monitor**, which ADR-196 §5 leaves uncovered.
+- **The converter's own message in a reason**: a reason on the review list can carry Docling's free-text error message, which Vespera passes on unparsed (`DoclingError`), and nothing stops that text from quoting what it read.
 
 ## Tests
 

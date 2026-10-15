@@ -8,7 +8,7 @@
 // name, dots and spaces that end each, and the Z cases are held to it. docs/adr/0233 reads what stands
 // beside the name .claude in a token's text, a leading ~ in a file tool's field, a place a link in the
 // guard's own .claude leads to, and on Windows a name of dots with a stream name, and the I cases are
-// held to it. docs/adr/0257 admits a few files directly in a working directory by name, to Read and, for
+// held to it. docs/adr/0261 admits a few files directly in a working directory by name, to Read and, for
 // profile.yaml, to Edit and Write, and K301, K302, K304 and the K4 and K5 cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
@@ -37,7 +37,7 @@
 //   checkout/            ${REPO}: the guard's files, README.md, src/Example.java. Holds no working directory.
 //   temp/                ${TEMP}
 //     scratch/note.txt
-//     working-directory/ vespera.db, report.html, deliverable/run/index.md, and the files docs/adr/0257
+//     working-directory/ vespera.db, report.html, deliverable/run/index.md, and the files docs/adr/0261
 //                        names: profile.yaml, relevance-labels.yaml and six pages; a page's .part file,
 //                        and deliverable/profile.yaml, a file of an admitted name in a folder of it
 //     hard-linked/       vespera.db, and extraction-failures.html, a second name of scratch/linked-elsewhere.txt
@@ -173,7 +173,7 @@ put(`${T}/scratch/note.txt`, "scratch\n");
 put(`${WD}/vespera.db`);
 put(`${WD}/report.html`, "<p>fixture</p>\n");
 put(`${WD}/deliverable/run/index.md`, "# fixture\n");
-// docs/adr/0257: the files directly in a working directory that a file tool may open by name, a page
+// docs/adr/0261: the files directly in a working directory that a file tool may open by name, a page
 // while it is being written, and a file of an admitted name in a folder of the working directory.
 const ADMITTED_PAGES = [
   "format-mix.html",
@@ -262,7 +262,7 @@ try {
 if (!existsSync(`${LINKS}/out/doc.txt`) || !existsSync(`${LINKS}/to-working-directory/vespera.db`)) linkable = false;
 const NO_LINK = "this platform would not create a junction or a symlink that leads where it should";
 
-// docs/adr/0257: a working directory whose review list is a second name of a file outside it. A hard link
+// docs/adr/0261: a working directory whose review list is a second name of a file outside it. A hard link
 // has no target to follow, so only the count of a file's names tells it apart.
 const HARD_LINKED = `${T}/hard-linked`;
 put(`${HARD_LINKED}/vespera.db`);
@@ -838,7 +838,7 @@ const cases = [
      check, and a closed .claude folder does not pass it, the folder the script is in among them. */
   ["K231", "the counting command run with the folder the script is in as the current directory", "Bash", { command: `node working-directory-counts.mjs ${WD}` }, REFUSED, { cwd: `${C}/${HOOKS}` }],
 
-  /* K3. What docs/adr/0212 refused, named in one place: every file a working directory holds. docs/adr/0257
+  /* K3. What docs/adr/0212 refused, named in one place: every file a working directory holds. docs/adr/0261
      admits three of them to Read, profile.yaml, the label file and the review list, which carry no text of
      a document, and K301, K302 and K304 claim that. The labelling page carries document openings, the
      arrangement page the titles of documents, and the rest stay refused with them. */
@@ -852,7 +852,7 @@ const cases = [
   ["K308", "Read of the deliverable's CSV", "Read", { file_path: `${WD}/deliverable/run/documents.csv` }, REFUSED],
   ["K309", "Grep of vespera.db", "Grep", { pattern: "COUNT", path: `${WD}/vespera.db` }, REFUSED],
 
-  /* K4. docs/adr/0257: Read of profile.yaml, the label file and the six pages of paths, counts and reasons,
+  /* K4. docs/adr/0261: Read of profile.yaml, the label file and the six pages of paths, counts and reasons,
      and Edit and Write of profile.yaml, directly in a working directory, are let through. */
   ["K401", "Edit of profile.yaml in a working directory", "Edit", { file_path: `${WD}/profile.yaml`, old_string: "null", new_string: "x" }, ALLOWED],
   ["K402", "Write of profile.yaml in a working directory", "Write", { file_path: `${WD}/profile.yaml`, content: "seedFolder: x\n" }, ALLOWED],
@@ -869,7 +869,7 @@ const cases = [
   // profile.yaml; elsewhere it is another name, and is refused.
   ["K412", `Read of PROFILE.YAML in a working directory, ${windows ? "which Windows opens as profile.yaml" : "which is another name off Windows"}`, "Read", { file_path: `${WD}/PROFILE.YAML` }, windows ? ALLOWED : REFUSED],
 
-  /* K5. docs/adr/0257: everything else stays refused: a page or the label file to a tool that writes,
+  /* K5. docs/adr/0261: everything else stays refused: a page or the label file to a tool that writes,
      profile.yaml to any tool but Read, Edit and Write and to every shell command, an admitted name
      anywhere but directly in a working directory or under any spelling but its own, a page while it is
      being written, a second name of another file, and a working directory the allow list does not name. */
