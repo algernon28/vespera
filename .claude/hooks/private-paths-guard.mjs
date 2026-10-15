@@ -4,8 +4,8 @@
 // to a tool that writes and to a shell command, a path in a .claude folder that is closed (below). The
 // operator's archives can hold sensitive documents, and nothing that reads a document may reach a hosted
 // model: a document is read only by local models. ADR-196 (docs/adr/0196) is the record, ADR-201
-// (docs/adr/0201), ADR-215 (docs/adr/0215), ADR-217 (docs/adr/0217), ADR-233 (docs/adr/0233) and ADR-257
-// (docs/adr/0257) amend it, and src/test/hooks/private-paths-guard.test.mjs holds this file to all six.
+// (docs/adr/0201), ADR-215 (docs/adr/0215), ADR-217 (docs/adr/0217), ADR-233 (docs/adr/0233) and ADR-258
+// (docs/adr/0258) amend it, and src/test/hooks/private-paths-guard.test.mjs holds this file to all six.
 //
 // It is registered for eight tools: Read, Grep, Glob, Edit, Write, NotebookEdit, Bash and PowerShell.
 // It is an allow list and not a list of archives, so an archive on a new path is refused without anyone
@@ -203,7 +203,7 @@
 // (NODE_OPTIONS, PATH, an alias); for those the written rule is all there is.
 //
 // Of the files in a working directory, a few are admitted by name to a file tool, and nothing else in
-// one is (ADR-257, docs/adr/0257): Read of profile.yaml, of the label file relevance-labels.yaml, and of
+// one is (ADR-258, docs/adr/0258): Read of profile.yaml, of the label file relevance-labels.yaml, and of
 // the six pages of paths, counts and reasons the stages write (format-mix.html, extraction-failures.html,
 // extraction-survivors.html, confidence-distribution.html, seed-corpus-comparison.html and
 // cluster-sizes.html); and Edit and Write of profile.yaml. A name is admitted only directly in a folder
@@ -234,7 +234,7 @@ const checkout = resolve(here, "..", "..");
 const WALK_LIMIT = 10000;
 const NOT_WALKED = new Set([".git", "node_modules", "target"]);
 const WORKING_DIRECTORY_FILES = ["vespera.db", "vespera.lock"];
-// The files of a working directory ADR-257 admits by name, directly in one: to Read, and to Edit and Write.
+// The files of a working directory ADR-258 admits by name, directly in one: to Read, and to Edit and Write.
 // A page the stages write later joins the first list by a record of its own.
 const READ_IN_A_WORKING_DIRECTORY = [
   "profile.yaml",
@@ -516,7 +516,7 @@ function holdsWorkingDirectory(dir) {
   return held;
 }
 
-// Whether a path inside a working directory is a file ADR-257 admits to this tool: a name on the tool's
+// Whether a path inside a working directory is a file ADR-258 admits to this tool: a name on the tool's
 // list, Read's or that of Edit and Write, directly in a folder that holds vespera.db or vespera.lock, as
 // the path is written and as real, where its links lead; compared whole, folded to one case on Windows
 // only, where the file system folds it too; and the file either not there, or a regular file with one
@@ -1030,7 +1030,7 @@ function refusalsOf(call) {
       const into = linked.find(({ key }) => under(text, key) || under(realText, key));
       if (into) return turnedDown(`the link ${into.link} leads to ${into.leadsTo}, so it is ${CLOSED}`);
     }
-    // Of what is inside a working directory, only the files ADR-257 names are let through, each to the tools
+    // Of what is inside a working directory, only the files ADR-258 names are let through, each to the tools
     // it names them for.
     if (found.inside && !admittedInWorkingDirectory(tool, absolute, found.real)) {
       return turnedDown(`inside the Vespera working directory ${found.inside}`);
@@ -1233,7 +1233,7 @@ function main() {
       "folder, because what is there decides how a later session runs (a closed one may still be read with " +
       "Read, Grep and Glob). Of a working directory, Read of profile.yaml, relevance-labels.yaml and six " +
       "pages directly in it, and Edit and Write of profile.yaml, are let through, and nothing else " +
-      "(docs/adr/0257). Paths: " + refused.join("; ") +
+      "(docs/adr/0258). Paths: " + refused.join("; ") +
       ". If a path outside a .claude folder is legitimate and holds no document, the operator adds it to " +
       ".claude/allowed-paths.local.txt; no line of an allow list opens a .claude folder, and a change to " +
       "the guard, a list or the settings is written as a draft outside every .claude folder, which the " +
