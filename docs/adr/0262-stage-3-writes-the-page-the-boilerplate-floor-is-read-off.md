@@ -8,7 +8,7 @@
 
 ## Context
 
-Every other value an operator sets is read off a page Vespera writes beside the database. `boilerplateDocumentFrequencyFloor` is read off `vespera.db` itself: the README gives a Python command that opens the database read-only and prints, for the latest finished content census, one line per share of the documents rounded down to the hundredth, with the number of passages on the line, the fewest documents any of them is found in (k) and the documents measured (N). The command is safe only while no `vespera` command runs and no `vespera.db-wal` lies beside the database, and it needs Python. A page in the working directory needs neither, and it is what can be copied out of the working directory to someone who may not open the database.
+Every other value an operator reads off a measurement is read off a page Vespera writes beside the database; the README's table of values names a page for each but `seedFolder`, `embeddingModel`, `generationModel` and `generationContextWindow`, which no measurement informs. `boilerplateDocumentFrequencyFloor` is read off `vespera.db` itself: the README gives a Python command that opens the database read-only and prints, for the latest finished content census, one line per share of the documents rounded down to the hundredth, with the number of passages on the line, the fewest documents any of them is found in (k) and the documents measured (N). The command is safe only while no `vespera` command runs and no `vespera.db-wal` lies beside the database, and it needs Python. A page in the working directory needs neither, and it is what can be copied out of the working directory to someone who may not open the database.
 
 ADR-075 found the tables enough for the floor because an operator or stage 4 could query them. Stage 4 does query them (`BoilerplateShingles`, ADR-080); the operator has no page.
 
@@ -43,7 +43,14 @@ public record ShareLine(BigDecimal share, long shingles, long fewestDocuments) {
 
 `Shares` and `ShareLine` are nested in `DocumentFrequency`. `share` has a scale of 2 and is `floor(100 × k / N) / 100`, the same for every k on its line. `shares` reads the run's rows of `ShingleParameters.DEFAULT` only, and answers `Shares(0, List.of())` where `shingle_corpus_size` has no row for them.
 
-The read sorts nothing: it reads the run's rows of the granularity through the table's primary key and counts them in the heap by `document_count`, of which there are at most N. `EveryStatementThatSortsIsRecordedTest` holds it, and ADR-218 gains no exception. Its cost grows with the run's rows of `shingle_document_frequency`, so stage 3 states the seconds it took on a line after it (ADR-193 §1).
+The read sorts nothing: it reads the run's rows of the granularity through the table's primary key and counts them in the heap by `document_count`, of which there are at most N. `EveryStatementThatSortsIsRecordedTest` holds it, and ADR-218 gains no exception. Its cost grows with the run's rows of `shingle_document_frequency`, and the call is reads and arithmetic with no file and no model, so `ContentCensusTasklet` times it as one (ADR-193 §1), with a line before it and a line after (ADR-193 §4.3):
+
+```
+Stage 3 (content census) is reading the shares of the documents
+Stage 3 (content census) read the shares of the documents in <S> s
+```
+
+`<S>` is the call's wall clock in seconds to one decimal place. A stage 3 skipped as already recorded makes no call and writes neither line (§3).
 
 `pipeline` renders `Shares` in a class of its own beside `ConfidenceDistributionReport`, on record in `PipelineHoldsOnlyTheRulesOnRecordTest` as holding no rule: the rounding and the grouping into lines are `similarity`'s.
 
@@ -57,7 +64,7 @@ The read sorts nothing: it reads the run's rows of the granularity through the t
 
 ### 5. What the operator is told
 
-- **`NextAction`** says, for `boilerplateDocumentFrequencyFloor`, that it is read off `document-frequency.html`, which this invocation wrote. It no longer names `similarity`'s tables.
+- **`NextAction`** says, for `boilerplateDocumentFrequencyFloor`, that it is read off `document-frequency.html`, which stage 3 writes: the line is the same for `vespera label`, which runs no stage 3, and for a `vespera run` whose stage 3 is skipped and writes nothing (§3). It no longer names `similarity`'s tables.
 - **Stage 4's gate line** (`RedundancyJobConfiguration.logGateClosed`) says to read `document-frequency.html` (stage 3's measurement) to choose a value. It no longer names the tables.
 - **The README** names `document-frequency.html` as the page `boilerplateDocumentFrequencyFloor` is read from, in its table of values and among the files of the working directory, and states the rule of §1. It keeps the Python command for one case: reading a content census other than the one the page names, which happens when an invocation goes back to a run recorded earlier and stage 3 is skipped (§3).
 - **`docs/running-stage-by-stage.md`** names the page among what stage 3 leaves, and has stage 4's *Set first* read the floor off it.
@@ -71,7 +78,7 @@ The read sorts nothing: it reads the run's rows of the granularity through the t
 
 ## Consequences
 
-- An operator reads the floor off a page in the working directory, as every other value, with no Python and no access to `vespera.db`.
+- An operator reads the floor off a page in the working directory, as every other value read off a measurement is read, with no Python and no access to `vespera.db`.
 - `similarity` changes (§2). The versions of stage 2 (`extraction`), stage 3 (`content-census`) and stage 4 (`content-redundancy`) name it (`StageModules`, ADR-058), so those three stages move. Seed measurement, embedding scoring, arrangement and generation move through their upstream runs (ADR-048). `profile` changes (§4), which the version of `generation` names; that stage moves anyway. `pipeline` changes (§1, §5), which no stage's version names (ADR-226). The walk and stage 1, whose version names `corpus` alone, do not move.
 - Stage 2's run is new, and its converter answers stay in the extraction cache ([ADR-183](0183-the-extraction-cache-keeps-only-answers-about-the-document-and-a-refusal-the-converter-blamed-on-itself-is-asked-again.md)): the next invocation repeats stage 2 from the cache, writing its shingle rows again under the new run beside the earlier run's, then stage 3, which writes the page, then stage 4 under the floor set.
 - No schema, cache key or verdict kind changes.
@@ -88,10 +95,10 @@ The read sorts nothing: it reads the run's rows of the granularity through the t
 | `pipeline.StageThreeWritesTheDocumentFrequencyPageTest.thePageHoldsNoPathAndNoTextOfADocument` | the page names neither the archive, the working directory nor a file of the archive, and states the floor's key |
 | `pipeline.StageThreeWritesTheDocumentFrequencyPageTest.theProfilePointsTheFloorAtThePage` | `boilerplateDocumentFrequencyFloor`'s measurement is the page's path and the time stage 3 wrote it |
 | `pipeline.StageThreeWritesTheDocumentFrequencyPageTest.aStageAlreadyRecordedLeavesThePageAsItIs` | a second execution of the recorded step does not rewrite the page |
-| `pipeline.TheFloorIsReadOffTheDocumentFrequencyPageTest.theLastLineNamesThePage` | with nothing set, `NextAction`'s line names `document-frequency.html` and no table of `similarity` |
+| `pipeline.TheFloorIsReadOffTheDocumentFrequencyPageTest.theLastLineNamesThePage` | with nothing set, `NextAction`'s line says the floor is read off `document-frequency.html, which stage 3 writes`, and names no table of `similarity` |
 | `pipeline.TheFloorIsReadOffTheDocumentFrequencyPageTest.theShutGateNamesThePage` | stage 4's gate line names `document-frequency.html`, for an unset key and for an unreadable one |
 
-`NextActionTest.withOnlyTheSeedFolderSetTheLineCreditsIt` holds that what informs a value is said once in the line, counting `shingle_document_frequency`; `RedundancyGateLineTest.anUnansweredKeyIsReportedAsUnset` holds that the gate line points at the tables. Each counts the page's name instead.
+`NextActionTest.withOnlyTheSeedFolderSetTheLineCreditsIt` holds that what informs a value is said once in the line, counting `shingle_document_frequency`; `RedundancyGateLineTest.anUnansweredKeyIsReportedAsUnset` holds that the gate line points at the tables. Each counts the page's name instead. `RedundancyResolutionReportsItsProgressInvocationTest.countsEveryLoop` holds stage 3's statement lines to an exact list, the two lines of §2 last.
 
 ## What this does not decide
 

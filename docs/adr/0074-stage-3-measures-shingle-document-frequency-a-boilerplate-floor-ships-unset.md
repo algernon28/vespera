@@ -1,6 +1,6 @@
 # ADR-074 — Stage 3 measures shingle document frequency; a boilerplate floor ships unset
 
-> **Its report — see [ADR-262](0262-stage-3-writes-the-page-the-boilerplate-floor-is-read-off.md).** The stage-3 report this record expects the floor to be read off is `document-frequency.html`, one row per share of the documents rounded down to the hundredth, computed from the tables below. The rest of this record stands.
+> **Extended — see [ADR-262](0262-stage-3-writes-the-page-the-boilerplate-floor-is-read-off.md).** The stage-3 report this record expects the floor to be read off is `document-frequency.html`, one row per share of the documents rounded down to the hundredth, computed from the tables below. The rest of this record stands.
 
 - **Date**: 2026-09-05
 - **Status**: accepted

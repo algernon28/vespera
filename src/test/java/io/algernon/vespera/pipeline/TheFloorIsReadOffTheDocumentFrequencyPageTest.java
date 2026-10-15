@@ -60,11 +60,13 @@ class TheFloorIsReadOffTheDocumentFrequencyPageTest {
         String line = NextAction.line(ProfileFixture.profile().build(), 0, false, null, "a-generation-model:8b", false);
 
         claim(
-                "the line sends the operator to the page stage 3 just wrote for the boilerplate floor",
+                "the line sends the operator to the page stage 3 writes for the boilerplate floor, and claims no"
+                        + " more: vespera label writes the same line with no stage 3, and a later run skips stage 3",
                 () -> assertThat(line)
                         .withFailMessage("the line was: %s", line)
                         .contains("boilerplateDocumentFrequencyFloor")
-                        .contains(THE_PAGE));
+                        .contains(THE_PAGE + ", which stage 3 writes")
+                        .doesNotContain("this invocation wrote"));
         claim(
                 "and not to similarity's tables, which take Python and a database no command holds to read",
                 () -> assertThat(line)
