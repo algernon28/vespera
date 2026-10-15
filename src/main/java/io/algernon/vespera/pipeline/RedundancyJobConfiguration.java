@@ -19,7 +19,9 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.batch.infrastructure.item.ItemStreamReader;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -103,11 +105,13 @@ public class RedundancyJobConfiguration {
             Ledger ledger,
             RedundancyGate redundancyGate,
             StageRuns stageRuns,
-            RedundancySignatures redundancySignatures) {
+            RedundancySignatures redundancySignatures,
+            @Value("#{stepExecution.jobExecution.executionContext}") ExecutionContext jobContext) {
         // One read of the profile, decided on and explained from the same value (ADR-120): asking the
         // gate twice would let it shut on one reading of the file and word its sentence from another.
         NumericValue floor = redundancyGate.value();
         if (RedundancyGate.floorOf(floor).isEmpty()) {
+            new ShutGates(jobContext).record(StepNames.REDUNDANCY_SIGNATURE);
             logGateClosed(LoggerFactory.getLogger(RedundancyJobConfiguration.class), floor);
             return OccurrenceReader.yieldingNothing();
         }

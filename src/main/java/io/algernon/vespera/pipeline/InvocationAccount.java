@@ -82,8 +82,7 @@ final class InvocationAccount implements JobExecutionListener {
             Arrays.stream(StageModules.values()).map(StageModules::stage).collect(Collectors.toSet());
 
     /** The whole text of a progress line: a stage label made of lowercase words, then counts. */
-    private static final Pattern PROGRESS_SHAPE = Pattern.compile(
-            "Stage [0-9][a-z]? \\([a-z0-9, -]+\\): [0-9,]+( of [0-9,]+ \\([0-9]+%\\)| so far)");
+    private static final Pattern PROGRESS_SHAPE = StageProgress.COUNTER_LINE;
 
     private final Path workingDirectory;
     private final Path accountDirectory;

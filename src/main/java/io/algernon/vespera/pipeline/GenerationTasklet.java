@@ -207,6 +207,7 @@ class GenerationTasklet implements Tasklet {
         if (walk.isEmpty()) {
             LOG.info("the generation step is gated: no finished walk is recorded for {}. Nothing was"
                     + " generated.", canonicalRoot);
+            ShutGates.in(chunkContext).record(StepNames.GENERATION);
             return RepeatStatus.FINISHED;
         }
 
@@ -221,6 +222,7 @@ class GenerationTasklet implements Tasklet {
             LOG.info("the generation step is gated: no arrangement of this corpus has been approved --"
                     + " arrangementApproved is unset, or names an arrangement this invocation did not"
                     + " arrive at. Nothing was generated.");
+            ShutGates.in(chunkContext).record(StepNames.GENERATION);
             return RepeatStatus.FINISHED;
         }
         RunId arrangement = approved.get();

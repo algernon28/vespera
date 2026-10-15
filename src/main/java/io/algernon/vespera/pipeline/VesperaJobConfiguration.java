@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.Duration;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
@@ -47,6 +48,7 @@ public class VesperaJobConfiguration {
     Job vesperaJob(
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
             @Value("${" + ACCOUNT_DIRECTORY_PROPERTY + ":}") String accountDirectory,
+            @Value("${vespera.progress-interval:5s}") Duration progressInterval,
             JdbcTemplate jdbcTemplate,
             Clock clock,
             JobRepository jobRepository,
@@ -86,6 +88,7 @@ public class VesperaJobConfiguration {
                         accountDirectory == null || accountDirectory.isBlank() ? null : Path.of(accountDirectory.strip()),
                         jdbcTemplate,
                         clock))
+                .listener(new ProgressPage(workingDirectory, progressInterval, clock))
                 .build();
     }
 

@@ -144,6 +144,7 @@ class RelevanceReportTasklet implements Tasklet {
                 "stage 5's relevance-report step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
+            ShutGates.in(chunkContext).record(StepNames.RELEVANCE_REPORT);
             return RepeatStatus.FINISHED;
         }
 
@@ -161,6 +162,7 @@ class RelevanceReportTasklet implements Tasklet {
             LOG.info("stage 5's relevance-report step is gated: no survivor carries a relevance score"
                     + " under {}, so there is no spread to report. Nothing was put to a person.",
                     scoring.value());
+            ShutGates.in(chunkContext).record(StepNames.RELEVANCE_REPORT);
             return RepeatStatus.FINISHED;
         }
 
