@@ -1,5 +1,7 @@
 # ADR-075 — Stage 3 writes a confidence-distribution report that calibrates tier 2
 
+> **Partly amended — see [ADR-262](0262-stage-3-writes-the-page-the-boilerplate-floor-is-read-off.md).** `boilerplateDocumentFrequencyFloor` has a page of its own, `document-frequency.html`, which stage 3 writes beside this record's, and `Profile.withBoilerplateDocumentFrequencyFloorMeasurement` points the key at it. The rest of this record stands.
+
 - **Date**: 2026-09-05
 - **Status**: accepted
 - **Amends**: none (fills in the "report" half of ADR-019's "content census is derived columns plus a report," left unspecified)

@@ -203,7 +203,7 @@ class NextActionTest {
                 "and what informs a value is said once rather than in both halves of the line: the state"
                         + " half names keys, the action half says how to choose them, and a line that"
                         + " repeats itself is the noise this one exists to replace",
-                () -> assertThat(line.split("shingle_document_frequency", -1)).hasSize(2));
+                () -> assertThat(line.split("document-frequency\\.html", -1)).hasSize(2));
     }
 
     @Test
