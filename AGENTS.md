@@ -102,7 +102,7 @@ Work is charted as a **wayfinder map** on the issue tracker — one issue labell
 
 **No agent writes into a `.claude` folder either** (ADR-215): not the home folder's, not this checkout's, not a worktree's, because what is in one decides whether the hook runs and what it admits. A shell command is refused when any token of its text spells such a path, so stage with `git add -A` and write a commit message that names one with `-F`. A change to the guard, an allow list or the settings is written as a draft outside every `.claude` folder, and the operator installs it.
 
-`.claude/hooks/private-paths-guard.mjs` enforces all of this for eight tools (ADR-196, ADR-201, ADR-215, ADR-217, ADR-233, ADR-261). What it refuses and why, the counting command, the folders under `.claude` that stay an agent's to write, and the tests that hold the hook are in [`docs/agents/private-paths-guard.md`](docs/agents/private-paths-guard.md); read it when a command is refused.
+`.claude/hooks/private-paths-guard.mjs` enforces all of this for eight tools (ADR-196, ADR-201, ADR-215, ADR-217, ADR-233, ADR-261, ADR-263). What it refuses and why, the counting command, the folders under `.claude` that stay an agent's to write, and the tests that hold the hook are in [`docs/agents/private-paths-guard.md`](docs/agents/private-paths-guard.md); read it when a command is refused.
 
 ## Conventions worth knowing
 

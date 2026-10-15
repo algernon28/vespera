@@ -38,7 +38,7 @@
 //   temp/                ${TEMP}
 //     scratch/note.txt
 //     working-directory/ vespera.db, report.html, deliverable/run/index.md, and the files docs/adr/0261
-//                        names: profile.yaml, relevance-labels.yaml and six pages; a page's .part file,
+//                        and docs/adr/0263 name: profile.yaml, relevance-labels.yaml and seven pages; a page's .part file,
 //                        and deliverable/profile.yaml, a file of an admitted name in a folder of it
 //     hard-linked/       vespera.db, and extraction-failures.html, a second name of scratch/linked-elsewhere.txt
 //     locked/            vespera.lock, vespera.log
@@ -182,6 +182,8 @@ const ADMITTED_PAGES = [
   "confidence-distribution.html",
   "seed-corpus-comparison.html",
   "cluster-sizes.html",
+  // docs/adr/0263
+  "document-frequency.html",
 ];
 put(`${WD}/profile.yaml`, "seedFolder: null\n");
 put(`${WD}/relevance-labels.yaml`, "documents: []\n");
@@ -868,6 +870,8 @@ const cases = [
   // The name is compared folded to one case on Windows only, where the file system opens PROFILE.YAML as
   // profile.yaml; elsewhere it is another name, and is refused.
   ["K412", `Read of PROFILE.YAML in a working directory, ${windows ? "which Windows opens as profile.yaml" : "which is another name off Windows"}`, "Read", { file_path: `${WD}/PROFILE.YAML` }, windows ? ALLOWED : REFUSED],
+  // docs/adr/0263: the page the boilerplate floor is read off joins the six.
+  ["K413", "Read of the document-frequency page", "Read", { file_path: `${WD}/document-frequency.html` }, ALLOWED],
 
   /* K5. docs/adr/0261: everything else stays refused: a page or the label file to a tool that writes,
      profile.yaml to any tool but Read, Edit and Write and to every shell command, an admitted name
