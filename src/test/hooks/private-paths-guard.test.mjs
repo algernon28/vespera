@@ -46,7 +46,8 @@
 //                        and deliverable/profile.yaml, a file of an admitted name in a folder of it
 //     hard-linked/       vespera.db, and extraction-failures.html, a second name of scratch/linked-elsewhere.txt
 //     locked/            vespera.lock, vespera.log
-//     deep/note.txt      and deep/a/b/vespera.lock, a working directory two folders further down
+//     deep/note.txt      and deep/a/b/vespera.lock, a working directory two folders further down;
+//                        and deep/far away, a link to outside/
 //     links/out          a junction (Windows) or symlink to outside/
 //     links/to-working-directory
 //     links/inside       to scratch/, a folder inside the allow list
@@ -326,6 +327,21 @@ if (
 ) {
   linkedFurther = false;
 }
+
+// docs/adr/0264: a link under deep/ that leads outside the allow list, whose name holds a space, so that a
+// reading the K8 cases need refuses where only that reading reaches it: links/in/.. as walked, and the
+// two halves of an escaped space joined. Kept apart, so that every case written before it is started
+// wherever it was.
+const FAR_AWAY = `${DEEP}/far away`;
+let linkedFarAway = linkedFurther;
+if (linkedFarAway) {
+  try {
+    symlinkSync(native(O), native(FAR_AWAY), windows ? "junction" : "dir");
+  } catch {
+    linkedFarAway = false;
+  }
+}
+if (!existsSync(`${FAR_AWAY}/doc.txt`)) linkedFarAway = false;
 
 // A quoted sentence is read whole as one relative path. A file system holds no name longer than 255
 // characters, and asked about one it does not answer "not there" everywhere: it may say the name is too long.
@@ -965,6 +981,49 @@ const cases = [
   ["K658", "the Vespera jar's label command on a file under no allowed root", "Bash", { command: "java -jar target/vespera-0.0.1-SNAPSHOT.jar label ../outside/doc.txt" }, REFUSED],
   ["K659", "the Vespera jar run on such a root with a Spring property among its arguments", "Bash", { command: "java -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside --spring.ai.ollama.base-url=https://example.com" }, REFUSED],
   ["K660", "the Vespera jar run from a current directory under no allowed root, where it would write .vespera", "Bash", { command: "java -jar ../checkout/target/vespera-0.0.1-SNAPSHOT.jar run ." }, REFUSED, { cwd: O }],
+
+  /* K7. docs/adr/0264, the forms that hold the lift to what it is for. The jar runs alone in its command,
+     and its root is refused when it is an argument file, a list, or a word with sentence punctuation
+     after it, each of which reads otherwise than as written; a redirect is one of its few forms whole, in
+     its own shell; a Bash lister is its name as written; and a line break parts two segments. */
+  ["K701", "the Vespera jar with --db-dir naming a folder under no allowed root, followed by a comma", "Bash", { command: "java -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside --db-dir=../outside/wd," }, REFUSED],
+  ["K702", "the Vespera jar run on an argument file under no allowed root, which picocli expands", "Bash", { command: "java -jar target/vespera-0.0.1-SNAPSHOT.jar run @../outside/args.txt" }, REFUSED],
+  ["K703", "the Vespera jar run on a root that holds a brace list", "Bash", { command: "java -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside/{a,b}" }, REFUSED],
+  ["K704", "the Vespera jar run on a root that holds a comma", "Bash", { command: "java -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside,../outside/counted" }, REFUSED],
+  ["K705", "the Vespera jar run on a root followed by a full stop", "Bash", { command: "java -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside." }, REFUSED],
+  ["K706", "a lister and the Vespera jar in one command", "Bash", { command: "ls ../outside; java -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside" }, REFUSED],
+  ["K707", "ls redirected to a name that only begins with /dev/null", "Bash", { command: "ls ../outside >/dev/nullx" }, REFUSED],
+  ["K708", "ls with its errors redirected to a path that climbs out of /dev/null", "Bash", { command: "ls ../outside 2>/dev/null/../x" }, REFUSED],
+  ["K709", "Get-ChildItem redirected to /dev/null, which is no PowerShell form", "PowerShell", { command: "Get-ChildItem ../outside >/dev/null" }, REFUSED],
+  ["K710", "LS, which Bash does not read as ls", "Bash", { command: "LS ../outside" }, REFUSED],
+  ["K711", "ls of a folder under no allowed root, a line break, and cat of a file in it", "Bash", { command: "ls ../outside\ncat ../outside/doc.txt" }, REFUSED],
+  ["K712", "Get-ChildItem with a script block among its arguments", "PowerShell", { command: "Get-ChildItem ../outside -Exclude {x}" }, REFUSED],
+
+  /* K8. docs/adr/0264 lifts a refusal and keeps every reading. Each reading whose only cases are let
+     through since that record, because what they reach is a working directory under an allowed root,
+     is pointed here at a place under no allowed root, by cat or another program no lift applies to, and
+     refuses where that reading alone reaches it. From temp/scratch, ../outside is temp/outside, under the
+     temp folder, and ../../outside is outside/. */
+  ["K801", "git -C naming an allowed folder, then a relative path that leaves the allow list from it", "Bash", { command: "git -C .. show ../outside/doc.txt" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["K802", "git -C naming an allowed folder by its absolute path, then such a path", "Bash", { command: `git -C ${T} show ../outside/doc.txt` }, REFUSED, { cwd: `${T}/scratch`, windows: ONLY_WINDOWS.shellAbsolute }],
+  ["K803", "pushd to an allowed folder, then cat of such a path", "Bash", { command: "pushd .. && cat ../outside/doc.txt" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["K804", "env -C naming an allowed folder, then cat of such a path", "Bash", { command: "env -C .. cat ../outside/doc.txt" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["K805", "Set-Location to an allowed folder, then Get-Content of such a path", "PowerShell", { command: String.raw`Set-Location ..; Get-Content ..\outside\doc.txt` }, REFUSED, { cwd: `${T}/scratch`, windows: ONLY_WINDOWS.powerShell }],
+  ["K806", "cd through a link, cd -P to .., which is the parent of where the link leads, then cat through a link beside that folder that leads outside the allow list", "Bash", { command: "cd in && cd -P .. && cat 'far away/doc.txt'" }, REFUSED, { cwd: LINKS, needsFarAway: true }],
+  ["K807", "Read of a path that climbs with .. out of a link, into a link beside where the link leads that leads outside the allow list", "Read", { file_path: `${LINKS}/in/../far away/doc.txt` }, REFUSED, { needsFarAway: true }],
+  ["K808", "Grep whose path climbs out of a link into such a link", "Grep", { pattern: "x", path: `${LINKS}/in/../far away` }, REFUSED, { needsFarAway: true }],
+  ["K809", "cat of a quoted relative path that climbs out of a link into such a link", "Bash", { command: "cat 'links/in/../far away/doc.txt'" }, REFUSED, { cwd: T, needsFarAway: true }],
+  ["K810", "cat of a relative path whose space is escaped with a backslash, through a link that leads outside the allow list", "Bash", { command: String.raw`cat far\ away/doc.txt` }, REFUSED, { cwd: DEEP, needsFarAway: true }],
+  ["K811", "cat of a brace list, one of whose items climbs out of the allow list", "Bash", { command: "cat {note.txt,../../outside/doc.txt}" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["K812", "Get-Content of a comma list, one of whose items climbs out of the allow list", "PowerShell", { command: "Get-Content note.txt,../../outside/doc.txt" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["K813", "cat of a variable whose word is a variable whose word climbs out of the allow list", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${VESPERA_GUARD_NOR_THIS:-../../outside/doc.txt}}" }, REFUSED, { cwd: `${T}/scratch` }],
+  ["K814", "cat of a variable whose word is ${TMPDIR} and a path that climbs out of the allow list", "Bash", { command: "cat ${VESPERA_GUARD_HAS_NO_VALUE:-${TMPDIR}/../outside/doc.txt}" }, REFUSED],
+  ["K815", "Get-Content through the name of a link that leads outside the allow list, with a dot after it", "PowerShell", { command: "Get-Content links/out./doc.txt" }, REFUSED, { cwd: T, needsLink: true, windows: ONLY_WINDOWS.powerShell }],
+  ["K816", "Read through that name", "Read", { file_path: `${LINKS}/out./doc.txt` }, REFUSED, { needsLink: true, windows: ONLY_WINDOWS.drive }],
+  ["K817", "Read through the stream name of a link that leads outside the allow list", "Read", { file_path: `${LINKS}/out::$INDEX_ALLOCATION/doc.txt` }, REFUSED, { needsLink: true, windows: ONLY_WINDOWS.drive }],
+  ["K818", "cat of a relative path through that stream name", "Bash", { command: "cat links/out::$INDEX_ALLOCATION/doc.txt" }, REFUSED, { cwd: T, needsLink: true, windows: ONLY_WINDOWS.drive }],
+  ["K819", "Read of a file through such a link, by its data stream name", "Read", { file_path: `${LINKS}/out/doc.txt::$DATA` }, REFUSED, { needsLink: true, windows: ONLY_WINDOWS.drive }],
+  ["K820", "Read through a stream name of such a link that holds a line terminator", "Read", { file_path: `${LINKS}/out:x\ny/doc.txt` }, REFUSED, { needsLink: true, windows: ONLY_WINDOWS.drive }],
 ];
 
 /* ---------- the .claude folders, held to docs/adr/0215 ---------- */
@@ -1563,6 +1622,7 @@ for (const [id, what, tool, input, expected, options = {}] of cases) {
       ? `not started on this platform: ${options.windows}`
       : (options.needsLink && !linkable) ||
           (options.needsFurtherLinks && !linkedFurther) ||
+          (options.needsFarAway && !linkedFarAway) ||
           (options.needsLinksToClaude && !linkedToClaude) ||
           (options.needsLinksFromClaude && !linkedFromClaude)
         ? `not started on this platform: ${NO_LINK}`

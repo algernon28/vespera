@@ -4,9 +4,9 @@
 // (below). What prints names outside the list is let through: Glob, and a shell command whose every
 // program is a lister or the Vespera jar (below). The operator's archives can hold sensitive documents,
 // and a document is read only by local models. ADR-196 (docs/adr/0196) is the record, ADR-201
-// (docs/adr/0201), ADR-215 (docs/adr/0215), ADR-217 (docs/adr/0217), ADR-233 (docs/adr/0233), ADR-261
-// (docs/adr/0261), ADR-263 (docs/adr/0263) and ADR-264 (docs/adr/0264) amend it, and
-// src/test/hooks/private-paths-guard.test.mjs holds this file to all eight.
+// (docs/adr/0201), ADR-212 (docs/adr/0212), ADR-215 (docs/adr/0215), ADR-217 (docs/adr/0217), ADR-233
+// (docs/adr/0233), ADR-261 (docs/adr/0261), ADR-263 (docs/adr/0263) and ADR-264 (docs/adr/0264) amend
+// it, and src/test/hooks/private-paths-guard.test.mjs holds this file to all nine.
 //
 // It is registered for eight tools: Read, Grep, Glob, Edit, Write, NotebookEdit, Bash and PowerShell.
 // It is an allow list and not a list of archives, so an archive on a new path is refused without anyone
@@ -127,7 +127,7 @@
 // (ADR-217, docs/adr/0217): each of its names with a stream name after a colon taken off and then the
 // dots and spaces that end it, so wd.\report.html is read as wd\report.html, which Node answers "not
 // there" for and PowerShell opens. That reading is judged by every check the others are, the allow list,
-// a read line, a closed .claude folder, links and a working directory above or below, and refuses as
+// a read line, a closed .claude folder and links, and refuses as
 // they do; in a shell command it is a folder the command names where it is one, and a plain relative
 // name that Windows opens as another name is read for that name. A path with a name made only of dots,
 // spaces or a stream name, and that is neither . nor .., is refused on Windows, since what Windows opens
@@ -146,7 +146,7 @@
 // before it reads a path (cd to a folder it names, git -C, pushd, Set-Location, env -C), and no list of
 // such words is kept. A bare cd, which goes to the home folder, and cd -, which goes back, name no
 // folder in the text and are not followed. The call is refused if any reading of any token is outside
-// the allow list or inside a working directory. The folders read against, the current directory among
+// the allow list, but for a listed command (below). The folders read against, the current directory among
 // them, are bounded at DIRECTORY_LIMIT, and so are the readings at READING_LIMIT: a command that names
 // one folder too many, or needs more readings, is refused, because what is left cannot be ruled out.
 // One reading is one relative token against one folder, whether the path it makes is read once or twice.
@@ -160,15 +160,15 @@
 // build); a variable that is not at the head of a token, and %NAME%\x as cmd writes a variable; an
 // option with its value attached and no =, as in -I../x; ~name/x; a brace list with text around it, as in
 // ../{a,b}/x, whose pieces are read but which is not expanded as a shell expands it; a path from the
-// root of the drive without its letter, such as \archive\x; a shell wildcard; a recursive shell command
-// (grep -r, rg, find) that begins above a working directory; a rooted POSIX path such as /tmp/x, so
+// root of the drive without its letter, such as \archive\x; a shell wildcard; what a recursive shell
+// command (grep -r, rg, find) reaches through a link beneath its root; a rooted POSIX path such as /tmp/x, so
 // that cd /tmp && cat run/x reads run/x against the current directory only; a bare cd or cd -; a
 // quoted string inside a quoted string, as in bash -c "cat 'my runs/x'", which is read whole only as
 // the outer one; a brace group between two quote characters, every member of which is a name, a colon
 // and a value, one of them a path on a drive with no separator after the colon, as in bash -c "cat
 // {a:1,Q:name}", whose part after the colon is read and whose drive is not; a link that only Git Bash's runtime follows, such as a symlink written as a file for Cygwin, which is a
-// plain file to this process; a working directory that the walk down from a search root does not reach
-// (below); a link into a place from a .claude folder but the one this file lies in, from beneath
+// plain file to this process; a program that answers to a listed name but is another (an alias, a
+// function, a file on PATH), or a jar that prints what it reads; a link into a place from a .claude folder but the one this file lies in, from beneath
 // projects, plans or worktrees in that one, or made after its walk (ADR-233 section 5); and any tool
 // outside the eight, among them every mcp__* tool and Monitor. A session whose
 // own .claude/settings.json registers no hook never runs this file. For all of those the written rule
@@ -177,15 +177,17 @@
 // Glob is let through whatever it names (ADR-264 section 4): it prints paths and opens no file. A shell
 // command that the reading above refuses only for a path outside the allow list is let through when it
 // is a listed command (ADR-264 section 3): cut at ; && || | & and the line break, with no ( ) or
-// backtick, no { } in PowerShell, and no < or > but 2>&1, >/dev/null, 2>/dev/null and, in PowerShell,
-// >$null and 2>$null; and each segment run by a bare lister (ls, dir, stat, Get-ChildItem, gci,
-// Get-Item, Test-Path; case folded in PowerShell only) or by the Vespera jar in its one form: java or
-// java.exe, -jar, a vespera-*.jar, run, at most one root and one --db-dir=. The refusal "outside the
-// allow list" is lifted then for every word of a lister's segment, for the jar's root, and for the
-// current directory of a command that does not run the jar; not for the jar's other words, nor for the
-// current directory of a command that runs it, since Vespera writes there. A lifted path is not looked
-// up and is no folder the command names; a closed .claude folder, a place for reading only, a name that
-// cannot be followed and a name made only of dots still refuse it.
+// backtick, no { } in PowerShell, and no < or > but 2>&1 and, each followed by a space, a separator or
+// the end, >/dev/null and 2>/dev/null in Bash and >$null and 2>$null in PowerShell. Either every segment
+// is run by a bare lister (ls, dir, stat, Get-ChildItem, gci, Get-Item, Test-Path; case folded in
+// PowerShell only), and the refusal "outside the allow list" is lifted for every path of the command
+// and for its current directory; or the command is one segment, the Vespera jar in its one form (java or
+// java.exe, -jar, a vespera-*.jar, run, at most one root and one --db-dir=), and it is lifted for the
+// labels of the root alone: the root as written and its pieces between spaces. A root that begins with @,
+// which picocli opens as a file of arguments, or that a reading could label otherwise (a , { or } in it,
+// or punctuation at its end) is not listed. The jar's other words and its current directory stay
+// checked, since Vespera writes there. A lifted path is not looked up and is no folder the command names;
+// a closed .claude folder and a name made only of dots still refuse it.
 //
 // One Bash or PowerShell command is admitted without being read for paths (ADR-212, docs/adr/0212):
 // node, working-directory-counts.mjs beside this file, and a folder that directly holds vespera.db, and
@@ -201,7 +203,7 @@
 // So that the script word is the path node opens, a word that begins with a separator is not admitted on
 // Windows, where Git Bash rewrites one, nor a word with a backslash elsewhere, where it is part of a name.
 // The admitted command is let through before its paths or the text of its tokens are read, so neither the
-// working-directory rule nor the closed .claude folder rules (ADR-215 section 10) apply to its two words,
+// allow list nor the closed .claude folder rules (ADR-215 section 10) apply to its two words,
 // the script word and the folder word; they do apply to its current directory, as said above. A call that
 // fails any of this is read as every other command is, the text of its tokens included. The script lies
 // in a closed .claude folder, so it is refused to Edit, Write and NotebookEdit and to every shell command
@@ -529,36 +531,36 @@ function describe(absolute) {
   return result;
 }
 
-// A command of listed programs (ADR-264 section 3), or null: whether a segment runs the Vespera jar, and
-// the words of the jar's segments whose refusal outside the allow list is not lifted, each as written,
-// as its value after =, and in its pieces between spaces, so that every label the reading gives one of
-// them is found.
+// A command of listed programs (ADR-264 section 3), or null. A command of listers is { jar: false }. A
+// command that runs the Vespera jar is that one segment alone, and is { jar: true, root }: only the root
+// is lifted, so it is refused where a reading could give it a label other than its own text or a piece
+// of it between spaces (a , { or } in it, or punctuation trimSentence takes off its end), and where it
+// begins with @, which picocli opens as a file of arguments.
 function listedCommand(command, bash) {
   if (/[()`]/.test(command) || (!bash && /[{}]/.test(command))) return null;
-  const redirects = bash ? /2>&1|2?> ?\/dev\/null/g : /2>&1|2?> ?\/dev\/null|2?> ?\$null/gi;
+  const redirects = bash ? /(?:2>&1|2?> ?\/dev\/null)(?=$|[\s;&|])/g : /(?:2>&1|2?> ?\$null)(?=$|[\s;&|])/gi;
   const text = command.replace(redirects, " ");
   if (/[<>]/.test(text)) return null;
-  const unlifted = [];
-  let jar = false;
-  for (const segment of text.split(/;|&&|\|\||\||&|\r?\n/)) {
-    const words = [...segment.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((m) => ({ word: m[1] ?? m[2] ?? m[3], bare: m[3] !== undefined }));
-    if (!words.length) continue;
-    const [first] = words;
-    if (first.bare && !/[\\/]/.test(first.word) && LISTERS.some((name) => (bash ? name === first.word : name.toLowerCase() === first.word.toLowerCase()))) continue;
-    const last = (word) => word.split(/[\\/]/).pop();
-    const fold = (word) => (windows ? word.toLowerCase() : word);
-    if (!["java", "java.exe"].includes(last(first.word)) || words[1]?.word !== "-jar" || !words[1].bare) return null;
-    if (!words[2] || !/^vespera-.*\.jar$/.test(fold(last(words[2].word))) || words[3]?.word !== "run") return null;
-    const rest = words.slice(4).map(({ word }) => word);
-    const dbDirs = rest.filter((word) => word.startsWith("--db-dir="));
-    const roots = rest.filter((word) => !word.startsWith("-"));
-    if (dbDirs.length > 1 || roots.length > 1 || dbDirs.length + roots.length !== rest.length) return null;
-    jar = true;
-    for (const word of [...words.slice(0, 4).map(({ word }) => word), ...dbDirs]) {
-      for (const form of [word, word.slice(word.indexOf("=") + 1)]) unlifted.push(form, ...form.split(" "));
-    }
-  }
-  return { jar, unlifted: unlifted.filter(Boolean) };
+  const segments = text
+    .split(/;|&&|\|\||\||&|\r?\n/)
+    .map((segment) => [...segment.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((m) => ({ word: m[1] ?? m[2] ?? m[3], bare: m[3] !== undefined })))
+    .filter((words) => words.length);
+  const lister = ([first]) =>
+    first.bare && !/[\\/]/.test(first.word) && LISTERS.some((name) => (bash ? name === first.word : name.toLowerCase() === first.word.toLowerCase()));
+  if (segments.every(lister)) return { jar: false };
+  if (segments.length !== 1) return null;
+  const [words] = segments;
+  const last = (word) => word.split(/[\\/]/).pop();
+  const fold = (word) => (windows ? word.toLowerCase() : word);
+  if (!["java", "java.exe"].includes(last(words[0].word)) || words[1]?.word !== "-jar" || !words[1].bare) return null;
+  if (!words[2] || !/^vespera-.*\.jar$/.test(fold(last(words[2].word))) || words[3]?.word !== "run") return null;
+  const rest = words.slice(4).map(({ word }) => word);
+  const dbDirs = rest.filter((word) => word.startsWith("--db-dir="));
+  const roots = rest.filter((word) => !word.startsWith("-"));
+  if (dbDirs.length > 1 || roots.length > 1 || dbDirs.length + roots.length !== rest.length) return null;
+  const [root = null] = roots;
+  if (root !== null && (root.startsWith("@") || /[,{}]/.test(root) || trimSentence(root) !== root)) return null;
+  return { jar: true, root };
 }
 
 // The punctuation that ends a sentence or a list item is not part of a path. A trailing .. is the
@@ -1020,8 +1022,11 @@ function refusalsOf(call) {
     const counted = countedFolder(command, tool === "Bash", cwd);
     const listed = listedCommand(command, tool === "Bash");
     if (listed) {
-      liftedFor = (label) =>
-        label.startsWith(currentLabel) ? !listed.jar : !listed.unlifted.some((word) => label === word || label.startsWith(word + ","));
+      const rootForms = listed.root ? [listed.root, ...listed.root.split(" ")].filter(Boolean) : [];
+      liftedFor = (label) => {
+        if (label.startsWith(currentLabel)) return !listed.jar;
+        return !listed.jar || rootForms.some((form) => label === form || label.startsWith(form + ","));
+      };
     }
     const currentChecked = checkReadings(currentLabel, currentDirectory, checkout);
     if (counted !== null && currentChecked.every(({ turnedDown }) => !turnedDown) && directlyHoldsDatabase(counted)) return refused;
@@ -1167,8 +1172,8 @@ function main() {
   }
   if (!refused.length) return 0;
   return refusal(
-    "Claude never opens the operator's archives or a Vespera working directory, because their " +
-      "documents may be sensitive and are read only by local models, and no agent writes into a .claude " +
+    "Claude reads no file's content outside the allow list, and writes nothing there, because it may lie " +
+      "in an archive whose documents may be sensitive and are read only by local models, and no agent writes into a .claude " +
       "folder, because what is there decides how a later session runs (a closed one may still be read with " +
       "Read, Grep and Glob). Outside the allow list, Glob and a command of listers (ls, dir, stat, " +
       "Get-ChildItem, gci, Get-Item, Test-Path) or of the Vespera jar's run are let through, and nothing " +
