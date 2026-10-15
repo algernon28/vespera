@@ -210,6 +210,10 @@ _Avoid_: mutex, pidfile
 The one file an invocation that starts the job writes for a hosted model to read, in a folder outside every working directory: each step and how it ended, durations, counts, progress lines, and a failed step's exception types. It is built from typed values and an allow-list, so it names no path, file name, title or document text, and it keeps no exception message (ADR-198).
 _Avoid_: run summary, summary
 
+**Progress page**:
+The page `vespera run` rewrites in the working directory while it runs, `progress.html`: each step of the job with its state, its counts and its last progress line, the time elapsed and the database's size, read from what the invocation holds in memory and never from a query, and ending on a write that says how the invocation ended (ADR-265). It names no path, no title and no text of a document, so it can be sent to anyone. Not the invocation account, which is written once, when the invocation ends, outside every working directory, for a hosted model.
+_Avoid_: dashboard, monitor, status page
+
 ### Output
 
 **Synthesis doc**:

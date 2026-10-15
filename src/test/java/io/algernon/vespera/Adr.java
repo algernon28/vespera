@@ -1787,6 +1787,14 @@ public final class Adr {
     public static final String STAGE_3_WRITES_THE_PAGE_THE_BOILERPLATE_FLOOR_IS_READ_OFF = FILE
             + "0262-stage-3-writes-the-page-the-boilerplate-floor-is-read-off.md";
 
+    /**
+     * ADR-265 -- {@code vespera run} rewrites {@code progress.html} in the working directory while it runs, from
+     * what the job holds in memory, off the step threads, naming no path and no document, and ends on a write
+     * that says how the invocation ended and stops the reload; a write that fails fails nothing.
+     */
+    public static final String THE_RUN_REWRITES_A_PROGRESS_PAGE_WHILE_IT_RUNS = FILE
+            + "0265-vespera-run-rewrites-a-progress-page-in-the-working-directory-while-it-runs.md";
+
     private Adr() {
     }
 }

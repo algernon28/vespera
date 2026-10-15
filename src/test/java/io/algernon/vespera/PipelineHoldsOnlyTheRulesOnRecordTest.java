@@ -137,6 +137,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "OccurrenceReader",
             "PendingConversions",
             "ProfileShapeCheck",
+            // ADR-265: renders what the job holds in memory, and decides nothing it shows.
+            "ProgressPage",
             "RedundancyBoilerplate",
             "RedundancyGate",
             "RedundancyJobConfiguration",
@@ -164,6 +166,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "SeedExtractionOutcome",
             "SeedGate",
             "ServiceScopeFailureException",
+            // ADR-265: records which step ended at a shut gate; the gate's decision is the gate's.
+            "ShutGates",
             "SidecarRecovery",
             "StageFiveGates",
             "StageModules",
