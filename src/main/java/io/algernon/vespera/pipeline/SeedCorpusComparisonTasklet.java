@@ -87,6 +87,7 @@ class SeedCorpusComparisonTasklet implements Tasklet {
                 "stage 5's seed/corpus comparison", seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
+            ShutGates.in(chunkContext).record(StepNames.SEED_CORPUS_COMPARISON);
             return RepeatStatus.FINISHED;
         }
         SeedGate.SeedWalk seedWalk = preamble.seedWalk().orElseThrow();

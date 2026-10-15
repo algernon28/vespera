@@ -93,6 +93,7 @@ class RelevanceScoringTasklet implements Tasklet {
                 "stage 5's relevance-scoring step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
+            ShutGates.in(chunkContext).record(StepNames.RELEVANCE_SCORING);
             return RepeatStatus.FINISHED;
         }
         SeedGate.SeedWalk seedWalk = preamble.seedWalk().orElseThrow();
@@ -141,6 +142,7 @@ class RelevanceScoringTasklet implements Tasklet {
                                         + " it did. No survivor was scored.",
                                 seedContentHashes.size(),
                                 modelName);
+                        ShutGates.in(chunkContext).record(StepNames.RELEVANCE_SCORING);
                         return false;
                     }
 

@@ -132,6 +132,7 @@ class ArrangementTasklet implements Tasklet {
                 "the arrangement step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
+            ShutGates.in(chunkContext).record(StepNames.ARRANGEMENT);
             return RepeatStatus.FINISHED;
         }
 
@@ -153,6 +154,7 @@ class ArrangementTasklet implements Tasklet {
                     "the arrangement step is gated: no survivor was grouped under {}, so there is nothing"
                             + " to arrange.",
                     scoring.value());
+            ShutGates.in(chunkContext).record(StepNames.ARRANGEMENT);
             return RepeatStatus.FINISHED;
         }
         Map<OccurrenceId, String> seedPaths = new HashMap<>();

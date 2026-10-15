@@ -64,7 +64,20 @@ final class ReportPage {
      * for a page written as its rows come, which never holds its body whole (ADR-220 section 6).
      */
     static String head(String title) {
+        return head(title, "");
+    }
+
+    /**
+     * Like {@link #render}, for a page a browser reloads every {@code seconds} (ADR-265 section 1): a refresh
+     * in the head and nothing else different.
+     */
+    static String reloading(String title, String body, int seconds) {
+        return head(title, "<meta http-equiv=\"refresh\" content=\"" + seconds + "\">\n") + body + tail();
+    }
+
+    private static String head(String title, String extraMeta) {
         return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n"
+                + extraMeta
                 + "<title>" + escape(title) + "</title>\n<style>\n"
                 + STYLES
                 + "</style>\n</head>\n<body>\n";

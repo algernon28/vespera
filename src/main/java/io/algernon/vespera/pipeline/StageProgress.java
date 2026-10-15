@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import java.util.Locale;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,6 +30,13 @@ final class StageProgress {
     static final int REPORT_EVERY_PERCENT = 5;
 
     private static final Logger log = LoggerFactory.getLogger(StageProgress.class);
+
+    /** The label of a stage's progress line: its stage, and in brackets lowercase words. */
+    static final String LABEL_SHAPE = "Stage [0-9][a-z]? \\([a-z0-9, -]+\\)";
+
+    /** The whole text of a counter's line (ADR-198), which {@code InvocationAccount} and the progress page admit. */
+    static final Pattern COUNTER_LINE =
+            Pattern.compile(LABEL_SHAPE + ": [0-9,]+( of [0-9,]+ \\([0-9]+%\\)| so far)");
 
     private final String stage;
     private final boolean running;
