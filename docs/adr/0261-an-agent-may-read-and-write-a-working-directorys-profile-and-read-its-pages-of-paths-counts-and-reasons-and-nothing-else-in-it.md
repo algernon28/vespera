@@ -1,5 +1,7 @@
 # ADR-261 — An agent may read and write a working directory's profile, and read its pages of paths, counts and reasons, and nothing else in it
 
+> **Extended — see [ADR-263](0263-an-agent-may-read-the-page-the-boilerplate-floor-is-read-off.md).** `document-frequency.html`, which stage 3 writes, joins §2's list, to Read only. The rest of this record stands.
+
 - **Date**: 2026-10-14
 - **Status**: accepted on 2026-10-14.
 - **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), in these places and no others:
