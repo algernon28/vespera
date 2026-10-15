@@ -113,6 +113,7 @@ class ClusteringTasklet implements Tasklet {
                 "stage 5's clustering step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
+            ShutGates.in(chunkContext).record(StepNames.CLUSTERING);
             return RepeatStatus.FINISHED;
         }
 
@@ -132,6 +133,7 @@ class ClusteringTasklet implements Tasklet {
                                         + " under {}, so there is no partition to cluster. Nothing was"
                                         + " clustered.",
                                 scoring.value());
+                        ShutGates.in(chunkContext).record(StepNames.CLUSTERING);
                         return false;
                     }
 

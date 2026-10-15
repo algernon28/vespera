@@ -7,7 +7,9 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -60,9 +62,13 @@ public class SeedExtractionJobConfiguration {
      */
     @Bean
     @StepScope
-    OccurrenceReader seedReader(Ledger ledger, SeedGate seedGate) {
+    OccurrenceReader seedReader(
+            Ledger ledger,
+            SeedGate seedGate,
+            @Value("#{stepExecution.jobExecution.executionContext}") ExecutionContext jobContext) {
         Optional<SeedGate.SeedWalk> seedWalk = seedGate.seedWalk();
         if (seedWalk.isEmpty()) {
+            new ShutGates(jobContext).record(StepNames.SEED_EXTRACTION);
             return OccurrenceReader.yieldingNothing();
         }
         return new OccurrenceReader(ledger.occurrences().occurrencesOf(seedWalk.get().walkId()));

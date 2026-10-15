@@ -65,6 +65,7 @@ class RedundancyResolutionTasklet implements Tasklet {
             // Silent on purpose (#135). Stage 4a's reader has already said what this gate wants, and
             // one gate with one missing value and one action was printing its whole paragraph twice in
             // a row -- once here and once there -- which reads as two problems.
+            ShutGates.in(chunkContext).record(StepNames.CONTENT_REDUNDANCY);
             return RepeatStatus.FINISHED;
         }
 
