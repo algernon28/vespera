@@ -690,6 +690,24 @@ function markerPattern(source, whole = false) {
   }
 }
 
+/* ---------- how much AGENTS.md carries ---------- */
+
+// AGENTS.md is read in full before any work, and each paragraph added to it is paid for by every session. It grew
+// to 34 KB, a fifth of it the guard's rules, which an agent needs when a command is refused and not before. The
+// detail lives in docs/agents/private-paths-guard.md; AGENTS.md keeps the rules an agent must not break and the
+// habits that spare a refusal. The ceiling is a ratchet: a paragraph that does not fit goes to a document under
+// docs/agents and a line here that points to it.
+{
+  const NAME = "how much AGENTS.md carries";
+  const CEILING = 30000;
+  const DETAIL = "docs/agents/private-paths-guard.md";
+  const size = Buffer.byteLength(text, "utf8");
+  if (size > CEILING) fail(NAME, `${AGENTS} is ${size} bytes, over the ${CEILING} it keeps: move the detail to a document under docs/agents and point to it`);
+  else if (!existsSync(DETAIL)) fail(NAME, `${DETAIL} is missing: it holds the guard's rules in full`);
+  else if (!text.includes(DETAIL)) fail(NAME, `${AGENTS} does not point to ${DETAIL}`);
+  else pass(NAME, `${AGENTS} is ${size} bytes, within ${CEILING}, and points to ${DETAIL}`);
+}
+
 /* ---------- what this does not check ---------- */
 
 // Printed on every run, including a clean one. The point of the list is that the
