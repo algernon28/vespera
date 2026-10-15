@@ -134,7 +134,7 @@ ADR-201 records that a hook that runs out of time lets the call through. The che
 
 - **`.claude/hooks/private-paths-guard.mjs`** gains §4's check, with the two lists of §2 written in it, and a paragraph of its header citing this record. It lies in a closed `.claude` folder, so the operator puts it in place (ADR-215 §7).
 - **`src/test/hooks/private-paths-guard.test.mjs`**: K301, K302 and K304 claim the call is let through, and the K4 and K5 cases are added (Tests).
-- **`AGENTS.md`**: its section on the operator's documents states §2's files, §4's admission and the rules of §6 and §7.
+- **`AGENTS.md`** states the rules of §6 and §7 and points to `docs/agents/private-paths-guard.md`, which states §2's files and §4's admission.
 - **Not** `.claude/allowed-paths.txt`, `.claude/settings.json`, the wrapper or the counting script.
 
 ## Decided here
@@ -152,7 +152,7 @@ ADR-201 records that a hook that runs out of time lets the call through. The che
 - **Some reads stay refused that a person would expect to work**: `cat`, `head` or `Get-Content` of a page, Grep of the review list, a Glob of a working directory, and Read of a page while it is being written. Read is used instead, with its offset and limit for a long page.
 - **A page that carries text of a document is not opened by being useful.** The arrangement page asks for an approval and stays closed; the approval name is the operator's to give.
 - **The guard's test gains 29 cases**, K401 to K412 and K501 to K517, and three of ADR-212's K cases change what they claim.
-- **`AGENTS.md` no longer says that no report is read**, or that the counts are the one thing an agent may read of a working directory; it names §2's files and the rules of §6 and §7, and holds the hook to seven records.
+- **`AGENTS.md` no longer says that no report is read**, or that the counts are the one thing an agent may read of a working directory; it states the rules of §6 and §7, and `docs/agents/private-paths-guard.md` names §2's files and holds the hook to seven records.
 - **Nothing under `src/main` changes, and no run id moves.**
 
 ## Alternatives weighed
