@@ -1,11 +1,11 @@
 // Refuses a Claude tool call that names a path outside the places listed in .claude/allowed-paths.txt
 // (plus .claude/allowed-paths.local.txt on this machine), or a path inside a Vespera working directory
-// wherever it is, or a recursive Grep or Glob that begins above one, or, to a tool that writes and to a
-// shell command, a path in a .claude folder that is closed (below). The operator's archives can hold
-// sensitive documents, and nothing that reads a document may reach a hosted model: a document is read
-// only by local models. ADR-196 (docs/adr/0196) is the record, ADR-201 (docs/adr/0201), ADR-215
-// (docs/adr/0215), ADR-217 (docs/adr/0217) and ADR-233 (docs/adr/0233) amend it, and
-// src/test/hooks/private-paths-guard.test.mjs holds this file to all five.
+// wherever it is but for the few files named below, or a recursive Grep or Glob that begins above one, or,
+// to a tool that writes and to a shell command, a path in a .claude folder that is closed (below). The
+// operator's archives can hold sensitive documents, and nothing that reads a document may reach a hosted
+// model: a document is read only by local models. ADR-196 (docs/adr/0196) is the record, ADR-201
+// (docs/adr/0201), ADR-215 (docs/adr/0215), ADR-217 (docs/adr/0217), ADR-233 (docs/adr/0233) and ADR-261
+// (docs/adr/0261) amend it, and src/test/hooks/private-paths-guard.test.mjs holds this file to all six.
 //
 // It is registered for eight tools: Read, Grep, Glob, Edit, Write, NotebookEdit, Bash and PowerShell.
 // It is an allow list and not a list of archives, so an archive on a new path is refused without anyone
@@ -182,8 +182,8 @@
 //
 // One Bash or PowerShell command is admitted without being read for paths (ADR-212, docs/adr/0212):
 // node, working-directory-counts.mjs beside this file, and a folder that directly holds vespera.db, and
-// nothing else. That script prints a working directory's aggregate counts by statements fixed in it, and
-// they are all an agent may read of one. The command is three words parted by spaces or tabs, the two
+// nothing else. That script prints a working directory's aggregate counts by statements fixed in it. The
+// command is three words parted by spaces or tabs, the two
 // after node bare or single-quoted, of letters, digits and _ . / - (and \ and the space where the shell
 // takes them as written), with a colon only as a drive's and no .. segment. The script word, read against
 // the current directory, is this file's sibling character for character, folded to one case on Windows
@@ -201,6 +201,19 @@
 // that names it but the admitted one, and is let through to Read, Grep and Glob. The pin does not cover
 // the moment between this check and node reading the script, or which node runs and how it is started
 // (NODE_OPTIONS, PATH, an alias); for those the written rule is all there is.
+//
+// Of the files in a working directory, a few are admitted by name to a file tool, and nothing else in
+// one is (ADR-261, docs/adr/0261): Read of profile.yaml, of the label file relevance-labels.yaml, and of
+// the six pages of paths, counts and reasons the stages write (format-mix.html, extraction-failures.html,
+// extraction-survivors.html, confidence-distribution.html, seed-corpus-comparison.html and
+// cluster-sizes.html); and Edit and Write of profile.yaml. A name is admitted only directly in a folder
+// that holds vespera.db or vespera.lock, both as the path is written and where its links lead, compared
+// whole, folded to one case on Windows only, and only where the file is not there or is a regular file
+// with one name: not a link, and not a second name of another file. So a stream name, a dot or a space
+// after the name, an 8.3 name, a subfolder, a .part file and every other name are refused as before, and
+// so are Grep, Glob, NotebookEdit and every shell command that names one of these files. The allow list
+// decides first, as it does for every path, so a working directory the lists do not name admits nothing,
+// and the check asks the file system only about a path the allow list has admitted.
 //
 // It fails closed. Input it cannot read, input that names no tool, and any exception end in exit
 // code 2, which is the only code Claude Code treats as a refusal.
@@ -221,6 +234,19 @@ const checkout = resolve(here, "..", "..");
 const WALK_LIMIT = 10000;
 const NOT_WALKED = new Set([".git", "node_modules", "target"]);
 const WORKING_DIRECTORY_FILES = ["vespera.db", "vespera.lock"];
+// The files of a working directory ADR-261 admits by name, directly in one: to Read, and to Edit and Write.
+// A page the stages write later joins the first list by a record of its own.
+const READ_IN_A_WORKING_DIRECTORY = [
+  "profile.yaml",
+  "relevance-labels.yaml",
+  "format-mix.html",
+  "extraction-failures.html",
+  "extraction-survivors.html",
+  "confidence-distribution.html",
+  "seed-corpus-comparison.html",
+  "cluster-sizes.html",
+];
+const WRITTEN_IN_A_WORKING_DIRECTORY = ["profile.yaml"];
 const DIRECTORY_LIMIT = 32;
 const READING_LIMIT = 20000;
 // What the file system answers of a name that is not there: no such name, a name beneath something that
@@ -488,6 +514,24 @@ function holdsWorkingDirectory(dir) {
     holdsCache.set(dir, held);
   }
   return held;
+}
+
+// Whether a path inside a working directory is a file ADR-261 admits to this tool: a name on the tool's
+// list, Read's or that of Edit and Write, directly in a folder that holds vespera.db or vespera.lock, as
+// the path is written and as real, where its links lead; compared whole, folded to one case on Windows
+// only, where the file system folds it too; and the file either not there, or a regular file with one
+// name, so neither a link nor a second name of another file. Every other tool is admitted nothing.
+function admittedInWorkingDirectory(tool, absolute, real) {
+  const names = tool === "Read" ? READ_IN_A_WORKING_DIRECTORY : tool === "Edit" || tool === "Write" ? WRITTEN_IN_A_WORKING_DIRECTORY : [];
+  const fold = (name) => (windows ? name.toLowerCase() : name);
+  const directlyIn = (path) => names.some((name) => fold(basename(path)) === fold(name)) && holdsWorkingDirectory(dirname(path));
+  if (!directlyIn(absolute) || !directlyIn(real)) return false;
+  try {
+    const stat = lstatSync(absolute);
+    return stat.isFile() && stat.nlink === 1;
+  } catch (caught) {
+    return NOT_THERE.has(caught?.code);
+  }
 }
 
 // A working directory is recognised by what Vespera writes into it, wherever it is.
@@ -986,7 +1030,11 @@ function refusalsOf(call) {
       const into = linked.find(({ key }) => under(text, key) || under(realText, key));
       if (into) return turnedDown(`the link ${into.link} leads to ${into.leadsTo}, so it is ${CLOSED}`);
     }
-    if (found.inside) return turnedDown(`inside the Vespera working directory ${found.inside}`);
+    // Of what is inside a working directory, only the files ADR-261 names are let through, each to the tools
+    // it names them for.
+    if (found.inside && !admittedInWorkingDirectory(tool, absolute, found.real)) {
+      return turnedDown(`inside the Vespera working directory ${found.inside}`);
+    }
     if (searchRoot) {
       const below = workingDirectoryBelow(found.real);
       if (below.found) return turnedDown(`a recursive search from it reaches the Vespera working directory ${below.found}`);
@@ -1183,7 +1231,9 @@ function main() {
     "Claude never opens the operator's archives or a Vespera working directory, because their " +
       "documents may be sensitive and are read only by local models, and no agent writes into a .claude " +
       "folder, because what is there decides how a later session runs (a closed one may still be read with " +
-      "Read, Grep and Glob). Paths: " + refused.join("; ") +
+      "Read, Grep and Glob). Of a working directory, Read of profile.yaml, relevance-labels.yaml and six " +
+      "pages directly in it, and Edit and Write of profile.yaml, are let through, and nothing else " +
+      "(docs/adr/0261). Paths: " + refused.join("; ") +
       ". If a path outside a .claude folder is legitimate and holds no document, the operator adds it to " +
       ".claude/allowed-paths.local.txt; no line of an allow list opens a .claude folder, and a change to " +
       "the guard, a list or the settings is written as a draft outside every .claude folder, which the " +
