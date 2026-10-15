@@ -27,12 +27,16 @@ A row's state is one of five, and the cell holds its words:
 | State | When |
 | --- | --- |
 | `not started` | the job holds no execution of the step |
-| `running` | its execution's status is `STARTING` or `STARTED` |
+| `running` | its execution's status is `STARTING` or `STARTED`, or its thread is still inside it (below) |
 | `stopped at a gate` | its execution completed and the step recorded that it ended at a shut gate (§3) |
 | `finished` | its execution completed otherwise, a step skipped as already recorded among them |
 | `failed` | any other status |
 
-`Read`, `Written` and `Skipped` are the execution's read, write and skip counts, as numbers; `Duration` is from the step's start to its end, or to the write while it runs, and empty while it has not started. `Progress` is the last progress line logged while that step ran (§3), or empty.
+**A step's status turns terminal before its thread leaves it.** In the Spring Batch this build runs, a step's own `afterStep` listener, `SeedExtractionItemWriter.afterStep` among them, runs after the step execution is already `COMPLETED`, and may log a progress line from the step's thread. So a step is also shown `running` while its status is terminal and a progress line has been logged from its thread since that status was reached, until a later step has an execution or the last write (§2) is made; the state it is then shown in is the one its status gives.
+
+`Read`, `Written` and `Skipped` are the execution's read, write and skip counts, as numbers; `Duration` is from the step's start to its end, or to the write while it runs. `Progress` is the last progress line logged while that step ran (§3), or empty. A `not started` row has its `Read`, `Written`, `Skipped`, `Duration` and `Progress` cells empty.
+
+**A refusal is not a gate.** A step that ends because the embedding model or the generation model the profile names is not served here (ADR-202) fails, and is shown `failed`: the value is there, and what it names cannot be used. Only a value that is not there, or is unreadable, shuts a gate.
 
 **The page names no path**: not the corpus root, the working directory, the seed folder or any file of the archive. It holds no title and no text of a document, no exception message and no run id. What it holds is step names, the five states, counts, durations, times and a size, and progress lines admitted by the allow-list of §3, so it may be copied out of the working directory to anyone.
 
@@ -84,7 +88,7 @@ and no further warning until a write has succeeded again, so a page that cannot 
 
 **`ProgressPage` is a class of `pipeline`**, a `JobExecutionListener` registered on the job in `VesperaJobConfiguration` beside `InvocationAccount`, and it is on record in `PipelineHoldsOnlyTheRulesOnRecordTest` as holding no rule, as `ShutGates` is: neither decides a verdict, a cache key, a cluster or text of the deliverable. `pipeline` is the only module that names a Spring Batch type, and the page reads `JobExecution` and `StepExecution`, so it could live nowhere else.
 
-**No run id moves.** The page is not output of a stage, and every class this changes is in `pipeline`, which no stage's version names (ADR-226): `ProgressPage` and `ShutGates`, the gates' calls to `record`, `ReportPage` and `VesperaJobConfiguration`; and `application.yaml`'s new property, which no stage reads. `vespera.progress-interval` is no part of any run's configuration.
+**No run id moves.** The page is not output of a stage, and every class this changes is in `pipeline`, which no stage's version names (ADR-226): `ProgressPage` and `ShutGates`, the gates' calls to `record`, `ReportPage`, `VesperaJobConfiguration`, and `StageProgress`, which holds the counter's pattern `InvocationAccount` and the page both read; and `application.yaml`'s new property, which no stage reads. `vespera.progress-interval` is no part of any run's configuration.
 
 ### 6. What the operator is told
 
