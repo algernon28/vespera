@@ -52,6 +52,9 @@ class ContentCensusTasklet implements Tasklet {
     /** The confidence-distribution report's fixed name in the working directory (ADR-075). */
     static final String CONFIDENCE_DISTRIBUTION_FILE_NAME = "confidence-distribution.html";
 
+    /** The page the boilerplate floor is read off, its fixed name in the working directory (ADR-262). */
+    static final String DOCUMENT_FREQUENCY_FILE_NAME = "document-frequency.html";
+
     /** For the seconds the measurement of shingle document frequency took, as its line states them (ADR-191). */
     private static final double NANOS_PER_SECOND = 1_000_000_000.0;
 
@@ -132,14 +135,27 @@ class ContentCensusTasklet implements Tasklet {
                     log.info("Stage 3 (content census) measured the confidence distribution");
                     Path reportFile = writeReport(distribution);
 
+                    // The read walks the run's rows of shingle_document_frequency, so it states its seconds (ADR-193).
+                    long readStarted = System.nanoTime();
+                    DocumentFrequency.Shares shares = documentFrequency.shares(runId);
+                    log.info(
+                            "Stage 3 (content census) worked out the shares of the documents in {} s",
+                            String.format(Locale.ROOT, "%.1f", (System.nanoTime() - readStarted) / NANOS_PER_SECOND));
+                    Path frequencyFile = writePage(
+                            DOCUMENT_FREQUENCY_FILE_NAME,
+                            DocumentFrequencyReport.render(shares, runId));
+
                     Profile profile = profileStore.load();
                     profileStore.save(profile.withDegenerateOutputConfidenceFloorMeasurement(
-                            new Measurement(reportFile.toString(), clock.instant())));
+                                    new Measurement(reportFile.toString(), clock.instant()))
+                            .withBoilerplateDocumentFrequencyFloorMeasurement(
+                                    new Measurement(frequencyFile.toString(), clock.instant())));
 
                     log.info(
-                            "Stage 3 (content census) finished under run {}; report written to {}",
+                            "Stage 3 (content census) finished under run {}; reports written to {} and {}",
                             runId.value(),
-                            reportFile);
+                            reportFile,
+                            frequencyFile);
                     return true;
                 });
     }
@@ -202,12 +218,17 @@ class ContentCensusTasklet implements Tasklet {
      * earlier run left there (ADR-075) — never accumulated, never left stale.
      */
     private Path writeReport(ConfidenceDistribution.Distribution distribution) {
-        Path reportFile = workingDirectory.resolve(CONFIDENCE_DISTRIBUTION_FILE_NAME);
+        return writePage(CONFIDENCE_DISTRIBUTION_FILE_NAME, ConfidenceDistributionReport.render(distribution));
+    }
+
+    /** Writes {@code html} as {@code fileName} in the working directory, overwriting what an earlier run left (ADR-077). */
+    private Path writePage(String fileName, String html) {
+        Path reportFile = workingDirectory.resolve(fileName);
         try {
             Files.createDirectories(workingDirectory);
-            Files.writeString(reportFile, ConfidenceDistributionReport.render(distribution), StandardCharsets.UTF_8);
+            Files.writeString(reportFile, html, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new UncheckedIOException("could not write the confidence-distribution report at " + reportFile, e);
+            throw new UncheckedIOException("could not write the report at " + reportFile, e);
         }
         return reportFile;
     }

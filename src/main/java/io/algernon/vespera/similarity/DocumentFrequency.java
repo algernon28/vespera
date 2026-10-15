@@ -6,6 +6,8 @@ import io.algernon.vespera.ledger.Placeholders;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.StatementSteps;
 import io.algernon.vespera.ledger.WalkId;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.PreparedStatement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -13,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.TreeMap;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -208,6 +211,57 @@ public class DocumentFrequency {
             return OptionalLong.empty();
         }
         return OptionalLong.of(greatest - least + 1);
+    }
+
+    /** What stage 3's page shows (ADR-262): the documents measured and one line per share of them. */
+    public record Shares(long shingledDocumentCount, List<ShareLine> lines) {}
+
+    /**
+     * One line of the page: {@code share} is {@code floor(100 * k / N) / 100} at two decimal places, the same for
+     * every count k on the line; {@code shingles} is how many passages are found in a count that rounds down
+     * to it; {@code fewestDocuments} is the least such count.
+     */
+    public record ShareLine(BigDecimal share, long shingles, long fewestDocuments) {}
+
+    /**
+     * The lines of the page the boilerplate floor is read off (ADR-262), over {@code stage3RunId}'s rows of
+     * {@link ShingleParameters#DEFAULT}, the granularity stage 4 reads, in ascending order of share. No line
+     * and 0 documents where {@code shingle_corpus_size} has no row for them.
+     *
+     * <p>Sorts nothing (ADR-218): the run's rows are read in the order of the primary key and counted in the
+     * heap by {@code document_count}, of which there are at most N.
+     */
+    public Shares shares(RunId stage3RunId) {
+        String granularity = ShingleParameters.DEFAULT.identity();
+        Long documents = jdbcTemplate.query(
+                "SELECT shingled_document_count FROM shingle_corpus_size"
+                        + " WHERE run_id = ? AND shingle_parameter_identity = ?",
+                resultSet -> resultSet.next() ? resultSet.getLong(1) : null,
+                stage3RunId.value(),
+                granularity);
+        if (documents == null) {
+            return new Shares(0, List.of());
+        }
+        Map<Long, Long> shinglesByCount = new TreeMap<>();
+        jdbcTemplate.query(
+                "SELECT document_count FROM shingle_document_frequency"
+                        + " WHERE run_id = ? AND shingle_parameter_identity = ?",
+                resultSet -> {
+                    shinglesByCount.merge(resultSet.getLong(1), 1L, Long::sum);
+                },
+                stage3RunId.value(),
+                granularity);
+        List<ShareLine> lines = new ArrayList<>();
+        shinglesByCount.forEach((count, shingles) -> {
+            BigDecimal share = BigDecimal.valueOf(count).divide(BigDecimal.valueOf(documents), 2, RoundingMode.FLOOR);
+            ShareLine last = lines.isEmpty() ? null : lines.getLast();
+            if (last != null && last.share().equals(share)) {
+                lines.set(lines.size() - 1, new ShareLine(share, last.shingles() + shingles, last.fewestDocuments()));
+            } else {
+                lines.add(new ShareLine(share, shingles, count));
+            }
+        });
+        return new Shares(documents, List.copyOf(lines));
     }
 
     /**
