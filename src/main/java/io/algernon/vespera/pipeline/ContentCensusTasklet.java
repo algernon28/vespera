@@ -43,7 +43,8 @@ import org.springframework.stereotype.Component;
  * than inside {@code extraction} (ADR-040: a capability module may depend on {@code ledger} and
  * nothing else horizontal) — {@link ConfidenceDistribution} hands back the same {@code Distribution}
  * value it wrote to its own table, and this class is what renders that value as a file and points the
- * profile at it, the composition only {@code pipeline} may do (ADR-075).
+ * profile at it, the composition only {@code pipeline} may do (ADR-075). The same goes for {@code
+ * document-frequency.html}, the page the boilerplate floor is read off (ADR-262), and the floor's pointer to it.
  */
 @Component
 @StepScope
@@ -136,10 +137,11 @@ class ContentCensusTasklet implements Tasklet {
                     Path reportFile = writeReport(distribution);
 
                     // The read walks the run's rows of shingle_document_frequency, so it states its seconds (ADR-193).
+                    log.info("Stage 3 (content census) is reading the shares of the documents");
                     long readStarted = System.nanoTime();
                     DocumentFrequency.Shares shares = documentFrequency.shares(runId);
                     log.info(
-                            "Stage 3 (content census) worked out the shares of the documents in {} s",
+                            "Stage 3 (content census) read the shares of the documents in {} s",
                             String.format(Locale.ROOT, "%.1f", (System.nanoTime() - readStarted) / NANOS_PER_SECOND));
                     Path frequencyFile = writePage(
                             DOCUMENT_FREQUENCY_FILE_NAME,

@@ -539,7 +539,7 @@ class NextAction {
                 new RunValue("seedFolder", profile.seedFolder(),
                         "the folder of documents you already know are relevant"),
                 new RunValue("boilerplateDocumentFrequencyFloor", profile.boilerplateDocumentFrequencyFloor(),
-                        "read off document-frequency.html, which this invocation wrote"),
+                        "read off document-frequency.html, which stage 3 writes"),
                 new RunValue("embeddingModel", profile.embeddingModel(), "which model turns scoring on"));
     }
 

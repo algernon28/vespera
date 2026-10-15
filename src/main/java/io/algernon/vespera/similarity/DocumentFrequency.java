@@ -32,8 +32,9 @@ import org.springframework.stereotype.Component;
  * is a survivor by design and is included.
  *
  * <p>Counted in the database, in one grouping of the run's rows and then a check of the walk's occurrences
- * a page at a time that takes off what the ruled-out ones contributed (ADR-211 section 3). Nothing here
- * grows with the corpus in the heap: a page of ids and one count for each granularity.
+ * a page at a time that takes off what the ruled-out ones contributed (ADR-211 section 3). Counting
+ * holds no row in the heap: a page of ids and one count for each granularity. {@link #shares} does hold a
+ * {@code TreeMap} of at most N entries, one per distinct document count.
  *
  * <p>The grouping names {@code shingle_by_run_id} ({@code INDEXED BY}), so SQLite reads the run's rows in the
  * order they were written and sorts them itself whether or not {@code shingle_by_hash} is built (ADR-219).

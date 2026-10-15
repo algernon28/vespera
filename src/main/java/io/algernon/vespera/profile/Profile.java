@@ -45,8 +45,8 @@ package io.algernon.vespera.profile;
  *     ratios").
  * @param embeddingModel gate 3's key (ADR-084, #107): which embedding model turns stage 5's scoring
  *     run on. Ships unset and purely operator-supplied — which model is a profile key, where it is
- *     served is application configuration. No {@code Measurement}-pointer method exists for this key
- *     either: naming a model is not something a measurement pass could inform.
+ *     served is application configuration. No {@code Measurement}-pointer method exists for this key:
+ *     naming a model is not something a measurement pass could inform.
  * @param relevanceScoreFloor stage 5's relevance threshold (ADR-088, #110): a score on the scale
  *     ADR-020's function produces, below which a scored survivor is {@code below-threshold}. Ships
  *     unset, per <b>observe before enforce</b>, and an unset floor does not stop the run — stage 5
