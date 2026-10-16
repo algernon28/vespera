@@ -41,9 +41,12 @@ import org.springframework.batch.core.step.StepExecution;
 @Epic("Pipeline")
 @Feature("The progress page")
 @Link(name = "ADR-265", url = Adr.THE_RUN_REWRITES_A_PROGRESS_PAGE_WHILE_IT_RUNS, type = "adr")
+@Link(name = "ADR-267", url = Adr.THE_PROGRESS_PAGE_DRAWS_CHARTS_AND_ITS_TABLES_ARE_PAGES_OF_THEIR_OWN, type = "adr")
 class ProgressPageListenerTest {
 
     private static final String PAGE = "progress.html";
+
+    private static final String STEPS_PAGE = "progress-steps.html";
 
     /** Long enough that no scheduled write lands while a test runs: the writes these tests read are the listener's. */
     private static final Duration NO_SCHEDULED_WRITE_MEANWHILE = Duration.ofMinutes(5);
@@ -120,8 +123,12 @@ class ProgressPageListenerTest {
         progressPage.afterJob(failed);
 
         claim(
-                "the page is written, and says the invocation it was handed ended failed, its census failed",
-                () -> assertThat(thePage()).contains(ENDED_FAILED).contains(CENSUS_FAILED));
+                "the page is written, and says the invocation it was handed ended failed, its table of steps"
+                        + " that its census failed",
+                () -> {
+                    assertThat(thePage()).contains(ENDED_FAILED);
+                    assertThat(theStepsPage()).contains(CENSUS_FAILED);
+                });
         claim("and nothing was warned of", () -> assertThat(warnings()).isEmpty());
     }
 
@@ -135,19 +142,22 @@ class ProgressPageListenerTest {
         earlier.setStatus(BatchStatus.COMPLETED);
         progressPage.afterJob(earlier);
         claim(
-                "the earlier invocation's page says it completed, with no census run",
-                () -> assertThat(thePage()).contains(ENDED_COMPLETED).contains(CENSUS_NOT_STARTED));
+                "the earlier invocation's page says it completed, and its table of steps that no census ran",
+                () -> {
+                    assertThat(thePage()).contains(ENDED_COMPLETED);
+                    assertThat(theStepsPage()).contains(CENSUS_NOT_STARTED);
+                });
 
         JobExecution now = aFailedCensus(anExecution(2L));
         progressPage.afterJob(now);
 
         claim(
-                "the page now says the invocation it was handed ended failed, its census failed, and nothing"
-                        + " of the earlier one's",
-                () -> assertThat(thePage())
-                        .contains(ENDED_FAILED)
-                        .contains(CENSUS_FAILED)
-                        .doesNotContain(ENDED_COMPLETED));
+                "the page now says the invocation it was handed ended failed, its table of steps that its census"
+                        + " failed, and neither says anything of the earlier one's",
+                () -> {
+                    assertThat(thePage()).contains(ENDED_FAILED).doesNotContain(ENDED_COMPLETED);
+                    assertThat(theStepsPage()).contains(CENSUS_FAILED).doesNotContain(ENDED_COMPLETED);
+                });
         claim("and nothing was warned of", () -> assertThat(warnings()).isEmpty());
     }
 
@@ -167,6 +177,13 @@ class ProgressPageListenerTest {
     private String thePage() throws IOException {
         Path page = workingDirectory.resolve(PAGE);
         claim("the listener left " + PAGE + " in the working directory", () -> assertThat(page).isRegularFile());
+        return Files.readString(page, StandardCharsets.UTF_8);
+    }
+
+    /** The table of steps, on its own page beside the progress page (ADR-267 section 3). */
+    private String theStepsPage() throws IOException {
+        Path page = workingDirectory.resolve(STEPS_PAGE);
+        claim("the listener left " + STEPS_PAGE + " beside it", () -> assertThat(page).isRegularFile());
         return Files.readString(page, StandardCharsets.UTF_8);
     }
 

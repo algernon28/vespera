@@ -116,6 +116,8 @@ profile.yaml                     the values you set, and how you arrived at them
 vespera.db                       the ledger: every file seen, every verdict, every measurement
 vespera.lock                     held by the command running now, so a second one is refused
 progress.html                    what the command running now has done, opened as it starts
+progress-steps.html              the same progress page's steps, as a table
+progress-samples.html            the same progress page's samples over time, as a table
 format-mix.html                  what kinds of file the archive holds
 extraction-failures.html         the files that could not be read, and why
 extraction-survivors.html        the files that were read and kept
@@ -130,7 +132,7 @@ deliverable/<run>/index.md       what was written, group by group, and what prod
 deliverable/<run>/documents.csv  every surviving document, with its place in the order
 ```
 
-Every `vespera run` and `vespera label` opens `progress.html` in your default browser as it starts, and the command's first line, `Progress page: <path>`, names where it is. While `vespera run` runs, the page reloads itself every five seconds (`vespera.progress-interval`); `vespera label` writes it when it starts and when it ends, with how many answers it recorded. It names no path and no document, so it can be sent to anyone.
+Every `vespera run` and `vespera label` opens `progress.html` in your default browser as it starts, and the command's first line, `Progress page: <path>`, names where it is. While `vespera run` runs, the page reloads itself every five seconds (`vespera.progress-interval`) and shows how many steps have finished, the step running and how far it has got, a timeline of the steps, and charts of the database's size and the running step's counts over time; `progress-steps.html` and `progress-samples.html` beside it hold the same as tables, and a page that is no longer rewritten says so. `vespera label` writes `progress.html` when it starts and when it ends, with how many answers it recorded. It names no path and no document, so it can be sent to anyone.
 
 Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vespera.working-dir` in configuration. Both commands take `--db-dir=<path>`, so if you moved the working directory, name it on `vespera label` as well as on `vespera run`. A command given a `--db-dir` other than the directory it actually opened refuses and records nothing.
 
