@@ -3,6 +3,8 @@
 > **Partly amended — see [ADR-266](0266-every-invocation-names-its-progress-page-first-and-opens-it-and-vespera-label-writes-it-too.md).** Of §2: `vespera label` writes the page too, when it starts and when it ends, with the answers it counted. Of §6: the README also says the page opens itself and that the command's first line names it. Every invocation that writes the page names it first and opens it once. The rest of this record stands.
 >
 > **Partly amended — see [ADR-267](0267-the-progress-page-draws-tiles-a-timeline-of-the-steps-and-charts-over-time-and-its-tables-are-pages-of-their-own.md).** Of §1: the page draws tiles, a bar of the running step's count, a timeline of the steps and charts over time, and its table moves to `progress-steps.html`, beside a page of the samples, `progress-samples.html`. Of §2: each write moves those three pages into place. Of the alternatives refused: a bounded history is kept in memory for the charts, and one fixed script marks a page no longer rewritten. Of What this does not decide: the bars and charts are decided there. The rest of this record stands.
+>
+> **Partly amended — see [ADR-268](0268-the-progress-page-shows-what-the-stage-that-removes-occurrences-has-removed-and-draws-to-the-data-viz-method.md).** Of §1: `Elapsed` and `Database size` are each a tile's label and value, and a size is written in the largest unit that keeps it at least 1 (`51.73 GB`). Of §3: the page also reads two counts held in memory, the verdicts `Verdicts` recorded by kind and what entered the step removing occurrences; it still makes no query. The rest of this record stands.
 
 - **Date**: 2026-10-15
 - **Status**: accepted on 2026-10-15.
