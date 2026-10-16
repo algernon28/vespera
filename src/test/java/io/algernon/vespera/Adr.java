@@ -1797,8 +1797,8 @@ public final class Adr {
 
     /**
      * ADR-266 -- {@code vespera run} and {@code vespera label} name the progress page on their first line and open
-     * it once, after its first write, through a {@code PageOpener}, unless {@code vespera.progress-open} is off or
-     * no display is there; {@code vespera label} writes the page too, with the answers it counted (amends ADR-265).
+     * it once, after its first write, through a {@code PageOpener}, with no setting, unless {@code CI} is set or no
+     * display is there; {@code vespera label} writes the page too, with the answers it counted (amends ADR-265).
      */
     public static final String EVERY_INVOCATION_NAMES_AND_OPENS_ITS_PROGRESS_PAGE = FILE
             + "0266-every-invocation-names-its-progress-page-first-and-opens-it-and-vespera-label-writes-it-too.md";

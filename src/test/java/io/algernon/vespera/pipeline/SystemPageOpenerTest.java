@@ -12,16 +12,13 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
-import org.springframework.core.io.ClassPathResource;
 
 /**
  * Which command the shipped opener starts to open the progress page, and where it starts none (ADR-266 section 2),
- * read off the one function that chooses, with no display and no process; and the setting that turns opening off,
- * as the shipped configuration and the test profile set it.
+ * read off the one function that chooses, with no display and no process. There is no setting: where this function
+ * chooses no command is the only place nothing is opened.
  */
 @Epic("Pipeline")
 @Feature("The progress page")
@@ -41,8 +38,6 @@ class SystemPageOpenerTest {
 
     /** The variable a CI service sets, with the value GitHub Actions gives it. */
     private static final Map<String, String> UNDER_CI = Map.of("CI", "true", "DISPLAY", ":0");
-
-    private static final String OPEN_PROPERTY = "vespera.progress-open";
 
     @Test
     @Story("The page is opened by the system's own command")
@@ -85,22 +80,4 @@ class SystemPageOpenerTest {
         }
     }
 
-    @Test
-    @Story("Opening can be switched off, and is off under test")
-    @DisplayName("The shipped configuration opens the page, and the test profile switches it off")
-    void theShippedConfigurationOpensThePageAndTheTestProfileDoesNot() {
-        claim(
-                "the shipped configuration sets " + OPEN_PROPERTY + " to true, so an operator's invocation opens the"
-                        + " page with nothing set",
-                () -> assertThat(flattened("application.yaml").getProperty(OPEN_PROPERTY)).isEqualTo("true"));
-        claim(
-                "and the test profile sets it to false, so no test opens a browser unless it says so",
-                () -> assertThat(flattened("application-test.yaml").getProperty(OPEN_PROPERTY)).isEqualTo("false"));
-    }
-
-    private static Properties flattened(String resource) {
-        YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
-        yaml.setResources(new ClassPathResource(resource));
-        return yaml.getObject();
-    }
 }

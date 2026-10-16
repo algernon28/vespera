@@ -133,7 +133,7 @@ class WorkingDirectoryInUseIT {
     private static Launched launch(Path workingDirectory, String... args) throws Exception {
         Path printed = Files.createTempFile("working-directory-in-use", ".out");
         try {
-            Process process = new ProcessBuilder(
+            ProcessBuilder builder = new ProcessBuilder(
                             Stream.concat(
                                             Stream.of(
                                                     ProcessHandle.current().info().command().orElseThrow(),
@@ -143,8 +143,10 @@ class WorkingDirectoryInUseIT {
                                             Stream.of(args))
                                     .toList())
                     .redirectErrorStream(true)
-                    .redirectOutput(printed.toFile())
-                    .start();
+                    .redirectOutput(printed.toFile());
+            // The jar opens no browser on the machine running the tests (ADR-266 section 2).
+            builder.environment().put("CI", "true");
+            Process process = builder.start();
 
             boolean finished = process.waitFor(EXIT_BOUND_SECONDS, TimeUnit.SECONDS);
             if (!finished) {

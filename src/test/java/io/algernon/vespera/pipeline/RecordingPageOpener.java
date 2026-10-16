@@ -11,9 +11,11 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 /**
- * The opener a test puts in place of the system's (ADR-266 section 2): it opens nothing, and records each page it was
- * asked to open with what was at that path at the moment it was asked. Primary, so it wins over the shipped opener
- * wherever a slice holds both. A test may have it throw, to see that a failing opener fails nothing.
+ * The opener every test context holds in place of the system's (ADR-266 section 2): it opens nothing, and records
+ * each page it was asked to open with what was at that path at the moment it was asked. A component under the
+ * application's package, so every whole application a test builds scans it, and primary, so it wins there over the
+ * shipped opener; the cascade slice imports it by name. A test may have it throw, to see that a failing opener fails
+ * nothing.
  */
 @Component
 @Primary

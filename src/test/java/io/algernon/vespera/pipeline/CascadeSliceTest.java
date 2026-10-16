@@ -103,6 +103,9 @@ import org.springframework.transaction.annotation.Transactional;
     VesperaCommand.Label.class,
     NextAction.class,
     VesperaJobConfiguration.class,
+    // The progress page's opener, which records and opens nothing, in place of the system's (ADR-266): no
+    // invocation test opens a browser.
+    RecordingPageOpener.class,
     // Every stage from 2 on asks for its run through one holder (ADR-157).
     StageRuns.class,
     // Stage 0: census.

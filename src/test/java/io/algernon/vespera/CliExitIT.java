@@ -81,7 +81,7 @@ class CliExitIT {
 
     /** Launches the packaged jar with the given arguments and waits up to the bound for it to end. */
     private static Launched launch(String... args) throws Exception {
-        Process process = new ProcessBuilder(
+        ProcessBuilder builder = new ProcessBuilder(
                         Stream.concat(
                                         Stream.of(
                                                 javaExecutable(),
@@ -91,8 +91,10 @@ class CliExitIT {
                                         Stream.of(args))
                                 .toList())
                 .redirectErrorStream(true)
-                .redirectOutput(workingDirectory.resolve("cli-exit-message.log").toFile())
-                .start();
+                .redirectOutput(workingDirectory.resolve("cli-exit-message.log").toFile());
+        // The jar opens no browser on the machine running the tests (ADR-266 section 2).
+        builder.environment().put("CI", "true");
+        Process process = builder.start();
 
         boolean finished = process.waitFor(EXIT_BOUND_SECONDS, TimeUnit.SECONDS);
         if (!finished) {

@@ -16,7 +16,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -27,15 +26,14 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * {@code vespera label} writes the progress page too, with what it counted and nothing it was given (ADR-266 section
- * 3), and under the test profile no invocation opens the page (section 2), although an opener that records what it
- * is asked is in place.
+ * 3).
  *
  * <p>The working directory is static, so each test removes the page an earlier one left before its own label
  * command, after the run that writes the label file. Every name and text the invocation is given carries one marked
  * word, so one search finds any of them on the page.
  */
 @CascadeSliceTest
-@Import({SeedScriptedExtractionBeans.class, RecordingPageOpener.class})
+@Import(SeedScriptedExtractionBeans.class)
 @Epic("Pipeline")
 @Feature("The progress page")
 @Link(name = "ADR-266", url = Adr.EVERY_INVOCATION_NAMES_AND_OPENS_ITS_PROGRESS_PAGE, type = "adr")
@@ -87,31 +85,6 @@ class LabelWritesTheProgressPageInvocationTest {
 
     @Autowired
     private ProfileStore profileStore;
-
-    @Autowired
-    private RecordingPageOpener opener;
-
-    @BeforeEach
-    void nothingAsked() {
-        opener.forget();
-    }
-
-    @Test
-    @Story("Under the test profile no page is opened")
-    @DisplayName("With opening switched off, as the test profile has it, neither a run nor a label command asks for the page to be opened, and both write it")
-    void withOpeningOffTheRunAndTheLabelCommandOpenNothing(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aScoredCorpus(root, seeds);
-        claim("the run wrote the page", () -> assertThat(thePagesPath()).isRegularFile());
-        answerEveryQuestionWith(true);
-        Files.deleteIfExists(thePagesPath());
-
-        cli.run("label");
-
-        claim("the label command wrote the page", () -> assertThat(thePagesPath()).isRegularFile());
-        claim(
-                "and the opener was asked nothing, by the run or by the label command",
-                () -> assertThat(opener.requests()).isEmpty());
-    }
 
     @Test
     @Story("The label command writes what it recorded")

@@ -41,7 +41,7 @@ void open(URI page) throws IOException
 
 It is called on the invocation's thread, from `beforeJob` for `vespera run` and from the first write of §3 for `vespera label`, outside the lock the page is written under, and never again in the same invocation, however many times the page is rewritten. When that first write failed (ADR-265 §4), nothing is opened in that invocation: there is no page to open, and a page that appears later in a long run is not a reason to open a browser in the middle of it. A second invocation opens it again, in a new tab or window: the tab the last one opened holds a page with no reload.
 
-**`vespera.progress-open` turns it off.** It is a boolean that ships `true` in `application.yaml` and is set `false` in `application-test.yaml`, so no test opens a browser unless it sets the property and replaces the opener. Set `false`, nothing is opened, and the line of §1 and every write of the page are as they are with it on.
+**There is no setting: the defaults decide.** No property, option or profile value turns opening on or off. The page is opened in every invocation that writes it, and the one way nothing is opened is the rule of `SystemPageOpener` below, where no person could see it.
 
 **The shipped opener, `SystemPageOpener`, starts the system's own command for opening a file with its default program, and does not wait for it**, its output discarded:
 
@@ -95,14 +95,15 @@ A refused or failed command's page has no table, and **the reason a command refu
 
 ### 4. The modules, and run ids
 
-`PageOpener` and `SystemPageOpener` are classes of `pipeline`, on record in `PipelineHoldsOnlyTheRulesOnRecordTest` as holding no rule, as `ProgressPage` is. **No run id moves**: every class this changes is in `pipeline`, which no stage's version names (ADR-226) — `ProgressPage`, `PageOpener`, `SystemPageOpener`, `VesperaCommand`, `VesperaJobConfiguration`, `LabelIngestion` and `AutoLabelling` — and `vespera.progress-open` is read by no stage and is no part of any run's configuration. Nothing here changes what `vespera label` records, refuses or prints but the line of §1.
+`PageOpener` and `SystemPageOpener` are classes of `pipeline`, on record in `PipelineHoldsOnlyTheRulesOnRecordTest` as holding no rule, as `ProgressPage` is. **No run id moves**: every class this changes is in `pipeline`, which no stage's version names (ADR-226) — `ProgressPage`, `PageOpener`, `SystemPageOpener`, `VesperaCommand`, `VesperaJobConfiguration`, `LabelIngestion` and `AutoLabelling` — and no property is added. Nothing here changes what `vespera label` records, refuses or prints but the line of §1.
 
 ### 5. What the operator is told
 
-The README's list of the working directory's files says `progress.html` is what the command running now has done; its sentence under the list says that every `vespera run` and `vespera label` opens the page in the default browser as it starts and that the command's first line names it, that it reloads itself while `vespera run` runs and that `vespera label` writes it as it starts and ends with the answers it counted, and that it names no path and no document. The Commands section names `vespera.progress-open` beside `vespera.progress-interval`, with the systems on which nothing is opened.
+The README's list of the working directory's files says `progress.html` is what the command running now has done; its sentence under the list says that every `vespera run` and `vespera label` opens the page in the default browser as it starts and that the command's first line names it, that it reloads itself while `vespera run` runs and that `vespera label` writes it as it starts and ends with the answers it counted, and that it names no path and no document. The Commands section says, beside `vespera.progress-interval`, where nothing is opened: where `CI` is set, and on Linux with no display.
 
 ## Alternatives refused
 
+- **A setting to turn opening off**, a `vespera.progress-open` that would ship `true` and be `false` under the test profile. The operator holds that a new flag "makes things needlessly complicated" and that the defaults should decide, so none is added for now; a machine where nobody could see the page already opens nothing (§2), and no test opens a browser without one (Tests).
 - **`java.awt.Desktop.browse`.** It is unsupported while `java.awt.headless` is `true`, which Spring Boot sets for every invocation; setting it `false` for the whole application to open one page changes the mode `DifferenceHash` decodes pictures in, for stage 6b, and on a Linux machine with no display makes AWT fail where it now works.
 - **`cmd /c start "" <path>` on Windows.** `cmd` parses its command line again, and a `&`, `^` or `%` in a working directory's path would be read as its syntax; `rundll32` is handed the percent-encoded URI as one argument.
 - **Opening a browser at each write, or at the first write that succeeds after a first write that did not.** One tab per invocation is what is wanted; a tab opened in the middle of a run that has been going for hours is not.
@@ -113,7 +114,7 @@ The README's list of the working directory's files says `progress.html` is what 
 
 ## Consequences
 
-- An operator who starts `vespera run` or `vespera label` sees the page open in the default browser, and reads its path on the command's first line; a machine with no display, a CI job and every test open nothing.
+- An operator who starts `vespera run` or `vespera label` sees the page open in the default browser, and reads its path on the command's first line; a machine with no display and a CI job open nothing, and neither does any test.
 - A browser that has the page open while `vespera label` runs shows the label command and, when it ends, how many answers it recorded, instead of the run before it.
 - Each invocation starts at most one process to open the page.
 - The guard's list of pages an agent may read (ADR-261) still does not name the page.
@@ -123,19 +124,20 @@ The README's list of the working directory's files says `progress.html` is what 
 
 | Method | What it holds |
 | --- | --- |
-| `pipeline.ProgressPageOpensInvocationTest.theRunOpensThePageOnceAfterItsFirstWrite` | with the property on and the page rewritten every tenth of a second, `vespera run` asks the opener once, for the page's URI, when the page is already there and says the invocation is running |
+| `pipeline.ProgressPageOpensInvocationTest.theRunOpensThePageOnceAfterItsFirstWrite` | with the page rewritten every tenth of a second, `vespera run` asks the opener once, for the page's URI, when the page is already there and says the invocation is running |
 | `pipeline.ProgressPageOpensInvocationTest.theFirstLineTheRunLogsNamesThePagesPath` | the first line `vespera run` logs is `Progress page: ` and the page's absolute path, at INFO |
 | `pipeline.ProgressPageOpensInvocationTest.theLabelCommandNamesThePageFirstAndOpensItOnceItIsWritten` | `vespera label`'s first line names the page's path, and it asks the opener once, when its first write is there and says the invocation is running |
 | `pipeline.ProgressPageOpensInvocationTest.anOpenerThatThrowsFailsNothingAndIsOneLineOfTheLog` | an opener that throws: the run completes, its page ends `completed`, one warning names the exception's class and no error names the page |
-| `pipeline.LabelWritesTheProgressPageInvocationTest.withOpeningOffTheRunAndTheLabelCommandOpenNothing` | under the test profile, a run and a label command write the page and ask the opener nothing |
 | `pipeline.LabelWritesTheProgressPageInvocationTest.theLabelCommandWritesWhatItRecordedAndStopsTheReload` | after `vespera label` records one new answer, the page says it ended `recorded`, has no reload, names the command, and counts 1 new, 0 changed, 0 unchanged, 0 still blank |
 | `pipeline.LabelWritesTheProgressPageInvocationTest.aChangedAnswerIsCountedAndNoPathOrTextIsOnThePage` | a changed answer is counted as changed, and no marked name or text, the root, the seed folder or the working directory is on the page |
 | `pipeline.LabelWritesTheProgressPageInvocationTest.aRefusedLabelCommandSaysItWasRefusedAndNotWhy` | a label file with no answers: the page says it ended `refused`, has no table, and names no path |
 | `pipeline.SystemPageOpenerTest.eachSystemIsAskedThroughItsOwnCommand` | Windows is asked through `rundll32 url.dll,FileProtocolHandler`, macOS through `open`, a Linux with a display through `xdg-open`, each with the URI |
 | `pipeline.SystemPageOpenerTest.withNoDisplayOrUnderCiNothingIsOpened` | a Linux with neither display variable, and every system with `CI` set, open nothing |
-| `pipeline.SystemPageOpenerTest.theShippedConfigurationOpensThePageAndTheTestProfileDoesNot` | `vespera.progress-open` is `true` in `application.yaml` and `false` in `application-test.yaml` |
+| `pipeline.NoTestOpensABrowserTest.theWholeApplicationsOpenerIsTheRecordingOne` | the whole application a test builds holds `SystemPageOpener`, and the `PageOpener` it hands out is `RecordingPageOpener` |
 
 `PipelineHoldsOnlyTheRulesOnRecordTest` holds `PageOpener` and `SystemPageOpener` on record as holding no rule.
+
+**No test opens a browser**, with no setting to turn opening off. `pipeline.RecordingPageOpener`, in the test tree, is a `@Primary @Component` under the application's package: it records what it is asked and opens nothing, every whole application a test builds scans it and hands it to every invocation in place of `SystemPageOpener`, and `CascadeSliceTest` imports it by name, so the slice never holds the system's opener. Every test that starts the packaged jar as a child process into an invocation, `CliExitIT`, `ProfileThatDoesNotLoadIT` and `WorkingDirectoryInUseIT`, sets `CI` in the child's environment, so `SystemPageOpener` chooses no command there.
 
 ## What this does not decide
 

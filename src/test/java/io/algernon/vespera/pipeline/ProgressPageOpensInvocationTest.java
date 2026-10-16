@@ -31,15 +31,15 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * The progress page opens itself and is named first (ADR-266 sections 1 and 2), reached through whole invocations
- * with opening switched on and the system's opener replaced by one that records what it is asked.
+ * The progress page opens itself and is named first (ADR-266 sections 1 and 2), reached through whole invocations.
+ * The slice's opener is the one that records what it is asked and opens nothing.
  *
  * <p>The working directory is static, so each test starts by removing the page an earlier one left and forgetting
  * what the opener and the log were told. The page is rewritten every tenth of a second, so a run writes it many
  * times and the opener is still asked once.
  */
 @CascadeSliceTest
-@Import({SeedScriptedExtractionBeans.class, RecordingPageOpener.class})
+@Import(SeedScriptedExtractionBeans.class)
 @Epic("Pipeline")
 @Feature("The progress page")
 @Link(name = "ADR-266", url = Adr.EVERY_INVOCATION_NAMES_AND_OPENS_ITS_PROGRESS_PAGE, type = "adr")
@@ -77,10 +77,9 @@ class ProgressPageOpensInvocationTest {
     static Path workingDirectory;
 
     @DynamicPropertySource
-    static void openingOn(DynamicPropertyRegistry registry) {
+    static void workingDirectoryAndInterval(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
         registry.add("vespera.progress-interval", () -> INTERVAL);
-        registry.add("vespera.progress-open", () -> "true");
     }
 
     @Autowired

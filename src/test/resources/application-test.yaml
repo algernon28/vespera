@@ -6,9 +6,6 @@ vespera:
   # minute before failing about an exit code when that happened. Empty and absent are the same thing
   # to the command, which checks for blank, so binding it here costs nothing the tests rely on.
   corpus-root: ""
-  # No test opens the progress page in a browser (ADR-266 section 2); a test that wants to see it asked sets this
-  # true and puts an opener of its own in place of the system's.
-  progress-open: false
 
 # Loaded on top of src/main/resources/application.yaml when the "test" profile is active,
 # because a profile-specific file layers rather than replaces. An identically named
