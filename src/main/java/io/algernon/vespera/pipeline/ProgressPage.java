@@ -689,8 +689,11 @@ final class ProgressPage implements JobExecutionListener {
         double most = Arrays.stream(values).max().orElse(0);
         int unit = unitOf(most);
         double divisor = Math.pow(1000, unit);
-        double margin = Math.max(most - min, 1) * 0.05;
-        Axis axis = sizeAxis("Database size (" + SIZE_UNITS[unit] + ")", (min - margin) / divisor, (most + margin) / divisor);
+        // a span of at least a hundredth of the largest size (and a byte), centred on the values, so a constant
+        // size sits at mid-height with ticks of at most two decimals
+        double span = Math.max(Math.max(most - min, most * 0.01), 1);
+        double widen = (span - (most - min)) / 2 + span * 0.05;
+        Axis axis = sizeAxis("Database size (" + SIZE_UNITS[unit] + ")", (min - widen) / divisor, (most + widen) / divisor);
         return chart(
                 "database",
                 "Database size over time",
@@ -799,7 +802,7 @@ final class ProgressPage implements JobExecutionListener {
 
     /** An axis over {@code lo} to {@code hi}, in the unit its title names, with round ticks. */
     private static Axis sizeAxis(String title, double lo, double hi) {
-        double step = niceStep(hi - lo);
+        double step = Math.max(niceStep(hi - lo), 0.01); // at most two decimals
         List<Double> ticks = new ArrayList<>();
         for (long k = (long) Math.ceil(lo / step - 1e-9); k * step <= hi + step * 1e-9; k++) {
             ticks.add(k * step);
