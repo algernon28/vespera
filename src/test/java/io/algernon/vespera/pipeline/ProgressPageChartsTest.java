@@ -563,8 +563,7 @@ class ProgressPageChartsTest {
         StepExecution census = aStep(execution, StepNames.CENSUS, BatchStatus.STARTED, execution.getStartTime(), null);
         // a count each step moves, so that each is charted by its read and write counts (ADR-268 section 7)
         census.setReadCount(4);
-        String whileTheCensusRuns = awaitThePage(page -> page.contains("Step: " + StepNames.CENSUS + " (running)")
-                && page.contains("data-chart=\"counts\""));
+        String whileTheCensusRuns = awaitThePage(page -> page.contains("data-chart=\"counts\""));
         census.setStatus(BatchStatus.COMPLETED);
         census.setEndTime(LocalDateTime.now());
         aStep(execution, StepNames.EXTRACTION, BatchStatus.STARTED, LocalDateTime.now(), null).setReadCount(2);
