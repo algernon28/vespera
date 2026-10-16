@@ -94,7 +94,6 @@ final class ProgressPage implements JobExecutionListener {
     private static final int CHART_HEIGHT = 260;
     private static final int PLOT_TOP = 36;
     private static final int PLOT_HEIGHT = 168;
-    private static final int PLOT_RIGHT = 740;
     private static final int TIMELINE_STATES = 190;
     private static final int TIMELINE_LABELS = 320;
     private static final int TIMELINE_ROW = 24;
@@ -443,7 +442,7 @@ final class ProgressPage implements JobExecutionListener {
         if (outcomeStep != null) {
             survivors = entered;
             for (String kind : OUTCOME_STEPS.get(outcomeStep)) {
-                survivors -=kinds[BLOCKING.indexOf(kind)];
+                survivors -= kinds[BLOCKING.indexOf(kind)];
             }
             survivors = Math.max(0, survivors);
         }
@@ -534,7 +533,7 @@ final class ProgressPage implements JobExecutionListener {
                     "survivors", "Survivors", count(survivors), "of " + count(entered) + " when " + outcomeStep + " started"));
             for (String kind : OUTCOME_STEPS.get(outcomeStep)) {
                 int at = BLOCKING.indexOf(kind);
-                tiles.append(tile(kind, kind,count(latest.kinds()[at]), kindRate(base, latest, at)));
+                tiles.append(tile(kind, kind, count(latest.kinds()[at]), kindRate(base, latest, at)));
             }
         }
         String progressBody = ReportPage.heading(1, TITLE)
@@ -687,13 +686,18 @@ final class ProgressPage implements JobExecutionListener {
         double[] values = samples.stream().mapToDouble(Sample::databaseBytes).toArray();
         double min = Arrays.stream(values).min().orElse(0);
         double most = Arrays.stream(values).max().orElse(0);
-        int unit = unitOf(most);
+        // the values' own range with a twentieth of the span at each end, a span of at least a byte centred on a
+        // constant value, and never below zero; no other floor (ADR-268 section 7)
+        double span = Math.max(most - min, 1);
+        double lo = Math.max(0, min - (span - (most - min)) / 2 - span * 0.05);
+        double hi = most + (span - (most - min)) / 2 + span * 0.05;
+        // the axis is written in the largest unit in which its span is at least 1
+        int unit = 0;
+        while (unit < SIZE_UNITS.length - 1 && (hi - lo) / Math.pow(1000, unit + 1) >= 1) {
+            unit++;
+        }
         double divisor = Math.pow(1000, unit);
-        // a span of at least a hundredth of the largest size (and a byte), centred on the values, so a constant
-        // size sits at mid-height with ticks of at most two decimals
-        double span = Math.max(Math.max(most - min, most * 0.01), 1);
-        double widen = (span - (most - min)) / 2 + span * 0.05;
-        Axis axis = sizeAxis("Database size (" + SIZE_UNITS[unit] + ")", (min - widen) / divisor, (most + widen) / divisor);
+        Axis axis = sizeAxis("Database size (" + SIZE_UNITS[unit] + ")", lo / divisor, hi / divisor, unit == 0);
         return chart(
                 "database",
                 "Database size over time",
@@ -801,8 +805,11 @@ final class ProgressPage implements JobExecutionListener {
     }
 
     /** An axis over {@code lo} to {@code hi}, in the unit its title names, with round ticks. */
-    private static Axis sizeAxis(String title, double lo, double hi) {
-        double step = Math.max(niceStep(hi - lo), 0.01); // at most two decimals
+    private static Axis sizeAxis(String title, double lo, double hi, boolean wholeBytes) {
+        double step = niceStep(hi - lo);
+        if (wholeBytes) {
+            step = Math.max(1, step % 1 == 0 ? step : step * 2); // 2.5 -> 5: bytes are whole
+        }
         List<Double> ticks = new ArrayList<>();
         for (long k = (long) Math.ceil(lo / step - 1e-9); k * step <= hi + step * 1e-9; k++) {
             ticks.add(k * step);
@@ -856,8 +863,44 @@ final class ProgressPage implements JobExecutionListener {
         }
         int longest = tickTexts.stream().mapToInt(String::length).max().orElse(1);
         int left = Math.max(56, 8 * longest + 8);
-        int plot = PLOT_RIGHT - left;
         int bottom = PLOT_TOP + PLOT_HEIGHT;
+        // end labels: the text each line ends in, and two within 14 units of each other as one label holding both
+        List<String> endTexts = new ArrayList<>();
+        double[] endY = new double[lines.size()];
+        for (int s = 0; s < lines.size(); s++) {
+            Line line = lines.get(s);
+            double last = line.values()[line.values().length - 1];
+            endY[s] = bottom - (last - axis.lo()) / (axis.hi() - axis.lo()) * PLOT_HEIGHT;
+            endTexts.add((line.name().isEmpty() || lines.size() == 1 ? "" : line.name() + " ") + show.apply(last));
+        }
+        List<Integer> byHeight = new ArrayList<>();
+        for (int i = 0; i < lines.size(); i++) {
+            byHeight.add(i);
+        }
+        byHeight.sort((a, b) -> Double.compare(endY[a], endY[b]));
+        List<List<Integer>> groups = new ArrayList<>();
+        int longestLabel = 0;
+        for (int index : byHeight) {
+            List<Integer> group = groups.isEmpty() ? null : groups.getLast();
+            if (group != null && endY[index] - endY[group.getLast()] <= 14) {
+                group.add(index);
+            } else {
+                groups.add(new ArrayList<>(List.of(index)));
+            }
+        }
+        List<String> labels = new ArrayList<>();
+        for (List<Integer> group : groups) {
+            group.sort(null);
+            List<String> texts = new ArrayList<>();
+            for (int index : group) {
+                texts.add(endTexts.get(index));
+            }
+            labels.add(String.join(", ", texts));
+            longestLabel = Math.max(longestLabel, labels.getLast().length());
+        }
+        // the plot leaves eight units for each character of the longest end label, and ends there (ADR-268 section 7)
+        int plotRight = CHART_WIDTH - 12 - 8 * longestLabel;
+        int plot = plotRight - left;
         StringBuilder svg = new StringBuilder(figureHead(title, caption, lines));
         svg.append("<svg class=\"chart\" data-chart=\"").append(key).append("\" role=\"img\" viewBox=\"0 0 ")
                 .append(CHART_WIDTH).append(' ').append(CHART_HEIGHT).append("\"><title>")
@@ -867,13 +910,13 @@ final class ProgressPage implements JobExecutionListener {
         for (int i = 0; i < axis.ticks().size(); i++) {
             double y = bottom - (axis.ticks().get(i) - axis.lo()) / (axis.hi() - axis.lo()) * PLOT_HEIGHT;
             svg.append("<line class=\"grid\" x1=\"").append(left).append("\" y1=\"").append(f1(y)).append("\" x2=\"")
-                    .append(PLOT_RIGHT).append("\" y2=\"").append(f1(y)).append("\"/><text class=\"tick value\" text-anchor=\"end\" x=\"")
+                    .append(plotRight).append("\" y2=\"").append(f1(y)).append("\"/><text class=\"tick value\" text-anchor=\"end\" x=\"")
                     .append(left - 6).append("\" y=\"").append(f1(y + 4)).append("\">")
                     .append(ReportPage.escape(tickTexts.get(i))).append("</text>\n");
         }
         svg.append("<line class=\"axis\" x1=\"").append(left).append("\" y1=\"").append(PLOT_TOP).append("\" x2=\"")
                 .append(left).append("\" y2=\"").append(bottom).append("\"/><line class=\"axis\" x1=\"").append(left)
-                .append("\" y1=\"").append(bottom).append("\" x2=\"").append(PLOT_RIGHT).append("\" y2=\"")
+                .append("\" y1=\"").append(bottom).append("\" x2=\"").append(plotRight).append("\" y2=\"")
                 .append(bottom).append("\"/>\n");
         java.util.Set<Long> timeTicks = new java.util.TreeSet<>();
         for (int i = 0; i <= 4; i++) {
@@ -886,8 +929,7 @@ final class ProgressPage implements JobExecutionListener {
         }
         svg.append("\n<text class=\"axis-title x\" text-anchor=\"middle\" x=\"").append(left + plot / 2).append("\" y=\"")
                 .append(bottom + 40).append("\">Elapsed (h:mm:ss)</text>\n");
-        List<double[]> ends = new ArrayList<>();
-        List<String> endTexts = new ArrayList<>();
+        double endX = left;
         for (int s = 0; s < lines.size(); s++) {
             Line line = lines.get(s);
             StringBuilder points = new StringBuilder();
@@ -909,34 +951,12 @@ final class ProgressPage implements JobExecutionListener {
                     .append(" points=\"").append(points).append("\"/>").append(circles)
                     .append("<circle class=\"end ").append(line.css()).append("\" cx=\"").append(f1(x)).append("\" cy=\"")
                     .append(f1(y)).append("\" r=\"4\" stroke-width=\"2\"/>\n");
-            ends.add(new double[] {x, y});
-            endTexts.add((line.name().isEmpty() || lines.size() == 1 ? "" : line.name() + " ")
-                    + show.apply(line.values()[line.values().length - 1]));
+            endX = x;
         }
-        // end labels in the text ink; two within 14 units of each other are one label holding both
-        List<Integer> byHeight = new ArrayList<>();
-        for (int i = 0; i < lines.size(); i++) {
-            byHeight.add(i);
-        }
-        byHeight.sort((a, b) -> Double.compare(ends.get(a)[1], ends.get(b)[1]));
-        List<List<Integer>> groups = new ArrayList<>();
-        for (int index : byHeight) {
-            List<Integer> group = groups.isEmpty() ? null : groups.getLast();
-            if (group != null && ends.get(index)[1] - ends.get(group.getLast())[1] <= 14) {
-                group.add(index);
-            } else {
-                groups.add(new ArrayList<>(List.of(index)));
-            }
-        }
-        for (List<Integer> group : groups) {
-            group.sort(null);
-            List<String> texts = new ArrayList<>();
-            for (int index : group) {
-                texts.add(endTexts.get(index));
-            }
-            svg.append("<text class=\"end-label\" x=\"").append(f1(ends.get(group.getFirst())[0] + 10)).append("\" y=\"")
-                    .append(f1(ends.get(group.getFirst())[1] + 4)).append("\">")
-                    .append(ReportPage.escape(String.join(", ", texts))).append("</text>\n");
+        for (int g = 0; g < groups.size(); g++) {
+            svg.append("<text class=\"end-label\" x=\"").append(f1(endX + 10)).append("\" y=\"")
+                    .append(f1(endY[groups.get(g).getFirst()] + 4)).append("\">")
+                    .append(ReportPage.escape(labels.get(g))).append("</text>\n");
         }
         return svg.append("</svg>\n</figure>\n").toString();
     }

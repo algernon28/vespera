@@ -82,7 +82,7 @@ class RelevanceFloorTasklet implements Tasklet {
     }
 
     @Override
-    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         StageFiveGates.Preamble preamble = StageFiveGates.modelSeedWalkUsable(
                 "stage 5's relevance-floor step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
@@ -114,7 +114,9 @@ class RelevanceFloorTasklet implements Tasklet {
         // identity read above only chooses which line says why nothing was removed.
         if (reach.removesBelow().isPresent()) {
             double threshold = reach.removesBelow().getAsDouble();
-            ProgressPage.entered(ledger.verdicts().survivorCount(scoring));
+            ProgressPage.entered(TimedStatement.of(
+                    STAGE, "counting", "counted", "the survivors it judges",
+                    () -> ledger.verdicts().survivorCount(scoring)));
             // Counted, then written a page at a time: nothing holds every occurrence below the floor
             // (ADR-220 section 5). The verdicts of a page go in the step's one transaction before the
             // next page is read.
@@ -123,11 +125,15 @@ class RelevanceFloorTasklet implements Tasklet {
                     () -> relevanceScoring.countScoredBelow(scoring, threshold));
             StageProgress written =
                     StageProgress.over("Stage 5e (relevance floor, below-threshold verdicts)", below);
-            relevanceScoring.eachPageScoredBelow(scoring, threshold, page -> {
-                for (OccurrenceId occurrenceId : page) {
-                    ledger.verdicts().verdict(occurrenceId, scoring, VerdictKind.BELOW_THRESHOLD, FloorReach.REASON);
-                    written.itemDone();
-                }
+            // this step does not pass through TaskletSteps.once, so it counts its verdicts at insert itself
+            ledger.verdicts().countingAtInsert(() -> {
+                relevanceScoring.eachPageScoredBelow(scoring, threshold, page -> {
+                    for (OccurrenceId occurrenceId : page) {
+                        ledger.verdicts().verdict(occurrenceId, scoring, VerdictKind.BELOW_THRESHOLD, FloorReach.REASON);
+                        written.itemDone();
+                    }
+                });
+                return null;
             });
             LOG.info(
                     "Stage 5e (relevance floor) finished under scoring run {}: threshold {}, {}"

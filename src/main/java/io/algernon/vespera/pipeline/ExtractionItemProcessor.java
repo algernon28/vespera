@@ -171,9 +171,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         // still to read, made by the ledger where the run recorded nothing and by going through the survivors
         // a page at a time, asking which of each page were recorded, where it did (ADR-220 section 2). Neither
         // is given a pair of lines of its own.
-        this.progress = StageProgress.over(
-                "Stage 2 (extraction)",
-                TimedStatement.of(
+        long toRead = TimedStatement.of(
                         "Stage 2 (extraction)", "counting", "counted",
                         "the survivors still to read",
                         () -> extractionMetrics.metricRowsUpTo(extractionRun).isEmpty()
@@ -181,7 +179,10 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                                 : UnrecordedOccurrences.countOver(
                                         ledger,
                                         extractionRun,
-                                        page -> extractionMetrics.recordedAmong(extractionRun, page))));
+                                        page -> extractionMetrics.recordedAmong(extractionRun, page)));
+        // what this invocation takes in is what entered the step, for the progress page (ADR-268 section 2)
+        ProgressPage.entered(toRead);
+        this.progress = StageProgress.over("Stage 2 (extraction)", toRead);
     }
 
     @Override

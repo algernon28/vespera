@@ -80,7 +80,7 @@ final class ReportPage {
             + ".key.s1 { border-color: var(--series-1); } .key.s2 { border-color: var(--series-2); }\n"
             + ".key.s3 { border-color: var(--series-3); } .key.s4 { border-color: var(--series-4); }\n"
             + ".key.s5 { border-color: var(--series-5); }\n"
-            + "svg { display: block; width: 100%; min-width: 640px; height: auto; }\n"
+            + "svg { display: block; width: 100%; min-width: 1100px; height: auto; }\n"
             + "svg text { fill: var(--text); font: 12px system-ui, sans-serif; }\n"
             + "svg .tick, svg .axis-title { fill: var(--muted); }\n"
             + "svg .tick.value { font-variant-numeric: tabular-nums; }\n"

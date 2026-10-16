@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -83,6 +84,8 @@ public class Verdicts {
 
     private final Map<VerdictKind, AtomicLong> recorded = new EnumMap<>(VerdictKind.class);
 
+    private final ThreadLocal<Boolean> countingAtInsert = new ThreadLocal<>();
+
     public Verdicts(JdbcTemplate jdbcTemplate) {
         for (VerdictKind kind : VerdictKind.values()) {
             recorded.put(kind, new AtomicLong());
@@ -147,17 +150,47 @@ public class Verdicts {
                 runId.value(),
                 kind.name(),
                 reason);
-        AtomicLong count = recorded.get(kind);
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            // a rolled-back insert counts nothing (ADR-268 section 2)
+        if (countingAtInsert.get() != null || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            recorded.get(kind).incrementAndGet();
+            return;
+        }
+        // one callback a transaction, holding a tally by kind; a rolled-back insert counts nothing (ADR-268 section 2)
+        long[] tally = (long[]) TransactionSynchronizationManager.getResource(this);
+        if (tally == null) {
+            long[] mine = new long[VerdictKind.values().length];
+            tally = mine;
+            TransactionSynchronizationManager.bindResource(this, mine);
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    count.incrementAndGet();
+                    for (VerdictKind each : VerdictKind.values()) {
+                        recorded.get(each).addAndGet(mine[each.ordinal()]);
+                    }
+                }
+
+                @Override
+                public void afterCompletion(int status) {
+                    TransactionSynchronizationManager.unbindResourceIfPossible(Verdicts.this);
                 }
             });
-        } else {
-            count.incrementAndGet();
+        }
+        tally[kind.ordinal()]++;
+    }
+
+    /**
+     * Runs {@code work}, counting every verdict this thread inserts during it at its insert rather than at its
+     * commit: the work of a step whose whole work is one transaction, which commits only when the step ends
+     * (ADR-268 section 2). A verdict counted here stays counted if that transaction rolls back, the step then failing.
+     */
+    public <T> T countingAtInsert(Callable<T> work) throws Exception {
+        Boolean outer = countingAtInsert.get();
+        countingAtInsert.set(Boolean.TRUE);
+        try {
+            return work.call();
+        } finally {
+            if (outer == null) {
+                countingAtInsert.remove();
+            }
         }
     }
 

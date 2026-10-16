@@ -123,7 +123,8 @@ final class TaskletSteps {
             return RepeatStatus.FINISHED;
         }
         discard.run();
-        if (work.run()) {
+        // the step's one transaction commits only when it ends, so its verdicts are counted as they are inserted
+        if (ledger.verdicts().countingAtInsert(work::run)) {
             ledger.runs().finishStep(run, step);
         }
         return RepeatStatus.FINISHED;
