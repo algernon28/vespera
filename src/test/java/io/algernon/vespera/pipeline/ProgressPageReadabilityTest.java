@@ -79,6 +79,10 @@ class ProgressPageReadabilityTest {
 
     private static final Pattern X = Pattern.compile("\\bx=\"(-?[0-9.]+)\"");
 
+    private static final Pattern Y1 = Pattern.compile("\\by1=\"(-?[0-9.]+)\"");
+
+    private static final Pattern Y2 = Pattern.compile("\\by2=\"(-?[0-9.]+)\"");
+
     private static final Pattern VIEW_BOX = Pattern.compile("viewBox=\"0 0 ([0-9.]+) ([0-9.]+)\"");
 
     private static final Pattern VALUE_TICK = Pattern.compile("<text class=\"tick value\"([^>]*)>([^<]*)</text>");
@@ -229,6 +233,54 @@ class ProgressPageReadabilityTest {
         claim(
                 "in the middle third of the chart: a constant size has an axis centred on it, of at least a byte",
                 () -> assertThat(heights.getFirst()).isBetween(height / 3, 2 * height / 3));
+        claim(
+                "its axis, a byte wide, is titled in bytes, and its one tick is the size in whole bytes, grouped by"
+                        + " thousands, legible where two decimals of a megabyte would print it twice",
+                () -> {
+                    assertThat(all(Y_AXIS_TITLE, chart(page, "database"))).containsExactly("Database size (B)");
+                    assertThat(all(VALUE_TICK, chart(page, "database"), 2)).containsExactly("7,000,000");
+                });
+    }
+
+    @Test
+    @Story("A size chart spans its values' own range")
+    @DisplayName("A database of 51.7 GB that grows by 4 MB is drawn rising across at least half the plot, on an axis of whole megabytes")
+    void megabytesOfGrowthOnGigabytesFillTheChart() throws IOException {
+        SettableClock clock = new SettableClock(T0);
+        ProgressPage progressPage = aPage(clock);
+        JobExecution execution = anExecution();
+        aSparseDatabaseOf(51_700_000_000L);
+        progressPage.beforeJob(execution);
+        execution.setStatus(BatchStatus.COMPLETED);
+        aSparseDatabaseOf(51_702_000_000L);
+        clock.at(180);
+        progressPage.afterJob(execution);
+        aSparseDatabaseOf(51_704_000_000L);
+        clock.at(360);
+        progressPage.afterJob(execution);
+        String page = read(PAGE);
+
+        String chart = chart(page, "database");
+        List<Double> heights = pointHeightsInOrder(chart);
+        double plot = plotHeight(chart);
+        claim("the chart draws the three samples", () -> assertThat(heights).hasSize(3));
+        claim(
+                "the latest point is at least half the plot's height above the first: 4 MB of growth on 51.7 GB fills"
+                        + " the chart, where an axis from zero, or one at least a hundredth of the size wide, draws it"
+                        + " flat",
+                () -> assertThat(heights.getFirst() - heights.getLast()).isGreaterThanOrEqualTo(plot / 2));
+        List<String> ticks = all(VALUE_TICK, chart, 2);
+        claim(
+                "the axis is titled in megabytes, the largest unit its span is at least one of, and its ticks are"
+                        + " whole megabytes grouped by thousands, each a different number",
+                () -> {
+                    assertThat(all(Y_AXIS_TITLE, chart)).containsExactly("Database size (MB)");
+                    assertThat(ticks).hasSizeGreaterThanOrEqualTo(2).doesNotHaveDuplicates()
+                            .allMatch(tick -> tick.matches("51,7[0-9]{2}"), "whole megabytes from 51,700 to 51,799");
+                });
+        claim(
+                "while each sample's tooltip says its size in the unit that keeps it at least one, as the tile does",
+                () -> assertThat(pointValues(chart)).containsExactly("51.70 GB", "51.70 GB", "51.70 GB"));
     }
 
     @Test
@@ -309,8 +361,9 @@ class ProgressPageReadabilityTest {
                     () -> assertThat(drawing).containsPattern(X_AXIS_TITLE));
         }
         claim(
-                "the database chart titles its value axis with what it draws and its unit",
-                () -> assertThat(all(Y_AXIS_TITLE, chart(page, "database"))).containsExactly("Database size (KB)"));
+                "the database chart titles its value axis with what it draws and its unit: bytes, for a size that did"
+                        + " not change, whose axis spans one byte",
+                () -> assertThat(all(Y_AXIS_TITLE, chart(page, "database"))).containsExactly("Database size (B)"));
         claim(
                 "and the chart of counts, of a step that moves its read and write counts, titles it as counts of items",
                 () -> assertThat(all(Y_AXIS_TITLE, chart(page, "counts"))).containsExactly("Items (count)"));
@@ -561,6 +614,31 @@ class ProgressPageReadabilityTest {
 
     private void aDatabaseOf(int bytes) throws IOException {
         Files.write(workingDirectory.resolve(DATABASE), new byte[bytes]);
+    }
+
+    /**
+     * A database file of {@code bytes}, created sparse and only ever grown, by writing its last byte, so that a size
+     * of gigabytes takes no room on the disk: NTFS honours {@code SPARSE} with {@code CREATE_NEW}, and the file
+     * systems of Linux and macOS leave a hole where nothing was written.
+     */
+    private void aSparseDatabaseOf(long bytes) throws IOException {
+        Path database = workingDirectory.resolve(DATABASE);
+        if (!Files.exists(database)) {
+            Files.newByteChannel(database, java.nio.file.StandardOpenOption.CREATE_NEW,
+                    java.nio.file.StandardOpenOption.WRITE, java.nio.file.StandardOpenOption.SPARSE).close();
+        }
+        try (java.nio.channels.FileChannel channel =
+                java.nio.channels.FileChannel.open(database, java.nio.file.StandardOpenOption.WRITE)) {
+            channel.write(java.nio.ByteBuffer.wrap(new byte[] {0}), bytes - 1);
+        }
+        claim("the database file is " + bytes + " bytes long", () -> assertThat(Files.size(database)).isEqualTo(bytes));
+    }
+
+    /** The plot's height, read off the chart's value axis, its first axis line (ADR-268 section 7). */
+    private static double plotHeight(String chart) {
+        Matcher axis = Pattern.compile("<line class=\"axis\"([^>]*)>").matcher(chart);
+        claim("the chart draws its value axis", () -> assertThat(axis.find()).isTrue());
+        return Math.abs(number(Y2, axis.group(1)) - number(Y1, axis.group(1)));
     }
 
     private String read(String name) throws IOException {

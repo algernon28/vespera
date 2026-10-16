@@ -63,6 +63,12 @@ class ProgressPageOutcomesInvocationTest {
     /** What survives extraction: the three readable files. */
     private static final int SURVIVORS = 3;
 
+    /** A name ending the profile leaves out (ADR-256), which byte-level reduction removes as {@code out-of-scope}. */
+    private static final String LEFT_OUT_ENDING = ".P3A";
+
+    /** The broken check's last line over three survivors, logged after the last of them was judged. */
+    private static final String BROKEN_CHECK_DONE = "Stage 1 (byte-level reduction, broken check): 3 of 3 (100%)";
+
     /** A tile: its key, label, value and, where it has one, detail (ADR-268 section 5). */
     private static final Pattern TILE = Pattern.compile("<div class=\"tile\" data-tile=\"([a-z-]+)\">"
             + "<span class=\"label\">([^<]*)</span><span class=\"value\">([^<]*)</span>"
@@ -178,6 +184,59 @@ class ProgressPageOutcomesInvocationTest {
         }
     }
 
+    @Test
+    @Story("The page shows what the step removing occurrences has removed, by kind, and how many survive")
+    @DisplayName("While byte-level reduction is held at the last line of its broken check, its one transaction still open, the page already shows the out-of-scope verdict it recorded and two survivors of three")
+    void aSampleInTheMiddleOfATaskletCountsItsVerdicts(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        for (String name : List.of(READABLE.get(0), READABLE.get(1))) {
+            Files.writeString(root.resolve(name), "the text of " + name + " says " + MARKER);
+        }
+        Files.writeString(root.resolve(MARKER + "-left-out" + LEFT_OUT_ENDING), "a text file the profile leaves out by name");
+        Files.writeString(seeds.resolve(MARKER + "-seed.txt"), "a seed that says " + MARKER);
+        profileStore.save(ProfileFixture.profile()
+                .seedFolder(seeds.toString(), "set by this test")
+                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
+                .outOfScopeNameEndings(LEFT_OUT_ENDING, "set by this test, so stage 1 leaves one file out")
+                .build());
+        java.util.concurrent.atomic.AtomicBoolean held = new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.concurrent.atomic.AtomicReference<String> seen = new java.util.concurrent.atomic.AtomicReference<>();
+        ch.qos.logback.classic.Logger rootLogger = (ch.qos.logback.classic.Logger)
+                org.slf4j.LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        HoldingAppender holding = new HoldingAppender(event -> {
+            if (BROKEN_CHECK_DONE.equals(event.getFormattedMessage()) && held.compareAndSet(false, true)) {
+                // the step's thread waits here, inside its one transaction, while the page is written by its own
+                seen.set(awaitThePage(page -> tile(tiles(page), "out-of-scope")[2].equals("1")));
+            }
+        });
+        holding.setContext(rootLogger.getLoggerContext());
+        holding.start();
+        rootLogger.addAppender(holding);
+        try {
+            cli.run("run", root.toString());
+        } finally {
+            rootLogger.detachAppender(holding);
+            holding.stop();
+        }
+
+        claim(
+                "byte-level reduction logged the last line of its broken check, after the verdict of the file it"
+                        + " leaves out, and was held there while the page was looked at",
+                () -> assertThat(held).isTrue());
+        claim(
+                "while it was held, before its transaction could commit, a write of the page showed the out-of-scope"
+                        + " verdict it had recorded: a tasklet's verdicts are counted as they are inserted",
+                () -> assertThat(seen.get()).isNotNull());
+        List<String[]> tiles = tiles(seen.get());
+        claim(
+                "that write names byte-level reduction as the step running and as the outcome step, with two"
+                        + " survivors of the three that entered it",
+                () -> {
+                    assertThat(tile(tiles, "step")).containsExactly("step", "Step", StepNames.BYTE_LEVEL_REDUCTION, "running");
+                    assertThat(tile(tiles, "survivors")).containsExactly(
+                            "survivors", "Survivors", "2", "of 3 when " + StepNames.BYTE_LEVEL_REDUCTION + " started");
+                });
+    }
+
     /** Five occurrences: three readable, one the converter refuses, one of page headers and footers alone. */
     private void aCorpusExtractionRemovesTwoOf(Path root, Path seeds) throws IOException {
         for (String name : READABLE) {
@@ -228,6 +287,41 @@ class ProgressPageOutcomesInvocationTest {
             rows.add(all(A_CELL, row.group(1)));
         }
         return rows;
+    }
+
+    /** The progress page once it satisfies {@code wanted}, read every few milliseconds, or null after ten seconds. */
+    private static String awaitThePage(java.util.function.Predicate<String> wanted) {
+        Path page = workingDirectory.resolve(PAGE);
+        long until = System.nanoTime() + java.time.Duration.ofSeconds(10).toNanos();
+        while (System.nanoTime() < until) {
+            try {
+                if (Files.isRegularFile(page)) {
+                    String text = Files.readString(page, StandardCharsets.UTF_8);
+                    if (wanted.test(text)) {
+                        return text;
+                    }
+                }
+            } catch (IOException beingReplaced) {
+                // the page is moved over in one move; a read that meets the move reads again
+            }
+            Thread.onSpinWait();
+        }
+        return null;
+    }
+
+    /** Hands each event to {@code onEvent} on the thread that logged it, so a step's thread can be held at a line. */
+    private static final class HoldingAppender extends ch.qos.logback.core.UnsynchronizedAppenderBase<ch.qos.logback.classic.spi.ILoggingEvent> {
+
+        private final java.util.function.Consumer<ch.qos.logback.classic.spi.ILoggingEvent> onEvent;
+
+        HoldingAppender(java.util.function.Consumer<ch.qos.logback.classic.spi.ILoggingEvent> onEvent) {
+            this.onEvent = onEvent;
+        }
+
+        @Override
+        protected void append(ch.qos.logback.classic.spi.ILoggingEvent event) {
+            onEvent.accept(event);
+        }
     }
 
     private static String between(String page, String opening) {

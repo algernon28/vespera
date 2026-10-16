@@ -102,6 +102,9 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
 
     private static final String STAGE_FOUR_B = "Stage 4b (redundancy resolution)";
 
+    /** What 4b counts before it judges, what entered it for the progress page (ADR-268 section 2). */
+    private static final String SURVIVORS_IT_JUDGES = "the survivors it judges";
+
     /** How stage 3's line before its read of the shingle rows opens; the rest is the bound and what a stop costs. */
     private static final String READING_UP_TO = "Stage 3 (content census) is reading up to ";
 
@@ -240,6 +243,8 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                         + " longer does",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FOUR_B))
                         .containsExactlyElementsOf(StatementLines.inOrder(
+                                // what entered the step, for the progress page (ADR-268 section 2)
+                                StatementLines.timedCount(STAGE_FOUR_B, SURVIVORS_IT_JUDGES),
                                 StatementLines.countedRead(STAGE_FOUR_B, "the signed occurrences", signatureRows),
                                 StatementLines.timedRead(STAGE_FOUR_B, "the near-duplicates' extraction metrics"))));
         claim(
@@ -287,8 +292,11 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                         .allSatisfy(counter -> assertThat(ProgressLines.of(logged.list, counter)).isEmpty()));
         claim(
                 "nor does it say it is reading anything: the read of the signed documents has no row to go"
-                        + " through, so it has nothing to wait for, and no later read is made",
-                () -> assertThat(StatementLines.of(operatorLines(), STAGE_FOUR_B)).isEmpty());
+                        + " through, so it has nothing to wait for, and no later read is made. It says only that it"
+                        + " counted the survivors it judges, for the progress page, before it found nothing signed"
+                        + " (ADR-268 section 2)",
+                () -> assertThat(StatementLines.of(operatorLines(), STAGE_FOUR_B))
+                        .containsExactlyElementsOf(StatementLines.timedCount(STAGE_FOUR_B, SURVIVORS_IT_JUDGES)));
     }
 
     @Test
