@@ -104,12 +104,61 @@ final class ProgressPage implements JobExecutionListener {
     /** Guarded by {@link #writing}: whether the last write failed, so that the warning is not said again. */
     private boolean warned;
 
+    private final PageOpener opener;
+
+    /** Guarded by {@link #writing}: the command a command-shaped invocation is about, or null for the job's. */
+    private String command;
+
+    private Instant commandStarted;
+
     ProgressPage(Path workingDirectory, Duration interval, Clock clock) {
-        this.workingDirectory = workingDirectory;
-        this.page = workingDirectory.resolve(FILE_NAME);
-        this.part = workingDirectory.resolve(FILE_NAME + ".part");
+        this(workingDirectory, interval, clock, null);
+    }
+
+    ProgressPage(Path workingDirectory, Duration interval, Clock clock, PageOpener opener) {
+        this.workingDirectory = workingDirectory.toAbsolutePath().normalize();
+        this.page = this.workingDirectory.resolve(FILE_NAME);
+        this.part = this.workingDirectory.resolve(FILE_NAME + ".part");
         this.interval = interval;
         this.clock = clock;
+        this.opener = opener;
+    }
+
+    /** The page's absolute, normalised path in {@code workingDirectory} (ADR-266 section 1). */
+    static Path pathIn(Path workingDirectory) {
+        return workingDirectory.toAbsolutePath().normalize().resolve(FILE_NAME);
+    }
+
+    /** A command that starts no job writes its first page (reloading) and has it opened once (ADR-266 section 3). */
+    void commandStarts(String commandLine) {
+        boolean written;
+        synchronized (writing) {
+            command = commandLine;
+            commandStarted = clock.instant();
+            ended = false;
+            written = write(false);
+        }
+        openOnce(written);
+    }
+
+    /** The last page of a command that starts no job: no reload, and its counts as a table when it recorded. */
+    void commandEnds(String outcome, Map<String, Integer> counts) {
+        synchronized (writing) {
+            ended = true;
+            write(true, outcome, counts);
+        }
+    }
+
+    /** Hands the page to the opener, outside the lock; nothing is opened after a first write that failed. */
+    private void openOnce(boolean written) {
+        if (!written || opener == null) {
+            return;
+        }
+        try {
+            opener.open(page.toUri());
+        } catch (IOException | RuntimeException e) {
+            log.warn("the progress page could not be opened: {}", e.getClass().getName());
+        }
     }
 
     @Override
@@ -127,10 +176,13 @@ final class ProgressPage implements JobExecutionListener {
                 appenders.add(appender);
             }
         }
+        boolean written;
         synchronized (writing) {
+            command = null;
             ended = false;
-            write(false);
+            written = write(false);
         }
+        openOnce(written);
         try {
             if (interval.isZero() || interval.isNegative()) {
                 throw new IllegalArgumentException("vespera.progress-interval is not above zero");
@@ -175,11 +227,17 @@ final class ProgressPage implements JobExecutionListener {
     }
 
     /** One write, under {@link #writing}; a failure is caught here and never reaches the job. */
-    private void write(boolean last) {
+    private boolean write(boolean last) {
+        return write(last, null, Map.of());
+    }
+
+    private boolean write(boolean last, String outcome, Map<String, Integer> counts) {
         try {
-            Files.writeString(part, render(last), StandardCharsets.UTF_8);
+            String text = command == null ? render(last) : renderCommand(last, outcome, counts);
+            Files.writeString(part, text, StandardCharsets.UTF_8);
             ReplacingMove.ATOMIC.intoPlace(part, page);
             warned = false;
+            return true;
         } catch (IOException | RuntimeException e) {
             try {
                 Files.deleteIfExists(part);
@@ -187,6 +245,7 @@ final class ProgressPage implements JobExecutionListener {
                 // the next write overwrites it
             }
             failed(e);
+            return false;
         }
     }
 
@@ -226,6 +285,26 @@ final class ProgressPage implements JobExecutionListener {
                 + ReportPage.table(
                         ReportPage.headerRow("Step", "State", "Read", "Written", "Skipped", "Duration", "Progress"),
                         rows.toString());
+        return last ? ReportPage.render(TITLE, body) : ReportPage.reloading(TITLE, body, seconds);
+    }
+
+    /** The page of a command that starts no job (ADR-266 section 3): numbers and fixed words, nothing it was given. */
+    private String renderCommand(boolean last, String outcome, Map<String, Integer> counts) {
+        Instant now = clock.instant();
+        int seconds = (int) Math.max(1, (interval.toMillis() + 999) / 1000);
+        String status = last
+                ? "This invocation has ended: " + outcome + "."
+                : "This invocation is running. This page is rewritten when it ends.";
+        StringBuilder rows = new StringBuilder();
+        counts.forEach((words, value) ->
+                rows.append(ReportPage.row(ReportPage.textCell(words), ReportPage.numberCell(value))));
+        String body = ReportPage.heading(1, TITLE)
+                + ReportPage.paragraph(ReportPage.escape(status))
+                + ReportPage.paragraph("Command: " + command)
+                + ReportPage.paragraph("Written at " + WRITTEN_AT.format(LocalDateTime.ofInstant(now, ZoneId.systemDefault())))
+                + ReportPage.paragraph("Elapsed: " + clockTime(Duration.between(commandStarted, now)))
+                + ReportPage.paragraph(String.format(Locale.ROOT, "Database size: %.1f MB", databaseBytes() / 1_000_000.0))
+                + (counts.isEmpty() ? "" : ReportPage.table(ReportPage.headerRow("Answers", "Count"), rows.toString()));
         return last ? ReportPage.render(TITLE, body) : ReportPage.reloading(TITLE, body, seconds);
     }
 

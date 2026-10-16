@@ -7,6 +7,7 @@ import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -44,11 +45,21 @@ public class VesperaJobConfiguration {
     /** The folder the invocation account is written to; unset means no account (ADR-198 section 1). */
     static final String ACCOUNT_DIRECTORY_PROPERTY = "vespera.account-dir";
 
+    /** The progress page, shared by the job and by {@code vespera label} (ADR-266 section 3). */
+    @Bean
+    ProgressPage progressPage(
+            @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
+            @Value("${vespera.progress-interval:5s}") Duration progressInterval,
+            ObjectProvider<PageOpener> opener,
+            Clock clock) {
+        return new ProgressPage(workingDirectory, progressInterval, clock, opener.getIfAvailable());
+    }
+
     @Bean
     Job vesperaJob(
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
             @Value("${" + ACCOUNT_DIRECTORY_PROPERTY + ":}") String accountDirectory,
-            @Value("${vespera.progress-interval:5s}") Duration progressInterval,
+            ProgressPage progressPage,
             JdbcTemplate jdbcTemplate,
             Clock clock,
             JobRepository jobRepository,
@@ -88,7 +99,7 @@ public class VesperaJobConfiguration {
                         accountDirectory == null || accountDirectory.isBlank() ? null : Path.of(accountDirectory.strip()),
                         jdbcTemplate,
                         clock))
-                .listener(new ProgressPage(workingDirectory, progressInterval, clock))
+                .listener(progressPage)
                 .build();
     }
 

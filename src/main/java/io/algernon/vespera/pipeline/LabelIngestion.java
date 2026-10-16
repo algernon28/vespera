@@ -12,7 +12,9 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,14 +63,20 @@ class LabelIngestion {
     }
 
     /** What ingesting a file did, or why it did nothing. */
-    record Outcome(boolean refused, String message) {
+    record Outcome(boolean refused, String message, Map<String, Integer> counts) {
 
         static Outcome refused(String message) {
-            return new Outcome(true, message);
+            return new Outcome(true, message, Map.of());
         }
 
-        static Outcome recorded(String message) {
-            return new Outcome(false, message);
+        /** The counts are in the order the progress page shows them (ADR-266 section 3). */
+        static Outcome recorded(String message, int newCount, int changed, int unchanged, int stillBlank) {
+            Map<String, Integer> counts = new LinkedHashMap<>();
+            counts.put("new", newCount);
+            counts.put("changed", changed);
+            counts.put("unchanged", unchanged);
+            counts.put("still blank", stillBlank);
+            return new Outcome(false, message, counts);
         }
     }
 
@@ -171,7 +179,7 @@ class LabelIngestion {
             message += "; " + answers.unanswered() + " question(s) are still blank";
         }
         LOG.info("{}", message);
-        return Outcome.recorded(message);
+        return Outcome.recorded(message, newCount, changedCount, unchangedCount, answers.unanswered());
     }
 
     /** The seed folder the answers are about, canonicalised the way every other reader of it is. */
