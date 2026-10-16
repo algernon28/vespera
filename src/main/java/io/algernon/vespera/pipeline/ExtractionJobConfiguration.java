@@ -382,6 +382,7 @@ public class ExtractionJobConfiguration {
                 faultReadProgress(),
                 page -> ledger.verdicts().discardVerdictsAgainst(extractionRun, page, VerdictKind.EXTRACTION_FAILED));
         extractionFaults.discardForRun(extractionRun);
+        ProgressPage.entered(ledger.verdicts().survivorCount(extractionRun));
 
         // shingle_by_hash is not maintained while shingles are written (ADR-182 section 2.2): every new row
         // would land at a random place in an index far larger than any page cache, and stage 4b builds it

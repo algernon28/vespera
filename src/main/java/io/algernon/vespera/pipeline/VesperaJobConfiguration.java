@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.ledger.Ledger;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -51,8 +52,10 @@ public class VesperaJobConfiguration {
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
             @Value("${vespera.progress-interval:5s}") Duration progressInterval,
             ObjectProvider<PageOpener> opener,
-            Clock clock) {
-        return new ProgressPage(workingDirectory, progressInterval, clock, opener.getIfAvailable());
+            Clock clock,
+            Ledger ledger) {
+        return new ProgressPage(
+                workingDirectory, progressInterval, clock, opener.getIfAvailable(), () -> ledger.verdicts().recorded());
     }
 
     @Bean

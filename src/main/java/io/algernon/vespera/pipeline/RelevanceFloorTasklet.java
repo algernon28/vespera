@@ -114,6 +114,7 @@ class RelevanceFloorTasklet implements Tasklet {
         // identity read above only chooses which line says why nothing was removed.
         if (reach.removesBelow().isPresent()) {
             double threshold = reach.removesBelow().getAsDouble();
+            ProgressPage.entered(ledger.verdicts().survivorCount(scoring));
             // Counted, then written a page at a time: nothing holds every occurrence below the floor
             // (ADR-220 section 5). The verdicts of a page go in the step's one transaction before the
             // next page is read.

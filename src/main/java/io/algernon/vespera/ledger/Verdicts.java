@@ -5,12 +5,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * What the ledger records about verdicts, and the survivors they leave: the {@code verdict} table (ADR-209
@@ -74,7 +81,12 @@ public class Verdicts {
 
     private final JdbcTemplate jdbcTemplate;
 
+    private final Map<VerdictKind, AtomicLong> recorded = new EnumMap<>(VerdictKind.class);
+
     public Verdicts(JdbcTemplate jdbcTemplate) {
+        for (VerdictKind kind : VerdictKind.values()) {
+            recorded.put(kind, new AtomicLong());
+        }
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -135,6 +147,33 @@ public class Verdicts {
                 runId.value(),
                 kind.name(),
                 reason);
+        AtomicLong count = recorded.get(kind);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            // a rolled-back insert counts nothing (ADR-268 section 2)
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    count.incrementAndGet();
+                }
+            });
+        } else {
+            count.incrementAndGet();
+        }
+    }
+
+    /**
+     * How many verdicts of each blocking kind this process has appended and committed, by the kind's name as
+     * {@code CONTEXT.md} writes it ({@code extraction-failed}), in {@link VerdictKind}'s order: held in memory so a
+     * page can show them with no query (ADR-268 section 2). A delete subtracts nothing.
+     */
+    public Map<String, Long> recorded() {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        recorded.forEach((kind, count) -> {
+            if (kind.blocking()) {
+                counts.put(kind.name().toLowerCase(Locale.ROOT).replace('_', '-'), count.get());
+            }
+        });
+        return counts;
     }
 
     /**
