@@ -998,6 +998,8 @@ const cases = [
   ["K710", "LS, which Bash does not read as ls", "Bash", { command: "LS ../outside" }, REFUSED],
   ["K711", "ls of a folder under no allowed root, a line break, and cat of a file in it", "Bash", { command: "ls ../outside\ncat ../outside/doc.txt" }, REFUSED],
   ["K712", "Get-ChildItem with a script block among its arguments", "PowerShell", { command: "Get-ChildItem ../outside -Exclude {x}" }, REFUSED],
+  ["K713", "the Vespera jar with a --db-dir value that is the root, a comma and more", "Bash", { command: "java -jar target/vespera-0.0.1-SNAPSHOT.jar run ../outside --db-dir=../outside,wd" }, REFUSED],
+  ["K714", "the Vespera jar with a quoted root one of whose pieces is the --db-dir value", "Bash", { command: "java -jar target/vespera-0.0.1-SNAPSHOT.jar run 'x ../outside/wd' --db-dir=../outside/wd" }, REFUSED],
 
   /* K8. docs/adr/0264 lifts a refusal and keeps every reading. Each reading whose only cases are let
      through since that record, because what they reach is a working directory under an allowed root,

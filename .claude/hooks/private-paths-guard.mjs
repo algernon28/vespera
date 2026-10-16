@@ -559,7 +559,14 @@ function listedCommand(command, bash) {
   const roots = rest.filter((word) => !word.startsWith("-"));
   if (dbDirs.length > 1 || roots.length > 1 || dbDirs.length + roots.length !== rest.length) return null;
   const [root = null] = roots;
-  if (root !== null && (root.startsWith("@") || /[,{}]/.test(root) || trimSentence(root) !== root)) return null;
+  const plain = (word) => !/[,{}]/.test(word) && trimSentence(word) === word;
+  if (root !== null && (root.startsWith("@") || !plain(root))) return null;
+  const dbDir = dbDirs.length ? dbDirs[0].slice("--db-dir=".length) : null;
+  if (dbDir !== null && !plain(dbDir)) return null;
+  // No other word of the jar may be given a label the root's lift would match.
+  const forms = root === null ? [] : [root, ...root.split(" ")].filter(Boolean);
+  const others = [words[0].word, words[2].word, ...(dbDir === null ? [] : [dbDir])];
+  if (others.some((word) => [word, ...word.split(" ")].some((piece) => forms.some((form) => piece === form || piece.startsWith(form + ","))))) return null;
   return { jar: true, root };
 }
 
