@@ -3,6 +3,9 @@ package io.algernon.vespera.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -98,6 +101,12 @@ class ProgressPageChartsTest {
 
     /** A counter's progress line over a total, the shape that is drawn as a bar: three of seven. */
     private static final String THREE_OF_SEVEN = "Stage 5a (seed extraction, seeds recorded): 3 of 7 (42%)";
+
+    /** A counter's line over a total of nought, which a step with nothing to do logs: drawn as no bar. */
+    private static final String NONE_OF_NONE = "Stage 5a (seed extraction, seeds recorded): 0 of 0 (100%)";
+
+    /** The one warning a write that fails leaves, up to the exception's class name. */
+    private static final String COULD_NOT_BE_WRITTEN = "the progress page could not be written: ";
 
     private static final Pattern TILE = Pattern.compile("<div class=\"tile\" data-tile=\"([a-z]+)\">([^<]*)</div>");
 
@@ -497,6 +506,138 @@ class ProgressPageChartsTest {
                 });
     }
 
+    @Test
+    @Story("However long the invocation, the charts hold a bounded number of samples spanning all of it")
+    @DisplayName("The sample that would be the 257th thins them to the 129 at even positions, the first and the latest among them, and the next write adds one more")
+    void oneThinningLeavesTheSamplesAtEvenPositions() throws IOException {
+        Instant base = Instant.parse("2026-10-16T08:00:00Z");
+        ProgressPage progressPage = new ProgressPage(workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, new SteppingClock(base));
+        JobExecution execution = anExecution(1L, LocalDateTime.ofInstant(base, ZoneId.systemDefault()));
+        execution.setStatus(BatchStatus.COMPLETED);
+
+        progressPage.beforeJob(execution);
+        // every write after the first is one more last write: each takes a sample a second after the one before
+        for (int write = 1; write <= MOST_SAMPLES; write++) {
+            progressPage.afterJob(execution);
+        }
+        List<String> afterTheThinning = pointsOf(text(PAGE));
+        progressPage.afterJob(execution);
+        List<String> afterTheNextWrite = pointsOf(text(PAGE));
+
+        List<String> evenSeconds = new ArrayList<>();
+        for (int second = 0; second <= MOST_SAMPLES; second += 2) {
+            evenSeconds.add(String.format(java.util.Locale.ROOT, "%d:%02d:%02d", 0, second / 60, second % 60));
+        }
+        claim(
+                "after " + (MOST_SAMPLES + 1) + " writes a second apart, the chart holds the " + AFTER_THINNING
+                        + " samples at even positions: every second sample from the job's start to the latest write,"
+                        + " " + MOST_SAMPLES + " seconds after it",
+                () -> assertThat(afterTheThinning).hasSize(AFTER_THINNING).containsExactlyElementsOf(evenSeconds));
+        claim(
+                "and the next write adds its sample to them, with no thinning until the samples would pass "
+                        + MOST_SAMPLES + " again",
+                () -> assertThat(afterTheNextWrite).hasSize(AFTER_THINNING + 1).endsWith("0:04:17"));
+    }
+
+    @Test
+    @Story("The chart of counts is of the latest step that ran, and is not drawn before any did")
+    @DisplayName("While no sample names a step there is no chart of counts; once the census runs it is the census's, and once extraction runs after it, extraction's")
+    void theChartOfCountsIsOfTheLatestStepASampleNames() throws IOException {
+        ProgressPage progressPage = new ProgressPage(workingDirectory, Duration.ofMillis(20), Clock.systemDefaultZone());
+        JobExecution execution = anExecution(1L, LocalDateTime.now());
+
+        progressPage.beforeJob(execution);
+        String beforeAnyStep = text(PAGE);
+        StepExecution census = aStep(execution, StepNames.CENSUS, BatchStatus.STARTED, execution.getStartTime(), null);
+        String whileTheCensusRuns = awaitThePage(page -> page.contains("Step: " + StepNames.CENSUS + " (running)")
+                && page.contains("data-chart=\"counts\""));
+        census.setStatus(BatchStatus.COMPLETED);
+        census.setEndTime(LocalDateTime.now());
+        aStep(execution, StepNames.EXTRACTION, BatchStatus.STARTED, LocalDateTime.now(), null);
+        execution.setStatus(BatchStatus.COMPLETED);
+        progressPage.afterJob(execution);
+        String afterExtractionRan = text(PAGE);
+
+        claim(
+                "the first write, taken before any step ran, draws no chart of counts",
+                () -> assertThat(beforeAnyStep).contains("data-chart=\"database\"").doesNotContain("data-chart=\"counts\""));
+        claim(
+                "a write while the census runs draws one, titled with the census",
+                () -> assertThat(countsTitle(whileTheCensusRuns)).contains(StepNames.CENSUS));
+        claim(
+                "and the last write, whose sample names extraction, draws extraction's and no longer the census's",
+                () -> assertThat(countsTitle(afterExtractionRan))
+                        .contains(StepNames.EXTRACTION)
+                        .doesNotContain(StepNames.CENSUS));
+    }
+
+    @Test
+    @Story("A running step's count of a total is drawn as a bar")
+    @DisplayName("A step running whose last progress line counts nought of nought draws no bar")
+    void aCountOfATotalOfNoneDrawsNoBar() throws IOException {
+        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
+        JobExecution execution = anExecution(1L, LocalDateTime.now());
+        StepExecution seedExtraction = aStep(
+                execution, StepNames.SEED_EXTRACTION, BatchStatus.STARTED, execution.getStartTime(), null);
+
+        progressPage.beforeJob(execution);
+        StepSynchronizationManager.register(seedExtraction);
+        try {
+            LoggerFactory.getLogger(StageProgress.class).info(NONE_OF_NONE);
+        } finally {
+            StepSynchronizationManager.close();
+        }
+        // the step is still running at the last write, so that write draws the bar if any write does
+        progressPage.afterJob(execution);
+
+        claim(
+                "the line was kept for the running step: the table of steps shows it",
+                () -> assertThat(text(STEPS_PAGE)).contains(NONE_OF_NONE));
+        claim(
+                "and no bar is drawn for it: a total of nought has nothing to fill",
+                () -> assertThat(text(PAGE)).contains("<div class=\"tile\" data-tile=\"steps\">").doesNotContain("<progress"));
+    }
+
+    @Test
+    @Story("A page that cannot be written fails nothing, and the pages are moved in order")
+    @DisplayName("With a folder where the page of samples goes, the page of steps is written, the progress page is not, and one warning is logged for every write that failed")
+    void aWriteThatFailsPartWayStopsBeforeTheProgressPageAndIsWarnedOfOnce() throws IOException {
+        Files.createDirectories(workingDirectory.resolve(SAMPLES_PAGE).resolve("a-file-that-keeps-the-folder-there"));
+        ListAppender<ILoggingEvent> logged = new ListAppender<>();
+        logged.start();
+        ch.qos.logback.classic.Logger pageLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(ProgressPage.class);
+        pageLogger.addAppender(logged);
+        try {
+            ProgressPage progressPage = aPage(Clock.systemDefaultZone());
+            JobExecution execution = anExecution(1L, LocalDateTime.now());
+
+            progressPage.beforeJob(execution);
+            execution.setStatus(BatchStatus.COMPLETED);
+            progressPage.afterJob(execution);
+        } finally {
+            pageLogger.detachAppender(logged);
+            logged.stop();
+        }
+
+        claim(
+                "the page of steps, moved first, was written, by the last write as by the first",
+                () -> assertThat(text(STEPS_PAGE)).contains(ENDED_COMPLETED));
+        claim(
+                "the progress page, moved after the page of samples, was never written: a write ends at the first"
+                        + " page that cannot be moved",
+                () -> assertThat(workingDirectory.resolve(PAGE)).doesNotExist());
+        claim(
+                "and both writes failed, but one warning says so: the next is said only after a write succeeds",
+                () -> assertThat(logged.list)
+                        .filteredOn(event -> event.getLevel() == Level.WARN
+                                && event.getFormattedMessage().startsWith(COULD_NOT_BE_WRITTEN))
+                        .hasSize(1));
+        try (java.util.stream.Stream<Path> left = Files.list(workingDirectory)) {
+            List<String> parts = left.map(path -> path.getFileName().toString()).filter(name -> name.endsWith(".part")).toList();
+            claim("and no page's part is left beside it", () -> assertThat(parts).isEmpty());
+        }
+    }
+
     private ProgressPage aPage(Clock clock) {
         return new ProgressPage(workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, clock);
     }
@@ -578,6 +719,22 @@ class ProgressPageChartsTest {
         }
         int to = page.indexOf("</svg>", from);
         return to < 0 ? page.substring(from) : page.substring(from, to);
+    }
+
+    /** The elapsed time of each point of the database chart, in the order drawn. */
+    private static List<String> pointsOf(String page) {
+        List<String> drawn = new ArrayList<>();
+        Matcher point = SAMPLE_POINT.matcher(chart(page, "database"));
+        while (point.find()) {
+            drawn.add(point.group(1));
+        }
+        return drawn;
+    }
+
+    /** The title the chart of counts carries as its first child, or nothing where there is no such chart. */
+    private static String countsTitle(String page) {
+        Matcher title = Pattern.compile("^[^>]*>\\s*<title>([^<]*)</title>").matcher(chart(page, "counts"));
+        return title.find() ? title.group(1) : "";
     }
 
     private static int samplesDrawn(String page) {
