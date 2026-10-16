@@ -374,7 +374,7 @@ class LocalLabellingInvocationTest {
         claim(
                 "the page names the command with --auto and says it ended having recorded",
                 () -> assertThat(page)
-                        .contains("Command: vespera label --auto")
+                        .contains("<span class=\"label\">Command</span><span class=\"value\">vespera label --auto</span>")
                         .contains("This invocation has ended: recorded."));
         claim(
                 "its table counts, in this order, the one document the model called relevant (" + ONE_DOCUMENT_IN_THE_SAMPLE

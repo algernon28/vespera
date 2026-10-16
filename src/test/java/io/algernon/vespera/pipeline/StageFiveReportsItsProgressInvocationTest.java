@@ -389,14 +389,16 @@ class StageFiveReportsItsProgressInvocationTest {
                                 StatementLines.timedRead(STAGE_FIVE_F, EMBEDDER_IDENTITIES),
                                 StatementLines.timedRead(STAGE_FIVE_F, "the members of partition 1 of 1"))));
         claim(
-                "with a threshold that is a number and applies, the floor step makes two reads and a count and says"
-                        + " so of each, in order: the embedder identities, the recorded answers the threshold is"
-                        + " checked against, and a count of the scores below it, which it then goes through a page"
+                "with a threshold that is a number and applies, the floor step makes two reads and two counts and"
+                        + " says so of each, in order: the embedder identities, the recorded answers the threshold is"
+                        + " checked against, the survivors it judges, what entered it for the progress page"
+                        + " (ADR-268 section 2), and the scores below it, which it then goes through a page"
                         + " at a time inside the counter of its verdicts rather than reading them all first",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_E))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 StatementLines.timedRead(STAGE_FIVE_E, EMBEDDER_IDENTITIES),
                                 StatementLines.timedRead(STAGE_FIVE_E, RECORDED_ANSWERS),
+                                StatementLines.timedCount(STAGE_FIVE_E, "the survivors it judges"),
                                 StatementLines.timedCount(STAGE_FIVE_E, "the scores below the floor"))));
         claim(
                 "and the report reads the recorded answers a second time, for the same check of the threshold,"

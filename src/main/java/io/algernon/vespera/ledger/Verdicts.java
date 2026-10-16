@@ -5,12 +5,20 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * What the ledger records about verdicts, and the survivors they leave: the {@code verdict} table (ADR-209
@@ -74,7 +82,14 @@ public class Verdicts {
 
     private final JdbcTemplate jdbcTemplate;
 
+    private final Map<VerdictKind, AtomicLong> recorded = new EnumMap<>(VerdictKind.class);
+
+    private final ThreadLocal<Boolean> countingAtInsert = new ThreadLocal<>();
+
     public Verdicts(JdbcTemplate jdbcTemplate) {
+        for (VerdictKind kind : VerdictKind.values()) {
+            recorded.put(kind, new AtomicLong());
+        }
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -135,6 +150,63 @@ public class Verdicts {
                 runId.value(),
                 kind.name(),
                 reason);
+        if (countingAtInsert.get() != null || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            recorded.get(kind).incrementAndGet();
+            return;
+        }
+        // one callback a transaction, holding a tally by kind; a rolled-back insert counts nothing (ADR-268 section 2)
+        long[] tally = (long[]) TransactionSynchronizationManager.getResource(this);
+        if (tally == null) {
+            long[] mine = new long[VerdictKind.values().length];
+            tally = mine;
+            TransactionSynchronizationManager.bindResource(this, mine);
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    for (VerdictKind each : VerdictKind.values()) {
+                        recorded.get(each).addAndGet(mine[each.ordinal()]);
+                    }
+                }
+
+                @Override
+                public void afterCompletion(int status) {
+                    TransactionSynchronizationManager.unbindResourceIfPossible(Verdicts.this);
+                }
+            });
+        }
+        tally[kind.ordinal()]++;
+    }
+
+    /**
+     * Runs {@code work}, counting every verdict this thread inserts during it at its insert rather than at its
+     * commit: the work of a step whose whole work is one transaction, which commits only when the step ends
+     * (ADR-268 section 2). A verdict counted here stays counted if that transaction rolls back, the step then failing.
+     */
+    public <T> T countingAtInsert(Callable<T> work) throws Exception {
+        Boolean outer = countingAtInsert.get();
+        countingAtInsert.set(Boolean.TRUE);
+        try {
+            return work.call();
+        } finally {
+            if (outer == null) {
+                countingAtInsert.remove();
+            }
+        }
+    }
+
+    /**
+     * How many verdicts of each blocking kind this process has appended and committed, by the kind's name as
+     * {@code CONTEXT.md} writes it ({@code extraction-failed}), in {@link VerdictKind}'s order: held in memory so a
+     * page can show them with no query (ADR-268 section 2). A delete subtracts nothing.
+     */
+    public Map<String, Long> recorded() {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        recorded.forEach((kind, count) -> {
+            if (kind.blocking()) {
+                counts.put(kind.name().toLowerCase(Locale.ROOT).replace('_', '-'), count.get());
+            }
+        });
+        return counts;
     }
 
     /**

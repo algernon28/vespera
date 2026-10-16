@@ -102,9 +102,13 @@ class ProgressPageInvocationTest {
     private static final Pattern WRITTEN_AT =
             Pattern.compile("Written at ([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})");
 
-    private static final Pattern ELAPSED = Pattern.compile("Elapsed: [0-9]+:[0-5][0-9]:[0-5][0-9]");
+    /** The elapsed tile's label and value (ADR-268 section 5). */
+    private static final Pattern ELAPSED = Pattern.compile(
+            "<span class=\"label\">Elapsed</span><span class=\"value\">[0-9]+:[0-5][0-9]:[0-5][0-9]</span>");
 
-    private static final Pattern DATABASE_SIZE = Pattern.compile("Database size: [0-9]+\\.[0-9] MB");
+    /** The database tile's label and value, a size as ADR-268 section 6 writes it. */
+    private static final Pattern DATABASE_SIZE = Pattern.compile("<span class=\"label\">Database size</span>"
+            + "<span class=\"value\">([0-9][0-9,]* B|[0-9][0-9,]*\\.[0-9]{2} (KB|MB|GB|TB))</span>");
 
     /** What every private name and text in the fixture carries, so one search finds any leak of any of them. */
     private static final String MARKER = "ZXQ-the-operators-private-word";

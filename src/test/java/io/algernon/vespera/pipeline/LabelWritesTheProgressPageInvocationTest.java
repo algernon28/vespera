@@ -50,7 +50,7 @@ class LabelWritesTheProgressPageInvocationTest {
     private static final String ENDED_REFUSED = "This invocation has ended: refused.";
 
     /** The line naming the command the page is about. */
-    private static final String THE_LABEL_COMMAND = "Command: vespera label";
+    private static final String THE_LABEL_COMMAND = "<span class=\"label\">Command</span><span class=\"value\">vespera label</span>";
 
     /** The header of the table of what the label command counted. */
     private static final String ANSWERS_HEADER = ReportPage.headerRow("Answers", "Count");

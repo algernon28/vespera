@@ -108,7 +108,10 @@ class ProgressPageChartsTest {
     /** The one warning a write that fails leaves, up to the exception's class name. */
     private static final String COULD_NOT_BE_WRITTEN = "the progress page could not be written: ";
 
-    private static final Pattern TILE = Pattern.compile("<div class=\"tile\" data-tile=\"([a-z]+)\">([^<]*)</div>");
+    /** A tile: its key, label, value and, where it has one, detail (ADR-268 section 5). */
+    private static final Pattern TILE = Pattern.compile("<div class=\"tile\" data-tile=\"([a-z-]+)\">"
+            + "<span class=\"label\">([^<]*)</span><span class=\"value\">([^<]*)</span>"
+            + "(?:<span class=\"detail\">([^<]*)</span>)?</div>");
 
     private static final Pattern MARK = Pattern.compile(
             "<g class=\"step\" data-step=\"([^\"]*)\" data-state=\"([^\"]*)\">(.*?)</g>", Pattern.DOTALL);
@@ -127,12 +130,18 @@ class ProgressPageChartsTest {
     private static final Pattern LIVENESS =
             Pattern.compile("<span class=\"liveness\" data-written=\"([0-9]+)\" data-interval=\"([0-9]+)\">");
 
-    private static final Pattern ELAPSED = Pattern.compile("Elapsed: ([0-9]+:[0-5][0-9]:[0-5][0-9])");
+    private static final Pattern ELAPSED = Pattern.compile(
+            "<span class=\"label\">Elapsed</span><span class=\"value\">([0-9]+:[0-5][0-9]:[0-5][0-9])</span>");
 
-    private static final Pattern DATABASE_SIZE = Pattern.compile("Database size: [0-9]+\\.[0-9] MB");
+    private static final Pattern CLOCK_TIME = Pattern.compile("[0-9]+:[0-5][0-9]:[0-5][0-9]");
 
-    private static final String SAMPLES_HEADER =
-            ReportPage.headerRow("Elapsed", "Database size", "Step", "Read", "Written");
+    /** A size as ADR-268 section 6 writes it: whole bytes, or two decimal places of a larger unit. */
+    private static final Pattern DATABASE_SIZE = Pattern.compile("[0-9][0-9,]* B|[0-9][0-9,]*\\.[0-9]{2} (KB|MB|GB|TB)");
+
+    private static final String SAMPLES_HEADER = ReportPage.headerRow(
+            "Elapsed", "Database size", "Step", "Read", "Written", "Progress", "Outcome step", "Survivors",
+            "broken", "duplicate-of", "superseded-by", "out-of-scope", "extraction-failed", "degenerate-output",
+            "redundant-with", "below-threshold");
 
     private static final String STEPS_HEADER =
             ReportPage.headerRow("Step", "State", "Read", "Written", "Skipped", "Duration", "Progress");
@@ -210,14 +219,17 @@ class ProgressPageChartsTest {
         claim(
                 "one step of the job's " + STEPS_IN_JOB_ORDER.size() + " has finished, the census, and byte-level"
                         + " reduction is the step running",
-                () -> assertThat(tiles).extracting(tile -> tile[1]).startsWith(
-                        "Steps finished: 1 of " + STEPS_IN_JOB_ORDER.size(),
-                        "Step: " + StepNames.BYTE_LEVEL_REDUCTION + " (running)"));
-        claim(
-                "and the last two tiles hold the time elapsed and the database's size, each as its whole text",
                 () -> {
-                    assertThat(tiles.get(2)[1]).matches(ELAPSED);
-                    assertThat(tiles.get(3)[1]).matches(DATABASE_SIZE);
+                    assertThat(tiles.get(0)).startsWith("steps", "Steps finished", "1 of " + STEPS_IN_JOB_ORDER.size());
+                    assertThat(tiles.get(1)).containsExactly("step", "Step", StepNames.BYTE_LEVEL_REDUCTION, "running");
+                });
+        claim(
+                "and the last two tiles hold the time elapsed and the database's size, each as its value",
+                () -> {
+                    assertThat(tiles.get(2)).startsWith("elapsed", "Elapsed");
+                    assertThat(tiles.get(2)[2]).matches(CLOCK_TIME);
+                    assertThat(tiles.get(3)).startsWith("database", "Database size");
+                    assertThat(tiles.get(3)[2]).matches(DATABASE_SIZE);
                 });
     }
 
@@ -428,7 +440,7 @@ class ProgressPageChartsTest {
                 "the page of steps holds the table of steps, its seven columns in order, and links back",
                 () -> assertThat(read(STEPS_PAGE)).contains(STEPS_HEADER).contains("href=\"" + PAGE + "\""));
         claim(
-                "and the page of samples holds the table of samples, its five columns in order, and links back",
+                "and the page of samples holds the table of samples, its columns in order, and links back",
                 () -> assertThat(read(SAMPLES_PAGE)).contains(SAMPLES_HEADER).contains("href=\"" + PAGE + "\""));
     }
 
@@ -485,7 +497,7 @@ class ProgressPageChartsTest {
                     () -> {
                         assertThat(tiles(page)).extracting(tile -> tile[0])
                                 .containsExactly("command", "elapsed", "database");
-                        assertThat(tiles(page).getFirst()[1]).isEqualTo("Command: vespera label");
+                        assertThat(tiles(page).getFirst()).startsWith("command", "Command", "vespera label");
                     });
             claim(
                     which + " draws no timeline and no chart, links no page of detail, and has no liveness mark and"
@@ -549,11 +561,14 @@ class ProgressPageChartsTest {
         progressPage.beforeJob(execution);
         String beforeAnyStep = text(PAGE);
         StepExecution census = aStep(execution, StepNames.CENSUS, BatchStatus.STARTED, execution.getStartTime(), null);
-        String whileTheCensusRuns = awaitThePage(page -> page.contains("Step: " + StepNames.CENSUS + " (running)")
+        // a count each step moves, so that each is charted by its read and write counts (ADR-268 section 7)
+        census.setReadCount(4);
+        String whileTheCensusRuns = awaitThePage(page -> page.contains("<span class=\"label\">Step</span><span class=\"value\">"
+                        + StepNames.CENSUS + "</span><span class=\"detail\">running</span>")
                 && page.contains("data-chart=\"counts\""));
         census.setStatus(BatchStatus.COMPLETED);
         census.setEndTime(LocalDateTime.now());
-        aStep(execution, StepNames.EXTRACTION, BatchStatus.STARTED, LocalDateTime.now(), null);
+        aStep(execution, StepNames.EXTRACTION, BatchStatus.STARTED, LocalDateTime.now(), null).setReadCount(2);
         execution.setStatus(BatchStatus.COMPLETED);
         progressPage.afterJob(execution);
         String afterExtractionRan = text(PAGE);
@@ -755,12 +770,12 @@ class ProgressPageChartsTest {
         return cells;
     }
 
-    /** Each tile's key and text, in the order the page holds them. */
+    /** Each tile's key, label, value and detail, in the order the page holds them. */
     private static List<String[]> tiles(String page) {
         List<String[]> tiles = new ArrayList<>();
         Matcher tile = TILE.matcher(page);
         while (tile.find()) {
-            tiles.add(new String[] {tile.group(1), tile.group(2)});
+            tiles.add(new String[] {tile.group(1), tile.group(2), tile.group(3), tile.group(4) == null ? "" : tile.group(4)});
         }
         return tiles;
     }

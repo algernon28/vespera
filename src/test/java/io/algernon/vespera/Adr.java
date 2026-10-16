@@ -1812,6 +1812,15 @@ public final class Adr {
     public static final String THE_PROGRESS_PAGE_DRAWS_CHARTS_AND_ITS_TABLES_ARE_PAGES_OF_THEIR_OWN = FILE
             + "0267-the-progress-page-draws-tiles-a-timeline-of-the-steps-and-charts-over-time-and-its-tables-are-pages-of-their-own.md";
 
+    /**
+     * ADR-268 -- the progress page shows the survivors and the verdicts by kind of the step removing occurrences,
+     * with rates over the last ten minutes, from counts held in memory; sizes in the largest unit at least 1; every
+     * chart has a heading, a caption, titled axes, a size axis over its own range, and the data-viz method's palette
+     * (amends ADR-265 and ADR-267).
+     */
+    public static final String THE_PROGRESS_PAGE_SHOWS_WHAT_IS_REMOVED_AND_DRAWS_TO_THE_DATA_VIZ_METHOD = FILE
+            + "0268-the-progress-page-shows-what-the-stage-that-removes-occurrences-has-removed-and-draws-to-the-data-viz-method.md";
+
     private Adr() {
     }
 }

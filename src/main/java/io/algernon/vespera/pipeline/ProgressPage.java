@@ -15,6 +15,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -22,6 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.DoubleFunction;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -35,8 +39,9 @@ import org.springframework.batch.core.step.StepExecution;
 
 /**
  * The page {@code vespera run} rewrites in the working directory while it runs (ADR-265): each step's state,
- * counts and last progress line, the time elapsed and the database's size. It reads only what the job holds in
- * memory and two file sizes, and names no path, title, document text, exception message or run id.
+ * counts and last progress line, the time elapsed and the database's size, and (ADR-268) the survivors and
+ * the verdicts of the step removing occurrences. It reads only what the job holds in memory, the verdict counts
+ * {@code Verdicts} keeps and two file sizes, and names no path, title, document text, exception message or run id.
  *
  * <p>Writes are made by one daemon thread of its own at a fixed delay, so no step thread renders or writes the
  * page; the first is made by {@link #beforeJob} and the last by {@link #afterJob}, under the lock that every
@@ -55,6 +60,9 @@ final class ProgressPage implements JobExecutionListener {
 
     static final String SAMPLES_FILE_NAME = "progress-samples.html";
 
+    /** The key of what entered the outcome step, in its step execution's context (ADR-268 section 2). */
+    static final String ENTERED = "progress-page.entered";
+
     private static final String TITLE = "Vespera progress";
 
     /** At most this many samples are held; one more thins them (ADR-267 section 2). */
@@ -62,6 +70,9 @@ final class ProgressPage implements JobExecutionListener {
 
     /** A page is stale when it was last rewritten more than this many intervals ago (ADR-267 section 5). */
     private static final int STALE_AFTER_INTERVALS = 3;
+
+    /** A rate is read back to the latest sample at least this long before the latest one (ADR-268 section 3). */
+    private static final long RATE_SECONDS = 600;
 
     /** The one script of a running page: the same text on every write, reading two attributes of the mark. */
     private static final String LIVENESS_SCRIPT =
@@ -75,14 +86,22 @@ final class ProgressPage implements JobExecutionListener {
 
     private static final Pattern COUNT_OF_TOTAL = Pattern.compile(": ([0-9,]+) of ([0-9,]+) \\([0-9]+%\\)$");
 
-    private static final int PLOT_LEFT = 60;
-    private static final int PLOT_WIDTH = 700;
-    private static final int CHART_WIDTH = 900;
-    private static final int CHART_HEIGHT = 220;
-    private static final int PLOT_TOP = 16;
-    private static final int PLOT_HEIGHT = 170;
-    private static final int TIMELINE_LABELS = 190;
-    private static final int TIMELINE_ROW = 20;
+    /** A counter's line: its label, how far it has got and, where it has one, its total. */
+    private static final Pattern COUNTER = Pattern.compile(
+            "^(" + StageProgress.LABEL_SHAPE + "): ([0-9,]+)(?: of ([0-9,]+) \\([0-9]+%\\)| so far)$");
+
+    private static final int CHART_WIDTH = 1100;
+    private static final int CHART_HEIGHT = 260;
+    private static final int PLOT_TOP = 36;
+    private static final int PLOT_HEIGHT = 168;
+    private static final int TIMELINE_STATES = 190;
+    private static final int TIMELINE_LABELS = 320;
+    private static final int TIMELINE_ROW = 24;
+
+    private static final String[] SIZE_UNITS = {"B", "KB", "MB", "GB", "TB"};
+
+    /** The dash of each series after the first: a second line of equal values is seen beside the first. */
+    private static final String[] DASHES = {"", "6 4", "2 3", "8 3 2 3", "1 4"};
 
     private static final String DATABASE_FILE = "vespera.db";
 
@@ -105,6 +124,25 @@ final class ProgressPage implements JobExecutionListener {
             StepNames.ARRANGEMENT,
             StepNames.GENERATION);
 
+    /**
+     * The blocking kinds as {@code CONTEXT.md} writes them, in {@code VerdictKind}'s order (ADR-268 section 1). Names,
+     * not the enum: the page decides no verdict, and no class of {@code pipeline} that does not is to name a kind.
+     */
+    private static final List<String> BLOCKING = List.of(
+            "broken", "duplicate-of", "superseded-by", "out-of-scope",
+            "extraction-failed", "degenerate-output", "redundant-with", "below-threshold");
+
+    /** The steps that remove occurrences, in job order, and the kinds each records (ADR-268 section 1). */
+    private static final Map<String, List<String>> OUTCOME_STEPS = new LinkedHashMap<>();
+
+    static {
+        OUTCOME_STEPS.put(
+                StepNames.BYTE_LEVEL_REDUCTION, List.of("broken", "duplicate-of", "superseded-by", "out-of-scope"));
+        OUTCOME_STEPS.put(StepNames.EXTRACTION, List.of("extraction-failed", "degenerate-output"));
+        OUTCOME_STEPS.put(StepNames.CONTENT_REDUNDANCY, List.of("redundant-with"));
+        OUTCOME_STEPS.put(StepNames.RELEVANCE_FLOOR, List.of("below-threshold"));
+    }
+
     /** The whole text of a statement's line over rows: its label in the form of a counter's, then the percentage. */
     private static final Pattern STATEMENT_LINE =
             Pattern.compile(StageProgress.LABEL_SHAPE + ": (about|at least) [0-9]+% of [0-9,]+ rows");
@@ -124,19 +162,28 @@ final class ProgressPage implements JobExecutionListener {
 
     private final Object writing = new Object();
 
-    /** One reading made at a write (ADR-267 section 2). */
-    private record Sample(long seconds, long databaseBytes, String step, long read, long written) {}
+    /**
+     * One reading made at a write (ADR-267 section 2, ADR-268 section 4): {@code survivors} is -1 and
+     * {@code outcomeStep} null where no step has recorded what entered it.
+     */
+    private record Sample(
+            long seconds, long databaseBytes, String step, long read, long written, String progress,
+            String outcomeStep, long survivors, long[] kinds) {}
 
     /** Guarded by {@link #writing}: at most {@link #MOST_SAMPLES}, oldest first. */
     private final List<Sample> samples = new ArrayList<>();
 
-    /** A line of a chart: the class its colour comes from, what it is called, and how a value of it is shown. */
-    private record Series(String css, String name, boolean whole, String unit, java.util.function.ToDoubleFunction<Sample> value) {
+    /** A line of a chart: the class its colour comes from, what it is called, and its value at each sample drawn. */
+    private record Line(String css, String name, double[] values) {}
 
-        String show(double v) {
-            return (whole ? Long.toString((long) v) : f1(v)) + unit;
-        }
-    }
+    /** A value axis: its title, its range, and the values at which it has a tick and gridline. */
+    private record Axis(String title, double lo, double hi, List<Double> ticks, int decimals) {}
+
+    /** The verdicts recorded in this process by kind, read at each write without a lock any writer waits on. */
+    private final Supplier<Map<String, Long>> recorded;
+
+    /** Guarded by {@link #writing}: {@link #recorded} when the invocation began, so the page counts its own. */
+    private Map<String, Long> baseline = Map.of();
 
     private volatile JobExecution jobExecution;
     private ScheduledExecutorService writer;
@@ -161,16 +208,37 @@ final class ProgressPage implements JobExecutionListener {
     }
 
     ProgressPage(Path workingDirectory, Duration interval, Clock clock, PageOpener opener) {
+        this(workingDirectory, interval, clock, opener, Map::of);
+    }
+
+    ProgressPage(
+            Path workingDirectory,
+            Duration interval,
+            Clock clock,
+            PageOpener opener,
+            Supplier<Map<String, Long>> recorded) {
         this.workingDirectory = workingDirectory.toAbsolutePath().normalize();
         this.page = this.workingDirectory.resolve(FILE_NAME);
         this.interval = interval;
         this.clock = clock;
         this.opener = opener;
+        this.recorded = recorded;
     }
 
     /** The page's absolute, normalised path in {@code workingDirectory} (ADR-266 section 1). */
     static Path pathIn(Path workingDirectory) {
         return workingDirectory.toAbsolutePath().normalize().resolve(FILE_NAME);
+    }
+
+    /**
+     * Holds in the running step's context what entered it: the survivors of the run it records under, counted once
+     * on the step's own thread before its first verdict (ADR-268 section 2). Nothing where no step is bound.
+     */
+    static void entered(long survivors) {
+        StepContext context = StepSynchronizationManager.getContext();
+        if (context != null) {
+            context.getStepExecution().getExecutionContext().putLong(ENTERED, survivors);
+        }
     }
 
     /** A command that starts no job writes its first page (reloading) and has it opened once (ADR-266 section 3). */
@@ -224,6 +292,7 @@ final class ProgressPage implements JobExecutionListener {
         synchronized (writing) {
             command = null;
             ended = false;
+            baseline = recorded.get();
             samples.clear();
             written = write(false);
         }
@@ -329,7 +398,7 @@ final class ProgressPage implements JobExecutionListener {
         int seconds = (int) Math.max(1, (interval.toMillis() + 999) / 1000);
 
         StringBuilder rows = new StringBuilder();
-        Map<String, String> states = new java.util.LinkedHashMap<>();
+        Map<String, String> states = new LinkedHashMap<>();
         int finished = 0;
         String running = null;
         String latestStarted = null;
@@ -350,16 +419,43 @@ final class ProgressPage implements JobExecutionListener {
             }
         }
         String shown = running != null ? running : latestStarted;
-        String stepTile = shown == null ? "Step: none yet" : "Step: " + shown + " (" + states.get(shown) + ")";
         Duration elapsed = Duration.between(started, now);
         long bytes = databaseBytes();
         StepExecution runningExecution = running == null ? null : executions.get(running);
+
+        long[] kinds = new long[BLOCKING.size()];
+        Map<String, Long> nowRecorded = recorded.get();
+        for (int i = 0; i < kinds.length; i++) {
+            String kind = BLOCKING.get(i);
+            kinds[i] = Math.max(0, nowRecorded.getOrDefault(kind, 0L) - baseline.getOrDefault(kind, 0L));
+        }
+        String outcomeStep = null;
+        long entered = 0;
+        for (String step : OUTCOME_STEPS.keySet()) {
+            StepExecution execution = executions.get(step);
+            if (execution != null && execution.getExecutionContext().containsKey(ENTERED)) {
+                outcomeStep = step;
+                entered = execution.getExecutionContext().getLong(ENTERED);
+            }
+        }
+        long survivors = -1;
+        if (outcomeStep != null) {
+            survivors = entered;
+            for (String kind : OUTCOME_STEPS.get(outcomeStep)) {
+                survivors -= kinds[BLOCKING.indexOf(kind)];
+            }
+            survivors = Math.max(0, survivors);
+        }
         samples.add(new Sample(
                 Math.max(0, elapsed.getSeconds()),
                 bytes,
                 running,
                 runningExecution == null ? 0 : runningExecution.getReadCount(),
-                runningExecution == null ? 0 : runningExecution.getWriteCount()));
+                runningExecution == null ? 0 : runningExecution.getWriteCount(),
+                running == null ? null : lastLine.get(running),
+                outcomeStep,
+                survivors,
+                kinds));
         if (samples.size() > MOST_SAMPLES) {
             List<Sample> kept = new ArrayList<>();
             for (int i = 0; i < samples.size(); i += 2) {
@@ -368,6 +464,8 @@ final class ProgressPage implements JobExecutionListener {
             samples.clear();
             samples.addAll(kept);
         }
+        Sample latest = samples.getLast();
+        Sample base = rateBase();
 
         String status = last
                 ? "This invocation has ended: " + job.getStatus().name().toLowerCase(Locale.ROOT) + "."
@@ -385,18 +483,30 @@ final class ProgressPage implements JobExecutionListener {
                         rows.toString());
         StringBuilder sampleRows = new StringBuilder();
         for (Sample sample : samples) {
-            sampleRows.append(ReportPage.row(
-                    ReportPage.textCell(clockTime(Duration.ofSeconds(sample.seconds()))),
-                    ReportPage.textCell(megabytes(sample.databaseBytes())),
-                    ReportPage.textCell(sample.step() == null ? "" : sample.step()),
-                    ReportPage.numberCell(sample.step() == null ? "" : Long.toString(sample.read())),
-                    ReportPage.numberCell(sample.step() == null ? "" : Long.toString(sample.written()))));
+            String[] cells = new String[8 + BLOCKING.size()];
+            cells[0] = ReportPage.textCell(clockTime(Duration.ofSeconds(sample.seconds())));
+            cells[1] = ReportPage.textCell(size(sample.databaseBytes()));
+            cells[2] = ReportPage.textCell(sample.step() == null ? "" : sample.step());
+            cells[3] = ReportPage.numberCell(sample.step() == null ? "" : count(sample.read()));
+            cells[4] = ReportPage.numberCell(sample.step() == null ? "" : count(sample.written()));
+            cells[5] = ReportPage.textCell(sample.progress() == null ? "" : sample.progress());
+            cells[6] = ReportPage.textCell(sample.outcomeStep() == null ? "" : sample.outcomeStep());
+            cells[7] = ReportPage.numberCell(sample.survivors() < 0 ? "" : count(sample.survivors()));
+            for (int i = 0; i < BLOCKING.size(); i++) {
+                cells[8 + i] = ReportPage.numberCell(count(sample.kinds()[i]));
+            }
+            sampleRows.append(ReportPage.row(cells));
+        }
+        String[] sampleHeaders = new String[8 + BLOCKING.size()];
+        System.arraycopy(
+                new String[] {"Elapsed", "Database size", "Step", "Read", "Written", "Progress", "Outcome step", "Survivors"},
+                0, sampleHeaders, 0, 8);
+        for (int i = 0; i < BLOCKING.size(); i++) {
+            sampleHeaders[8 + i] = BLOCKING.get(i);
         }
         String samplesBody = ReportPage.heading(1, TITLE + ": samples")
                 + detailHead
-                + ReportPage.table(
-                        ReportPage.headerRow("Elapsed", "Database size", "Step", "Read", "Written"),
-                        sampleRows.toString());
+                + ReportPage.table(ReportPage.headerRow(sampleHeaders), sampleRows.toString());
 
         String mark = last
                 ? "<span class=\"liveness\">ended</span> "
@@ -404,25 +514,37 @@ final class ProgressPage implements JobExecutionListener {
                         + interval.toMillis() + "\">live</span> ";
         String bar = "";
         if (runningExecution != null) {
-            Matcher count = COUNT_OF_TOTAL.matcher(lastLine.getOrDefault(running, ""));
-            if (count.find() && !count.group(2).replace(",", "").matches("0+")) {
-                bar = ReportPage.paragraph("<progress value=\"" + count.group(1).replace(",", "") + "\" max=\""
-                        + count.group(2).replace(",", "") + "\"></progress> "
+            Matcher counted = COUNT_OF_TOTAL.matcher(lastLine.getOrDefault(running, ""));
+            if (counted.find() && !counted.group(2).replace(",", "").matches("0+")) {
+                bar = ReportPage.paragraph("<progress value=\"" + counted.group(1).replace(",", "") + "\" max=\""
+                        + counted.group(2).replace(",", "") + "\"></progress> "
                         + ReportPage.escape(lastLine.get(running)));
+            }
+        }
+        StringBuilder tiles = new StringBuilder();
+        tiles.append(tile("steps", "Steps finished", finished + " of " + STEPS_IN_JOB_ORDER.size(), null));
+        tiles.append(shown == null
+                ? tile("step", "Step", "none yet", null)
+                : tile("step", "Step", shown, states.get(shown)));
+        tiles.append(tile("elapsed", "Elapsed", clockTime(elapsed), null));
+        tiles.append(tile("database", "Database size", size(bytes), growth(base, latest)));
+        if (outcomeStep != null) {
+            tiles.append(tile(
+                    "survivors", "Survivors", count(survivors), "of " + count(entered) + " when " + outcomeStep + " started"));
+            for (String kind : OUTCOME_STEPS.get(outcomeStep)) {
+                int at = BLOCKING.indexOf(kind);
+                tiles.append(tile(kind, kind, count(latest.kinds()[at]), kindRate(base, latest, at)));
             }
         }
         String progressBody = ReportPage.heading(1, TITLE)
                 + head
                 + ReportPage.paragraph(mark + writtenAt)
-                + tiles(
-                        tile("steps", "Steps finished: " + finished + " of " + STEPS_IN_JOB_ORDER.size()),
-                        tile("step", stepTile),
-                        tile("elapsed", "Elapsed: " + clockTime(elapsed)),
-                        tile("database", "Database size: " + megabytes(bytes)))
+                + "<div class=\"tiles\">\n" + tiles + "</div>\n"
                 + bar
                 + timeline(states, executions, started, now, zone)
                 + databaseChart()
                 + countsChart()
+                + verdictsChart()
                 + ReportPage.paragraph("<a href=\"" + STEPS_FILE_NAME + "\">The steps as a table</a> &middot; <a href=\""
                         + SAMPLES_FILE_NAME + "\">The samples as a table</a>")
                 + (last ? "" : "<script>\n" + LIVENESS_SCRIPT + "\n</script>\n");
@@ -440,37 +562,102 @@ final class ProgressPage implements JobExecutionListener {
         return which.isEmpty() ? TITLE : TITLE + ": " + which;
     }
 
-    private static String tile(String key, String text) {
-        return "<div class=\"tile\" data-tile=\"" + key + "\">" + ReportPage.escape(text) + "</div>\n";
-    }
-
-    private static String tiles(String... tiles) {
-        return "<div class=\"tiles\">\n" + String.join("", tiles) + "</div>\n";
+    /** A tile: a label, a value and, where it has one, a detail, each text and no other element (ADR-268 section 5). */
+    private static String tile(String key, String label, String value, String detail) {
+        return "<div class=\"tile\" data-tile=\"" + key + "\"><span class=\"label\">" + ReportPage.escape(label)
+                + "</span><span class=\"value\">" + ReportPage.escape(value) + "</span>"
+                + (detail == null ? "" : "<span class=\"detail\">" + ReportPage.escape(detail) + "</span>")
+                + "</div>\n";
     }
 
     private static String f1(double value) {
         return String.format(Locale.ROOT, "%.1f", value);
     }
 
-    private static String megabytes(long bytes) {
-        return f1(bytes / 1_000_000.0) + " MB";
+    /** A count: whole, with {@code ,} between groups of three digits (ADR-268 section 6). */
+    private static String count(long value) {
+        return String.format(Locale.ROOT, "%,d", value);
     }
 
-    /** One bar a step on one axis of time from the job's start to this write (ADR-267 section 1). */
+    /** The index in {@link #SIZE_UNITS} of the largest unit in which {@code bytes} is at least 1, or 0. */
+    private static int unitOf(double bytes) {
+        int unit = 0;
+        double value = bytes;
+        while (unit < SIZE_UNITS.length - 1 && value >= 1000) {
+            value /= 1000;
+            unit++;
+            // a value that rounds to 1,000 of a unit is written in the next
+            if (unit < SIZE_UNITS.length - 1 && Math.round(value * 100) >= 100_000) {
+                value /= 1000;
+                unit++;
+            }
+        }
+        return unit;
+    }
+
+    /** A size in the largest unit of B, KB, MB, GB and TB whose value is at least 1 (ADR-268 section 6). */
+    private static String size(long bytes) {
+        int unit = unitOf(bytes);
+        if (unit == 0) {
+            return count(bytes) + " B";
+        }
+        return String.format(Locale.ROOT, "%,.2f", bytes / Math.pow(1000, unit)) + " " + SIZE_UNITS[unit];
+    }
+
+    /** The latest held sample at least ten minutes before the latest, or the first; null where there is no rate. */
+    private Sample rateBase() {
+        Sample latest = samples.getLast();
+        Sample base = null;
+        for (Sample sample : samples.subList(0, samples.size() - 1)) {
+            if (latest.seconds() - sample.seconds() >= RATE_SECONDS) {
+                base = sample;
+            }
+        }
+        if (base == null) {
+            base = samples.getFirst();
+        }
+        return base == latest || base.seconds() == latest.seconds() ? null : base;
+    }
+
+    private static String over(Sample base, Sample latest) {
+        return " / min over the last " + clockTime(Duration.ofSeconds(latest.seconds() - base.seconds()));
+    }
+
+    private static String growth(Sample base, Sample latest) {
+        if (base == null) {
+            return "growth not measured yet";
+        }
+        double perMinute = (latest.databaseBytes() - base.databaseBytes()) * 60.0 / (latest.seconds() - base.seconds());
+        return (perMinute < 0 ? "-" : "") + size(Math.round(Math.abs(perMinute))) + over(base, latest);
+    }
+
+    private static String kindRate(Sample base, Sample latest, int kind) {
+        if (base == null) {
+            return "rate not measured yet";
+        }
+        double perMinute = (latest.kinds()[kind] - base.kinds()[kind]) * 60.0 / (latest.seconds() - base.seconds());
+        return String.format(Locale.ROOT, "%,.1f", perMinute) + over(base, latest);
+    }
+
+    /** One bar a step on one axis of time from the job's start to this write (ADR-267 section 1, ADR-268 section 8). */
     private static String timeline(
             Map<String, String> states, Map<String, StepExecution> executions, Instant started, Instant now, ZoneId zone) {
         long total = Math.max(1000, Duration.between(started, now).toMillis());
-        int plot = CHART_WIDTH - TIMELINE_LABELS - 10;
-        int height = STEPS_IN_JOB_ORDER.size() * TIMELINE_ROW + 24;
-        StringBuilder svg = new StringBuilder("<svg class=\"timeline\" role=\"img\" viewBox=\"0 0 " + CHART_WIDTH + " "
-                + height + "\"><title>Timeline of the steps, from the job's start to this write</title>\n");
+        int plot = CHART_WIDTH - TIMELINE_LABELS - 20;
+        int height = STEPS_IN_JOB_ORDER.size() * TIMELINE_ROW + 48;
+        String title = "Timeline of the steps";
+        StringBuilder svg = new StringBuilder(figureHead(
+                title, "Each step's bar runs from its start to its end, or to this write while it runs, and is labelled with its state.", null));
+        svg.append("<svg class=\"timeline\" role=\"img\" viewBox=\"0 0 ").append(CHART_WIDTH).append(' ').append(height)
+                .append("\"><title>").append(title).append("</title>\n");
         int row = 0;
         for (String step : STEPS_IN_JOB_ORDER) {
             String state = states.get(step);
             int y = row++ * TIMELINE_ROW;
             svg.append("<g class=\"step\" data-step=\"").append(step).append("\" data-state=\"").append(state)
-                    .append("\"><text x=\"4\" y=\"").append(y + 14).append("\">").append(ReportPage.escape(step))
-                    .append("</text>");
+                    .append("\"><text x=\"4\" y=\"").append(y + 16).append("\">").append(ReportPage.escape(step))
+                    .append("</text><text class=\"state\" x=\"").append(TIMELINE_STATES).append("\" y=\"").append(y + 16)
+                    .append("\">").append(ReportPage.escape(state)).append("</text>");
             StepExecution execution = executions.get(step);
             if (execution != null && execution.getStartTime() != null) {
                 Instant start = execution.getStartTime().atZone(zone).toInstant();
@@ -478,7 +665,7 @@ final class ProgressPage implements JobExecutionListener {
                 long from = Math.clamp(Duration.between(started, start).toMillis(), 0, total);
                 long to = Math.clamp(Duration.between(started, end).toMillis(), from, total);
                 svg.append("<rect x=\"").append(f1(TIMELINE_LABELS + (double) from / total * plot))
-                        .append("\" y=\"").append(y + 3).append("\" width=\"")
+                        .append("\" y=\"").append(y + 5).append("\" width=\"")
                         .append(f1(Math.max(2.0, (double) (to - from) / total * plot))).append("\" height=\"14\"><title>")
                         .append(ReportPage.escape(step + ": " + state + ", " + clockTime(Duration.between(start, end))))
                         .append("</title></rect>");
@@ -488,16 +675,40 @@ final class ProgressPage implements JobExecutionListener {
         int axis = STEPS_IN_JOB_ORDER.size() * TIMELINE_ROW + 16;
         svg.append("<text class=\"tick\" x=\"").append(TIMELINE_LABELS).append("\" y=\"").append(axis).append("\">0:00:00</text>")
                 .append("<text class=\"tick\" text-anchor=\"end\" x=\"").append(TIMELINE_LABELS + plot).append("\" y=\"")
-                .append(axis).append("\">").append(clockTime(Duration.between(started, now))).append("</text>\n</svg>\n");
+                .append(axis).append("\">").append(clockTime(Duration.between(started, now))).append("</text>\n")
+                .append("<text class=\"axis-title x\" text-anchor=\"middle\" x=\"").append(TIMELINE_LABELS + plot / 2)
+                .append("\" y=\"").append(axis + 20).append("\">Elapsed (h:mm:ss)</text>\n</svg>\n</figure>\n");
         return svg.toString();
     }
 
+    /** The database's size at each sample, over its own range (ADR-268 section 7). */
     private String databaseChart() {
-        return chart("database", "Database size over time, in MB", samples,
-                List.of(new Series("s1", "", false, " MB", s -> s.databaseBytes() / 1_000_000.0)));
+        double[] values = samples.stream().mapToDouble(Sample::databaseBytes).toArray();
+        double min = Arrays.stream(values).min().orElse(0);
+        double most = Arrays.stream(values).max().orElse(0);
+        // the values' own range with a twentieth of the span at each end, a span of at least a byte centred on a
+        // constant value, and never below zero; no other floor (ADR-268 section 7)
+        double span = Math.max(most - min, 1);
+        double lo = Math.max(0, min - (span - (most - min)) / 2 - span * 0.05);
+        double hi = most + (span - (most - min)) / 2 + span * 0.05;
+        // the axis is written in the largest unit in which its span is at least 1
+        int unit = 0;
+        while (unit < SIZE_UNITS.length - 1 && (hi - lo) / Math.pow(1000, unit + 1) >= 1) {
+            unit++;
+        }
+        double divisor = Math.pow(1000, unit);
+        Axis axis = sizeAxis("Database size (" + SIZE_UNITS[unit] + ")", lo / divisor, hi / divisor, unit == 0);
+        return chart(
+                "database",
+                "Database size over time",
+                "The size of the database and its write-ahead log on disk at each sample.",
+                samples.stream().map(Sample::seconds).toList(),
+                List.of(new Line("s1", "", Arrays.stream(values).map(v -> v / divisor).toArray())),
+                axis,
+                v -> size(Math.round(v * divisor)));
     }
 
-    /** The read and write counts at each sample taken while the latest named step ran; nothing before any names one. */
+    /** The chart of counts of the latest step a sample names, from what that step says of itself first (section 7). */
     private String countsChart() {
         String step = null;
         for (Sample sample : samples) {
@@ -509,67 +720,245 @@ final class ProgressPage implements JobExecutionListener {
             return "";
         }
         String named = step;
-        return chart("counts", "Read and written by " + step + " over time",
-                samples.stream().filter(s -> named.equals(s.step())).toList(),
-                List.of(new Series("s1", "read", true, "", Sample::read), new Series("s2", "written", true, "", Sample::written)));
-    }
-
-    /** A line chart of the samples shown (ADR-267 section 1): a line, a titled point for each, the latest value at its end. */
-    private static String chart(String key, String title, List<Sample> shown, List<Series> series) {
-        long from = shown.getFirst().seconds();
-        long span = Math.max(1, shown.getLast().seconds() - from);
-        double most = 0;
-        for (Series one : series) {
-            for (Sample sample : shown) {
-                most = Math.max(most, one.value().applyAsDouble(sample));
+        List<Sample> ofStep = samples.stream().filter(s -> named.equals(s.step())).toList();
+        String label = null;
+        String total = null;
+        for (Sample sample : ofStep) {
+            Matcher counter = sample.progress() == null ? null : COUNTER.matcher(sample.progress());
+            if (counter != null && counter.matches()) {
+                label = counter.group(1);
+                total = counter.group(3);
             }
         }
-        double top = most <= 0 ? 1 : most;
+        if (label != null) {
+            List<Long> at = new ArrayList<>();
+            List<Double> done = new ArrayList<>();
+            for (Sample sample : ofStep) {
+                Matcher counter = sample.progress() == null ? null : COUNTER.matcher(sample.progress());
+                if (counter != null && counter.matches() && counter.group(1).equals(label)) {
+                    at.add(sample.seconds());
+                    done.add(Double.parseDouble(counter.group(2).replace(",", "")));
+                }
+            }
+            double wanted = total == null ? 0 : Double.parseDouble(total.replace(",", ""));
+            return chart(
+                    "counts",
+                    label + " over time",
+                    total == null
+                            ? "How many it had done at each sample."
+                            : "How many of " + total + " it had done at each sample.",
+                    at,
+                    List.of(new Line("s1", "done", done.stream().mapToDouble(Double::doubleValue).toArray())),
+                    countAxis("Done (count)", Math.max(wanted, done.stream().mapToDouble(Double::doubleValue).max().orElse(0))),
+                    v -> count(Math.round(v)));
+        }
+        if (ofStep.stream().anyMatch(s -> s.read() > 0 || s.written() > 0)) {
+            double[] read = ofStep.stream().mapToDouble(Sample::read).toArray();
+            double[] written = ofStep.stream().mapToDouble(Sample::written).toArray();
+            double most = Math.max(Arrays.stream(read).max().orElse(0), Arrays.stream(written).max().orElse(0));
+            return chart(
+                    "counts",
+                    "Read and written by " + step + " over time",
+                    "The step's read count and write count at each sample.",
+                    ofStep.stream().map(Sample::seconds).toList(),
+                    List.of(new Line("s1", "read", read), new Line("s2", "written", written)),
+                    countAxis("Items (count)", most),
+                    v -> count(Math.round(v)));
+        }
+        return ReportPage.paragraph(ReportPage.escape(step + " reports no count to draw."));
+    }
+
+    /** The verdicts of the outcome step by kind at each sample, from zero; nothing where no step is the outcome step. */
+    private String verdictsChart() {
+        String step = samples.getLast().outcomeStep();
+        if (step == null) {
+            return "";
+        }
+        List<Line> lines = new ArrayList<>();
+        double most = 0;
+        for (String kind : OUTCOME_STEPS.get(step)) {
+            int at = BLOCKING.indexOf(kind);
+            double[] values = samples.stream().mapToDouble(s -> s.kinds()[at]).toArray();
+            most = Math.max(most, Arrays.stream(values).max().orElse(0));
+            lines.add(new Line("s" + (lines.size() + 1), kind, values));
+        }
+        return chart(
+                "verdicts",
+                "Verdicts recorded by " + step + " over time",
+                "The verdicts " + step + " recorded in this invocation, by kind, at each sample.",
+                samples.stream().map(Sample::seconds).toList(),
+                lines,
+                countAxis("Verdicts (count)", most),
+                v -> count(Math.round(v)));
+    }
+
+    /** An axis of counts from zero to {@code most}, at least 1, with the top as a tick (ADR-268 section 7). */
+    private static Axis countAxis(String title, double most) {
+        double top = Math.max(1, most);
+        double step = Math.max(1, niceStep(top));
+        List<Double> ticks = new ArrayList<>(List.of(0.0));
+        for (double tick = step; tick <= top * 0.88; tick += step) {
+            ticks.add(tick);
+        }
+        ticks.add(top);
+        return new Axis(title, 0, top, ticks, 0);
+    }
+
+    /** An axis over {@code lo} to {@code hi}, in the unit its title names, with round ticks. */
+    private static Axis sizeAxis(String title, double lo, double hi, boolean wholeBytes) {
+        double step = niceStep(hi - lo);
+        if (wholeBytes) {
+            step = Math.max(1, step % 1 == 0 ? step : step * 2); // 2.5 -> 5: bytes are whole
+        }
+        List<Double> ticks = new ArrayList<>();
+        for (long k = (long) Math.ceil(lo / step - 1e-9); k * step <= hi + step * 1e-9; k++) {
+            ticks.add(k * step);
+        }
+        int decimals = 0;
+        while (decimals < 9 && Math.abs(step * Math.pow(10, decimals) - Math.rint(step * Math.pow(10, decimals))) > 1e-6) {
+            decimals++;
+        }
+        return new Axis(title, lo, hi, ticks, decimals);
+    }
+
+    /** A round step (1, 2, 2.5 or 5 times a power of ten) that puts at most five ticks on {@code range}. */
+    private static double niceStep(double range) {
+        double raw = range / 4;
+        double magnitude = Math.pow(10, Math.floor(Math.log10(raw)));
+        for (double multiple : new double[] {1, 2, 2.5, 5}) {
+            if (multiple * magnitude >= raw * (1 - 1e-9)) {
+                return multiple * magnitude;
+            }
+        }
+        return 10 * magnitude;
+    }
+
+    /** What opens a card: its heading, its caption and, for two lines or more, its legend (ADR-268 section 7). */
+    private static String figureHead(String title, String caption, List<Line> lines) {
+        StringBuilder head = new StringBuilder("<figure class=\"chart-card\">\n<h2>" + ReportPage.escape(title) + "</h2>\n"
+                + "<p class=\"caption\">" + ReportPage.escape(caption) + "</p>\n");
+        if (lines != null && lines.size() >= 2) {
+            head.append("<ul class=\"legend\">");
+            for (Line line : lines) {
+                head.append("<li><span class=\"key ").append(line.css()).append("\"></span>")
+                        .append(ReportPage.escape(line.name())).append("</li>");
+            }
+            head.append("</ul>\n");
+        }
+        return head.toString();
+    }
+
+    /**
+     * A line chart over time (ADR-268 section 7): a heading and a caption, a legend for two lines or more, one value
+     * axis and a time axis, each titled, a hairline gridline at each tick, a line a series, a transparent circle a
+     * sample as its tooltip and one visible marker at the latest, and an end label in the text ink.
+     */
+    private static String chart(
+            String key, String title, String caption, List<Long> seconds, List<Line> lines, Axis axis, DoubleFunction<String> show) {
+        long from = seconds.getFirst();
+        long span = Math.max(1, seconds.getLast() - from);
+        List<String> tickTexts = new ArrayList<>();
+        for (double tick : axis.ticks()) {
+            tickTexts.add(String.format(Locale.ROOT, "%,." + axis.decimals() + "f", tick + 0.0));
+        }
+        int longest = tickTexts.stream().mapToInt(String::length).max().orElse(1);
+        int left = Math.max(56, 8 * longest + 8);
         int bottom = PLOT_TOP + PLOT_HEIGHT;
-        StringBuilder svg = new StringBuilder("<svg class=\"chart\" data-chart=\"" + key + "\" role=\"img\" viewBox=\"0 0 "
-                + CHART_WIDTH + " " + CHART_HEIGHT + "\"><title>" + ReportPage.escape(title) + "</title>\n");
-        svg.append("<line class=\"axis\" x1=\"").append(PLOT_LEFT).append("\" y1=\"").append(PLOT_TOP).append("\" x2=\"")
-                .append(PLOT_LEFT).append("\" y2=\"").append(bottom).append("\"/><line class=\"axis\" x1=\"").append(PLOT_LEFT)
-                .append("\" y1=\"").append(bottom).append("\" x2=\"").append(PLOT_LEFT + PLOT_WIDTH).append("\" y2=\"")
+        // end labels: the text each line ends in, and two within 14 units of each other as one label holding both
+        List<String> endTexts = new ArrayList<>();
+        double[] endY = new double[lines.size()];
+        for (int s = 0; s < lines.size(); s++) {
+            Line line = lines.get(s);
+            double last = line.values()[line.values().length - 1];
+            endY[s] = bottom - (last - axis.lo()) / (axis.hi() - axis.lo()) * PLOT_HEIGHT;
+            endTexts.add((line.name().isEmpty() || lines.size() == 1 ? "" : line.name() + " ") + show.apply(last));
+        }
+        List<Integer> byHeight = new ArrayList<>();
+        for (int i = 0; i < lines.size(); i++) {
+            byHeight.add(i);
+        }
+        byHeight.sort((a, b) -> Double.compare(endY[a], endY[b]));
+        List<List<Integer>> groups = new ArrayList<>();
+        int longestLabel = 0;
+        for (int index : byHeight) {
+            List<Integer> group = groups.isEmpty() ? null : groups.getLast();
+            if (group != null && endY[index] - endY[group.getLast()] <= 14) {
+                group.add(index);
+            } else {
+                groups.add(new ArrayList<>(List.of(index)));
+            }
+        }
+        List<String> labels = new ArrayList<>();
+        for (List<Integer> group : groups) {
+            group.sort(null);
+            List<String> texts = new ArrayList<>();
+            for (int index : group) {
+                texts.add(endTexts.get(index));
+            }
+            labels.add(String.join(", ", texts));
+            longestLabel = Math.max(longestLabel, labels.getLast().length());
+        }
+        // the plot leaves eight units for each character of the longest end label, and ends there (ADR-268 section 7)
+        int plotRight = CHART_WIDTH - 12 - 8 * longestLabel;
+        int plot = plotRight - left;
+        StringBuilder svg = new StringBuilder(figureHead(title, caption, lines));
+        svg.append("<svg class=\"chart\" data-chart=\"").append(key).append("\" role=\"img\" viewBox=\"0 0 ")
+                .append(CHART_WIDTH).append(' ').append(CHART_HEIGHT).append("\"><title>")
+                .append(ReportPage.escape(title)).append("</title>\n");
+        svg.append("<text class=\"axis-title y\" x=\"").append(left).append("\" y=\"16\">")
+                .append(ReportPage.escape(axis.title())).append("</text>\n");
+        for (int i = 0; i < axis.ticks().size(); i++) {
+            double y = bottom - (axis.ticks().get(i) - axis.lo()) / (axis.hi() - axis.lo()) * PLOT_HEIGHT;
+            svg.append("<line class=\"grid\" x1=\"").append(left).append("\" y1=\"").append(f1(y)).append("\" x2=\"")
+                    .append(plotRight).append("\" y2=\"").append(f1(y)).append("\"/><text class=\"tick value\" text-anchor=\"end\" x=\"")
+                    .append(left - 6).append("\" y=\"").append(f1(y + 4)).append("\">")
+                    .append(ReportPage.escape(tickTexts.get(i))).append("</text>\n");
+        }
+        svg.append("<line class=\"axis\" x1=\"").append(left).append("\" y1=\"").append(PLOT_TOP).append("\" x2=\"")
+                .append(left).append("\" y2=\"").append(bottom).append("\"/><line class=\"axis\" x1=\"").append(left)
+                .append("\" y1=\"").append(bottom).append("\" x2=\"").append(plotRight).append("\" y2=\"")
                 .append(bottom).append("\"/>\n");
-        Series first = series.getFirst();
-        svg.append("<text class=\"tick\" text-anchor=\"end\" x=\"").append(PLOT_LEFT - 6).append("\" y=\"").append(PLOT_TOP + 4)
-                .append("\">").append(ReportPage.escape(first.show(top))).append("</text>")
-                .append("<text class=\"tick\" text-anchor=\"end\" x=\"").append(PLOT_LEFT - 6).append("\" y=\"").append(bottom)
-                .append("\">0</text>")
-                .append("<text class=\"tick\" x=\"").append(PLOT_LEFT).append("\" y=\"").append(bottom + 18).append("\">")
-                .append(clockTime(Duration.ofSeconds(from))).append("</text>")
-                .append("<text class=\"tick\" text-anchor=\"end\" x=\"").append(PLOT_LEFT + PLOT_WIDTH).append("\" y=\"")
-                .append(bottom + 18).append("\">").append(clockTime(Duration.ofSeconds(shown.getLast().seconds()))).append("</text>\n");
-        double previousLabelY = Double.NEGATIVE_INFINITY;
-        for (Series one : series) {
+        java.util.Set<Long> timeTicks = new java.util.TreeSet<>();
+        for (int i = 0; i <= 4; i++) {
+            timeTicks.add(from + Math.round(span * i / 4.0));
+        }
+        for (long tick : timeTicks) {
+            svg.append("<text class=\"tick time\" text-anchor=\"middle\" x=\"")
+                    .append(f1(left + (double) (tick - from) / span * plot)).append("\" y=\"").append(bottom + 18).append("\">")
+                    .append(clockTime(Duration.ofSeconds(tick))).append("</text>");
+        }
+        svg.append("\n<text class=\"axis-title x\" text-anchor=\"middle\" x=\"").append(left + plot / 2).append("\" y=\"")
+                .append(bottom + 40).append("\">Elapsed (h:mm:ss)</text>\n");
+        double endX = left;
+        for (int s = 0; s < lines.size(); s++) {
+            Line line = lines.get(s);
             StringBuilder points = new StringBuilder();
             StringBuilder circles = new StringBuilder();
-            double x = PLOT_LEFT;
+            double x = left;
             double y = bottom;
-            double latest = 0;
-            for (Sample sample : shown) {
-                latest = one.value().applyAsDouble(sample);
-                x = PLOT_LEFT + (double) (sample.seconds() - from) / span * PLOT_WIDTH;
-                y = bottom - latest / top * PLOT_HEIGHT;
+            for (int i = 0; i < seconds.size(); i++) {
+                x = left + (double) (seconds.get(i) - from) / span * plot;
+                y = bottom - (line.values()[i] - axis.lo()) / (axis.hi() - axis.lo()) * PLOT_HEIGHT;
                 points.append(points.isEmpty() ? "" : " ").append(f1(x)).append(',').append(f1(y));
-                circles.append("<circle class=\"point ").append(one.css()).append("\" cx=\"").append(f1(x)).append("\" cy=\"")
-                        .append(f1(y)).append("\" r=\"3\"><title>")
-                        .append(clockTime(Duration.ofSeconds(sample.seconds()))).append(": ")
-                        .append(ReportPage.escape(label(one, latest))).append("</title></circle>");
+                circles.append("<circle class=\"hit\" cx=\"").append(f1(x)).append("\" cy=\"").append(f1(y))
+                        .append("\" r=\"12\" fill=\"transparent\"><title>")
+                        .append(clockTime(Duration.ofSeconds(seconds.get(i)))).append(": ")
+                        .append(ReportPage.escape(show.apply(line.values()[i]))).append("</title></circle>");
             }
-            double labelY = Math.max(y + 4, previousLabelY + 14);
-            previousLabelY = labelY;
-            svg.append("<polyline class=\"line ").append(one.css()).append("\" points=\"").append(points).append("\"/>")
-                    .append(circles).append("<text class=\"").append(one.css()).append("\" x=\"").append(f1(x + 8))
-                    .append("\" y=\"").append(f1(labelY)).append("\">").append(ReportPage.escape(label(one, latest)))
-                    .append("</text>\n");
+            svg.append("<polyline class=\"line ").append(line.css()).append("\" fill=\"none\" stroke-width=\"2\""
+                    + " stroke-linejoin=\"round\" stroke-linecap=\"round\"")
+                    .append(s == 0 ? "" : " stroke-dasharray=\"" + DASHES[Math.min(s, DASHES.length - 1)] + "\"")
+                    .append(" points=\"").append(points).append("\"/>").append(circles)
+                    .append("<circle class=\"end ").append(line.css()).append("\" cx=\"").append(f1(x)).append("\" cy=\"")
+                    .append(f1(y)).append("\" r=\"4\" stroke-width=\"2\"/>\n");
+            endX = x;
         }
-        return svg.append("</svg>\n").toString();
-    }
-
-    private static String label(Series series, double value) {
-        return series.name().isEmpty() ? series.show(value) : series.name() + " " + series.show(value);
+        for (int g = 0; g < groups.size(); g++) {
+            svg.append("<text class=\"end-label\" x=\"").append(f1(endX + 10)).append("\" y=\"")
+                    .append(f1(endY[groups.get(g).getFirst()] + 4)).append("\">")
+                    .append(ReportPage.escape(labels.get(g))).append("</text>\n");
+        }
+        return svg.append("</svg>\n</figure>\n").toString();
     }
 
     /** The page of a command that starts no job (ADR-266 section 3): numbers and fixed words, nothing it was given. */
@@ -581,14 +970,15 @@ final class ProgressPage implements JobExecutionListener {
                 : "This invocation is running. This page is rewritten when it ends.";
         StringBuilder rows = new StringBuilder();
         counts.forEach((words, value) ->
-                rows.append(ReportPage.row(ReportPage.textCell(words), ReportPage.numberCell(value))));
+                rows.append(ReportPage.row(ReportPage.textCell(words), ReportPage.numberCell(count(value)))));
         String body = ReportPage.heading(1, TITLE)
                 + ReportPage.paragraph(ReportPage.escape(status))
                 + ReportPage.paragraph("Written at " + WRITTEN_AT.format(LocalDateTime.ofInstant(now, ZoneId.systemDefault())))
-                + tiles(
-                        tile("command", "Command: " + command),
-                        tile("elapsed", "Elapsed: " + clockTime(Duration.between(commandStarted, now))),
-                        tile("database", "Database size: " + megabytes(databaseBytes())))
+                + "<div class=\"tiles\">\n"
+                + tile("command", "Command", command, null)
+                + tile("elapsed", "Elapsed", clockTime(Duration.between(commandStarted, now)), null)
+                + tile("database", "Database size", size(databaseBytes()), null)
+                + "</div>\n"
                 + (counts.isEmpty() ? "" : ReportPage.table(ReportPage.headerRow("Answers", "Count"), rows.toString()));
         return last ? ReportPage.drawn(TITLE, body) : ReportPage.drawnReloading(TITLE, body, seconds);
     }
@@ -628,9 +1018,9 @@ final class ProgressPage implements JobExecutionListener {
         return ReportPage.row(
                 ReportPage.textCell(step),
                 ReportPage.textCell(state),
-                ReportPage.numberCell(execution.getReadCount()),
-                ReportPage.numberCell(execution.getWriteCount()),
-                ReportPage.numberCell(execution.getSkipCount()),
+                ReportPage.numberCell(count(execution.getReadCount())),
+                ReportPage.numberCell(count(execution.getWriteCount())),
+                ReportPage.numberCell(count(execution.getSkipCount())),
                 ReportPage.textCell(duration),
                 ReportPage.textCell(lastLine.getOrDefault(step, "")));
     }
