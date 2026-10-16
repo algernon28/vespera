@@ -1803,6 +1803,15 @@ public final class Adr {
     public static final String EVERY_INVOCATION_NAMES_AND_OPENS_ITS_PROGRESS_PAGE = FILE
             + "0266-every-invocation-names-its-progress-page-first-and-opens-it-and-vespera-label-writes-it-too.md";
 
+    /**
+     * ADR-267 -- the progress page draws tiles, a bar of the running step's count, a timeline of the steps and
+     * charts over time from at most 256 samples held in memory, in SVG written in Java; its table of steps and a
+     * table of the samples are {@code progress-steps.html} and {@code progress-samples.html}, linked both ways; one
+     * fixed script marks a page no longer rewritten (amends ADR-265).
+     */
+    public static final String THE_PROGRESS_PAGE_DRAWS_CHARTS_AND_ITS_TABLES_ARE_PAGES_OF_THEIR_OWN = FILE
+            + "0267-the-progress-page-draws-tiles-a-timeline-of-the-steps-and-charts-over-time-and-its-tables-are-pages-of-their-own.md";
+
     private Adr() {
     }
 }

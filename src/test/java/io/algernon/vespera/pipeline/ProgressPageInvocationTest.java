@@ -49,7 +49,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * The progress page {@code vespera run} rewrites in the working directory while it runs (ADR-265), reached
  * through whole invocations: what it shows while a step runs, what its last write says, what it never holds,
  * how a step stopped at a gate and a failed step are shown, and that a page that cannot be written fails
- * nothing.
+ * nothing. The table of steps is read off the page of its own beside it (ADR-267 section 3).
  *
  * <p>The working directory is static, so each test starts by removing the page an earlier one left, and puts
  * back a profile that loads. The interval is a tenth of a second, so that a step this fixture runs lasts long
@@ -62,10 +62,17 @@ import org.springframework.test.context.DynamicPropertySource;
 @Feature("The progress page")
 @Link(name = "ADR-265", url = Adr.THE_RUN_REWRITES_A_PROGRESS_PAGE_WHILE_IT_RUNS, type = "adr")
 @Link(name = "ADR-198", url = Adr.EVERY_INVOCATION_WRITES_AN_ACCOUNT_THAT_NAMES_NO_DOCUMENT, type = "adr")
+@Link(name = "ADR-267", url = Adr.THE_PROGRESS_PAGE_DRAWS_CHARTS_AND_ITS_TABLES_ARE_PAGES_OF_THEIR_OWN, type = "adr")
 class ProgressPageInvocationTest {
 
     /** The page's name in the working directory. */
     private static final String PAGE = "progress.html";
+
+    /** The page beside it that holds the table of steps (ADR-267 section 3). */
+    private static final String STEPS_PAGE = "progress-steps.html";
+
+    /** The page beside it that holds a table of the samples the charts are drawn from (ADR-267 section 3). */
+    private static final String SAMPLES_PAGE = "progress-samples.html";
 
     /** How often the page is rewritten in this class: a tenth of a second, so a short step is seen twice. */
     private static final String INTERVAL = "100ms";
@@ -178,13 +185,18 @@ class ProgressPageInvocationTest {
             if (!SEEDS_RECORDED_LINE.equals(event.getFormattedMessage()) || !lineLogged.compareAndSet(false, true)) {
                 return;
             }
-            String first = awaitThePage(page ->
+            String steps = awaitThePage(STEPS_PAGE, page ->
                     page.contains(row(StepNames.SEED_EXTRACTION, "running")) && page.contains(SEEDS_RECORDED_LINE));
+            if (steps == null) {
+                return;
+            }
+            // the table of steps is moved into place before the progress page of the same write
+            String first = awaitThePage(PAGE, page -> page.contains(RUNNING));
             if (first == null) {
                 return;
             }
             seen.add(first);
-            String later = awaitThePage(page -> !writtenAt(page).equals(writtenAt(first)));
+            String later = awaitThePage(PAGE, page -> !writtenAt(page).equals(writtenAt(first)));
             if (later != null) {
                 seen.add(later);
             }
@@ -204,8 +216,8 @@ class ProgressPageInvocationTest {
                         + " and held there while the page was looked at",
                 () -> assertThat(lineLogged).isTrue());
         claim(
-                "while the step was held, a page was written naming seed extraction as running, with the"
-                        + " progress line the step had just logged",
+                "while the step was held, the table of steps beside the page was written naming seed extraction"
+                        + " as running, with the progress line the step had just logged, and the page itself was there",
                 () -> assertThat(seen).isNotEmpty());
         String first = seen.getFirst();
         claim(
@@ -232,21 +244,22 @@ class ProgressPageInvocationTest {
         cli.run("run", root.toString());
 
         claim("the invocation reported success", () -> assertThat(cli.getExitCode()).isZero());
-        String page = thePage();
+        String page = thePage(PAGE);
         claim(
                 "the page says the invocation has ended, and how, and carries no reload, so a browser that has"
                         + " it open stops asking for it",
                 () -> assertThat(page).contains(ENDED_COMPLETED).doesNotContain(RELOAD).doesNotContain(RUNNING));
+        String stepsPage = thePage(STEPS_PAGE);
         List<String> steps = stepsInJobOrder();
         claim(
-                "its table has the seven columns in their order, and a row for each of the job's "
-                        + steps.size() + " steps in the order the job runs them",
-                () -> assertThat(page)
+                "the table of steps beside it has the seven columns in their order, and a row for each of the"
+                        + " job's " + steps.size() + " steps in the order the job runs them",
+                () -> assertThat(stepsPage)
                         .contains(HEADER)
                         .containsSubsequence(steps.stream().map(ReportPage::textCell).toList()));
         claim(
-                "and no step is shown running on a page written after the job ended",
-                () -> assertThat(page).doesNotContain(ReportPage.textCell("running")));
+                "and no step is shown running in a table written after the job ended",
+                () -> assertThat(stepsPage).doesNotContain(ReportPage.textCell("running")));
     }
 
     @Test
@@ -258,19 +271,21 @@ class ProgressPageInvocationTest {
 
         cli.run("run", root.toString());
 
-        String page = thePage();
-        for (String forbidden : List.of(
-                MARKER,
-                MARKED_FOLDER,
-                FAULTED,
-                SeedScriptedExtractionBeans.CONVERTER_FAULT_MESSAGE,
-                root.toString(),
-                seeds.toString(),
-                workingDirectory.toString())) {
-            claim(
-                    "the page does not contain '" + forbidden + "', in any letter case, which the invocation was"
-                            + " given or read",
-                    () -> assertThat(page).doesNotContainIgnoringCase(forbidden));
+        for (String name : List.of(PAGE, STEPS_PAGE, SAMPLES_PAGE)) {
+            String page = thePage(name);
+            for (String forbidden : List.of(
+                    MARKER,
+                    MARKED_FOLDER,
+                    FAULTED,
+                    SeedScriptedExtractionBeans.CONVERTER_FAULT_MESSAGE,
+                    root.toString(),
+                    seeds.toString(),
+                    workingDirectory.toString())) {
+                claim(
+                        name + " does not contain '" + forbidden + "', in any letter case, which the invocation was"
+                                + " given or read",
+                        () -> assertThat(page).doesNotContainIgnoringCase(forbidden));
+            }
         }
     }
 
@@ -287,7 +302,7 @@ class ProgressPageInvocationTest {
                 "the invocation reported success: a value it requires and does not have ends the run there,"
                         + " having recorded everything it learned",
                 () -> assertThat(cli.getExitCode()).isZero());
-        String page = thePage();
+        String page = thePage(STEPS_PAGE);
         claim(
                 "the redundancy signature step, whose gate is the boilerplate floor, is shown stopped at a gate,"
                         + " and the content census, which needs no value, finished",
@@ -309,12 +324,13 @@ class ProgressPageInvocationTest {
         claim(
                 "the invocation failed, because a profile that does not load stops the census step",
                 () -> assertThat(cli.getExitCode()).isNotZero());
-        String page = thePage();
+        String stepsPage = thePage(STEPS_PAGE);
         claim(
                 "the census is shown failed and byte-level reduction, which the job never reached, not started",
-                () -> assertThat(page)
+                () -> assertThat(stepsPage)
                         .contains(row(StepNames.CENSUS, "failed"))
                         .contains(row(StepNames.BYTE_LEVEL_REDUCTION, "not started")));
+        String page = thePage(PAGE);
         claim(
                 "and the page says the invocation ended failed, carrying no reload",
                 () -> assertThat(page).contains(ENDED_FAILED).doesNotContain(RELOAD));
@@ -388,7 +404,9 @@ class ProgressPageInvocationTest {
         progressPage.afterJob(execution);
 
         List<String> rows = new java.util.ArrayList<>();
-        Matcher row = A_ROWS_STEP.matcher(Files.readString(elsewhere.resolve(PAGE), StandardCharsets.UTF_8));
+        Path stepsPage = elsewhere.resolve(STEPS_PAGE);
+        claim("the table of steps was written beside the page", () -> assertThat(stepsPage).isRegularFile());
+        Matcher row = A_ROWS_STEP.matcher(Files.readString(stepsPage, StandardCharsets.UTF_8));
         while (row.find()) {
             rows.add(row.group(1));
         }
@@ -411,18 +429,18 @@ class ProgressPageInvocationTest {
         return ReportPage.textCell(step) + ReportPage.textCell(state);
     }
 
-    /** The page as the last write left it, failing with a plain message when there is none. */
-    private String thePage() throws IOException {
-        Path page = workingDirectory.resolve(PAGE);
+    /** The page {@code name} as the last write left it, failing with a plain message when there is none. */
+    private String thePage(String name) throws IOException {
+        Path page = workingDirectory.resolve(name);
         claim(
-                "the invocation left " + PAGE + " in the working directory, so there is a page to read",
+                "the invocation left " + name + " in the working directory, so there is a page to read",
                 () -> assertThat(page).isRegularFile());
         return Files.readString(page, StandardCharsets.UTF_8);
     }
 
-    /** The page's text once it satisfies {@code wanted}, read every few milliseconds, or null after {@link #WAIT}. */
-    private static String awaitThePage(Predicate<String> wanted) {
-        Path page = workingDirectory.resolve(PAGE);
+    /** The page {@code name} once it satisfies {@code wanted}, read every few milliseconds, or null after {@link #WAIT}. */
+    private static String awaitThePage(String name, Predicate<String> wanted) {
+        Path page = workingDirectory.resolve(name);
         long until = System.nanoTime() + WAIT.toNanos();
         while (System.nanoTime() < until) {
             try {

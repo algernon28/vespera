@@ -1,0 +1,660 @@
+package io.algernon.vespera.pipeline;
+
+import static io.algernon.vespera.TestSteps.claim;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.algernon.vespera.Adr;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Link;
+import io.qameta.allure.Story;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.job.JobExecution;
+import org.springframework.batch.core.job.JobInstance;
+import org.springframework.batch.core.job.parameters.JobParameters;
+import org.springframework.batch.core.scope.context.StepSynchronizationManager;
+import org.springframework.batch.core.step.StepExecution;
+
+/**
+ * What the progress page draws (ADR-267): tiles, a bar of the running step's count, a timeline of the steps and
+ * charts over time from samples held in memory, a liveness mark set by one fixed script, and the two pages of
+ * detail beside it that hold its tables. The page is driven as Spring Batch drives its listener, with job and step
+ * executions built by hand, so that each write is one the test made or waited for.
+ */
+@Epic("Pipeline")
+@Feature("The progress page")
+@Link(name = "ADR-267", url = Adr.THE_PROGRESS_PAGE_DRAWS_CHARTS_AND_ITS_TABLES_ARE_PAGES_OF_THEIR_OWN, type = "adr")
+@Link(name = "ADR-265", url = Adr.THE_RUN_REWRITES_A_PROGRESS_PAGE_WHILE_IT_RUNS, type = "adr")
+class ProgressPageChartsTest {
+
+    private static final String PAGE = "progress.html";
+
+    private static final String STEPS_PAGE = "progress-steps.html";
+
+    private static final String SAMPLES_PAGE = "progress-samples.html";
+
+    /** Long enough that no scheduled write lands while a test runs: the writes these tests read are the listener's. */
+    private static final Duration NO_SCHEDULED_WRITE_MEANWHILE = Duration.ofMinutes(5);
+
+    /** {@link #NO_SCHEDULED_WRITE_MEANWHILE} in whole seconds, as a reloading page's head carries it. */
+    private static final int RELOAD_SECONDS = 300;
+
+    private static final String RELOAD = "<meta http-equiv=\"refresh\" content=\"";
+
+    private static final String RUNNING = "This invocation is running.";
+
+    private static final String ENDED_COMPLETED = "This invocation has ended: completed.";
+
+    /** The fifteen steps in the order the job runs them, as ADR-265 section 1 lists them. */
+    private static final List<String> STEPS_IN_JOB_ORDER = List.of(
+            StepNames.CENSUS,
+            StepNames.BYTE_LEVEL_REDUCTION,
+            StepNames.EXTRACTION,
+            StepNames.CONTENT_CENSUS,
+            StepNames.REDUNDANCY_SIGNATURE,
+            StepNames.CONTENT_REDUNDANCY,
+            StepNames.SEED_EXTRACTION,
+            StepNames.SEED_CORPUS_COMPARISON,
+            StepNames.EMBEDDING_SCORING,
+            StepNames.RELEVANCE_SCORING,
+            StepNames.RELEVANCE_FLOOR,
+            StepNames.CLUSTERING,
+            StepNames.RELEVANCE_REPORT,
+            StepNames.ARRANGEMENT,
+            StepNames.GENERATION);
+
+    /** The most samples the page holds; one more thins them to {@link #AFTER_THINNING}. */
+    private static final int MOST_SAMPLES = 256;
+
+    /** What 257 samples are thinned to: those at even positions, the first and the latest among them. */
+    private static final int AFTER_THINNING = 129;
+
+    /** How many times the page's clock must be asked before the test ends the job: more than 400 writes. */
+    private static final long CLOCK_ASKED_AT_LEAST = 800;
+
+    /** The longest the test waits for writes it is counting or a page it is looking for. */
+    private static final Duration WAIT = Duration.ofSeconds(120);
+
+    /** A counter's progress line over a total, the shape that is drawn as a bar: three of seven. */
+    private static final String THREE_OF_SEVEN = "Stage 5a (seed extraction, seeds recorded): 3 of 7 (42%)";
+
+    private static final Pattern TILE = Pattern.compile("<div class=\"tile\" data-tile=\"([a-z]+)\">([^<]*)</div>");
+
+    private static final Pattern MARK = Pattern.compile(
+            "<g class=\"step\" data-step=\"([^\"]*)\" data-state=\"([^\"]*)\">(.*?)</g>", Pattern.DOTALL);
+
+    private static final Pattern TIMELINE_IS_AN_IMAGE_WITH_A_TITLE =
+            Pattern.compile("<svg class=\"timeline\"[^>]*\\brole=\"img\"[^>]*>\\s*<title>[^<]+</title>");
+
+    private static final Pattern SAMPLE_POINT = Pattern.compile(
+            "<circle[^>]*><title>([0-9]+:[0-5][0-9]:[0-5][0-9]): [^<]*</title></circle>");
+
+    /** A body row's first cell; a header row's cells are {@code <th>} and are not read. */
+    private static final Pattern A_ROWS_FIRST_CELL = Pattern.compile("<tr><td>([^<]*)</td>");
+
+    private static final Pattern SCRIPT = Pattern.compile("<script[^>]*>(.*?)</script>", Pattern.DOTALL);
+
+    private static final Pattern LIVENESS =
+            Pattern.compile("<span class=\"liveness\" data-written=\"([0-9]+)\" data-interval=\"([0-9]+)\">");
+
+    private static final Pattern ELAPSED = Pattern.compile("Elapsed: ([0-9]+:[0-5][0-9]:[0-5][0-9])");
+
+    private static final Pattern DATABASE_SIZE = Pattern.compile("Database size: [0-9]+\\.[0-9] MB");
+
+    private static final String SAMPLES_HEADER =
+            ReportPage.headerRow("Elapsed", "Database size", "Step", "Read", "Written");
+
+    private static final String STEPS_HEADER =
+            ReportPage.headerRow("Step", "State", "Read", "Written", "Skipped", "Duration", "Progress");
+
+    @TempDir
+    Path workingDirectory;
+
+    @Test
+    @Story("The timeline has one mark per step, in the order the job runs them, each in its state")
+    @DisplayName("Over a job whose census finished and whose byte-level reduction failed, the timeline marks every step in job order with its state, and draws a bar only for a step that started")
+    void theTimelineHasOneMarkPerStepInJobOrderWithItsState() throws IOException {
+        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
+        JobExecution execution = anExecution(1L, LocalDateTime.now());
+        LocalDateTime start = execution.getStartTime();
+        aStep(execution, StepNames.CENSUS, BatchStatus.COMPLETED, start, start.plusSeconds(5));
+        aStep(execution, StepNames.BYTE_LEVEL_REDUCTION, BatchStatus.FAILED, start.plusSeconds(5), start.plusSeconds(7));
+
+        progressPage.beforeJob(execution);
+        execution.setStatus(BatchStatus.FAILED);
+        progressPage.afterJob(execution);
+
+        String page = read(PAGE);
+        List<String> marked = new ArrayList<>();
+        Map<String, String> inside = new LinkedHashMap<>();
+        Matcher mark = MARK.matcher(timeline(page));
+        while (mark.find()) {
+            marked.add(mark.group(1) + " " + mark.group(2));
+            inside.put(mark.group(1), mark.group(3));
+        }
+        List<String> expected = new ArrayList<>();
+        for (String step : STEPS_IN_JOB_ORDER) {
+            expected.add(step + " " + switch (step) {
+                case StepNames.CENSUS -> "finished";
+                case StepNames.BYTE_LEVEL_REDUCTION -> "failed";
+                default -> "not started";
+            });
+        }
+        claim(
+                "the timeline marks each of the job's " + STEPS_IN_JOB_ORDER.size() + " steps once, in the order"
+                        + " the job runs them, each with its state: the census finished, byte-level reduction"
+                        + " failed, and every step after them not started",
+                () -> assertThat(marked).containsExactlyElementsOf(expected));
+        claim(
+                "the two steps that started are drawn as a bar, and a step that never started is not",
+                () -> {
+                    assertThat(inside.get(StepNames.CENSUS)).contains("<rect");
+                    assertThat(inside.get(StepNames.BYTE_LEVEL_REDUCTION)).contains("<rect");
+                    assertThat(inside.get(StepNames.EXTRACTION)).doesNotContain("<rect");
+                });
+        claim(
+                "and the timeline is an image whose first child is a title, so that it has a name to be read by",
+                () -> assertThat(page).containsPattern(TIMELINE_IS_AN_IMAGE_WITH_A_TITLE));
+    }
+
+    @Test
+    @Story("The tiles say how many steps finished, which step runs, the time elapsed and the database's size")
+    @DisplayName("With the census finished and byte-level reduction running, the tiles say one of fifteen steps finished, name byte-level reduction as running, and give the time elapsed and the database's size")
+    void theTilesSayTheStepsFinishedTheStepRunningTheTimeAndTheSize() throws IOException {
+        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
+        JobExecution execution = anExecution(1L, LocalDateTime.now());
+        LocalDateTime start = execution.getStartTime();
+        aStep(execution, StepNames.CENSUS, BatchStatus.COMPLETED, start, start.plusSeconds(1));
+        aStep(execution, StepNames.BYTE_LEVEL_REDUCTION, BatchStatus.STARTED, start.plusSeconds(1), null);
+
+        progressPage.beforeJob(execution);
+        List<String[]> tiles = tiles(text(PAGE));
+        execution.setStatus(BatchStatus.COMPLETED);
+        progressPage.afterJob(execution);
+
+        claim(
+                "the page has four tiles, in this order: the steps finished, the step running, the time elapsed and"
+                        + " the database's size",
+                () -> assertThat(tiles).extracting(tile -> tile[0])
+                        .containsExactly("steps", "step", "elapsed", "database"));
+        claim(
+                "one step of the job's " + STEPS_IN_JOB_ORDER.size() + " has finished, the census, and byte-level"
+                        + " reduction is the step running",
+                () -> assertThat(tiles).extracting(tile -> tile[1]).startsWith(
+                        "Steps finished: 1 of " + STEPS_IN_JOB_ORDER.size(),
+                        "Step: " + StepNames.BYTE_LEVEL_REDUCTION + " (running)"));
+        claim(
+                "and the last two tiles hold the time elapsed and the database's size, each as its whole text",
+                () -> {
+                    assertThat(tiles.get(2)[1]).matches(ELAPSED);
+                    assertThat(tiles.get(3)[1]).matches(DATABASE_SIZE);
+                });
+    }
+
+    @Test
+    @Story("Each write adds a sample to the charts, and a new invocation starts them again")
+    @DisplayName("The first write draws one sample and the last write two, and a second invocation through the same page starts again at one")
+    void eachWriteAddsASampleAndANewInvocationStartsAgain() throws IOException {
+        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
+        JobExecution first = anExecution(1L, LocalDateTime.now());
+
+        progressPage.beforeJob(first);
+        int afterTheFirstWrite = samplesDrawn(text(PAGE));
+        int rowsAfterTheFirstWrite = firstCells(text(SAMPLES_PAGE)).size();
+        first.setStatus(BatchStatus.COMPLETED);
+        progressPage.afterJob(first);
+        int afterTheLastWrite = samplesDrawn(text(PAGE));
+        int rowsAfterTheLastWrite = firstCells(text(SAMPLES_PAGE)).size();
+
+        JobExecution second = anExecution(2L, LocalDateTime.now());
+        progressPage.beforeJob(second);
+        int afterTheSecondInvocationsFirstWrite = samplesDrawn(text(PAGE));
+        second.setStatus(BatchStatus.COMPLETED);
+        progressPage.afterJob(second);
+
+        claim(
+                "the first write drew one sample, its own, and tabled the same one",
+                () -> assertThat(List.of(afterTheFirstWrite, rowsAfterTheFirstWrite)).containsOnly(1));
+        claim(
+                "the last write drew two, the first write's and its own, and tabled the same two",
+                () -> assertThat(List.of(afterTheLastWrite, rowsAfterTheLastWrite)).containsOnly(2));
+        claim(
+                "and a second invocation's first write drew one again: no sample of the earlier invocation is kept",
+                () -> assertThat(afterTheSecondInvocationsFirstWrite).isEqualTo(1));
+    }
+
+    @Test
+    @Story("However long the invocation, the charts hold a bounded number of samples spanning all of it")
+    @DisplayName("After more than four hundred writes a second apart, the chart holds more than 128 samples and at most 256, from the job's start to the last write, in rising order, and the page of samples a row for each")
+    void theSamplesAreThinnedToAtMost256KeepingTheFirstAndTheLatest() throws IOException {
+        Instant base = Instant.now();
+        SteppingClock clock = new SteppingClock(base);
+        ProgressPage progressPage = new ProgressPage(workingDirectory, Duration.ofMillis(1), clock);
+        JobExecution execution = anExecution(1L, LocalDateTime.ofInstant(base, ZoneId.systemDefault()));
+
+        progressPage.beforeJob(execution);
+        long until = System.nanoTime() + WAIT.toNanos();
+        while (clock.asked() < CLOCK_ASKED_AT_LEAST && System.nanoTime() < until) {
+            Thread.onSpinWait();
+        }
+        execution.setStatus(BatchStatus.COMPLETED);
+        progressPage.afterJob(execution);
+
+        claim(
+                "the page's clock, which moves a second each time it is asked, was asked at least "
+                        + CLOCK_ASKED_AT_LEAST + " times before the job ended: more writes than the chart holds",
+                () -> assertThat(clock.asked()).isGreaterThanOrEqualTo(CLOCK_ASKED_AT_LEAST));
+        String page = read(PAGE);
+        List<String> drawn = new ArrayList<>();
+        Matcher point = SAMPLE_POINT.matcher(chart(page, "database"));
+        while (point.find()) {
+            drawn.add(point.group(1));
+        }
+        claim(
+                "the database chart holds at most " + MOST_SAMPLES + " samples, and more than "
+                        + (AFTER_THINNING - 1) + ", the fewest a thinning leaves",
+                () -> assertThat(drawn).hasSizeBetween(AFTER_THINNING, MOST_SAMPLES));
+        Matcher elapsed = ELAPSED.matcher(page);
+        String lastWrite = elapsed.find() ? elapsed.group(1) : "";
+        claim(
+                "the first sample is the job's start and the last the last write, at the time the page says has"
+                        + " elapsed, and every sample is later than the one before it",
+                () -> {
+                    assertThat(drawn).first().isEqualTo("0:00:00");
+                    assertThat(drawn).last().isEqualTo(lastWrite);
+                    assertThat(drawn.stream().map(ProgressPageChartsTest::seconds).toList()).isSorted()
+                            .doesNotHaveDuplicates();
+                });
+        claim(
+                "and the page of samples has a row for each sample drawn, in the same order",
+                () -> assertThat(firstCells(read(SAMPLES_PAGE))).containsExactlyElementsOf(drawn));
+    }
+
+    @Test
+    @Story("A running step's count of a total is drawn as a bar")
+    @DisplayName("A step running whose last progress line counts three of seven is drawn with a bar at three of seven")
+    void aRunningStepsCountOfATotalIsDrawnAsABar() throws IOException {
+        ProgressPage progressPage = new ProgressPage(workingDirectory, Duration.ofMillis(20), Clock.systemDefaultZone());
+        JobExecution execution = anExecution(1L, LocalDateTime.now());
+        StepExecution seedExtraction = aStep(
+                execution, StepNames.SEED_EXTRACTION, BatchStatus.STARTED, execution.getStartTime(), null);
+
+        progressPage.beforeJob(execution);
+        StepSynchronizationManager.register(seedExtraction);
+        try {
+            LoggerFactory.getLogger(StageProgress.class).info(THREE_OF_SEVEN);
+        } finally {
+            StepSynchronizationManager.close();
+        }
+        String page = awaitThePage(text -> text.contains(THREE_OF_SEVEN));
+        execution.setStatus(BatchStatus.COMPLETED);
+        progressPage.afterJob(execution);
+
+        claim(
+                "a write after the line was logged shows it, so the page knew the step's count",
+                () -> assertThat(page).contains(THREE_OF_SEVEN));
+        claim(
+                "and draws it as a bar whose value is three and whose most is seven, the line's two numbers",
+                () -> assertThat(page).contains("<progress value=\"3\" max=\"7\">"));
+    }
+
+    @Test
+    @Story("The page's one script is the same fixed text on every page and carries nothing of the invocation")
+    @DisplayName("The first writes of two invocations, at different times over different steps, each carry one script of the same text, and a liveness mark stamped with the write's time; the pages of detail carry none")
+    void theScriptIsOneFixedTextOnEveryPage(@TempDir Path otherWorkingDirectory) throws IOException {
+        Instant one = Instant.parse("2026-10-16T08:00:00Z");
+        Instant other = one.plus(Duration.ofHours(1)).plusMillis(7);
+        ProgressPage first = new ProgressPage(
+                workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, Clock.fixed(one, ZoneId.systemDefault()));
+        ProgressPage second = new ProgressPage(
+                otherWorkingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, Clock.fixed(other, ZoneId.systemDefault()));
+        JobExecution firstJob = anExecution(1L, LocalDateTime.ofInstant(one, ZoneId.systemDefault()));
+        aStep(firstJob, StepNames.CENSUS, BatchStatus.STARTED, firstJob.getStartTime(), null);
+        JobExecution secondJob = anExecution(2L, LocalDateTime.ofInstant(other, ZoneId.systemDefault()));
+        aStep(secondJob, StepNames.CENSUS, BatchStatus.COMPLETED, secondJob.getStartTime(), secondJob.getStartTime());
+        aStep(secondJob, StepNames.EXTRACTION, BatchStatus.STARTED, secondJob.getStartTime(), null);
+
+        first.beforeJob(firstJob);
+        second.beforeJob(secondJob);
+        String firstPage = text(workingDirectory.resolve(PAGE));
+        String secondPage = text(otherWorkingDirectory.resolve(PAGE));
+        List<String> firstScripts = scripts(firstPage);
+        List<String> secondScripts = scripts(secondPage);
+        String firstDetail = text(workingDirectory.resolve(STEPS_PAGE)) + text(workingDirectory.resolve(SAMPLES_PAGE));
+        firstJob.setStatus(BatchStatus.COMPLETED);
+        first.afterJob(firstJob);
+        secondJob.setStatus(BatchStatus.COMPLETED);
+        second.afterJob(secondJob);
+
+        claim(
+                "each page carries exactly one script",
+                () -> assertThat(List.of(firstScripts.size(), secondScripts.size())).containsOnly(1));
+        claim(
+                "and it is the same text on both, written an hour apart over different steps: nothing of an"
+                        + " invocation is written into it",
+                () -> assertThat(firstScripts).isEqualTo(secondScripts));
+        claim(
+                "what the script reads is on the liveness mark instead: the instant of each write, in milliseconds,"
+                        + " and the interval the page is rewritten at",
+                () -> {
+                    assertThat(liveness(firstPage))
+                            .containsExactly(one.toEpochMilli(), NO_SCHEDULED_WRITE_MEANWHILE.toMillis());
+                    assertThat(liveness(secondPage))
+                            .containsExactly(other.toEpochMilli(), NO_SCHEDULED_WRITE_MEANWHILE.toMillis());
+                });
+        claim(
+                "and the pages of detail beside it carry no script",
+                () -> assertThat(firstDetail).doesNotContain("<script"));
+    }
+
+    @Test
+    @Story("The last write keeps the charts and stops the reload")
+    @DisplayName("The last write of the page still holds the tiles, the timeline and the database chart, carries no reload and no script, and says the invocation has ended")
+    void theLastWriteKeepsTheChartsAndCarriesNoReloadAndNoScript() throws IOException {
+        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
+        JobExecution execution = anExecution(1L, LocalDateTime.now());
+        aStep(execution, StepNames.CENSUS, BatchStatus.COMPLETED, execution.getStartTime(), execution.getStartTime());
+
+        progressPage.beforeJob(execution);
+        execution.setStatus(BatchStatus.COMPLETED);
+        progressPage.afterJob(execution);
+
+        String page = read(PAGE);
+        claim(
+                "the last write holds the tiles, the timeline of the steps and the chart of the database's size",
+                () -> assertThat(page)
+                        .contains("<div class=\"tile\" data-tile=\"steps\">")
+                        .contains("<svg class=\"timeline\"")
+                        .contains("data-chart=\"database\""));
+        claim(
+                "it carries no reload and no script, so a browser that has it open keeps it as it is",
+                () -> assertThat(page).contains(ENDED_COMPLETED).doesNotContain(RELOAD).doesNotContain("<script"));
+        claim(
+                "and its liveness mark says the invocation ended, with nothing for a script to read",
+                () -> assertThat(page).contains("<span class=\"liveness\">ended</span>"));
+    }
+
+    @Test
+    @Story("The tables are on two pages of their own, linked from the progress page and back")
+    @DisplayName("The progress page holds no table and links the page of steps and the page of samples, each of which holds its table and links back")
+    void theTablesAreOnTwoPagesOfTheirOwnThatTheProgressPageLinks() throws IOException {
+        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
+        JobExecution execution = anExecution(1L, LocalDateTime.now());
+
+        progressPage.beforeJob(execution);
+        execution.setStatus(BatchStatus.COMPLETED);
+        progressPage.afterJob(execution);
+
+        String page = read(PAGE);
+        claim(
+                "the progress page holds no table: it draws, and its tables are elsewhere",
+                () -> assertThat(page).doesNotContain("<table"));
+        claim(
+                "it links the page of steps and the page of samples, by their names, relative to it",
+                () -> assertThat(page)
+                        .contains("href=\"" + STEPS_PAGE + "\"")
+                        .contains("href=\"" + SAMPLES_PAGE + "\""));
+        claim(
+                "the page of steps holds the table of steps, its seven columns in order, and links back",
+                () -> assertThat(read(STEPS_PAGE)).contains(STEPS_HEADER).contains("href=\"" + PAGE + "\""));
+        claim(
+                "and the page of samples holds the table of samples, its five columns in order, and links back",
+                () -> assertThat(read(SAMPLES_PAGE)).contains(SAMPLES_HEADER).contains("href=\"" + PAGE + "\""));
+    }
+
+    @Test
+    @Story("The pages of detail reload while the job runs and stop when it ends")
+    @DisplayName("After the first write both pages of detail reload at the page's interval and say the invocation runs; after the last, neither reloads and both say it ended")
+    void eachPageOfDetailReloadsWhileTheJobRunsAndNotAfterItEnds() throws IOException {
+        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
+        JobExecution execution = anExecution(1L, LocalDateTime.now());
+
+        progressPage.beforeJob(execution);
+        List<String> whileRunning = List.of(text(STEPS_PAGE), text(SAMPLES_PAGE));
+        execution.setStatus(BatchStatus.COMPLETED);
+        progressPage.afterJob(execution);
+        List<String> afterTheEnd = List.of(read(STEPS_PAGE), read(SAMPLES_PAGE));
+
+        claim(
+                "while the job runs, each page of detail reloads every " + RELOAD_SECONDS + " s, the page's"
+                        + " interval, and says the invocation is running",
+                () -> assertThat(whileRunning).allSatisfy(detail -> assertThat(detail)
+                        .contains(RELOAD + RELOAD_SECONDS + "\">")
+                        .contains(RUNNING)));
+        claim(
+                "after the last write neither reloads, and each says how the invocation ended",
+                () -> assertThat(afterTheEnd).allSatisfy(detail -> assertThat(detail)
+                        .doesNotContain(RELOAD)
+                        .contains(ENDED_COMPLETED)));
+    }
+
+    @Test
+    @Story("The label command's page has tiles and nothing drawn over time")
+    @DisplayName("Both writes of the label command's page hold the command, elapsed time and database size tiles, and no timeline, chart, link, liveness mark or script, and no page of detail is written")
+    void theLabelPageHasTilesAndNoTimelineChartLinkOrScript() throws IOException {
+        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
+
+        progressPage.commandStarts("vespera label");
+        String started = read(PAGE);
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        counts.put("new", 1);
+        counts.put("changed", 0);
+        counts.put("unchanged", 0);
+        counts.put("still blank", 0);
+        progressPage.commandEnds("recorded", counts);
+        String ended = read(PAGE);
+
+        Map<String, String> pages = new LinkedHashMap<>();
+        pages.put("the page written as the command starts", started);
+        pages.put("the page written as it ends", ended);
+        for (Map.Entry<String, String> written : pages.entrySet()) {
+            String which = written.getKey();
+            String page = written.getValue();
+            claim(
+                    which + " holds three tiles, in this order: the command, the time elapsed and the database's size",
+                    () -> {
+                        assertThat(tiles(page)).extracting(tile -> tile[0])
+                                .containsExactly("command", "elapsed", "database");
+                        assertThat(tiles(page).getFirst()[1]).isEqualTo("Command: vespera label");
+                    });
+            claim(
+                    which + " draws no timeline and no chart, links no page of detail, and has no liveness mark and"
+                            + " no script: the command has no steps, and the page is rewritten only when it ends",
+                    () -> assertThat(page)
+                            .doesNotContain("class=\"timeline\"")
+                            .doesNotContain("data-chart=")
+                            .doesNotContain("href=\"" + STEPS_PAGE + "\"")
+                            .doesNotContain("href=\"" + SAMPLES_PAGE + "\"")
+                            .doesNotContain("class=\"liveness\"")
+                            .doesNotContain("<script"));
+        }
+        claim(
+                "and the label command writes no page of detail beside it",
+                () -> {
+                    assertThat(workingDirectory.resolve(STEPS_PAGE)).doesNotExist();
+                    assertThat(workingDirectory.resolve(SAMPLES_PAGE)).doesNotExist();
+                });
+    }
+
+    private ProgressPage aPage(Clock clock) {
+        return new ProgressPage(workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, clock);
+    }
+
+    private static JobExecution anExecution(long id, LocalDateTime start) {
+        JobExecution execution =
+                new JobExecution(id, new JobInstance(id, VesperaJobConfiguration.JOB_NAME), new JobParameters());
+        execution.setStartTime(start);
+        execution.setStatus(BatchStatus.STARTED);
+        return execution;
+    }
+
+    /** A step execution of {@code job} in {@code status}, started at {@code start} and ended at {@code end} or not. */
+    private static StepExecution aStep(
+            JobExecution job, String step, BatchStatus status, LocalDateTime start, LocalDateTime end) {
+        StepExecution execution = new StepExecution(step, job);
+        execution.setStatus(status);
+        execution.setStartTime(start);
+        execution.setEndTime(end);
+        job.addStepExecution(execution);
+        return execution;
+    }
+
+    private String read(String name) throws IOException {
+        return read(workingDirectory.resolve(name));
+    }
+
+    private static String read(Path page) throws IOException {
+        claim("the listener wrote " + page.getFileName() + " in the working directory",
+                () -> assertThat(page).isRegularFile());
+        return Files.readString(page, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * The page {@code name} as it is, or nothing where it is not there: read while the job runs, so that a page
+     * missing fails the claim about it after the job is ended, and leaves no writer or listener of the page behind.
+     */
+    private String text(String name) throws IOException {
+        return text(workingDirectory.resolve(name));
+    }
+
+    private static String text(Path page) throws IOException {
+        return Files.isRegularFile(page) ? Files.readString(page, StandardCharsets.UTF_8) : "";
+    }
+
+    /** The page once it satisfies {@code wanted}, read every few milliseconds, or the last read after {@link #WAIT}. */
+    private String awaitThePage(Predicate<String> wanted) throws IOException {
+        Path page = workingDirectory.resolve(PAGE);
+        long until = System.nanoTime() + WAIT.toNanos();
+        String text = "";
+        while (System.nanoTime() < until) {
+            try {
+                text = Files.readString(page, StandardCharsets.UTF_8);
+                if (wanted.test(text)) {
+                    return text;
+                }
+            } catch (IOException beingReplaced) {
+                // the page is moved over in one move; a read that meets the move reads again
+            }
+            Thread.onSpinWait();
+        }
+        return text;
+    }
+
+    /** The timeline's markup, from its opening tag to its close, or nothing where the page has none. */
+    private static String timeline(String page) {
+        return between(page, "<svg class=\"timeline\"");
+    }
+
+    /** The markup of the chart {@code name}, from the attribute that names it to its close, or nothing. */
+    private static String chart(String page, String name) {
+        return between(page, "data-chart=\"" + name + "\"");
+    }
+
+    private static String between(String page, String opening) {
+        int from = page.indexOf(opening);
+        if (from < 0) {
+            return "";
+        }
+        int to = page.indexOf("</svg>", from);
+        return to < 0 ? page.substring(from) : page.substring(from, to);
+    }
+
+    private static int samplesDrawn(String page) {
+        Matcher point = SAMPLE_POINT.matcher(chart(page, "database"));
+        int drawn = 0;
+        while (point.find()) {
+            drawn++;
+        }
+        return drawn;
+    }
+
+    private static List<String> firstCells(String page) {
+        List<String> cells = new ArrayList<>();
+        Matcher cell = A_ROWS_FIRST_CELL.matcher(page);
+        while (cell.find()) {
+            cells.add(cell.group(1));
+        }
+        return cells;
+    }
+
+    /** Each tile's key and text, in the order the page holds them. */
+    private static List<String[]> tiles(String page) {
+        List<String[]> tiles = new ArrayList<>();
+        Matcher tile = TILE.matcher(page);
+        while (tile.find()) {
+            tiles.add(new String[] {tile.group(1), tile.group(2)});
+        }
+        return tiles;
+    }
+
+    private static List<String> scripts(String page) {
+        List<String> scripts = new ArrayList<>();
+        Matcher script = SCRIPT.matcher(page);
+        while (script.find()) {
+            scripts.add(script.group(1));
+        }
+        return scripts;
+    }
+
+    /** The liveness mark's instant written and interval, in milliseconds, or nothing where it has none. */
+    private static List<Long> liveness(String page) {
+        Matcher mark = LIVENESS.matcher(page);
+        return mark.find() ? List.of(Long.parseLong(mark.group(1)), Long.parseLong(mark.group(2))) : List.of();
+    }
+
+    private static long seconds(String clockTime) {
+        String[] parts = clockTime.split(":");
+        return Long.parseLong(parts[0]) * 3600 + Long.parseLong(parts[1]) * 60 + Long.parseLong(parts[2]);
+    }
+
+    /** A clock a second later each time it is asked, so that every write is a second after the one before. */
+    private static final class SteppingClock extends Clock {
+
+        private final Instant base;
+        private final AtomicLong asked = new AtomicLong();
+
+        SteppingClock(Instant base) {
+            this.base = base;
+        }
+
+        long asked() {
+            return asked.get();
+        }
+
+        @Override
+        public Instant instant() {
+            return base.plusSeconds(asked.getAndIncrement());
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneId.systemDefault();
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+    }
+}
