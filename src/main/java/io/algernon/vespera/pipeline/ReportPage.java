@@ -48,6 +48,43 @@ final class ReportPage {
             + "li { margin-bottom: 0.6em; }\n";
 
     /**
+     * What the progress pages add (ADR-267 section 4): every colour is a custom property, one set for each colour
+     * scheme. Text colours are at least 4.5:1 and state and series colours at least 3:1 on the page's background.
+     */
+    private static final String DRAWN_STYLES =
+            ":root { color-scheme: light dark; --page: #f9f9f7; --surface: #ffffff; --text: #0b0b0b; --muted: #52514e;"
+            + " --border: #c3c2b7; --grid: #e1e0d9; --series-1: #2a78d6; --series-2: #c8501f;"
+            + " --finished: #1a7f37; --running: #2a78d6; --gate: #9a6700; --failed: #cf222e; --not-started: #6e7781; }\n"
+            + "@media (prefers-color-scheme: dark) { :root { --page: #0d0d0d; --surface: #1a1a19; --text: #ffffff;"
+            + " --muted: #c3c2b7; --border: #383835; --grid: #2c2c2a; --series-1: #3987e5; --series-2: #e8743b;"
+            + " --finished: #3fb950; --running: #3987e5; --gate: #d29922; --failed: #f85149; --not-started: #8b949e; } }\n"
+            + "body { background: var(--page); color: var(--text); }\n"
+            + "a { color: var(--series-1); }\n"
+            + "td, th { border-color: var(--border); }\n"
+            + ".tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px;"
+            + " margin: 1em 0; }\n"
+            + ".tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;"
+            + " padding: 14px 16px; font-size: 1.15em; font-weight: 600; }\n"
+            + "progress { width: 100%; max-width: 600px; }\n"
+            + "svg { display: block; max-width: 100%; height: auto; margin: 0.6em 0 1.2em; background: var(--surface);"
+            + " border: 1px solid var(--border); border-radius: 10px; }\n"
+            + "svg text { fill: var(--text); font: 12px sans-serif; }\n"
+            + "svg .tick { fill: var(--muted); }\n"
+            + "svg .axis { stroke: var(--border); }\n"
+            + "svg .line { fill: none; stroke-width: 2; }\n"
+            + ".s1 { stroke: var(--series-1); } .s2 { stroke: var(--series-2); }\n"
+            + "circle.s1 { fill: var(--series-1); } circle.s2 { fill: var(--series-2); }\n"
+            + "text.s1 { fill: var(--series-1); stroke: none; font-weight: 600; }\n"
+            + "text.s2 { fill: var(--series-2); stroke: none; font-weight: 600; }\n"
+            + "g[data-state=\"finished\"] rect { fill: var(--finished); }\n"
+            + "g[data-state=\"running\"] rect { fill: var(--running); }\n"
+            + "g[data-state=\"stopped at a gate\"] rect { fill: var(--gate); }\n"
+            + "g[data-state=\"failed\"] rect { fill: var(--failed); }\n"
+            + "g[data-state=\"not started\"] text { fill: var(--muted); }\n"
+            + ".liveness { font-weight: 600; color: var(--finished); }\n"
+            + ".liveness.stale { color: var(--failed); }\n";
+
+    /**
      * Wraps a report's title and body in the self-contained document every page is (ADR-075,
      * ADR-086, ADR-087, ADR-095, ADR-088, ADR-107): a doctype, a language, a character set, a title,
      * the shared stylesheet, and the body between {@code <body>} and {@code </body>}.
@@ -75,11 +112,26 @@ final class ReportPage {
         return head(title, "<meta http-equiv=\"refresh\" content=\"" + seconds + "\">\n") + body + tail();
     }
 
+    /** Like {@link #render}, for the progress pages (ADR-267 section 4): their stylesheet follows the shared one. */
+    static String drawn(String title, String body) {
+        return head(title, "", DRAWN_STYLES) + body + tail();
+    }
+
+    /** Like {@link #reloading}, for the progress pages: their stylesheet follows the shared one. */
+    static String drawnReloading(String title, String body, int seconds) {
+        return head(title, "<meta http-equiv=\"refresh\" content=\"" + seconds + "\">\n", DRAWN_STYLES) + body + tail();
+    }
+
     private static String head(String title, String extraMeta) {
+        return head(title, extraMeta, "");
+    }
+
+    private static String head(String title, String extraMeta, String moreStyles) {
         return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n"
                 + extraMeta
                 + "<title>" + escape(title) + "</title>\n<style>\n"
                 + STYLES
+                + moreStyles
                 + "</style>\n</head>\n<body>\n";
     }
 
