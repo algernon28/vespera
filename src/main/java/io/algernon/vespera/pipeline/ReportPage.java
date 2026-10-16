@@ -53,11 +53,11 @@ final class ReportPage {
      */
     private static final String DRAWN_STYLES =
             ":root { color-scheme: light dark; --page: #f9f9f7; --surface: #ffffff; --text: #0b0b0b; --muted: #52514e;"
-            + " --border: #c3c2b7; --grid: #e1e0d9; --series-1: #2a78d6; --series-2: #c8501f;"
-            + " --finished: #1a7f37; --running: #2a78d6; --gate: #9a6700; --failed: #cf222e; --not-started: #6e7781; }\n"
+            + " --border: #c3c2b7; --grid: #e1e0d9; --series-1: #236fcc; --series-2: #c04a1a;"
+            + " --finished: #1a7f37; --running: #236fcc; --gate: #9a6700; --failed: #cf222e; }\n"
             + "@media (prefers-color-scheme: dark) { :root { --page: #0d0d0d; --surface: #1a1a19; --text: #ffffff;"
             + " --muted: #c3c2b7; --border: #383835; --grid: #2c2c2a; --series-1: #3987e5; --series-2: #e8743b;"
-            + " --finished: #3fb950; --running: #3987e5; --gate: #d29922; --failed: #f85149; --not-started: #8b949e; } }\n"
+            + " --finished: #3fb950; --running: #3987e5; --gate: #d29922; --failed: #f85149; } }\n"
             + "body { background: var(--page); color: var(--text); }\n"
             + "a { color: var(--series-1); }\n"
             + "td, th { border-color: var(--border); }\n"

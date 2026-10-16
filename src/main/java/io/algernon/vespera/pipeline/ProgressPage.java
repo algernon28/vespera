@@ -405,7 +405,7 @@ final class ProgressPage implements JobExecutionListener {
         String bar = "";
         if (runningExecution != null) {
             Matcher count = COUNT_OF_TOTAL.matcher(lastLine.getOrDefault(running, ""));
-            if (count.find()) {
+            if (count.find() && !count.group(2).replace(",", "").matches("0+")) {
                 bar = ReportPage.paragraph("<progress value=\"" + count.group(1).replace(",", "") + "\" max=\""
                         + count.group(2).replace(",", "") + "\"></progress> "
                         + ReportPage.escape(lastLine.get(running)));
@@ -488,7 +488,7 @@ final class ProgressPage implements JobExecutionListener {
         int axis = STEPS_IN_JOB_ORDER.size() * TIMELINE_ROW + 16;
         svg.append("<text class=\"tick\" x=\"").append(TIMELINE_LABELS).append("\" y=\"").append(axis).append("\">0:00:00</text>")
                 .append("<text class=\"tick\" text-anchor=\"end\" x=\"").append(TIMELINE_LABELS + plot).append("\" y=\"")
-                .append(axis).append("\">").append(clockTime(Duration.ofMillis(total))).append("</text>\n</svg>\n");
+                .append(axis).append("\">").append(clockTime(Duration.between(started, now))).append("</text>\n</svg>\n");
         return svg.toString();
     }
 
@@ -540,7 +540,7 @@ final class ProgressPage implements JobExecutionListener {
                 .append("<text class=\"tick\" x=\"").append(PLOT_LEFT).append("\" y=\"").append(bottom + 18).append("\">")
                 .append(clockTime(Duration.ofSeconds(from))).append("</text>")
                 .append("<text class=\"tick\" text-anchor=\"end\" x=\"").append(PLOT_LEFT + PLOT_WIDTH).append("\" y=\"")
-                .append(bottom + 18).append("\">").append(clockTime(Duration.ofSeconds(from + span))).append("</text>\n");
+                .append(bottom + 18).append("\">").append(clockTime(Duration.ofSeconds(shown.getLast().seconds()))).append("</text>\n");
         double previousLabelY = Double.NEGATIVE_INFINITY;
         for (Series one : series) {
             StringBuilder points = new StringBuilder();
