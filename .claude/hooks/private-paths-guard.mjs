@@ -1,12 +1,12 @@
-// Refuses a Claude tool call that names a path outside the places listed in .claude/allowed-paths.txt
-// (plus .claude/allowed-paths.local.txt on this machine), or a path inside a Vespera working directory
-// wherever it is but for the few files named below, or a recursive Grep or Glob that begins above one, or,
-// to a tool that writes and to a shell command, a path in a .claude folder that is closed (below). The
-// operator's archives can hold sensitive documents, and nothing that reads a document may reach a hosted
-// model: a document is read only by local models. ADR-196 (docs/adr/0196) is the record, ADR-201
-// (docs/adr/0201), ADR-215 (docs/adr/0215), ADR-217 (docs/adr/0217), ADR-233 (docs/adr/0233), ADR-261
-// (docs/adr/0261) and ADR-263 (docs/adr/0263) amend it, and src/test/hooks/private-paths-guard.test.mjs
-// holds this file to all seven.
+// Refuses a Claude tool call that reads the content of, or may write, a path outside the places listed in
+// .claude/allowed-paths.txt (plus .claude/allowed-paths.local.txt on this machine), which may lie in an
+// archive, or, to a tool that writes and to a shell command, a path in a .claude folder that is closed
+// (below). What prints names outside the list is let through: Glob, and a shell command whose every
+// program is a lister or the Vespera jar (below). The operator's archives can hold sensitive documents,
+// and a document is read only by local models. ADR-196 (docs/adr/0196) is the record, ADR-201
+// (docs/adr/0201), ADR-212 (docs/adr/0212), ADR-215 (docs/adr/0215), ADR-217 (docs/adr/0217), ADR-233
+// (docs/adr/0233), ADR-261 (docs/adr/0261), ADR-263 (docs/adr/0263) and ADR-264 (docs/adr/0264) amend
+// it, and src/test/hooks/private-paths-guard.test.mjs holds this file to all nine.
 //
 // It is registered for eight tools: Read, Grep, Glob, Edit, Write, NotebookEdit, Bash and PowerShell.
 // It is an allow list and not a list of archives, so an archive on a new path is refused without anyone
@@ -127,7 +127,7 @@
 // (ADR-217, docs/adr/0217): each of its names with a stream name after a colon taken off and then the
 // dots and spaces that end it, so wd.\report.html is read as wd\report.html, which Node answers "not
 // there" for and PowerShell opens. That reading is judged by every check the others are, the allow list,
-// a read line, a closed .claude folder, links and a working directory above or below, and refuses as
+// a read line, a closed .claude folder and links, and refuses as
 // they do; in a shell command it is a folder the command names where it is one, and a plain relative
 // name that Windows opens as another name is read for that name. A path with a name made only of dots,
 // spaces or a stream name, and that is neither . nor .., is refused on Windows, since what Windows opens
@@ -146,7 +146,7 @@
 // before it reads a path (cd to a folder it names, git -C, pushd, Set-Location, env -C), and no list of
 // such words is kept. A bare cd, which goes to the home folder, and cd -, which goes back, name no
 // folder in the text and are not followed. The call is refused if any reading of any token is outside
-// the allow list or inside a working directory. The folders read against, the current directory among
+// the allow list, but for a listed command (below). The folders read against, the current directory among
 // them, are bounded at DIRECTORY_LIMIT, and so are the readings at READING_LIMIT: a command that names
 // one folder too many, or needs more readings, is refused, because what is left cannot be ruled out.
 // One reading is one relative token against one folder, whether the path it makes is read once or twice.
@@ -160,26 +160,34 @@
 // build); a variable that is not at the head of a token, and %NAME%\x as cmd writes a variable; an
 // option with its value attached and no =, as in -I../x; ~name/x; a brace list with text around it, as in
 // ../{a,b}/x, whose pieces are read but which is not expanded as a shell expands it; a path from the
-// root of the drive without its letter, such as \archive\x; a shell wildcard; a recursive shell command
-// (grep -r, rg, find) that begins above a working directory; a rooted POSIX path such as /tmp/x, so
+// root of the drive without its letter, such as \archive\x; a shell wildcard; what a recursive shell
+// command (grep -r, rg, find) reaches through a link beneath its root; a rooted POSIX path such as /tmp/x, so
 // that cd /tmp && cat run/x reads run/x against the current directory only; a bare cd or cd -; a
 // quoted string inside a quoted string, as in bash -c "cat 'my runs/x'", which is read whole only as
 // the outer one; a brace group between two quote characters, every member of which is a name, a colon
 // and a value, one of them a path on a drive with no separator after the colon, as in bash -c "cat
 // {a:1,Q:name}", whose part after the colon is read and whose drive is not; a link that only Git Bash's runtime follows, such as a symlink written as a file for Cygwin, which is a
-// plain file to this process; a working directory that the walk down from a search root does not reach
-// (below); a link into a place from a .claude folder but the one this file lies in, from beneath
+// plain file to this process; a program that answers to a listed name but is another (an alias, a
+// function, a file on PATH), or a jar that prints what it reads; a link into a place from a .claude folder but the one this file lies in, from beneath
 // projects, plans or worktrees in that one, or made after its walk (ADR-233 section 5); and any tool
 // outside the eight, among them every mcp__* tool and Monitor. A session whose
 // own .claude/settings.json registers no hook never runs this file. For all of those the written rule
 // in AGENTS.md is the only protection.
 //
-// A Grep or Glob root that holds a working directory at any depth is refused, because a recursive
-// search reaches into it. That walk down is breadth-first, looks at no more than WALK_LIMIT folders,
-// never enters .git, node_modules or target, never follows a link, passes over a folder it cannot
-// list, and stops at the first hit. A working directory inside one of those three folders, behind a
-// link, or in a folder it cannot list is therefore not found. A search that would need more than
-// WALK_LIMIT folders is refused: it cannot be ruled out.
+// Glob is let through whatever it names (ADR-264 section 4): it prints paths and opens no file. A shell
+// command that the reading above refuses only for a path outside the allow list is let through when it
+// is a listed command (ADR-264 section 3): cut at ; && || | & and the line break, with no ( ) or
+// backtick, no { } in PowerShell, and no < or > but 2>&1 and, each followed by a space, a separator or
+// the end, >/dev/null and 2>/dev/null in Bash and >$null and 2>$null in PowerShell. Either every segment
+// is run by a bare lister (ls, dir, stat, Get-ChildItem, gci, Get-Item, Test-Path; case folded in
+// PowerShell only), and the refusal "outside the allow list" is lifted for every path of the command
+// and for its current directory; or the command is one segment, the Vespera jar in its one form (java or
+// java.exe, -jar, a vespera-*.jar, run, at most one root and one --db-dir=), and it is lifted for the
+// labels of the root alone: the root as written and its pieces between spaces. A root that begins with @,
+// which picocli opens as a file of arguments, or that a reading could label otherwise (a , { or } in it,
+// or punctuation at its end) is not listed. The jar's other words and its current directory stay
+// checked, since Vespera writes there. A lifted path is not looked up and is no folder the command names;
+// a closed .claude folder and a name made only of dots still refuse it.
 //
 // One Bash or PowerShell command is admitted without being read for paths (ADR-212, docs/adr/0212):
 // node, working-directory-counts.mjs beside this file, and a folder that directly holds vespera.db, and
@@ -195,7 +203,7 @@
 // So that the script word is the path node opens, a word that begins with a separator is not admitted on
 // Windows, where Git Bash rewrites one, nor a word with a backslash elsewhere, where it is part of a name.
 // The admitted command is let through before its paths or the text of its tokens are read, so neither the
-// working-directory rule nor the closed .claude folder rules (ADR-215 section 10) apply to its two words,
+// allow list nor the closed .claude folder rules (ADR-215 section 10) apply to its two words,
 // the script word and the folder word; they do apply to its current directory, as said above. A call that
 // fails any of this is read as every other command is, the text of its tokens included. The script lies
 // in a closed .claude folder, so it is refused to Edit, Write and NotebookEdit and to every shell command
@@ -203,19 +211,9 @@
 // the moment between this check and node reading the script, or which node runs and how it is started
 // (NODE_OPTIONS, PATH, an alias); for those the written rule is all there is.
 //
-// Of the files in a working directory, a few are admitted by name to a file tool, and nothing else in
-// one is (ADR-261, docs/adr/0261, and ADR-263, docs/adr/0263): Read of profile.yaml, of the label file
-// relevance-labels.yaml, and of the seven pages of paths, counts and reasons the stages write
-// (format-mix.html, extraction-failures.html, extraction-survivors.html, confidence-distribution.html,
-// seed-corpus-comparison.html, cluster-sizes.html and document-frequency.html); and Edit and Write of
-// profile.yaml. A name is admitted only directly in a folder
-// that holds vespera.db or vespera.lock, both as the path is written and where its links lead, compared
-// whole, folded to one case on Windows only, and only where the file is not there or is a regular file
-// with one name: not a link, and not a second name of another file. So a stream name, a dot or a space
-// after the name, an 8.3 name, a subfolder, a .part file and every other name are refused as before, and
-// so are Grep, Glob, NotebookEdit and every shell command that names one of these files. The allow list
-// decides first, as it does for every path, so a working directory the lists do not name admits nothing,
-// and the check asks the file system only about a path the allow list has admitted.
+// A working directory is open as the place it lies in (ADR-264 section 2): under an allowed root every
+// file in it is open to every tool as that root is, and one outside the allow list is refused as every
+// path there is. Only the counting command above still asks whether a folder holds vespera.db.
 //
 // It fails closed. Input it cannot read, input that names no tool, and any exception end in exit
 // code 2, which is the only code Claude Code treats as a refusal.
@@ -234,23 +232,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const checkout = resolve(here, "..", "..");
 
 const WALK_LIMIT = 10000;
-const NOT_WALKED = new Set([".git", "node_modules", "target"]);
-const WORKING_DIRECTORY_FILES = ["vespera.db", "vespera.lock"];
-// The files of a working directory ADR-261 admits by name, directly in one: to Read, and to Edit and Write.
-// A page the stages write later joins the first list by a record of its own, as document-frequency.html
-// did by ADR-263.
-const READ_IN_A_WORKING_DIRECTORY = [
-  "profile.yaml",
-  "relevance-labels.yaml",
-  "format-mix.html",
-  "extraction-failures.html",
-  "extraction-survivors.html",
-  "confidence-distribution.html",
-  "seed-corpus-comparison.html",
-  "cluster-sizes.html",
-  "document-frequency.html",
-];
-const WRITTEN_IN_A_WORKING_DIRECTORY = ["profile.yaml"];
+// The programs of ADR-264 section 3(d), which print names and attributes and read no file's content.
+const LISTERS = ["ls", "dir", "stat", "Get-ChildItem", "gci", "Get-Item", "Test-Path"];
 const DIRECTORY_LIMIT = 32;
 const READING_LIMIT = 20000;
 // What the file system answers of a name that is not there: no such name, a name beneath something that
@@ -385,14 +368,6 @@ function absoluteOf(text, base) {
   return resolve(base, fromGitBash(fromHome(text)));
 }
 
-const isDirectory = (p) => {
-  try {
-    return statSync(p).isDirectory();
-  } catch {
-    return false;
-  }
-};
-
 // The path with its links followed, as far as it exists: the deepest folder that exists is resolved
 // and the names beneath it are put back. Asked once for a path and kept for the call.
 function followed(absolute) {
@@ -510,51 +485,6 @@ function allowedRoots() {
   return roots;
 }
 
-const holdsCache = new Map();
-function holdsWorkingDirectory(dir) {
-  let held = holdsCache.get(dir);
-  if (held === undefined) {
-    held = WORKING_DIRECTORY_FILES.some((name) => existsSync(join(dir, name)));
-    holdsCache.set(dir, held);
-  }
-  return held;
-}
-
-// Whether a path inside a working directory is a file ADR-261 admits to this tool: a name on the tool's
-// list, Read's or that of Edit and Write, directly in a folder that holds vespera.db or vespera.lock, as
-// the path is written and as real, where its links lead; compared whole, folded to one case on Windows
-// only, where the file system folds it too; and the file either not there, or a regular file with one
-// name, so neither a link nor a second name of another file. Every other tool is admitted nothing.
-function admittedInWorkingDirectory(tool, absolute, real) {
-  const names = tool === "Read" ? READ_IN_A_WORKING_DIRECTORY : tool === "Edit" || tool === "Write" ? WRITTEN_IN_A_WORKING_DIRECTORY : [];
-  const fold = (name) => (windows ? name.toLowerCase() : name);
-  const directlyIn = (path) => names.some((name) => fold(basename(path)) === fold(name)) && holdsWorkingDirectory(dirname(path));
-  if (!directlyIn(absolute) || !directlyIn(real)) return false;
-  try {
-    const stat = lstatSync(absolute);
-    return stat.isFile() && stat.nlink === 1;
-  } catch (caught) {
-    return NOT_THERE.has(caught?.code);
-  }
-}
-
-// A working directory is recognised by what Vespera writes into it, wherever it is.
-function workingDirectoryAbove(absolute) {
-  let dir = absolute;
-  try {
-    if (existsSync(dir) && !statSync(dir).isDirectory()) dir = dirname(dir);
-  } catch {
-    dir = dirname(dir);
-  }
-  for (let i = 0; i < 64; i++) {
-    if (holdsWorkingDirectory(dir)) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
-  }
-  return null;
-}
-
 // What the file system says of the name itself, asked of lstat first: that it is not there, that it is
 // there and cannot be followed to where it leads, or that it is there, whether it is a folder, and the
 // real path it leads to.
@@ -574,10 +504,10 @@ function lookUp(absolute) {
 }
 
 // What the file system says of a path that the text has already allowed: whether it is there and is a
-// folder, where its links lead, the working directory it is inside, if any, and whether it is a name that
-// is there and cannot be followed, which refuses it and everything beneath it. Only a name that is not
-// there (see NOT_THERE) is answered from its parent, so a name that does not exist costs one question
-// for each level of it that is missing, and one more for the folder that is there.
+// folder, where its links lead, and whether it is a name that is there and cannot be followed, which
+// refuses it and everything beneath it. Only a name that is not there (see NOT_THERE) is answered from
+// its parent, so a name that does not exist costs one question for each level of it that is missing,
+// and one more for the folder that is there.
 const described = new Map();
 function describe(absolute) {
   const known = described.get(absolute);
@@ -585,57 +515,59 @@ function describe(absolute) {
   const found = lookUp(absolute);
   let result;
   if (found.blocked) {
-    result = { exists: true, folder: false, real: absolute, inside: null, blocked: found.blocked };
+    result = { exists: true, folder: false, real: absolute, blocked: found.blocked };
   } else if (found.there) {
-    result = {
-      exists: true,
-      folder: found.folder,
-      real: found.real,
-      inside: workingDirectoryAbove(absolute) ?? workingDirectoryAbove(found.real),
-      blocked: null,
-    };
+    result = { exists: true, folder: found.folder, real: found.real, blocked: null };
   } else {
     const parent = dirname(absolute);
     if (parent === absolute) {
-      result = { exists: false, folder: false, real: absolute, inside: null, blocked: null };
+      result = { exists: false, folder: false, real: absolute, blocked: null };
     } else {
       const above = describe(parent);
-      result = {
-        exists: false,
-        folder: false,
-        real: resolve(above.real, basename(absolute)),
-        inside: above.inside,
-        blocked: above.blocked,
-      };
+      result = { exists: false, folder: false, real: resolve(above.real, basename(absolute)), blocked: above.blocked };
     }
   }
   described.set(absolute, result);
   return result;
 }
 
-// The first working directory at any depth beneath a folder, breadth-first, and whether the walk
-// reached the end of what it was willing to look at.
-function workingDirectoryBelow(absolute) {
-  if (!isDirectory(absolute)) return { found: null, complete: true };
-  const queue = [absolute];
-  for (let next = 0; next < queue.length; next++) {
-    if (next >= WALK_LIMIT) return { found: null, complete: false };
-    let entries;
-    try {
-      entries = readdirSync(queue[next], { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    if (entries.some((e) => WORKING_DIRECTORY_FILES.includes(e.name.toLowerCase()))) {
-      return { found: queue[next], complete: true };
-    }
-    for (const entry of entries) {
-      if (!entry.isDirectory() || NOT_WALKED.has(entry.name)) continue;
-      if (queue.length >= WALK_LIMIT) return { found: null, complete: false };
-      queue.push(join(queue[next], entry.name));
-    }
-  }
-  return { found: null, complete: true };
+// A command of listed programs (ADR-264 section 3), or null. A command of listers is { jar: false }. A
+// command that runs the Vespera jar is that one segment alone, and is { jar: true, root }: only the root
+// is lifted, so it is refused where a reading could give it a label other than its own text or a piece
+// of it between spaces (a , { or } in it, or punctuation trimSentence takes off its end), and where it
+// begins with @, which picocli opens as a file of arguments.
+function listedCommand(command, bash) {
+  if (/[()`]/.test(command) || (!bash && /[{}]/.test(command))) return null;
+  const redirects = bash ? /(?:2>&1|2?> ?\/dev\/null)(?=$|[\s;&|])/g : /(?:2>&1|2?> ?\$null)(?=$|[\s;&|])/gi;
+  const text = command.replace(redirects, " ");
+  if (/[<>]/.test(text)) return null;
+  const segments = text
+    .split(/;|&&|\|\||\||&|\r?\n/)
+    .map((segment) => [...segment.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((m) => ({ word: m[1] ?? m[2] ?? m[3], bare: m[3] !== undefined })))
+    .filter((words) => words.length);
+  const lister = ([first]) =>
+    first.bare && !/[\\/]/.test(first.word) && LISTERS.some((name) => (bash ? name === first.word : name.toLowerCase() === first.word.toLowerCase()));
+  if (segments.every(lister)) return { jar: false };
+  if (segments.length !== 1) return null;
+  const [words] = segments;
+  const last = (word) => word.split(/[\\/]/).pop();
+  const fold = (word) => (windows ? word.toLowerCase() : word);
+  if (!["java", "java.exe"].includes(last(words[0].word)) || words[1]?.word !== "-jar" || !words[1].bare) return null;
+  if (!words[2] || !/^vespera-.*\.jar$/.test(fold(last(words[2].word))) || words[3]?.word !== "run") return null;
+  const rest = words.slice(4).map(({ word }) => word);
+  const dbDirs = rest.filter((word) => word.startsWith("--db-dir="));
+  const roots = rest.filter((word) => !word.startsWith("-"));
+  if (dbDirs.length > 1 || roots.length > 1 || dbDirs.length + roots.length !== rest.length) return null;
+  const [root = null] = roots;
+  const plain = (word) => !/[,{}]/.test(word) && trimSentence(word) === word;
+  if (root !== null && (root.startsWith("@") || !plain(root))) return null;
+  const dbDir = dbDirs.length ? dbDirs[0].slice("--db-dir=".length) : null;
+  if (dbDir !== null && !plain(dbDir)) return null;
+  // No other word of the jar may be given a label the root's lift would match.
+  const forms = root === null ? [] : [root, ...root.split(" ")].filter(Boolean);
+  const others = [words[0].word, words[2].word, ...(dbDir === null ? [] : [dbDir])];
+  if (others.some((word) => [word, ...word.split(" ")].some((piece) => forms.some((form) => piece === form || piece.startsWith(form + ","))))) return null;
+  return { jar: true, root };
 }
 
 // The punctuation that ends a sentence or a list item is not part of a path. A trailing .. is the
@@ -978,6 +910,8 @@ function directlyHoldsDatabase(folder) {
 
 function refusalsOf(call) {
   const tool = call.tool_name;
+  // Glob prints names and opens no file, whatever it names (ADR-264 section 4).
+  if (tool === "Glob") return [];
   const input = call.tool_input && typeof call.tool_input === "object" ? call.tool_input : {};
   const currentDirectory = typeof call.cwd === "string" && call.cwd ? call.cwd : checkout;
   const cwd = absoluteOf(currentDirectory, checkout);
@@ -997,24 +931,38 @@ function refusalsOf(call) {
 
   const refused = [];
   const decided = new Map();
+  // Whether the refusal "outside the allow list" is lifted for what a label names (ADR-264 section 3(f)),
+  // set for a listed command; and the paths it was lifted for, which are not looked up and are no folder
+  // the command names (3(h)).
+  let liftedFor = () => false;
+  const passedOver = new Set();
 
   // Whether the path is refused, and the reason is recorded once. A path read as the file system walks it
   // is a real path, so it is judged against where the allowed roots lead as well as against their text.
-  function check(label, absolute, searchRoot = false, walked = false) {
+  function check(label, absolute, walked = false) {
     const text = norm(absolute);
-    const key = `${text}|${searchRoot}|${walked}`;
+    const lifted = liftedFor(label);
+    const key = `${text}|${walked}|${lifted}`;
     if (decided.has(key)) return decided.get(key);
     const turnedDown = (reason) => {
       refused.push(`${label} (${reason})`);
       decided.set(key, true);
       return true;
     };
+    const passOver = () => {
+      passedOver.add(text);
+      decided.set(key, false);
+      return false;
+    };
     if (text === "/dev/null" || text.endsWith(":/dev/null")) {
       decided.set(key, false);
       return false;
     }
     const standsAt = standing(text, walked);
-    if (!standsAt) return turnedDown("outside the allow list");
+    if (!standsAt) {
+      if (!lifted) return turnedDown("outside the allow list");
+      return writes && closedFolder(text) ? turnedDown(CLOSED) : passOver();
+    }
     // The text of a path decides these two before the file system is asked about it.
     if (writes && standsAt.read) return turnedDown(READ_ONLY);
     if (writes && closedFolder(text)) return turnedDown(CLOSED);
@@ -1022,7 +970,10 @@ function refusalsOf(call) {
     if (found.blocked) return turnedDown(`${found.blocked}, so it is refused, and so is everything beneath it`);
     const realText = norm(found.real);
     const leadsTo = standing(realText, true);
-    if (!leadsTo) return turnedDown(`a link leads from it to ${found.real}, outside the allow list`);
+    if (!leadsTo) {
+      if (!lifted) return turnedDown(`a link leads from it to ${found.real}, outside the allow list`);
+      return writes && closedFolder(realText) ? turnedDown(`a link leads from it to ${found.real}, ${CLOSED}`) : passOver();
+    }
     if (writes && leadsTo.read) return turnedDown(`a link leads from it to ${found.real}, ${READ_ONLY}`);
     if (writes && closedFolder(realText)) return turnedDown(`a link leads from it to ${found.real}, ${CLOSED}`);
     // A place a link in the closed .claude folder leads to is closed as that folder is (ADR-233 section 5).
@@ -1033,18 +984,6 @@ function refusalsOf(call) {
       }
       const into = linked.find(({ key }) => under(text, key) || under(realText, key));
       if (into) return turnedDown(`the link ${into.link} leads to ${into.leadsTo}, so it is ${CLOSED}`);
-    }
-    // Of what is inside a working directory, only the files ADR-261 names are let through, each to the tools
-    // it names them for.
-    if (found.inside && !admittedInWorkingDirectory(tool, absolute, found.real)) {
-      return turnedDown(`inside the Vespera working directory ${found.inside}`);
-    }
-    if (searchRoot) {
-      const below = workingDirectoryBelow(found.real);
-      if (below.found) return turnedDown(`a recursive search from it reaches the Vespera working directory ${below.found}`);
-      if (!below.complete) {
-        return turnedDown(`ruling out a working directory beneath it would take more than ${WALK_LIMIT} folders, so search a narrower one`);
-      }
     }
     decided.set(key, false);
     return false;
@@ -1058,13 +997,14 @@ function refusalsOf(call) {
   // judged as walked, and each reading says whether it was, so that a folder reached by it carries that on.
   // On Windows each reading is also judged as PowerShell opens its names (ADR-217), and a reading with a
   // name whose opening is not known is refused.
-  const checkReadings = (label, text, base, searchRoot = false, baseWalked = false) => {
+  const checkReadings = (label, text, base, baseWalked = false) => {
     const asText = absoluteOf(text, base);
-    const readings = [{ absolute: asText, walked: baseWalked, turnedDown: check(label, asText, searchRoot, baseWalked) }];
+    const readings = [{ absolute: asText, walked: baseWalked, turnedDown: check(label, asText, baseWalked) }];
     if (readings[0].turnedDown) return readings;
-    const walked = walkedOf(text, base);
+    // A path the refusal was lifted for is not walked, which would ask the file system about it.
+    const walked = passedOver.has(norm(asText)) ? null : walkedOf(text, base);
     if (walked && norm(walked) !== norm(asText)) {
-      readings.push({ absolute: walked, walked: true, turnedDown: check(`${label}, read as the file system walks its ..`, walked, searchRoot, true) });
+      readings.push({ absolute: walked, walked: true, turnedDown: check(`${label}, read as the file system walks its ..`, walked, true) });
     }
     for (const { absolute, walked: isWalked, turnedDown } of [...readings]) {
       if (turnedDown) continue;
@@ -1075,7 +1015,7 @@ function refusalsOf(call) {
         break;
       }
       if (norm(opened) === norm(absolute) || readings.some((r) => norm(r.absolute) === norm(opened))) continue;
-      readings.push({ absolute: opened, walked: isWalked, turnedDown: check(`${label}, read as Windows opens its names`, opened, searchRoot, isWalked) });
+      readings.push({ absolute: opened, walked: isWalked, turnedDown: check(`${label}, read as Windows opens its names`, opened, isWalked) });
     }
     return readings;
   };
@@ -1087,6 +1027,14 @@ function refusalsOf(call) {
     // the folder last, so that a lookup that hangs can let through only the pinned script. The admitted
     // command is let through before any path or token of it is read (ADR-215 section 10).
     const counted = countedFolder(command, tool === "Bash", cwd);
+    const listed = listedCommand(command, tool === "Bash");
+    if (listed) {
+      const rootForms = listed.root ? [listed.root, ...listed.root.split(" ")].filter(Boolean) : [];
+      liftedFor = (label) => {
+        if (label.startsWith(currentLabel)) return !listed.jar;
+        return !listed.jar || rootForms.some((form) => label === form || label.startsWith(form + ","));
+      };
+    }
     const currentChecked = checkReadings(currentLabel, currentDirectory, checkout);
     if (counted !== null && currentChecked.every(({ turnedDown }) => !turnedDown) && directlyHoldsDatabase(counted)) return refused;
     // Every token's text, whether or not it is read as a path (ADR-215 section 3(c)).
@@ -1131,10 +1079,11 @@ function refusalsOf(call) {
       }
     };
 
-    for (const { absolute: path, walked, turnedDown } of currentChecked) if (!turnedDown) reach(path, new Map(), walked);
+    const passed = (path) => passedOver.has(norm(path));
+    for (const { absolute: path, walked, turnedDown } of currentChecked) if (!turnedDown && !passed(path)) reach(path, new Map(), walked);
     for (const { label, text } of absolute) {
       for (const { absolute: path, walked, turnedDown } of checkReadings(label, text, cwd)) {
-        if (!turnedDown && describe(path).folder) reach(path, new Map(), walked);
+        if (!turnedDown && !passed(path) && describe(path).folder) reach(path, new Map(), walked);
       }
     }
 
@@ -1167,10 +1116,10 @@ function refusalsOf(call) {
           if (found && !found.exists && !found.blocked) {
             answer = [{ abs: asText, walked: entry.walked, folder: false }];
           } else {
-            answer = checkReadings(named, "./" + rel, entry.path, false, entry.walked).map(({ absolute: abs, walked, turnedDown }) => ({
+            answer = checkReadings(named, "./" + rel, entry.path, entry.walked).map(({ absolute: abs, walked, turnedDown }) => ({
               abs,
               walked,
-              folder: !turnedDown && describe(abs).folder,
+              folder: !turnedDown && !passed(abs) && describe(abs).folder,
             }));
           }
           answered.set(key, answer);
@@ -1186,23 +1135,21 @@ function refusalsOf(call) {
     return refused;
   }
 
-  const searches = tool === "Grep" || tool === "Glob";
+  const searches = tool === "Grep";
   for (const field of searches ? ["file_path", "notebook_path"] : ["file_path", "path", "notebook_path"]) {
     if (input[field]) checkReadings(String(input[field]), input[field], cwd);
   }
   if (searches) {
-    const starts = input.path
-      ? checkReadings(String(input.path), input.path, cwd, true)
-      : checkReadings(currentLabel, currentDirectory, checkout, true);
-    const pattern = tool === "Glob" ? input.pattern : input.glob;
+    const starts = input.path ? checkReadings(String(input.path), input.path, cwd) : checkReadings(currentLabel, currentDirectory, checkout);
+    const pattern = input.glob;
     if (pattern) {
       const prefix = staticPrefix(String(pattern).replace(/\\/g, "/"));
       // The folder the search begins in is the start, or the prefix read against it; a start that is
       // refused is refused already.
       starts.forEach(({ absolute, walked, turnedDown }) => {
         if (turnedDown) return;
-        if (prefix === "") check(String(pattern), absolute, true, walked);
-        else checkReadings(String(pattern), prefix, absolute, true, walked);
+        if (prefix === "") check(String(pattern), absolute, walked);
+        else checkReadings(String(pattern), prefix, absolute, walked);
       });
     }
   }
@@ -1232,12 +1179,12 @@ function main() {
   }
   if (!refused.length) return 0;
   return refusal(
-    "Claude never opens the operator's archives or a Vespera working directory, because their " +
-      "documents may be sensitive and are read only by local models, and no agent writes into a .claude " +
+    "Claude reads no file's content outside the allow list, and writes nothing there, because it may lie " +
+      "in an archive whose documents may be sensitive and are read only by local models, and no agent writes into a .claude " +
       "folder, because what is there decides how a later session runs (a closed one may still be read with " +
-      "Read, Grep and Glob). Of a working directory, Read of profile.yaml, relevance-labels.yaml and seven " +
-      "pages directly in it, and Edit and Write of profile.yaml, are let through, and nothing else " +
-      "(docs/adr/0261, docs/adr/0263). Paths: " + refused.join("; ") +
+      "Read, Grep and Glob). Outside the allow list, Glob and a command of listers (ls, dir, stat, " +
+      "Get-ChildItem, gci, Get-Item, Test-Path) or of the Vespera jar's run are let through, and nothing " +
+      "that reads a file's content or may write (docs/adr/0264). Paths: " + refused.join("; ") +
       ". If a path outside a .claude folder is legitimate and holds no document, the operator adds it to " +
       ".claude/allowed-paths.local.txt; no line of an allow list opens a .claude folder, and a change to " +
       "the guard, a list or the settings is written as a draft outside every .claude folder, which the " +
