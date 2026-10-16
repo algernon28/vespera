@@ -135,6 +135,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "NoGenerationModelNamedException",
             "NoUpstreamRunException",
             "OccurrenceReader",
+            // ADR-266: hands the progress page to the system to open, and decides nothing it shows.
+            "PageOpener",
             "PendingConversions",
             "ProfileShapeCheck",
             // ADR-265: renders what the job holds in memory, and decides nothing it shows.
@@ -180,6 +182,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-250: the survivor list reads who survived and what was measured, and decides neither.
             "SurvivorListListener",
             "SurvivorListReport",
+            // ADR-266: chooses the system's command for opening a page, and decides nothing it shows.
+            "SystemPageOpener",
             "TaskletSteps",
             "TemporaryFilesInTheWorkingDirectory",
             "TimedStatement",

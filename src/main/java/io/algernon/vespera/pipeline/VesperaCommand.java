@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -173,6 +174,7 @@ public class VesperaCommand implements Callable<Integer> {
                         + " success.");
                 return CommandLine.ExitCode.USAGE;
             }
+            log.info("Progress page: {}", ProgressPage.pathIn(workingDirectoryInUse));
             log.info(
                     "Walking {}, named {}",
                     corpusRoot,
@@ -224,6 +226,9 @@ public class VesperaCommand implements Callable<Integer> {
     @Command(name = "label", description = "Records the answers written into the relevance label file.")
     public static class Label implements Callable<Integer> {
 
+        private static final Logger log = LoggerFactory.getLogger(Label.class);
+
+        private final ProgressPage progressPage;
         private final LabelIngestion labelIngestion;
         private final NextAction nextAction;
         private final Path workingDirectoryInUse;
@@ -262,7 +267,9 @@ public class VesperaCommand implements Callable<Integer> {
                 LabelIngestion labelIngestion,
                 NextAction nextAction,
                 @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse,
-                ObjectProvider<AutoLabelling> autoLabelling) {
+                ObjectProvider<AutoLabelling> autoLabelling,
+                ProgressPage progressPage) {
+            this.progressPage = progressPage;
             this.labelIngestion = labelIngestion;
             this.nextAction = nextAction;
             this.workingDirectoryInUse = workingDirectoryInUse;
@@ -295,33 +302,49 @@ public class VesperaCommand implements Callable<Integer> {
                         + " wrote in the working directory. Give either --auto or a file, not both.");
                 return CommandLine.ExitCode.USAGE;
             }
-            if (auto) {
-                return callAuto();
+            log.info("Progress page: {}", ProgressPage.pathIn(workingDirectoryInUse));
+            progressPage.commandStarts(auto ? "vespera label --auto" : "vespera label");
+            String ended = "failed";
+            Map<String, Integer> counts = Map.of();
+            try {
+                if (auto) {
+                    AutoLabelling labelling = autoLabelling.getIfAvailable();
+                    if (labelling == null) {
+                        ended = "refused";
+                        return callAuto(null);
+                    }
+                    AutoLabelling.Outcome outcome = labelling.run();
+                    ended = outcome.refused() ? "refused" : "recorded";
+                    counts = outcome.counts();
+                    return callAuto(outcome);
+                }
+                LabelIngestion.Outcome outcome = labelIngestion.ingest(file);
+                ended = outcome.refused() ? "refused" : "recorded";
+                counts = outcome.counts();
+                if (outcome.refused()) {
+                    System.err.println("vespera label recorded nothing: " + outcome.message());
+                    return outcome.message().startsWith(LabelIngestion.NO_FILE)
+                            ? CommandLine.ExitCode.USAGE
+                            : CommandLine.ExitCode.SOFTWARE;
+                }
+                System.out.println(outcome.message());
+                System.out.println(nextAction.line());
+                return CommandLine.ExitCode.OK;
+            } finally {
+                progressPage.commandEnds(ended, counts);
             }
-            LabelIngestion.Outcome outcome = labelIngestion.ingest(file);
-            if (outcome.refused()) {
-                System.err.println("vespera label recorded nothing: " + outcome.message());
-                return outcome.message().startsWith(LabelIngestion.NO_FILE)
-                        ? CommandLine.ExitCode.USAGE
-                        : CommandLine.ExitCode.SOFTWARE;
-            }
-            System.out.println(outcome.message());
-            System.out.println(nextAction.line());
-            return CommandLine.ExitCode.OK;
         }
 
         /**
          * {@code --auto} (ADR-197 §6): it needs no corpus root and takes none (ADR-208). It finds each
          * opening under the key stage 2 recorded and opens no archive file (ADR-206 §4).
          */
-        private Integer callAuto() {
-            AutoLabelling labelling = autoLabelling.getIfAvailable();
-            if (labelling == null) {
+        private Integer callAuto(AutoLabelling.Outcome outcome) {
+            if (outcome == null) {
                 System.err.println("vespera label --auto recorded nothing: no local labeller is wired into"
                         + " this build.");
                 return CommandLine.ExitCode.SOFTWARE;
             }
-            AutoLabelling.Outcome outcome = labelling.run();
             if (outcome.refused()) {
                 System.err.println("vespera label --auto recorded nothing: " + outcome.message());
                 return CommandLine.ExitCode.SOFTWARE;

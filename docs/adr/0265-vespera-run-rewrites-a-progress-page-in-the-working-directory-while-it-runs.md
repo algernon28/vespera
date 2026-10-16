@@ -1,5 +1,7 @@
 # ADR-265 — `vespera run` rewrites a progress page in the working directory while it runs
 
+> **Partly amended — see [ADR-266](0266-every-invocation-names-its-progress-page-first-and-opens-it-and-vespera-label-writes-it-too.md).** Of §2: `vespera label` writes the page too, when it starts and when it ends, with the answers it counted. Of §6: the README also says the page opens itself and that the command's first line names it. Every invocation that writes the page names it first and opens it once. The rest of this record stands.
+
 - **Date**: 2026-10-15
 - **Status**: accepted on 2026-10-15.
 - **Keeps**: [ADR-130](0130-one-report-page-module-owns-the-skeleton-styling-escaping-and-tables.md), one module assembles every page; [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md), the invocation account and its allow-list of progress lines, which this page reads and does not copy; [ADR-223](0223-5fs-size-report-6a-and-6b-go-through-one-seed-partition-at-a-time-and-what-is-still-held-says-why.md) §3 and §6, a page moved over its place in one move; [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md), no stage's version names `pipeline`; [ADR-261](0261-an-agent-may-read-and-write-a-working-directorys-profile-and-read-its-pages-of-paths-counts-and-reasons-and-nothing-else-in-it.md), whose list of pages an agent may read this page does not join.

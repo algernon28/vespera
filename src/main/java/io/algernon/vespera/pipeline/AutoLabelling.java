@@ -62,10 +62,10 @@ class AutoLabelling {
     private static final YAMLMapper YAML = YAMLMapper.builder().build();
 
     /** What an invocation did, or why it did nothing. */
-    record Outcome(boolean refused, String message) {
+    record Outcome(boolean refused, String message, Map<String, Integer> counts) {
 
         static Outcome refused(String message) {
-            return new Outcome(true, message);
+            return new Outcome(true, message, Map.of());
         }
     }
 
@@ -237,7 +237,12 @@ class AutoLabelling {
                 .append(" already answered by a person and left as they are");
         message.append('\n').append(setTheFloor(fileSeedSet, embedder));
         LOG.info("{}", message);
-        return new Outcome(false, message.toString());
+        Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        counts.put("relevant", relevant);
+        counts.put("not relevant", notRelevant);
+        counts.put("left blank", blank);
+        counts.put("answered by a person", byAPerson);
+        return new Outcome(false, message.toString(), counts);
     }
 
     /**

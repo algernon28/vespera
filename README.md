@@ -115,7 +115,7 @@ Everything the tool writes goes in one working directory, never inside your arch
 profile.yaml                     the values you set, and how you arrived at them
 vespera.db                       the ledger: every file seen, every verdict, every measurement
 vespera.lock                     held by the command running now, so a second one is refused
-progress.html                    how far vespera run has got, rewritten while it runs
+progress.html                    what the command running now has done, opened as it starts
 format-mix.html                  what kinds of file the archive holds
 extraction-failures.html         the files that could not be read, and why
 extraction-survivors.html        the files that were read and kept
@@ -130,7 +130,7 @@ deliverable/<run>/index.md       what was written, group by group, and what prod
 deliverable/<run>/documents.csv  every surviving document, with its place in the order
 ```
 
-Open `progress.html` in a browser while `vespera run` runs; it reloads itself every five seconds (`vespera.progress-interval`); it names no path and no document, so it can be sent to anyone.
+Every `vespera run` and `vespera label` opens `progress.html` in your default browser as it starts, and the command's first line, `Progress page: <path>`, names where it is. While `vespera run` runs, the page reloads itself every five seconds (`vespera.progress-interval`); `vespera label` writes it when it starts and when it ends, with how many answers it recorded. It names no path and no document, so it can be sent to anyone.
 
 Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vespera.working-dir` in configuration. Both commands take `--db-dir=<path>`, so if you moved the working directory, name it on `vespera label` as well as on `vespera run`. A command given a `--db-dir` other than the directory it actually opened refuses and records nothing.
 
@@ -147,7 +147,7 @@ vespera run <root> [--db-dir=<path>]     walk a corpus and take it as far as the
 vespera label [file] [--db-dir=<path>]   record the answers you wrote into the label file
 ```
 
-To have `vespera run` write an invocation account (a file with no document's name or words in it, which a hosted model may read), set `vespera.account-dir` to a folder outside every working directory, in `application-local.yaml` or with `--vespera.account-dir=<path>`; left unset, or set inside a working directory, no account is written. `vespera.progress-interval`, set the same way, is how often `vespera run` rewrites `progress.html`: `5s` unless you set it.
+To have `vespera run` write an invocation account (a file with no document's name or words in it, which a hosted model may read), set `vespera.account-dir` to a folder outside every working directory, in `application-local.yaml` or with `--vespera.account-dir=<path>`; left unset, or set inside a working directory, no account is written. `vespera.progress-interval`, set the same way, is how often `vespera run` rewrites `progress.html`: `5s` unless you set it. No browser is opened where the environment variable `CI` is set, or on Linux with no display.
 
 `vespera run` takes the archive root as its argument, falling back to `vespera.corpus-root` in configuration. Given neither, it refuses rather than guessing — a census of the wrong tree reports success.
 

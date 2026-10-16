@@ -361,6 +361,40 @@ class LocalLabellingInvocationTest {
     }
 
     @Test
+    @Story("The label command writes what it recorded")
+    @DisplayName("The progress page of a label command run with --auto counts what the model answered, in a fixed order")
+    @Link(name = "ADR-266", url = Adr.EVERY_INVOCATION_NAMES_AND_OPENS_ITS_PROGRESS_PAGE, type = "adr")
+    void theAutoPageCountsTheAnswersInOrder(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aScoredCorpus(root, seeds);
+
+        cli.run("label", "--auto");
+
+        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        String page = Files.readString(workingDirectory.resolve(ProgressPage.FILE_NAME));
+        claim(
+                "the page names the command with --auto and says it ended having recorded",
+                () -> assertThat(page)
+                        .contains("Command: vespera label --auto")
+                        .contains("This invocation has ended: recorded."));
+        claim(
+                "its table counts, in this order, the one document the model called relevant (" + ONE_DOCUMENT_IN_THE_SAMPLE
+                        + " and the scripted model says relevant to everything), none not relevant, none left blank"
+                        + " and none answered by a person",
+                () -> assertThat(page)
+                        .contains(ReportPage.headerRow("Answers", "Count"))
+                        .containsSubsequence(
+                                answerCount("relevant", 1),
+                                answerCount("not relevant", 0),
+                                answerCount("left blank", 0),
+                                answerCount("answered by a person", 0)));
+    }
+
+    /** A row of the progress page's table of answers: the count's words, then the count. */
+    private static String answerCount(String words, int value) {
+        return ReportPage.row(ReportPage.textCell(words), ReportPage.numberCell(value));
+    }
+
+    @Test
     @Story("A label a model set says so")
     @DisplayName("--auto with a file is refused, since it works on the file the last run wrote")
     void refusesAFileWithAuto(@TempDir Path root, @TempDir Path seeds) throws IOException {
