@@ -132,6 +132,9 @@ The README's list of the working directory's files says `progress.html` is what 
 | `pipeline.LabelWritesTheProgressPageInvocationTest.aChangedAnswerIsCountedAndNoPathOrTextIsOnThePage` | a changed answer is counted as changed, and no marked name or text, the root, the seed folder or the working directory is on the page |
 | `pipeline.LabelWritesTheProgressPageInvocationTest.aRefusedLabelCommandSaysItWasRefusedAndNotWhy` | a label file with no answers: the page says it ended `refused`, has no table, and names no path |
 | `pipeline.SystemPageOpenerTest.eachSystemIsAskedThroughItsOwnCommand` | Windows is asked through `rundll32 url.dll,FileProtocolHandler`, macOS through `open`, a Linux with a display through `xdg-open`, each with the URI |
+| `pipeline.SystemPageOpenerTest.aPathWithCharactersAShellReadsIsHandedOverAsOneArgument` | a page under a folder whose name holds a space, `&`, `%`, `^` and an accented letter: three arguments on Windows and two on macOS and Linux, the address holding no space and reading back as the page's path |
+| `pipeline.LabelCommandThatThrowsTest.anExceptionReachesTheCallerAndThePageEndsFailed` | an exception from `LabelIngestion.ingest` reaches the label command's caller, and the page ends `failed` with no reload, no table of answers and not the exception's message |
+| `pipeline.LocalLabellingInvocationTest.theAutoPageCountsTheAnswersInOrder` | after `vespera label --auto`, the page names the command with `--auto`, ends `recorded`, and counts `relevant`, `not relevant`, `left blank` and `answered by a person` in that order |
 | `pipeline.SystemPageOpenerTest.withNoDisplayOrUnderCiNothingIsOpened` | a Linux with neither display variable, and every system with `CI` set, open nothing |
 | `pipeline.NoTestOpensABrowserTest.theWholeApplicationsOpenerIsTheRecordingOne` | the whole application a test builds holds `SystemPageOpener`, and the `PageOpener` it hands out is `RecordingPageOpener` |
 

@@ -63,6 +63,35 @@ class SystemPageOpenerTest {
     }
 
     @Test
+    @Story("The page is opened by the system's own command")
+    @DisplayName("A working directory whose name holds a space, an ampersand, a percent sign, a caret and an accented letter is still handed over as one argument with no space in it")
+    void aPathWithCharactersAShellReadsIsHandedOverAsOneArgument() {
+        Path page = Path.of("vespera runs", "a b & 100% ^ café", "progress.html").toAbsolutePath();
+        URI address = page.toUri();
+        List<List<String>> commands = List.of(
+                SystemPageOpener.command(address, WINDOWS, NOTHING_SET).orElseThrow(),
+                SystemPageOpener.command(address, MAC, NOTHING_SET).orElseThrow(),
+                SystemPageOpener.command(address, LINUX, Map.of("DISPLAY", ":0")).orElseThrow());
+        claim(
+                "on Windows the command is the program, its entry point and the page's address: three arguments, so"
+                        + " nothing in the path was split into a fourth",
+                () -> assertThat(commands.getFirst()).hasSize(3));
+        claim(
+                "on macOS and on Linux it is the program and the page's address: two arguments",
+                () -> assertThat(commands.subList(1, 3)).allSatisfy(command -> assertThat(command).hasSize(2)));
+        for (List<String> command : commands) {
+            String handedOver = command.getLast();
+            claim(
+                    "the address " + command.getFirst() + " is handed holds no space, so no program splits it, and"
+                            + " reads back as the page's own path, ampersand, percent sign, caret and accent included",
+                    () -> {
+                        assertThat(handedOver).doesNotContainPattern("\\s");
+                        assertThat(Path.of(URI.create(handedOver))).isEqualTo(page);
+                    });
+        }
+    }
+
+    @Test
     @Story("Nothing is opened where nobody could see it")
     @DisplayName("Linux with no display opens nothing, and nor does any system where a CI service has set its variable")
     void withNoDisplayOrUnderCiNothingIsOpened() {
