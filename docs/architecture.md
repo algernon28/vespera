@@ -26,11 +26,11 @@ Eight stages, each defined by the verdicts it writes. Stages never call each oth
 | 4  | Content redundancy (lexical) | `redundant-with`                          | MinHash + LSH banding over shingles (ADR-018), boilerplate-stripped (ADR-038).                        |
 | 5  | Relevance (embeddings)       | `translation-of`, `below-threshold`       | One copy kept of a content held in several languages, found by paths one language folder apart or by mutual nearest mean vectors, before anything is scored (ADR-271); scoring against the seed set (ADR-020), clustering within each seed partition (ADR-027, ADR-045). |
 | 6a | Arrangement                  | *(no verdicts)*                           | Seed-named taxonomy + within-seed clusters (ADR-022), each cluster given a row of its own carrying a derived label, a count and a place in the order (ADR-105, ADR-106, ADR-112). Writes `arrangement.html`, the human gate before 6b (ADR-107). |
-| 6b | Generation                   | *(no verdicts; a fault, not a verdict)*   | One exemplar-first call per cluster, every answer verified before it is believed and a turned-down one recorded as a cluster fault (ADR-108, ADR-111). Citations are exemplar ordinals checked for being in range (ADR-109). Writes the deliverable: a Markdown tree, one per run id (ADR-103, ADR-104, ADR-112). |
+| 6b | Generation                   | *(no verdicts; a fault, not a verdict)*   | One exemplar-first call per cluster, every answer verified before it is believed and a turned-down one recorded as a cluster fault (ADR-108, ADR-111). Citations are exemplar ordinals checked for being in range (ADR-109). Writes the deliverable: a tree of HTML pages with a verified copy of every survivor it lists, one per run id, drawn by `deliverable` and drawn again by every invocation that reaches it (ADR-103, ADR-112, ADR-274). |
 
 Ordering principle: the cheapest filter runs first, so every occurrence removed early is extraction or embedding never paid for (ADR-017).
 
-**The cascade.** Every stage reads and writes only through the ledger; none of them calls another. The chain ends at 6b: what it produces is the deliverable — a Markdown tree in the working directory, one tree per run id (ADR-103) — and nothing in this project carries it to a destination of any kind (ADR-101).
+**The cascade.** Every stage reads and writes only through the ledger; none of them calls another. The chain ends at 6b: what it produces is the deliverable — a tree of HTML pages in the working directory with a verified copy of every survivor it lists, one tree per run id (ADR-103, ADR-274) — and nothing in this project carries it to a destination of any kind (ADR-101).
 
 ```mermaid
 flowchart TD
@@ -80,7 +80,7 @@ flowchart TD
 - **The seed set does triple duty** (ADR-004, ADR-020, ADR-022): it defines relevance, names the top level of the arrangement (one node per seed + `unattributed`), and shapes what sits beneath it. A poorly chosen seed set produces a poorly shaped arrangement, not merely a poorly tuned filter — visible via diagnostics (per-seed admission counts, cluster counts).
 - **Clustering runs within each seed partition**, never corpus-wide (ADR-027, ADR-045) — cheap, embarrassingly parallel, and keeps the "60%-owned-by-one-seed" alarm aligned with a genuine compute problem.
 - **Synthesis, not summarisation** (ADR-021). Stage 5 leaves a heap of survivors; stage 6 makes it organic. 6a names each cluster after its own highest-scoring document and puts the arrangement in an order, judging nothing and removing nothing; 6b generates connective overviews per cluster, gated on a human reading 6a first.
-- **The run ends at 6b** (ADR-101, amending ADR-025). The pipeline runs fully unattended and stops at the generated documents, which are the deliverable. The documents themselves are written and are the terminus. What no part of this project does is turn them into a published thing — a wiki, a space, a site — or upload or transmit them anywhere: an operator who wants a wiki makes one. What 6b writes and where it lands was settled by ADR-103 — a Markdown tree in the working directory, one tree per run id — and what becomes of the surviving originals, which ADR-023 used to answer for a Confluence space, by ADR-104: they stay in the archive and are referenced from the tree.
+- **The run ends at 6b** (ADR-101, amending ADR-025). The pipeline runs fully unattended and stops at the generated documents, which are the deliverable. The documents themselves are written and are the terminus. What no part of this project does is turn them into a published thing — a wiki, a space, a site — or upload or transmit them anywhere: an operator who wants a wiki makes one. Where 6b's tree lands was settled by ADR-103 — the working directory, one tree per run id — and what becomes of the surviving originals, which ADR-023 used to answer for a Confluence space, by ADR-104; ADR-274 makes the tree HTML and has it hold a copy of each survivor it lists, checked against the key stage 2 recorded, so that every link lands inside the tree and the archive is only ever read.
 - **Generated content is verified two ways** (ADR-026): mechanical citation checking (every cited occurrence id must exist, survive, and be reachable in the tree) plus human review at the consolidation gate. Model-checking model output was explicitly rejected.
 
 **Identity and the ledger.** Two independent lifetimes: a walk owns occurrence rows because they are filesystem observations, a run owns verdict rows because they are derived under a configuration. Content identity is a discovered relation over occurrences, never a collapse of them.
@@ -176,12 +176,13 @@ Modules are **capability-shaped, not stage-shaped** — stage assignment has alr
 | `similarity` | Shingles, MinHash/LSH — shingles are computed during stage 2's pass, but the code and the table are `similarity`'s and the call is composed in `pipeline` (ADR-073), since a capability module may not depend on another except where a decision records it |
 | `embedding` | SQLite vector cache, scoring, clustering |
 | `synthesis` | Arrangement (6a), generation (6b) |
+| `deliverable` | The tree 6b writes: its pages, its manifest and its copies (ADR-274); no stage's version names it |
 | `profile` | Thresholds, provenance, gate inputs |
 | `pipeline` | Batch job definitions; the only module that knows the phrase "stage 4" |
 
-**Rule:** a capability module may depend on `ledger` and nothing else horizontal, with one recorded exception — `extraction` names `corpus`'s two detection enumerations, because Docling's pipeline choice is derived from them (ADR-100); `pipeline` depends on all of them (it's the composition root). Enforced by a Spring Modulith `ApplicationModules.verify()` boundary test — with a known, recorded gap: the test checks Java type references via ArchUnit on bytecode, so a raw SQL string crossing a table-ownership boundary is invisible to it. Table ownership (`ledger` owns identity/verdicts; every other capability owns its own tables keyed by `occurrence_id`) is held by a second test since ADR-209: `schema.sql` names the module that owns each table in a line above it, and `EachTableIsNamedOnlyByItsOwnerTest` fails when a shipped class's SQL names a table of another module, the six counts ADR-198 lets the invocation account take excepted. The same record takes Spring Batch out of every module but `pipeline`: `survivors(runId)` hands out an `Iterable` read a page at a time, where ADR-060 had it hand out a Batch reader, and `Ledger` itself is four records, `Walks`, `Occurrences`, `Runs` and `Verdicts`, behind one type.
+**Rule:** a capability module may depend on `ledger` and nothing else horizontal, with two recorded exceptions — `extraction` names `corpus`'s two detection enumerations, because Docling's pipeline choice is derived from them (ADR-100), and `deliverable` names `synthesis`, whose records it renders (ADR-274 §4); `pipeline` depends on all of them (it's the composition root). Enforced by a Spring Modulith `ApplicationModules.verify()` boundary test — with a known, recorded gap: the test checks Java type references via ArchUnit on bytecode, so a raw SQL string crossing a table-ownership boundary is invisible to it. Table ownership (`ledger` owns identity/verdicts; every other capability owns its own tables keyed by `occurrence_id`) is held by a second test since ADR-209: `schema.sql` names the module that owns each table in a line above it, and `EachTableIsNamedOnlyByItsOwnerTest` fails when a shipped class's SQL names a table of another module, the six counts ADR-198 lets the invocation account take excepted. The same record takes Spring Batch out of every module but `pipeline`: `survivors(runId)` hands out an `Iterable` read a page at a time, where ADR-060 had it hand out a Batch reader, and `Ledger` itself is four records, `Walks`, `Occurrences`, `Runs` and `Verdicts`, behind one type.
 
-**Module boundaries.** Capability-shaped, not stage-shaped: stage assignment moved twice during design while the underlying capability did not. A capability module may depend on `ledger` and nothing else horizontal — the one exception is `extraction`, which also names `corpus`'s two detection enumerations (ADR-100), declared in its `@ApplicationModule` and pinned by name in `ModuleBoundariesTest`; `pipeline` is the composition root and depends on all of them.
+**Module boundaries.** Capability-shaped, not stage-shaped: stage assignment moved twice during design while the underlying capability did not. A capability module may depend on `ledger` and nothing else horizontal — the two exceptions are `extraction`, which also names `corpus`'s two detection enumerations (ADR-100), and `deliverable`, which also names `synthesis` (ADR-274), each declared in its `@ApplicationModule` and pinned by name in `ModuleBoundariesTest`; `pipeline` is the composition root and depends on all of them.
 
 ```mermaid
 flowchart TD
@@ -195,6 +196,7 @@ flowchart TD
         EMBEDDING["<b>embedding</b><br/>vector cache · scoring · clustering"]
         SYNTHESIS["<b>synthesis</b><br/>arrangement · generation"]
         PROFILE["<b>profile</b><br/>thresholds · provenance · gate inputs"]
+        DELIVERABLE["<b>deliverable</b><br/>the tree's pages · manifest · copies"]
     end
 
     LEDGER["<b>ledger</b><br/>occurrence identity · verdict vocabulary and rows · run identity · the survivors query"]
@@ -205,6 +207,7 @@ flowchart TD
     PIPELINE --> EMBEDDING
     PIPELINE --> SYNTHESIS
     PIPELINE --> PROFILE
+    PIPELINE --> DELIVERABLE
     PIPELINE --> LEDGER
 
     CORPUS --> LEDGER
@@ -213,12 +216,14 @@ flowchart TD
     EMBEDDING --> LEDGER
     SYNTHESIS --> LEDGER
     PROFILE --> LEDGER
+    DELIVERABLE --> LEDGER
+    DELIVERABLE -. declared exception .-> SYNTHESIS
 
     classDef root fill:#f3eaff,stroke:#7a4fb5,color:#241238
     classDef cap fill:#eef4ff,stroke:#4a6fa5,color:#12243d
     classDef core fill:#fff4e6,stroke:#b5762a,color:#3d2a12
     class PIPELINE root
-    class CORPUS,EXTRACTION,SIMILARITY,EMBEDDING,SYNTHESIS,PROFILE cap
+    class CORPUS,EXTRACTION,SIMILARITY,EMBEDDING,SYNTHESIS,PROFILE,DELIVERABLE cap
     class LEDGER core
 ```
 

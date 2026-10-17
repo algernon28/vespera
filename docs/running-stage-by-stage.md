@@ -215,7 +215,7 @@ Read a number off `relevance-labelling.html`, write it into `relevanceScoreFloor
 
 **Run:** `vespera run <root>`
 
-**What it does.** Asks the model once for each group, checks every answer before believing it, and writes the tree of Markdown under `deliverable/<run>/`. An answer that is turned down leaves its group in place with a note that nothing was written over it.
+**What it does.** Asks the model once for each group, checks every answer before believing it, and writes the tree of HTML pages under `deliverable/<run>/`, with a checked copy of every surviving document in its `documents/` folder. An answer that is turned down leaves its group in place with a note that nothing was written over it.
 
 **Where it stops.** Gated when no arrangement is approved, or the approval names another arrangement. It also stops if the model keeps failing.
 
@@ -223,7 +223,7 @@ Read a number off `relevance-labelling.html`, write it into `relevanceScoreFloor
 
 - **Interrupted:** the next invocation skips every group already written and asks only about the rest.
 - **Finished with some groups unwritten:** the last line says how many. Run the same command again: it asks again about exactly those groups and leaves the written ones alone. The stage counts as finished only when every group is written.
-- **Finished with every group written:** skipped. The last line says nothing is left to set and where the tree is.
+- **Finished with every group written:** no group is asked about again, but the tree is drawn again from what was written, and any copy still missing is made. The last line says nothing is left to set, where the tree's `index.html` is, and how many documents were not copied.
 
 ## Going back: making a stage run again
 

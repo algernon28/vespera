@@ -76,7 +76,7 @@ Each element is on a line of its own in the page, and each list item too.
 
 - **Code**: text between a pair of backticks on one line is `<code>`, and nothing in it is read as emphasis.
 - **Bold**: `**text**` on one line, opening before a character that is not a space and closing after one, is `<strong>`.
-- **Italic**: `*text*` or `_text_` on one line, likewise, is `<em>`; a `_` with a letter or digit on its outer side is text, so `a_b_c` stays as written. Bold is read before italic, so `**a *b* c**` is italic inside bold.
+- **Italic**: `*text*` or `_text_` on one line, likewise, is `<em>`; a `_` with a letter or digit on its outer side is text, so `a_b_c` stays as written, and **`*` takes `_`'s rule**, so `2*3*4` stays as written too: a product written with stars is as likely in the writing as a name with underscores, and one rule for both delimiters is one to state. Bold is read before italic, so `**a *b* c**` is italic inside bold.
 - **A delimiter with no partner on its line stays as written**: an unterminated `**`, a lone `*` or `_`, an odd backtick.
 - **Citations**: `Citation.AS_WRITTEN` is matched everywhere, inside code, bold, italic, items and headings included, and each `[n]` becomes `<a href="#document-n">[n]</a>`.
 
@@ -100,7 +100,7 @@ A survivor's copy is `documents/<occurrence id>-<slug>.<extension>` under the tr
 
 The original is the corpus root joined to the survivor's root-relative path, **opened for reading and nothing else**. Its bytes are streamed through SHA-256 into `<copy>.part` beside the copy, and when the stream ends **the digest is compared with the key stage 2 recorded for the survivor**, `ListedSurvivor.contentHash` (ADR-206), which is what its conversion, its scores and the writing about it rest on. Equal, the part is moved over the copy's name by `ReplacingMove` (ADR-242). Unequal, the part is deleted and nothing stands at the copy's name.
 
-The copies are made before any page is written, a seed partition at a time, so each page states what stands.
+The copies are made a seed partition at a time, each partition's before any of its pages is written, so each page states what stands.
 
 #### 2.3 What a copy can come to
 
@@ -114,6 +114,8 @@ The copies are made before any page is written, a seed partition at a time, so e
 
 **None of them fails the step, and none throws.** A survivor whose copy did not stand is a fact about that survivor, recorded in its entry and its row, and the step goes on to the next. An exception out of the tree would roll back every fault row the invocation recorded (ADR-111). No row of the database records a copy: the tree is the record, and the next invocation tries every copy that does not stand again.
 
+**Only an outcome other than `copied` is held**, by occurrence id, from the copy that met it to the end of the drawing, since the pages and the manifest written after it say it; a copy that stands is not held, the name it stands under following from the survivor alone, and a survivor held nowhere is `copied`. What is held is as large as the copies that did not stand, which can be every survivor listed, on a drive with too little room or whose free space cannot be read: a collection as large as a run's survivors, held for the reason ADR-220 asks to be given, that the manifest, written after every page, states each outcome.
+
 #### 2.4 After a stop, a copy that stands is kept
 
 **A file at a copy's name was put there by §2.2's move and by nothing else**, so it is taken as copied, and neither it nor the original is read. A `.part` a stopped invocation left is written over by the next attempt. The tree is named for the generation run, which a change to how the tree is drawn does not move (§5), so a redrawn tree keeps every copy it already had.
@@ -122,7 +124,9 @@ The copies are made before any page is written, a seed partition at a time, so e
 
 Before each copy the original's size is read, and the copy is made only where the working directory's drive would still have **1 GiB** free after it; otherwise its outcome is `no-room`. The working directory holds the database, and the step that copies still writes its completion and the next invocation writes more: a full drive there would fail a step that had finished its work. The gibibyte is a bound of the tool, as ADR-149's ten pictures a document are, and not a judgement about any corpus.
 
-**The size is not measured before this ships.** The invocation measures it: before the first copy it states how many survivors it is about to copy and how many bytes they hold, and how many bytes the drive has free; after the last, how many copies stand, by outcome, and how many bytes were copied. Counts only.
+**The size is read as the file system reports it**, by `Files.size`, without opening the original, and the free space as the working directory's file store reports it usable, asked again before each copy. **What cannot be read counts as none**: a free space that cannot be read is 0 bytes, so no copy is made and every outcome is `no-room`, since a copy the drive may not hold is the one thing this bound is for; and a size that cannot be read before a copy fails that copy, `gone` where the file is not there and `not-copied` otherwise.
+
+**The size is not measured before this ships.** The invocation measures it: before the first copy it states how many survivors it is about to copy and how many bytes they hold, and how many bytes the drive has free; after the last, how many copies stand, by outcome, and how many bytes were copied. Counts only. The survivors about to copy are those with no copy at their name, and the bytes they hold are each one's `Files.size`, **a size that cannot be read counting as 0**: the survey is a count for the operator to read, and decides nothing, each survivor meeting its outcome at its own copy.
 
 #### 2.6 The archive is never written, and a link never leaves the tree
 
@@ -138,7 +142,7 @@ A copy is not a second walk and decides nothing: no verdict, no row, no change t
 
 ### 4. A ninth module, `deliverable`, writes the tree
 
-`io.algernon.vespera.deliverable` holds every rule the tree is written by, one class each as ADR-213 has it: the writer, the index, the cluster page, the manifest, the copies, the pictures with ADR-149's and ADR-150's furniture rule, ADR-133's numbering, ADR-174's sentences, ADR-226's 0.0 for a survivor with no score, and the values it is handed: `ArrangedSurvivors`, `ListedPartition`, `ListedSurvivor`, `ListedPicture`, `ListedPicturePlace`, `SurvivorPictures`, `DeliverableProvenance`, `NamedValue` and `DeliverableProgress`. They leave `synthesis`, and `MarkdownSurroundings` and `ArchiveLink` go.
+`io.algernon.vespera.deliverable` holds every rule the tree is written by, one class each as ADR-213 has it: the writer, the index, the cluster page, the manifest, the copies, the pictures with ADR-149's and ADR-150's furniture rule, ADR-133's numbering, ADR-174's sentences, ADR-226's 0.0 for a survivor with no score, and the values it is handed: `ArrangedSurvivors`, `ListedPartition`, `ListedSurvivor`, `ListedPicture`, `ListedPicturePlace`, `SurvivorPictures`, `DeliverableProvenance`, `NamedValue` and `DeliverableProgress`. They leave `synthesis`, and `MarkdownSurroundings` and `ArchiveLink` go. **`Unwritten` stays in `synthesis`**, an enumeration whose constants carry no value: the reasons a cluster goes unwritten and the ways of arriving at one are the generation step's, and the sentence each is shown by is `deliverable`'s, `UnwrittenSentences`, so `synthesis` holds no word of a page.
 
 It declares **`@ApplicationModule(allowedDependencies = {"ledger", "synthesis"})`**: it renders `synthesis`'s records, `SynthesisDoc`, `RecordedCluster`, `ArrangedCluster`, `ClusterLabel`, `ClusterSlot` and `Unwritten`, and reads `Citation.AS_WRITTEN` and `FilenameStem.of`, which become public and stay written once where the check and the label read them. `synthesis` names nothing of `deliverable`. It is the second declared exception to the module rule, beside `extraction`'s naming of `corpus`'s two enumerations (ADR-100); `pipeline` handing it plain copies of each record instead would be a second statement of five types kept in step by nothing.
 
@@ -158,7 +162,7 @@ The tree is written by every invocation in which the generation step has an appr
 
 ### 7. What the operator is told
 
-The closing line names the index, where it named the folder, and counts the survivors whose copy does not stand: *"The deliverable is at `<absolute path>/index.html`, with N groups left unwritten and M documents not copied."*, `group` and `document` in the singular for 1. M is stated when it is 0, as N is, and is the count of every outcome but `copied` in the tree this invocation wrote, handed from the generation step to the closing line in the job's execution context; where this invocation wrote no tree, the clause is left out. The generation step hands `index.html`'s URI to the `PageOpener` of ADR-266 **once, after the index is in place**, in every invocation that wrote the tree; it opens nothing where `CI` is set or a Linux has no display, an opener that throws is one warning and fails nothing, and no setting turns it off. The progress page is opened when the job starts and the index when the tree is written, so an invocation that writes the tree opens two pages.
+The closing line names the index, where it named the folder, and counts the survivors whose copy does not stand: *"The deliverable is at `<absolute path>/index.html`, with N groups left unwritten and M documents not copied."*, `group` and `document` in the singular for 1. M is stated when it is 0, as N is, and is the count of every outcome but `copied` in the tree this invocation wrote, handed from the generation step to the closing line in the job's execution context; where this invocation wrote no tree, the clause is left out. The generation step hands `index.html`'s URI to the `PageOpener` of ADR-266 **once, after the index is in place**, in every invocation that wrote the tree, **on each of the four paths that write it**: stopped, left unfinished, finished, and already recorded finished (§6); it opens nothing where `CI` is set or a Linux has no display, an opener that throws is one warning and fails nothing, and no setting turns it off. The progress page is opened when the job starts and the index when the tree is written, so an invocation that writes the tree opens two pages.
 
 ### 8. Nothing outside the tree names a document
 
@@ -180,6 +184,7 @@ The implementer's, in the change that builds this:
 - **`AGENTS.md`**: the deliverable is a directory of HTML with a copy of every survivor; nine modules, and `deliverable`'s declared exception; the copies under "The operator's documents are never read by an agent"; and the javadoc bullet frees `profile` again beside `ledger`, neither named by any stage's version, where it now says `profile` is named by generation's.
 - **README**: "Where things live" names `index.html`, `documents/` and the cluster pages; the closing line and the page that opens.
 - **`docs/architecture.md`**: §1's 6b and §2's module table.
+- **`docs/running-stage-by-stage.md`**: stage 6b's tree is HTML with its copies, and a generation already finished draws it again.
 
 ## Decided here
 
@@ -194,6 +199,8 @@ The implementer's, in the change that builds this:
 9. **The index opens by default** (§7), as the progress page does, with no setting.
 10. **The closing line counts the copies that do not stand** (§7), beside the groups left unwritten, even at 0.
 11. **The guard stays as it is for the copies** (§8).
+12. **What cannot be read counts as none** (§2.5): a free space as 0 bytes, so no copy is made that the drive may not hold, and a size in the survey as 0, since the survey decides nothing.
+13. **Only the copies that did not stand are held** (§2.3), by occurrence id, a copy that stands being told by its name.
 
 ## Consequences
 
@@ -254,4 +261,12 @@ The implementer's, in the change that builds this:
 | `pipeline.TheTreeInHtmlInvocationTest.theClosingLineNamesTheIndexAndTheIndexIsOpenedOnce` | §7: the index by its whole path and `0 documents not copied`, opened once with the page in place |
 | `pipeline.TheTreeInHtmlInvocationTest.aSurvivorGoneBeforeTheTreeIsNamedNowhereOutsideIt` | §2.3, §7 and §8: `gone` in the manifest, the closing line's `1 document not copied`, and no line after it went and no progress page names it |
 
-**Moved or rewritten with the classes** (§4): the tests of the tree in `synthesis` (`DeliverableTest`, `ClusterPageTest`, `IndexPageTest`, `ManifestCsvTest`, `EntryPicturesTest`, `DeliverablePicturesTest`, `DeliverableProgressTest`, `FurnitureIsDecidedOverTheWholeTreeTest`, `ManifestIsWrittenAPageAtATimeTest`, `PartitionNoSurvivorNamesStopsTheWriterTest`, `TreeIsTheSameWrittenAPartitionAtATimeTest`, the three `TreeThat…`/`TreeWhose…` tests, `WhyAClusterIsUnwrittenTest`, `ListedSurvivorTest`, `DifferenceHashTest`, `FilenameStemTest` and their fixtures) move to `deliverable` and read HTML; `ArchiveLinkTest` and `MarkdownSurroundingsTest` go; `DeliverableRulesHaveOneHomeTest`, `EveryPageIsMovedIntoPlaceByTheMoveThatTriesAgainTest`, and in `pipeline` `DeliverableInvocationTest`, `DeliverablePicturesInvocationTest`, the three `ClosingLine…` tests and `NextActionTest` follow the move, the names and the closing line.
+**Moved or rewritten with the classes** (§4): the tests of the tree in `synthesis` (`DeliverableTest`, `ClusterPageTest`, `IndexPageTest`, `ManifestCsvTest`, `EntryPicturesTest`, `DeliverablePicturesTest`, `DeliverableProgressTest`, `FurnitureIsDecidedOverTheWholeTreeTest`, `ManifestIsWrittenAPageAtATimeTest`, `PartitionNoSurvivorNamesStopsTheWriterTest`, `TreeIsTheSameWrittenAPartitionAtATimeTest`, the three `TreeThat…`/`TreeWhose…` tests, `WhyAClusterIsUnwrittenTest`, `ListedSurvivorTest`, `DifferenceHashTest`, `FilenameStemTest` and their fixtures) move to `deliverable` and read HTML; `DeliverableRulesHaveOneHomeTest`, `EveryPageIsMovedIntoPlaceByTheMoveThatTriesAgainTest`, and in `pipeline` `DeliverableInvocationTest`, `DeliverablePicturesInvocationTest`, the three `ClosingLine…` tests and `NextActionTest` follow the move, the names and the closing line.
+
+**Retired**, each holding a rule this record removes, and nothing put in its place but what the table above holds:
+
+- **`synthesis.ArchiveLinkTest`**, deleted: a membership entry's relative link into the archive and its destination's percent-encoding (ADR-135, ADR-137), since no entry links into the archive (§2.6).
+- **`synthesis.MarkdownSurroundingsTest`**, deleted: what each of the five Markdown surroundings escapes (ADR-134, ADR-136, ADR-137, ADR-138, ADR-148), which §1.3's one rule replaces.
+- **`synthesis.TheTreeWrittenFromLists`**, the golden tree of Markdown files captured from `ThreePartitions`' lists before ADR-223 was built, deleted: `TreeIsTheSameWrittenAPartitionAtATimeTest` holds the HTML tree written a partition at a time byte for byte equal to the one written with every document in one page instead.
+- **`EntryPicturesTest.indentsByTheWidthOfTheEntrysNumber`**, dropped: a picture indented under a two-digit Markdown list item so that it stays inside the entry, which an `<li>` holding its pictures needs no rule for.
+- **`DeliverableRulesHaveOneHomeTest`**, four claims: that `ArchiveLink` alone writes `%26`, `%28` and `%29`; that `MarkdownSurroundings` is the one class writing a backslash before markup, which becomes that `Html` alone writes the five entities and no class of `synthesis` or `deliverable` writes such a backslash; a regex replacement writing a backslash before what it matched, among the forms counted as a Markdown escape; and `MarkdownSurroundings`, `ArchiveLink`, `Citation` and `FilenameStem` among the package-private collaborators, the first two being gone and the last two public in `synthesis`, which the test still finds there.
