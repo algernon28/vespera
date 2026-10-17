@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md).** No stage's version names `pipeline`, because no class of `pipeline` holds a rule that shapes a stage's output; generation's names `profile`. The mechanism and the accepted failure stand.
 
+> **Partly amended — see [ADR-272](0272-a-module-whose-answer-is-the-boundary-of-a-shallow-clone-is-written-as-unknown.md).** The mechanism below asks git for the commit and its parents, `git log -1 --format=%H %P`, and a module whose answer is the boundary of a shallow clone, a commit held without its parents in a repository git reports as shallow, is written as `unknown` and refused at mint time. The last commit touching the module, the build-time computation, the exclusion of dependency versions and the accepted failure stand.
+
 - **Date**: 2026-08-29
 - **Status**: accepted
 

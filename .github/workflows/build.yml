@@ -40,8 +40,10 @@ jobs:
         with:
           # Full history, and this is load-bearing rather than tidy. The build stamps each module
           # with the SHA of the last commit touching it (ADR-058), by asking git. A shallow clone
-          # has one commit, so git answers for almost no module, the build writes "unknown", and
-          # the jar it produces is one that can mint no run at all.
+          # holds its oldest commit without parents, so git reports that commit as adding every
+          # file and answers with it for each module whose last change is older; one commit deep,
+          # that is every module. The build writes such a module as "unknown" (ADR-272), so a jar
+          # built from a shallow clone refuses to mint a run of any stage that names one.
           fetch-depth: 0
 
       - uses: actions/setup-java@v4
