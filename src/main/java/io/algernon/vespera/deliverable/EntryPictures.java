@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * The pictures a document carries under its membership entry (ADR-149, ADR-150, #285): which pictures
@@ -71,13 +72,18 @@ final class EntryPictures {
      * difference hash; a picture's place is compared while its own document's pictures are in hand and kept
      * no longer (ADR-223 §7). The population stays every picture of every survivor the tree lists.
      */
-    static EntryPictures among(ArrangedSurvivors source, SurvivorPictures pictures, DeliverableProgress progress) {
+    static EntryPictures among(
+            ArrangedSurvivors source,
+            SurvivorPictures pictures,
+            DeliverableProgress progress,
+            Consumer<List<ListedSurvivor>> alsoEachPage) {
         // A digest to the difference hash of the first picture seen with it, or null where its bytes do not
         // decode: equal digests are equal bytes, so equal hashes, and the first-seen picture stands for all.
         Map<String, DifferenceHash> hashes = new HashMap<>();
         Set<String> furniture = new HashSet<>();
         progress.toListPictures(source.survivorCount());
         source.eachPageOfSurvivorsForTheirPictures(page -> {
+            alsoEachPage.accept(page);
             for (ListedSurvivor survivor : page) {
                 List<PictureEntry> ofOneOccurrence = new ArrayList<>();
                 for (ListedPicture picture : pictures.of(survivor)) {
@@ -108,7 +114,7 @@ final class EntryPictures {
     /**
      * A survivor's pictures under its own membership entry (ADR-149 §3, §5, §6): the first {@link
      * Deliverable#PICTURES_PER_DOCUMENT} that pass the furniture rule, each written as a file beside the
-     * cluster file and shown as an image indented into the entry, then, where any were left uncounted or
+     * page and shown by an {@code <img>} in the entry, then, where any were left uncounted or
      * unwritten, one line saying how many.
      *
      * <p><b>The budget is positions, not files written.</b> The first {@link
@@ -117,14 +123,14 @@ final class EntryPictures {
      * other kind, though it holds a position within the budget, is counted as not shown rather than
      * written under no extension (ADR-149 §6).
      *
-     * <p><b>The alt text is the membership entry's surrounding, folded first</b> (ADR-149 §5): a caption
-     * is the converter's own text, so a line break in it would end the entry's paragraph.
+     * <p><b>The alt text is the caption under the one escaping rule</b> (ADR-149 §5, ADR-273 §1.3): the
+     * converter's own text, escaped like every value the tree did not write, in an attribute.
      *
-     * @param pageDirectory the directory the cluster file sits in
-     * @param pictureDirectoryName the name a picture's own directory is given beside that file (ADR-149
-     *     §3): the file's own name, without {@code .md}
+     * @param pageDirectory the directory the cluster page sits in
+     * @param pictureDirectoryName the name a picture's own directory is given beside that page (ADR-149
+     *     §3): the page's own name, without {@code .html}
      */
-    void appendUnder(StringBuilder page, ListedSurvivor member, int ordinal, Path pageDirectory, String pictureDirectoryName)
+    void appendUnder(StringBuilder page, ListedSurvivor member, Path pageDirectory, String pictureDirectoryName)
             throws IOException {
         List<NamedPicture> kept = new ArrayList<>();
         for (ListedPicture picture : source.of(member)) {
@@ -139,7 +145,6 @@ final class EntryPictures {
         int withinBudget = Math.min(Deliverable.PICTURES_PER_DOCUMENT, kept.size());
         List<NamedPicture> candidates = kept.subList(0, withinBudget);
         int notShown = kept.size() - withinBudget;
-        String indent = " ".repeat(String.valueOf(ordinal).length() + 2);
         Path pictureDirectory = pageDirectory.resolve(pictureDirectoryName);
         for (NamedPicture candidate : candidates) {
             Optional<String> extension = fileExtensionFor(candidate.picture().mediaType());
@@ -150,24 +155,20 @@ final class EntryPictures {
             Files.createDirectories(pictureDirectory);
             String fileName = candidate.digest().substring(0, PICTURE_NAME_LENGTH) + extension.get();
             Files.write(pictureDirectory.resolve(fileName), candidate.picture().pixels());
-            String altText = MarkdownSurroundings.MEMBERSHIP_ENTRY.escape(
-                    MarkdownSurroundings.onOneLine(candidate.picture().caption()));
-            page.append(indent)
-                    .append("![")
-                    .append(altText)
-                    .append("](")
-                    .append(pictureDirectoryName)
+            page.append("<p><img src=\"")
+                    .append(Html.escape(pictureDirectoryName))
                     .append('/')
                     .append(fileName)
-                    .append(")\n\n");
+                    .append("\" alt=\"")
+                    .append(Html.escape(candidate.picture().caption()))
+                    .append("\"></p>\n");
         }
         if (notShown > 0) {
-            page.append(indent)
-                    .append('*')
+            page.append("<p><em>")
                     .append(notShown)
                     .append(notShown == 1 ? " more picture from this document is not shown." : " more"
                             + " pictures from this document are not shown.")
-                    .append("*\n\n");
+                    .append("</em></p>\n");
         }
     }
 

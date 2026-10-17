@@ -1,6 +1,9 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import io.algernon.vespera.ledger.ReplacingMove;
+import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.RecordedCluster;
+import io.algernon.vespera.synthesis.SynthesisDoc;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.Writer;
@@ -12,32 +15,31 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.LongSupplier;
 
 /**
- * Writes the tree the operator is actually handed (ADR-103, ADR-104, ADR-109, ADR-111, ADR-112,
- * #186, #187): a directory of Markdown named for the run that produced it, opened by an index that is
- * mechanical rather than generated, a file per cluster, and a manifest beside them.
+ * Writes the tree the operator is actually handed (ADR-103, ADR-104, ADR-109, ADR-111, ADR-112, ADR-273, #186,
+ * #187): a directory named for the run that produced it, opened by an HTML index that is mechanical rather than
+ * generated, a page per cluster, a manifest and a verified copy of every survivor listed.
  *
  * <p><b>Plain values only.</b> This class learns no step, no stage and no {@code Profile} (ADR-110):
  * everything it needs arrives as {@link DeliverableProvenance}, {@link SurvivorPictures} and an {@link
  * ArrangedSurvivors} it asks for one seed partition at a time, which is why {@code pipeline} is the only
- * module that gathers them. No class holds every cluster or every survivor of the run (ADR-223).
+ * module that gathers them. No class holds every cluster or every survivor of the run (ADR-223). It writes no line
+ * and declares no logger; it tells its caller what it did through {@link DeliverableProgress} (ADR-273 §4).
  *
- * <p><b>The cluster files are a rendering of what 6b kept.</b> A stored answer's raw {@code [n]}
- * markers are rewritten into links to that cluster's numbered membership, and the membership is
- * composed here from the survivors rather than read out of the answer (ADR-109) — so a reader follows
- * a claim to an entry, and that entry to the original in the archive. Nothing the model wrote is
- * altered except the markers' rendering: the row still holds exactly what came back.
+ * <p><b>The pages are a rendering of what 6b kept.</b> A stored answer's raw {@code [n]} markers are rewritten into
+ * links to that cluster's numbered membership, and the membership is composed here from the survivors rather than
+ * read out of the answer (ADR-109) — so a reader follows a claim to an entry, and that entry to the document's copy
+ * in the tree. Nothing the model wrote is altered except by the renderer's subset (ADR-273 §1.3).
  *
  * <p><b>The numbering that makes a citation land is read, not derived</b> (ADR-133). Which documents
  * one call carried is recorded under the ordinals the model was given, and {@link ClusterPage#numbered} lays the
- * membership out from that record: the documents the call carried first, in citation order, then
- * every other survivor of the cluster highest-scoring first. Deriving score order a second time here
- * agreed with the model only up to the first document the call had to drop.
+ * membership out from that record.
  *
- * <p><b>The archive is never touched.</b> No original is copied, and none is stat-ed (ADR-104): every
- * path here is written exactly as it was given, and nothing calls {@code Files.exists} against the
- * corpus root or anything beneath it.
+ * <p><b>The archive is read and never written</b> (ADR-054, ADR-273 §2.6). Each survivor's original is opened for
+ * reading alone and streamed into a copy under {@code documents/}, which stands only where its bytes hash to the key
+ * stage 2 recorded ({@link Copies}). Nothing is created, moved, renamed or touched beneath the corpus root.
  *
  * <p><b>Everything a reader of this tree sees says <em>group</em>; everything this class names says
  * <em>cluster</em></b> (ADR-122). {@link #NOTHING_WAS_WRITTEN_OVER_IT} and {@link
@@ -60,22 +62,29 @@ public final class Deliverable {
     /** Where every tree this stage writes lives, beneath the working directory (ADR-103). */
     public static final String DIRECTORY_NAME = "deliverable";
 
-    /** The mechanical listing at the root of every tree. */
-    public static final String INDEX_FILE_NAME = "index.md";
+    /** The mechanical listing at the root of every tree (ADR-273 §1). */
+    public static final String INDEX_FILE_NAME = "index.html";
 
     /** The manifest at the root of every tree (ADR-104, ADR-112). */
     public static final String MANIFEST_FILE_NAME = "documents.csv";
+
+    /**
+     * What the working directory's drive must still have free after a copy is made (ADR-273 §2.5): the database lives
+     * there, and a full drive would fail a step that had finished its work. A bound of the tool, as {@link
+     * #PICTURES_PER_DOCUMENT} is, and not a judgement about any corpus.
+     */
+    public static final long COPY_HEADROOM_BYTES = 1L << 30;
 
     /** What a page is called while it is being written beside its target, before it is moved over it. */
     static final String PART_SUFFIX = ".part";
 
     /**
-     * What {@code index.md} says in place of a title for a cluster nothing was written over
-     * (ADR-111). A bound name of ours, naming a cluster in its own javadoc; a value rendered for the
+     * What the index says in place of a title for a cluster nothing was written over
+     * (ADR-111), shown in italics. A bound name of ours, naming a cluster in its own javadoc; a value rendered for the
      * operator, naming a group (ADR-122) — the two are answered by different rules, and sitting on one
      * line of source joins them not at all.
      */
-    static final String NOTHING_WAS_WRITTEN_OVER_IT = "*nothing was written over this group*";
+    static final String NOTHING_WAS_WRITTEN_OVER_IT = "nothing was written over this group";
 
     /**
      * What stands at the number of a document the writing was made from and the cluster no longer
@@ -87,13 +96,12 @@ public final class Deliverable {
      * wrong documents, which is the defect this numbering exists to close.
      */
     static final String THE_CLUSTER_NO_LONGER_HOLDS_IT =
-            "*a document the writing was made from, which this group no longer holds*";
-
+            "a document the writing was made from, which this group no longer holds";
 
     /**
      * The most pictures one document's entry shows (ADR-149 §6), fixed in code because it is about how
      * much one entry of a page can carry before a reader loses the list rather than a judgement about
-     * any one corpus (ADR-140's precedent). {@code synthesis} cannot read {@code Profile} (ADR-110), so
+     * any one corpus (ADR-140's precedent). This module cannot read {@code Profile} (ADR-110), so
      * this is not a profile key.
      */
     static final int PICTURES_PER_DOCUMENT = 10;
@@ -102,22 +110,23 @@ public final class Deliverable {
 
     /**
      * Writes the whole tree and returns where it landed, tells {@code progress} the total of each of the
-     * five loops that read or write something, once and in the order {@link DeliverableProgress} fixes, and
+     * loops that read or write something, once and in the order {@link DeliverableProgress} fixes, and
      * each item as it is done (ADR-192 section 5). This module writes no line.
      *
      * <p>{@code pictures} is asked about every listed survivor twice, in two passes that never hold
      * more than one document's pixels at a time (ADR-149 §9): first to decide the set of furniture
-     * digests under ADR-149 §1(a)/(b) and ADR-150 §3(c)/(d), and again, one cluster file at a time, to
+     * digests under ADR-149 §1(a)/(b) and ADR-150 §3(c)/(d), and again, one page at a time, to
      * write the pictures that pass it.
      *
      * <p>The partitions are asked for before anything is made or reported, so a partition {@link
-     * ListedPartition} refuses leaves nothing written. A cluster nothing was written over has its page say why
+     * ListedPartition} refuses leaves nothing written. A partition's copies are made before its pages are written
+     * (ADR-273 §2.2), so each page states what stands. A cluster nothing was written over has its page say why
      * where {@code source} gives a reason (ADR-174); only the cluster's own page changes, the index cell and
      * the manifest read the same either way.
      *
      * @param workingDirectory the directory the database is in — the one thing that moves anything
      *     this tool writes (ADR-103)
-     * @param provenance what produced the tree, stated so {@code index.md} needs no database beside it
+     * @param provenance what produced the tree, stated so {@code index.html} needs no database beside it
      * @param source the arrangement, its writing and its survivors, a seed partition at a time
      * @param pictures where a survivor's pictures come from, {@link SurvivorPictures#none()} to write
      *     the tree this class wrote before it knew about pictures
@@ -144,13 +153,39 @@ public final class Deliverable {
             SurvivorPictures pictures,
             DeliverableProgress progress,
             ReplacingMove moves) {
+        return writeTo(workingDirectory, provenance, source, pictures, progress, moves, () -> usableBytesAt(workingDirectory));
+    }
+
+    /**
+     * As above, with {@code usableSpace} answering how many bytes the working directory's drive has free each time
+     * a copy asks (ADR-273 §2.5), which the shipped form reads off the file store.
+     */
+    static Path writeTo(
+            Path workingDirectory,
+            DeliverableProvenance provenance,
+            ArrangedSurvivors source,
+            SurvivorPictures pictures,
+            DeliverableProgress progress,
+            ReplacingMove moves,
+            LongSupplier usableSpace) {
         Path tree = workingDirectory.resolve(DIRECTORY_NAME).resolve(provenance.runId());
         List<ListedPartition> partitions = source.partitions();
         try {
-            Files.createDirectories(tree);
-            EntryPictures entryPictures = EntryPictures.among(source, pictures, progress);
-            Path indexPart = writeIndexAndClusterFiles(tree, provenance, partitions, source, entryPictures, progress);
-            Path manifestPart = writeManifest(tree, source, progress);
+            Files.createDirectories(tree.resolve(Copies.DIRECTORY_NAME));
+            Copies copies = new Copies(tree, provenance.corpusRoot(), moves, usableSpace, progress);
+            long[] aboutToCopy = new long[2];
+            EntryPictures entryPictures = EntryPictures.among(source, pictures, progress, page -> {
+                for (ListedSurvivor survivor : page) {
+                    if (!copies.stands(survivor)) {
+                        aboutToCopy[0]++;
+                        aboutToCopy[1] += Copies.sizeOf(provenance.corpusRoot(), survivor);
+                    }
+                }
+            });
+            progress.toCopySurvivors(aboutToCopy[0], aboutToCopy[1], usableSpace.getAsLong());
+            Path indexPart =
+                    writeIndexAndClusterPages(tree, provenance, partitions, source, entryPictures, copies, progress);
+            Path manifestPart = writeManifest(tree, source, copies, progress);
             // Both are whole before either is moved, so a write that fails before the first move leaves the pair
             // the write before left, or none; only the manifest's own move failing leaves the new index beside the
             // old manifest (ADR-223 section 6). The index is still the last of the pages to appear.
@@ -162,13 +197,24 @@ public final class Deliverable {
         }
     }
 
-    /** Writes every cluster file and the index beside its target, and returns where the index is. */
-    private static Path writeIndexAndClusterFiles(
+    /** How many bytes the drive {@code directory} lies on has free; none where that cannot be told, so no copy is made. */
+    private static long usableBytesAt(Path directory) {
+        try {
+            Files.createDirectories(directory);
+            return Files.getFileStore(directory).getUsableSpace();
+        } catch (IOException | RuntimeException unknown) {
+            return 0;
+        }
+    }
+
+    /** Writes every cluster page and the index beside its target, and returns where the index is. */
+    private static Path writeIndexAndClusterPages(
             Path tree,
             DeliverableProvenance provenance,
             List<ListedPartition> partitions,
             ArrangedSurvivors source,
             EntryPictures pictures,
+            Copies copies,
             DeliverableProgress progress)
             throws IOException {
         // The three totals, announced before the loop over partitions. An entry carries a document exactly
@@ -183,11 +229,11 @@ public final class Deliverable {
             IndexPage.open(index, provenance);
             for (ListedPartition partition : partitions) {
                 List<RecordedCluster> clusters = source.clustersOf(partition);
+                List<ListedSurvivor> survivors = source.survivorsOf(partition);
+                copies.copyAll(survivors);
                 Map<ClusterSlot, List<ListedSurvivor>> membersByCluster = new HashMap<>();
-                for (ListedSurvivor survivor : source.survivorsOf(partition)) {
-                    membersByCluster
-                            .computeIfAbsent(ClusterSlot.of(survivor), key -> new ArrayList<>())
-                            .add(survivor);
+                for (ListedSurvivor survivor : survivors) {
+                    membersByCluster.computeIfAbsent(survivor.slot(), key -> new ArrayList<>()).add(survivor);
                 }
                 Path partitionDir = tree.resolve(IndexPage.partitionDirectoryName(partition, partitions.size()));
                 Files.createDirectories(partitionDir);
@@ -195,7 +241,7 @@ public final class Deliverable {
                 IndexPage.partitionHeading(index, partition);
                 for (RecordedCluster recorded : clusters) {
                     ClusterSlot slot = ClusterSlot.of(recorded);
-                    // One read of the cluster's synthesis doc serves its file and its row of the index (ADR-241).
+                    // One read of the cluster's synthesis doc serves its page and its row of the index (ADR-241).
                     Optional<SynthesisDoc> doc = source.writtenOver(slot);
                     ClusterPage.write(
                             partitionDir.resolve(IndexPage.clusterFileName(recorded, clusterWidth)),
@@ -203,25 +249,27 @@ public final class Deliverable {
                             doc.orElse(null),
                             doc.isEmpty() ? source.whyUnwritten(slot).orElse(null) : null,
                             membersByCluster.getOrDefault(slot, List.of()),
-                            provenance.corpusRoot(),
+                            copies,
                             pictures,
                             progress);
                     progress.clusterFileWritten();
                     IndexPage.clusterRow(index, partition, partitions.size(), recorded, doc);
                 }
+                IndexPage.partitionEnd(index);
                 progress.partitionWritten();
             }
+            IndexPage.close(index);
         }
         return indexPart;
     }
 
     /** Writes the manifest beside its target, and returns where it is. */
-    private static Path writeManifest(Path tree, ArrangedSurvivors source, DeliverableProgress progress)
+    private static Path writeManifest(Path tree, ArrangedSurvivors source, Copies copies, DeliverableProgress progress)
             throws IOException {
         progress.toWriteManifestRows(source.survivorCount());
         Path manifestPart = tree.resolve(MANIFEST_FILE_NAME + PART_SUFFIX);
         try (Writer csv = Files.newBufferedWriter(manifestPart, StandardCharsets.UTF_8)) {
-            ManifestCsv.write(csv, source, progress);
+            ManifestCsv.write(csv, source, progress, copies);
         }
         return manifestPart;
     }

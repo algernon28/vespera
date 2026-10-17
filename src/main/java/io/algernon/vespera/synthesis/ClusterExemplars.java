@@ -7,8 +7,8 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Where the walk asks for one cluster's documents and the path of its seed, on the precedent of {@link SurvivorPictures}
- * (ADR-149). {@code pipeline} implements it as a lambda (ADR-190).
+ * Where the walk asks for one cluster's documents and the path of its seed, on the precedent of {@code deliverable}'s
+ * {@code SurvivorPictures} (ADR-149). {@code pipeline} implements it as a lambda (ADR-190).
  */
 @FunctionalInterface
 public interface ClusterExemplars {

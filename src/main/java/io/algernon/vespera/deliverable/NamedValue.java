@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 /**
  * One profile value the run consumed, carried as a plain key-value pair so {@link Deliverable} can

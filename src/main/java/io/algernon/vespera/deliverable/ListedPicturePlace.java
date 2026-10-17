@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 /**
  * Where on its page a survivor's picture sat, as far as {@link Deliverable} needs to know about one

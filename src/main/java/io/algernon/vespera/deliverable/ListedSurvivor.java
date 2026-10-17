@@ -1,7 +1,8 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
+import io.algernon.vespera.synthesis.ClusterSlot;
 
 /**
  * One survivor as {@code documents.csv} carries it (ADR-104, ADR-112): every column the ledger
@@ -36,6 +37,11 @@ public record ListedSurvivor(
         String seedPath,
         int clusterOrdinal,
         double score) {
+
+    /** The cluster this survivor is a member of, by its seed and its ordinal there. */
+    public ClusterSlot slot() {
+        return new ClusterSlot(winningSeed, clusterOrdinal);
+    }
 
     /**
      * The survivor with the score on record for it, or {@code 0.0} where there is none (ADR-226, moving

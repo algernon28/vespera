@@ -12,8 +12,9 @@ import java.util.List;
  * RunIdentityGoldenTest} pins every row as literal text.
  *
  * <p>A stage lists {@code pipeline} only while a class of {@code pipeline} holds a rule that shapes
- * that stage's output (ADR-222 §1). None does (ADR-226), so no stage lists it; generation lists {@code
- * profile} instead, which owns the profile's shape and the rule for every key of it on the deliverable's index.
+ * that stage's output (ADR-222 §1). None does (ADR-226), so no stage lists it. No stage lists {@code deliverable}
+ * or {@code profile} either: the tree is drawn from the rows generation records and keys no run, and the rule for
+ * every profile key on its index is a rule of how it is drawn (ADR-273 §5).
  */
 enum StageModules {
     BYTE_LEVEL_REDUCTION("byte-level-reduction", List.of("corpus")),
@@ -23,7 +24,7 @@ enum StageModules {
     SEED_MEASUREMENT("seed-measurement", List.of("embedding", "extraction")),
     EMBEDDING_SCORING("embedding-scoring", List.of("embedding", "extraction")),
     ARRANGEMENT("arrangement", List.of("synthesis", "extraction", "embedding")),
-    GENERATION("generation", List.of("synthesis", "extraction", "embedding", "profile"));
+    GENERATION("generation", List.of("synthesis", "extraction", "embedding"));
 
     private final String stage;
     private final List<String> modules;

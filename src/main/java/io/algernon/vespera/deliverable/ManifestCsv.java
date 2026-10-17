@@ -1,5 +1,7 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
+import io.algernon.vespera.synthesis.ArrangedCluster;
+import io.algernon.vespera.synthesis.ClusterSlot;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.LinkedHashSet;
@@ -14,9 +16,11 @@ import java.util.Set;
  * <p>It is written as its rows come, a page of survivors at a time, and nothing here holds the file whole
  * (ADR-223 section 7). The places of a page's clusters are asked for together, once for the page (ADR-241).
  *
- * <p>The CSV is the surrounding that answers to a parser, so its rule is a doubled quote and not a row of
- * {@link MarkdownSurroundings} (ADR-137 §4). It is opened in a spreadsheet too, so a path that one would run
- * as a formula is written behind a single quote (ADR-235).
+ * <p>The CSV is the surrounding that answers to a parser, so its rule is a doubled quote and not the HTML
+ * escaping rule (ADR-137 §4). It is opened in a spreadsheet too, so a path that one would run
+ * as a formula is written behind a single quote (ADR-235). Its last two columns, {@code copy} and {@code
+ * copy_outcome}, say what became of each survivor's copy (ADR-273 §1.4); both are words and names of the tree's
+ * own, and need no quoting.
  */
 final class ManifestCsv {
 
@@ -26,7 +30,7 @@ final class ManifestCsv {
      * (ADR-122).
      */
     private static final String HEADER = "occurrence_id,path,content_hash,winning_seed,"
-            + "relevance_score,seed_partition,cluster,partition_order,cluster_order";
+            + "relevance_score,seed_partition,cluster,partition_order,cluster_order,copy,copy_outcome";
 
     private ManifestCsv() {}
 
@@ -36,16 +40,17 @@ final class ManifestCsv {
      *
      * @throws IllegalArgumentException where a survivor names a cluster the arrangement does not carry
      */
-    static void write(Appendable csv, ArrangedSurvivors source, DeliverableProgress progress) throws IOException {
+    static void write(Appendable csv, ArrangedSurvivors source, DeliverableProgress progress, Copies copies)
+            throws IOException {
         csv.append(HEADER).append('\n');
         try {
             source.eachPageOfSurvivorsForTheManifest(page -> {
                 Set<ClusterSlot> clusters = new LinkedHashSet<>();
-                page.forEach(survivor -> clusters.add(ClusterSlot.of(survivor)));
+                page.forEach(survivor -> clusters.add(survivor.slot()));
                 Map<ClusterSlot, ArrangedCluster> places = clusters.isEmpty() ? Map.of() : source.placesOf(clusters);
                 for (ListedSurvivor survivor : page) {
                     try {
-                        append(csv, survivor, places);
+                        append(csv, survivor, places, copies.outcomeOf(survivor));
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -57,9 +62,10 @@ final class ManifestCsv {
         }
     }
 
-    private static void append(Appendable csv, ListedSurvivor survivor, Map<ClusterSlot, ArrangedCluster> places)
+    private static void append(
+            Appendable csv, ListedSurvivor survivor, Map<ClusterSlot, ArrangedCluster> places, CopyOutcome outcome)
             throws IOException {
-        ArrangedCluster cluster = Optional.ofNullable(places.get(ClusterSlot.of(survivor)))
+        ArrangedCluster cluster = Optional.ofNullable(places.get(survivor.slot()))
                 .orElseThrow(() ->
                         // ADR-105 and #175 §6: the arrangement is total over the survivors it was built from,
                         // so a survivor with no cluster row is a broken invariant, not a document the
@@ -86,6 +92,10 @@ final class ManifestCsv {
                 .append(String.valueOf(cluster.partitionOrder()))
                 .append(',')
                 .append(String.valueOf(cluster.clusterOrder()))
+                .append(',')
+                .append(outcome == CopyOutcome.COPIED ? Copies.pathOf(survivor) : "")
+                .append(',')
+                .append(outcome.word())
                 .append('\n');
     }
 

@@ -1,5 +1,10 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
+import io.algernon.vespera.synthesis.ArrangedCluster;
+import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.RecordedCluster;
+import io.algernon.vespera.synthesis.SynthesisDoc;
+import io.algernon.vespera.synthesis.Unwritten;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

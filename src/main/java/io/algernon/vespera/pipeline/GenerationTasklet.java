@@ -23,8 +23,17 @@ import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
+import io.algernon.vespera.deliverable.ArrangedSurvivors;
+import io.algernon.vespera.deliverable.Deliverable;
+import io.algernon.vespera.deliverable.DeliverableProgress;
+import io.algernon.vespera.deliverable.DeliverableProvenance;
+import io.algernon.vespera.deliverable.ListedPartition;
+import io.algernon.vespera.deliverable.ListedPicture;
+import io.algernon.vespera.deliverable.ListedPicturePlace;
+import io.algernon.vespera.deliverable.ListedSurvivor;
+import io.algernon.vespera.deliverable.NamedValue;
+import io.algernon.vespera.deliverable.SurvivorPictures;
 import io.algernon.vespera.synthesis.ArrangedPartition;
-import io.algernon.vespera.synthesis.ArrangedSurvivors;
 import io.algernon.vespera.synthesis.ClusterFault;
 import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.ClusterExemplars;
@@ -32,22 +41,14 @@ import io.algernon.vespera.synthesis.ClusterGeneration;
 import io.algernon.vespera.synthesis.ClusterSlot;
 import io.algernon.vespera.synthesis.ClusterMaterial;
 import io.algernon.vespera.synthesis.Clusters;
-import io.algernon.vespera.synthesis.Deliverable;
-import io.algernon.vespera.synthesis.DeliverableProgress;
-import io.algernon.vespera.synthesis.DeliverableProvenance;
 import io.algernon.vespera.synthesis.GenerationOutcome;
 import io.algernon.vespera.synthesis.GenerationProgress;
-import io.algernon.vespera.synthesis.ListedPartition;
-import io.algernon.vespera.synthesis.ListedPicture;
-import io.algernon.vespera.synthesis.ListedPicturePlace;
-import io.algernon.vespera.synthesis.ListedSurvivor;
-import io.algernon.vespera.synthesis.NamedValue;
 import io.algernon.vespera.synthesis.OpeningText;
 import io.algernon.vespera.synthesis.RecordedCluster;
-import io.algernon.vespera.synthesis.SurvivorPictures;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.algernon.vespera.synthesis.SynthesisStatement;
 import io.algernon.vespera.synthesis.Unwritten;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -69,6 +70,7 @@ import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -152,6 +154,7 @@ class GenerationTasklet implements Tasklet {
     private final Ledger ledger;
     private final ProfileStore profileStore;
     private final OllamaClient ollamaClient;
+    private final ObjectProvider<PageOpener> opener;
     private final Path root;
     private final Path workingDirectory;
 
@@ -173,6 +176,7 @@ class GenerationTasklet implements Tasklet {
             Ledger ledger,
             ProfileStore profileStore,
             OllamaClient ollamaClient,
+            ObjectProvider<PageOpener> opener,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory) {
         this.arrangementGate = arrangementGate;
@@ -196,6 +200,7 @@ class GenerationTasklet implements Tasklet {
         this.ledger = ledger;
         this.profileStore = profileStore;
         this.ollamaClient = ollamaClient;
+        this.opener = opener;
         this.root = root;
         this.workingDirectory = workingDirectory;
     }
@@ -248,20 +253,21 @@ class GenerationTasklet implements Tasklet {
                 ledger,
                 generation,
                 StepNames.GENERATION,
-                () -> LOG.info("the generation step was already recorded under run {}", generation.value()),
+                () -> {
+                    LOG.info("the generation step was already recorded under run {}", generation.value());
+                    // The tree is drawn again from the rows as they stand, and no question is put (ADR-273 §6).
+                    // A recorded step has no cluster this invocation found unsendable: such a step never finishes.
+                    RunId scoring = scoringRunBehind(arrangement);
+                    List<ArrangedPartition> partitions = readPartitions(arrangement);
+                    drawTree(
+                            chunkContext, generation, walk.get(), byteLevelReductionRun, canonicalRoot,
+                            arrangement, scoring, partitions, placesOf(partitions), Map.of());
+                },
                 () -> {},
                 () -> {
                     RunId scoring = scoringRunBehind(arrangement);
-                    // One row a seed, kept for the tree as well as for the walk (ADR-223 section 5).
-                    List<ArrangedPartition> partitions = TimedStatement.of(
-                            STAGE, "reading", "read", "the seed partitions of the arrangement",
-                            () -> clusters.partitionsOf(arrangement));
-                    // Each seed's place, counted from one, which every line of a read of one partition names
-                    // and the tree's reads name again (ADR-223 section 8).
-                    Map<OccurrenceId, Integer> places = new HashMap<>();
-                    for (ArrangedPartition partition : partitions) {
-                        places.put(partition.winningSeed(), places.size() + 1);
-                    }
+                    List<ArrangedPartition> partitions = readPartitions(arrangement);
+                    Map<OccurrenceId, Integer> places = placesOf(partitions);
                     int contextWindow = generationContextWindow.size();
                     // A running counter: how many members a cluster has is known only as it is reached.
                     StageProgress documentsOpened =
@@ -316,8 +322,8 @@ class GenerationTasklet implements Tasklet {
                     // rule (ADR-111, ADR-116) are ClusterGeneration's.
                     if (outcome instanceof GenerationOutcome.Stopped stopped) {
                         stopTheStep(contribution, chunkContext, stopped.turnedDownInARow(), generation);
-                        writeDeliverable(
-                                generation, walk.get(), byteLevelReductionRun, canonicalRoot,
+                        drawTree(
+                                chunkContext, generation, walk.get(), byteLevelReductionRun, canonicalRoot,
                                 arrangement, scoring, partitions, places, outcome.unsendable());
                         return false;
                     }
@@ -334,15 +340,15 @@ class GenerationTasklet implements Tasklet {
                                 unfinished.standingFaults(),
                                 unfinished.faultedThisInvocation(),
                                 generation.value());
-                        writeDeliverable(
-                                generation, walk.get(), byteLevelReductionRun, canonicalRoot,
+                        drawTree(
+                                chunkContext, generation, walk.get(), byteLevelReductionRun, canonicalRoot,
                                 arrangement, scoring, partitions, places, outcome.unsendable());
                         return false;
                     }
 
                     GenerationOutcome.Finished finished = (GenerationOutcome.Finished) outcome;
-                    Path tree = writeDeliverable(
-                            generation, walk.get(), byteLevelReductionRun, canonicalRoot,
+                    Path tree = drawTree(
+                            chunkContext, generation, walk.get(), byteLevelReductionRun, canonicalRoot,
                             arrangement, scoring, partitions, places, outcome.unsendable());
                     LOG.info(
                             "The generation step finished under {}, over the arrangement approved as {}:"
@@ -460,9 +466,92 @@ class GenerationTasklet implements Tasklet {
         };
     }
 
-    /** The five counters of the tree, told by {@code synthesis} what each loop's total is (ADR-192 section 5). */
-    private static DeliverableProgress treeProgress() {
+    /** One row a seed, kept for the tree as well as for the walk (ADR-223 section 5). */
+    private List<ArrangedPartition> readPartitions(RunId arrangement) {
+        return TimedStatement.of(
+                STAGE, "reading", "read", "the seed partitions of the arrangement",
+                () -> clusters.partitionsOf(arrangement));
+    }
+
+    /**
+     * Each seed's place, counted from one, which every line of a read of one partition names and the tree's reads
+     * name again (ADR-223 section 8).
+     */
+    private static Map<OccurrenceId, Integer> placesOf(List<ArrangedPartition> partitions) {
+        Map<OccurrenceId, Integer> places = new HashMap<>();
+        for (ArrangedPartition partition : partitions) {
+            places.put(partition.winningSeed(), places.size() + 1);
+        }
+        return places;
+    }
+
+    /**
+     * Draws the tree, hands the closing line how many documents' copies do not stand in it, and has the index
+     * opened once it is in place (ADR-273 §6, §7). Every invocation that reaches the tree does this, the step
+     * already recorded finished included, and none puts a question to the model.
+     *
+     * <p>What it writes is counts: no path, file name or document text, and no exception's message (ADR-273 §8).
+     */
+    private Path drawTree(
+            ChunkContext chunkContext,
+            RunId generation,
+            WalkId walkId,
+            RunId byteLevelReductionRun,
+            Path canonicalRoot,
+            RunId arrangement,
+            RunId scoring,
+            List<ArrangedPartition> arranged,
+            Map<OccurrenceId, Integer> places,
+            Map<ClusterSlot, Unwritten> foundThisRun) {
+        CopyCounts copies = new CopyCounts();
+        Path tree = writeDeliverable(
+                copies, generation, walkId, byteLevelReductionRun, canonicalRoot, arrangement, scoring, arranged,
+                places, foundThisRun);
+        LOG.info(
+                "Stage 6b (generation, copies): {} copied, {} already standing, {} changed since they were"
+                        + " read, {} gone, {} with no room left on the drive, {} not copied for another reason;"
+                        + " {} bytes copied",
+                copies.copied, copies.alreadyStanding, copies.changed, copies.gone, copies.noRoom, copies.other,
+                copies.bytes);
+        new InvocationRuns(chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext())
+                .recordDocumentsNotCopied(copies.notStanding());
+        openTheIndex(tree);
+        return tree;
+    }
+
+    /** Hands the index to the opener once, after it is in place; an opener that fails is one warning (ADR-273 §7). */
+    private void openTheIndex(Path tree) {
+        PageOpener pageOpener = opener.getIfAvailable();
+        if (pageOpener == null) {
+            return;
+        }
+        try {
+            pageOpener.open(tree.toAbsolutePath().normalize().resolve(Deliverable.INDEX_FILE_NAME).toUri());
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("the deliverable's index could not be opened: {}", e.getClass().getName());
+        }
+    }
+
+    /** What became of each survivor's copy, as the tree's writer told it, and how many bytes were copied (ADR-273 §2.5). */
+    private static final class CopyCounts {
+        long copied;
+        long alreadyStanding;
+        long changed;
+        long gone;
+        long noRoom;
+        long other;
+        long bytes;
+
+        /** The survivors whose copy does not stand: every outcome but a copy made or kept. */
+        int notStanding() {
+            return Math.toIntExact(changed + gone + noRoom + other);
+        }
+    }
+
+    /** The counters of the tree, told by {@code deliverable} what each loop's total is (ADR-192 section 5). */
+    private static DeliverableProgress treeProgress(CopyCounts counts) {
         return new DeliverableProgress() {
+            private StageProgress toCopy = StageProgress.over("Stage 6b (generation, survivors copied)", 0);
             private StageProgress pictures;
             private StageProgress partitions;
             private StageProgress files;
@@ -477,6 +566,53 @@ class GenerationTasklet implements Tasklet {
             @Override
             public void picturesListed() {
                 pictures.itemDone();
+            }
+
+            @Override
+            public void toCopySurvivors(long survivors, long bytes, long usableBytes) {
+                LOG.info(
+                        "Stage 6b (generation, copies): about to copy {} document(s) holding {} bytes; the drive has"
+                                + " {} bytes free",
+                        survivors,
+                        bytes,
+                        usableBytes);
+                toCopy = StageProgress.over("Stage 6b (generation, survivors copied)", survivors);
+            }
+
+            @Override
+            public void survivorCopied(long bytes) {
+                counts.copied++;
+                counts.bytes += bytes;
+                toCopy.itemDone();
+            }
+
+            @Override
+            public void survivorAlreadyCopied() {
+                counts.alreadyStanding++;
+            }
+
+            @Override
+            public void survivorChanged() {
+                counts.changed++;
+                toCopy.itemDone();
+            }
+
+            @Override
+            public void survivorGone() {
+                counts.gone++;
+                toCopy.itemDone();
+            }
+
+            @Override
+            public void survivorWithNoRoom() {
+                counts.noRoom++;
+                toCopy.itemDone();
+            }
+
+            @Override
+            public void survivorNotCopied() {
+                counts.other++;
+                toCopy.itemDone();
             }
 
             @Override
@@ -540,6 +676,7 @@ class GenerationTasklet implements Tasklet {
      * each a page of survivors at a time (ADR-240). No archive file is opened.
      */
     private Path writeDeliverable(
+            CopyCounts copies,
             RunId generation,
             WalkId walkId,
             RunId byteLevelReductionRun,
@@ -607,7 +744,7 @@ class GenerationTasklet implements Tasklet {
                 provenance,
                 source,
                 survivorPictures(byteLevelReductionRun),
-                treeProgress());
+                treeProgress(copies));
     }
 
     /** Every survivor of the arrangement a page at a time, the read reported under {@code statement}. */

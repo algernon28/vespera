@@ -2,10 +2,10 @@ package io.algernon.vespera.synthesis;
 
 /**
  * A filename without its folders or its extension, written once (ADR-213 §4). {@link ClusterLabel}
- * names a cluster from it where the lead document has no title, and the deliverable names a partition
- * directory and a picture directory from it.
+ * names a cluster from it where the lead document has no title, and {@code deliverable} names a partition
+ * folder, a picture folder and a copy from it (ADR-273 §4).
  */
-final class FilenameStem {
+public final class FilenameStem {
 
     private FilenameStem() {}
 
@@ -19,7 +19,7 @@ final class FilenameStem {
      * what makes {@link ClusterLabel}'s third tier reachable at all. Left the other way the chain would
      * have had a tier nothing could arrive at — the defect ADR-096 was written about one stage earlier.
      */
-    static String of(String path) {
+    public static String of(String path) {
         String filename = path.substring(path.lastIndexOf('/') + 1);
         int extension = filename.lastIndexOf('.');
         return extension < 0 ? filename : filename.substring(0, extension);

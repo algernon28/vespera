@@ -1,49 +1,27 @@
 package io.algernon.vespera.synthesis;
 
 /**
- * Why nothing was written over a cluster, as the line its own page carries in place of the writing
- * (ADR-174).
+ * Why nothing was written over a cluster (ADR-174). The sentence a page carries for each is {@code deliverable}'s to
+ * word, in HTML (ADR-273 §4); this module keeps the reasons and the ways of arriving at one.
  *
- * <p>Each {@link #sentence()} is prose for a reader of the tree, who has no database to look a reason
- * up in (ADR-103): it says <em>group</em> where the code says cluster and names no
- * {@link ClusterFaultKind} (ADR-122), and it never shows a fault's {@code detail}. Each describes what
- * happened in one run and nothing more, so no sentence says the gap is for good: the next invocation
- * that reaches the writing rewrites the page, and a repaired cluster simply carries its writing
- * (ADR-111).
+ * <p>Each describes what happened in one run and nothing more, so no reason is ever for good: the next invocation
+ * that reaches the writing rewrites the page, and a repaired cluster simply carries its writing (ADR-111).
  */
 public enum Unwritten {
     /** The question came to more than the window, by the engine's count or by its refusal. */
-    FAULT_PROMPT_EVALUATION_CEILING("*Nothing was written over this group: its documents came to more than the"
-            + " writing model was given room to read at once.*"),
+    FAULT_PROMPT_EVALUATION_CEILING,
     /** The answer stopped at the length it was allowed. */
-    FAULT_ANSWER_RAN_OUT_OF_ROOM("*Nothing was written over this group: the writing model's answer reached its"
-            + " length limit before it was finished, so it was not used.*"),
+    FAULT_ANSWER_RAN_OUT_OF_ROOM,
     /** The answer could not be read into the shape the call imposed. */
-    FAULT_SCHEMA_VIOLATION("*Nothing was written over this group: the writing model's answer did not come back"
-            + " in the shape it was asked for, so it was not used.*"),
+    FAULT_SCHEMA_VIOLATION,
     /** The writing cited outside the documents sent, or cited nothing. */
-    FAULT_CITATION_NOT_IN_RANGE("*Nothing was written over this group: the writing model's answer cited"
-            + " documents it had not been given, or cited none, so it was not used.*"),
+    FAULT_CITATION_NOT_IN_RANGE,
     /** None of the cluster's members could be sent (ADR-121's first route). */
-    NO_SENDABLE_DOCUMENT("*Nothing was written over this group: none of its documents could be read and sent"
-            + " to the writing model.*"),
+    NO_SENDABLE_DOCUMENT,
     /** Every sendable member was estimated too long for the window (ADR-121's second route). */
-    NOTHING_FITS_THE_WINDOW("*Nothing was written over this group: each of its documents that could be read"
-            + " was judged longer than the writing model was given room to read at once, so none was sent.*"),
+    NOTHING_FITS_THE_WINDOW,
     /** The step stopped after five turned-down answers before reaching this cluster (ADR-111). */
-    NOT_REACHED("*Nothing has been written over this group yet: writing stopped before it reached this group."
-            + " Running the same command again carries the writing on.*");
-
-    private final String sentence;
-
-    Unwritten(String sentence) {
-        this.sentence = sentence;
-    }
-
-    /** The line the cluster's page carries under its heading, where the writing would stand. */
-    public String sentence() {
-        return sentence;
-    }
+    NOT_REACHED;
 
     /**
      * Why a cluster without a synthesis doc went unwritten, for its page to say (ADR-174 §4, ADR-226).

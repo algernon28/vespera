@@ -10,14 +10,15 @@ import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
+import io.algernon.vespera.deliverable.Deliverable;
 import io.algernon.vespera.synthesis.Clusters;
-import io.algernon.vespera.synthesis.Deliverable;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -168,17 +169,18 @@ class NextAction {
                 questionsWritten(),
                 arrangement.map(ArrangementGate::shortNameOf).orElse(null),
                 generationModelName(),
-                deliverableFor(generation).orElse(null),
+                deliverableFor(generation, invocationRuns).orElse(null),
                 approvalMatchesThisInvocation);
     }
 
     /**
-     * The deliverable this invocation's corpus already has, if a generation run stands for this
-     * invocation — so this is still right on an invocation whose step was already recorded finished and
-     * wrote nothing this time (ADR-103, ADR-111, #186).
+     * The deliverable this invocation's corpus has, if a generation run stands for this invocation — and, since
+     * every invocation that reaches the tree draws it (ADR-273 §6), the count of documents not copied in the one it
+     * drew, which the generation step handed over in the job's execution context (ADR-273 §7).
      */
-    private Optional<DeliverableSummary> deliverableFor(Optional<RunId> generation) {
-        return generation.flatMap(this::summarize);
+    private Optional<DeliverableSummary> deliverableFor(Optional<RunId> generation, InvocationRuns invocationRuns) {
+        return generation.flatMap(this::summarize).map(summary -> new DeliverableSummary(
+                summary.tree(), summary.clustersLeftUnwritten(), invocationRuns.documentsNotCopied()));
     }
 
     /**
@@ -207,17 +209,19 @@ class NextAction {
         }
         int arranged = clustersBean.countForRun(upstream.getFirst());
         int written = synthesisDocsBean.countForRun(generation);
-        return Optional.of(new DeliverableSummary(tree, Math.max(0, arranged - written)));
+        return Optional.of(new DeliverableSummary(tree, Math.max(0, arranged - written), OptionalInt.empty()));
     }
 
     /**
-     * What the closing line says about the deliverable: where it is, and how many of its clusters carry
-     * no writing.
+     * What the closing line says about the deliverable: where its index is, how many of its clusters carry
+     * no writing, and how many documents were not copied into the tree this invocation wrote.
      *
      * @param tree the tree's own path
      * @param clustersLeftUnwritten how many clusters of the arrangement carry no writing
+     * @param documentsNotCopied how many documents' copies do not stand in the tree this invocation wrote, or empty
+     *     where this invocation wrote none (ADR-273 §7)
      */
-    record DeliverableSummary(Path tree, int clustersLeftUnwritten) {}
+    record DeliverableSummary(Path tree, int clustersLeftUnwritten, OptionalInt documentsNotCopied) {}
 
     /**
      * Whether a label file exists to be answered.
@@ -340,10 +344,17 @@ class NextAction {
                 return "Every value the profile asks for is answered, including the arrangement you"
                         + " approved. Nothing is left to set.";
             }
+            String notCopied = deliverable.documentsNotCopied().isEmpty()
+                    ? ""
+                    : " and " + deliverable.documentsNotCopied().getAsInt() + " "
+                            + (deliverable.documentsNotCopied().getAsInt() == 1 ? "document" : "documents")
+                            + " not copied";
             return "Every value the profile asks for is answered, including the arrangement you"
-                    + " approved. Nothing is left to set. The deliverable is at " + deliverable.tree()
+                    + " approved. Nothing is left to set. The deliverable is at "
+                    + deliverable.tree().resolve(Deliverable.INDEX_FILE_NAME)
                     + ", with " + deliverable.clustersLeftUnwritten() + " "
-                    + (deliverable.clustersLeftUnwritten() == 1 ? "group" : "groups") + " left unwritten.";
+                    + (deliverable.clustersLeftUnwritten() == 1 ? "group" : "groups") + " left unwritten"
+                    + notCopied + ".";
         }
         if (!questionsWritten) {
             return whatIsSet(profile, answersRecorded) + " No questions were written this invocation,"

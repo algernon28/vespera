@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 
