@@ -198,7 +198,7 @@ public final class Deliverable {
     }
 
     /** How many bytes the drive {@code directory} lies on has free; none where that cannot be told, so no copy is made. */
-    private static long usableBytesAt(Path directory) {
+    static long usableBytesAt(Path directory) {
         try {
             Files.createDirectories(directory);
             return Files.getFileStore(directory).getUsableSpace();

@@ -23,7 +23,6 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
@@ -341,27 +340,24 @@ class EverySurvivorIsCopiedTest {
     }
 
     /**
-     * The shipped reading of the drive's free space, reached by reflection: {@code Deliverable.usableBytesAt} is
-     * private, and no public form of the writer can be given a working directory whose drive cannot be read and
-     * still write a tree there. A rename of the method fails this test loudly rather than passing it.
+     * The shipped reading of the drive's free space, {@code Deliverable.usableBytesAt}, asked directly: no public
+     * form of the writer can be given a working directory whose drive cannot be read and still write a tree there.
      */
     @Test
     @Story("Copying never fills the drive the database is on")
     @DisplayName("The tree's own reading of the drive's free space gives none where the free space cannot be read")
-    void aFreeSpaceThatCannotBeReadCountsAsNone(@TempDir Path base) throws Exception {
+    void aFreeSpaceThatCannotBeReadCountsAsNone(@TempDir Path base) throws IOException {
         Path aFile = base.resolve("a-file");
         Files.writeString(aFile, "not a folder");
         Path beneathAFile = aFile.resolve("work");
-        Method usableBytesAt = Deliverable.class.getDeclaredMethod("usableBytesAt", Path.class);
-        usableBytesAt.setAccessible(true);
 
         claim(
                 "the precondition: the drive the test's own folder lies on is read as having room",
-                () -> assertThat((long) usableBytesAt.invoke(null, base)).isPositive());
+                () -> assertThat(Deliverable.usableBytesAt(base)).isPositive());
         claim(
                 "and a working directory beneath a file, whose drive's free space cannot be read, is read as having"
                         + " 0 bytes free",
-                () -> assertThat((long) usableBytesAt.invoke(null, beneathAFile)).isZero());
+                () -> assertThat(Deliverable.usableBytesAt(beneathAFile)).isZero());
     }
 
     @Test
