@@ -24,7 +24,7 @@ import java.util.function.Consumer;
  * #among} is the first: every listed survivor's pictures are asked for once, and only the digest and difference
  * hash of each distinct picture are kept, from which the set of furniture digests is decided under
  * ADR-149 §1(a)/(b) and ADR-150 §3(c)/(d) (ADR-223 §7). {@link #appendUnder} is the second, one entry at a time: the
- * source is asked again, and what passes the furniture rule is written beside the cluster file.
+ * source is asked again, and what passes the furniture rule is written beside the cluster page.
  *
  * <p><b>One SHA-256 per picture per pass</b> (ADR-213 §5). The second pass digests each picture once, and
  * that one digest answers the furniture check and names the file. The first pass's digests are not

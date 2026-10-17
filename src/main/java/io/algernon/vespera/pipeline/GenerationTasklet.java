@@ -662,8 +662,8 @@ class GenerationTasklet implements Tasklet {
      * invocation that reached this point writes one, faulted and unsendable clusters included, because
      * the deliverable is the report (ADR-111, ADR-103, #186).
      *
-     * <p>{@code synthesis} may not read {@code Profile}, a stage, or {@code ledger}'s own tables
-     * (ADR-110), so everything {@link Deliverable#writeTo} asks for is gathered here as plain values, a
+     * <p>{@code deliverable} may not read {@code Profile}, a stage, or {@code ledger}'s own tables
+     * (ADR-110, ADR-274 section 4), so everything {@link Deliverable#writeTo} asks for is gathered here as plain values, a
      * seed partition at a time (ADR-223 section 6): every key of the profile, read off its record, and, as
      * the tree comes to them, each partition's clusters and survivors, with a survivor's path, content hash
      * and score, and a cluster's writing and the reason it has none. {@link ArrangedSurvivors#reading} takes
@@ -673,7 +673,8 @@ class GenerationTasklet implements Tasklet {
      * is cached under (ADR-151, ADR-206). Stage 1 hashes only within size-matched groups, so its own record
      * covers only some survivors, and stage 2's covers every one. It is read again each time a survivor is
      * listed, in the first pass, the partition's listing and the manifest, with the survivor's score and path,
-     * each a page of survivors at a time (ADR-240). No archive file is opened.
+     * each a page of survivors at a time (ADR-240). Each survivor's original is opened, read only, by {@code deliverable}
+     * to copy it (ADR-274 section 2).
      */
     private Path writeDeliverable(
             CopyCounts copies,

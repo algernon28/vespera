@@ -6,7 +6,7 @@ import io.algernon.vespera.synthesis.ClusterSlot;
 
 /**
  * One survivor as {@code documents.csv} carries it (ADR-104, ADR-112): every column the ledger
- * already holds but one, {@code contentHash}, which 6b takes from the file itself (ADR-151),
+ * already holds but one, {@code contentHash}, which is stage 2's recorded key (ADR-206),
  * gathered here as a plain value so {@link Deliverable} needs no capability module this ticket did
  * not already name (ADR-110).
  *
@@ -21,9 +21,9 @@ import io.algernon.vespera.synthesis.ClusterSlot;
  *
  * @param occurrence this survivor's own identity
  * @param path this survivor's own root-relative path
- * @param contentHash the SHA-256 of this survivor's bytes as lowercase hex, taken at 6b through
- *     extraction's content hash, the key its conversion is cached under (ADR-151); blank only where
- *     the archive would not hand the file over when the tree was written
+ * @param contentHash the SHA-256 of this survivor's bytes as lowercase hex, the key stage 2
+ *     recorded for this survivor, under which its conversion is cached (ADR-151, ADR-206); the copy
+ *     is verified against it (ADR-274 section 2)
  * @param winningSeed the identity of the seed whose partition this survivor sits in
  * @param seedPath that seed's own path, relative to the seed folder (ADR-112)
  * @param clusterOrdinal the cluster's identity within that seed's partition
