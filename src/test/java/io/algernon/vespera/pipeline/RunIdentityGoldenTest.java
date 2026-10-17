@@ -268,25 +268,30 @@ class RunIdentityGoldenTest {
 
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
-    @DisplayName("Embedding and scoring is identified by the corpus root, the embedding model and what the serving runtime reported under its name, the seed measurement and the score floor")
+    @DisplayName("Embedding and scoring is identified by the corpus root, the embedding model and what the serving runtime reported under its name, the seed measurement, the score floor, the similarity floor for copies in another language and the languages preferred")
     @Issue("479")
     @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
     @Issue("488")
     @Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
+    @Link(name = "ADR-271", url = Adr.ONE_COPY_OF_A_TRANSLATION_SET_SURVIVES, type = "adr")
     void embeddingScoring() {
         Map<String, Object> run = theRunOf("embedding-scoring");
 
         claim(
                 "the settings it records are the corpus root, the embedding model this profile names, the"
                         + " digest and the weight format the serving runtime reported under that name, F16"
-                        + " here, the id of the seed measurement it read, and the relevance floor, recorded as"
-                        + " null because this profile sets none -- so the same name pulled again under"
-                        + " another digest is another piece of work, and the record says which pull scored",
+                        + " here, the id of the seed measurement it read, the relevance floor, recorded as"
+                        + " null because this profile sets none, the similarity at which two copies in"
+                        + " different languages are taken for one, null for the same reason, and the"
+                        + " languages preferred, an empty list because this profile lists none -- so the same"
+                        + " name pulled again under another digest is another piece of work, and the record"
+                        + " says which pull scored",
                 () -> assertThat(run.get("config_consumed")).isEqualTo(
                         ("{\"root\":\"%s\",\"embeddingModel\":\"" + EMBEDDING_MODEL + "\","
                                         + "\"embeddingModelDigest\":\"" + EmbeddingScriptedBeans.DIGEST + "\","
                                         + "\"embeddingModelWeightDtype\":\"F16\","
-                                        + "\"measurementRunId\":\"%s\",\"relevanceScoreFloor\":null}")
+                                        + "\"measurementRunId\":\"%s\",\"relevanceScoreFloor\":null,"
+                                        + "\"translationSimilarityFloor\":null,\"preferredLanguages\":[]}")
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("seed-measurement"))));
         claim(
                 "and its code version is the embedding module's, then extraction's, and not the version of the"

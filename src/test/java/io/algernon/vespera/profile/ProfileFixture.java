@@ -49,6 +49,10 @@ public final class ProfileFixture {
 
     private NameEndingsValue outOfScopeNameEndings = NameEndingsValue.unset();
 
+    private NumericValue translationSimilarityFloor = NumericValue.unset();
+
+    private LanguagesValue preferredLanguages = LanguagesValue.unset();
+
     private ProfileFixture() {
     }
 
@@ -71,6 +75,8 @@ public final class ProfileFixture {
         fixture.logTimestampShareFloor = existing.logTimestampShareFloor();
         fixture.extractionAttempt = existing.extractionAttempt();
         fixture.outOfScopeNameEndings = existing.outOfScopeNameEndings();
+        fixture.translationSimilarityFloor = existing.translationSimilarityFloor();
+        fixture.preferredLanguages = existing.preferredLanguages();
         return fixture;
     }
 
@@ -189,6 +195,18 @@ public final class ProfileFixture {
         return this;
     }
 
+    /** Stage 5's similarity floor for copies in different languages (ADR-271 §6), a cosine. */
+    public ProfileFixture translationSimilarityFloor(String value, String provenance) {
+        this.translationSimilarityFloor = aNumber(value, provenance);
+        return this;
+    }
+
+    /** The languages whose copy survives, most preferred first (ADR-271 §6), written as one line. */
+    public ProfileFixture preferredLanguages(String value, String provenance) {
+        this.preferredLanguages = new LanguagesValue(value, provenance, null);
+        return this;
+    }
+
     /** The profile itself, through the one constructor {@link Profile} has. */
     public Profile build() {
         return new Profile(
@@ -202,6 +220,8 @@ public final class ProfileFixture {
                 generationContextWindow,
                 logTimestampShareFloor,
                 extractionAttempt,
-                outOfScopeNameEndings);
+                outOfScopeNameEndings,
+                translationSimilarityFloor,
+                preferredLanguages);
     }
 }

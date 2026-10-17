@@ -30,20 +30,33 @@ import org.junit.jupiter.api.Test;
 class VerdictKindTest {
 
     /**
-     * The size of the closed vocabulary: eight ways to be ruled out, one way to be let through. Nine
-     * since ADR-146 added out-of-scope, and eight before it (ADR-057).
+     * The size of the closed vocabulary: nine ways to be ruled out, one way to be let through. Ten
+     * since ADR-271 added translation-of, nine since ADR-146 added out-of-scope, and eight before it
+     * (ADR-057).
      */
-    private static final int RECORDED_VERDICT_KINDS = 9;
+    private static final int RECORDED_VERDICT_KINDS = 10;
 
     @Test
     @Story("The vocabulary is closed")
-    @DisplayName("There are exactly nine verdicts, and adding one is a decision rather than an edit")
+    @DisplayName("There are exactly ten verdicts, and adding one is a decision rather than an edit")
     @Link(name = "ADR-146", url = Adr.SPREADSHEETS_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-271", url = Adr.ONE_COPY_OF_A_TRANSLATION_SET_SURVIVES, type = "adr")
     void isExactlyTheRecordedVocabulary() {
         claim(
                 "there are " + RECORDED_VERDICT_KINDS + " verdict kinds; a value here without a decision"
                         + " behind it is what this count exists to catch",
                 () -> assertThat(VerdictKind.values()).hasSize(RECORDED_VERDICT_KINDS));
+    }
+
+    @Test
+    @Story("The vocabulary is closed")
+    @DisplayName("A copy whose content another copy carries in another language is removed, as a byte-identical copy is")
+    @Link(name = "ADR-271", url = Adr.ONE_COPY_OF_A_TRANSLATION_SET_SURVIVES, type = "adr")
+    void aTranslationRemovesTheCopy() {
+        claim(
+                "translation-of removes the copy it is written against, so that one copy of a text held in"
+                        + " several languages survives",
+                () -> assertThat(VerdictKind.TRANSLATION_OF.blocking()).isTrue());
     }
 
     @Test

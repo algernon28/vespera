@@ -121,6 +121,7 @@ class CensusInvocationTest {
     @Link(name = "ADR-075", url = Adr.STAGE_3_WRITES_A_CONFIDENCE_DISTRIBUTION_REPORT, type = "adr")
     @Link(name = "ADR-080", url = Adr.THE_BOILERPLATE_FLOOR_IS_A_GATE, type = "adr")
     @Link(name = "ADR-086", url = Adr.SEED_CORPUS_MISMATCH_IS_MEASURED_AND_REPORTED, type = "adr")
+    @Link(name = "ADR-271", url = Adr.ONE_COPY_OF_A_TRANSLATION_SET_SURVIVES, type = "adr")
     @Issue("106")
     void runsTheStagesInOrderWithTheContentCensusAfterExtraction() {
         List<String> stagesInOrder = List.copyOf(((SimpleJob) vesperaJob).getStepNames());
@@ -130,6 +131,7 @@ class CensusInvocationTest {
                         + " reduction, then extraction, then the content census, then redundancy in its two"
                         + " steps, then the seed set stage 5 scores against, then how far that seed set"
                         + " resembles the documents still standing, then every vector gate 3 embeds, then"
+                        + " the copies that carry another's content in another language, then"
                         + " every survivor's relevance score, then the threshold that removes what"
                         + " scored under it, then each seed partition grouped into clusters, then the page"
                         + " and the questions a person needs in order to choose a cut, then the groups that"
@@ -148,6 +150,7 @@ class CensusInvocationTest {
                                 "seed-extraction",
                                 "seed-corpus-comparison",
                                 "embedding-scoring",
+                                "translation",
                                 "relevance-scoring",
                                 "relevance-floor",
                                 "clustering",
@@ -189,6 +192,14 @@ class CensusInvocationTest {
                         + " rows that step wrote rather than re-deriving them (#108, blocked by #107)",
                 () -> assertThat(stagesInOrder.indexOf("relevance-scoring"))
                         .isGreaterThan(stagesInOrder.indexOf("embedding-scoring")));
+        claim(
+                "and the copies in another language are found after every vector is embedded, since two"
+                        + " copies with no path in common are told apart by their vectors, and before any"
+                        + " survivor is scored, so a removed copy is never scored, put to a person, grouped"
+                        + " or arranged",
+                () -> assertThat(stagesInOrder.indexOf("translation"))
+                        .isGreaterThan(stagesInOrder.indexOf("embedding-scoring"))
+                        .isLessThan(stagesInOrder.indexOf("relevance-scoring")));
         claim(
                 "and clustering runs after relevance scoring, because a partition is the set of documents"
                         + " one seed won: clustering before the winning seeds were recorded would have no"

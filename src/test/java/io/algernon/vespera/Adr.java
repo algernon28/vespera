@@ -1840,6 +1840,16 @@ public final class Adr {
     public static final String EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER = FILE
             + "0270-every-log-vespera-writes-is-in-the-working-directorys-logs-folder-the-invocation-account-among-them.md";
 
+    /**
+     * ADR-271 -- a survivor whose content another survivor carries in another language, found by a path that
+     * differs from the other's in one lowercase language folder or by mutual nearest mean vectors at or above
+     * {@code translationSimilarityFloor}, is {@code translation-of} the copy in the language {@code
+     * preferredLanguages} names first; a new step between embedding scoring and relevance scoring, and a page
+     * the floor is read off (amends ADR-057 and ADR-157).
+     */
+    public static final String ONE_COPY_OF_A_TRANSLATION_SET_SURVIVES = FILE
+            + "0271-one-copy-of-a-translation-set-survives-in-the-language-the-profile-prefers-first.md";
+
     private Adr() {
     }
 }
