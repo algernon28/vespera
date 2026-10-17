@@ -1,0 +1,224 @@
+# ADR-272 — The deliverable is HTML with a verified copy of every survivor it lists, and its rendering keys no run
+
+- **Date**: 2026-10-17
+- **Status**: accepted on 2026-10-17.
+- **Amends**: [ADR-103](0103-the-deliverable-is-a-markdown-tree-in-the-working-directory-one-tree-per-run-id.md), in "Markdown, not HTML", the tree drawn under its Decision, `index.md`'s name, and "A re-run under a changed configuration writes a new tree beside the old one", which holds of a change to what the generation run is keyed by and not of a change to how the tree is drawn (§1, §6). One tree per generation run, in the working directory, with no new key, and "every link inside the deliverable resolves with no database, no ledger and no network" stand.
+- **Amends**: [ADR-104](0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md), in its Decision's first two sentences, "Why not copy", "What a link physically is", "6b does not check that the originals are still there", and its Consequences on links that die with the archive, on "Self-contained means without the ledger, not without the archive", and on an operator who must send the archive too (§2, §3). Every survivor listed, the manifest beside the prose, and the refusal to write the extracted text stand.
+- **Amends**: [ADR-135](0135-a-membership-entry-links-relatively-or-does-not-link-at-all-and-the-citation-anchor-stands.md): a membership entry links to its copy inside the tree, or names its path and why no copy stands, and never links into the archive (§2.6). The citation anchor stands.
+- **Amends**: [ADR-134](0134-a-line-break-in-a-value-is-folded-and-three-escaping-rules-stand-because-there-are-three-surroundings.md), [ADR-136](0136-the-angle-bracket-and-the-ampersand-are-backslash-escaped-and-the-heading-becomes-a-fourth-surrounding.md), [ADR-137](0137-a-destinations-ampersand-is-percent-encoded-and-the-destination-is-a-fifth-surrounding.md), [ADR-138](0138-a-bracket-is-escaped-in-every-surrounding-a-value-is-read-in-and-the-link-text-stops-being-a-rule-of-its-own.md) and [ADR-148](0148-a-backtick-is-escaped-in-every-surrounding-a-value-is-read-in-and-one-renderers-divergence-moves-no-rule.md): no Markdown is written, so their surroundings go and one HTML rule stands in their place (§1.3). [ADR-235](0235-a-path-in-the-manifest-a-spreadsheet-would-run-as-a-formula-is-written-behind-a-single-quote.md) and the manifest's RFC 4180 quoting stand.
+- **Amends**: [ADR-112](0112-the-arrangement-is-ordered-by-partition-size-and-cluster-mean-score-and-the-path-carries-the-order.md), in the cluster file's extension and in the slug, which is cut to 40 characters (§1.2). The order prefix and its padding stand.
+- **Amends**: [ADR-149](0149-a-survivors-pictures-reach-its-cluster-file-from-the-extraction-cache-and-a-picture-that-recurs-is-furniture.md) §3 and §5: a picture is shown by an `<img>` whose `alt` is its caption under §1.3's rule, its folder named from the page's stem as before. The furniture rule, the budget and the two passes stand.
+- **Amends**: [ADR-206](0206-stage-2-records-the-key-it-looked-the-extraction-cache-up-under-and-no-step-after-it-opens-an-archive-file.md) §4's "none opens an archive file" and §5's "Nothing after stage 2 notices": the generation step opens each survivor it lists to copy it, for reading only, and notices a survivor changed or gone since stage 2 (§2). Every other step still reads the recorded key and opens no archive file, and the manifest's `content_hash` is still that key.
+- **Amends**: [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md), [ADR-222](0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md) §1 and [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md): the text of the deliverable is no longer among what shapes a stage's output for its version. Generation's version names `synthesis`, `extraction` and `embedding`, and not `profile`, which it named for the index alone (§5).
+- **Amends**: [ADR-040](0040-modules-are-capability-shaped-not-stage-shaped.md) and [ADR-110](0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md) in the module rule: a ninth module, `deliverable`, declares `ledger` and `synthesis`, the second declared exception beside `extraction`'s (§4).
+- **Amends**: [ADR-213](0213-each-rule-the-deliverable-is-written-by-has-one-class-and-the-cluster-key-the-citation-pattern-and-the-filename-stem-are-each-written-once.md), in which module each rule's one class lies: `deliverable` (§4). The cluster key, the citation pattern and the filename stem stay written once, in `synthesis`.
+- **Amends**: [ADR-174](0174-a-page-nothing-was-written-over-says-why-in-words-for-a-reader.md), in where its sentences are written and their asterisks: `deliverable` writes them, in italics of HTML (§1.4). Their words stand.
+- **Amends**: [ADR-130](0130-one-report-page-module-owns-the-skeleton-styling-escaping-and-tables.md): the pages of the tree are written by `deliverable`, which cannot name `pipeline`, with a skeleton of its own drawn to `ReportPage`'s stylesheet (§1.1). `ReportPage` stays the one writer of the pages beside the database.
+- **Amends**: [ADR-111](0111-a-cluster-fault-is-a-row-in-synthesis-and-a-re-run-under-the-same-id-repairs-rather-than-regenerates.md), in which invocations write the tree: also one whose generation step is already recorded finished (§6).
+- **Amends**: [ADR-266](0266-every-invocation-names-its-progress-page-first-and-opens-it-and-vespera-label-writes-it-too.md) §2, in what is opened: the tree's `index.html` too, once, by an invocation that wrote it (§7).
+- **Keeps**: [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md) and [ADR-102](0102-publication-is-the-state-the-deliverable-is-handed-over-in-never-a-verb-this-project-uses.md), nothing carries the tree anywhere; [ADR-054](0054-a-corpus-is-its-root-path-the-database-lives-in-a-configured-working-directory.md), nothing is written into the archive; [ADR-109](0109-a-citation-is-an-exemplar-ordinal-minted-for-one-call-and-the-check-is-that-it-is-in-range.md) and [ADR-133](0133-the-exemplars-one-call-sent-are-recorded-and-a-cluster-file-numbers-its-membership-from-that-record.md), what a citation is and how the membership is numbered; [ADR-151](0151-the-manifests-content-hash-is-every-survivors-sha-256-taken-at-6b-through-extractions-own-hash.md) §1; [ADR-186](0186-the-deliverables-index-states-every-profile-key-read-off-the-profile-record.md), every profile key on the index; [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md), the account's allow-list; [ADR-223](0223-5fs-size-report-6a-and-6b-go-through-one-seed-partition-at-a-time-and-what-is-still-held-says-why.md) and [ADR-240](0240-the-tree-asks-what-it-lists-of-each-survivor-a-page-of-survivors-at-a-time.md), one seed partition and a page of survivors at a time; [ADR-242](0242-a-page-moved-over-its-place-is-moved-again-a-few-times-where-the-move-is-refused-as-access-denied.md), pages moved into place by `ReplacingMove`; [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md) and [ADR-264](0264-the-private-paths-guard-refuses-only-what-reads-or-writes-outside-the-allow-list-and-a-working-directory-is-open-as-the-place-it-lies-in.md), no agent reads an operator's document (§8).
+- **Rests on**: a reading of the seventeen classes of `synthesis` that write the tree and of who calls each, of `StageModules` and `.mvn/scripts/implementation-versions.groovy`, of `GenerationTasklet`'s three paths that write the tree and its one that writes none, of `NextAction`'s closing line, and of the pom, which carries no Markdown renderer. No archive, working directory or deliverable was opened for this record (ADR-196), so the copies' size on a real archive is not measured here (§2.5).
+
+## Context
+
+On 2026-10-17 the operator said: *"i want the deliverable in html, and the documents used copied in the working dir"*. Earlier the same day, of another change: *"i wouldn't add new flags for now, it makes things needlessly complicated. Just use defaults"*.
+
+**What the tree is today.** `synthesis.Deliverable` writes `deliverable/<generation run>/index.md`, one `<partition>/<cluster>.md` a cluster with a folder of its pictures beside it, and `documents.csv`. A cluster file's membership entry links to the original in the archive by a path relative to the file (ADR-135), or names the path where no such path exists. Five Markdown surroundings, `MarkdownSurroundings`, escape what lands in a heading, a cell, an entry and a destination. Nothing of the archive is copied, and after ADR-206 nothing after stage 2 opens an archive file.
+
+**What keys the generation run.** A stage's version is the last commit of each module `StageModules` lists for it (ADR-058); generation lists `synthesis`, `extraction`, `embedding` and `profile`, and `profile` only for the rule that states every key on the index (ADR-226). Every class that writes the tree lies in `synthesis`, so a change to how a page is drawn changes the generation run's id, and a new id has no `synthesis_doc` row: every cluster is asked about again. For the operator's arrangement of 92 clusters that is about 24 minutes of the generation model. The arrangement run names `synthesis` too, so the same change also mints an arrangement the operator must approve again.
+
+**When the tree is written.** `GenerationTasklet` writes it on each of its three paths that end its work, stopped, left unfinished or finished, and on none where the step is already recorded finished under the run: that path logs one line and returns. So a tree drawn differently under an unchanged run is never seen.
+
+**What the model writes.** The prompt asks for connected prose citing `[n]` and names no format. The answer's `prose` is stored as it came back and may carry Markdown or plain text. The pom carries no Markdown renderer, and the shipped classes parse none.
+
+## Decision
+
+### 1. The tree is HTML, and HTML only
+
+```
+deliverable/<generation run>/
+  index.html                         the arrangement, whole, and what produced it
+  documents.csv                      one row per survivor
+  documents/<occurrence>-<stem>.<ext>  a verified copy of each survivor (§2)
+  <partition>/<cluster>.html         one page per cluster
+  <partition>/<cluster>/<picture>    the pictures that page shows (ADR-149)
+```
+
+No `.md` is written. `documents.csv` stays, being what a program loads. Nothing downstream of the tree reads Markdown: ADR-101 struck every target, and the operator asked for HTML.
+
+#### 1.1 Every page stands alone
+
+Each page is `<!DOCTYPE html>`, `<html lang="en">`, `<meta charset="UTF-8">`, a `<title>`, and one inline `<style>`; no `<script>`, no `<link>`, and no `src` or `href` that names a scheme or a host. Every link is relative and lands inside the tree. The stylesheet is `ReportPage`'s shared rules (font, margins, table and cell borders), written again in `deliverable` because a capability module cannot name `pipeline`, and one rule of its own, `.writing { white-space: pre-wrap; }` (§1.3).
+
+#### 1.2 Names
+
+The index is `index.html`. A partition's folder and a cluster's page are named as ADR-112 names them, the page ending `.html`, with each slug cut to its first 40 characters and any hyphen that then ends it dropped. The order prefix keeps two names apart however their slugs are cut.
+
+#### 1.3 One escaping rule, and the writing as it was written
+
+**Every value the tree did not write itself is escaped by one rule**: `&` as `&amp;`, `<` as `&lt;`, `>` as `&gt;`, `"` as `&quot;` and `'` as `&#39;`, wherever it lands, text or attribute. That covers a title, a label, a path, a seed path, a profile key and value, a reason, a caption and the writing. No value is folded onto one line: HTML ends no element at a line break.
+
+**The writing is escaped whole, then each citation becomes a link.** `Citation.AS_WRITTEN` is matched on the escaped text, which the rule leaves alone because it escapes no bracket and no digit, and each `[n]` becomes `<a href="#document-n">[n]</a>`. The result stands in one `<div class="writing">`, whose `white-space: pre-wrap` keeps every line break and every space the model wrote. **No Markdown is rendered**: a `**` or a `- ` the model wrote reads as it was written. A renderer for a few constructs would be a parser of the model's output written for this tree, and a construct it guessed wrongly would change what a reader is told the model said; and no dependency is added for it (ADR-046).
+
+#### 1.4 The pages
+
+- **The index** opens with what ADR-103 and ADR-186 put there: the run, the walk, the archive root and every profile key with its value. Its paragraph says that `documents/` holds a copy of every document listed, checked against the digest taken when it was converted, and that the archive root names where they were copied from. Each partition is an `<h2>` naming its seed path, over a table of its clusters, `Group`, `Documents`, `Written up as`, a cluster with writing linked to its page.
+- **A cluster's page** is headed by its title, or its label where nothing was written (ADR-106); then the writing (§1.3) and ADR-133's disclosure where it was written from part of the cluster; or, where nothing was written, ADR-174's sentence for its reason in `<em>`, in the same words and without the asterisks that were Markdown. Then `The documents in this group` over an `<ol>` numbered as ADR-133 numbers it, each `<li id="document-n">`, carrying the entry of §2.6 and its pictures.
+- **`documents.csv`** keeps its nine columns and gains two at the end, `copy`, the copy's path from the tree's root with `/` between its parts or nothing where no copy stands, and `copy_outcome`, one of the five words of §2.3.
+
+### 2. Every survivor listed is copied, byte for byte, and checked
+
+#### 2.1 Where a copy is put
+
+A survivor's copy is `documents/<occurrence id>-<slug>.<extension>` under the tree, where the slug is ADR-112's slug of the stem of its file name, cut to 40 characters, and the extension is the last extension of its file name, lower-cased, kept where it is one to eight letters `a` to `z` and digits. With no slug the hyphen goes, and with no such extension the dot. So `reports/Q3 Report (final).PDF` of occurrence 42 is `documents/42-q3-report-final.pdf`.
+
+**The name is collision-free by construction**: an occurrence id is unique within its walk, and a tree has one walk. It is the archive's depth, not a path of it, that the name leaves out: a copy's path is as long whatever folder the document lay in, it holds no character a path parser can refuse, and two names that differ only in case cannot meet. The root-relative path is the entry's text and the manifest's `path`, so nothing is lost to a reader.
+
+#### 2.2 How a copy is made and checked
+
+The original is the corpus root joined to the survivor's root-relative path, **opened for reading and nothing else**. Its bytes are streamed through SHA-256 into `<copy>.part` beside the copy, and when the stream ends **the digest is compared with the key stage 2 recorded for the survivor**, `ListedSurvivor.contentHash` (ADR-206), which is what its conversion, its scores and the writing about it rest on. Equal, the part is moved over the copy's name by `ReplacingMove` (ADR-242). Unequal, the part is deleted and nothing stands at the copy's name.
+
+The copies are made before any page is written, a seed partition at a time, so each page states what stands.
+
+#### 2.3 What a copy can come to
+
+| Outcome | `copy_outcome` | When | What the entry says |
+| --- | --- | --- | --- |
+| copied | `copied` | the digest equals the key, or a copy already stands at its name (§2.4) | a link to the copy |
+| changed | `changed` | the bytes read do not hash to the key: the file was changed since stage 2 read it | *changed in the archive since it was read, so it was not copied* |
+| gone | `gone` | the file, or a folder above it, is no longer there | *no longer in the archive, so it was not copied* |
+| no room | `no-room` | §2.5 | *not copied: the drive had too little room left* |
+| not copied | `not-copied` | any other failure to read the original or write the copy, a name the path parser refuses among them | *could not be copied* |
+
+**None of them fails the step, and none throws.** A survivor whose copy did not stand is a fact about that survivor, recorded in its entry and its row, and the step goes on to the next. An exception out of the tree would roll back every fault row the invocation recorded (ADR-111). No row of the database records a copy: the tree is the record, and the next invocation tries every copy that does not stand again.
+
+#### 2.4 After a stop, a copy that stands is kept
+
+**A file at a copy's name was put there by §2.2's move and by nothing else**, so it is taken as copied, and neither it nor the original is read. A `.part` a stopped invocation left is written over by the next attempt. The tree is named for the generation run, which a change to how the tree is drawn does not move (§5), so a redrawn tree keeps every copy it already had.
+
+#### 2.5 Room on the drive
+
+Before each copy the original's size is read, and the copy is made only where the working directory's drive would still have **1 GiB** free after it; otherwise its outcome is `no-room`. The working directory holds the database, and the step that copies still writes its completion and the next invocation writes more: a full drive there would fail a step that had finished its work. The gibibyte is a bound of the tool, as ADR-149's ten pictures a document are, and not a judgement about any corpus.
+
+**The size is not measured before this ships.** The invocation measures it: before the first copy it states how many survivors it is about to copy and how many bytes they hold, and how many bytes the drive has free; after the last, how many copies stand, by outcome, and how many bytes were copied. Counts only.
+
+#### 2.6 The archive is never written, and a link never leaves the tree
+
+The original is opened with `READ` alone, and nothing is created, moved, renamed or touched beneath the corpus root. A membership entry links to `../documents/<name>` with the root-relative path as its text where its copy stands, and otherwise names the path as text with §2.3's sentence in `<em>`, and links nowhere. No entry links into the archive: a link that leaves the tree breaks the moment the folder is carried elsewhere, which is the point of copying.
+
+#### 2.7 Long Windows paths
+
+Below the working directory the tree's longest file is a picture: `deliverable/` and a run id of 64 characters, a partition folder and a page's stem of at most 45 characters each with an order of four digits, and a picture's 16 hexadecimal characters and extension, 190 characters in all. A copy is at most 153 with its `.part`. So **every file of the tree is within Windows' 260 characters while the working directory's own path is at most 69**. Past that the JDK still writes it (ADR-103); what may fail is another program that does not take long paths, which this record does not decide for.
+
+### 3. What a copy is not
+
+A copy is not a second walk and decides nothing: no verdict, no row, no change to any run. A survivor changed or gone since stage 2 stays listed, written from and scored as stage 2 read it (ADR-206 §5); only its copy is missing, and its entry says why. The manifest's `content_hash` stays the recorded key, so a copy's own digest equals it wherever `copy_outcome` is `copied`.
+
+### 4. A ninth module, `deliverable`, writes the tree
+
+`io.algernon.vespera.deliverable` holds every rule the tree is written by, one class each as ADR-213 has it: the writer, the index, the cluster page, the manifest, the copies, the pictures with ADR-149's and ADR-150's furniture rule, ADR-133's numbering, ADR-174's sentences, ADR-226's 0.0 for a survivor with no score, and the values it is handed: `ArrangedSurvivors`, `ListedPartition`, `ListedSurvivor`, `ListedPicture`, `ListedPicturePlace`, `SurvivorPictures`, `DeliverableProvenance`, `NamedValue` and `DeliverableProgress`. They leave `synthesis`, and `MarkdownSurroundings` and `ArchiveLink` go.
+
+It declares **`@ApplicationModule(allowedDependencies = {"ledger", "synthesis"})`**: it renders `synthesis`'s records, `SynthesisDoc`, `RecordedCluster`, `ArrangedCluster`, `ClusterLabel`, `ClusterSlot` and `Unwritten`, and reads `Citation.AS_WRITTEN` and `FilenameStem.of`, which become public and stay written once where the check and the label read them. `synthesis` names nothing of `deliverable`. It is the second declared exception to the module rule, beside `extraction`'s naming of `corpus`'s two enumerations (ADR-100); `pipeline` handing it plain copies of each record instead would be a second statement of five types kept in step by nothing.
+
+**It declares no logger.** It tells `pipeline` what it did through `DeliverableProgress`, whose every method takes only numbers and enumerations (§8), and `pipeline` writes the lines.
+
+### 5. The tree keys no run
+
+**No stage's version names `deliverable`**, and generation's names `synthesis`, `extraction` and `embedding`. A stage's version names the modules whose rules decide what its run records, and the generation run records the questions it put, the answers it believed and the faults it kept; the tree is drawn from those rows, and drawing it again changes none of them. `profile` leaves generation's list because the one rule it was named for, every key as written on the index (ADR-226), is a rule of how the tree is drawn.
+
+So **a change to `deliverable` alone moves no run id**, and nor does one to `profile` alone, `ledger` or `pipeline`, which no stage names (ADR-222). Arrangement's list, `synthesis`, `extraction` and `embedding`, stands.
+
+### 6. Every invocation that reaches the tree draws it
+
+The tree is written by every invocation in which the generation step has an approved arrangement this invocation arrived at (ADR-154), **including one whose step is already recorded finished under its run**: the rows are read as they are on the other paths, the copies made that do not stand, the pages written, and **no question is put to the model**. `ArrangementTasklet` already writes `arrangement.html` from its own already-recorded path (ADR-154 §2). So redrawing the tree never generates it again, and an invocation after a change to `deliverable` redraws the tree it already had, in place, under the same name.
+
+### 7. What the operator is told
+
+The closing line names the index, where it named the folder: *"The deliverable is at `<absolute path>/index.html`, with N groups left unwritten."* The generation step hands `index.html`'s URI to the `PageOpener` of ADR-266 **once, after the index is in place**, in every invocation that wrote the tree; it opens nothing where `CI` is set or a Linux has no display, an opener that throws is one warning and fails nothing, and no setting turns it off. The progress page is opened when the job starts and the index when the tree is written, so an invocation that writes the tree opens two pages.
+
+### 8. Nothing outside the tree names a document
+
+- **The lines.** What `pipeline` writes of the copies is counts and outcomes: §2.5's two lines and a counter, `Stage 6b (generation, survivors copied)`. No line names a path, a file name or a document's text, and no exception's message is written, since an I/O exception's message names its path. `DeliverableProgress` takes only numbers and enumerations, so the module has nothing else to hand over.
+- **The progress page and the account** carry the counter's line as they carry every progress line, and nothing else of the copies.
+- **The copies are the operator's documents.** They lie in a working directory, which the guard opens to every tool (ADR-264 §2), and **no agent reads one**, as no agent reads the archive they came from (ADR-196). The written rule covers them from this record on; whether the guard should also refuse `deliverable/*/documents/` is left to the operator (What this does not decide).
+
+### 9. The run ids that move
+
+This change edits `synthesis`: fifteen classes leave it and two go, `Citation` and `FilenameStem` become public and `Unwritten`'s sentences go. **So arrangement and generation move once**: the arrangement is minted again and must be approved again under its new name, and every cluster is written again under a new generation run, with a tree of its own. Generation's list losing `profile` moves it in the same build. After it, a change to `deliverable` moves none.
+
+### 10. What the documents say
+
+The implementer's, in the change that builds this:
+
+- **`CONTEXT.md`**: *Archive*'s "the deliverable references the surviving originals where they are instead of copying them" reads that the deliverable holds a copy of each survivor it lists, read from the archive and never written there; *Publication-ready artifact*'s "It carries no copy of the surviving originals: those stay in the archive and are referenced from it" reads that it carries a verified copy of each; *Citation*'s "cluster file" reads "cluster's page".
+- **`AGENTS.md`**: the deliverable is a directory of HTML with a copy of every survivor; nine modules, and `deliverable`'s declared exception; the copies under "The operator's documents are never read by an agent".
+- **README**: "Where things live" names `index.html`, `documents/` and the cluster pages; the closing line and the page that opens.
+- **`docs/architecture.md`**: §1's 6b and §2's module table.
+
+## Decided here
+
+1. **HTML only**, no Markdown beside it (§1). Nothing reads the `.md`, and two renderings of one tree are two to keep in step.
+2. **The writing is shown as written**, escaped and wrapped, and no Markdown is rendered (§1.3).
+3. **A collision-free flat name for each copy**, where the root-relative path could have been kept (§2.1): it bounds the path, and the path is still on the page and in the manifest.
+4. **The recorded key verifies a copy** (§2.2), not a digest of the copy taken afterwards: the key is what everything the tree says rests on.
+5. **A copy at its name is trusted on resume** (§2.4), where it could have been hashed again: only the verified move puts one there.
+6. **The tree is the only record of a copy** (§2.3): no table, no DDL, and no schema version.
+7. **A gibibyte left free** (§2.5), checked before each copy, rather than a total checked once: a copy that would not fit is passed over and a smaller one after it still made.
+8. **A module of its own for the tree** (§4, §5), where its classes could have stayed in `synthesis` at the cost of a generation for every change to a page, or gone to `pipeline`, which holds no rule (ADR-226).
+9. **The index opens by default** (§7), as the progress page does, with no setting.
+
+## Consequences
+
+- **The tree can be carried away and opened anywhere**, with no archive, database or network: every link lands inside it.
+- **It costs the archive's survivors again in disk**, measured by the invocation and not before (§2.5), and a second tree under a new generation run costs it a second time. Nothing deletes a tree (ADR-103).
+- **A copy is the archive's file as stage 2 read it, or no copy**: one changed or gone since says so on its page and in its row.
+- **A page drawn differently is seen at the next invocation, with no question put** (§6), and rewrites the tree under the same name: a tree already handed over is not kept from a change to how it is drawn, only from a change to what was written.
+- **The model's Markdown, where it writes any, is shown as typed.**
+- **This build mints an arrangement to approve and a generation of every cluster** (§9).
+- **Fifteen classes and their tests move to `deliverable`**, and the Markdown surroundings' tests go with them.
+
+## Alternatives refused
+
+- **Markdown beside the HTML.** Nothing reads it (Decided here 1).
+- **A Markdown renderer**, a dependency or a few constructs written here (§1.3).
+- **Copies under their root-relative paths.** Long paths, names a path parser refuses and two names one case apart (§2.1).
+- **A link into the archive where no copy stands.** It breaks when the tree is carried away, and for a changed or gone survivor it leads to the wrong file or to none.
+- **Failing the step on a copy that does not stand.** A bad copy is that survivor's, not the run's (§2.3).
+- **Hashing each copy again on resume** (Decided here 5), and **a table of copies** (Decided here 6).
+- **The tree's classes in `pipeline`**, which would make generation name `pipeline` again (ADR-222) and put eight rules back where ADR-226 took them from; **in `synthesis`**, every change to a page costing a generation of every cluster.
+- **Plain copies of `synthesis`'s records for `deliverable`**, keeping the module rule at one exception (§4).
+- **Measuring the copies' size before building**, which an agent cannot do without opening the operator's ledger; the invocation says it (§2.5).
+
+## What this does not decide
+
+- **Whether the private-paths guard refuses `deliverable/*/documents/`**, as the archive's documents are refused: a change to the guard is a draft the operator installs (ADR-215 §7), and the written rule covers the copies meanwhile (§8).
+- **A rendering of the model's Markdown** (§1.3).
+- **Whether the closing line counts the copies that do not stand.**
+- **A program opening a path past 260 characters** (§2.7).
+- **Removing an earlier tree, or an earlier tree's `.md`.** Nothing deletes in the working directory (ADR-103).
+
+## Tests
+
+| Test | What it holds |
+| --- | --- |
+| `deliverable.TheTreeIsHtmlTest.writesAnHtmlIndexAndAnHtmlPageForEachClusterAndNoMarkdown` | §1: `index.html`, one `.html` page a cluster, `documents.csv`, and no `.md` anywhere |
+| `deliverable.TheTreeIsHtmlTest.everyPageStandsAlone` | §1.1: a doctype, a character set, one inline stylesheet, no script, no stylesheet link and no scheme or host in any `src` or `href` |
+| `deliverable.TheTreeIsHtmlTest.escapesEveryValueInTextAndInAttributes` | §1.3: a title, a label, a path, a seed path and a caption carrying `& < > " '` land escaped by the five rules, the caption in `alt` |
+| `deliverable.TheTreeIsHtmlTest.keepsTheWritingAsWrittenWithEachCitationALink` | §1.3: the writing escaped whole, its line breaks kept, `white-space: pre-wrap`, each `[n]` a link to `#document-n` and an entry of that id |
+| `deliverable.TheTreeIsHtmlTest.saysWhyNothingWasWrittenInItalics` | §1.4: ADR-174's words in `<em>` with no asterisk, and the index row with no link |
+| `deliverable.TheTreeIsHtmlTest.cutsEverySlugToFortyCharacters` | §1.2 and §2.1: a long label, seed and file name give names of 40 characters of slug after their prefix |
+| `deliverable.EverySurvivorIsCopiedTest.copiesEverySurvivorByteForByteAndLinksToTheCopy` | §2.1, §2.2, §2.6: the copy's name, its bytes, the entry's link, the manifest's header and its two cells |
+| `deliverable.EverySurvivorIsCopiedTest.aSurvivorChangedSinceItWasReadIsNotCopied` | §2.2, §2.3: no copy and no `.part` at its name, `changed`, no link, and the other survivor copied |
+| `deliverable.EverySurvivorIsCopiedTest.aSurvivorGoneFromTheArchiveIsListedAsGone` | §2.3: `gone`, and the rest copied |
+| `deliverable.EverySurvivorIsCopiedTest.aCopyThatStandsIsKeptWithoutReadingTheArchive` | §2.4: with the original deleted, a second write keeps the copy unchanged and says `copied` |
+| `deliverable.EverySurvivorIsCopiedTest.aCopyThatWouldLeaveLessThanAGibibyteIsNotMade` | §2.5: of two survivors, the one leaving the drive under 1 GiB is `no-room` and the other copied, and the bound is 1 GiB |
+| `deliverable.EverySurvivorIsCopiedTest.theArchiveIsLeftAsItWas` | §2.6: every file's bytes and time and the listing beneath the root are as before |
+| `deliverable.WhatTheTreeReportsNamesNoDocumentTest` | §8: every method of `DeliverableProgress` takes only primitives and enumerations |
+| `pipeline.TheTreeKeysNoRunTest` | §5: generation's version names `synthesis`, `extraction` and `embedding`, arrangement's stands, and no stage names `deliverable` |
+| `ModuleBoundariesTest.theDeliverableIsAModuleOfItsOwn` | §4: a module `deliverable` declaring `ledger` and `synthesis` |
+| `pipeline.TheTreeInHtmlInvocationTest.aCampaignLeavesAnHtmlTreeWithACopyOfEverySurvivor` | §1, §2: a whole campaign's tree, each copy equal to its file, the archive unchanged |
+| `pipeline.TheTreeInHtmlInvocationTest.aFinishedGenerationIsDrawnAgainWithoutAQuestion` | §6: with the step recorded finished, the index is written again, no question is put and no run is minted |
+| `pipeline.TheTreeInHtmlInvocationTest.theClosingLineNamesTheIndexAndTheIndexIsOpenedOnce` | §7 |
+| `pipeline.TheTreeInHtmlInvocationTest.aSurvivorGoneBeforeTheTreeIsNamedNowhereOutsideIt` | §2.3 and §8: `gone` in the manifest, and no line after it went and no progress page names it |
+
+**Moved or rewritten with the classes** (§4): the tests of the tree in `synthesis` (`DeliverableTest`, `ClusterPageTest`, `IndexPageTest`, `ManifestCsvTest`, `EntryPicturesTest`, `DeliverablePicturesTest`, `DeliverableProgressTest`, `FurnitureIsDecidedOverTheWholeTreeTest`, `ManifestIsWrittenAPageAtATimeTest`, `PartitionNoSurvivorNamesStopsTheWriterTest`, `TreeIsTheSameWrittenAPartitionAtATimeTest`, the three `TreeThat…`/`TreeWhose…` tests, `WhyAClusterIsUnwrittenTest`, `ListedSurvivorTest`, `DifferenceHashTest`, `FilenameStemTest` and their fixtures) move to `deliverable` and read HTML; `ArchiveLinkTest` and `MarkdownSurroundingsTest` go; `DeliverableRulesHaveOneHomeTest`, `PipelineHoldsOnlyTheRulesOnRecordTest`, `RunIdentityGoldenTest`, `EveryPageIsMovedIntoPlaceByTheMoveThatTriesAgainTest`, and in `pipeline` `DeliverableInvocationTest`, `DeliverablePicturesInvocationTest`, the three `ClosingLine…` tests and `NextActionTest` follow the move, the names and the closing line.
