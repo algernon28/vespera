@@ -58,6 +58,10 @@ class TranslationsInvocationTest {
     /** The Chinese copy, at the same path but for its language folder. */
     private static final String CHINESE_COPY = "zh/guide.txt";
 
+    /** The reason every translation-of verdict carries (ADR-271 §1), written out because it is persisted. */
+    private static final String THE_REASON =
+            "the content is carried, in another language, by an occurrence that survives";
+
     /** The page the step writes in the working directory, by its fixed name. */
     private static final String PAGE = "translations.html";
 
@@ -146,6 +150,15 @@ class TranslationsInvocationTest {
                 () -> assertThat(verdictsUnder(preferringEnglish))
                         .containsEntry(CHINESE_COPY, "TRANSLATION_OF")
                         .doesNotContainEntry(ENGLISH_COPY, "TRANSLATION_OF"));
+        claim(
+                "the verdict's reason is the one fixed sentence every such verdict carries, naming no path and no"
+                        + " language",
+                () -> assertThat(jdbcTemplate.queryForList(
+                                "SELECT v.reason FROM verdict v JOIN file_occurrence o ON o.id = v.occurrence_id"
+                                        + " WHERE v.run_id = ? AND v.kind = 'TRANSLATION_OF'",
+                                String.class,
+                                preferringEnglish))
+                        .containsExactly(THE_REASON));
         claim(
                 "its row names the English copy as the one kept, the two languages, and that the paths found it",
                 () -> assertThat(jdbcTemplate.queryForList(

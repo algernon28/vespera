@@ -63,7 +63,7 @@ Translations by their paths and applied likenesses are the links; **a translatio
 
 **A set two of whose members have one language stands whole**, and nothing of it is removed: two copies in one language are not translations of each other, and which of them a third translates is not known.
 
-**Otherwise one member survives**: the one whose language comes first in `preferredLanguages`, and where no member's language is listed, the one whose path is lowest in code-point order. Every other member is `translation-of` that one, with `evidence` `parallel-paths` where every link of the set is a translation by its paths, `embeddings` where every link is an applied likeness, and `both` otherwise.
+**Otherwise one member survives**: the one whose language comes first in `preferredLanguages`, and where no member's language is listed, the one whose path is lowest in code-point order. Every other member is `translation-of` that one, with `evidence` `parallel-paths` where every link of the set is a translation by its paths, `embeddings` where every link is an applied likeness, and `both` otherwise. The evidence is the set's, recorded alike on every member removed. **Two copies that are translations by their paths and also an applied likeness record `both`**, though either link alone would join them.
 
 **With `preferredLanguages` unset or unreadable, nothing is removed.** The sets are counted on the page and in the step's line (§8). Choosing for the operator would keep a Chinese copy over an English one by the order of two letters.
 
@@ -113,7 +113,7 @@ It holds counts, language codes, a run id and a model's name: no path, no title,
 
 Every rule is `embedding`'s: `Languages`, §2's language folder and a stored Lingua name read as its code; `TranslationCandidates`, §3's likenesses, the mean vectors read in blocks as `NearestNeighbourGraph` reads them; and `Translations`, §2's pairing by paths, §4's sets and the copy kept, and §7's rows. `embedding` names Lingua's `Language` and `IsoCode639_1` for the closed list and the codes. The tasklet in `pipeline` reads the survivors a page at a time, their languages through `ExtractionMetrics.eachMeasuredFormOf` and their paths through the ledger, and hands them on; it holds no rule, and `PipelineHoldsOnlyTheRulesOnRecordTest` lists it so. No class of `corpus`, `extraction` or `similarity` changes.
 
-**What the step holds, and why** (an addition to ADR-220 §9's list): for each survivor whose path holds a language folder, its id and its path; for each candidate, its id, its language and, for each other language, its nearest with the cosine; and the links and the sets. Each grows with the survivors carrying a language folder or a detected language, which in a corpus of several languages is nearly all of them, because the pairing compares paths and nearest neighbours across the whole run and not within a page. The mean vectors are read in blocks and not held.
+**What the step holds, and why** (an addition to ADR-220 §9's list): for every survivor entering the step, whether or not its path holds a language folder or stage 2 detected its language, its id, its path, its detected language and the content hash its vectors are stored under; for each candidate, for each other language, its nearest with the cosine; and the links and the sets. Every survivor is held, and not only those with a folder or a language, because the step reads the survivors once, a page at a time, and must hand `Translations` and `TranslationOf` the whole run at once: a set is joined across pages by paths and by nearest neighbours, §4's tie-break compares the paths of every member of a set, a likeness's member may be read on any page, and its mean vector is read by its content hash. The holding grows with the run's survivors, at an id, a path, a language name and a hash each. The mean vectors are read in blocks and not held.
 
 **What it costs**: for each pair of languages L and L', |L| × |L'| cosines of mean vectors; for 100,000 candidates in two languages of 50,000 each, 2.5 × 10⁹. The step reports its progress over the pass as clustering does (ADR-192 §5).
 
@@ -167,6 +167,14 @@ Every rule is `embedding`'s: `Languages`, §2's language folder and a stored Lin
 | `embedding.TranslationsTest.aFloorSetToARowsValueAppliesThatRow` | a cosine of 0.29 as a double is on the row 0.28, applied at 0.28 and not at 0.29 |
 | `embedding.TranslationsTest.theRowsCountTheLikenessesTheirPathsConfirmAndRefute` | one confirmed at 0.91; one refuted and one neither at 0.81 |
 | `embedding.TranslationsTest.aSetJoinedByItsPathsAndALikenessKeepsOneCopy` | `en/` and `zh/` are `translation-of` an Italian copy, by both |
+| `embedding.TranslationsTest.aPairJoinedByItsPathsAndByALikenessRecordsBoth` | a pair that is both a translation by its paths and an applied likeness records `both` |
+| `embedding.TranslationOfTest.eachLikenessNamesTheOccurrencesItPairs` | over stored vectors, one candidate's mean of two chunks, two likenesses naming the right occurrences with their cosines |
+| `embedding.TranslationOfTest.aSurvivorWithNoStoredVectorIsNoCandidate` | a survivor with no vector under the identity is paired with nothing |
+| `embedding.TranslationOfTest.withNoVectorAtAllThereIsNoLikeness` | no stored vector, no likeness |
+| `pipeline.TranslationReportTest.thePageCountsTheLanguagesAndHasARowForEachHundredth` | `translations.html`'s languages by code and its rows with their confirmed and refuted counts, and no path |
+| `pipeline.TranslationKeysInTheClosingLineTest` | an unreadable `translationSimilarityFloor` and unreadable `preferredLanguages` each have their line, quoted back; unset, neither is named |
+| `pipeline.TranslationsUnderTwoEmbedderIdentitiesInvocationTest.withTwoIdentitiesTheStepStopsAtAGate` | two identities under the run's model: nothing removed, no page, no completion, stopped at a gate |
+| `pipeline.TranslationsInvocationTest.theCopyInTheLanguageNotPreferredIsATranslationOfTheOther` | the verdict's reason is §1's fixed sentence |
 | `profile.LanguagesValueTest.theLanguagesAreReadInTheOrderWritten` | `it, en` reads as `it`, `en` |
 | `profile.LanguagesValueTest.spacesCommasAndCapitalsAreReadAlike` | `IT en,De` reads as `it`, `en`, `de` |
 | `profile.LanguagesValueTest.aLanguageWrittenTwiceKeepsItsFirstPlace` | `en, it, en` reads as `en`, `it` |

@@ -278,6 +278,26 @@ class TranslationsTest {
                         new Translations.Removal(id(2), id(3), "zh", "it", Translations.Evidence.BOTH)));
     }
 
+    @Test
+    @Story("Two copies in different languages are found by their vectors")
+    @DisplayName("A pair joined both by its paths and by a likeness over the floor records both kinds of evidence")
+    void aPairJoinedByItsPathsAndByALikenessRecordsBoth() {
+        List<Translations.Member> members = List.of(
+                member(1, "en/x.html", "ENGLISH"),
+                member(2, "zh/x.html", "CHINESE"));
+        List<Translations.Likeness> likenesses = List.of(likeness(1, 2, 0.95));
+
+        Translations.Resolution resolution =
+                Translations.resolve(members, likenesses, OptionalDouble.of(0.9), List.of("en"));
+
+        claim(
+                "the two paths differ in their language folder alone, and the two copies are each other's nearest"
+                        + " over the floor: the one pair is linked both ways, so the Chinese copy is a translation"
+                        + " of the English one by both kinds of evidence, not by its paths alone",
+                () -> assertThat(resolution.removals()).containsExactly(new Translations.Removal(
+                        id(2), id(1), "zh", "en", Translations.Evidence.BOTH)));
+    }
+
     private static Translations.Member member(long id, String path, String detectedLanguage) {
         return new Translations.Member(id(id), new OccurrencePath(path), detectedLanguage);
     }

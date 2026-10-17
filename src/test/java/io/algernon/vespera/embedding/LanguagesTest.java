@@ -67,7 +67,7 @@ class LanguagesTest {
 
         claim(
                 "IT and HR are what departments are called, not Italian and Croatian; En is not written as a"
-                        + " locale folder is; english and eng are not two-letter codes; xx names no language;"
+                        + " language folder is, in lowercase; english and eng are not two-letter codes; xx names no language;"
                         + " en- and en_USA carry a suffix that is neither a region nor a script; e and the empty"
                         + " segment are too short -- so none of the " + segments.size() + " is a folder of a"
                         + " language",
