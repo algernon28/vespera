@@ -1,5 +1,7 @@
 # ADR-271 — One copy of a translation set survives, in the language the profile prefers first
 
+> **Partly amended — see [ADR-273](0273-the-translation-step-reads-each-mean-vector-only-to-compare-it-and-the-profile-only-when-its-run-is-minted.md).** Of §6: the two keys are read with `relevanceScoreFloor` from one load of the profile when the scoring run is minted. Of §7: the page states the two keys as they read at that load, and does not load the profile to write them. Of §9: `TranslationCandidates` reads each candidate's language without its vector and each mean vector only as the comparison reads its block, skipping an empty one, and a vector's width is one read of the vector cache. The rest of this record stands.
+
 - **Date**: 2026-10-17
 - **Status**: accepted on 2026-10-17.
 - **Amends**: [ADR-057](0057-the-verdict-vocabulary-is-eight-values-a-closed-enum-edited-by-a-pr.md)'s closed vocabulary, by the one value §1 adds, in the way that record provides for; [ADR-157](0157-a-stage-asks-for-its-run-after-its-own-gate-one-helper-mints-every-run-and-every-step-is-named-once.md) §7's fifteen step names, which §5 makes sixteen; and what stage 5's relevance-scoring step scores, the survivors of the seed measurement run, of which it scores those carrying no `translation-of` under the scoring run (§5); and [ADR-269](0269-the-progress-page-is-four-tabs-draws-a-hover-over-each-chart-and-lists-the-runs-the-working-directory-holds.md) §5's table of the steps each run records, in which the scoring run's are four (§5).

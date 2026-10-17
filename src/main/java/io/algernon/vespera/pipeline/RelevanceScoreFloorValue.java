@@ -41,7 +41,14 @@ record RelevanceScoreFloorValue(Double value) {
      * NumericValue.Answered} — rather than two catches written to match.
      */
     static RelevanceScoreFloorValue readFrom(ProfileStore profileStore) {
-        Profile profile = profileStore.load();
+        return from(profileStore.load());
+    }
+
+    /**
+     * The value of the one {@code profile} the caller loaded, so the scoring run's three values are read from
+     * one load (ADR-273 section 2).
+     */
+    static RelevanceScoreFloorValue from(Profile profile) {
         return new RelevanceScoreFloorValue(
                 profile.relevanceScoreFloor().reading() instanceof NumericValue.Answered answered
                         ? answered.number()

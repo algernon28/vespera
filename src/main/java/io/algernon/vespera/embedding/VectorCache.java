@@ -80,6 +80,23 @@ class VectorCache {
                 embedderIdentity);
     }
 
+    /**
+     * How many components one vector stored under the three identities has, {@code 0} where none is stored
+     * (ADR-273 section 1). Any one serves, every vector under one embedder identity having the model's
+     * dimension (ADR-084). No index leads with these columns, so the read stops at the first row that matches
+     * and sorts nothing.
+     */
+    int dimensionUnder(String chunkerIdentity, String chunkingRuleIdentity, String embedderIdentity) {
+        List<Integer> widths = jdbcTemplate.query(
+                "SELECT length(embedding) FROM vector WHERE chunker_identity = ? AND chunking_rule_identity = ?"
+                        + " AND embedder_identity = ? LIMIT 1",
+                (resultSet, rowNumber) -> resultSet.getInt(1) / Float.BYTES,
+                chunkerIdentity,
+                chunkingRuleIdentity,
+                embedderIdentity);
+        return widths.isEmpty() ? 0 : widths.getFirst();
+    }
+
     private static byte[] littleEndianFloat32(float[] vector) {
         ByteBuffer buffer = ByteBuffer.allocate(vector.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (float component : vector) {

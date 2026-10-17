@@ -72,6 +72,14 @@ public class Clustering {
     }
 
     /**
+     * How wide a vector stored under the three identities is, {@code 0} where none is (ADR-273 section 1):
+     * one read of the vector cache, computing no mean vector.
+     */
+    int dimensionUnder(String chunkerIdentity, String chunkingRuleIdentity, String embedderIdentity) {
+        return vectorCache.dimensionUnder(chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
+    }
+
+    /**
      * One document's mean vector computed from its stored chunk vectors as clustering computes it (ADR-087), for
      * the translation step (ADR-271 section 3): empty where none is stored, which makes the document no candidate
      * and is no error there. Returned to be discarded.

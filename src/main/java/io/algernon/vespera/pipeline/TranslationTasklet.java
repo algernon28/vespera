@@ -15,7 +15,6 @@ import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.profile.LanguagesValue;
 import io.algernon.vespera.profile.Measurement;
 import io.algernon.vespera.profile.NumericValue;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -54,6 +53,9 @@ import org.springframework.stereotype.Component;
  * <p><b>It is not a gate</b>, for ADR-088's reason: it writes the page both keys are read off. It consults the
  * gates every step of the scoring half consults, and records its completion under the scoring run, which names
  * everything it reads (ADR-116).
+ *
+ * <p>The page states the two keys as the scoring run read them when it was minted, from {@link StageRuns}'
+ * readings, and does not load the profile to write it (ADR-273 section 3, amending ADR-271 section 7).
  */
 @Component
 @StepScope
@@ -270,15 +272,15 @@ class TranslationTasklet implements Tasklet {
             int survivors,
             OptionalDouble floor,
             List<String> preferred) {
-        Profile profile = profileStore.load();
+        // The readings the scoring run was minted under, not the profile as it is now (ADR-273 section 3).
         String floorReading = floor.isPresent()
                 ? "read as " + floor.getAsDouble() + ", at or above which a likeness is applied"
-                : profile.translationSimilarityFloor().reading() instanceof NumericValue.Unreadable
+                : stageRuns.translationSimilarityFloorReading() instanceof NumericValue.Unreadable
                         ? "unreadable, so no likeness is applied"
                         : "unset, so no likeness is applied";
         String languagesReading = !preferred.isEmpty()
                 ? "read as " + String.join(", ", preferred) + ", most preferred first"
-                : profile.preferredLanguages().reading() instanceof LanguagesValue.Unreadable
+                : stageRuns.preferredLanguagesReading() instanceof LanguagesValue.Unreadable
                         ? "unreadable, so nothing is removed"
                         : "unset, so nothing is removed";
         String html = TranslationReport.render(
