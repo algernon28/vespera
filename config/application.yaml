@@ -1,0 +1,8 @@
+# Untracked, local: the operator's .env values for a run started from this worktree. Delete after the run.
+spring:
+  docker:
+    compose:
+      enabled: false
+vespera:
+  docling:
+    image: vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0-r2
