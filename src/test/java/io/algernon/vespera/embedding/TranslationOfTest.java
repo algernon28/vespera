@@ -8,9 +8,12 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
+import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +30,7 @@ import org.springframework.test.context.ActiveProfiles;
  *
  * <p>The vector table is keyed by content and not by occurrence, so the candidates need no occurrence rows: a
  * candidate is an occurrence id, the content hash its vectors are stored under, and the language stage 2 stored.
+ * Each candidate's mean vector is computed by the comparison alone (ADR-273 §1).
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -115,9 +119,78 @@ class TranslationOfTest {
                 () -> assertThat(likenessesAmong(candidates)).isEmpty());
     }
 
+    /**
+     * Each candidate's mean vector is computed by the comparison and by nothing else (ADR-273 §1): not to learn its
+     * language, which the candidate carries, and not to learn how wide a vector is, which one read of the vector
+     * cache gives. Three candidates are one block at four components, so the comparison reads each mean once.
+     */
+    @Test
+    @Story("Each mean vector is read only to be compared")
+    @DisplayName("Each survivor's mean vector is computed once, by the comparison, the one with no vector first among them")
+    @Issue("548")
+    @Link(name = "ADR-273", url = Adr.THE_TRANSLATION_STEP_READS_A_MEAN_VECTOR_ONLY_TO_COMPARE_IT_AND_THE_PROFILE_ONCE, type = "adr")
+    void eachMeanVectorIsComputedOnceAndOnlyByTheComparison() {
+        store("en-d", new float[] {1f, 0f, 0f, 0f});
+        store("zh-d", new float[] {0.9f, 0.1f, 0f, 0f});
+        List<TranslationOf.Candidate> candidates = List.of(
+                candidate(401, "unembedded-d", "CHINESE"),
+                candidate(402, "en-d", "ENGLISH"),
+                candidate(403, "zh-d", "CHINESE"));
+        Map<String, Integer> computed = new HashMap<>();
+
+        likenessesAmong(candidates, counting(computed));
+
+        claim(
+                "the mean vector of each of the three survivors, the one with no vector stored among them, was"
+                        + " computed exactly once, as the comparison read the one block they make: none was computed"
+                        + " for its language, and none to learn how wide a vector is",
+                () -> assertThat(computed)
+                        .containsExactlyInAnyOrderEntriesOf(Map.of("unembedded-d", 1, "en-d", 1, "zh-d", 1)));
+    }
+
+    /**
+     * How wide a vector is comes from one read of the vector cache under the step's identities (ADR-273 §1), not from
+     * the candidates' mean vectors: where none is stored under them, nothing is compared and no mean is computed.
+     */
+    @Test
+    @Story("Each mean vector is read only to be compared")
+    @DisplayName("With no vector stored under the embedder, no survivor's mean vector is computed")
+    @Issue("548")
+    @Link(name = "ADR-273", url = Adr.THE_TRANSLATION_STEP_READS_A_MEAN_VECTOR_ONLY_TO_COMPARE_IT_AND_THE_PROFILE_ONCE, type = "adr")
+    void withNoVectorStoredNoMeanVectorIsComputed() {
+        List<TranslationOf.Candidate> candidates = List.of(
+                candidate(501, "none-en", "ENGLISH"),
+                candidate(502, "none-zh", "CHINESE"));
+        Map<String, Integer> computed = new HashMap<>();
+
+        likenessesAmong(candidates, counting(computed));
+
+        claim(
+                "no vector is stored under the identities the step reads, so no survivor's mean vector was"
+                        + " computed, not even to find how wide a vector would be",
+                () -> assertThat(computed).isEmpty());
+    }
+
     private List<Translations.Likeness> likenessesAmong(List<TranslationOf.Candidate> candidates) {
-        return new TranslationOf(ClusteringBeans.real(jdbcTemplate), jdbcTemplate).likenessesAmong(
+        return likenessesAmong(candidates, ClusteringBeans.real(jdbcTemplate));
+    }
+
+    private List<Translations.Likeness> likenessesAmong(List<TranslationOf.Candidate> candidates, Clustering clustering) {
+        return new TranslationOf(clustering, jdbcTemplate).likenessesAmong(
                 candidates, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, ClusteringProgress.NONE);
+    }
+
+    /** Real clustering over this test's tables, counting into {@code computed} each content hash a mean is computed for. */
+    private Clustering counting(Map<String, Integer> computed) {
+        return new Clustering(
+                new VectorCache(jdbcTemplate), new RelevanceScoreCache(jdbcTemplate), new DocumentClusters(jdbcTemplate)) {
+            @Override
+            float[] meanVectorOf(
+                    String contentHash, String chunkerIdentity, String chunkingRuleIdentity, String embedderIdentity) {
+                computed.merge(contentHash, 1, Integer::sum);
+                return super.meanVectorOf(contentHash, chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
+            }
+        };
     }
 
     private static TranslationOf.Candidate candidate(long id, String contentHash, String language) {

@@ -86,6 +86,8 @@ class StageRuns {
     private Double relevanceScoreFloor;
     private Double translationSimilarityFloor;
     private List<String> preferredLanguages;
+    private NumericValue.Reading translationSimilarityFloorReading;
+    private LanguagesValue.Reading preferredLanguagesReading;
     private RunId arrangement;
     private RunId generation;
 
@@ -254,17 +256,21 @@ class StageRuns {
         RunId measurementRunId = seedMeasurement();
         // Read here, fresh on every mint, rather than through a bean of its own: this holder is
         // @JobScope, so this is the freshness ADR-117 needs a changed profile value to be seen with.
-        Double relevanceScoreFloor = RelevanceScoreFloorValue.readFrom(profileStore).value();
-        // The two keys of ADR-271 section 6 are read beside it: a number or null, the codes or none.
+        // One load of the profile serves all three values (ADR-273 section 2).
         Profile profile = profileStore.load();
-        Double translationSimilarityFloor =
-                profile.translationSimilarityFloor().reading() instanceof NumericValue.Answered answered
-                        ? answered.number()
-                        : null;
-        List<String> preferredLanguages =
-                profile.preferredLanguages().reading() instanceof LanguagesValue.Answered answered
-                        ? answered.languages()
-                        : List.of();
+        Double relevanceScoreFloor = RelevanceScoreFloorValue.from(profile).value();
+        // The two keys of ADR-271 section 6 are read beside it: a number or null, the codes or none. Their
+        // readings are kept from the same load for the page (ADR-273 section 3).
+        NumericValue.Reading translationSimilarityFloorReading =
+                profile.translationSimilarityFloor().reading();
+        LanguagesValue.Reading preferredLanguagesReading =
+                profile.preferredLanguages().reading();
+        Double translationSimilarityFloor = translationSimilarityFloorReading instanceof NumericValue.Answered answered
+                ? answered.number()
+                : null;
+        List<String> preferredLanguages = preferredLanguagesReading instanceof LanguagesValue.Answered answered
+                ? answered.languages()
+                : List.of();
         // The artefact is read once, here, beside the floor (ADR-228).
         ModelArtefact artefact = ollamaClient.artefactOf(modelName);
         WalkId walk = runMint.finishedWalk(canonicalRoot, "stage 5");
@@ -286,6 +292,8 @@ class StageRuns {
         this.relevanceScoreFloor = relevanceScoreFloor;
         this.translationSimilarityFloor = translationSimilarityFloor;
         this.preferredLanguages = preferredLanguages;
+        this.translationSimilarityFloorReading = translationSimilarityFloorReading;
+        this.preferredLanguagesReading = preferredLanguagesReading;
     }
 
     /**
@@ -326,6 +334,21 @@ class StageRuns {
         return translationSimilarityFloor == null
                 ? OptionalDouble.empty()
                 : OptionalDouble.of(translationSimilarityFloor);
+    }
+
+    /**
+     * How {@code translationSimilarityFloor} read at the one load of the profile the scoring run was minted from,
+     * which mints that run if it has not yet been (ADR-273 section 3): unset and unreadable are two readings.
+     */
+    NumericValue.Reading translationSimilarityFloorReading() {
+        embeddingScoring();
+        return translationSimilarityFloorReading;
+    }
+
+    /** As {@link #translationSimilarityFloorReading()}, for {@code preferredLanguages} (ADR-273 section 3). */
+    LanguagesValue.Reading preferredLanguagesReading() {
+        embeddingScoring();
+        return preferredLanguagesReading;
     }
 
     /** The preferred languages the scoring run was minted under, none where unset or unreadable (ADR-271 section 6). */

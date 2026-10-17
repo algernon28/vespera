@@ -15,24 +15,28 @@ import java.util.Map;
  * (ADR-087), and are never held whole. What is held is, for each candidate and each other language, the
  * index and cosine of its nearest. Candidates are named by their index in the order the source hands them
  * over; a tie goes to the lower index.
+ *
+ * <p>A candidate's language is read by its index and no vector is read for it; each mean is read only by the
+ * comparison, and a candidate whose mean is empty is no candidate (ADR-273 section 1, amending ADR-271 section 9).
  */
 public final class TranslationCandidates {
 
     private TranslationCandidates() {}
 
-    /**
-     * One candidate: the language stage 2 stored for it (Lingua's name, or {@code null}) and its mean vector.
-     */
-    public record Vector(String language, float[] mean) {}
-
-    /** The candidates, readable in blocks and in a stable order. */
+    /** The candidates, readable in blocks and in a stable order (ADR-273 section 1). */
     public interface Vectors {
 
         /** How many candidates there are. */
         int count();
 
-        /** The candidates {@code [from, from + size)}, in the source's own order. */
-        List<Vector> block(int from, int size);
+        /** The language stage 2 stored for candidate {@code index} (Lingua's name), or {@code null}; reads no vector. */
+        String language(int index);
+
+        /**
+         * The mean vectors of candidates {@code [from, from + size)}, in the source's own order: an empty array
+         * for a candidate with no vector stored.
+         */
+        List<float[]> block(int from, int size);
     }
 
     /**
@@ -51,25 +55,22 @@ public final class TranslationCandidates {
 
     /**
      * Every likeness among {@code vectors}, in order of the lower index and then the higher. A candidate with
-     * no language is never one. Tells {@code progress} how many pairs of blocks the pass compares and each
+     * no language, or whose mean is empty, is never one. Tells {@code progress} how many pairs of blocks the pass compares and each
      * pair as it is done (ADR-192 section 5).
      */
     public static List<Likeness> mutualNearest(Vectors vectors, int blockSize, ClusteringProgress progress) {
         int count = vectors.count();
         Map<String, Integer> languageIds = new HashMap<>();
         int[] languageOf = new int[count];
-        // First pass: only the languages, so the table of nearest is sized before the vectors are compared.
-        for (int blockStart = 0; blockStart < count; blockStart += blockSize) {
-            List<Vector> block = vectors.block(blockStart, blockSize);
-            for (int i = 0; i < block.size(); i++) {
-                String language = block.get(i).language();
-                Integer id = language == null ? Integer.valueOf(-1) : languageIds.get(language);
-                if (id == null) {
-                    id = languageIds.size();
-                    languageIds.put(language, id);
-                }
-                languageOf[blockStart + i] = id;
+        // The languages first, by index and reading no block, so the table of nearest is sized before comparing.
+        for (int index = 0; index < count; index++) {
+            String language = vectors.language(index);
+            Integer id = language == null ? Integer.valueOf(-1) : languageIds.get(language);
+            if (id == null) {
+                id = languageIds.size();
+                languageIds.put(language, id);
             }
+            languageOf[index] = id;
         }
         int languages = languageIds.size();
         int[][] nearest = new int[count][languages];
@@ -81,20 +82,21 @@ public final class TranslationCandidates {
         long blocks = ((long) count + blockSize - 1) / blockSize;
         progress.toCompareBlocks(blocks * (blocks + 1) / 2);
         for (int outerFrom = 0; outerFrom < count; outerFrom += blockSize) {
-            List<Vector> outer = vectors.block(outerFrom, blockSize);
+            List<float[]> outer = vectors.block(outerFrom, blockSize);
             for (int innerFrom = outerFrom; innerFrom < count; innerFrom += blockSize) {
-                List<Vector> inner = innerFrom == outerFrom ? outer : vectors.block(innerFrom, blockSize);
+                List<float[]> inner = innerFrom == outerFrom ? outer : vectors.block(innerFrom, blockSize);
                 for (int i = 0; i < outer.size(); i++) {
                     int left = outerFrom + i;
-                    if (languageOf[left] < 0) {
+                    if (languageOf[left] < 0 || outer.get(i).length == 0) {
                         continue;
                     }
                     for (int j = 0; j < inner.size(); j++) {
                         int right = innerFrom + j;
-                        if (right <= left || languageOf[right] < 0 || languageOf[right] == languageOf[left]) {
+                        if (right <= left || languageOf[right] < 0 || languageOf[right] == languageOf[left]
+                                || inner.get(j).length == 0) {
                             continue;
                         }
-                        double similarity = NearestNeighbourGraph.cosine(outer.get(i).mean(), inner.get(j).mean());
+                        double similarity = NearestNeighbourGraph.cosine(outer.get(i), inner.get(j));
                         offer(nearest, nearestSimilarity, left, languageOf[right], right, similarity);
                         offer(nearest, nearestSimilarity, right, languageOf[left], left, similarity);
                     }
