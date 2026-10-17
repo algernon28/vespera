@@ -12,9 +12,6 @@ vespera:
   # application-local.yaml, as the environment variable VESPERA_CORPUS_ROOT (VESPERA_CORPUSROOT is
   # read too), or with --vespera.corpus-root=<path>.
   corpus-root: ""
-  # Where the invocation account is written (ADR-198). Unset: no account. Set it per machine, to a folder
-  # outside every working directory.
-  # account-dir:
   # How often the progress page progress.html is rewritten in the working directory while a run goes on (ADR-265).
   progress-interval: 5s
   docling:
