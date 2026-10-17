@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The writing's Markdown, converted to HTML by Vespera's own renderer from a fixed subset, after the whole text is
- * escaped (ADR-273 §1.3).
+ * escaped (ADR-274 §1.3).
  *
  * <p>Every claim compares the whole output with the whole of what §1.3 says it is, so a renderer that adds, drops or
  * reorders anything fails it. The last test reads every output of this class for a tag or an attribute the renderer
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
  */
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
-@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 @Link(name = "ADR-109", url = Adr.A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL, type = "adr")
 class TheWritingIsRenderedFromASubsetOfMarkdownTest {
 

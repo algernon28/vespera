@@ -8,7 +8,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * {@code index.html}, the mechanical listing at the root of every tree (ADR-103, ADR-112, ADR-122, ADR-273 §1.4), and
+ * {@code index.html}, the mechanical listing at the root of every tree (ADR-103, ADR-112, ADR-122, ADR-274 §1.4), and
  * the names it and the tree beneath it give their partitions and cluster pages.
  *
  * <p>It is appended to as its rows come (ADR-223 section 6): {@link #open} writes what produced the tree,
@@ -25,7 +25,7 @@ import java.util.Optional;
  */
 final class IndexPage {
 
-    /** The most characters of a slug a name carries, so the longest file of the tree is bounded (ADR-273 §1.2). */
+    /** The most characters of a slug a name carries, so the longest file of the tree is bounded (ADR-274 §1.2). */
     static final int SLUG_LENGTH = 40;
 
     private IndexPage() {}
@@ -144,7 +144,7 @@ final class IndexPage {
     /**
      * A filename-safe rendering of {@code text}: lower-cased, every run of characters that is not a
      * letter or digit collapsed to one hyphen, cut to its first {@value #SLUG_LENGTH} characters, and no
-     * leading or trailing hyphen, the cut's included (ADR-112, ADR-273 §1.2).
+     * leading or trailing hyphen, the cut's included (ADR-112, ADR-274 §1.2).
      */
     static String slug(String text) {
         String lower = text.toLowerCase(Locale.ROOT);

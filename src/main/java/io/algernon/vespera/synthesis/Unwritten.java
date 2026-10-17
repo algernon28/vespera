@@ -2,7 +2,7 @@ package io.algernon.vespera.synthesis;
 
 /**
  * Why nothing was written over a cluster (ADR-174). The sentence a page carries for each is {@code deliverable}'s to
- * word, in HTML (ADR-273 §4); this module keeps the reasons and the ways of arriving at one.
+ * word, in HTML (ADR-274 §4); this module keeps the reasons and the ways of arriving at one.
  *
  * <p>Each describes what happened in one run and nothing more, so no reason is ever for good: the next invocation
  * that reaches the writing rewrites the page, and a repaired cluster simply carries its writing (ADR-111).

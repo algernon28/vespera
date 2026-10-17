@@ -255,7 +255,7 @@ class GenerationTasklet implements Tasklet {
                 StepNames.GENERATION,
                 () -> {
                     LOG.info("the generation step was already recorded under run {}", generation.value());
-                    // The tree is drawn again from the rows as they stand, and no question is put (ADR-273 §6).
+                    // The tree is drawn again from the rows as they stand, and no question is put (ADR-274 §6).
                     // A recorded step has no cluster this invocation found unsendable: such a step never finishes.
                     RunId scoring = scoringRunBehind(arrangement);
                     List<ArrangedPartition> partitions = readPartitions(arrangement);
@@ -487,10 +487,10 @@ class GenerationTasklet implements Tasklet {
 
     /**
      * Draws the tree, hands the closing line how many documents' copies do not stand in it, and has the index
-     * opened once it is in place (ADR-273 §6, §7). Every invocation that reaches the tree does this, the step
+     * opened once it is in place (ADR-274 §6, §7). Every invocation that reaches the tree does this, the step
      * already recorded finished included, and none puts a question to the model.
      *
-     * <p>What it writes is counts: no path, file name or document text, and no exception's message (ADR-273 §8).
+     * <p>What it writes is counts: no path, file name or document text, and no exception's message (ADR-274 §8).
      */
     private Path drawTree(
             ChunkContext chunkContext,
@@ -519,7 +519,7 @@ class GenerationTasklet implements Tasklet {
         return tree;
     }
 
-    /** Hands the index to the opener once, after it is in place; an opener that fails is one warning (ADR-273 §7). */
+    /** Hands the index to the opener once, after it is in place; an opener that fails is one warning (ADR-274 §7). */
     private void openTheIndex(Path tree) {
         PageOpener pageOpener = opener.getIfAvailable();
         if (pageOpener == null) {
@@ -532,7 +532,7 @@ class GenerationTasklet implements Tasklet {
         }
     }
 
-    /** What became of each survivor's copy, as the tree's writer told it, and how many bytes were copied (ADR-273 §2.5). */
+    /** What became of each survivor's copy, as the tree's writer told it, and how many bytes were copied (ADR-274 §2.5). */
     private static final class CopyCounts {
         long copied;
         long alreadyStanding;

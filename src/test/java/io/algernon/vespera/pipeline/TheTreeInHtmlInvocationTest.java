@@ -40,7 +40,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * What a whole campaign leaves of ADR-273: an HTML tree with a copy of every survivor, drawn again by an invocation
+ * What a whole campaign leaves of ADR-274: an HTML tree with a copy of every survivor, drawn again by an invocation
  * whose writing is already recorded without a question put, named on the closing line and opened once, and naming
  * no document outside itself.
  *
@@ -51,7 +51,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Import(SeedScriptedExtractionBeans.class)
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
-@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class TheTreeInHtmlInvocationTest {
 
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";

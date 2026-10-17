@@ -24,9 +24,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * {@code index.html}: what produced the tree, then one heading per seed partition and one table row per
- * cluster in it, a written cluster's label linking to its page (ADR-103, ADR-112, ADR-122, ADR-273 §1.4).
+ * cluster in it, a written cluster's label linking to its page (ADR-103, ADR-112, ADR-122, ADR-274 §1.4).
  *
- * <p>Until ADR-273 the expected index was what {@code Deliverable.writeTo} wrote as Markdown at {@code 4b99a03}. It
+ * <p>Until ADR-274 the expected index was what {@code Deliverable.writeTo} wrote as Markdown at {@code 4b99a03}. It
  * is HTML now, so the expected text is composed here: the page's skeleton is {@code Html.head}'s and {@code
  * Html.tail}'s, held by {@code TheTreeIsHtmlTest}, and everything between them is spelled out.
  *
@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Test;
 @Issue("351")
 @Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
-@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class IndexPageTest {
 
     /** The seed whose partition every cluster below sits in. */

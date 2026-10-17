@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
  * order} is gone with that record.
  *
  * <p>It lies beside {@link ThreePartitions}, which the tree's tests share and which moved with them to {@code
- * deliverable} (ADR-273 §4); what it calls is {@code synthesis}'s public arrangement.
+ * deliverable} (ADR-274 §4); what it calls is {@code synthesis}'s public arrangement.
  *
  * <p>Pure: no database.
  */

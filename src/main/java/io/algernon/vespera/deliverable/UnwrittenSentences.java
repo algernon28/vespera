@@ -3,7 +3,7 @@ package io.algernon.vespera.deliverable;
 import io.algernon.vespera.synthesis.Unwritten;
 
 /**
- * The line a cluster's page carries in place of the writing, by the reason nothing was written (ADR-174, ADR-273
+ * The line a cluster's page carries in place of the writing, by the reason nothing was written (ADR-174, ADR-274
  * §1.4): the same words as before, without the asterisks that were Markdown's, shown in italics of HTML by the page.
  *
  * <p>Each says <em>group</em> where the code says cluster (ADR-122), names no kind of fault, and describes one run

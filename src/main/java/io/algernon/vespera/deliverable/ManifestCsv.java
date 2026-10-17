@@ -19,7 +19,7 @@ import java.util.Set;
  * <p>The CSV is the surrounding that answers to a parser, so its rule is a doubled quote and not the HTML
  * escaping rule (ADR-137 §4). It is opened in a spreadsheet too, so a path that one would run
  * as a formula is written behind a single quote (ADR-235). Its last two columns, {@code copy} and {@code
- * copy_outcome}, say what became of each survivor's copy (ADR-273 §1.4); both are words and names of the tree's
+ * copy_outcome}, say what became of each survivor's copy (ADR-274 §1.4); both are words and names of the tree's
  * own, and need no quoting.
  */
 final class ManifestCsv {

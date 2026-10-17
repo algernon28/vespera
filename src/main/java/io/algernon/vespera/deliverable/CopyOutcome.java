@@ -1,7 +1,7 @@
 package io.algernon.vespera.deliverable;
 
 /**
- * What a survivor's copy can come to (ADR-273 §2.3). None of them fails the step, throws, or writes a row: it is a
+ * What a survivor's copy can come to (ADR-274 §2.3). None of them fails the step, throws, or writes a row: it is a
  * fact about one survivor, recorded in its entry and its manifest row.
  */
 enum CopyOutcome {

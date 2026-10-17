@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 /**
  * The rules every sentence ADR-174 fixes is held to, checked over the sentences themselves so a later edit to one
  * cannot break a rule the invocation tests would only meet on the page it lands on. The sentences are written by
- * {@code deliverable}'s {@link UnwrittenSentences} since ADR-273 §4; {@code Unwritten} stays a reason with no words.
+ * {@code deliverable}'s {@link UnwrittenSentences} since ADR-274 §4; {@code Unwritten} stays a reason with no words.
  *
  * <p>These hold today and are meant to: they guard the wording, while {@code GenerationFaultInvocationTest} and
  * {@code GenerationBreakerInvocationTest} are where the page is held to it.
@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 @Feature("The tree the operator is handed")
 @Issue("325")
 @Link(name = "ADR-174", url = Adr.A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY, type = "adr")
-@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class UnwrittenPageWordingTest {
 
     /** Words a sentence about one run may not use, since running again can make each one false. */

@@ -23,25 +23,25 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Each rule the deliverable is written by has one class, and nothing is written twice (ADR-213), the classes lying
- * in {@code deliverable} since ADR-273 §4 and the citation pattern, the filename stem and the cluster key staying in
+ * in {@code deliverable} since ADR-274 §4 and the citation pattern, the filename stem and the cluster key staying in
  * {@code synthesis}, written once where the check and the label read them. Read off the compiled classes, as {@link
  * OnlyPipelineNamesSpringBatchTest} reads them, so a copy is found wherever it is put.
  *
- * <p><b>The escaping rule is HTML's, in one class.</b> ADR-134's Markdown surroundings went with ADR-273 §1.3, and
+ * <p><b>The escaping rule is HTML's, in one class.</b> ADR-134's Markdown surroundings went with ADR-274 §1.3, and
  * their reopen trigger with them; what replaces it is that exactly one class of the two modules writes the five
  * entities, {@code Html}, and none writes a backslash in front of markup.
  *
  * <p><b>What it cannot see</b>: an escaper whose entities or backslash appear in no string constant the class holds.
  * There the sentence is still checked by whoever reads it.
  *
- * <p>Retired with ADR-273: the claim that the destination's percent-encoding lies in {@code ArchiveLink} alone, the
+ * <p>Retired with ADR-274: the claim that the destination's percent-encoding lies in {@code ArchiveLink} alone, the
  * class and its rule being gone; and that {@code MarkdownSurroundings} is the one class with a Markdown escape.
  */
 @Epic("Architecture")
 @Feature("Where the deliverable's rules live")
 @Issue("351")
 @Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
-@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class DeliverableRulesHaveOneHomeTest {
 
     /** The two modules the deliverable's rules lie in. */
@@ -63,13 +63,13 @@ class DeliverableRulesHaveOneHomeTest {
     /** A citation as the model writes it (ADR-109), the one regular expression that also holds {@code \[}. */
     private static final String THE_CITATION_PATTERN = "\\[(\\d+)\\]";
 
-    /** The five entities ADR-273 §1.3's one escaping rule writes. */
+    /** The five entities ADR-274 §1.3's one escaping rule writes. */
     private static final List<String> THE_FIVE_ENTITIES = List.of("&amp;", "&lt;", "&gt;", "&quot;", "&#39;");
 
     /** A quote doubled inside a quoted CSV field (RFC 4180). */
     private static final String A_DOUBLED_QUOTE = "\"\"";
 
-    /** The package-private collaborators of the tree's writer, each carrying one rule (ADR-213 §1, ADR-273 §4). */
+    /** The package-private collaborators of the tree's writer, each carrying one rule (ADR-213 §1, ADR-274 §4). */
     private static final List<String> THE_COLLABORATORS = List.of(
             "ManifestCsv",
             "ClusterPage",

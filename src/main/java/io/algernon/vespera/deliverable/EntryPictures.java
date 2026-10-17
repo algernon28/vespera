@@ -123,7 +123,7 @@ final class EntryPictures {
      * other kind, though it holds a position within the budget, is counted as not shown rather than
      * written under no extension (ADR-149 §6).
      *
-     * <p><b>The alt text is the caption under the one escaping rule</b> (ADR-149 §5, ADR-273 §1.3): the
+     * <p><b>The alt text is the caption under the one escaping rule</b> (ADR-149 §5, ADR-274 §1.3): the
      * converter's own text, escaped like every value the tree did not write, in an attribute.
      *
      * @param pageDirectory the directory the cluster page sits in

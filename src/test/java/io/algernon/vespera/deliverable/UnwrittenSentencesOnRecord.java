@@ -4,12 +4,12 @@ import io.algernon.vespera.synthesis.ClusterFaultKind;
 import java.util.List;
 
 /**
- * What the page of a cluster nothing was written over says in place of writing (ADR-174, ADR-273 §1.4), copied out
+ * What the page of a cluster nothing was written over says in place of writing (ADR-174, ADR-274 §1.4), copied out
  * of the record and not out of the code, so the code is held to the record and not the other way round.
  *
  * <p>Each is rendered prose for a reader of the tree, so it says <em>group</em> where every name here says cluster
  * (ADR-122), and names no kind of {@link ClusterFaultKind}. The page shows each in italics of HTML; the asterisks
- * that were Markdown's italics are gone with ADR-273.
+ * that were Markdown's italics are gone with ADR-274.
  *
  * <p><b>{@link #forKind} is an exhaustive {@code switch} with no {@code default}</b>, so a fifth kind stops this
  * test tree compiling until the record gives it a sentence, the same guard ADR-174 asks of the code's own mapping.

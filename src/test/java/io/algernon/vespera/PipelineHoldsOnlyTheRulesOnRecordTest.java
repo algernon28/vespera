@@ -235,7 +235,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
     /**
      * A type of one of the six capability modules or of {@code profile}, as a compiled class writes it,
      * read up to the first character that is not a letter, a digit or an underscore: a nested type answers
-     * for the type it is nested in. {@code deliverable} is among them since ADR-273.
+     * for the type it is nested in. {@code deliverable} is among them since ADR-274.
      */
     private static final Pattern A_CAPABILITY_TYPE = Pattern.compile(
             "io/algernon/vespera/(corpus|extraction|similarity|embedding|synthesis|deliverable|profile)/(\\w+)");

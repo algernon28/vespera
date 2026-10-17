@@ -13,7 +13,7 @@ import java.util.stream.Stream;
 
 /**
  * What the page of a cluster nothing was written over says in place of writing (ADR-174), and where a test finds
- * that page in the HTML tree an invocation wrote (ADR-273 §1).
+ * that page in the HTML tree an invocation wrote (ADR-274 §1).
  *
  * <p><b>The sentences are the record's</b>, held in {@link UnwrittenSentencesOnRecord} beside the code that writes
  * them, and named again here for the invocation tests of this package.

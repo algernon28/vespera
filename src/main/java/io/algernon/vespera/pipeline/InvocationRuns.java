@@ -64,7 +64,7 @@ class InvocationRuns {
 
     /**
      * Records how many documents' copies do not stand in the tree this invocation wrote, for the closing line
-     * (ADR-273 §7). Written at most once, by the generation step.
+     * (ADR-274 §7). Written at most once, by the generation step.
      */
     void recordDocumentsNotCopied(int documents) {
         executionContext.putInt(DOCUMENTS_NOT_COPIED, documents);

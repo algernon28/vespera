@@ -1,11 +1,11 @@
 package io.algernon.vespera.deliverable;
 
 /**
- * The skeleton every page of the tree stands on, and the one escaping rule (ADR-273 §1.1, §1.3).
+ * The skeleton every page of the tree stands on, and the one escaping rule (ADR-274 §1.1, §1.3).
  *
  * <p><b>One rule, wherever a value lands.</b> {@link #escape} writes {@code & < > " '} as entities and is the only
  * thing that makes a value safe, in text and in an attribute alike. Written here again, and not read from {@code
- * pipeline}'s {@code ReportPage}, because a capability module cannot name {@code pipeline} (ADR-273 §1.1); the
+ * pipeline}'s {@code ReportPage}, because a capability module cannot name {@code pipeline} (ADR-274 §1.1); the
  * stylesheet is that page's shared rules.
  */
 final class Html {

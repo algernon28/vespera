@@ -37,7 +37,7 @@ import org.junit.jupiter.api.io.TempDir;
  * rather than {@code DeliverablePictures} so that the two test classes are not read as one another's
  * unit test (ADR-213 §1).
  *
- * <p>Until ADR-273 every expected line here was Markdown that {@code Deliverable.appendPictures} wrote at {@code
+ * <p>Until ADR-274 every expected line here was Markdown that {@code Deliverable.appendPictures} wrote at {@code
  * 4b99a03}; the lines are HTML now, a paragraph holding an {@code <img>}, and the file name pinned as a literal is
  * still the one read off a tree that commit wrote. Retired with the Markdown: the indent that kept a picture inside
  * a numbered entry, an entry being an {@code <li>} now, and the folding of a caption onto one line, an attribute
@@ -48,7 +48,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Issue("351")
 @Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
 @Link(name = "ADR-149", url = Adr.A_SURVIVORS_PICTURES_REACH_ITS_CLUSTER_FILE, type = "adr")
-@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class EntryPicturesTest {
 
     /** The directory beside the page that its pictures are written to: the page's name without {@code .html}. */
@@ -70,7 +70,7 @@ class EntryPicturesTest {
     private static final String A_HOSTILE_CAPTION =
             "Fig. 2 a]b ![x](https://example.com/i.png) <b>bold</b> &copy; `c` \\ end\n\nsecond line";
 
-    /** That caption as alt text: escaped by the one rule, its line breaks kept (ADR-149 §5, ADR-273 §1.3). */
+    /** That caption as alt text: escaped by the one rule, its line breaks kept (ADR-149 §5, ADR-274 §1.3). */
     private static final String THAT_CAPTION_AS_ALT_TEXT =
             "Fig. 2 a]b ![x](https://example.com/i.png) &lt;b&gt;bold&lt;/b&gt; &amp;copy; `c` \\ end\n\nsecond line";
 

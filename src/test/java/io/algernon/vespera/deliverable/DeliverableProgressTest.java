@@ -33,7 +33,7 @@ import org.junit.jupiter.api.io.TempDir;
  * files and the membership entries are announced, the last two summed across the partitions; then each
  * membership entry with a document is reported after its pictures, each cluster file after its entries, and
  * each partition after its files. An entry for a document the call carried that the cluster no longer holds
- * reads no picture and is not counted. Since ADR-273 §2.5 the copies about to be made are announced once the
+ * reads no picture and is not counted. Since ADR-274 §2.5 the copies about to be made are announced once the
  * pictures are listed, and a partition's copies are made, each reported by its outcome, before its pages.
  *
  * <p>The furniture rules compute over pictures already in memory and are not counted (ADR-192 section 7).
@@ -45,7 +45,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("Progress reporting")
 @Issue("412")
 @Link(name = "ADR-192", url = Adr.EVERY_LOOP_REPORTS_ITS_PROGRESS, type = "adr")
-@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class DeliverableProgressTest {
 
     private static final String RUN_ID = "c".repeat(48) + "0123456789abcdef";

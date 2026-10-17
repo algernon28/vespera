@@ -18,7 +18,7 @@ import java.util.Optional;
 import java.util.function.LongSupplier;
 
 /**
- * Writes the tree the operator is actually handed (ADR-103, ADR-104, ADR-109, ADR-111, ADR-112, ADR-273, #186,
+ * Writes the tree the operator is actually handed (ADR-103, ADR-104, ADR-109, ADR-111, ADR-112, ADR-274, #186,
  * #187): a directory named for the run that produced it, opened by an HTML index that is mechanical rather than
  * generated, a page per cluster, a manifest and a verified copy of every survivor listed.
  *
@@ -26,18 +26,18 @@ import java.util.function.LongSupplier;
  * everything it needs arrives as {@link DeliverableProvenance}, {@link SurvivorPictures} and an {@link
  * ArrangedSurvivors} it asks for one seed partition at a time, which is why {@code pipeline} is the only
  * module that gathers them. No class holds every cluster or every survivor of the run (ADR-223). It writes no line
- * and declares no logger; it tells its caller what it did through {@link DeliverableProgress} (ADR-273 §4).
+ * and declares no logger; it tells its caller what it did through {@link DeliverableProgress} (ADR-274 §4).
  *
  * <p><b>The pages are a rendering of what 6b kept.</b> A stored answer's raw {@code [n]} markers are rewritten into
  * links to that cluster's numbered membership, and the membership is composed here from the survivors rather than
  * read out of the answer (ADR-109) — so a reader follows a claim to an entry, and that entry to the document's copy
- * in the tree. Nothing the model wrote is altered except by the renderer's subset (ADR-273 §1.3).
+ * in the tree. Nothing the model wrote is altered except by the renderer's subset (ADR-274 §1.3).
  *
  * <p><b>The numbering that makes a citation land is read, not derived</b> (ADR-133). Which documents
  * one call carried is recorded under the ordinals the model was given, and {@link ClusterPage#numbered} lays the
  * membership out from that record.
  *
- * <p><b>The archive is read and never written</b> (ADR-054, ADR-273 §2.6). Each survivor's original is opened for
+ * <p><b>The archive is read and never written</b> (ADR-054, ADR-274 §2.6). Each survivor's original is opened for
  * reading alone and streamed into a copy under {@code documents/}, which stands only where its bytes hash to the key
  * stage 2 recorded ({@link Copies}). Nothing is created, moved, renamed or touched beneath the corpus root.
  *
@@ -62,14 +62,14 @@ public final class Deliverable {
     /** Where every tree this stage writes lives, beneath the working directory (ADR-103). */
     public static final String DIRECTORY_NAME = "deliverable";
 
-    /** The mechanical listing at the root of every tree (ADR-273 §1). */
+    /** The mechanical listing at the root of every tree (ADR-274 §1). */
     public static final String INDEX_FILE_NAME = "index.html";
 
     /** The manifest at the root of every tree (ADR-104, ADR-112). */
     public static final String MANIFEST_FILE_NAME = "documents.csv";
 
     /**
-     * What the working directory's drive must still have free after a copy is made (ADR-273 §2.5): the database lives
+     * What the working directory's drive must still have free after a copy is made (ADR-274 §2.5): the database lives
      * there, and a full drive would fail a step that had finished its work. A bound of the tool, as {@link
      * #PICTURES_PER_DOCUMENT} is, and not a judgement about any corpus.
      */
@@ -120,7 +120,7 @@ public final class Deliverable {
      *
      * <p>The partitions are asked for before anything is made or reported, so a partition {@link
      * ListedPartition} refuses leaves nothing written. A partition's copies are made before its pages are written
-     * (ADR-273 §2.2), so each page states what stands. A cluster nothing was written over has its page say why
+     * (ADR-274 §2.2), so each page states what stands. A cluster nothing was written over has its page say why
      * where {@code source} gives a reason (ADR-174); only the cluster's own page changes, the index cell and
      * the manifest read the same either way.
      *
@@ -158,7 +158,7 @@ public final class Deliverable {
 
     /**
      * As above, with {@code usableSpace} answering how many bytes the working directory's drive has free each time
-     * a copy asks (ADR-273 §2.5), which the shipped form reads off the file store.
+     * a copy asks (ADR-274 §2.5), which the shipped form reads off the file store.
      */
     static Path writeTo(
             Path workingDirectory,

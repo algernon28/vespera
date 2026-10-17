@@ -7,7 +7,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The writing's Markdown converted to HTML from a fixed subset, with no dependency (ADR-273 §1.3, ADR-046).
+ * The writing's Markdown converted to HTML from a fixed subset, with no dependency (ADR-274 §1.3, ADR-046).
  *
  * <p><b>Escaping comes first, always.</b> The whole text is escaped by {@link Html#escape} before any markup is
  * added, and every construct is recognised on the escaped text, whose delimiters the rule leaves as they are. So the

@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * What the tree's writer tells the rest of the application is numbers and kinds, never a path or a document's text
- * (ADR-273 §8): the module declares no logger, and {@code pipeline} writes its lines, the progress page and the
+ * (ADR-274 §8): the module declares no logger, and {@code pipeline} writes its lines, the progress page and the
  * account from what {@link DeliverableProgress} hands over and nothing else.
  *
  * <p>A claim about the interface rather than about the lines, because it is the interface that decides what a line
@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test;
  */
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
-@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 @Link(name = "ADR-198", url = Adr.EVERY_INVOCATION_WRITES_AN_ACCOUNT_THAT_NAMES_NO_DOCUMENT, type = "adr")
 class WhatTheTreeReportsNamesNoDocumentTest {
 

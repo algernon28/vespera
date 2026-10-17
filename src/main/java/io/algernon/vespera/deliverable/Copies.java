@@ -21,7 +21,7 @@ import java.util.function.LongSupplier;
 import java.util.regex.Pattern;
 
 /**
- * The verified copy of each survivor the tree lists (ADR-273 §2): a file under {@code documents/}, named by its
+ * The verified copy of each survivor the tree lists (ADR-274 §2): a file under {@code documents/}, named by its
  * occurrence, made from the original opened for reading and nothing else, and put in place only when its bytes hash
  * to the key stage 2 recorded.
  *
@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
  */
 final class Copies {
 
-    /** Where the copies lie, beneath the tree (ADR-273 §1). */
+    /** Where the copies lie, beneath the tree (ADR-274 §1). */
     static final String DIRECTORY_NAME = "documents";
 
     private static final Pattern AN_EXTENSION = Pattern.compile("[a-z0-9]{1,8}");
@@ -61,7 +61,7 @@ final class Copies {
     /**
      * {@code <occurrence id>-<slug>.<extension>}: the slug is the stem's slug cut to its limit, the extension the last
      * of the file name lower-cased where it is one to eight of {@code a} to {@code z} and digits; with no slug the
-     * hyphen goes, and with no such extension the dot (ADR-273 §2.1).
+     * hyphen goes, and with no such extension the dot (ADR-274 §2.1).
      */
     static String nameOf(ListedSurvivor survivor) {
         String path = survivor.path().value();
@@ -142,7 +142,7 @@ final class Copies {
             return CopyOutcome.GONE;
         } catch (IOException | RuntimeException | NoSuchAlgorithmException other) {
             // Deliberately every failure, a path the parser refuses among them: a bad copy is that survivor's,
-            // not the run's, and an exception out of the tree would roll back every fault row (ADR-273 §2.3).
+            // not the run's, and an exception out of the tree would roll back every fault row (ADR-274 §2.3).
             leaveNoPart(part);
             progress.survivorNotCopied();
             return CopyOutcome.NOT_COPIED;
@@ -153,7 +153,7 @@ final class Copies {
         try {
             Files.deleteIfExists(part);
         } catch (IOException | RuntimeException stays) {
-            // A part that cannot be removed is written over by the next attempt (ADR-273 §2.4).
+            // A part that cannot be removed is written over by the next attempt (ADR-274 §2.4).
         }
     }
 

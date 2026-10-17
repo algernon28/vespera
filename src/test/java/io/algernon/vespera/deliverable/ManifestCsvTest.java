@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
  * parser rather than a reader (ADR-136 §5, ADR-137 §4).
  *
  * <p><b>The expected file is what {@code Deliverable.writeManifest} wrote at {@code 4b99a03}</b> for the
- * same arrangement and survivors, with the two columns ADR-273 §1.4 adds at its end: the archive is not there, so
+ * same arrangement and survivors, with the two columns ADR-274 §1.4 adds at its end: the archive is not there, so
  * each copy is {@code gone} and names nothing.
  *
  * <p>Since ADR-223 the manifest is written a page of survivors at a time and nothing composes it whole, so the

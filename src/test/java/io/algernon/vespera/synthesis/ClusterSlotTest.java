@@ -39,7 +39,7 @@ class ClusterSlotTest {
     void anArrangedClusterGivesItsKey() {
         // A synthesis doc and a fault no longer travel with their cluster's identity: since ADR-223 each is
         // asked for by this key, so the key is what the asker already holds and nothing reads one off them. A
-        // survivor's key is the tree's, read by ListedSurvivor.slot in deliverable (ADR-273 §4), and held there.
+        // survivor's key is the tree's, read by ListedSurvivor.slot in deliverable (ADR-274 §4), and held there.
         claim(
                 "the arranged cluster gives the key of seed 1, ordinal 4, by which its writing and its fault are"
                         + " asked for",

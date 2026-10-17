@@ -43,13 +43,13 @@ class ModuleBoundariesTest {
     private static final ApplicationModules MODULES = ApplicationModules.of(VesperaApplication.class);
 
     /**
-     * ADR-040's modules, less the one ADR-101 struck, and the one ADR-273 added — nine. Seven are
+     * ADR-040's modules, less the one ADR-101 struck, and the one ADR-274 added — nine. Seven are
      * capability modules; {@code ledger} is what they depend on, and {@code pipeline} is the
      * composition root that depends on all of them.
      *
      * <p>{@code publication} is deliberately absent (ADR-101, ADR-110): the run ends at the generated
      * documents, so nothing uploads them and no module exists to. {@code deliverable} draws the tree
-     * those documents are handed over in, and carries it nowhere (ADR-273). This list is an
+     * those documents are handed over in, and carries it nowhere (ADR-274). This list is an
      * allow-list, so a struck name left in it is invisible until somebody creates the package it
      * permits — which is the one moment it would do harm.
      */
@@ -73,7 +73,7 @@ class ModuleBoundariesTest {
      * choice is derived from (ADR-100), and, since ADR-226, what a seed the floor stopped is sent as and
      * which detected formats list their pictures: a wider purpose for the same two types, the declaration
      * unchanged. {@code deliverable} names {@code synthesis} for the records it draws the tree from, the
-     * citation pattern and the filename stem (ADR-273 §4). Recorded here as named exceptions rather than
+     * citation pattern and the filename stem (ADR-274 §4). Recorded here as named exceptions rather than
      * by relaxing the assertion, so that a third module widening its declaration still fails this test,
      * and so does either of the two widening beyond what is named here.
      */
@@ -195,12 +195,12 @@ class ModuleBoundariesTest {
 
     /**
      * The tree the operator is handed is drawn by a module of its own, which no stage's version names, so a page
-     * drawn differently asks the model nothing again (ADR-273 §4, §5).
+     * drawn differently asks the model nothing again (ADR-274 §4, §5).
      */
     @Test
     @Story("The boundary rule holds for every module")
     @DisplayName("The tree the operator is handed is drawn by a module of its own, which may read the writing's records")
-    @Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+    @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
     void theDeliverableIsAModuleOfItsOwn() {
         List<List<String>> declared = MODULES.stream()
                 .filter(module -> "deliverable".equals(module.getIdentifier().toString()))

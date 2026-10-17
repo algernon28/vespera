@@ -14,7 +14,7 @@ import java.util.List;
  * <p>A stage lists {@code pipeline} only while a class of {@code pipeline} holds a rule that shapes
  * that stage's output (ADR-222 §1). None does (ADR-226), so no stage lists it. No stage lists {@code deliverable}
  * or {@code profile} either: the tree is drawn from the rows generation records and keys no run, and the rule for
- * every profile key on its index is a rule of how it is drawn (ADR-273 §5).
+ * every profile key on its index is a rule of how it is drawn (ADR-274 §5).
  */
 enum StageModules {
     BYTE_LEVEL_REDUCTION("byte-level-reduction", List.of("corpus")),

@@ -2,10 +2,10 @@ package io.algernon.vespera.deliverable;
 
 /**
  * What {@link Deliverable#writeTo} tells its caller about the loops of the tree that read or write something, and
- * about the copies, as it goes (ADR-192 sections 3 and 5, #412, ADR-223 section 8, ADR-273 §2.5, §8). The caller owns
+ * about the copies, as it goes (ADR-192 sections 3 and 5, #412, ADR-223 section 8, ADR-274 §2.5, §8). The caller owns
  * the line; this module writes none and declares no logger.
  *
- * <p><b>Every method takes numbers alone</b> (ADR-273 §8), so nothing it reports can name a path, a file or a
+ * <p><b>Every method takes numbers alone</b> (ADR-274 §8), so nothing it reports can name a path, a file or a
  * document's text.
  *
  * <p><b>The contract, for each {@code to...} method:</b> called exactly once each time its loop is reached,

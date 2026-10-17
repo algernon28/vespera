@@ -14,20 +14,20 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Which modules key the generation run once the tree is drawn by a module of its own (ADR-273 §5): the ones whose
+ * Which modules key the generation run once the tree is drawn by a module of its own (ADR-274 §5): the ones whose
  * rules decide what the run records, and not the one that draws the tree from those records, so that a page drawn
  * differently never asks the model again.
  */
 @Epic("Run identity")
 @Feature("What a run is keyed by")
-@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
 class TheTreeKeysNoRunTest {
 
     /** What decides the questions generation puts, the answers it keeps and the faults it records. */
     private static final List<String> WHAT_DECIDES_GENERATIONS_ROWS = List.of("synthesis", "extraction", "embedding");
 
-    /** What the arrangement's version spans, unchanged by ADR-273. */
+    /** What the arrangement's version spans, unchanged by ADR-274. */
     private static final List<String> ARRANGEMENTS_MODULES = List.of("synthesis", "extraction", "embedding");
 
     @Test

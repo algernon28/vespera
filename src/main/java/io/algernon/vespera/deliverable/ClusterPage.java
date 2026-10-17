@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * One cluster's page (ADR-103, ADR-104, ADR-109, ADR-133, ADR-174, ADR-273 §1.4, #187): the heading, the writing
+ * One cluster's page (ADR-103, ADR-104, ADR-109, ADR-133, ADR-174, ADR-274 §1.4, #187): the heading, the writing
  * rendered by {@link ProseHtml} with its citations as links, the disclosure where the writing rests on part of the
  * cluster, and then the cluster's complete membership.
  *
@@ -57,7 +57,7 @@ final class ClusterPage {
      * reader can match against the index.
      *
      * <p><b>The membership is complete, not the cited subset</b> (ADR-104), and every entry links to its copy inside
-     * the tree where one stands, or names its path and says why none does and links nowhere (ADR-273 §2.6). No entry
+     * the tree where one stands, or names its path and says why none does and links nowhere (ADR-274 §2.6). No entry
      * links into the archive.
      *
      * <p><b>The disclosure counts what the arrangement recorded</b>, not what this writer was handed
@@ -170,7 +170,7 @@ final class ClusterPage {
      * The cluster's whole membership, numbered as {@link #numbered} ordered it (ADR-104, ADR-109, ADR-133): each
      * entry an {@code <li>} carrying the id a citation in the writing resolves to, and either a link to the document's
      * copy in the tree or, where none stands, the document's own root-relative path with the reason in italics and
-     * no link at all (ADR-273 §2.6).
+     * no link at all (ADR-274 §2.6).
      *
      * @param pageDirectory the directory this very page sits in
      * @param pictureDirectoryName the name a picture's own directory is given, beside this page (ADR-149 §3)

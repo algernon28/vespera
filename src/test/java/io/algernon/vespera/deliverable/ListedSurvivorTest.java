@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * A survivor as the manifest and a cluster page list it, made in {@code deliverable} from the scores on
- * record (ADR-226, moving ADR-222's rule 8, unchanged; ADR-104; ADR-273 §4), and the key of the cluster it is in.
+ * record (ADR-226, moving ADR-222's rule 8, unchanged; ADR-104; ADR-274 §4), and the key of the cluster it is in.
  *
  * <p>A survivor with no score on record is listed with {@code 0.0}, as {@code GenerationTasklet} listed it.
  * {@code LeadDocument} weighs a member with no score as {@code 0.0} as well, for which member leads a
@@ -32,7 +32,7 @@ import org.junit.jupiter.api.Test;
 @Issue("479")
 @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
 @Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
-@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class ListedSurvivorTest {
 
     @Test

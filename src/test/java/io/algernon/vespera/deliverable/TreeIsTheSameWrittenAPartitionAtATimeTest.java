@@ -27,7 +27,7 @@ import org.junit.jupiter.api.io.TempDir;
  * not depend on where the pages fall: the index, the manifest and every cluster page are byte for byte the ones
  * written with every survivor handed over at once.
  *
- * <p>Until ADR-273 the expected files were a capture of the Markdown tree from before ADR-223 was built. The tree
+ * <p>Until ADR-274 the expected files were a capture of the Markdown tree from before ADR-223 was built. The tree
  * is HTML now and that capture describes nothing it writes, so the claim compares two writings of the same lists:
  * two survivors a page, and all eleven in one.
  *
@@ -50,7 +50,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Issue("472")
 @Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
-@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class TreeIsTheSameWrittenAPartitionAtATimeTest {
 
     /** How many survivors the source hands over at once: fewer than any partition here holds. */

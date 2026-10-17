@@ -175,8 +175,8 @@ class NextAction {
 
     /**
      * The deliverable this invocation's corpus has, if a generation run stands for this invocation — and, since
-     * every invocation that reaches the tree draws it (ADR-273 §6), the count of documents not copied in the one it
-     * drew, which the generation step handed over in the job's execution context (ADR-273 §7).
+     * every invocation that reaches the tree draws it (ADR-274 §6), the count of documents not copied in the one it
+     * drew, which the generation step handed over in the job's execution context (ADR-274 §7).
      */
     private Optional<DeliverableSummary> deliverableFor(Optional<RunId> generation, InvocationRuns invocationRuns) {
         return generation.flatMap(this::summarize).map(summary -> new DeliverableSummary(
@@ -219,7 +219,7 @@ class NextAction {
      * @param tree the tree's own path
      * @param clustersLeftUnwritten how many clusters of the arrangement carry no writing
      * @param documentsNotCopied how many documents' copies do not stand in the tree this invocation wrote, or empty
-     *     where this invocation wrote none (ADR-273 §7)
+     *     where this invocation wrote none (ADR-274 §7)
      */
     record DeliverableSummary(Path tree, int clustersLeftUnwritten, OptionalInt documentsNotCopied) {}
 

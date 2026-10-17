@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
  * partitions, so every page of two here holds survivors of two partitions, and a page of five holds all
  * three.
  *
- * <p><b>The expected file is composed here</b>, row by row from {@link ThreePartitions}, where until ADR-273 it was a
+ * <p><b>The expected file is composed here</b>, row by row from {@link ThreePartitions}, where until ADR-274 it was a
  * capture of the Markdown tree; the archive is not there, so every copy is {@code gone} and its cell empty. {@code
  * ManifestCsvTest} goes on holding the quoting and the stop for a survivor whose cluster the arrangement does not
  * carry.
@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 @Feature("The listing of every document the tree arranges")
 @Issue("472")
 @Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")
-@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class ManifestIsWrittenAPageAtATimeTest {
 
     private static final String THE_HEADER = "occurrence_id,path,content_hash,winning_seed,relevance_score,"

@@ -1,4 +1,4 @@
-# ADR-273 — The deliverable is HTML with a verified copy of every survivor it lists, and its rendering keys no run
+# ADR-274 — The deliverable is HTML with a verified copy of every survivor it lists, and its rendering keys no run
 
 - **Date**: 2026-10-17
 - **Status**: accepted on 2026-10-17.
