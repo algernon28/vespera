@@ -205,7 +205,8 @@ public class Verdicts {
         String sql = "SELECT SUM(kind = 'BROKEN' COLLATE NOCASE), SUM(kind = 'DUPLICATE_OF' COLLATE NOCASE),"
                 + " SUM(kind = 'SUPERSEDED_BY' COLLATE NOCASE), SUM(kind = 'OUT_OF_SCOPE' COLLATE NOCASE),"
                 + " SUM(kind = 'EXTRACTION_FAILED' COLLATE NOCASE), SUM(kind = 'DEGENERATE_OUTPUT' COLLATE NOCASE),"
-                + " SUM(kind = 'REDUNDANT_WITH' COLLATE NOCASE), SUM(kind = 'BELOW_THRESHOLD' COLLATE NOCASE)"
+                + " SUM(kind = 'REDUNDANT_WITH' COLLATE NOCASE), SUM(kind = 'TRANSLATION_OF' COLLATE NOCASE),"
+                + " SUM(kind = 'BELOW_THRESHOLD' COLLATE NOCASE)"
                 + " FROM verdict WHERE run_id = ?";
         return jdbcTemplate.query(sql, resultSet -> {
             Map<String, Long> counts = new LinkedHashMap<>();
@@ -263,6 +264,36 @@ public class Verdicts {
                 runId.value(),
                 VerdictKind.EXTRACTION_FAILED.name());
         return count == null ? 0 : count;
+    }
+
+    /** How many verdicts of {@code kind} are recorded under {@code runId} itself, through no run upstream of it. */
+    public long countOfKind(RunId runId, VerdictKind kind) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM verdict WHERE run_id = ? AND kind = ?",
+                Long.class,
+                runId.value(),
+                kind.name());
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * Those of {@code occurrences} that carry a verdict of {@code kind} recorded under {@code runId} itself
+     * (ADR-271 section 5): a lookup by key in statements of at most 1,000, and none for an empty collection.
+     */
+    public Set<OccurrenceId> carryingAmong(RunId runId, VerdictKind kind, Collection<OccurrenceId> occurrences) {
+        Set<OccurrenceId> carrying = new LinkedHashSet<>();
+        ListedPages.each(occurrences.stream().distinct().toList(), batch -> {
+            List<Object> arguments = new ArrayList<>();
+            arguments.add(runId.value());
+            arguments.add(kind.name());
+            batch.forEach(occurrence -> arguments.add(occurrence.value()));
+            carrying.addAll(jdbcTemplate.query(
+                    "SELECT occurrence_id FROM verdict WHERE run_id = ? AND kind = ? AND occurrence_id IN ("
+                            + Placeholders.of(batch.size()) + ")",
+                    (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")),
+                    arguments.toArray()));
+        });
+        return carrying;
     }
 
     /**

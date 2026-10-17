@@ -31,7 +31,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  * that disagreed three ways about a value no number could be read from — one ignored it, one ended
  * the invocation, one stopped the context from starting.
  */
-public sealed interface ProfileValue permits NumericValue, TextValue, NameEndingsValue {
+public sealed interface ProfileValue permits NumericValue, TextValue, NameEndingsValue, LanguagesValue {
 
     /** What the profile says, exactly as the operator wrote it. */
     String value();

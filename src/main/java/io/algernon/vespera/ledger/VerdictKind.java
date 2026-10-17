@@ -1,7 +1,7 @@
 package io.algernon.vespera.ledger;
 
 /**
- * The closed verdict vocabulary: nine values, eight of them blocking (ADR-057, ADR-146). Owned by
+ * The closed verdict vocabulary: ten values, nine of them blocking (ADR-057, ADR-146, ADR-271). Owned by
  * {@code ledger} rather than by the cascade, so that one place decides what a verdict may say and
  * what it means for survival (ADR-042).
  *
@@ -35,6 +35,9 @@ public enum VerdictKind {
 
     /** The content is already carried by another surviving occurrence. Stage 4. */
     REDUNDANT_WITH(true),
+
+    /** The content is carried, in another language, by another surviving occurrence. Stage 5 (ADR-271). */
+    TRANSLATION_OF(true),
 
     /** Relevance to the seed set scored below the threshold. Stage 5. */
     BELOW_THRESHOLD(true),

@@ -613,6 +613,28 @@ CREATE INDEX IF NOT EXISTS relevance_score_by_run_id ON relevance_score (run_id)
 -- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
 CREATE INDEX IF NOT EXISTS relevance_score_by_winning_seed_occurrence_id ON relevance_score (winning_seed_occurrence_id);
 
+-- embedding's own table (ADR-271): one row for each occurrence a translation-of verdict removes under a scoring
+-- run -- the occurrence that survives in its place, the two languages as ISO 639-1 codes, and what found the
+-- translation: 'parallel-paths', 'embeddings' or 'both'. Run-scoped (ADR-041): a floor or a preferred language
+-- changed is another scoring run, with a row set of its own. Additive, so embedding's schema version does not move
+-- (ADR-197).
+-- owner: embedding
+CREATE TABLE IF NOT EXISTS translation_of (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    translation_of_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    language TEXT NOT NULL,
+    kept_language TEXT NOT NULL,
+    evidence TEXT NOT NULL,
+    PRIMARY KEY (occurrence_id, run_id)
+);
+
+-- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
+CREATE INDEX IF NOT EXISTS translation_of_by_run_id ON translation_of (run_id);
+
+-- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
+CREATE INDEX IF NOT EXISTS translation_of_by_translation_of_occurrence_id ON translation_of (translation_of_occurrence_id);
+
 -- embedding's own table (ADR-087, ADR-045): which cluster each survivor landed in, inside the seed
 -- partition its winning seed defines. A cluster has no row of its own -- it is the set of rows
 -- carrying the same run, winning seed and ordinal -- so there is nothing for membership to fall out
