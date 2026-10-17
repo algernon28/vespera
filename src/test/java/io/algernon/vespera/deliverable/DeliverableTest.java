@@ -6,6 +6,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
+import io.algernon.vespera.synthesis.ArrangedCluster;
+import io.algernon.vespera.synthesis.ClusterLabel;
+import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.ListedDoc;
+import io.algernon.vespera.synthesis.RecordedCluster;
+import io.algernon.vespera.synthesis.SynthesisDoc;
+import io.algernon.vespera.synthesis.Unwritten;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -17,6 +24,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -26,21 +34,18 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 /**
- * The tree stage 6b leaves on disk (ADR-103, ADR-104, ADR-112, #186): where it lands, what its
+ * The tree stage 6b leaves on disk (ADR-103, ADR-104, ADR-112, ADR-274, #186): where it lands, what its
  * names are, and what the two mechanical files at its root say.
  *
  * <p>Written against the writer rather than against an invocation, because three of the claims here
  * cannot be reached from one. A fixture corpus produces one seed partition holding one cluster, so
  * nothing driven end to end can ask what the ordinal prefix does at the boundary between nine
- * clusters and ten; and an archive that is not there at all is the one state that tells a writer
- * which reads the archive apart from one which does not, and it cannot be arranged behind a walk
- * that has just read the same files.
+ * clusters and ten; and an archive that is not there at all cannot be arranged behind a walk that has
+ * just read the same files.
  *
- * <p><b>The archive is never touched, and that is what the missing root is for.</b> ADR-104 says no
- * original is copied and none is stat-ed at write time. A tree written over a corpus root that does
- * not exist is the only mechanical form of that claim: a writer that copied an original would fail
- * for want of it, and one that checked a link before writing it would either fail or write a
- * different document, so a complete tree with every link in it is the evidence.
+ * <p><b>The archive these fixtures name is not on this machine.</b> Each survivor's copy is then {@code gone}
+ * (ADR-274 §2.3), which no claim here is about: the copies are {@code EverySurvivorIsCopiedTest}'s. What a tree
+ * written over such an archive shows is that a copy that cannot be made costs that copy and nothing else.
  *
  * <p><b>The report says <em>group</em> and the code says <em>cluster</em></b> (ADR-122). The tree is
  * one of that record's outside-facing surfaces: every word an operator reads in it renders the term,
@@ -54,12 +59,13 @@ import org.junit.jupiter.params.provider.EnumSource;
 @Link(name = "ADR-103", url = Adr.THE_DELIVERABLE_IS_A_MARKDOWN_TREE_PER_RUN, type = "adr")
 @Link(name = "ADR-104", url = Adr.THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED, type = "adr")
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class DeliverableTest {
 
     /** A run id of the shape the ledger mints: sixty-four hexadecimal characters (ADR-048). */
     private static final String RUN_ID = "a".repeat(48) + "0123456789abcdef";
 
-    /** The walk the run read, which is what says when the links in the tree were true (ADR-104). */
+    /** The walk the run read, which is what says which archive the tree was drawn from (ADR-104). */
     private static final long WALK = 7L;
 
     /** The seed whose partition every cluster below sits in, unless a test says otherwise. */
@@ -105,15 +111,12 @@ class DeliverableTest {
     private static final String THE_NAME_THAT_SORTS_FIRST = "Access Platforms";
 
     /**
-     * A label carrying what a Docling title can carry and a table cannot: a line break and a pipe.
+     * A label carrying what a Docling title can carry and a Markdown table could not: a line break and a pipe.
      *
      * <p>Neither is exotic. A title is read off the document's own first heading, which wraps in the
      * document it came from, and a pipe is an ordinary character in one.
      */
     private static final String A_NAME_WITH_A_BREAK_AND_A_PIPE = "Fire Suppression\nRetrofits | Phase 2";
-
-    /** That same name as a reader should meet it: on one line, with the pipe left as a pipe. */
-    private static final String THAT_NAME_MADE_SAFE = "Fire Suppression Retrofits \\| Phase 2";
 
     /** How many clusters the hostile-name fixture arranges, which is how many rows its table must keep. */
     private static final int TWO_CLUSTERS = 2;
@@ -121,32 +124,11 @@ class DeliverableTest {
     /** A generated heading carrying a break of its own, which the model is under no obligation to avoid. */
     private static final String A_HEADING_WITH_A_BREAK = "Suppression Retrofits,\n2018 to 2021";
 
-    /** That heading as a cell should carry it. */
-    private static final String THAT_HEADING_MADE_SAFE = "Suppression Retrofits, 2018 to 2021";
-
-    /** A label carrying the bracket that would close a link early, which a filename stem can hold. */
+    /** A label carrying the bracket that closed a Markdown link early, which a filename stem can hold. */
     private static final String A_NAME_WITH_A_BRACKET = "Retrofits [2019] and after";
 
-    /** And that one as link text: the brackets escaped, so the whole name stays inside the link. */
-    private static final String THAT_NAME_AS_LINK_TEXT = "Retrofits \\[2019\\] and after";
-
-    /** Enough of that escaped name to find its row, rather than a bare word repeated elsewhere. */
-    private static final String A_NAME_WITH_A_BRACKET_ESCAPED_START = "Retrofits \\[2019\\]";
-
-    /**
-     * A label carrying a backslash immediately before a pipe, which is the one arrangement of
-     * characters that defeats a cell rule escaping the pipe alone (ADR-134).
-     *
-     * <p>Not exotic: the two values a cell carries are a document's own title and what the model
-     * wrote, and neither is under any obligation to avoid a character a Windows path is full of.
-     */
+    /** A label carrying a backslash immediately before a pipe, which defeated a Markdown cell rule (ADR-134). */
     private static final String A_NAME_WITH_A_BACKSLASH_BEFORE_A_PIPE = "Retrofits \\| Phase 2";
-
-    /**
-     * That name made safe: the backslash doubled first, then the pipe escaped against the doubled
-     * pair rather than against the original.
-     */
-    private static final String THAT_NAME_MADE_SAFE_BACKSLASH_FIRST = "Retrofits \\\\\\| Phase 2";
 
     /** How many columns the index table has, which is how many a row must still have afterwards. */
     private static final int THREE_COLUMNS = 3;
@@ -157,8 +139,8 @@ class DeliverableTest {
      */
     private static final String A_NAME_WITH_A_TAG_AND_AN_AMPERSAND = "Retrofits <b>Phase 2 R&D";
 
-    /** That name made safe: each of the two escaped with a backslash, and nothing else touched. */
-    private static final String THAT_NAME_WITH_BOTH_ESCAPED = "Retrofits \\<b>Phase 2 R\\&D";
+    /** That name made safe: each of the two written as its entity, and nothing else touched (ADR-274 §1.3). */
+    private static final String THAT_NAME_WITH_BOTH_ESCAPED = "Retrofits &lt;b&gt;Phase 2 R&amp;D";
 
     /**
      * A cluster title carrying the same two characters, which the model is under no more obligation to
@@ -166,115 +148,51 @@ class DeliverableTest {
      */
     private static final String A_TITLE_WITH_A_TAG_AND_AN_AMPERSAND = "Retrofits <draft> R&D, 2018";
 
-    /** That title as the cell has to carry it: each of the two behind a backslash, nothing else touched. */
-    private static final String THAT_TITLE_WITH_BOTH_ESCAPED = "Retrofits \\<draft> R\\&D, 2018";
+    /** That title as the cell has to carry it: each of the two as its entity, nothing else touched. */
+    private static final String THAT_TITLE_WITH_BOTH_ESCAPED = "Retrofits &lt;draft&gt; R&amp;D, 2018";
 
-    /**
-     * Which piece of a split row states what the cluster was written up as: the third, because the leading
-     * pipe leaves an empty piece in front of the first column.
-     */
-    private static final int THE_WRITTEN_UP_COLUMN = 3;
+    /** Which cell of a row states what the cluster was written up as: the third, counting from zero. */
+    private static final int THE_WRITTEN_UP_COLUMN = 2;
 
-    /** A seed path carrying a tag, which lands in the one position that escaped nothing (ADR-136). */
+    /** Which cell of a row names the cluster: the first. */
+    private static final int THE_NAME_COLUMN = 0;
+
+    /** A seed path carrying a tag, which lands in the partition's heading (ADR-136). */
     private static final String A_SEED_PATH_WITH_A_TAG = "seeds/<draft> Safety & Standards.docx";
 
-    /** That seed path as its heading must read, folded and with both characters escaped. */
-    private static final String THAT_SEED_PATH_ESCAPED = "seeds/\\<draft> Safety \\& Standards.docx";
+    /** That seed path as its heading must read, with each character written as its entity. */
+    private static final String THAT_SEED_PATH_ESCAPED = "seeds/&lt;draft&gt; Safety &amp; Standards.docx";
 
     /**
-     * A cluster label that is itself a whole inline link. Not exotic: NTFS permits every character in
-     * it, so a document can really be named this, and a Docling title is arbitrary text off a title
-     * block.
+     * A cluster label that is itself a whole Markdown inline link. Not exotic: NTFS permits every character
+     * in it, so a document can really be named this, and a Docling title is arbitrary text off a title block.
      */
     private static final String A_NAME_THAT_IS_ITSELF_A_LINK = "[click me](evil.md) report";
-
-    /** That name as a cell has to carry it, with both brackets behind a backslash and nothing else moved. */
-    private static final String THAT_NAME_WITH_ITS_BRACKETS_ESCAPED = "\\[click me\\](evil.md) report";
-
-    /**
-     * That escaped name standing as a whole cell, which is what tells its row apart from the heading
-     * above it: a partition heading naming the seed carries the same name inside a longer one, and a
-     * lookup by the name alone would find the heading and read its columns.
-     */
-    private static final String THAT_NAME_AS_A_WHOLE_CELL = "| " + THAT_NAME_WITH_ITS_BRACKETS_ESCAPED + " |";
 
     /** A seed path of the same shape, which is the value the index's own partition heading is given. */
     private static final String A_SEED_PATH_THAT_IS_ITSELF_A_LINK = "seeds/[click me](evil.md) report.docx";
 
-    /** That seed path as its heading has to read. */
-    private static final String THAT_SEED_PATH_WITH_ITS_BRACKETS_ESCAPED =
-            "seeds/\\[click me\\](evil.md) report.docx";
-
     /**
-     * A cluster title that is itself an image, which is the same two brackets with a bang in front of
-     * them. What the model answers is under no filesystem constraint at all, so this is the freest of
+     * A cluster title that is itself a Markdown image, which is the same two brackets with a bang in front
+     * of them. What the model answers is under no filesystem constraint at all, so this is the freest of
      * the three values the index carries.
      */
     private static final String A_TITLE_THAT_IS_ITSELF_AN_IMAGE = "Survey ![shot](https://example.com/x.png) 2019";
 
-    /** That title as a cell has to carry it: the bang is harmless once the bracket after it is not live. */
-    private static final String THAT_TITLE_WITH_ITS_BRACKETS_ESCAPED =
-            "Survey !\\[shot\\](https://example.com/x.png) 2019";
-
-    /**
-     * A doubled backslash in front of a bracket, which is what a link-text rule would write if it
-     * escaped the bracket the cell rule had already escaped. It reads as one literal backslash followed
-     * by a live bracket, and the link does not survive it.
-     */
-    private static final String A_BRACKET_ESCAPED_TWICE = "\\\\[";
-
-    /**
-     * A seed path with two backticks in it, which NTFS permits and a walk can really record (ADR-148).
-     * Two in one value are a code span in every renderer configuration measured, and it is the pair that
-     * is the hazard: both characters leave the heading's text, with nothing to say they were there.
-     */
+    /** A seed path with two backticks in it, which NTFS permits and a walk can really record (ADR-148). */
     private static final String A_SEED_PATH_WITH_TWO_BACKTICKS = "seeds/`draft` Safety Standards.docx";
 
-    /** That seed path as its heading has to read: each backtick behind a backslash, nothing else moved. */
-    private static final String THAT_SEED_PATH_WITH_ITS_BACKTICKS_ESCAPED =
-            "seeds/\\`draft\\` Safety Standards.docx";
-
-    /**
-     * A cluster label with a pair of backticks either side of a bracketed word, which is the case that
-     * switches the other rules off: no backslash escape is processed inside a code span, so the escape
-     * the cell rule writes before each bracket is shown at the reader as a backslash the archive never
-     * held, in every configuration but {@code marked}, which consumes it inside link text. A Docling
-     * title is arbitrary text off a title block, so nothing bounds what it spells.
-     */
+    /** A cluster label with a pair of backticks either side of a bracketed word. */
     private static final String A_LABEL_WITH_BACKTICKS_AROUND_A_BRACKET = "The `[draft]` retrofit";
 
-    /** That label as the linked first column has to carry it: all four characters behind a backslash. */
-    private static final String THAT_LABEL_WITH_ITS_BACKTICKS_ESCAPED = "The \\`\\[draft\\]\\` retrofit";
-
-    /**
-     * A cluster title marking a name as code, which is what a model asked to name a group of documents
-     * about a piece of software is likely to answer -- it is how it has seen such names written.
-     */
+    /** A cluster title marking a name as code, as a model naming a group about software is likely to answer. */
     private static final String A_TITLE_MARKING_A_NAME_AS_CODE = "Migrating `libsprinkler` to v2";
 
-    /** That title as the third column has to carry it: characters to be read, not formatting to apply. */
-    private static final String THAT_TITLE_WITH_ITS_BACKTICKS_ESCAPED = "Migrating \\`libsprinkler\\` to v2";
-
-    /**
-     * The label of a cluster nothing was written over, whose cell is its row's whole text, with no link.
-     * It carries one backtick and nothing on its row carries another, so it is a literal backtick under
-     * the specification in every configuration measured: it is here so that a cell rule escaping a
-     * backtick only where a partner follows it fails a test.
-     */
+    /** The label of a cluster nothing was written over, carrying one backtick. */
     private static final String AN_UNLINKED_LABEL_WITH_ONE_BACKTICK = "The O`Brien survey";
-
-    /** That label as its cell has to carry it: the backtick behind a backslash, nothing else moved. */
-    private static final String THAT_UNLINKED_LABEL_WITH_ITS_BACKTICK_ESCAPED = "The O\\`Brien survey";
 
     /** A document whose own name carries two backticks, for the listing, where a backtick is only data. */
     private static final String A_PATH_WITH_TWO_BACKTICKS = "reports/the `final` draft.pdf";
-
-    /**
-     * A backtick with no backslash in front of it, which is a code span delimiter wherever another run
-     * of the same length follows it. None of the values these fixtures give carries a backslash of its
-     * own, so every backslash in front of a backtick on the page is one a rule wrote.
-     */
-    private static final Pattern A_LIVE_BACKTICK = Pattern.compile("(?<!\\\\)`");
 
     /** The first place in an order, which both levels count from (ADR-112). */
     private static final int FIRST_PLACE = 1;
@@ -301,14 +219,14 @@ class DeliverableTest {
     /** The prefix the only member of a level of one carries: one digit, because the count is one. */
     private static final String THE_ONLY_ONE_PREFIX = "1-";
 
-    /** A corpus root that is not on this machine, so anything reaching the archive fails or shows. */
+    /** A corpus root that is not on this machine, so no copy can be read from it. */
     private static final String AN_ARCHIVE_THAT_IS_NOT_THERE =
             Path.of("D:", "an-archive-that-was-never-mounted").toString();
 
     /** The archive the rest of these fixtures were walked from, recorded once in the index. */
     private static final String THE_ARCHIVE_ROOT = Path.of("D:", "archive").toString();
 
-    /** What the tree holds when one cluster was written over: the index, the listing, and one page. */
+    /** What the tree holds when one cluster was written over and no copy could be made: the index, the listing, and one page. */
     private static final int THE_INDEX_THE_LISTING_AND_ONE_PAGE = 3;
 
     /** The one line above the listing's rows, which names the columns rather than carrying a document. */
@@ -322,26 +240,28 @@ class DeliverableTest {
 
     /** Every column the manifest carries, in order, and the header row it writes them under. */
     private static final String MANIFEST_HEADER = "occurrence_id,path,content_hash,winning_seed,"
-            + "relevance_score,seed_partition,cluster,partition_order,cluster_order";
+            + "relevance_score,seed_partition,cluster,partition_order,cluster_order,copy,copy_outcome";
 
     /** How many rows a manifest listing two survivors carries beneath that header. */
     private static final int TWO_SURVIVORS = 2;
 
     /** How many columns the header names, and therefore how many every row has to read back as. */
-    private static final int NINE_COLUMNS = 9;
+    private static final int ELEVEN_COLUMNS = 11;
 
-    /** Where the document's own path sits among those columns, counting from zero: second of nine. */
+    /** Where the document's own path sits among those columns, counting from zero: second of eleven. */
     private static final int THE_PATH_COLUMN = 1;
 
-    /** Where its seed partition's place in the order sits: eighth of nine. */
+    /** Where its seed partition's place in the order sits: eighth of eleven. */
     private static final int THE_PARTITION_ORDER_COLUMN = 7;
 
-    /** And where its own place within that partition sits: ninth and last. */
+    /** And where its own place within that partition sits: ninth of eleven. */
     private static final int THE_CLUSTER_ORDER_COLUMN = 8;
 
-
-    /** Where the seed its group sits under is named: sixth of nine. */
+    /** Where the seed its group sits under is named: sixth of eleven. */
     private static final int THE_SEED_PARTITION_COLUMN = 5;
+
+    /** Where what became of its copy is stated: eleventh and last. */
+    private static final int THE_COPY_OUTCOME_COLUMN = 10;
 
     /** How many rows a manifest listing one survivor carries beneath that header. */
     private static final int ONE_SURVIVOR = 1;
@@ -356,17 +276,29 @@ class DeliverableTest {
     /** A seed whose own name carries a comma too, so the column naming it is exercised as well. */
     private static final String A_SEED_PATH_WITH_A_COMMA = "seeds/Industrial Safety, Standards.docx";
 
-    /** The table the index opens each partition with, whose header is settled rather than an author's. */
-    private static final String INDEX_TABLE_HEADER = "| Group | Documents | Written up as |";
+    /** The row the index heads each partition's table with, whose words are settled rather than an author's. */
+    private static final String INDEX_TABLE_HEADER = "<tr><th>Group</th><th>Documents</th><th>Written up as</th></tr>";
 
     /** What the index says in place of a title for a cluster nothing was written over (ADR-111). */
-    private static final String THE_HOLE = "*nothing was written over this group*";
+    private static final String THE_HOLE = "nothing was written over this group";
+
+    /** That sentence as the index and a page show it: in italics. */
+    private static final String THE_HOLE_IN_ITALICS = "<em>" + THE_HOLE + "</em>";
 
     /** What the profile key naming the archive's own documents was set to when the run read it. */
     private static final String THE_SEED_FOLDER_VALUE = "D:/archive/seeds";
 
     /** The name of that key, which the index states beside its value so the tree stands alone. */
     private static final String THE_SEED_FOLDER_KEY = "seedFolder";
+
+    /** One row of an index table, whatever lines it spans. */
+    private static final Pattern A_ROW = Pattern.compile("<tr>(.*?)</tr>", Pattern.DOTALL);
+
+    /** One cell of a row, a heading cell or a data cell, whatever lines it spans. */
+    private static final Pattern A_CELL = Pattern.compile("<t[hd]>(.*?)</t[hd]>", Pattern.DOTALL);
+
+    /** The destination of a link. */
+    private static final Pattern AN_HREF = Pattern.compile("<a href=\"([^\"]*)\">");
 
     @Test
     @Story("The tree is named after the run that produced it")
@@ -392,8 +324,7 @@ class DeliverableTest {
                         + " beside it -- and a shortened name would be a name two runs could share",
                 () -> assertThat(tree.getFileName().toString()).isEqualTo(RUN_ID));
         claim(
-                "the listing and the index both sit at its root, which is what the reader opens and what"
-                        + " whatever comes next loads",
+                "the index sits at its root, which is what the reader opens",
                 () -> assertThat(tree.resolve(Deliverable.INDEX_FILE_NAME))
                         .exists()
                         .isRegularFile());
@@ -410,7 +341,7 @@ class DeliverableTest {
                         + " the model wrote, because a path that depended on the writing succeeding would"
                         + " not exist for a group nothing was written over",
                 () -> assertThat(tree.resolve(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED)
-                                .resolve(THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED + ".md"))
+                                .resolve(THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED + ".html"))
                         .isRegularFile());
     }
 
@@ -547,24 +478,24 @@ class DeliverableTest {
                 "the group appears under the name stage 6a derived for it, so the gap is legible as a gap"
                         + " rather than as a group that was never there -- which is why there is no sixth"
                         + " page anywhere reporting this, the tree being the report",
-                () -> assertThat(entry).contains(THE_LABEL));
+                () -> assertThat(cellsOf(entry).get(THE_NAME_COLUMN)).isEqualTo(THE_LABEL));
         claim(
                 "and the entry carries no link, though the group does keep a page of its own: the page"
                         + " is what holds the group's slot in the directory listing, so the listing still"
                         + " agrees with the order that was approved and filling the gap later renames"
                         + " nothing -- and the index withholds the link because there is nothing written"
                         + " on that page to send a reader to",
-                () -> assertThat(entry).doesNotContain("]("));
+                () -> assertThat(entry).doesNotContain("<a "));
         claim(
-                "it says plainly that nothing was written over it, rather than leaving a blank a reader"
-                        + " has to interpret",
-                () -> assertThat(entry).contains(THE_HOLE));
+                "it says plainly, in italics, that nothing was written over it, rather than leaving a blank a"
+                        + " reader has to interpret",
+                () -> assertThat(cellsOf(entry).get(THE_WRITTEN_UP_COLUMN)).isEqualTo(THE_HOLE_IN_ITALICS));
         claim(
                 "the page it would have had is there all the same, in the slot the order gave it: a"
                         + " directory listing is the second place the approved order is stated, and a"
                         + " missing file would leave that listing saying something the index does not",
                 () -> assertThat(tree.resolve(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED)
-                                .resolve(THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED + ".md"))
+                                .resolve(THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED + ".html"))
                         .isRegularFile());
         claim(
                 "and it keeps its place, in front of the group that was written: a group that sank to the"
@@ -588,6 +519,7 @@ class DeliverableTest {
         RecordedCluster written = aCluster(A_LATER_ORDINAL, THE_NAME_THAT_SORTS_FIRST, FIRST_PLACE, SECOND_PLACE);
         List<RecordedCluster> arrangement = List.of(unwritten, written);
         List<ListedDoc> writing = List.of(writingFor(A_LATER_ORDINAL, 12L));
+        String theReason = "<p><em>" + Html.escape(UnwrittenSentences.of(why)) + "</em></p>";
 
         Path plainTree = ListedArrangement.writeTo(
                 plain, provenance(THE_SEED_FOLDER_VALUE), arrangement, writing, membersOfBothClusters(),
@@ -596,17 +528,17 @@ class DeliverableTest {
                 withReason, provenance(THE_SEED_FOLDER_VALUE), arrangement, writing, membersOfBothClusters(),
                 SurvivorPictures.none(), Map.of(ClusterSlot.of(unwritten), why));
 
-        Path page = Path.of(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED, THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED + ".md");
+        Path page = Path.of(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED, THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED + ".html");
         claim(
-                "the group's own page carries the sentence saying why, in place of the plain line",
+                "the group's own page carries the sentence saying why, in italics, in place of the plain line",
                 () -> assertThat(Files.readString(treeWithReason.resolve(page)))
-                        .contains(why.sentence())
+                        .contains(theReason)
                         .doesNotContain(THE_HOLE));
         claim(
                 "with no reason given, the page keeps the plain line, as every tree before this did",
                 () -> assertThat(Files.readString(plainTree.resolve(page)))
-                        .contains(THE_HOLE)
-                        .doesNotContain(why.sentence()));
+                        .contains(THE_HOLE_IN_ITALICS)
+                        .doesNotContain(theReason));
         claim(
                 "the index is byte for byte the same either way: its cell still says only that nothing"
                         + " was written, and still carries no link",
@@ -620,7 +552,7 @@ class DeliverableTest {
 
     @Test
     @Story("A name out of the archive cannot rewrite the page it is listed on")
-    @DisplayName("A group named across two lines is listed on one, and the table below it survives")
+    @DisplayName("A group named across two lines keeps its name, and the table below it survives")
     @Issue("246")
     @Link(name = "ADR-134", url = Adr.A_BREAK_IS_FOLDED_AND_THREE_ESCAPING_RULES_STAND, type = "adr")
     void keepsTheTableWholeWhenANameCarriesALineBreakOrAPipe(@TempDir Path workingDirectory) throws IOException {
@@ -634,31 +566,28 @@ class DeliverableTest {
                 List.of(writingOverTheHostileCluster()),
                 membersOfBothClusters());
 
-        String index = Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME));
+        List<List<String>> rows = rowsOfTheTableIn(Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME)));
 
         claim(
-                "the name is listed on one line with its pipe escaped, because a line break ends the"
-                        + " table where it stands and a pipe ends the cell: a title is read off the"
-                        + " document's own heading, which wrapped in the document it came from, and"
-                        + " neither character says anything about the group it names",
-                () -> assertThat(index).contains(THAT_NAME_MADE_SAFE));
+                "the table is its header and one row for each of the " + TWO_CLUSTERS + " groups, each of"
+                        + " " + THREE_COLUMNS + " cells: HTML ends no cell at a line break or a pipe, so neither"
+                        + " character in a name can end the table early or move a value into the next column",
+                () -> assertThat(rows)
+                        .hasSize(TWO_CLUSTERS + 1)
+                        .allSatisfy(row -> assertThat(row).hasSize(THREE_COLUMNS)));
         claim(
-                "and the heading the model wrote is folded the same way, in the cell beside it: it comes"
-                        + " from further away than the name does and is no more obliged to be one line",
-                () -> assertThat(index).contains(THAT_HEADING_MADE_SAFE));
+                "and the name is the whole of its row's first cell's text, as the document gave it, its line"
+                        + " break and its pipe included: nothing needs folding or escaping in it, and so"
+                        + " nothing of it is lost",
+                () -> assertThat(textOf(rows.get(1).get(THE_NAME_COLUMN))).isEqualTo(A_NAME_WITH_A_BREAK_AND_A_PIPE));
         claim(
-                "so every line of the table is a row of it -- which is the claim that separates a table"
-                        + " that survived from one that ended early. A break does not cost a row: it"
-                        + " splits one in two, leaving a remainder that no longer opens with a pipe and"
-                        + " that a renderer reads as the prose the rest of the table becomes",
-                () -> assertThat(linesOfTheTableIn(index)).allSatisfy(line -> assertThat(line)
-                        .startsWith("|")
-                        .endsWith("|")));
+                "and the heading the model wrote is the whole of the cell beside it in the same way, though it"
+                        + " comes from further away than the name does",
+                () -> assertThat(rows.get(1).get(THE_WRITTEN_UP_COLUMN)).isEqualTo(A_HEADING_WITH_A_BREAK));
         claim(
-                "and both of the " + TWO_CLUSTERS + " groups are still listed under it, so the table is"
-                        + " whole rather than merely well-formed: a table truncated to its header would"
-                        + " satisfy the claim above and list nothing at all",
-                () -> assertThat(index).contains(THAT_NAME_MADE_SAFE).contains(THE_NAME_THAT_SORTS_FIRST));
+                "and the group after it is still listed under it, so the table is whole rather than merely"
+                        + " well-formed",
+                () -> assertThat(textOf(rows.get(2).get(THE_NAME_COLUMN))).isEqualTo(THE_NAME_THAT_SORTS_FIRST));
     }
 
     @Test
@@ -674,16 +603,16 @@ class DeliverableTest {
                 List.of(writingFor(FIRST_ORDINAL)),
                 survivors(FIRST_ORDINAL));
 
-        String row = lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), A_NAME_WITH_A_BRACKET_ESCAPED_START);
+        String row = lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), A_NAME_WITH_A_BRACKET);
 
         claim(
-                "the brackets in the name are escaped, so the link carries the whole name: an unescaped"
-                        + " ] closes the link where it appears, leaving a reader clicking a fragment of"
-                        + " the name with the rest of it sitting beside a bare path",
-                () -> assertThat(row).contains("[" + THAT_NAME_AS_LINK_TEXT + "]("));
+                "the link carries the whole name, its brackets as written: a bracket is no markup in HTML,"
+                        + " so nothing in the name can close the link early and leave a reader clicking a"
+                        + " fragment of it",
+                () -> assertThat(row).contains("\">" + A_NAME_WITH_A_BRACKET + "</a>"));
         claim(
                 "and what it points at is a file that is really there: the link's text and its"
-                        + " destination are derived from the one name, so a rule that escaped the text"
+                        + " destination are derived from the one name, so a rule that changed the text"
                         + " and left the path behind would send a reader to nothing at all",
                 () -> assertThat(tree.resolve(destinationOf(row))).isRegularFile());
     }
@@ -701,25 +630,16 @@ class DeliverableTest {
                 List.of(),
                 survivors(FIRST_ORDINAL));
 
-        String row = lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), THAT_NAME_MADE_SAFE_BACKSLASH_FIRST);
+        List<String> row = cellsOf(lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), A_NAME_WITH_A_BACKSLASH_BEFORE_A_PIPE));
 
         claim(
-                "the backslash is doubled before the pipe is escaped, so the escape lands on the pipe"
-                        + " rather than on the backslash in front of it: escaping the pipe alone would"
-                        + " leave a doubled backslash -- which reads as one literal backslash -- followed"
-                        + " by a delimiter that is still live",
-                () -> assertThat(row).contains(THAT_NAME_MADE_SAFE_BACKSLASH_FIRST));
+                "the row still has the " + THREE_COLUMNS + " columns the table is headed with: neither a"
+                        + " backslash nor a pipe divides an HTML row",
+                () -> assertThat(row).hasSize(THREE_COLUMNS));
         claim(
-                "so the row still has the " + THREE_COLUMNS + " columns the table is headed with, read"
-                        + " the way a renderer reads it -- a pipe preceded by an even number of"
-                        + " backslashes divides, an odd number escapes. The count is "
-                        + (THREE_COLUMNS + 2) + " because the leading and trailing pipes each leave an"
-                        + " empty piece outside the table",
-                () -> assertThat(cellsOf(row)).hasSize(THREE_COLUMNS + 2));
-        claim(
-                "and the name is the whole of the first column rather than the head of it, so nothing"
-                        + " the name carries has been read as the start of the next column",
-                () -> assertThat(cellsOf(row).get(1)).isEqualTo(THAT_NAME_MADE_SAFE_BACKSLASH_FIRST));
+                "and the name is the whole of the first column, its backslash not doubled and its pipe not"
+                        + " escaped, so a reader is shown the characters the name holds and no others",
+                () -> assertThat(row.get(THE_NAME_COLUMN)).isEqualTo(A_NAME_WITH_A_BACKSLASH_BEFORE_A_PIPE));
     }
 
     @Test
@@ -745,44 +665,26 @@ class DeliverableTest {
         String index = Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME));
 
         claim(
-                "the name carries its tag into the page with a backslash in front of it, so a reader sees"
-                        + " the characters the document gave itself: written through, the opening tag is"
-                        + " markup -- it turns the rest of the page bold where a renderer honours it, and"
-                        + " is deleted outright, word and all, where a renderer sanitises instead",
-                () -> assertThat(index).contains(THAT_NAME_WITH_BOTH_ESCAPED));
+                "the name carries its tag into the page as entities, so a reader sees the characters the"
+                        + " document gave itself: written through, the opening tag is markup -- it turns the"
+                        + " rest of the page bold",
+                () -> assertThat(index).contains("\">" + THAT_NAME_WITH_BOTH_ESCAPED + "</a>"));
         claim(
-                "and the ampersand beside it is escaped the same way rather than written as an entity:"
-                        + " an entity would show the reader the six characters of its own spelling, and"
-                        + " a bare ampersand is the one way a run such as the spelling of a copyright"
-                        + " sign is read as that sign instead of as itself",
-                () -> assertThat(index).doesNotContain("R&amp;D").contains("R\\&D"));
+                "and the ampersand beside it is written as its entity too, so a run such as the spelling of a"
+                        + " copyright sign is read as itself and not as that sign",
+                () -> assertThat(index).doesNotContain("R&D").contains("R&amp;D"));
         claim(
-                "and the heading naming the seed carries its tag too, which is the position that escaped"
-                        + " nothing at all before: a heading is one line, so folding was its whole"
-                        + " treatment, and a tag in it reached a renderer exactly as the archive spelled it",
-                () -> assertThat(index).contains("## " + THAT_SEED_PATH_ESCAPED));
+                "and the heading naming the seed carries its tag the same way",
+                () -> assertThat(index).contains("<h2>" + THAT_SEED_PATH_ESCAPED + "</h2>"));
     }
 
     /**
-     * The one cell whose value passes through link text on no row at all (ADR-136).
+     * The one cell whose value passes through a link on no row at all (ADR-136, ADR-274 §1.3).
      *
-     * <p><b>This pins the wiring rather than the rule.</b> The cell rule's two new escapes are already
-     * driven by the test above, because {@code asLinkText} is {@code inACell} and then the brackets --
-     * strike either escape out of the cell rule and that test fails. What nothing drove is the third
-     * column: the title the model wrote is the one value written straight into a cell, and a column
-     * folded but never escaped would satisfy every other claim in this class while carrying a live tag
-     * into the table. The value is the model's own rather than the archive's, which changes nothing
-     * about the hazard -- ADR-134 already treats what comes back from a call as untrusted.
-     *
-     * <p><b>Not the only untrusted value written into a plain cell.</b> {@code Deliverable.java:249}
-     * folds and escapes the cluster's own label into column one, and where nothing was written over a
-     * cluster that cell is the whole row's text with no link anywhere on it; {@code
-     * keepsTheCellWholeWhenANameCarriesABackslashBeforeAPipe} is what holds that one, and turning
-     * {@code inACell} there into {@code onOneLine} fails that test alone. What is singular about the
-     * title is not that it reaches a cell unlinked but that it passes through link text <em>nowhere</em>
-     * -- the label does, on every row the index gives a link. A cluster file is written for every cluster,
-     * the unwritten one included ({@code Deliverable.java:262-268}); what varies is whether the index links
-     * to that file, and on the row where it does not the label is the cell's whole text.
+     * <p><b>This pins the wiring rather than the rule.</b> The rule is {@code Html.escape}'s, held where it is.
+     * What is held here is the third column: the title the model wrote is the one value written straight into a
+     * cell, and a column never escaped would satisfy every other claim in this class while carrying a live tag
+     * into the table.
      */
     @Test
     @Story("A name out of the archive cannot rewrite the page it is listed on")
@@ -807,41 +709,19 @@ class DeliverableTest {
 
         claim(
                 "the column stating what the group was written up as carries the whole of that name"
-                        + " with its tag escaped, and is that name rather than merely containing it: this value"
-                        + " passes through link text nowhere on the page, so it is the one cell a rule"
-                        + " applied where a link is formed would leave unguarded",
+                        + " with its tag and its ampersand as entities, and is that name rather than merely"
+                        + " containing it: this value passes through a link nowhere on the page, so it is the"
+                        + " one cell a rule applied where a link is formed would leave unguarded",
                 () -> assertThat(cellsOf(row).get(THE_WRITTEN_UP_COLUMN)).isEqualTo(THAT_TITLE_WITH_BOTH_ESCAPED));
-        claim(
-                "and the ampersand in it is escaped with a backslash rather than written as an entity: an"
-                        + " entity spells itself out at a reader opening the file as text, and a bare"
-                        + " ampersand is how a run such as the spelling of a copyright sign comes to be"
-                        + " read as that sign instead of as itself",
-                () -> assertThat(row).doesNotContain("R&amp;D").contains("R\\&D"));
     }
 
     /**
-     * The three positions a bracket reaches in the index, driven from one tree (ADR-138).
+     * The three positions a Markdown link or image reaches in the index, driven from one tree (ADR-138,
+     * ADR-274 §1.3).
      *
-     * <p><b>Two of the three escaped nothing at all before.</b> The partition heading goes through
-     * {@code inAHeading} and a cell through {@code inACell}, and neither touched a bracket: a value
-     * reading {@code [text](url)} was a live link in both, and one reading {@code ![alt](url)} an
-     * image, in every renderer configuration measured. The third is the linked first column, which has
-     * escaped the bracket since ADR-134 and is here for the opposite reason -- to hold the escape at
-     * one backslash. {@code asLinkText} is {@code inACell} and nothing more once the cell rule carries
-     * the brackets, and a version that escaped them a second time would write a literal backslash in
-     * front of a live bracket and destroy the only link the index gives a reader.
-     *
-     * <p><b>Which value sits in which position, since the three do not come from one place.</b> The
-     * seed path in the partition heading is a filesystem name, and NTFS permits every character in it.
-     * The linked first column is the <em>label</em> and never the title: a cluster's derived label is a
-     * document's own Docling title (ADR-106), arbitrary text off a title block rather than a filename,
-     * so a label can carry a destination no NTFS name could hold. The third column is the generated
-     * title, which is what the model answered, under no constraint whatever. The image-shaped value is
-     * given as this cluster's label as well as its title deliberately: pinning the linked column takes
-     * a label, because the label is what that column carries.
-     *
-     * <p><b>The cluster page's own heading is claimed in {@code ClusterFileTest}</b>, where the page is.
-     * This class is the index, and the same rule reaches four positions across the two.
+     * <p>A value reading {@code [text](url)} was a live link in a Markdown heading or cell, and one reading
+     * {@code ![alt](url)} an image. On an HTML page neither is markup: each is shown as its characters, and the
+     * only link on a row is the one the index writes to the group's page.
      */
     @Test
     @Story("A name out of the archive cannot rewrite the page it is listed on")
@@ -865,73 +745,42 @@ class DeliverableTest {
                 membersUnder(A_SEED_PATH_THAT_IS_ITSELF_A_LINK));
 
         String index = Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME));
-        String linkedRow = lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), THAT_TITLE_WITH_ITS_BRACKETS_ESCAPED);
-        String plainRow =
-                lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), THAT_NAME_AS_A_WHOLE_CELL);
+        List<String> linkedRow = cellsOf(lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), "<a href="));
+        List<String> plainRow = cellsOf(lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), THE_HOLE));
 
         claim(
-                "the heading naming the seed carries its brackets behind a backslash, so a name that"
-                        + " spells a link is read as a name: written through, the middle of it becomes a"
-                        + " link to wherever that name pointed, and the rest of the heading's own text"
-                        + " goes with it",
-                () -> assertThat(index).contains("## " + THAT_SEED_PATH_WITH_ITS_BRACKETS_ESCAPED));
+                "the heading naming the seed is that name, as written, and no link",
+                () -> assertThat(index).contains("<h2>" + A_SEED_PATH_THAT_IS_ITSELF_A_LINK + "</h2>"));
         claim(
-                "and the group's own name in the column that has no link on it does the same, and is"
-                        + " that name rather than merely containing it -- this is the one cell whose"
-                        + " whole text is a name nobody linked, so a rule applied where a link is being"
-                        + " formed never reaches it",
-                () -> assertThat(cellsOf(plainRow).get(1)).isEqualTo(THAT_NAME_WITH_ITS_BRACKETS_ESCAPED));
+                "and the group's own name in the column that has no link on it is that name rather than merely"
+                        + " containing it",
+                () -> assertThat(plainRow.get(THE_NAME_COLUMN)).isEqualTo(A_NAME_THAT_IS_ITSELF_A_LINK));
         claim(
-                "and the name the writing gave a group keeps every word, bang and all: a bang in front"
-                        + " of a live bracket is an image, and an image's words are an attribute rather"
-                        + " than text, so the word between the brackets leaves the page altogether and"
-                        + " the page fetches a picture from whatever host the name gave",
-                () -> assertThat(cellsOf(linkedRow).get(THE_WRITTEN_UP_COLUMN))
-                        .isEqualTo(THAT_TITLE_WITH_ITS_BRACKETS_ESCAPED));
+                "and the name the writing gave a group keeps every word, bang and all, as its cell's whole text",
+                () -> assertThat(linkedRow.get(THE_WRITTEN_UP_COLUMN)).isEqualTo(A_TITLE_THAT_IS_ITSELF_AN_IMAGE));
         claim(
-                "and neither name reaches the page as it was given, anywhere on it, which is what says"
-                        + " the escape is applied to every value rather than to the ones that carry a"
-                        + " link on the row",
+                "and nothing on the page links to where a name pointed or fetches a picture from the host a"
+                        + " name gave",
                 () -> assertThat(index)
-                        .doesNotContain(A_TITLE_THAT_IS_ITSELF_AN_IMAGE)
-                        .doesNotContain(A_SEED_PATH_THAT_IS_ITSELF_A_LINK));
+                        .doesNotContain("href=\"evil.md\"")
+                        .doesNotContain("<img")
+                        .doesNotContain("src="));
         claim(
-                "while the column that does carry a link escapes each bracket once and not twice, and"
-                        + " still opens the page it names: two backslashes read as one literal backslash"
-                        + " followed by a bracket that is live again, which ends the link where the name"
-                        + " has a bracket and leaves a reader clicking nothing at all",
-                () -> assertThat(linkedRow)
-                        .contains("[" + THAT_TITLE_WITH_ITS_BRACKETS_ESCAPED + "](")
-                        .doesNotContain(A_BRACKET_ESCAPED_TWICE));
-        claim(
-                "and the page that link names is really there, which is what says the name and the"
-                        + " route are still derived from the one value: the route is read out of the"
-                        + " cell rather than out of the name, because a name spelling a link of its own"
-                        + " puts a second one of these in front of the real one",
-                () -> assertThat(tree.resolve(theRouteOutOf(cellsOf(linkedRow).get(1)))).isRegularFile());
+                "while the one link on the linked row names the group by its whole label and opens a page that"
+                        + " is really there",
+                () -> {
+                    assertThat(textOf(linkedRow.get(THE_NAME_COLUMN))).isEqualTo(A_TITLE_THAT_IS_ITSELF_AN_IMAGE);
+                    assertThat(tree.resolve(destinationOf(linkedRow.get(THE_NAME_COLUMN)))).isRegularFile();
+                });
     }
 
     /**
      * Every position a backtick reaches in the index, driven from one tree, and the listing beside it
-     * (ADR-148).
+     * (ADR-148, ADR-274 §1.3).
      *
-     * <p><b>The pair is the hazard, and it is not one renderer's.</b> Two backticks in one value form a
-     * code span in every renderer configuration measured, in a heading and in a cell alike: both
-     * characters leave the rendered name, and a bracket between them is shown with the backslash the
-     * cell rule wrote in front of it -- in every configuration but {@code marked} inside link text --
-     * because nothing inside a code span is unescaped. So the seed's heading, the linked label and the
-     * written-up title each carry two, and the label carries them either side of a bracket.
-     *
-     * <p><b>The unlinked label carries one, for the rule's shape rather than its ground.</b> A lone
-     * backtick is a literal backtick under the specification, and the single one {@code marked} refuses in
-     * link text is deliberately not the ground of the escape: ADR-148 gives a divergence of one renderer
-     * from the specification no weight. The rule is unconditional for ADR-138's reasons, which is what
-     * makes it reach a lone backtick too, and that label is where the cell rule is held to it; the heading
-     * rule and the membership entry are held to it in {@code ClusterFileTest}.
-     *
-     * <p><b>The listing is the one surrounding that must not change</b>, and it is claimed here so a
-     * rule applied to every value the tree writes, rather than to the three Markdown positions, fails a
-     * test: a backslash in a manifest column is a character of the name to the program that loads it.
+     * <p>Two backticks were a code span in Markdown, in a heading and in a cell alike. On an HTML page a backtick
+     * is no markup and none of the five characters the one rule writes as an entity, so it is shown as written in
+     * every position, with no backslash beside it; the listing carries it as written too.
      */
     @Test
     @Story("A name out of the archive cannot rewrite the page it is listed on")
@@ -980,46 +829,31 @@ class DeliverableTest {
 
         Path indexFile = tree.resolve(Deliverable.INDEX_FILE_NAME);
         String index = Files.readString(indexFile);
-        String linkedRow = lineOf(indexFile, "retrofit](");
-        String plainRow = lineOf(indexFile, THE_HOLE);
+        List<String> linkedRow = cellsOf(lineOf(indexFile, "<a href="));
+        List<String> plainRow = cellsOf(lineOf(indexFile, THE_HOLE));
         List<String> rows = rowsOf(tree);
 
         claim(
-                "the heading naming the seed carries each backtick behind a backslash, so the name is"
-                        + " read as the name: written through, the two are a code span, both leave the"
-                        + " heading's text, and nothing in it says two characters were ever there",
-                () -> assertThat(index).contains("## " + THAT_SEED_PATH_WITH_ITS_BACKTICKS_ESCAPED + "\n"));
+                "the heading naming the seed is that name, both backticks as written",
+                () -> assertThat(index).contains("<h2>" + A_SEED_PATH_WITH_TWO_BACKTICKS + "</h2>\n"));
         claim(
-                "and the group's own name in the column that links to its page escapes the backticks and"
-                        + " the brackets between them, and still opens that page: a bracket inside a code"
-                        + " span keeps the backslash written in front of it in every renderer configuration"
-                        + " but marked, so written through, the reader is shown a backslash the archive"
-                        + " never held",
+                "and the group's own name in the column that links to its page is its whole label, the"
+                        + " backticks and the brackets between them as written, and still opens that page",
                 () -> {
-                    assertThat(cellsOf(linkedRow).get(1))
-                            .startsWith("[" + THAT_LABEL_WITH_ITS_BACKTICKS_ESCAPED + "](");
-                    assertThat(tree.resolve(theRouteOutOf(cellsOf(linkedRow).get(1)))).isRegularFile();
+                    assertThat(textOf(linkedRow.get(THE_NAME_COLUMN))).isEqualTo(A_LABEL_WITH_BACKTICKS_AROUND_A_BRACKET);
+                    assertThat(tree.resolve(destinationOf(linkedRow.get(THE_NAME_COLUMN)))).isRegularFile();
                 });
         claim(
-                "and the name a group nothing was written over is listed under escapes its one backtick"
-                        + " although nothing on its row could pair with it, so the cell rule is applied to the"
-                        + " character wherever it stands rather than where a partner follows; and its cell is"
-                        + " that name rather than merely containing it -- the row's whole text, with no link"
-                        + " formed on it for a rule to be applied where a link is",
-                () -> assertThat(cellsOf(plainRow).get(1)).isEqualTo(THAT_UNLINKED_LABEL_WITH_ITS_BACKTICK_ESCAPED));
+                "and the name a group nothing was written over is listed under is its cell's whole text, its"
+                        + " one backtick as written",
+                () -> assertThat(plainRow.get(THE_NAME_COLUMN)).isEqualTo(AN_UNLINKED_LABEL_WITH_ONE_BACKTICK));
         claim(
-                "and the name the writing gave a group keeps its backticks as characters: what the model"
-                        + " answered is a name the index lists, and a title marking a word as code would"
-                        + " otherwise lose both marks to the formatting they stand for",
-                () -> assertThat(cellsOf(linkedRow).get(THE_WRITTEN_UP_COLUMN))
-                        .isEqualTo(THAT_TITLE_WITH_ITS_BACKTICKS_ESCAPED));
+                "and the name the writing gave a group keeps its backticks as characters",
+                () -> assertThat(linkedRow.get(THE_WRITTEN_UP_COLUMN)).isEqualTo(A_TITLE_MARKING_A_NAME_AS_CODE));
         claim(
-                "and no backtick reaches the page without a backslash in front of it, anywhere on it,"
-                        + " which is what says the escape is applied to every value in every position rather"
-                        + " than to the ones this test happened to look at",
-                () -> assertThat(A_LIVE_BACKTICK.matcher(index).find())
-                        .withFailMessage("the index carries a backtick no rule escaped:%n%s", index)
-                        .isFalse());
+                "and no backslash reaches the partition's heading or its table anywhere, which is what says no"
+                        + " rule of Markdown's is applied to any value in any position",
+                () -> assertThat(index.substring(index.indexOf("<h2>"))).doesNotContain("\\"));
         claim(
                 "while the listing carries the same names as the archive spells them, backticks and all"
                         + " and no backslash beside them: a program loading it reads a backslash as a"
@@ -1059,7 +893,7 @@ class DeliverableTest {
     }
 
     @Test
-    @Story("The archive is referenced and never read at the moment the tree is written")
+    @Story("A document that cannot be copied costs its copy and nothing else")
     @DisplayName("A tree is written whole over an archive this machine cannot reach at all")
     void writesTheWholeTreeWithoutReachingTheArchive(@TempDir Path workingDirectory) throws IOException {
         Path tree = ListedArrangement.writeTo(
@@ -1076,24 +910,24 @@ class DeliverableTest {
         claim(
                 "the archive really is out of reach, which is what the claims below rest on -- asserted"
                         + " first, so a machine that happened to have such a directory fails here rather"
-                        + " than passing three claims that checked nothing",
+                        + " than passing claims that checked nothing",
                 () -> assertThat(Path.of(AN_ARCHIVE_THAT_IS_NOT_THERE)).doesNotExist());
         claim(
-                "the tree was still written whole: nothing here asks the archive whether a document is"
-                        + " still where it was, because a document that has moved has no verdict it could"
-                        + " be recorded as, and asking would turn the last stage into a second, partial"
-                        + " look at the corpus",
+                "the tree was still written whole: a document that cannot be copied is a fact about that"
+                        + " document, and a throw from the writer would roll back every fault the invocation had"
+                        + " already recorded",
                 () -> assertThat(tree.resolve(Deliverable.INDEX_FILE_NAME)).exists());
         claim(
                 "every one of the " + TWO_SURVIVORS + " documents is listed, rather than the reachable"
-                        + " ones: the listing states the arrangement, and an arrangement filtered by what"
-                        + " one machine could see at one moment is a different thing altogether",
-                () -> assertThat(rowsOf(tree)).hasSize(TWO_SURVIVORS));
+                        + " ones, each saying it is no longer in the archive: the listing states the"
+                        + " arrangement, and an arrangement filtered by what one machine could see at one"
+                        + " moment is a different thing altogether",
+                () -> assertThat(rowsOf(tree))
+                        .hasSize(TWO_SURVIVORS)
+                        .allSatisfy(row -> assertThat(columnsOf(row)[THE_COPY_OUTCOME_COLUMN]).isEqualTo("gone")));
         claim(
-                "and nothing was copied into the tree -- it holds "
-                        + THE_INDEX_THE_LISTING_AND_ONE_PAGE + " files, being the index, the listing and"
-                        + " the one group's own page, and nothing else: copying hundreds of gigabytes would"
-                        + " be the first thing in this system to move a document rather than arrange it",
+                "and no copy stands in the tree -- it holds " + THE_INDEX_THE_LISTING_AND_ONE_PAGE + " files,"
+                        + " being the index, the listing and the one group's own page, and nothing else",
                 () -> assertThat(everyFileUnder(tree)).hasSize(THE_INDEX_THE_LISTING_AND_ONE_PAGE));
     }
 
@@ -1124,8 +958,7 @@ class DeliverableTest {
                 () -> assertThat(lines).hasSize(TWO_SURVIVORS + THE_HEADER_ROW));
         claim(
                 "each path is the one beneath the archive's own root rather than a whole path from a"
-                        + " drive letter down: the root is stated once in the index, so an archive that"
-                        + " moves is re-pointed by replacing one line rather than every row here",
+                        + " drive letter down: the root is stated once in the index",
                 () -> assertThat(rowsOf(tree))
                         .allSatisfy(row -> assertThat(columnsOf(row)[THE_PATH_COLUMN])
                                 .doesNotContain(THE_ARCHIVE_ROOT)
@@ -1163,12 +996,12 @@ class DeliverableTest {
         List<String> rows = rowsOf(tree);
 
         claim(
-                "the one document listed still reads back as the " + NINE_COLUMNS + " columns the header"
+                "the one document listed still reads back as the " + ELEVEN_COLUMNS + " columns the header"
                         + " names, though its own name carries a comma: a value written straight through"
                         + " would have been read as two columns, moving every value after it one place"
-                        + " along and leaving the last column with nothing in it",
+                        + " along",
                 () -> assertThat(rows).hasSize(ONE_SURVIVOR).allSatisfy(row -> assertThat(columnsOf(row))
-                        .hasSize(NINE_COLUMNS)));
+                        .hasSize(ELEVEN_COLUMNS)));
         claim(
                 "and the path reads back as the one it was given, punctuation and all, rather than the"
                         + " rendering it was written under: what a program loads from this file is the"
@@ -1213,78 +1046,37 @@ class DeliverableTest {
                         List.of(new OccurrenceId(10), new OccurrenceId(11))));
     }
 
-    /**
-     * Where the link wrapping the whole of {@code cell} leads, as a path relative to the tree's own
-     * root.
-     *
-     * <p>Read from the <em>last</em> {@code ](} in the cell rather than the first, and from one cell
-     * rather than from the whole row, because the name inside the link may spell a bracket and a
-     * parenthesis of its own: a cluster named after a link or an image carries an escaped {@code ](}
-     * in the middle of the text, and a reader taking the first one would follow the name rather than
-     * the route. A renderer resolves the same way, the escaped brackets being text to it.
-     */
-    private static String theRouteOutOf(String cell) {
-        int opens = cell.lastIndexOf("](");
-        return cell.substring(opens + 2, cell.indexOf(')', opens));
+    /** The destination of the first link in {@code html}, as a path relative to the tree's own root. */
+    private static String destinationOf(String html) {
+        Matcher link = AN_HREF.matcher(html);
+        assertThat(link.find())
+                .withFailMessage("%s was expected to carry a link, and carries none", html)
+                .isTrue();
+        return link.group(1);
     }
 
-    /** The destination of the one link in {@code row}, as a path relative to the tree's own root. */
-    private static String destinationOf(String row) {
-        int opens = row.indexOf("](");
-        return row.substring(opens + 2, row.indexOf(')', opens));
+    /** {@code cell}'s text with the link around it, if any, taken off. */
+    private static String textOf(String cell) {
+        return cell.replaceAll("(?s)^<a href=\"[^\"]*\">(.*)</a>$", "$1");
     }
 
-    /**
-     * Every line of the index that belongs to a table: the header, its separator and its rows.
-     *
-     * <p>Found by where they sit rather than by what they start with, because what a broken table
-     * leaves behind is a line that does <em>not</em> start with a pipe, and a filter keyed on the pipe
-     * would drop exactly the evidence. A table runs from its separator to the next blank line.
-     */
-    private static List<String> linesOfTheTableIn(String index) {
-        List<String> lines = index.lines().toList();
-        List<String> inTables = new ArrayList<>();
-        boolean inTable = false;
-        for (String line : lines) {
-            if (line.startsWith("|---")) {
-                inTable = true;
-                inTables.add(line);
-            } else if (inTable && line.isBlank()) {
-                inTable = false;
-            } else if (inTable) {
-                inTables.add(line);
-            }
+    /** Every row of every table in {@code index}, each as its cells, in order, the header rows included. */
+    private static List<List<String>> rowsOfTheTableIn(String index) {
+        List<List<String>> rows = new ArrayList<>();
+        Matcher row = A_ROW.matcher(index);
+        while (row.find()) {
+            rows.add(cellsOf(row.group(1)));
         }
-        return inTables;
+        return rows;
     }
 
-    /**
-     * {@code row} divided into cells the way a Markdown renderer divides it (ADR-134): at a pipe
-     * preceded by an even number of backslashes, since an odd run leaves the last backslash escaping
-     * the pipe rather than itself.
-     *
-     * <p>Written out here rather than split on a regular expression, because the whole question this
-     * helper serves is what happens to a backslash standing immediately before a delimiter, and a
-     * split that looked only at the one character in front of the pipe would answer it by assuming it.
-     *
-     * <p>The leading and trailing pipes of a row each leave an empty piece outside the table, so a
-     * three-column row yields five.
-     */
+    /** The cells of one row of an index table, as the page carries them, in order. */
     private static List<String> cellsOf(String row) {
         List<String> cells = new ArrayList<>();
-        StringBuilder cell = new StringBuilder();
-        int backslashes = 0;
-        for (int i = 0; i < row.length(); i++) {
-            char character = row.charAt(i);
-            if (character == '|' && backslashes % 2 == 0) {
-                cells.add(cell.toString().strip());
-                cell.setLength(0);
-            } else {
-                cell.append(character);
-            }
-            backslashes = character == '\\' ? backslashes + 1 : 0;
+        Matcher cell = A_CELL.matcher(row);
+        while (cell.find()) {
+            cells.add(cell.group(1));
         }
-        cells.add(cell.toString().strip());
         return cells;
     }
 
@@ -1389,7 +1181,7 @@ class DeliverableTest {
         }
     }
 
-    /** Every file anywhere in the tree, which is what a claim about copying nothing counts. */
+    /** Every file anywhere in the tree, which is what a claim about the copies that stand counts. */
     private static List<Path> everyFileUnder(Path tree) throws IOException {
         try (Stream<Path> entries = Files.walk(tree)) {
             return entries.filter(Files::isRegularFile).toList();
@@ -1405,15 +1197,12 @@ class DeliverableTest {
     }
 
     /**
-     * One manifest row split into the nine columns the header names, read as a consumer of the format
+     * One manifest row split into the columns the header names, read as a consumer of the format
      * would read it.
      *
      * <p>Split on the format rather than on the character: a path may legally carry a comma, in which
-     * case the field arrives quoted, and a splitter that cut on every comma would report ten columns
-     * for that row and silently move every value after the path one place along. The claim this file
-     * exists for is that a program can load it into a table without parsing anything first — a fixture
-     * that could not itself read a quoted field would be claiming that against the one row where it
-     * matters and getting the wrong answer.
+     * case the field arrives quoted, and a splitter that cut on every comma would report one column too
+     * many for that row and silently move every value after the path one place along.
      *
      * <p>Quotes are stripped and doubled quotes collapsed, so what comes back is the value the writer
      * was given rather than its rendering.
@@ -1451,9 +1240,8 @@ class DeliverableTest {
      *
      * <p><b>A miss fails here, in words.</b> Returning an empty line let a caller that splits the result
      * into cells die of an {@link IndexOutOfBoundsException} instead, which is the outcome ADR-052's
-     * claim discipline exists to prevent: the report showed an error where it owed a sentence, and the
-     * sentence it owed was about the page, not about an index into a list. Failing here names the file
-     * that was read and the text that was looked for in it.
+     * claim discipline exists to prevent. Failing here names the file that was read and the text that was
+     * looked for in it.
      */
     private static String lineOf(Path file, String text) throws IOException {
         List<String> carrying = Files.readAllLines(file).stream()

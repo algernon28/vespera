@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * What a write of the tree that fails partway leaves of {@code index.md} and {@code documents.csv} (ADR-223
+ * What a write of the tree that fails partway leaves of {@code index.html} and {@code documents.csv} (ADR-223
  * section 6): each is written beside its target and moved into place once it is whole, so a write that stops
  * at its second seed partition leaves both as the write before left them, or leaves neither.
  *

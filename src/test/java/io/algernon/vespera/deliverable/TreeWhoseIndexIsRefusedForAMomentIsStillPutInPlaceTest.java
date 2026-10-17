@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * A write of the tree whose move of {@code index.md} into place is refused twice as access denied, as Windows
+ * A write of the tree whose move of {@code index.html} into place is refused twice as access denied, as Windows
  * refuses a move while a virus scanner, an indexer or a folder kept in step with a cloud holds the page it has
  * just seen written, is still finished: the index and the manifest stand in their places, the same bytes the
  * write gives with no refusal, and no {@code .part} file is left (ADR-242, ADR-223 section 6). At 6b a thrown

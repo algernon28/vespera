@@ -102,7 +102,7 @@ public final class ListedArrangement {
         return writeTo(workingDirectory, provenance, arrangement, written, survivors, SurvivorPictures.none());
     }
 
-    /** The tree written from these lists, with a survivor's pictures beside its cluster file. */
+    /** The tree written from these lists, with a survivor's pictures beside its cluster's page. */
     public static Path writeTo(
             Path workingDirectory,
             DeliverableProvenance provenance,

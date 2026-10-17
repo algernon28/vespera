@@ -1,13 +1,18 @@
 package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
+import static io.algernon.vespera.deliverable.ListedTree.sha256Of;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
+import io.algernon.vespera.synthesis.ArrangedCluster;
+import io.algernon.vespera.synthesis.ClusterLabel;
+import io.algernon.vespera.synthesis.ListedDoc;
+import io.algernon.vespera.synthesis.RecordedCluster;
+import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -15,6 +20,7 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -27,34 +33,28 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The page a cluster is read on (ADR-103, ADR-104, ADR-109, ADR-122, #187): the heading it opens
- * with, the writing with its citations resolved into links, the disclosure where the writing rests on
- * part of the cluster, and the complete membership below it.
+ * The page a cluster is read on (ADR-103, ADR-104, ADR-109, ADR-122, ADR-274 §1.4, #187): the heading it opens
+ * with, the writing with its citations resolved into links, the disclosure where the writing rests on part of the
+ * cluster, and the complete membership below it, each entry leading to its copy inside the tree.
  *
  * <p>Written against the writer rather than through an invocation for the states a fixture corpus
  * cannot reach: a cluster written from a strict subset of its documents, a cluster whose recorded size
- * is larger than the list handed to the page, and a document whose own name carries a character the
- * JDK's path parser refuses. A local Markdown page is read at the moment it is written, so its own
- * bytes are the evidence — nothing here renders it.
+ * is larger than the list handed to the page, and an archive root the JDK's path parser refuses. A local
+ * HTML page is read at the moment it is written, so its own bytes are the evidence — nothing here renders it.
  *
  * <p><b>That a real invocation reaches this page at all is claimed where the invocation is</b>:
  * {@code DeliverableInvocationTest} drives the whole run and reads the page it produced, because every
  * claim here is made over values handed in by hand, and a writer that is never called writes a page
  * nobody ever sees.
  *
- * <p><b>The archive is referenced and never touched.</b> ADR-104 says nothing is stat-ed to build a
- * membership entry, and every fixture below names an archive this machine does not have. What the
- * entry links by is ADR-135's: a path relative to the page it is written on, or no link at all where
- * there is no relative path to compose — so the fixtures place that archive beside the working
- * directory, on its volume, and the one fixture that wants the second case puts it on another volume
- * and is guarded to Windows, which is the only platform that has two.
+ * <p><b>The archive is read and never linked to</b> (ADR-274 §2.6). Each fixture places an archive beside the
+ * working directory whose every file holds its own root-relative path's bytes, which is what its recorded key is
+ * taken from, so each copy is made and stands. An entry links to that copy, by a path relative to the page, and
+ * never into the archive.
  *
- * <p><b>One claim here follows a link rather than reading it.</b> ADR-103's test is that a link
- * resolves, and ADR-135 reads that through the renderer: the destination is decoded as a renderer
- * decodes it and followed from the directory the page sits in, and what it lands on is compared to
- * the original's own place beneath the archive root. Nothing is stat-ed to make that claim either --
- * the archive is not there, and the claim is about where the link points rather than what is at the
- * other end, which {@code DeliverableInvocationTest} claims over an archive that really exists.
+ * <p><b>Some claims here follow a link rather than reading it.</b> ADR-103's test is that a link
+ * resolves: the destination is followed from the directory the page sits in, and what it lands on is
+ * compared with the copy's own place in the tree and its bytes with the original's.
  *
  * <p><b>The report says <em>group</em> and the code says <em>cluster</em></b> (ADR-122). The page is
  * one of that record's outside-facing surfaces, so every word a reader meets in it uses the plain
@@ -67,12 +67,13 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-104", url = Adr.THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED, type = "adr")
 @Link(name = "ADR-109", url = Adr.A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL, type = "adr")
 @Link(name = "ADR-122", url = Adr.THE_VOCABULARY_BINDS_OUR_NAMES_NOT_RENDERED_PROSE, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class ClusterFileTest {
 
     /** A run id of the shape the ledger mints: sixty-four hexadecimal characters (ADR-048). */
     private static final String RUN_ID = "a".repeat(48) + "0123456789abcdef";
 
-    /** The walk the run read, which is what says when the links in the tree were true (ADR-104). */
+    /** The walk the run read, which is what says which archive the copies were taken from (ADR-104). */
     private static final long WALK = 7L;
 
     /** The seed whose partition every cluster below sits in. */
@@ -93,35 +94,30 @@ class ClusterFileTest {
     /** What the title would slug to, which must never name the file: a faulted cluster has no title. */
     private static final String THE_TITLE_SLUGGED = "retrofitting-suppression-2018-to-2021";
 
-    /** Whether this is the platform that has more than one volume, and so the only one that can have two. */
-    private static final boolean WINDOWS = System.getProperty("os.name", "").startsWith("Windows");
-
     /** The document most fixtures below place in the archive, by the path the ledger holds for it. */
     private static final String THE_DOCUMENT = "reports/2019/retrofit.pdf";
 
-    /**
-     * An archive root recorded as a relative path, which every platform has and which no destination
-     * can be composed against: it names a different directory for every reader, depending on where they
-     * happen to be standing.
-     */
-    private static final String A_RELATIVE_ARCHIVE_ROOT = "archive";
+    /** Where the copy of that document stands in the tree, as occurrence 10. */
+    private static final String THE_DOCUMENTS_COPY = "documents/10-retrofit.pdf";
 
     /**
      * An archive root no path parser accepts, on either platform: a NUL is refused by the Windows
      * parser as an illegal character and by the POSIX one as a name it cannot hold.
      *
      * <p>Recorded roots are canonicalised on the machine that walked, and this one could not have been
-     * -- which is the point. A tree is read on machines other than the one that wrote it, and a root
-     * written for another platform, or a row edited by hand, arrives at this writer as a string it can
-     * make no path of.
+     * -- which is the point. A root written for another platform, or a row edited by hand, arrives at this
+     * writer as a string it can make no path of.
      */
     private static final String AN_ARCHIVE_ROOT_NO_PARSER_ACCEPTS = "D:/cor\u0000pus";
+
+    /** What an entry says, in italics, where its copy could not be made for any reason but the four named. */
+    private static final String COULD_NOT_BE_COPIED = "could not be copied";
 
     /** The one partition directory these fixtures write, named from the seed's stem, slugged. */
     private static final String THE_PARTITION_DIRECTORY = "1-industrial-safety-standards";
 
     /** The one cluster's page beneath it, named from the derived label and never the generated heading. */
-    private static final String THE_CLUSTER_PAGE = "1-" + THE_LABEL_SLUGGED + ".md";
+    private static final String THE_CLUSTER_PAGE = "1-" + THE_LABEL_SLUGGED + ".html";
 
     /** The first cluster ordinal these fixtures hand out, which is the identity 6a minted. */
     private static final int FIRST_ORDINAL = 0;
@@ -157,30 +153,11 @@ class ClusterFileTest {
     private static final double A_HIGH_SCORE = 0.9;
 
     /**
-     * A cluster title that is itself an image: the two brackets a link is made of, with a bang in
-     * front of them. What the model answers is under no filesystem constraint at all, so nothing bounds
-     * what it can spell, and this is the value the page's own heading is given.
+     * A cluster title that is itself an image in Markdown: the two brackets a link is made of, with a bang in
+     * front of them, and a host. What the model answers is under no filesystem constraint at all, so nothing
+     * bounds what it can spell, and this is the value the page's own heading is given.
      */
     private static final String A_TITLE_THAT_IS_ITSELF_AN_IMAGE = "Survey ![shot](https://example.com/x.png) 2019";
-
-    /** That title as the heading has to read: each bracket behind a backslash, and nothing else moved. */
-    private static final String THAT_TITLE_WITH_ITS_BRACKETS_ESCAPED =
-            "Survey !\\[shot\\](https://example.com/x.png) 2019";
-
-    /**
-     * How many renderer settings the entry was measured in: four renderers, two of which have a second
-     * documented mode that changes the answer.
-     */
-    private static final int SEVEN_CONFIGURATIONS = 7;
-
-    /** And how many of them make a link of a destination carrying a scheme, which is where this began. */
-    private static final int WHERE_A_SCHEME_SURVIVES = 2;
-
-    /** How many renderers the ampersand was measured in, counting each library once. */
-    private static final int FOUR_RENDERERS = 4;
-
-    /** And how many of those resolve an entity-shaped run of text into the character it spells. */
-    private static final int WHERE_AN_ENTITY_IS_RESOLVED = 3;
 
     /**
      * A document whose own name holds an ampersand and so spells an entity by accident, which this
@@ -188,15 +165,8 @@ class ClusterFileTest {
      */
     private static final String A_NAME_SPELLING_AN_ENTITY = "reports/&copy; notes.pdf";
 
-    /** That name as the entry has to carry it: the ampersand behind a backslash, nothing else touched. */
-    private static final String THAT_NAME_WITH_ITS_AMPERSAND_ESCAPED = "reports/\\&copy; notes.pdf";
-
-    /**
-     * And that name as the route to it has to carry it: the ampersand percent-encoded, the space encoded
-     * as every space in a destination already is, and nothing left in it that begins a run a renderer
-     * would resolve into some other character.
-     */
-    private static final String THAT_NAME_AS_A_DESTINATION = "reports/%26copy;%20notes.pdf";
+    /** That name as the entry has to carry it: the ampersand as its entity, so a reader is shown the ampersand. */
+    private static final String THAT_NAME_WITH_ITS_AMPERSAND_ESCAPED = "reports/&amp;copy; notes.pdf";
 
     /**
      * A document whose own name carries one backtick, standing in for an apostrophe as it often does in
@@ -204,55 +174,27 @@ class ClusterFileTest {
      */
     private static final String A_NAME_WITH_ONE_BACKTICK = "reports/O`Brien survey.pdf";
 
-    /** That name as the entry has to carry it: the backtick behind a backslash, nothing else touched. */
-    private static final String THAT_NAME_WITH_ITS_BACKTICK_ESCAPED = "reports/O\\`Brien survey.pdf";
-
-    /**
-     * And that name as the route to it: the backtick percent-encoded by the URI quoting every destination
-     * already goes through, which is what guards this surrounding, and no backslash anywhere in it.
-     */
-    private static final String THAT_NAME_WITH_ONE_BACKTICK_AS_A_DESTINATION = "reports/O%60Brien%20survey.pdf";
-
-    /**
-     * A document whose name carries two backticks either side of a bracketed word: the pair is a code
-     * span in every renderer configuration measured, and inside one the backslash written before each
-     * bracket is shown at the reader rather than consumed, in every configuration but {@code marked}, which
-     * consumes it inside link text.
-     */
+    /** A document whose name carries two backticks either side of a bracketed word, a code span in Markdown. */
     private static final String A_NAME_WITH_BACKTICKS_AROUND_A_BRACKET = "reports/the `[final]` draft.pdf";
 
-    /** That name as the entry has to carry it: all four characters behind a backslash. */
-    private static final String THAT_NAME_WITH_ITS_BACKTICKS_ESCAPED = "reports/the \\`\\[final\\]\\` draft.pdf";
-
-    /**
-     * A cluster title carrying one backtick and no partner for it, the way a model echoes a name it was
-     * shown with a backtick for an apostrophe. Alone, it is a literal backtick under the specification in
-     * every configuration measured; it is here so that a heading rule escaping a backtick only where a
-     * partner follows it fails a test.
-     */
+    /** A cluster title carrying one backtick and no partner for it. */
     private static final String A_TITLE_WITH_ONE_BACKTICK = "Retrofits after the O`Brien survey";
 
-    /** That title as the page's heading has to read: the backtick behind a backslash, nothing else moved. */
-    private static final String THAT_TITLE_WITH_ITS_BACKTICK_ESCAPED = "Retrofits after the O\\`Brien survey";
+    /** A document whose own name carries a space, which a link to the archive had to encode. */
+    private static final String A_NAME_WITH_A_SPACE = "reports/follow-up report.pdf";
 
-    /**
-     * A bracketed ordinal that is not immediately followed by {@code (}, which is a citation the page
-     * failed to rewrite (ADR-109): a link's own {@code [n]} is followed by its destination and so is
-     * not a survivor.
-     */
-    private static final Pattern A_RAW_CITATION = Pattern.compile("\\[\\d+\\](?!\\()");
+    /** A document whose own name carries a quote, which NTFS allows and the JDK's path parser on Windows refuses. */
+    private static final String A_NAME_WITH_A_QUOTE = "reports/2019/retrofit, phase \"two\".pdf";
 
-    /**
-     * The destination of the first membership entry, captured the way a renderer reads one: everything
-     * between the parenthesis that opens the destination and the one that closes it.
-     *
-     * <p>The link text is skipped over rather than matched loosely, because it may carry an escaped
-     * bracket of its own -- {@code \\[} and {@code \\]} are what {@code escapeLinkText} inserts, and a
-     * pattern stopping at the first {@code ]} would cut a name in half and read the rest as a
-     * destination.
-     */
+    /** That name as the entry has to carry it: each quote as its entity, so no attribute can end at it. */
+    private static final String THAT_NAME_WITH_ITS_QUOTES_ESCAPED = "reports/2019/retrofit, phase &quot;two&quot;.pdf";
+
+    /** A bracketed ordinal that is not the text of a citation's link: a citation the page failed to rewrite (ADR-109). */
+    private static final Pattern A_RAW_CITATION = Pattern.compile("(?<!\">)\\[\\d+\\]");
+
+    /** The destination of the first membership entry: the link that opens its line, if it has one. */
     private static final Pattern THE_FIRST_ENTRYS_DESTINATION =
-            Pattern.compile("1\\. <a id=\"document-1\"></a>\\[(?:\\\\.|[^\\]])*\\]\\(([^)]*)\\)");
+            Pattern.compile("<li id=\"document-1\">\n<a href=\"([^\"]*)\">");
 
     @Test
     @Story("The heading names the group the way the writing did, and the label where it did not")
@@ -261,15 +203,15 @@ class ClusterFileTest {
         Path tree = write(
                 workingDirectory,
                 new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
-                List.of(aMember(10, "reports/2019/retrofit.pdf", A_HIGH_SCORE, FIRST_ORDINAL)));
+                List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL)));
 
         String page = pageOf(tree);
 
         claim(
-                "the page opens with the heading the model wrote rather than the name stage 6a derived:"
+                "the page's heading is the one the model wrote rather than the name stage 6a derived:"
                         + " the heading is the one piece of writing a reader is meant to read first, and"
                         + " burying it under a mechanical name would present the derivation as the title",
-                () -> assertThat(page).startsWith("# " + THE_TITLE));
+                () -> assertThat(firstHeadingOf(page)).isEqualTo(THE_TITLE));
         claim(
                 "though the file itself is named from the derived label and not from that heading -- \""
                         + THE_CLUSTER_PAGE + "\" -- because a name depending on generation succeeding would"
@@ -294,7 +236,7 @@ class ClusterFileTest {
         Path tree = write(
                 workingDirectory,
                 null,
-                List.of(aMember(10, "reports/2019/retrofit.pdf", A_HIGH_SCORE, FIRST_ORDINAL)));
+                List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL)));
 
         String page = pageOf(tree);
 
@@ -302,11 +244,11 @@ class ClusterFileTest {
                 "a group nothing was written over still has a page, headed by the label stage 6a derived"
                         + " for it: the label is the name that always exists, so the hole in the archive"
                         + " can be matched against the index without anything having been generated",
-                () -> assertThat(page).startsWith("# " + THE_LABEL));
+                () -> assertThat(firstHeadingOf(page)).isEqualTo(THE_LABEL));
         claim(
-                "and the page says plainly that nothing was written over it, rather than leaving a reader"
-                        + " to infer it from a heading and a list",
-                () -> assertThat(page).contains(Deliverable.NOTHING_WAS_WRITTEN_OVER_IT));
+                "and the page says plainly, in italics, that nothing was written over it, rather than leaving a"
+                        + " reader to infer it from a heading and a list",
+                () -> assertThat(page).contains("<p><em>" + Deliverable.NOTHING_WAS_WRITTEN_OVER_IT + "</em></p>"));
     }
 
     @Test
@@ -318,123 +260,65 @@ class ClusterFileTest {
                 workingDirectory,
                 new SynthesisDoc(THE_TITLE, "Both of them [1] describe it, and the third [2] too.", sent(10, 11)),
                 List.of(
-                        aMember(10, "reports/2019/retrofit.pdf", A_HIGH_SCORE, FIRST_ORDINAL),
+                        aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL),
                         aMember(11, "reports/2021/follow-up.pdf", A_MIDDLE_SCORE, FIRST_ORDINAL))));
 
         claim(
                 "each [n] in the writing is rewritten into a link to membership entry n, so following a"
                         + " claim is one click to the entry rather than a number a reader has to hunt for",
                 () -> assertThat(page)
-                        .contains("[1](#document-1)")
-                        .contains("[2](#document-2)"));
+                        .contains("<a href=\"#document-1\">[1]</a>")
+                        .contains("<a href=\"#document-2\">[2]</a>"));
+        claim(
+                "and each entry carries the id its citation links to, so the click lands on it",
+                () -> assertThat(page).contains("<li id=\"document-1\">", "<li id=\"document-2\">"));
         claim(
                 "and no raw marker survives anywhere in the page: a bare [n] left behind would be the"
-                        + " model's own notation sitting in a file a reader follows links from, and one at"
-                        + " the start of a line would parse as a Markdown reference-link definition",
+                        + " model's own notation sitting in a page a reader follows links from",
                 () -> assertThat(A_RAW_CITATION.matcher(page).find()).isFalse());
     }
 
     @Test
     @Story("A claim leads to the document behind it in two clicks")
-    @DisplayName("Every entry in the list below leads to the original, by a route the page itself supplies")
+    @DisplayName("Every entry in the list below leads to the document's copy in the tree, by a route the page itself supplies")
     @Issue("253")
-    @Link(name = "ADR-104", url = Adr.THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED, type = "adr")
     @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
-    void linksEveryMembershipEntryToTheOriginalByAPathRelativeToThePage(@TempDir Path workingDirectory)
+    void linksEveryMembershipEntryToItsCopyByAPathRelativeToThePage(@TempDir Path workingDirectory)
             throws IOException {
-        Path archive = anArchiveBeside(workingDirectory);
-        Path page = thePageOf(write(
+        Path tree = write(
                 workingDirectory,
-                archive,
                 new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
-                List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL))));
+                List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL)));
+        Path page = thePageOf(tree);
 
         claim(
-                "the entry's destination names no scheme at all: of the " + SEVEN_CONFIGURATIONS
-                        + " renderer settings this was measured in, a destination beginning \"file:\" is a"
-                        + " link in " + WHERE_A_SCHEME_SURVIVES + " -- the rest either strip it or print the"
-                        + " whole entry at the reader as the source it was written in -- while a destination"
-                        + " that is a plain relative path is a link in all " + SEVEN_CONFIGURATIONS,
-                () -> assertThat(theDestinationOn(page).isAbsolute()).isFalse());
+                "the entry's destination names no scheme and no host, and is not absolute: a link that leaves the"
+                        + " tree breaks the moment the folder is carried elsewhere",
+                () -> {
+                    URI destination = theDestinationOn(page);
+                    assertThat(destination.isAbsolute()).isFalse();
+                    assertThat(destination.getHost()).isNull();
+                    assertThat(destination.getPath()).doesNotStartWith("/");
+                });
         claim(
-                "and following that destination from the directory the page sits in arrives exactly at the"
-                        + " document beneath the archive's own root: the chain's second click ends at the"
-                        + " file the operator owns, with no database, no listing and no network between the"
-                        + " reader and it -- which is the test this tree is written against, read as a"
-                        + " reader exercises it rather than as the filesystem alone would",
-                () -> assertThat(whereTheFirstEntryLeadsFrom(page)).isEqualTo(archive.resolve(THE_DOCUMENT)));
+                "following that destination from the directory the page sits in arrives exactly at the"
+                        + " document's copy inside the tree, with no database, no archive and no network between"
+                        + " the reader and it",
+                () -> assertThat(whereTheFirstEntryLeadsFrom(page)).isEqualTo(tree.resolve(THE_DOCUMENTS_COPY)));
+        claim(
+                "and what it lands on holds exactly the bytes of the document in the archive",
+                () -> assertThat(whereTheFirstEntryLeadsFrom(page)).hasBinaryContent(bytesOf(THE_DOCUMENT)));
+        claim(
+                "and the link's text is the document's place beneath the archive root the index states, so a"
+                        + " reader still learns where it came from",
+                () -> assertThat(Files.readString(page))
+                        .contains("<a href=\"../" + THE_DOCUMENTS_COPY + "\">" + THE_DOCUMENT + "</a>"));
     }
 
     @Test
     @Story("A claim leads to the document behind it in two clicks")
-    @DisplayName("Where no route to the archive exists, the entry states the document and offers no link")
+    @DisplayName("An archive root this machine cannot even parse costs the copy and nothing else")
     @Issue("253")
-    @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
-    void statesTheDocumentWithoutALinkWhereTheArchiveIsOnAnotherVolume(@TempDir Path workingDirectory)
-            throws IOException {
-        assumeTrue(WINDOWS, "only Windows has two volumes, and so two places with no path between them");
-        Path archive = Path.of(theVolumeThatIsNot(workingDirectory), "archive");
-        Path page = thePageOf(write(
-                workingDirectory,
-                archive,
-                new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
-                List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL))));
-        String text = Files.readString(page);
-
-        claim(
-                "the entry names the document and stops there, keeping its number and its anchor: there is"
-                        + " no relative route from a tree on one volume to an archive on another, and the"
-                        + " reader is given the document's place beneath the root the index states rather"
-                        + " than a link",
-                () -> assertThat(text).contains(THE_FIRST_ENTRY + ". <a id=\"document-1\"></a>" + THE_DOCUMENT));
-        claim(
-                "and no link is written in its place: the absolute form this stood in for is a link in "
-                        + WHERE_A_SCHEME_SURVIVES + " of the " + SEVEN_CONFIGURATIONS + " measured, and in"
-                        + " two of the others the reader is shown the source of an entry instead of an"
-                        + " entry -- a page saying something other than what it means to say, which is the"
-                        + " one failure this writer can decline to author",
-                () -> assertThat(text).doesNotContain("file:").doesNotContain(THE_DOCUMENT + "]("));
-    }
-
-    @Test
-    @Story("A claim leads to the document behind it in two clicks")
-    @DisplayName("An archive named by a relative path is stated in the entry and never linked to")
-    @Issue("253")
-    @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
-    void statesTheDocumentWithoutALinkWhereTheArchiveRootIsItselfRelative(@TempDir Path workingDirectory)
-            throws IOException {
-        Path page = thePageOf(write(
-                workingDirectory,
-                A_RELATIVE_ARCHIVE_ROOT,
-                new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
-                List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL))));
-        String text = Files.readString(page);
-
-        claim(
-                "precondition: the archive is named by a path that is relative on this machine, which is"
-                        + " the state being claimed about and not an incidental of the fixture",
-                () -> assertThat(Path.of(A_RELATIVE_ARCHIVE_ROOT).isAbsolute()).isFalse());
-        claim(
-                "the entry names the document and offers no link: a route composed from an archive that is"
-                        + " itself named relatively would be a route from wherever the reader happens to be"
-                        + " standing, so it would lead somewhere different for every reader and nowhere for"
-                        + " most -- and an entry that states the document leads nowhere wrong",
-                () -> assertThat(text)
-                        .contains(THE_FIRST_ENTRY + ". <a id=\"document-1\"></a>" + THE_DOCUMENT)
-                        .doesNotContain(THE_DOCUMENT + "]("));
-        claim(
-                "and the tree this fixture could not link through was written whole all the same: a writer"
-                        + " that refused a page over a root it could not compose against would lose the"
-                        + " faults the same invocation had already recorded, which is a heavy price for an"
-                        + " entry that can simply say less",
-                () -> assertThat(text).startsWith("# " + THE_TITLE));
-    }
-
-    @Test
-    @Story("A claim leads to the document behind it in two clicks")
-    @DisplayName("An archive root this machine cannot even parse costs the link and nothing else")
-    @Issue("253")
-    @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
     @Link(name = "ADR-111", url = Adr.A_CLUSTER_FAULT_IS_A_ROW_IN_SYNTHESIS, type = "adr")
     void statesTheDocumentWithoutALinkWhereNoPathCanBeMadeOfTheArchiveRoot(@TempDir Path workingDirectory)
             throws IOException {
@@ -442,7 +326,8 @@ class ClusterFileTest {
                 workingDirectory,
                 AN_ARCHIVE_ROOT_NO_PARSER_ACCEPTS,
                 new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
-                List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL))));
+                List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL)),
+                1));
         String text = Files.readString(page);
 
         claim(
@@ -455,15 +340,14 @@ class ClusterFileTest {
                 "the page was still written, and written whole: a root this machine cannot parse is not a"
                         + " reason to abandon a page, and a throw from this writer would escape the step and"
                         + " roll back every fault the invocation had already recorded against other groups",
-                () -> assertThat(text).startsWith("# " + THE_TITLE));
+                () -> assertThat(firstHeadingOf(text)).isEqualTo(THE_TITLE));
         claim(
-                "and the entry states the document with no link and no scheme: there is no route to compose"
-                        + " without a path to compose it from, and the reader is given the document's place"
-                        + " beneath the root the index states, which is a string and needs no parser",
+                "and the entry states the document and why no copy stands, in italics, and links nowhere: there"
+                        + " is no copy to lead to, and no entry leads into the archive",
                 () -> assertThat(text)
-                        .contains(THE_FIRST_ENTRY + ". <a id=\"document-1\"></a>" + THE_DOCUMENT)
-                        .doesNotContain("file:")
-                        .doesNotContain(THE_DOCUMENT + "]("));
+                        .contains("<li id=\"document-1\">\n" + THE_DOCUMENT + " <em>" + COULD_NOT_BE_COPIED
+                                + "</em>\n</li>")
+                        .doesNotContain("href=\"../"));
     }
 
     @Test
@@ -471,13 +355,13 @@ class ClusterFileTest {
     @DisplayName("Every document of the group is listed in closeness order, the ones the call never sent included")
     @Link(name = "ADR-104", url = Adr.THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED, type = "adr")
     void listsEveryMemberInScoreOrderIncludingThoseNeverSent(@TempDir Path workingDirectory) throws IOException {
+        ListedSurvivor middle = aMember(10, "reports/middle.pdf", A_MIDDLE_SCORE, FIRST_ORDINAL);
+        ListedSurvivor high = aMember(11, "reports/high.pdf", A_HIGH_SCORE, FIRST_ORDINAL);
+        ListedSurvivor low = aMember(12, "reports/low.pdf", A_LOW_SCORE, FIRST_ORDINAL);
         String page = pageOf(write(
                 workingDirectory,
                 new SynthesisDoc(THE_TITLE, "The closest one [1] is the retrofit.", sent(11)),
-                List.of(
-                        aMember(10, "reports/middle.pdf", A_MIDDLE_SCORE, FIRST_ORDINAL),
-                        aMember(11, "reports/high.pdf", A_HIGH_SCORE, FIRST_ORDINAL),
-                        aMember(12, "reports/low.pdf", A_LOW_SCORE, FIRST_ORDINAL))));
+                List.of(middle, high, low)));
 
         claim(
                 "all " + THREE_DOCUMENTS + " documents of the group are listed, though the call sent only "
@@ -490,20 +374,13 @@ class ClusterFileTest {
                         .contains("reports/low.pdf"));
         claim(
                 "the one document the call carried is entry " + THE_FIRST_ENTRY + ", and the ones it never"
-                        + " carried follow it closest to the seed first: nothing was passed over here, so"
-                        + " numbering from what was sent comes out as closeness order -- which is the"
-                        + " ordinary case, and the case the two numberings always agreed in",
+                        + " carried follow it closest to the seed first, one entry after another in one list:"
+                        + " nothing was passed over here, so numbering from what was sent comes out as"
+                        + " closeness order -- which is the ordinary case, and the case the two numberings"
+                        + " always agreed in",
                 () -> assertThat(page)
-                        .contains("1. <a id=\"document-1\"></a>[reports/high.pdf]")
-                        .contains("2. <a id=\"document-2\"></a>[reports/middle.pdf]")
-                        .contains("3. <a id=\"document-3\"></a>[reports/low.pdf]"));
-        claim(
-                "and no entry's anchor sits on a line of its own: an anchor tag alone on a line is a"
-                        + " paragraph, and a numbered entry can interrupt a paragraph only at 1 -- so entry "
-                        + THE_FIRST_ENTRY + " would open a list and every entry after it would be swallowed"
-                        + " into the text above it, leaving a page whose bytes hold the whole group and"
-                        + " whose rendering shows one document and a wall of prose",
-                () -> assertThat(page).doesNotContain("</a>\n"));
+                        .contains("<ol>\n" + entry(THE_FIRST_ENTRY, high) + entry(THE_SECOND_ENTRY, middle)
+                                + entry(THE_THIRD_ENTRY, low) + "</ol>\n"));
         claim(
                 "and the page says how much of the group the writing rests on, naming both numbers, so a"
                         + " reader knows the prose was written from " + ONE_DOCUMENT_SENT + " of "
@@ -512,8 +389,8 @@ class ClusterFileTest {
                         + " is dropped wherever it scored and the ones it did carry are then the top of"
                         + " nothing",
                 () -> assertThat(page)
-                        .contains("Written from the first " + ONE_DOCUMENT_SENT + " of the "
-                                + THREE_DOCUMENTS + " documents in this group."));
+                        .contains("<p>Written from the first " + ONE_DOCUMENT_SENT + " of the "
+                                + THREE_DOCUMENTS + " documents in this group.</p>"));
     }
 
     @Test
@@ -523,13 +400,13 @@ class ClusterFileTest {
     @Link(name = "ADR-133", url = Adr.THE_EXEMPLARS_ONE_CALL_SENT_ARE_RECORDED, type = "adr")
     void numbersTheListFromWhatTheCallCarriedWhereAMemberWasPassedOver(@TempDir Path workingDirectory)
             throws IOException {
+        ListedSurvivor high = aMember(10, "reports/high.pdf", A_HIGH_SCORE, FIRST_ORDINAL);
+        ListedSurvivor middle = aMember(11, "reports/middle.pdf", A_MIDDLE_SCORE, FIRST_ORDINAL);
+        ListedSurvivor low = aMember(12, "reports/low.pdf", A_LOW_SCORE, FIRST_ORDINAL);
         String page = pageOf(write(
                 workingDirectory,
                 new SynthesisDoc(THE_TITLE, "The nearest [1] and the furthest [2] agree.", sent(10, 12)),
-                List.of(
-                        aMember(10, "reports/high.pdf", A_HIGH_SCORE, FIRST_ORDINAL),
-                        aMember(11, "reports/middle.pdf", A_MIDDLE_SCORE, FIRST_ORDINAL),
-                        aMember(12, "reports/low.pdf", A_LOW_SCORE, FIRST_ORDINAL))));
+                List.of(high, middle, low)));
 
         claim(
                 "entry " + THE_SECOND_ENTRY + " is the document the call was given as [2] -- the"
@@ -537,15 +414,12 @@ class ClusterFileTest {
                         + " was never sent: the call dropped that one, so numbering the group's own"
                         + " documents by score would have pointed [2] at a document the writing was not"
                         + " made from, and the link would have resolved, opened and been wrong",
-                () -> assertThat(page)
-                        .contains(THE_FIRST_ENTRY + ". <a id=\"document-1\"></a>[reports/high.pdf]")
-                        .contains(THE_SECOND_ENTRY + ". <a id=\"document-2\"></a>[reports/low.pdf]"));
+                () -> assertThat(page).contains(entry(THE_FIRST_ENTRY, high) + entry(THE_SECOND_ENTRY, low)));
         claim(
                 "and the document that was passed over is still listed, last of the " + THREE_DOCUMENTS
                         + ": the page states the group as it was arranged, and a document nothing could"
                         + " be written from is still one a reader can find and open",
-                () -> assertThat(page)
-                        .contains(THE_THIRD_ENTRY + ". <a id=\"document-3\"></a>[reports/middle.pdf]"));
+                () -> assertThat(page).contains(entry(THE_THIRD_ENTRY, middle) + "</ol>"));
         claim(
                 "and the sentence about how much was read names the first " + TWO_DOCUMENTS + " of "
                         + THREE_DOCUMENTS + ", which is true of this page and checkable on it: the two"
@@ -562,24 +436,25 @@ class ClusterFileTest {
     @Issue("236")
     @Link(name = "ADR-133", url = Adr.THE_EXEMPLARS_ONE_CALL_SENT_ARE_RECORDED, type = "adr")
     void keepsTheNumberOfADocumentTheClusterNoLongerHolds(@TempDir Path workingDirectory) throws IOException {
+        ListedSurvivor high = aMember(10, "reports/high.pdf", A_HIGH_SCORE, FIRST_ORDINAL);
         String page = pageOf(write(
                 workingDirectory,
                 new SynthesisDoc(THE_TITLE, "The first [1] and the second [2] agree.", sent(10, 11)),
-                List.of(aMember(10, "reports/high.pdf", A_HIGH_SCORE, FIRST_ORDINAL))));
+                List.of(high)));
 
         claim(
                 "the document the group no longer holds keeps entry " + THE_SECOND_ENTRY + " and the"
-                        + " page says what it is, rather than the entry being dropped: [2] above points"
-                        + " at that number, and dropping the entry would move every document beneath it"
+                        + " page says what it is, in italics, rather than the entry being dropped: [2] above"
+                        + " points at that number, and dropping the entry would move every document beneath it"
                         + " up one and point live citations at other documents",
                 () -> assertThat(page)
-                        .contains(THE_SECOND_ENTRY + ". <a id=\"document-2\"></a>"
-                                + Deliverable.THE_CLUSTER_NO_LONGER_HOLDS_IT));
+                        .contains("<li id=\"document-" + THE_SECOND_ENTRY + "\">\n<em>"
+                                + Deliverable.THE_CLUSTER_NO_LONGER_HOLDS_IT + "</em>\n</li>\n"));
         claim(
                 "and the page was still written rather than the run stopping over it: a throw from the"
                         + " writer would roll back every fault this invocation had already recorded, and"
                         + " an entry that says what happened costs nothing",
-                () -> assertThat(page).contains("[reports/high.pdf]"));
+                () -> assertThat(page).contains(entry(THE_FIRST_ENTRY, high)));
     }
 
     @Test
@@ -590,7 +465,7 @@ class ClusterFileTest {
                 workingDirectory,
                 new SynthesisDoc(THE_TITLE, "Both of them [1] describe it.", sent(10, 11)),
                 List.of(
-                        aMember(10, "reports/2019/retrofit.pdf", A_HIGH_SCORE, FIRST_ORDINAL),
+                        aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL),
                         aMember(11, "reports/2021/follow-up.pdf", A_MIDDLE_SCORE, FIRST_ORDINAL))));
 
         claim(
@@ -608,6 +483,7 @@ class ClusterFileTest {
             throws IOException {
         String page = pageOf(write(
                 workingDirectory,
+                anArchiveBeside(workingDirectory).toString(),
                 new SynthesisDoc(THE_TITLE, "The closest one [1] is the retrofit.", sent(10)),
                 List.of(
                         aMember(10, "reports/high.pdf", A_HIGH_SCORE, FIRST_ORDINAL),
@@ -627,42 +503,35 @@ class ClusterFileTest {
 
     @Test
     @Story("A claim leads to the document behind it in two clicks")
-    @DisplayName("A name carrying a space or a quote becomes a link a reader can still follow")
-    void escapesCharactersThatWouldBreakTheLink(@TempDir Path workingDirectory) throws IOException {
-        String page = pageOf(write(
+    @DisplayName("A name carrying a space or a quote is shown as it is and its entry still leads to its copy")
+    void keepsANameWithASpaceOrAQuoteReadableAndFollowable(@TempDir Path workingDirectory) throws IOException {
+        ListedSurvivor spaced = aMember(10, A_NAME_WITH_A_SPACE, A_HIGH_SCORE, FIRST_ORDINAL);
+        ListedSurvivor quoted = aMember(11, A_NAME_WITH_A_QUOTE, A_MIDDLE_SCORE, FIRST_ORDINAL);
+        Path tree = write(
                 workingDirectory,
                 new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
-                List.of(
-                        aMember(10, "reports/follow-up report.pdf", A_HIGH_SCORE, FIRST_ORDINAL),
-                        aMember(11, "reports/2019/retrofit, phase \"two\".pdf", A_MIDDLE_SCORE, FIRST_ORDINAL))));
+                List.of(spaced, quoted),
+                List.of(spaced));
+        String page = pageOf(tree);
 
         claim(
-                "a space in a document's own name is escaped in the link rather than left to open it at"
-                        + " the first whitespace, so a name that is perfectly legal on this filesystem still"
-                        + " resolves when a reader clicks it",
-                () -> assertThat(page).contains("reports/follow-up%20report.pdf"));
+                "the entry for a name with a space links to its copy, whose name carries no space, and shows the"
+                        + " name as the archive holds it",
+                () -> assertThat(page).contains(entry(THE_FIRST_ENTRY, spaced)));
         claim(
-                "and a quote is escaped too, because NTFS allows it and the JDK's own path parser refuses"
-                        + " it -- a link composed by handing such a name to a Path would throw before any"
-                        + " URI was built, leaving the document unreachable",
-                () -> assertThat(page).contains("phase%20%22two%22.pdf"));
+                "and a name with a quote is shown with each quote as its entity, so nothing in it can end an"
+                        + " attribute or open a tag, whatever became of its copy",
+                () -> assertThat(page)
+                        .contains("<li id=\"document-" + THE_SECOND_ENTRY + "\">\n" + THAT_NAME_WITH_ITS_QUOTES_ESCAPED)
+                        .doesNotContain("phase \"two\""));
     }
 
     /**
-     * The one heading in the tree a generated name reaches on its own (ADR-138).
+     * The one heading in the tree a generated name reaches on its own (ADR-138, ADR-274 §1.3).
      *
-     * <p><b>This is the position that escaped least of all.</b> {@code inAHeading} folds and escapes
-     * the backslash, the angle bracket and the ampersand, and until ADR-138 it left both brackets
-     * alone -- so a title spelling a link opened the page as a link, and one spelling an image opened
-     * it as an image, in every renderer configuration measured. The index's own heading and its two
-     * cells are claimed in {@code DeliverableTest}; this is the page, and the value here is the
-     * model's own answer rather than a name out of the archive.
-     *
-     * <p><b>The image is the worse of the two and the quieter.</b> A link goes somewhere wrong and a
-     * reader can see it; an image is fetched from the host the name gave when the page is opened, in a
-     * tree whose whole claim is that it resolves without a network -- and the words between the
-     * brackets become an attribute rather than text, so a reader looking at the heading as text is
-     * looking at a name one word short with nothing to say a word was taken out.
+     * <p>A title that spells an image in Markdown opened the page as an image, fetched from the host the name
+     * gave, in a tree whose whole claim is that it resolves without a network. The title is not Markdown on an
+     * HTML page and is not read as such: it is escaped by the one rule and shown as its characters.
      */
     @Test
     @Story("A claim leads to the document behind it in two clicks")
@@ -676,42 +545,20 @@ class ClusterFileTest {
                 List.of(aMember(10, THE_DOCUMENT, A_HIGH_SCORE, FIRST_ORDINAL))));
 
         claim(
-                "the page opens with the name the writing gave the group, both of its brackets behind a"
-                        + " backslash, so what a reader meets is the name: a bang in front of a live"
-                        + " bracket is a picture, and the page then fetches it from whatever host the"
-                        + " name happened to spell",
-                () -> assertThat(page).startsWith("# " + THAT_TITLE_WITH_ITS_BRACKETS_ESCAPED + "\n"));
+                "the page's heading is the name the writing gave the group, every character of it as written,"
+                        + " the word between the brackets included",
+                () -> assertThat(firstHeadingOf(page)).isEqualTo(A_TITLE_THAT_IS_ITSELF_AN_IMAGE));
         claim(
-                "and every word of it survives into the heading, the one between the brackets included:"
-                        + " a picture's words are an attribute rather than text, so written through, that"
-                        + " word leaves the heading altogether -- and nothing on the page says a word was"
-                        + " ever there",
-                () -> assertThat(page).doesNotContain(A_TITLE_THAT_IS_ITSELF_AN_IMAGE));
+                "and nothing on the page fetches a picture from that host: no image names a source with a host",
+                () -> assertThat(page).doesNotContain("<img").doesNotContain("src=\"https:"));
     }
 
     /**
-     * The one position ADR-136 binds that is not in the index, and the only half of its rule an archive
-     * can actually reach.
+     * The entry's text for a document whose own name spells an entity (ADR-136, ADR-274 §1.3).
      *
-     * <p><b>Only the ampersand is claimed.</b> {@code escapeLinkText} is applied to an {@link
-     * OccurrencePath}, and this filesystem permits an ampersand in a filename, so the fixture below is a
-     * path a walk can really record -- and an entity-shaped run left bare is the one ampersand case that
-     * loses text, the spelling of a copyright sign being resolved into the sign by three of the four
-     * renderers measured. The angle-bracket half of the same rule has no such input: NTFS forbids
-     * {@code <} in a filename, so that half is defence against something this source rules out, kept for
-     * the reason the method's own javadoc keeps its backslash rule -- a rule of the wrong shape is the
-     * one the next reader copies. Driving it from here would pin a fixture no walk can produce.
-     *
-     * <p><b>Where the destination leads is claimed by the test below</b>, and deliberately not here.
-     * This one is about the text a reader is shown, where the escape is a backslash; that one is about
-     * the route, where the same character is percent-encoded instead, because the route answers to a
-     * resolver rather than to a reader (ADR-137). One entry carrying the same character escaped two
-     * different ways is the reason these are two tests rather than two claims of one.
-     *
-     * <p>Both directions are claimed, because the escape and the entity are different operations and
-     * only one of them is right: writing {@code &amp;} would show a plain-text reader the six characters
-     * of its own spelling, where the backslash is consumed by the renderer and costs one character in
-     * the source alone.
+     * <p>An entity-shaped run left bare is the one ampersand case that loses text: the spelling of a copyright
+     * sign is resolved into the sign. Under the one rule the ampersand is written as its entity, so a reader is
+     * shown the characters the filename really holds.
      */
     @Test
     @Story("A claim leads to the document behind it in two clicks")
@@ -719,117 +566,59 @@ class ClusterFileTest {
     @Issue("251")
     @Link(name = "ADR-136", url = Adr.THE_ANGLE_BRACKET_AND_THE_AMPERSAND_ARE_ESCAPED, type = "adr")
     void keepsAnAmpersandInAnEntryReadableAsItself(@TempDir Path workingDirectory) throws IOException {
-        Path archive = anArchiveBeside(workingDirectory);
-        Path page = thePageOf(write(
+        String text = pageOf(write(
                 workingDirectory,
-                archive,
                 new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
                 List.of(aMember(10, A_NAME_SPELLING_AN_ENTITY, A_HIGH_SCORE, FIRST_ORDINAL))));
-        String text = Files.readString(page);
 
         claim(
-                "the entry names the document with a backslash in front of its ampersand, so the reader is"
-                        + " shown the characters the filename really holds: written through, a run that"
-                        + " spells a character is resolved into that character by "
-                        + WHERE_AN_ENTITY_IS_RESOLVED + " of the " + FOUR_RENDERERS + " renderers"
-                        + " measured, and the entry would then name a document the archive does not hold",
-                () -> assertThat(text)
-                        .contains(THE_FIRST_ENTRY + ". <a id=\"document-1\"></a>["
-                                + THAT_NAME_WITH_ITS_AMPERSAND_ESCAPED + "]("));
+                "the entry names the document with its ampersand written as the entity for an ampersand, so the"
+                        + " reader is shown the characters the filename really holds rather than the sign they"
+                        + " spell",
+                () -> assertThat(text).contains(">" + THAT_NAME_WITH_ITS_AMPERSAND_ESCAPED + "</a>"));
         claim(
-                "and it is escaped with a backslash rather than written as an entity, which is the other"
-                        + " way to neutralise the character and the wrong one: the entity spells itself out"
-                        + " at a reader opening the file in a plain text editor, where the backslash is one"
-                        + " character of a kind the same name already carries around a bracket",
-                () -> assertThat(text).doesNotContain("&amp;"));
-        claim(
-                "and the backslash is in the text a reader sees rather than in the route: the destination,"
-                        + " read back as a parser reads one, names the document exactly as the archive spells"
-                        + " it and carries no backslash at all, where a rule applied to the whole entry"
-                        + " instead of to its text would have put one there and left the reader a link to"
-                        + " nothing",
-                () -> assertThat(theDestinationOn(page).getPath())
-                        .doesNotContain("\\")
-                        .endsWith(A_NAME_SPELLING_AN_ENTITY));
+                "and the name's own run is never written bare, where it would be read as the sign",
+                () -> assertThat(text).doesNotContain(A_NAME_SPELLING_AN_ENTITY));
     }
 
     /**
-     * Where that same entry leads, which is a different question from what it says, and the one the test
-     * above leaves alone.
+     * Where that same entry leads, which is a different question from what it says (ADR-137, ADR-274 §2.1).
      *
-     * <p><b>The claim is over the characters the page carries</b> rather than over a parsed destination.
-     * A {@link URI} percent-decodes as it parses, so a destination read through one names the right
-     * document whether or not a renderer would first have resolved a run inside it into some other
-     * character -- which is exactly how the escape above came to be pinned while the route was wrong.
-     *
-     * <p><b>The second claim is the absence of the character, not the presence of the one escape.</b>
-     * A route carrying no ampersand at all cannot begin an entity-shaped run, so the claim holds for
-     * every name of that shape rather than for the one this fixture spells; a claim naming {@code
-     * %26copy;} alone would pass a rule that encoded this entity and no other.
-     *
-     * <p>The name is the one the test above uses, and for the same reason: it is legal on this
-     * filesystem, so a walk can really record it, and it is the one shape of ampersand a destination
-     * loses a document to.
+     * <p>The claim is over the characters the page carries: a copy's name is the occurrence and a slug, so the
+     * route carries no ampersand at all, cannot begin an entity-shaped run, and holds for every name of that
+     * shape rather than for the one this fixture spells.
      */
     @Test
     @Story("A claim leads to the document behind it in two clicks")
-    @DisplayName("A document whose own name spells an entity is reached at the name the archive holds")
+    @DisplayName("A document whose own name spells an entity is reached at its copy")
     @Issue("259")
-    @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
     @Link(name = "ADR-137", url = Adr.A_DESTINATIONS_AMPERSAND_IS_PERCENT_ENCODED, type = "adr")
-    void encodesTheAmpersandInTheRouteToADocumentWhoseNameSpellsAnEntity(@TempDir Path workingDirectory)
-            throws IOException {
-        Path archive = anArchiveBeside(workingDirectory);
-        Path page = thePageOf(write(
+    void routesADocumentWhoseNameSpellsAnEntityToItsCopy(@TempDir Path workingDirectory) throws IOException {
+        Path tree = write(
                 workingDirectory,
-                archive,
                 new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
-                List.of(aMember(10, A_NAME_SPELLING_AN_ENTITY, A_HIGH_SCORE, FIRST_ORDINAL))));
+                List.of(aMember(10, A_NAME_SPELLING_AN_ENTITY, A_HIGH_SCORE, FIRST_ORDINAL)));
+        Path page = thePageOf(tree);
         String destination = theDestinationTextOn(page);
 
         claim(
-                "the route the entry offers spells the ampersand as a percent escape, so the reader is sent"
-                        + " to the document the archive really holds: written through, a run that spells a"
-                        + " character is resolved into that character before anything resolves the path, in"
-                        + " all " + SEVEN_CONFIGURATIONS + " renderer settings this was measured in, and the"
-                        + " link then names a document that is not there",
-                () -> assertThat(destination).endsWith(THAT_NAME_AS_A_DESTINATION));
-        claim(
-                "and no ampersand survives anywhere in the route, which is the claim rather than the one"
-                        + " spelling this fixture happens to carry: a route holding none cannot begin such a"
-                        + " run at all, so there is nothing left in it for a renderer to resolve, whatever"
-                        + " the document is called",
+                "no ampersand survives anywhere in the route, so there is nothing in it for a reader's browser"
+                        + " to resolve into some other character, whatever the document is called",
                 () -> assertThat(destination).doesNotContain("&"));
         claim(
-                "and following it still arrives at the document beneath the archive's own root, because"
-                        + " whatever opens the file undoes a percent escape: the encoding is paid in the"
-                        + " characters a reader of the raw page sees, and not in where the link goes",
+                "and following it arrives at the document's copy, which holds the bytes of the document the"
+                        + " archive really holds",
                 () -> assertThat(whereTheFirstEntryLeadsFrom(page))
-                        .isEqualTo(archive.resolve(A_NAME_SPELLING_AN_ENTITY)));
+                        .hasBinaryContent(bytesOf(A_NAME_SPELLING_AN_ENTITY)));
     }
 
     /**
-     * The two positions a backtick reaches on a group's page, the membership entry and the heading
-     * (ADR-148).
+     * The two positions a backtick reaches on a group's page, the membership entry and the heading (ADR-148,
+     * ADR-274 §1.3).
      *
-     * <p><b>Two backticks are the hazard, in every renderer configuration measured.</b> They are a code
-     * span: both leave the rendered name, and a bracket between them keeps the backslash the entry's
-     * rule wrote in front of it, in every configuration but {@code marked}, because nothing inside a code
-     * span is unescaped. The second member carries that case; the pair in a heading is claimed in
-     * {@code DeliverableTest}, on the seed's.
-     *
-     * <p><b>The first member and the heading each carry one backtick, and they are here for the rule's
-     * shape, not its ground.</b> One backtick alone is a literal backtick under the specification; in the
-     * entry only one renderer refuses to form the link around it -- a divergence ADR-148 gives no weight --
-     * and in the heading none misreads it. The escape reaches it because ADR-148 makes the rule
-     * unconditional, for ADR-138's reasons, and a rule that escaped a backtick only when a partner followed
-     * would have to parse what a renderer parses. What this pins is that the escape is applied to the
-     * character, wherever it stands, in both rules this page is written through.
-     *
-     * <p><b>The route is claimed as well, and it must not move.</b> The destination is guarded by the
-     * URI quoting it already goes through, which writes a backtick as a percent escape; a rule applied to
-     * the whole entry instead of to its text would put a backslash in the route and leave the reader a
-     * link to nothing.
+     * <p>Two backticks were a code span in Markdown, and inside one a backslash written before a bracket was shown
+     * at the reader. HTML has no such reading: a backtick is none of the five characters the one rule writes as an
+     * entity, so it is shown as written, with no backslash beside it, in the heading and the entries alike.
      */
     @Test
     @Story("A claim leads to the document behind it in two clicks")
@@ -837,94 +626,63 @@ class ClusterFileTest {
     @Issue("261")
     @Link(name = "ADR-148", url = Adr.A_BACKTICK_IS_ESCAPED_IN_EVERY_SURROUNDING_A_VALUE_IS_READ_IN, type = "adr")
     void keepsABacktickInAnEntryAndAHeadingReadableAsItself(@TempDir Path workingDirectory) throws IOException {
-        Path archive = anArchiveBeside(workingDirectory);
-        Path page = thePageOf(write(
+        Path tree = write(
                 workingDirectory,
-                archive,
                 new SynthesisDoc(A_TITLE_WITH_ONE_BACKTICK, "The nearest one [1] is the survey.", sent(10)),
                 List.of(
                         aMember(10, A_NAME_WITH_ONE_BACKTICK, A_HIGH_SCORE, FIRST_ORDINAL),
-                        aMember(11, A_NAME_WITH_BACKTICKS_AROUND_A_BRACKET, A_MIDDLE_SCORE, FIRST_ORDINAL))));
+                        aMember(11, A_NAME_WITH_BACKTICKS_AROUND_A_BRACKET, A_MIDDLE_SCORE, FIRST_ORDINAL)));
+        Path page = thePageOf(tree);
         String text = Files.readString(page);
         String destination = theDestinationTextOn(page);
 
         claim(
-                "the page opens with the name the writing gave the group, its one backtick behind a"
-                        + " backslash although nothing on the line could pair with it: the heading rule is"
-                        + " applied to the character wherever it stands, not only where a partner follows",
-                () -> assertThat(text).startsWith("# " + THAT_TITLE_WITH_ITS_BACKTICK_ESCAPED + "\n"));
+                "the page's heading is the name the writing gave the group, its one backtick as written and"
+                        + " nothing put beside it",
+                () -> assertThat(firstHeadingOf(text)).isEqualTo(A_TITLE_WITH_ONE_BACKTICK));
         claim(
-                "and the entry for a document whose name carries two backticks around a bracketed word"
-                        + " escapes all four, so the reader is shown the name the archive holds: written"
-                        + " through, the bracket keeps its backslash inside the code span in every renderer"
-                        + " configuration but marked, and the reader is shown a character the filename"
-                        + " never had",
+                "and each entry shows its document's name as the archive holds it, the backticks and the bracketed"
+                        + " word included, and no backslash anywhere in the page",
                 () -> assertThat(text)
-                        .contains(THE_SECOND_ENTRY + ". <a id=\"document-2\"></a>["
-                                + THAT_NAME_WITH_ITS_BACKTICKS_ESCAPED + "]("));
+                        .contains(">" + A_NAME_WITH_ONE_BACKTICK + "</a>")
+                        .contains(">" + A_NAME_WITH_BACKTICKS_AROUND_A_BRACKET + "</a>")
+                        .doesNotContain("\\"));
         claim(
-                "and the entry for a document whose name carries a single backtick escapes it as well,"
-                        + " because the rule is applied to the character wherever it stands rather than"
-                        + " to the values where a partner happens to follow it",
-                () -> assertThat(text)
-                        .contains(THE_FIRST_ENTRY + ". <a id=\"document-1\"></a>["
-                                + THAT_NAME_WITH_ITS_BACKTICK_ESCAPED + "]("));
-        claim(
-                "while the route to that document is untouched by it: the backtick arrives there as the"
-                        + " percent escape the URI quoting has always written, with no backslash beside it"
-                        + " and no raw backtick anywhere in it",
-                () -> assertThat(destination)
-                        .endsWith(THAT_NAME_WITH_ONE_BACKTICK_AS_A_DESTINATION)
-                        .doesNotContain("\\")
-                        .doesNotContain("`"));
-        claim(
-                "and following it still arrives at the document beneath the archive's own root, so the"
-                        + " escape is paid in what a reader of the raw page sees and not in where the link"
-                        + " goes",
-                () -> assertThat(whereTheFirstEntryLeadsFrom(page)).isEqualTo(archive.resolve(A_NAME_WITH_ONE_BACKTICK)));
-    }
-
-    /** Writes one tree holding one cluster arranged at the size of the list it holds, and returns its root. */
-    private static Path write(Path workingDirectory, SynthesisDoc doc, List<ListedSurvivor> members) {
-        return write(workingDirectory, doc, members, members.size());
+                "while the route to the first document carries no backtick and no backslash, and still arrives at"
+                        + " its copy, which holds the original's bytes",
+                () -> {
+                    assertThat(destination).doesNotContain("`").doesNotContain("\\");
+                    assertThat(whereTheFirstEntryLeadsFrom(page)).hasBinaryContent(bytesOf(A_NAME_WITH_ONE_BACKTICK));
+                });
     }
 
     /**
-     * The same, with the size the cluster was arranged at stated separately from the list handed in, so
-     * a claim can tell apart the number 6a recorded and the number this page could count for itself.
+     * Writes one tree holding one cluster arranged at the size of the list it holds, over an archive beside the
+     * working directory that holds every member's file, and returns its root.
      */
-    private static Path write(
-            Path workingDirectory, SynthesisDoc doc, List<ListedSurvivor> members, int documentCount) {
-        return write(workingDirectory, anArchiveBeside(workingDirectory), doc, members, documentCount);
+    private static Path write(Path workingDirectory, SynthesisDoc doc, List<ListedSurvivor> members)
+            throws IOException {
+        return write(workingDirectory, doc, members, members);
     }
 
-    /** The same again, over a stated archive, for the claims that are about where the archive sits. */
+    /** The same, the archive holding only the files of {@code inTheArchive}. */
     private static Path write(
-            Path workingDirectory, Path archive, SynthesisDoc doc, List<ListedSurvivor> members) {
+            Path workingDirectory, SynthesisDoc doc, List<ListedSurvivor> members, List<ListedSurvivor> inTheArchive)
+            throws IOException {
+        Path archive = anArchiveBeside(workingDirectory);
+        for (ListedSurvivor member : inTheArchive) {
+            Path file = archive.resolve(member.path().value());
+            Files.createDirectories(file.getParent());
+            Files.write(file, bytesOf(member.path().value()));
+        }
         return write(workingDirectory, archive.toString(), doc, members, members.size());
     }
 
     /**
      * And over an archive root stated as the string the ledger recorded, which is what {@code
-     * DeliverableProvenance} actually carries.
-     *
-     * <p>Needed for the one fixture whose root this machine's path parser refuses outright: such a root
-     * has no {@link Path} to hand in, and that is the whole of what it claims.
+     * DeliverableProvenance} actually carries, with the size the cluster was arranged at stated separately from
+     * the list handed in, so a claim can tell apart the number 6a recorded and the number this page could count.
      */
-    private static Path write(
-            Path workingDirectory, String corpusRoot, SynthesisDoc doc, List<ListedSurvivor> members) {
-        return write(workingDirectory, corpusRoot, doc, members, members.size());
-    }
-
-    private static Path write(
-            Path workingDirectory,
-            Path archive,
-            SynthesisDoc doc,
-            List<ListedSurvivor> members,
-            int documentCount) {
-        return write(workingDirectory, archive.toString(), doc, members, documentCount);
-    }
-
     private static Path write(
             Path workingDirectory,
             String corpusRoot,
@@ -941,6 +699,21 @@ class ClusterFileTest {
         return ListedArrangement.writeTo(workingDirectory, provenance(corpusRoot), arrangement, written, members);
     }
 
+    /** One membership entry whose copy stands, as the page writes it: its id, a link to its copy, its path. */
+    private static String entry(int number, ListedSurvivor member) {
+        return "<li id=\"document-" + number + "\">\n<a href=\"../" + Copies.pathOf(member) + "\">"
+                + Html.escape(member.path().value()) + "</a>\n</li>\n";
+    }
+
+    /** The text of the page's first {@code <h1>}. */
+    private static String firstHeadingOf(String page) {
+        Matcher heading = Pattern.compile("<h1>(.*?)</h1>", Pattern.DOTALL).matcher(page);
+        if (!heading.find()) {
+            throw new IllegalStateException("the page has no heading at all");
+        }
+        return heading.group(1);
+    }
+
     /** The bytes of the one cluster's page, read at the moment a claim asks for them. */
     private static String pageOf(Path tree) throws IOException {
         return Files.readString(thePageOf(tree));
@@ -951,40 +724,17 @@ class ClusterFileTest {
         return tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_CLUSTER_PAGE);
     }
 
-    /**
-     * An archive beside the working directory, on its volume, and not on this machine at all.
-     *
-     * <p>Beside rather than at a name of its own, because ADR-135 composes the entry from the two
-     * directories rather than from a name: a fixture naming a fixed drive letter would be in the
-     * relative case on a machine whose temporary directory is on that drive and in the unlinked case
-     * on one whose is not, so which decision it pinned would be a property of the machine.
-     */
+    /** An archive beside the working directory, on its volume. */
     private static Path anArchiveBeside(Path workingDirectory) {
-        return workingDirectory.resolveSibling("archive-that-is-not-there");
+        return workingDirectory.resolveSibling(workingDirectory.getFileName() + "-archive");
     }
 
-    /** A volume this working directory is not on, which is what makes a relative route impossible. */
-    private static String theVolumeThatIsNot(Path workingDirectory) {
-        return String.valueOf(workingDirectory.getRoot()).startsWith("C") ? "D:\\" : "C:\\";
-    }
-
-    /**
-     * The destination of the page's first membership entry, read as a {@link URI} because that is what
-     * decides the claim: a destination carrying a scheme is one a renderer may refuse, and a relative
-     * one has none.
-     */
+    /** The destination of the page's first membership entry, read as a {@link URI}. */
     private static URI theDestinationOn(Path page) throws IOException {
         return URI.create(theDestinationTextOn(page));
     }
 
-    /**
-     * The same destination as the characters the page carries, read without a parser between them and
-     * the claim.
-     *
-     * <p>A {@link URI} is the right lens for a claim about where a destination leads and the wrong one
-     * for a claim about what a renderer is handed: parsing percent-decodes, and a run that a renderer
-     * resolves before anything resolves the path is invisible once it has.
-     */
+    /** The same destination as the characters the page carries, read without a parser between them and the claim. */
     private static String theDestinationTextOn(Path page) throws IOException {
         Matcher entry = THE_FIRST_ENTRYS_DESTINATION.matcher(Files.readString(page));
         if (!entry.find()) {
@@ -993,18 +743,12 @@ class ClusterFileTest {
         return entry.group(1);
     }
 
-    /**
-     * Where that destination leads, followed from the directory the page sits in and decoded first --
-     * the percent-escapes are the renderer's to undo, and a claim that read them as characters of a
-     * filename would be checking the encoding against itself rather than following the link.
-     */
+    /** Where that destination leads, followed from the directory the page sits in. */
     private static Path whereTheFirstEntryLeadsFrom(Path page) throws IOException {
-        return page.getParent()
-                .resolve(theDestinationOn(page).getPath())
-                .normalize();
+        return page.getParent().resolve(theDestinationOn(page).getPath()).normalize();
     }
 
-    /** What produced the tree, with the archive root stated so the links compose against it. */
+    /** What produced the tree, with the archive root stated so the copies are read from it. */
     private static DeliverableProvenance provenance(String corpusRoot) {
         return new DeliverableProvenance(RUN_ID, WALK, corpusRoot, List.of());
     }
@@ -1022,12 +766,17 @@ class ClusterFileTest {
         return List.copyOf(carried);
     }
 
-    /** One survivor of the one cluster, at {@code path} with {@code score}. */
+    /** What a member's file in the archive holds: its own path, so its recorded key follows from the path alone. */
+    private static byte[] bytesOf(String path) {
+        return path.getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** One survivor of the one cluster, at {@code path} with {@code score}, its key that of its file's bytes. */
     private static ListedSurvivor aMember(long occurrence, String path, double score, int ordinal) {
         return new ListedSurvivor(
                 new OccurrenceId(occurrence),
                 new OccurrencePath(path),
-                "hash-" + occurrence,
+                sha256Of(bytesOf(path)),
                 THE_SEED,
                 SEED_PATH,
                 ordinal,

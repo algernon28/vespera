@@ -6,6 +6,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
+import io.algernon.vespera.synthesis.ArrangedCluster;
+import io.algernon.vespera.synthesis.ClusterLabel;
+import io.algernon.vespera.synthesis.ListedDoc;
+import io.algernon.vespera.synthesis.RecordedCluster;
+import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -45,7 +50,10 @@ import org.junit.jupiter.api.io.TempDir;
  * stubbed extractor that gives every document the same response gives every document the same
  * pictures, which the furniture rule rightly removes. Nothing here renders a page; the bytes of the
  * page and of the files beside it are the evidence, and the destinations are followed the way a
- * renderer follows them.
+ * browser follows them.
+ *
+ * <p>The archive these fixtures name is not on this machine, so no copy stands and each entry names its
+ * document with the reason in italics (ADR-274 §2.6); the pictures are shown under it all the same.
  *
  * <p>Most pixels are short byte strings rather than real images. They cannot be decoded, so they have
  * no difference hash, and the rules that need one leave them alone (ADR-150 §3): what those tests claim
@@ -62,6 +70,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-149", url = Adr.A_SURVIVORS_PICTURES_REACH_ITS_CLUSTER_FILE, type = "adr")
 @Link(name = "ADR-103", url = Adr.THE_DELIVERABLE_IS_A_MARKDOWN_TREE_PER_RUN, type = "adr")
 @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class DeliverablePicturesTest {
 
     /** A run id of the shape the ledger mints: sixty-four hexadecimal characters (ADR-048). */
@@ -83,7 +92,7 @@ class DeliverablePicturesTest {
     private static final String THE_LABEL = "Fire Suppression Retrofits";
 
     /** That cluster's page, named from its label. */
-    private static final String THE_CLUSTER_PAGE = "1-fire-suppression-retrofits.md";
+    private static final String THE_CLUSTER_PAGE = "1-fire-suppression-retrofits.html";
 
     /** The directory its pictures go in: the page's own name without its extension. */
     private static final String THE_PICTURE_DIRECTORY = "1-fire-suppression-retrofits";
@@ -92,7 +101,7 @@ class DeliverablePicturesTest {
     private static final String THE_OTHER_LABEL = "Sprinkler Maintenance";
 
     /** That second cluster's page. */
-    private static final String THE_OTHER_CLUSTER_PAGE = "2-sprinkler-maintenance.md";
+    private static final String THE_OTHER_CLUSTER_PAGE = "2-sprinkler-maintenance.html";
 
     /** And the directory its pictures would go in. */
     private static final String THE_OTHER_PICTURE_DIRECTORY = "2-sprinkler-maintenance";
@@ -183,27 +192,27 @@ class DeliverablePicturesTest {
     /** How many pictures past the budget the overflowing fixture carries. */
     private static final int TWO_OVER = 2;
 
+    /** What an entry says, in italics, of a document no longer in the archive (ADR-274 §2.3). */
+    private static final String GONE = "<em>no longer in the archive, so it was not copied</em>";
+
     /**
      * The whole page for a written cluster of two documents with no pictures, as the writer wrote it
-     * before pictures existed. The routes climb four directories -- the partition, the run's tree,
-     * {@code deliverable} and the working directory -- to the archive beside the working directory.
+     * before pictures existed. The archive is not there, so each entry names its document and says so.
      */
-    private static final String THE_PAGE_WITH_NO_PICTURES = "# " + THE_TITLE + "\n"
-            + "\n"
-            + "Both [1](#document-1) and [2](#document-2).\n"
-            + "\n"
-            + "## The documents in this group\n"
-            + "\n"
-            + "1. <a id=\"document-1\"></a>[reports/a.docx](../../../../archive-that-is-not-there/reports/a.docx)\n"
-            + "\n"
-            + "2. <a id=\"document-2\"></a>[reports/b.pdf](../../../../archive-that-is-not-there/reports/b.pdf)\n"
-            + "\n";
+    private static final String THE_PAGE_WITH_NO_PICTURES = Html.head(THE_TITLE)
+            + "<h1>" + THE_TITLE + "</h1>\n"
+            + "<div class=\"writing\">\n"
+            + "<p>Both <a href=\"#document-1\">[1]</a> and <a href=\"#document-2\">[2]</a>.</p>\n"
+            + "</div>\n"
+            + "<h2>The documents in this group</h2>\n"
+            + "<ol>\n"
+            + "<li id=\"document-1\">\nreports/a.docx " + GONE + "\n</li>\n"
+            + "<li id=\"document-2\">\nreports/b.pdf " + GONE + "\n</li>\n"
+            + "</ol>\n"
+            + Html.tail();
 
     /** How many times each listed document is asked for its pictures: once per pass. */
     private static final int TWO_PASSES = 2;
-
-    /** An entry number wide enough that its list marker is four characters, {@code "10. "}. */
-    private static final int A_TWO_DIGIT_ENTRY = 10;
 
     /**
      * A document name carrying every character a rule elsewhere in the tree escapes, plus a quote the
@@ -226,17 +235,17 @@ class DeliverablePicturesTest {
             "Fig. 2 a]b ![x](https://example.com/i.png) <b>bold</b> &copy; `c` \\ end\n\nsecond line";
 
     /**
-     * That caption as alt text: folded onto one line, then every character the membership entry's rule
-     * escapes written behind a backslash, the backslash itself first.
+     * That caption as alt text: each of the five characters the one rule writes as an entity so written, and
+     * nothing else touched, its blank line included (ADR-274 §1.3).
      */
     private static final String THAT_CAPTION_AS_ALT_TEXT =
-            "Fig. 2 a\\]b !\\[x\\](https://example.com/i.png) \\<b>bold\\</b> \\&copy; \\`c\\` \\\\ end second line";
+            "Fig. 2 a]b ![x](https://example.com/i.png) &lt;b&gt;bold&lt;/b&gt; &amp;copy; `c` \\ end\n\nsecond line";
 
     /** Characters a picture's destination may be made of: the page stem, a slash, hex, a dot, an extension. */
     private static final Pattern A_SAFE_DESTINATION = Pattern.compile("[0-9a-z-]+/[0-9a-f]{16}\\.(png|jpg)");
 
-    /** Every image a page shows, as its alt text and its destination. */
-    private static final Pattern AN_IMAGE = Pattern.compile("!\\[((?:\\\\.|[^\\]\\\\])*)\\]\\(([^)]*)\\)");
+    /** Every image a page shows, as its destination and its alt text. */
+    private static final Pattern AN_IMAGE = Pattern.compile("<img src=\"([^\"]*)\" alt=\"([^\"]*)\">");
 
     @Test
     @Story("A picture only one document carries is shown under that document")
@@ -258,11 +267,12 @@ class DeliverablePicturesTest {
                         + " page, and the file holds exactly the bytes that were handed in",
                 () -> assertThat(file).isRegularFile().hasBinaryContent(diagram));
         claim(
-                "and the page shows it as an image directly under the document's own entry, indented into"
-                        + " that entry so the list stays one list, with no alt text because none was given",
+                "and the page shows it as an image directly under the document's own entry, inside that"
+                        + " entry's item so the list stays one list, with no alt text because none was given",
                 () -> assertThat(Files.readString(page))
-                        .contains("1. <a id=\"document-1\"></a>[reports/2019/retrofit.docx](")
-                        .contains(")\n\n   ![](" + THE_PICTURE_DIRECTORY + "/" + nameOf(diagram, ".png") + ")\n"));
+                        .contains("<li id=\"document-1\">\nreports/2019/retrofit.docx " + GONE + "\n"
+                                + "<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + nameOf(diagram, ".png")
+                                + "\" alt=\"\"></p>\n</li>\n"));
         claim(
                 "and the image's destination is relative, carries no scheme, and followed from the page's"
                         + " own directory lands on the file that was written: nothing outside the tree and"
@@ -329,7 +339,7 @@ class DeliverablePicturesTest {
                         .doesNotExist());
         claim(
                 "and the entry carries no image",
-                () -> assertThat(Files.readString(thePageOf(tree))).doesNotContain("!["));
+                () -> assertThat(Files.readString(thePageOf(tree))).doesNotContain("<img"));
     }
 
     @Test
@@ -399,19 +409,18 @@ class DeliverablePicturesTest {
                         aMember(11, "reports/b.docx", A_MIDDLE_SCORE)),
                 pictures);
         String text = Files.readString(thePageOf(tree));
-        Pattern layout = Pattern.compile(Pattern.quote("1. <a id=\"document-1\"></a>[reports/a.docx](")
-                + "[^)\\n]*"
-                + Pattern.quote(")\n\n   ![](" + THE_PICTURE_DIRECTORY + "/" + nameOf(first, ".png") + ")\n\n"
-                        + "2. <a id=\"document-2\"></a>[reports/b.docx](")
-                + "[^)\\n]*"
-                + Pattern.quote(")\n\n   ![](" + THE_PICTURE_DIRECTORY + "/" + nameOf(second, ".png") + ")\n\n"));
+        String layout = "<li id=\"document-1\">\nreports/a.docx " + GONE + "\n"
+                + "<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + nameOf(first, ".png") + "\" alt=\"\"></p>\n"
+                + "</li>\n"
+                + "<li id=\"document-2\">\nreports/b.docx " + GONE + "\n"
+                + "<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + nameOf(second, ".png") + "\" alt=\"\"></p>\n"
+                + "</li>\n";
 
         claim(
-                "the page reads, byte for byte apart from the two routes into the archive: the first entry's"
-                        + " line, a blank line, its picture indented three spaces, a blank line, then the"
-                        + " second entry's line, a blank line and its own picture -- so each picture is a"
-                        + " paragraph inside the entry above it and the list runs on unbroken",
-                () -> assertThat(layout.matcher(text).find()).isTrue());
+                "the page reads, byte for byte: the first entry's item, its document, its picture in a"
+                        + " paragraph of its own and the item's end, then the second entry's item the same way --"
+                        + " so each picture is inside the entry above it and the list runs on unbroken",
+                () -> assertThat(text).contains(layout));
     }
 
     @Test
@@ -463,7 +472,7 @@ class DeliverablePicturesTest {
                 List.of(aMember(10, A_HOSTILE_DOCUMENT_NAME, A_HIGH_SCORE)),
                 pictures);
         Path partition = tree.resolve(THE_PARTITION_DIRECTORY);
-        Path page = partition.resolve(THE_HOSTILE_LABELS_PAGE_STEM + ".md");
+        Path page = partition.resolve(THE_HOSTILE_LABELS_PAGE_STEM + ".html");
         Path expected = partition.resolve(THE_HOSTILE_LABELS_PAGE_STEM).resolve(nameOf(screenshot, ".png"));
 
         claim(
@@ -478,7 +487,7 @@ class DeliverablePicturesTest {
                 () -> assertThat(allFilesUnder(partition)).containsExactlyInAnyOrder(page, expected));
         claim(
                 "and the destination the page gives it is made only of the page's stem, a slash, hexadecimal"
-                        + " and an extension -- no character a Markdown, URI or filesystem rule treats as"
+                        + " and an extension -- no character an HTML, URI or filesystem rule treats as"
                         + " special, so there is nothing to escape and nothing to decode",
                 () -> assertThat(destinationsOn(page)).singleElement().matches(d -> A_SAFE_DESTINATION
                         .matcher(d).matches(), "a destination of the safe shape"));
@@ -489,7 +498,7 @@ class DeliverablePicturesTest {
 
     @Test
     @Story("A picture's alt text is the converter's caption or nothing")
-    @DisplayName("A caption is written as the picture's alt text on one line, with nothing in it able to form a link or an image")
+    @DisplayName("A caption is written as the picture's alt text, with nothing in it able to end the attribute or form a tag")
     void escapesACaptionWrittenAsAltText(@TempDir Path workingDirectory) throws IOException {
         byte[] chart = bytes("a chart with a caption");
         Map<OccurrenceId, List<ListedPicture>> pictures =
@@ -500,13 +509,12 @@ class DeliverablePicturesTest {
         String text = Files.readString(thePageOf(tree));
 
         claim(
-                "the caption is the image's alt text, folded onto one line and with every bracket, angle"
-                        + " bracket, ampersand, backtick and backslash behind a backslash: written through,"
-                        + " the link inside it would end the alt text early and the image inside it would"
-                        + " replace the tree's own picture with one fetched from the network",
+                "the caption is the image's alt text, each angle bracket and ampersand written as its entity:"
+                        + " written through, the tag inside it would end the attribute and the image's tag early,"
+                        + " and what follows would be markup of the caption's own",
                 () -> assertThat(text)
-                        .contains("   ![" + THAT_CAPTION_AS_ALT_TEXT + "](" + THE_PICTURE_DIRECTORY + "/"
-                                + nameOf(chart, ".png") + ")\n"));
+                        .contains("<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + nameOf(chart, ".png")
+                                + "\" alt=\"" + THAT_CAPTION_AS_ALT_TEXT + "\"></p>\n"));
         claim(
                 "and the page shows exactly one image, the one from the tree, with no second image and no"
                         + " remote destination anywhere",
@@ -547,7 +555,7 @@ class DeliverablePicturesTest {
                 "and the entry says, after its pictures, how many more the document has, so the page never"
                         + " passes off part of a document's pictures as all of them",
                 () -> assertThat(Files.readString(page))
-                        .contains("\n\n   *" + TWO_OVER + " more pictures from this document are not shown.*\n"));
+                        .contains("<p><em>" + TWO_OVER + " more pictures from this document are not shown.</em></p>\n"));
     }
 
     @Test
@@ -577,7 +585,7 @@ class DeliverablePicturesTest {
 
         claim(
                 "one picture past the budget is counted in the singular",
-                () -> assertThat(text).contains("   *1 more picture from this document is not shown.*\n"));
+                () -> assertThat(text).contains("<p><em>1 more picture from this document is not shown.</em></p>\n"));
         claim(
                 "and that is the only such line on the page: the document within the budget carries none",
                 () -> assertThat(text.split("from this document", -1)).hasSize(2));
@@ -607,30 +615,7 @@ class DeliverablePicturesTest {
         claim(
                 "but it is counted as not shown, so the page does not pass it off as absent",
                 () -> assertThat(Files.readString(thePageOf(tree)))
-                        .contains("   *1 more picture from this document is not shown.*\n"));
-    }
-
-    @Test
-    @Story("A picture only one document carries is shown under that document")
-    @DisplayName("Under a two-digit entry a picture is indented four spaces, so it stays inside that entry")
-    void indentsAPictureByTheWidthOfItsEntrysNumber(@TempDir Path workingDirectory) throws IOException {
-        List<ListedSurvivor> members = new ArrayList<>();
-        for (int at = 1; at <= A_TWO_DIGIT_ENTRY; at++) {
-            // Descending scores put occurrence 100 + n at entry n on a page nothing was written over.
-            members.add(aMember(100 + at, "reports/doc-" + at + ".docx", 1.0 - at / 100.0));
-        }
-        byte[] figure = bytes("the tenth document's figure");
-        Map<OccurrenceId, List<ListedPicture>> pictures =
-                Map.of(new OccurrenceId(100 + A_TWO_DIGIT_ENTRY), List.of(png(figure)));
-
-        Path tree = writeOneCluster(workingDirectory, null, List.copyOf(members), pictures);
-
-        claim(
-                "the picture under entry " + A_TWO_DIGIT_ENTRY + " is indented by the four characters its"
-                        + " marker takes, \"10. \": fewer and the picture falls out of the entry, and four"
-                        + " more would turn it into a code block",
-                () -> assertThat(Files.readString(thePageOf(tree)))
-                        .contains(")\n\n    ![](" + THE_PICTURE_DIRECTORY + "/" + nameOf(figure, ".png") + ")\n"));
+                        .contains("<p><em>1 more picture from this document is not shown.</em></p>\n"));
     }
 
     @Test
@@ -651,7 +636,7 @@ class DeliverablePicturesTest {
                 () -> assertThat(Files.readString(shown.resolve(Deliverable.MANIFEST_FILE_NAME)))
                         .isEqualTo(Files.readString(plain.resolve(Deliverable.MANIFEST_FILE_NAME))));
         claim(
-                "and index.md is byte for byte the index written without them",
+                "and index.html is byte for byte the index written without them",
                 () -> assertThat(Files.readString(shown.resolve(Deliverable.INDEX_FILE_NAME)))
                         .isEqualTo(Files.readString(plain.resolve(Deliverable.INDEX_FILE_NAME))));
     }
@@ -892,14 +877,14 @@ class DeliverablePicturesTest {
         Matcher image = AN_IMAGE.matcher(Files.readString(page));
         List<String> found = new ArrayList<>();
         while (image.find()) {
-            found.add(image.group(2));
+            found.add(image.group(1));
         }
         return List.copyOf(found);
     }
 
     /**
      * Where the page's one image leads, followed from the page's own directory and decoded first, as a
-     * renderer follows it. A destination carrying a scheme fails here rather than resolving somewhere.
+     * browser follows it. A destination carrying a scheme fails here rather than resolving somewhere.
      */
     private static Path whereTheOnlyImageLeads(Path page) throws IOException {
         List<String> destinations = destinationsOn(page);

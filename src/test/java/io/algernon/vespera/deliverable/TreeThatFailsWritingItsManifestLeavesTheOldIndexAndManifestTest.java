@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * What a write of the tree that fails while it writes {@code documents.csv} leaves of {@code index.md} and
+ * What a write of the tree that fails while it writes {@code documents.csv} leaves of {@code index.html} and
  * {@code documents.csv} (ADR-223 section 6, and {@link Deliverable}'s own contract): the pair the write before
  * left, or none. The index is whole before the manifest is begun, so a write that moved it into place then
  * would leave a new index beside the old manifest, or beside no manifest at all.

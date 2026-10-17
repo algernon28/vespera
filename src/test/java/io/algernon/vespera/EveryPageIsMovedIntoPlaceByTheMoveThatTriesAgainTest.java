@@ -14,9 +14,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Every page this tool writes beside its place and moves over it, {@code arrangement.html}, the review list,
- * {@code index.md} and {@code documents.csv} (ADR-223 sections 3 and 6), is moved by {@code
- * ledger.ReplacingMove}, which tries the move again a few times where Windows refuses it for a moment (ADR-242),
- * and by no move of a class's own.
+ * {@code index.html}, {@code documents.csv} and each copy of a survivor (ADR-223 sections 3 and 6, ADR-274 §2.2),
+ * is moved by {@code ledger.ReplacingMove}, which tries the move again a few times where Windows refuses it for a
+ * moment (ADR-242), and by no move of a class's own.
  *
  * <p>Read off the compiled classes, as {@link EachTableIsNamedOnlyByItsOwnerTest} reads them: a class that moves a
  * file in one atomic move names {@code ATOMIC_MOVE}, and only the class that tries again may. A move written
