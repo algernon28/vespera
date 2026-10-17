@@ -1,6 +1,5 @@
 package io.algernon.vespera.pipeline;
 
-import io.algernon.vespera.embedding.TranslationOf;
 import io.algernon.vespera.ledger.Ledger;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -13,7 +12,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -40,9 +38,6 @@ import org.springframework.transaction.PlatformTransactionManager;
  * application being up (ADR-047, ADR-035).
  */
 @Configuration
-// The translation step's two beans are named here because the job needs them whole (ADR-271); scanned in the
-// application, this registers nothing twice. CascadeSliceTest, which lists the classes of a slice, does not list them.
-@Import({TranslationTasklet.class, TranslationOf.class})
 public class VesperaJobConfiguration {
 
     /** The job's name, and the only name a later slice's stages are added to. */
