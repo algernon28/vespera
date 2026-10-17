@@ -1840,6 +1840,14 @@ public final class Adr {
     public static final String EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER = FILE
             + "0270-every-log-vespera-writes-is-in-the-working-directorys-logs-folder-the-invocation-account-among-them.md";
 
+    /**
+     * ADR-272 -- the build asks git for each module's last commit and its parents, and writes {@code unknown}, with
+     * its existing warning, for a module answered by a commit with no parent in a shallow clone, so the module is
+     * refused at mint time; a module answered inside the window keeps its SHA (amends ADR-058).
+     */
+    public static final String A_SHALLOW_CLONES_BOUNDARY_IS_WRITTEN_AS_UNKNOWN = FILE
+            + "0272-a-module-whose-answer-is-the-boundary-of-a-shallow-clone-is-written-as-unknown.md";
+
     private Adr() {
     }
 }
