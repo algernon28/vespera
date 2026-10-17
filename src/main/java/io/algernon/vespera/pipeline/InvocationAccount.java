@@ -213,7 +213,8 @@ final class InvocationAccount implements JobExecutionListener {
                 + " SUM(kind = 'DUPLICATE_OF' COLLATE NOCASE), SUM(kind = 'SUPERSEDED_BY' COLLATE NOCASE),"
                 + " SUM(kind = 'OUT_OF_SCOPE' COLLATE NOCASE), SUM(kind = 'EXTRACTION_FAILED' COLLATE NOCASE),"
                 + " SUM(kind = 'DEGENERATE_OUTPUT' COLLATE NOCASE), SUM(kind = 'REDUNDANT_WITH' COLLATE NOCASE),"
-                + " SUM(kind = 'TRANSLATION_OF' COLLATE NOCASE), SUM(kind = 'BELOW_THRESHOLD' COLLATE NOCASE), SUM(kind = 'PASSED' COLLATE NOCASE)"
+                + " SUM(kind = 'TRANSLATION_OF' COLLATE NOCASE),"
+                + " SUM(kind = 'BELOW_THRESHOLD' COLLATE NOCASE), SUM(kind = 'PASSED' COLLATE NOCASE)"
                 + " FROM verdict WHERE run_id IN (" + runIds + ")", args, "verdict kind", VerdictKind.class, false);
         counted("SELECT COUNT(*),"
                 + " SUM(category = 'POLICY' COLLATE NOCASE), SUM(category = 'CAPACITY' COLLATE NOCASE),"

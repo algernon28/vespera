@@ -94,7 +94,7 @@ public final class TranslationCandidates {
                         if (right <= left || languageOf[right] < 0 || languageOf[right] == languageOf[left]) {
                             continue;
                         }
-                        double similarity = cosine(outer.get(i).mean(), inner.get(j).mean());
+                        double similarity = NearestNeighbourGraph.cosine(outer.get(i).mean(), inner.get(j).mean());
                         offer(nearest, nearestSimilarity, left, languageOf[right], right, similarity);
                         offer(nearest, nearestSimilarity, right, languageOf[left], left, similarity);
                     }
@@ -124,20 +124,5 @@ public final class TranslationCandidates {
             nearest[index][language] = candidate;
             similarities[index][language] = similarity;
         }
-    }
-
-    private static double cosine(float[] left, float[] right) {
-        double dot = 0;
-        double leftNorm = 0;
-        double rightNorm = 0;
-        for (int i = 0; i < Math.min(left.length, right.length); i++) {
-            dot += (double) left[i] * right[i];
-            leftNorm += (double) left[i] * left[i];
-            rightNorm += (double) right[i] * right[i];
-        }
-        if (leftNorm == 0 || rightNorm == 0) {
-            return 0;
-        }
-        return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm));
     }
 }

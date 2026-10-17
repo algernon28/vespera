@@ -244,23 +244,14 @@ public class Clustering {
          * cluster the arithmetic put the origin in.
          */
         private float[] meanOf(int document) {
-            List<float[]> chunks = vectorCache.vectorsFor(
+            float[] mean = meanVectorOf(
                     contentHashes.get(document), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
-            if (chunks.isEmpty()) {
+            if (mean.length == 0) {
                 throw new IllegalStateException(
                         "no stored chunk vectors under content hash " + contentHashes.get(document)
                                 + " for a document that carries a relevance score; scoring refuses a"
                                 + " survivor with no chunks (#108), so the vectors were written under a"
                                 + " different embedder identity, chunker or chunking rule than the ones asked for here");
-            }
-            float[] mean = new float[chunks.getFirst().length];
-            for (float[] chunk : chunks) {
-                for (int component = 0; component < mean.length && component < chunk.length; component++) {
-                    mean[component] += chunk[component];
-                }
-            }
-            for (int component = 0; component < mean.length; component++) {
-                mean[component] /= chunks.size();
             }
             return mean;
         }
