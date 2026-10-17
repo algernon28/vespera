@@ -13,7 +13,8 @@ import org.springframework.stereotype.Component;
  * copies removed. Behind this class and nothing else the table is queried (ADR-041).
  *
  * <p>The mean vector of a candidate is computed from its chunk vectors as clustering computes it (ADR-087),
- * read in blocks and discarded; no table stores one.
+ * read in blocks and discarded; no table stores one. Each is computed only as the comparison reads its block,
+ * and a vector's width is one read of the vector cache (ADR-273, amending ADR-271 section 9).
  */
 @Component
 public class TranslationOf {
@@ -45,7 +46,7 @@ public class TranslationOf {
             ClusteringProgress progress) {
         StoredMeanVectors vectors =
                 new StoredMeanVectors(candidates, chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
-        int dimension = vectors.dimension();
+        int dimension = clustering.dimensionUnder(chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
         if (dimension == 0) {
             return List.of();
         }
@@ -103,25 +104,17 @@ public class TranslationOf {
         }
 
         @Override
-        public List<TranslationCandidates.Vector> block(int from, int size) {
-            List<TranslationCandidates.Vector> block = new ArrayList<>();
-            for (int i = from; i < Math.min(from + size, candidates.size()); i++) {
-                float[] mean = meanOf(candidates.get(i));
-                String language = candidates.get(i).language();
-                block.add(new TranslationCandidates.Vector(mean.length == 0 ? null : language, mean));
-            }
-            return block;
+        public String language(int index) {
+            return candidates.get(index).language();
         }
 
-        /** How wide a vector is, taken from the first candidate that has one; zero where none has. */
-        int dimension() {
-            for (Candidate candidate : candidates) {
-                int width = meanOf(candidate).length;
-                if (width > 0) {
-                    return width;
-                }
+        @Override
+        public List<float[]> block(int from, int size) {
+            List<float[]> block = new ArrayList<>();
+            for (int i = from; i < Math.min(from + size, candidates.size()); i++) {
+                block.add(meanOf(candidates.get(i)));
             }
-            return 0;
+            return block;
         }
 
         /** The mean of the candidate's chunk vectors, empty where none is stored. */

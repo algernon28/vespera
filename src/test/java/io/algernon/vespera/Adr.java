@@ -1859,6 +1859,15 @@ public final class Adr {
             + "0272-a-module-whose-answer-is-the-boundary-of-a-shallow-clone-is-written-as-unknown.md";
 
     /**
+     * ADR-273 -- the translation step reads a candidate's language without its vector and each mean vector only as
+     * the comparison reads its block, takes a vector's width from one read of the vector cache, and reads {@code
+     * relevanceScoreFloor}, {@code translationSimilarityFloor} and {@code preferredLanguages} from one load of the
+     * profile when the scoring run is minted, the page stating the two keys as they read there (amends ADR-271).
+     */
+    public static final String THE_TRANSLATION_STEP_READS_A_MEAN_VECTOR_ONLY_TO_COMPARE_IT_AND_THE_PROFILE_ONCE = FILE
+            + "0273-the-translation-step-reads-each-mean-vector-only-to-compare-it-and-the-profile-only-when-its-run-is-minted.md";
+
+    /**
      * ADR-274 -- the deliverable is HTML, {@code index.html} and one page a cluster, with every value escaped and
      * the writing's Markdown rendered from a subset by a renderer of Vespera's own; every survivor it lists is copied from the archive, read only, into {@code
      * documents/} and kept only where its SHA-256 equals the key stage 2 recorded; a module of its own, {@code
