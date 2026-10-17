@@ -1,5 +1,7 @@
 # ADR-266 — Every invocation names its progress page first and opens it, and `vespera label` writes it too
 
+> **Partly amended — see [ADR-269](0269-the-progress-page-is-four-tabs-draws-a-hover-over-each-chart-and-lists-the-runs-the-working-directory-holds.md).** Of §3: the label page's line saying whether the command runs or has ended also names when it started and when it ended. The rest of this record stands.
+
 - **Date**: 2026-10-16
 - **Status**: accepted on 2026-10-16.
 - **Amends**: [ADR-265](0265-vespera-run-rewrites-a-progress-page-in-the-working-directory-while-it-runs.md), in these places and no others: §2's sentence "`vespera label` starts no job and writes no page; a page an earlier `vespera run` left is left as it is", which §3 below replaces; and §6, whose README sentence §5 below replaces.

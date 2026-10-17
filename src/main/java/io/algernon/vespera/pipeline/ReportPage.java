@@ -51,6 +51,8 @@ final class ReportPage {
      * What the progress pages add (ADR-267 section 4, ADR-268 section 9): every colour is a custom property of the
      * data-viz method's palette, one set for each colour scheme. Text is at least 4.5:1 on the surface and the page.
      */
+    private static final String VIEWPORT = "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n";
+
     private static final String DRAWN_STYLES =
             ":root { color-scheme: light dark; --page: #f9f9f7; --surface: #fcfcfb; --text: #0b0b0b; --muted: #52514e;"
             + " --grid: #e1e0d9; --axis: #c3c2b7; --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;"
@@ -60,9 +62,22 @@ final class ReportPage {
             + " --muted: #c3c2b7; --grid: #2c2c2a; --axis: #383835; --series-1: #3987e5; --series-2: #d95926;"
             + " --series-3: #199e70; --series-4: #c98500; --series-5: #d55181; --finished: #0ca30c; --gate: #fab219;"
             + " --failed: #d03b3b; --running: #3987e5; } }\n"
-            + "body { background: var(--page); color: var(--text); font-family: system-ui, sans-serif; }\n"
+            + "body { background: var(--page); color: var(--text); font-family: system-ui, sans-serif;"
+            + " margin: 16px; max-width: none; }\n"
             + "a { color: var(--text); }\n"
-            + "td, th { border-color: var(--axis); }\n"
+            + "nav.tabs { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 16px;"
+            + " border-bottom: 1px solid var(--axis); }\n"
+            + "nav.tabs a { padding: 6px 4px; text-decoration: none; }\n"
+            + "nav.tabs a[aria-current=\"page\"] { font-weight: 700; text-decoration: underline; text-underline-offset: 6px;"
+            + " text-decoration-thickness: 3px; }\n"
+            + "td, th { border-color: var(--axis); overflow-wrap: anywhere; }\n"
+            + ".table-card { overflow-x: auto; }\n"
+            + ".chart-card { position: relative; }\n"
+            + "svg .crosshair { stroke: var(--text); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }\n"
+            + ".tooltip { position: absolute; pointer-events: none; background: var(--surface); color: var(--text);"
+            + " border: 1px solid var(--axis); border-radius: 6px; padding: 6px 10px; font-size: 0.85em;"
+            + " white-space: nowrap; z-index: 1; }\n"
+            + "p, .caption, .tile .detail { overflow-wrap: anywhere; }\n"
             + ".tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px;"
             + " margin: 16px 0; }\n"
             + ".tile { background: var(--surface); border: 1px solid var(--axis); border-radius: 8px;"
@@ -80,7 +95,7 @@ final class ReportPage {
             + ".key.s1 { border-color: var(--series-1); } .key.s2 { border-color: var(--series-2); }\n"
             + ".key.s3 { border-color: var(--series-3); } .key.s4 { border-color: var(--series-4); }\n"
             + ".key.s5 { border-color: var(--series-5); }\n"
-            + "svg { display: block; width: 100%; min-width: 1100px; height: auto; }\n"
+            + "svg { display: block; width: 100%; min-width: 917px; height: auto; }\n"
             + "svg text { fill: var(--text); font: 12px system-ui, sans-serif; }\n"
             + "svg .tick, svg .axis-title { fill: var(--muted); }\n"
             + "svg .tick.value { font-variant-numeric: tabular-nums; }\n"
@@ -132,12 +147,18 @@ final class ReportPage {
 
     /** Like {@link #render}, for the progress pages (ADR-267 section 4): their stylesheet follows the shared one. */
     static String drawn(String title, String body) {
-        return head(title, "", DRAWN_STYLES) + body + tail();
+        return head(title, VIEWPORT, DRAWN_STYLES) + body + tail();
     }
 
     /** Like {@link #reloading}, for the progress pages: their stylesheet follows the shared one. */
     static String drawnReloading(String title, String body, int seconds) {
-        return head(title, "<meta http-equiv=\"refresh\" content=\"" + seconds + "\">\n", DRAWN_STYLES) + body + tail();
+        return head(title, "<meta http-equiv=\"refresh\" content=\"" + seconds + "\">\n" + VIEWPORT, DRAWN_STYLES)
+                + body + tail();
+    }
+
+    /** A table in a card of its own, which scrolls sideways where the table is too wide for the window (ADR-269). */
+    static String tableCard(String headers, String rows) {
+        return "<div class=\"table-card\">\n" + table(headers, rows) + "</div>\n";
     }
 
     private static String head(String title, String extraMeta) {

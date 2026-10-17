@@ -125,11 +125,6 @@ class ProgressPageChartsTest {
     /** A body row's first cell; a header row's cells are {@code <th>} and are not read. */
     private static final Pattern A_ROWS_FIRST_CELL = Pattern.compile("<tr><td>([^<]*)</td>");
 
-    private static final Pattern SCRIPT = Pattern.compile("<script[^>]*>(.*?)</script>", Pattern.DOTALL);
-
-    private static final Pattern LIVENESS =
-            Pattern.compile("<span class=\"liveness\" data-written=\"([0-9]+)\" data-interval=\"([0-9]+)\">");
-
     private static final Pattern ELAPSED = Pattern.compile(
             "<span class=\"label\">Elapsed</span><span class=\"value\">([0-9]+:[0-5][0-9]:[0-5][0-9])</span>");
 
@@ -338,82 +333,6 @@ class ProgressPageChartsTest {
         claim(
                 "and draws it as a bar whose value is three and whose most is seven, the line's two numbers",
                 () -> assertThat(page).contains("<progress value=\"3\" max=\"7\">"));
-    }
-
-    @Test
-    @Story("The page's one script is the same fixed text on every page and carries nothing of the invocation")
-    @DisplayName("The first writes of two invocations, at different times over different steps, each carry one script of the same text, and a liveness mark stamped with the write's time; the pages of detail carry none")
-    void theScriptIsOneFixedTextOnEveryPage(@TempDir Path otherWorkingDirectory) throws IOException {
-        Instant one = Instant.parse("2026-10-16T08:00:00Z");
-        Instant other = one.plus(Duration.ofHours(1)).plusMillis(7);
-        ProgressPage first = new ProgressPage(
-                workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, Clock.fixed(one, ZoneId.systemDefault()));
-        ProgressPage second = new ProgressPage(
-                otherWorkingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, Clock.fixed(other, ZoneId.systemDefault()));
-        JobExecution firstJob = anExecution(1L, LocalDateTime.ofInstant(one, ZoneId.systemDefault()));
-        aStep(firstJob, StepNames.CENSUS, BatchStatus.STARTED, firstJob.getStartTime(), null);
-        JobExecution secondJob = anExecution(2L, LocalDateTime.ofInstant(other, ZoneId.systemDefault()));
-        aStep(secondJob, StepNames.CENSUS, BatchStatus.COMPLETED, secondJob.getStartTime(), secondJob.getStartTime());
-        aStep(secondJob, StepNames.EXTRACTION, BatchStatus.STARTED, secondJob.getStartTime(), null);
-
-        first.beforeJob(firstJob);
-        second.beforeJob(secondJob);
-        String firstPage = text(workingDirectory.resolve(PAGE));
-        String secondPage = text(otherWorkingDirectory.resolve(PAGE));
-        List<String> firstScripts = scripts(firstPage);
-        List<String> secondScripts = scripts(secondPage);
-        String firstDetail = text(workingDirectory.resolve(STEPS_PAGE)) + text(workingDirectory.resolve(SAMPLES_PAGE));
-        firstJob.setStatus(BatchStatus.COMPLETED);
-        first.afterJob(firstJob);
-        secondJob.setStatus(BatchStatus.COMPLETED);
-        second.afterJob(secondJob);
-
-        claim(
-                "each page carries exactly one script",
-                () -> assertThat(List.of(firstScripts.size(), secondScripts.size())).containsOnly(1));
-        claim(
-                "and it is the same text on both, written an hour apart over different steps: nothing of an"
-                        + " invocation is written into it",
-                () -> assertThat(firstScripts).isEqualTo(secondScripts));
-        claim(
-                "what the script reads is on the liveness mark instead: the instant of each write, in milliseconds,"
-                        + " and the interval the page is rewritten at",
-                () -> {
-                    assertThat(liveness(firstPage))
-                            .containsExactly(one.toEpochMilli(), NO_SCHEDULED_WRITE_MEANWHILE.toMillis());
-                    assertThat(liveness(secondPage))
-                            .containsExactly(other.toEpochMilli(), NO_SCHEDULED_WRITE_MEANWHILE.toMillis());
-                });
-        claim(
-                "and the pages of detail beside it carry no script",
-                () -> assertThat(firstDetail).doesNotContain("<script"));
-    }
-
-    @Test
-    @Story("The last write keeps the charts and stops the reload")
-    @DisplayName("The last write of the page still holds the tiles, the timeline and the database chart, carries no reload and no script, and says the invocation has ended")
-    void theLastWriteKeepsTheChartsAndCarriesNoReloadAndNoScript() throws IOException {
-        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
-        JobExecution execution = anExecution(1L, LocalDateTime.now());
-        aStep(execution, StepNames.CENSUS, BatchStatus.COMPLETED, execution.getStartTime(), execution.getStartTime());
-
-        progressPage.beforeJob(execution);
-        execution.setStatus(BatchStatus.COMPLETED);
-        progressPage.afterJob(execution);
-
-        String page = read(PAGE);
-        claim(
-                "the last write holds the tiles, the timeline of the steps and the chart of the database's size",
-                () -> assertThat(page)
-                        .contains("<div class=\"tile\" data-tile=\"steps\">")
-                        .contains("<svg class=\"timeline\"")
-                        .contains("data-chart=\"database\""));
-        claim(
-                "it carries no reload and no script, so a browser that has it open keeps it as it is",
-                () -> assertThat(page).contains(ENDED_COMPLETED).doesNotContain(RELOAD).doesNotContain("<script"));
-        claim(
-                "and its liveness mark says the invocation ended, with nothing for a script to read",
-                () -> assertThat(page).contains("<span class=\"liveness\">ended</span>"));
     }
 
     @Test
@@ -778,21 +697,6 @@ class ProgressPageChartsTest {
             tiles.add(new String[] {tile.group(1), tile.group(2), tile.group(3), tile.group(4) == null ? "" : tile.group(4)});
         }
         return tiles;
-    }
-
-    private static List<String> scripts(String page) {
-        List<String> scripts = new ArrayList<>();
-        Matcher script = SCRIPT.matcher(page);
-        while (script.find()) {
-            scripts.add(script.group(1));
-        }
-        return scripts;
-    }
-
-    /** The liveness mark's instant written and interval, in milliseconds, or nothing where it has none. */
-    private static List<Long> liveness(String page) {
-        Matcher mark = LIVENESS.matcher(page);
-        return mark.find() ? List.of(Long.parseLong(mark.group(1)), Long.parseLong(mark.group(2))) : List.of();
     }
 
     private static long seconds(String clockTime) {

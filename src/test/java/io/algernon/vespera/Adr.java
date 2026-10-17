@@ -1821,6 +1821,16 @@ public final class Adr {
     public static final String THE_PROGRESS_PAGE_SHOWS_WHAT_IS_REMOVED_AND_DRAWS_TO_THE_DATA_VIZ_METHOD = FILE
             + "0268-the-progress-page-shows-what-the-stage-that-removes-occurrences-has-removed-and-draws-to-the-data-viz-method.md";
 
+    /**
+     * ADR-269 -- the progress page is four tabs, {@code progress.html}, {@code progress-steps.html}, {@code
+     * progress-samples.html} and {@code progress-runs.html}, each with one bar of tabs, the status line naming when
+     * the invocation started and ended, and one fixed script at every write that also draws a hover from each
+     * chart point's attributes; the tab of runs lists every run of the working directory, read before the first
+     * step and after the last (amends ADR-265, ADR-266, ADR-267 and ADR-268).
+     */
+    public static final String THE_PROGRESS_PAGE_IS_FOUR_TABS_AND_LISTS_THE_RUNS_THE_WORKING_DIRECTORY_HOLDS = FILE
+            + "0269-the-progress-page-is-four-tabs-draws-a-hover-over-each-chart-and-lists-the-runs-the-working-directory-holds.md";
+
     private Adr() {
     }
 }
