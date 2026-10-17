@@ -9,6 +9,8 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,7 +25,8 @@ import org.junit.jupiter.api.Test;
  * three.
  *
  * <p><b>The expected file is composed here</b>, row by row from {@link ThreePartitions}, where until ADR-274 it was a
- * capture of the Markdown tree; the archive is not there, so every copy is {@code gone} and its cell empty. {@code
+ * capture of the Markdown tree; the archive is not there, so every copy is {@code gone} and its cell empty, but for a
+ * name the path parser refuses, as Windows refuses a quote, which is {@code not-copied} (ADR-274 section 2.3). {@code
  * ManifestCsvTest} goes on holding the quoting and the stop for a survivor whose cluster the arrangement does not
  * carry.
  *
@@ -50,7 +53,18 @@ class ManifestIsWrittenAPageAtATimeTest {
             + "17,reports/doors b.docx,key17,2,0.5,seeds/Beta & Co [2019].pdf,0,1,1,,gone\n"
             + "18,\"reports/stairs, south.pdf\",key18,1,0.7,seeds/alpha.docx,0,2,1,,gone\n"
             + "19,reports/sprinklers-2.pdf,key19,3,0.4,seeds/gamma.docx,1,3,1,,gone\n"
-            + "20,\"reports/dampers \"\"old\"\".pdf\",key20,2,0.65,seeds/Beta & Co [2019].pdf,1,1,2,,gone\n";
+            + "20,\"reports/dampers \"\"old\"\".pdf\",key20,2,0.65,seeds/Beta & Co [2019].pdf,1,1,2,,"
+            + outcomeOf("reports/dampers \"old\".pdf") + "\n";
+
+    /** {@code gone}, the archive not being there, unless the path parser refuses the name (ADR-274 section 2.3). */
+    private static String outcomeOf(String path) {
+        try {
+            Path.of(path);
+            return "gone";
+        } catch (InvalidPathException refused) {
+            return "not-copied";
+        }
+    }
 
     @Test
     @Story("The listing is the same listing, written a page of documents at a time")
