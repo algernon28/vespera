@@ -43,7 +43,10 @@ public class VesperaJobConfiguration {
     /** The job's name, and the only name a later slice's stages are added to. */
     static final String JOB_NAME = "vespera";
 
-    /** The folder the invocation account is written to; unset means no account (ADR-198 section 1). */
+    /**
+     * No longer read for a place: the account is written in the working directory's {@code logs} folder, and a
+     * value set here costs one warning in {@link InvocationAccount} (ADR-270 section 3).
+     */
     static final String ACCOUNT_DIRECTORY_PROPERTY = "vespera.account-dir";
 
     /** The progress page, shared by the job and by {@code vespera label} (ADR-266 section 3). */

@@ -1,5 +1,7 @@
 # ADR-264 — The private-paths guard refuses only what reads or writes outside the allow list, and a working directory is open as the place it lies in
 
+> **Partly amended — see [ADR-270](0270-every-log-vespera-writes-is-in-the-working-directorys-logs-folder-the-invocation-account-among-them.md).** The Consequence "ADR-198's account no longer has the reason it was put outside every working directory, and stays where it is" no longer holds: the account is written in the working directory's `logs` folder, where `vespera.log` and the files it rolls into are too. The guard's rules stand, and `logs/` is open as the working directory it lies in is.
+
 - **Date**: 2026-10-15
 - **Status**: accepted on 2026-10-15.
 - **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), in these places and no others:

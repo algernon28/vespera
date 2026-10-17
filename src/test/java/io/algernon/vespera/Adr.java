@@ -1831,6 +1831,15 @@ public final class Adr {
     public static final String THE_PROGRESS_PAGE_IS_FOUR_TABS_AND_LISTS_THE_RUNS_THE_WORKING_DIRECTORY_HOLDS = FILE
             + "0269-the-progress-page-is-four-tabs-draws-a-hover-over-each-chart-and-lists-the-runs-the-working-directory-holds.md";
 
+    /**
+     * ADR-270 -- every log Vespera writes is in the working directory's {@code logs} folder: {@code vespera.log},
+     * the files it rolls into, and the invocation account, written there by every invocation that starts the job
+     * with no setting; {@code vespera.account-dir} is no longer read, and set it costs one warning naming the folder
+     * (amends ADR-093, ADR-198, ADR-203, ADR-212, ADR-264 and ADR-265).
+     */
+    public static final String EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER = FILE
+            + "0270-every-log-vespera-writes-is-in-the-working-directorys-logs-folder-the-invocation-account-among-them.md";
+
     private Adr() {
     }
 }

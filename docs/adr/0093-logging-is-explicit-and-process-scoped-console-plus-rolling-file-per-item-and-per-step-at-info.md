@@ -1,5 +1,7 @@
 # ADR-093 — Logging is explicit and process-scoped: console plus rolling file, per-item and per-step at INFO, stage progress on a cadence
 
+> **Partly amended — see [ADR-270](0270-every-log-vespera-writes-is-in-the-working-directorys-logs-folder-the-invocation-account-among-them.md).** The rolling file of "Two appenders" is written in the working directory's `logs` folder, as `logs/vespera.log` and `logs/vespera.<yyyy-MM-dd>.<n>.log`, and not beside the database. One rotating file, the console and everything else in this record stand.
+
 - **Date**: 2026-09-08
 - **Status**: accepted
 - **Amends**: none (fills a gap no prior ADR closed — logging was never decided at all)

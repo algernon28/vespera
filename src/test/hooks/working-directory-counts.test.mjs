@@ -181,11 +181,13 @@ function fillForeignBytes(db) {
   db.exec("PRAGMA foreign_keys=ON");
 }
 
-// What a working directory holds beside vespera.db: a lock, two logs, two pages and a deliverable, one
-// of whose partition folders and one stray folder are named with MARKER, as a seed's name would be.
+// What a working directory holds beside vespera.db: a lock, the logs folder with two logs and an invocation
+// account (docs/adr/0270), a log an earlier Vespera left at the top, two pages and a deliverable, one of
+// whose partition folders and one stray folder are named with MARKER, as a seed's name would be.
 const LOGS = {
-  "vespera.log": `a line of the operator's log about ${MARKER}\n`,
-  "vespera.2026-10-07.0.log": `an older line about ${MARKER}\n`,
+  "logs/vespera.log": `a line of the operator's log about ${MARKER}\n`,
+  "logs/vespera.2026-10-07.0.log": `an older line about ${MARKER}\n`,
+  "logs/invocation-account-20261017T080000Z.txt": "2026-10-17T08:00:00Z invocation started\n",
 };
 const UNDER_THE_RUN = {
   [`deliverable/${RG}/index.md`]: `# ${MARKER}\n`,
@@ -196,6 +198,8 @@ const ELSEWHERE_IN_THE_DELIVERABLE = {
   "deliverable/stray.md": "y\n",
 };
 const OTHER_FILES = {
+  // Left where it was: Vespera moves nothing, and it is counted in the working directory alone (docs/adr/0270).
+  "vespera.log": `a line an earlier Vespera wrote at the top about ${MARKER}\n`,
   "vespera.lock": "",
   "profile.yaml": `seedFolder: ${MARKER}\n`,
   "relevance-labelling.html": `<p>the opening of ${MARKER}</p>\n`,

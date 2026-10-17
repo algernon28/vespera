@@ -37,9 +37,9 @@ import org.springframework.test.context.DynamicPropertySource;
  * the invocation was pointed at. A test that only looked for the lines it expected would pass with a
  * leak in every other line.
  *
- * <p>The account is found by listing the folder {@code vespera.account-dir} names, which is a folder of
- * its own and no working directory, for {@value #ACCOUNT_PREFIX}*, never by a name the test computes: one
- * folder serves the whole class, so what a test claims about is the file its own invocation added.
+ * <p>The account is found by listing the working directory's {@code logs} folder, where it is written with
+ * no setting (ADR-270), for {@value #ACCOUNT_PREFIX}*, never by a name the test computes: one working
+ * directory serves the whole class, so what a test claims about is the file its own invocation added.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -52,8 +52,11 @@ class InvocationAccountInvocationTest {
     /** What every private name and text in the fixture carries, so one search finds any leak of any of them. */
     private static final String MARKER = "ZXQ-the-operators-private-word";
 
-    /** How an account's file name starts, in the working directory beside the log. */
+    /** How an account's file name starts, in the working directory's logs folder beside the log. */
     private static final String ACCOUNT_PREFIX = "invocation-account-";
+
+    /** The working directory's folder every log is written in, the account among them (ADR-270 section 1). */
+    private static final String LOGS = "logs";
 
     /** The folder, inside the corpus root, every corpus file is in, and which carries the marker. */
     private static final String MARKED_FOLDER = MARKER + "-folder";
@@ -84,13 +87,10 @@ class InvocationAccountInvocationTest {
     @TempDir
     static Path workingDirectory;
 
-    @TempDir
-    static Path accountDirectory;
-
+    /** The working directory alone: no {@code vespera.account-dir}, which is no longer read (ADR-270 section 3). */
     @DynamicPropertySource
     static void directories(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
-        registry.add("vespera.account-dir", accountDirectory::toString);
     }
 
     @Autowired
@@ -270,9 +270,13 @@ class InvocationAccountInvocationTest {
                 .build());
     }
 
-    /** Every account in the account folder now, found by its prefix. */
+    /** Every account in the working directory's logs folder now, found by its prefix; none before it is made. */
     private List<Path> accounts() throws IOException {
-        try (Stream<Path> files = Files.list(accountDirectory)) {
+        Path logs = workingDirectory.resolve(LOGS);
+        if (!Files.isDirectory(logs)) {
+            return List.of();
+        }
+        try (Stream<Path> files = Files.list(logs)) {
             return files.filter(file -> file.getFileName().toString().startsWith(ACCOUNT_PREFIX))
                     .toList();
         }
@@ -293,7 +297,7 @@ class InvocationAccountInvocationTest {
     private String theOneAccountWrittenSince(List<Path> before) throws IOException {
         List<String> written = accountsWrittenSince(before);
         claim(
-                "the invocation wrote exactly one account, in the account folder",
+                "the invocation wrote exactly one account, in the working directory's logs folder",
                 () -> assertThat(written).hasSize(1));
         return written.getFirst();
     }
