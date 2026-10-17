@@ -70,6 +70,15 @@ class ProgressPageTabsTest {
     /** Long enough that no scheduled write lands while a test runs: the writes these tests read are the listener's. */
     private static final Duration NO_SCHEDULED_WRITE_MEANWHILE = Duration.ofMinutes(5);
 
+    /** Short enough that the page's own thread rewrites the pages many times while a test waits. */
+    private static final Duration MANY_WRITES_MEANWHILE = Duration.ofMillis(10);
+
+    /** How many times the page's clock must be asked before the test ends the job: about one ask a write, so dozens of writes. */
+    private static final long CLOCK_ASKED_MEANWHILE = 40;
+
+    /** A message no page may carry: an exception's message is never written (ADR-265 section 1). */
+    private static final String MARKED_MESSAGE = "ZXQ-a-message-of-the-exception";
+
     /** {@link #NO_SCHEDULED_WRITE_MEANWHILE} in whole seconds, as a reloading page's head and status line carry it. */
     private static final int RELOAD_SECONDS = 300;
 
@@ -458,6 +467,96 @@ class ProgressPageTabsTest {
         }
     }
 
+    @Test
+    @Story("The tab of runs is read as the invocation starts and as it ends, and at no other write")
+    @DisplayName("With the page rewritten every hundredth of a second, the runs are read twice, as the job starts and as it ends, each time on the thread that runs the job and never on the page's own")
+    void theRunsAreReadTwiceOnTheJobsThreadAndAtNoOtherWrite() throws IOException {
+        CountingClock clock = new CountingClock();
+        List<String> readOn = new java.util.concurrent.CopyOnWriteArrayList<>();
+        ProgressPage progressPage = new ProgressPage(workingDirectory, MANY_WRITES_MEANWHILE, clock, null, Map::of, () -> {
+            readOn.add(Thread.currentThread().getName());
+            return new ProgressPage.RunsRead(List.of(), Map.of(), Map.of());
+        });
+        JobExecution execution = anExecution(1L, LocalDateTime.now());
+
+        progressPage.beforeJob(execution);
+        long until = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+        while (clock.asked() < CLOCK_ASKED_MEANWHILE && System.nanoTime() < until) {
+            Thread.onSpinWait();
+        }
+        long askedBeforeTheEnd = clock.asked();
+        execution.setStatus(BatchStatus.COMPLETED);
+        progressPage.afterJob(execution);
+
+        claim(
+                "the page's clock was asked at least " + CLOCK_ASKED_MEANWHILE + " times before the job ended: the page"
+                        + " was rewritten many times in between",
+                () -> assertThat(askedBeforeTheEnd).isGreaterThanOrEqualTo(CLOCK_ASKED_MEANWHILE));
+        claim(
+                "and the runs were read exactly twice, both on the thread that runs the job, which here is the test's",
+                () -> assertThat(readOn).containsExactly(Thread.currentThread().getName(), Thread.currentThread().getName()));
+        claim(
+                "the last write's tab of runs says it shows them as they were when the invocation ended",
+                () -> assertThat(read(RUNS_PAGE))
+                        .contains("The runs this working directory held when this invocation ended.")
+                        .contains("No run is recorded in this working directory."));
+    }
+
+    @Test
+    @Story("A reading of the runs that fails fails nothing")
+    @DisplayName("When the runs cannot be read, as the job starts and as it ends, the tab says so in place of its table, one warning names the exception's class, and every page is written and ends as before")
+    void aReadingOfTheRunsThatFailsFailsNothingAndIsWarnedOfOnce() throws IOException {
+        ProgressPage progressPage = new ProgressPage(
+                workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, Clock.systemDefaultZone(), null, Map::of, () -> {
+                    throw new IllegalStateException(MARKED_MESSAGE);
+                });
+        JobExecution execution = anExecution(1L, LocalDateTime.now());
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> logged =
+                new ch.qos.logback.core.read.ListAppender<>();
+        logged.start();
+        ch.qos.logback.classic.Logger pageLogger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(ProgressPage.class);
+        pageLogger.addAppender(logged);
+        String whileRunning;
+        try {
+            progressPage.beforeJob(execution);
+            // the first reading is made after the first write, so that write shows none yet
+            whileRunning = text(workingDirectory.resolve(RUNS_PAGE));
+            execution.setStatus(BatchStatus.COMPLETED);
+            progressPage.afterJob(execution);
+        } finally {
+            pageLogger.detachAppender(logged);
+            logged.stop();
+        }
+        String afterTheEnd = read(RUNS_PAGE);
+
+        claim(
+                "the first write, made before the first reading, says when the runs are read and holds no table",
+                () -> assertThat(whileRunning)
+                        .contains("The runs this working directory holds are read before the first step starts.")
+                        .doesNotContain("<table"));
+        claim(
+                "the last write's tab says it shows the runs as the invocation ended, that they could not be read, and"
+                        + " holds no table",
+                () -> assertThat(afterTheEnd)
+                        .contains("The runs this working directory held when this invocation ended.")
+                        .contains("The runs could not be read.")
+                        .doesNotContain("<table"));
+        claim(
+                "two readings failed, and one warning says so, naming the exception's class and not its message",
+                () -> assertThat(logged.list)
+                        .filteredOn(event -> event.getLevel() == ch.qos.logback.classic.Level.WARN)
+                        .extracting(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                        .containsExactly("the runs on the progress page could not be read: "
+                                + IllegalStateException.class.getName()));
+        claim(
+                "no page holds the exception's message, and the progress page ends as an invocation that completed",
+                () -> {
+                    assertThat(whileRunning + afterTheEnd).doesNotContain(MARKED_MESSAGE);
+                    assertThat(read(PAGE)).contains(ENDED_COMPLETED).doesNotContain(MARKED_MESSAGE);
+                });
+    }
+
     private ProgressPage aPage(Clock clock) {
         return new ProgressPage(workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, clock);
     }
@@ -634,6 +733,32 @@ class ProgressPageTabsTest {
             found.add(matcher.group(1));
         }
         return found;
+    }
+
+    /** The machine's clock, counting how many times it is asked, so that a test knows writes were made. */
+    private static final class CountingClock extends Clock {
+
+        private final java.util.concurrent.atomic.AtomicLong asked = new java.util.concurrent.atomic.AtomicLong();
+
+        long asked() {
+            return asked.get();
+        }
+
+        @Override
+        public Instant instant() {
+            asked.incrementAndGet();
+            return Instant.now();
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneId.systemDefault();
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
     }
 
     /** A clock that says the instant it was last set to, so that a test says when each write is made. */
