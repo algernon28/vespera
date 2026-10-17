@@ -181,8 +181,9 @@ class ProgressPageTabsTest {
     @Story("Every tab says whether the invocation runs, reloads while it does and stops when it ends")
     @DisplayName("While the job runs each of the four tabs reloads, says it is running and carries a live mark and the time written; after the last write none reloads and each says it ended")
     void everyTabSaysWhetherTheInvocationRunsAndReloadsUntilTheLastWrite() throws IOException {
-        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
-        JobExecution execution = anExecution(1L, LocalDateTime.now());
+        Instant written = STARTED.atZone(ZoneId.systemDefault()).toInstant().plus(FIRST_WRITE_AFTER);
+        ProgressPage progressPage = aPage(Clock.fixed(written, ZoneId.systemDefault()));
+        JobExecution execution = anExecution(1L, STARTED);
 
         progressPage.beforeJob(execution);
         Map<String, String> whileRunning = theFourPages();
@@ -198,6 +199,16 @@ class ProgressPageTabsTest {
                         .contains(RUNNING)
                         .containsPattern(LIVE_MARK)
                         .containsPattern(WRITTEN_AT)));
+        whileRunning.forEach((name, page) -> {
+            Matcher mark = LIVE_MARK.matcher(page);
+            List<Long> read = mark.find()
+                    ? List.of(Long.parseLong(mark.group(1)), Long.parseLong(mark.group(2)))
+                    : List.of();
+            claim(
+                    "what the script reads off " + name + "'s mark is the write's instant in milliseconds since the epoch,"
+                            + " read off the page's clock, and the interval the page is rewritten at, in milliseconds",
+                    () -> assertThat(read).containsExactly(written.toEpochMilli(), NO_SCHEDULED_WRITE_MEANWHILE.toMillis()));
+        });
         afterTheEnd.forEach((name, page) -> claim(
                 "after the last write, " + name + " does not reload, says the invocation ended completed, and its"
                         + " mark says it ended, with no time for a script to call stale",
@@ -407,7 +418,14 @@ class ProgressPageTabsTest {
     @Story("The pages are as wide as the window, and only a chart or a table too wide for it scrolls")
     @DisplayName("Every tab and the label page fill the window: the viewport tag, no max-width or min-width on the body, every chart scaled to its card down to the width its text can be read at, and only a chart's or a table's card scrolling sideways")
     void everyPageIsAsWideAsTheWindowAndOnlyAChartOrATableScrolls(@TempDir Path labelDirectory) throws IOException {
-        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
+        // one run held, so that the tab of runs draws its table
+        ProgressPage progressPage = new ProgressPage(
+                workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, Clock.systemDefaultZone(), null, Map::of,
+                () -> new ProgressPage.RunsRead(
+                        List.of(new io.algernon.vespera.ledger.Runs.Listed(
+                                "a-run-held-by-this-test", StageModules.EXTRACTION.stage(), 1L)),
+                        Map.of(),
+                        Map.of("a-run-held-by-this-test", Map.of())));
         JobExecution execution = anExecution(1L, LocalDateTime.now());
         aStep(execution, StepNames.CENSUS, BatchStatus.COMPLETED, execution.getStartTime(), execution.getStartTime());
         ProgressPage labelPage = new ProgressPage(labelDirectory, NO_SCHEDULED_WRITE_MEANWHILE, Clock.systemDefaultZone());
@@ -416,9 +434,16 @@ class ProgressPageTabsTest {
         execution.setStatus(BatchStatus.COMPLETED);
         progressPage.afterJob(execution);
         labelPage.commandStarts("vespera label");
-        labelPage.commandEnds("recorded", Map.of());
+        // answers counted, so that the label page draws its table of answers
+        Map<String, Integer> answers = new LinkedHashMap<>();
+        answers.put("new", 1);
+        answers.put("changed", 0);
+        answers.put("unchanged", 0);
+        answers.put("still blank", 0);
+        labelPage.commandEnds("recorded", answers);
         Map<String, String> pages = new LinkedHashMap<>(theFourPages());
-        pages.put("the label command's page", text(labelDirectory.resolve(PAGE)));
+        String label = "the label command's page";
+        pages.put(label, text(labelDirectory.resolve(PAGE)));
 
         pages.forEach((name, page) -> {
             List<String[]> rules = rules(page);
@@ -455,7 +480,7 @@ class ProgressPageTabsTest {
                     assertThat(inside(overview, "<svg", "<figure class=\"chart-card\">", "</figure>"))
                             .as("drawings inside a chart's card").isEqualTo(drawings.size());
                 });
-        for (String name : List.of(STEPS_PAGE, SAMPLES_PAGE)) {
+        for (String name : List.of(STEPS_PAGE, SAMPLES_PAGE, RUNS_PAGE, label)) {
             String page = pages.get(name);
             claim(
                     "and every table of " + name + " lies directly in a table's card",
