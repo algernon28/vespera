@@ -188,7 +188,7 @@ Modules are **capability-shaped, not stage-shaped** — stage assignment has alr
 flowchart TD
     PIPELINE["<b>pipeline</b><br/>batch job definitions<br/>the only module that names a stage"]
 
-    subgraph CAPABILITIES["capability modules — no horizontal dependencies"]
+    subgraph CAPABILITIES["capability modules — no horizontal dependencies but the two declared"]
         direction LR
         CORPUS["<b>corpus</b><br/>walking · byte-level facts"]
         EXTRACTION["<b>extraction</b><br/>Docling · cache · metrics · chunking"]
@@ -218,6 +218,7 @@ flowchart TD
     PROFILE --> LEDGER
     DELIVERABLE --> LEDGER
     DELIVERABLE -. declared exception .-> SYNTHESIS
+    EXTRACTION -. declared exception .-> CORPUS
 
     classDef root fill:#f3eaff,stroke:#7a4fb5,color:#241238
     classDef cap fill:#eef4ff,stroke:#4a6fa5,color:#12243d

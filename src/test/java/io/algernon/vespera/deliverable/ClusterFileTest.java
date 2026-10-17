@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static io.algernon.vespera.deliverable.ListedTree.sha256Of;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -507,6 +508,14 @@ class ClusterFileTest {
     void keepsANameWithASpaceOrAQuoteReadableAndFollowable(@TempDir Path workingDirectory) throws IOException {
         ListedSurvivor spaced = aMember(10, A_NAME_WITH_A_SPACE, A_HIGH_SCORE, FIRST_ORDINAL);
         ListedSurvivor quoted = aMember(11, A_NAME_WITH_A_QUOTE, A_MIDDLE_SCORE, FIRST_ORDINAL);
+        boolean theQuotedOriginalStands = true;
+        try {
+            Path theQuotedOriginal = anArchiveBeside(workingDirectory).resolve(A_NAME_WITH_A_QUOTE);
+            Files.createDirectories(theQuotedOriginal.getParent());
+            Files.write(theQuotedOriginal, bytesOf(A_NAME_WITH_A_QUOTE));
+        } catch (InvalidPathException | IOException e) {
+            theQuotedOriginalStands = false;
+        }
         Path tree = write(
                 workingDirectory,
                 new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
@@ -522,8 +531,19 @@ class ClusterFileTest {
                 "and a name with a quote is shown with each quote as its entity, so nothing in it can end an"
                         + " attribute or open a tag, whatever became of its copy",
                 () -> assertThat(page)
-                        .contains("<li id=\"document-" + THE_SECOND_ENTRY + "\">\n" + THAT_NAME_WITH_ITS_QUOTES_ESCAPED)
+                        .contains(THAT_NAME_WITH_ITS_QUOTES_ESCAPED)
                         .doesNotContain("phase \"two\""));
+        assumeTrue(
+                theQuotedOriginalStands,
+                "this file system will not create a name with a double quote, as NTFS will not, so there is no copy"
+                        + " of one to link to");
+        claim(
+                "and where the quoted document is in the archive, its entry links to its copy, whose name carries no"
+                        + " quote, with the name as the link's text",
+                () -> assertThat(page).contains(entry(THE_SECOND_ENTRY, quoted)));
+        claim(
+                "and the copy it links to holds the quoted document's bytes",
+                () -> assertThat(tree.resolve(Copies.pathOf(quoted))).hasBinaryContent(bytesOf(A_NAME_WITH_A_QUOTE)));
     }
 
     /**

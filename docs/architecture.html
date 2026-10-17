@@ -276,7 +276,7 @@ footer.genby{margin:4rem 0 0;padding-top:1.2rem;border-top:1px solid var(--rule)
 <figure class="diagram"><pre class="mermaid">flowchart TD
     PIPELINE["&lt;b&gt;pipeline&lt;/b&gt;&lt;br/&gt;batch job definitions&lt;br/&gt;the only module that names a stage"]
 
-    subgraph CAPABILITIES["capability modules — no horizontal dependencies"]
+    subgraph CAPABILITIES["capability modules — no horizontal dependencies but the two declared"]
         direction LR
         CORPUS["&lt;b&gt;corpus&lt;/b&gt;&lt;br/&gt;walking · byte-level facts"]
         EXTRACTION["&lt;b&gt;extraction&lt;/b&gt;&lt;br/&gt;Docling · cache · metrics · chunking"]
@@ -306,6 +306,7 @@ footer.genby{margin:4rem 0 0;padding-top:1.2rem;border-top:1px solid var(--rule)
     PROFILE --&gt; LEDGER
     DELIVERABLE --&gt; LEDGER
     DELIVERABLE -. declared exception .-&gt; SYNTHESIS
+    EXTRACTION -. declared exception .-&gt; CORPUS
 
     classDef root fill:#f3eaff,stroke:#7a4fb5,color:#241238
     classDef cap fill:#eef4ff,stroke:#4a6fa5,color:#12243d

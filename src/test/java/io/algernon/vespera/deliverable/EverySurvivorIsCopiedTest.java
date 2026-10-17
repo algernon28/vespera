@@ -10,9 +10,11 @@ import static io.algernon.vespera.deliverable.ListedTree.slotOf;
 import static io.algernon.vespera.deliverable.ListedTree.survivor;
 import static io.algernon.vespera.deliverable.ListedTree.writing;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.abort;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.synthesis.ClusterSlot;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
@@ -21,8 +23,10 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
@@ -245,8 +249,16 @@ class EverySurvivorIsCopiedTest {
     @DisplayName("A copy is named by its occurrence and at most forty characters of its name, whatever the name holds")
     void namesEachCopyByItsOccurrenceAndAStemOfFortyCharactersAtMost(@TempDir Path base) throws IOException {
         Path archive = base.resolve("archive");
+        String aNameWithNoLetterASlugKeeps = "a/Отчёт.txt";
+        try {
+            Files.createDirectories(archive.resolve(aNameWithNoLetterASlugKeeps).getParent());
+            Files.write(archive.resolve(aNameWithNoLetterASlugKeeps), new byte[0]);
+        } catch (InvalidPathException | IOException e) {
+            abort("this file system, under this JVM's encoding of file names, will not create a Cyrillic name: "
+                    + e.getMessage());
+        }
         Map<String, String> copyOf = new LinkedHashMap<>();
-        copyOf.put("a/Отчёт.txt", "documents/7.txt");
+        copyOf.put(aNameWithNoLetterASlugKeeps, "documents/7.txt");
         copyOf.put(
                 "b/An extraordinarily long file name for an inspection report of the doors.docx",
                 "documents/8-an-extraordinarily-long-file-name-for-an.docx");
@@ -268,6 +280,152 @@ class EverySurvivorIsCopiedTest {
                 "a name with no letter a slug keeps is its occurrence alone, a long one is cut to forty characters of"
                         + " slug, one with no extension has none, and only the last extension is kept as one",
                 () -> assertThat(columnByPath(tree, "copy")).containsExactlyEntriesOf(copyOf));
+    }
+
+    @Test
+    @Story("Every document listed is copied into the tree")
+    @DisplayName("A document whose original cannot be read as a file is not copied, says so, and the other is still copied")
+    void aSurvivorThatCannotBeReadIsNotCopied(@TempDir Path base) throws IOException {
+        Path archive = anArchive(base);
+        Files.delete(archive.resolve(SECOND_PATH));
+        Files.createDirectories(archive.resolve(SECOND_PATH));
+
+        Path tree = writeOver(base, archive, sha256Of(FIRST_BYTES));
+
+        claim(
+                "the precondition: a folder stands at the second document's path, so something is there and it is"
+                        + " no file to read: the document is neither changed nor gone",
+                () -> assertThat(archive.resolve(SECOND_PATH)).isDirectory());
+        claim(
+                "its row names no copy and says it could not be copied, and the other's says it was copied",
+                () -> {
+                    assertThat(columnByPath(tree, "copy"))
+                            .containsExactly(Map.entry(FIRST_PATH, FIRST_COPY), Map.entry(SECOND_PATH, ""));
+                    assertThat(columnByPath(tree, "copy_outcome"))
+                            .containsExactly(Map.entry(FIRST_PATH, "copied"), Map.entry(SECOND_PATH, "not-copied"));
+                });
+        claim(
+                "nothing stands at its copy's name, and no part of it is left",
+                () -> {
+                    assertThat(tree.resolve(SECOND_COPY)).doesNotExist();
+                    assertThat(filesUnder(tree)).noneMatch(name -> name.endsWith(".part"));
+                });
+        claim(
+                "its entry links to no copy and says, in italics, that it could not be copied",
+                () -> assertThat(Files.readString(tree.resolve(THE_PAGE), StandardCharsets.UTF_8))
+                        .doesNotContain("href=\"../" + SECOND_COPY + "\"")
+                        .contains("<em>could not be copied</em>"));
+        claim(
+                "and the other document is copied as ever",
+                () -> assertThat(tree.resolve(FIRST_COPY)).hasBinaryContent(FIRST_BYTES));
+    }
+
+    @Test
+    @Story("Copying never fills the drive the database is on")
+    @DisplayName("With no free space read, no copy is made and every document's row says no-room")
+    void aDriveWithNoFreeSpaceReadTakesNoCopy(@TempDir Path base) throws IOException {
+        Path archive = anArchive(base);
+
+        Path tree = ListedTree.writeWithFreeSpace(
+                base.resolve("work"), archive, List.of(THE_CLUSTER), writtenFromBoth(), bothSurvivors(sha256Of(FIRST_BYTES)),
+                () -> 0L);
+
+        claim(
+                "with 0 bytes free, which is what a free space that cannot be read counts as, both rows say no-room:"
+                        + " a copy the drive may not hold is the one thing the bound is for",
+                () -> assertThat(columnByPath(tree, "copy_outcome"))
+                        .containsExactly(Map.entry(FIRST_PATH, "no-room"), Map.entry(SECOND_PATH, "no-room")));
+        claim(
+                "and no copy stands under documents/",
+                () -> assertThat(filesUnder(tree)).noneMatch(name -> name.startsWith("documents/")));
+    }
+
+    /**
+     * The shipped reading of the drive's free space, reached by reflection: {@code Deliverable.usableBytesAt} is
+     * private, and no public form of the writer can be given a working directory whose drive cannot be read and
+     * still write a tree there. A rename of the method fails this test loudly rather than passing it.
+     */
+    @Test
+    @Story("Copying never fills the drive the database is on")
+    @DisplayName("The tree's own reading of the drive's free space gives none where the free space cannot be read")
+    void aFreeSpaceThatCannotBeReadCountsAsNone(@TempDir Path base) throws Exception {
+        Path aFile = base.resolve("a-file");
+        Files.writeString(aFile, "not a folder");
+        Path beneathAFile = aFile.resolve("work");
+        Method usableBytesAt = Deliverable.class.getDeclaredMethod("usableBytesAt", Path.class);
+        usableBytesAt.setAccessible(true);
+
+        claim(
+                "the precondition: the drive the test's own folder lies on is read as having room",
+                () -> assertThat((long) usableBytesAt.invoke(null, base)).isPositive());
+        claim(
+                "and a working directory beneath a file, whose drive's free space cannot be read, is read as having"
+                        + " 0 bytes free",
+                () -> assertThat((long) usableBytesAt.invoke(null, beneathAFile)).isZero());
+    }
+
+    @Test
+    @Story("Copying never fills the drive the database is on")
+    @DisplayName("Before the first copy the tree counts what it is about to copy, a size it cannot read counting as none")
+    void aSizeThatCannotBeReadCountsAsNoneInTheSurvey(@TempDir Path base) throws IOException {
+        Path archive = anArchive(base);
+        Files.delete(archive.resolve(FIRST_PATH));
+        long theDrivesFreeBytes = 5 * ONE_GIBIBYTE;
+        List<List<Long>> surveys = new ArrayList<>();
+        DeliverableProgress survey = new DeliverableProgress() {
+            @Override
+            public void toCopySurvivors(long survivors, long bytes, long usableBytes) {
+                surveys.add(List.of(survivors, bytes, usableBytes));
+            }
+        };
+
+        Path tree = Deliverable.writeTo(
+                base.resolve("work"),
+                ListedTree.provenance(archive),
+                ListedTree.of(List.of(THE_CLUSTER), writtenFromBoth(), bothSurvivors(sha256Of(FIRST_BYTES)), Map.of()),
+                SurvivorPictures.none(),
+                survey,
+                ReplacingMove.ATOMIC,
+                () -> theDrivesFreeBytes);
+
+        claim(
+                "the survey is made once, and counts both documents, neither of whose copies stood, the bytes of the"
+                        + " one whose size could be read and none for the one gone, and the drive's free bytes",
+                () -> assertThat(surveys)
+                        .containsExactly(List.of(2L, (long) SECOND_BYTES.length, theDrivesFreeBytes)));
+        claim(
+                "and it decided nothing: each document met its own outcome at its own copy",
+                () -> assertThat(columnByPath(tree, "copy_outcome"))
+                        .containsExactly(Map.entry(FIRST_PATH, "gone"), Map.entry(SECOND_PATH, "copied")));
+    }
+
+    @Test
+    @Story("Every document listed is copied into the tree")
+    @DisplayName("A part of a copy a stopped writing left behind is written over, and the copy holds the document's bytes alone")
+    void aPartLeftByAStoppedWritingIsWrittenOver(@TempDir Path base) throws IOException {
+        Path archive = anArchive(base);
+        Path documents = base.resolve("work").resolve("deliverable").resolve(ListedTree.RUN_ID).resolve("documents");
+        Files.createDirectories(documents);
+        byte[] whatAStoppedWritingLeft =
+                "a part longer than the document it was a part of, left when the invocation stopped"
+                        .getBytes(StandardCharsets.UTF_8);
+        Files.write(documents.resolve("43-risers.txt.part"), whatAStoppedWritingLeft);
+
+        Path tree = writeOver(base, archive, sha256Of(FIRST_BYTES));
+
+        claim(
+                "the precondition: the part left behind is longer than the document, so a copy written into it"
+                        + " without cutting it short would hold more than the document",
+                () -> assertThat(whatAStoppedWritingLeft.length).isGreaterThan(SECOND_BYTES.length));
+        claim(
+                "the document is copied, and its copy holds exactly its bytes",
+                () -> {
+                    assertThat(columnByPath(tree, "copy_outcome")).containsEntry(SECOND_PATH, "copied");
+                    assertThat(tree.resolve(SECOND_COPY)).hasBinaryContent(SECOND_BYTES);
+                });
+        claim(
+                "and no part is left beside it",
+                () -> assertThat(filesUnder(tree)).noneMatch(name -> name.endsWith(".part")));
     }
 
     /** The two survivors' files beneath {@code <base>/archive}, which is returned. */
