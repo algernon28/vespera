@@ -51,7 +51,8 @@ const STEPS = [
 const OTHER = "other";
 const RUN_ID = /^[0-9a-f]{64}$/;
 const DATABASE_FILES = new Set(["vespera.db", "vespera.db-wal", "vespera.db-shm"]);
-const LOG_FILE = /^vespera(?:\.\d{4}-\d{2}-\d{2}\.\d+)?\.log$/;
+// Every file under logs/ is a log, the invocation accounts among them (ADR-270 section 5).
+const LOGS = "logs";
 
 /* ---------- the shapes ---------- */
 
@@ -146,7 +147,7 @@ function measure(dir) {
       } else if (stat.isFile()) {
         bump(everything, stat.size);
         if (here.length === 1 && DATABASE_FILES.has(name)) bump(database, stat.size);
-        if (here.length === 1 && LOG_FILE.test(name)) bump(log, stat.size);
+        if (here[0] === LOGS && here.length >= 2) bump(log, stat.size);
         if (here[0] === "deliverable" && here.length >= 2) {
           bump(deliverable, stat.size);
           if (here.length >= 3 && RUN_ID.test(here[1])) bump(runs.get(here[1]), stat.size);
