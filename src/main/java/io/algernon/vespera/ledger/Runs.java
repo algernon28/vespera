@@ -1,7 +1,11 @@
 package io.algernon.vespera.ledger;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -135,6 +139,29 @@ public class Runs {
                 runId.value(),
                 step);
         return finished != null && finished > 0;
+    }
+
+    /** A run as the {@code run} table holds it, for a page that lists them; {@code ledger} decides nothing from it. */
+    public record Listed(String id, String stage, long walk) {}
+
+    /**
+     * Every run, in the table's own order ({@code ORDER BY rowid}, which sorts nothing; ADR-269 section 5), so
+     * that the order the runs were minted in is the order of the list.
+     */
+    public List<Listed> listed() {
+        return jdbcTemplate.query(
+                "SELECT id, stage, walk_id FROM run ORDER BY rowid",
+                (resultSet, rowNumber) ->
+                        new Listed(resultSet.getString("id"), resultSet.getString("stage"), resultSet.getLong("walk_id")));
+    }
+
+    /** The steps whose completion is recorded, by run id, with no order (ADR-269 section 5). */
+    public Map<String, Set<String>> finishedSteps() {
+        Map<String, Set<String>> finished = new HashMap<>();
+        jdbcTemplate.query("SELECT run_id, step FROM finished_step", resultSet -> {
+            finished.computeIfAbsent(resultSet.getString("run_id"), id -> new HashSet<>()).add(resultSet.getString("step"));
+        });
+        return finished;
     }
 
     /** The runs {@code runId} read, as a set rather than an order (ADR-048). */

@@ -2,7 +2,10 @@ package io.algernon.vespera.pipeline;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.AppenderBase;
+import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.ReplacingMove;
+import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.ledger.Runs;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -20,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -74,15 +78,101 @@ final class ProgressPage implements JobExecutionListener {
     /** A rate is read back to the latest sample at least this long before the latest one (ADR-268 section 3). */
     private static final long RATE_SECONDS = 600;
 
-    /** The one script of a running page: the same text on every write, reading two attributes of the mark. */
-    private static final String LIVENESS_SCRIPT =
+    static final String RUNS_FILE_NAME = "progress-runs.html";
+
+    /**
+     * The one script of every tab of every write (ADR-269 section 3): the same text always, holding no data of an
+     * invocation. It checks the liveness mark and draws the hover of each line chart from the attributes of the
+     * chart's hit circles; it writes text only through {@code textContent} and parses no markup.
+     */
+    private static final String SCRIPT =
             "document.querySelectorAll('.liveness[data-written]').forEach(function (mark) {\n"
             + "  var behind = Date.now() - Number(mark.dataset.written);\n"
             + "  if (behind > " + STALE_AFTER_INTERVALS + " * Number(mark.dataset.interval)) {\n"
             + "    mark.className = 'liveness stale';\n"
             + "    mark.textContent = 'not rewritten for ' + Math.floor(behind / 1000) + ' s';\n"
             + "  }\n"
+            + "});\n"
+            + "document.querySelectorAll('svg.chart').forEach(function (svg) {\n"
+            + "  var hits = Array.prototype.slice.call(svg.querySelectorAll('circle.hit'));\n"
+            + "  var axis = svg.querySelector('line.axis');\n"
+            + "  if (hits.length === 0 || axis === null) { return; }\n"
+            + "  var card = svg.parentNode;\n"
+            + "  var cross = document.createElementNS('http://www.w3.org/2000/svg', 'line');\n"
+            + "  cross.setAttribute('class', 'crosshair');\n"
+            + "  cross.setAttribute('y1', axis.getAttribute('y1'));\n"
+            + "  cross.setAttribute('y2', axis.getAttribute('y2'));\n"
+            + "  cross.style.display = 'none';\n"
+            + "  svg.appendChild(cross);\n"
+            + "  var tip = document.createElement('div');\n"
+            + "  tip.className = 'tooltip';\n"
+            + "  tip.style.display = 'none';\n"
+            + "  card.appendChild(tip);\n"
+            + "  svg.addEventListener('mouseleave', function () {\n"
+            + "    cross.style.display = 'none';\n"
+            + "    tip.style.display = 'none';\n"
+            + "  });\n"
+            + "  svg.addEventListener('mousemove', function (event) {\n"
+            + "    var box = svg.getBoundingClientRect();\n"
+            + "    var scale = svg.viewBox.baseVal.width / box.width;\n"
+            + "    var at = (event.clientX - box.left) * scale;\n"
+            + "    var best = null;\n"
+            + "    hits.forEach(function (hit) {\n"
+            + "      var x = Number(hit.getAttribute('cx'));\n"
+            + "      if (best === null || Math.abs(x - at) < Math.abs(best - at)) { best = x; }\n"
+            + "    });\n"
+            + "    var names = [];\n"
+            + "    var values = {};\n"
+            + "    var when = '';\n"
+            + "    hits.forEach(function (hit) {\n"
+            + "      if (Number(hit.getAttribute('cx')) !== best) { return; }\n"
+            + "      when = hit.dataset.at;\n"
+            + "      if (names.indexOf(hit.dataset.series) < 0) { names.push(hit.dataset.series); }\n"
+            + "      values[hit.dataset.series] = hit.dataset.value;\n"
+            + "    });\n"
+            + "    cross.setAttribute('x1', best);\n"
+            + "    cross.setAttribute('x2', best);\n"
+            + "    cross.style.display = '';\n"
+            + "    while (tip.firstChild) { tip.removeChild(tip.firstChild); }\n"
+            + "    var heading = document.createElement('div');\n"
+            + "    heading.textContent = when;\n"
+            + "    tip.appendChild(heading);\n"
+            + "    names.forEach(function (name) {\n"
+            + "      var line = document.createElement('div');\n"
+            + "      line.textContent = name + ': ' + values[name];\n"
+            + "      tip.appendChild(line);\n"
+            + "    });\n"
+            + "    var beside = card.getBoundingClientRect();\n"
+            + "    var left = box.left - beside.left + card.scrollLeft + best / scale;\n"
+            + "    var onTheLeft = best / scale > box.width / 2;\n"
+            + "    tip.style.left = (onTheLeft ? left - 12 : left + 12) + 'px';\n"
+            + "    tip.style.transform = onTheLeft ? 'translateX(-100%)' : 'none';\n"
+            + "    tip.style.top = (box.top - beside.top + card.scrollTop + 8) + 'px';\n"
+            + "    tip.style.display = 'block';\n"
+            + "  });\n"
             + "});";
+
+    private static final String[] TAB_NAMES = {"Overview", "Steps", "Samples", "Runs"};
+
+    private static final String[] TAB_FILES = {FILE_NAME, "progress-steps.html", "progress-samples.html", RUNS_FILE_NAME};
+
+    /** The steps that record their completion under a run of each stage, in job order (ADR-269 section 5). */
+    private static final Map<String, List<String>> STEPS_OF_A_STAGE = Map.of(
+            StageModules.BYTE_LEVEL_REDUCTION.stage(), List.of(StepNames.BYTE_LEVEL_REDUCTION),
+            StageModules.EXTRACTION.stage(), List.of(StepNames.EXTRACTION),
+            StageModules.CONTENT_CENSUS.stage(), List.of(StepNames.CONTENT_CENSUS),
+            StageModules.CONTENT_REDUNDANCY.stage(), List.of(StepNames.REDUNDANCY_SIGNATURE, StepNames.CONTENT_REDUNDANCY),
+            StageModules.SEED_MEASUREMENT.stage(), List.of(StepNames.SEED_EXTRACTION, StepNames.SEED_CORPUS_COMPARISON),
+            StageModules.EMBEDDING_SCORING.stage(),
+            List.of(StepNames.EMBEDDING_SCORING, StepNames.RELEVANCE_SCORING, StepNames.CLUSTERING),
+            StageModules.ARRANGEMENT.stage(), List.of(StepNames.ARRANGEMENT),
+            StageModules.GENERATION.stage(), List.of(StepNames.GENERATION));
+
+    /** The runs a working directory holds, as one reading of the ledger made them (ADR-269 section 5). */
+    record RunsRead(List<Runs.Listed> listed, Map<String, Set<String>> finished, Map<String, Map<String, Long>> kinds) {}
+
+    /** What the job thread holds of the runs: which reading (1 as the invocation started, 2 as it ended) and its outcome. */
+    private record HeldRuns(int reading, RunsRead read) {}
 
     private static final Pattern COUNT_OF_TOTAL = Pattern.compile(": ([0-9,]+) of ([0-9,]+) \\([0-9]+%\\)$");
 
@@ -198,6 +288,17 @@ final class ProgressPage implements JobExecutionListener {
 
     private final PageOpener opener;
 
+    private final Supplier<RunsRead> runsReader;
+
+    /** The reading of the runs the tab shows, set on the job's thread and read by the writer; null before the first. */
+    private volatile HeldRuns heldRuns;
+
+    /** Whether the failure of a reading was logged in this invocation. */
+    private volatile boolean warnedOfRuns;
+
+    /** Guarded by {@link #writing}: the instant of the first write, the start of a job that holds none. */
+    private Instant firstWrite;
+
     /** Guarded by {@link #writing}: the command a command-shaped invocation is about, or null for the job's. */
     private String command;
 
@@ -217,12 +318,50 @@ final class ProgressPage implements JobExecutionListener {
             Clock clock,
             PageOpener opener,
             Supplier<Map<String, Long>> recorded) {
+        this(workingDirectory, interval, clock, opener, recorded, () -> new RunsRead(List.of(), Map.of(), Map.of()));
+    }
+
+    ProgressPage(
+            Path workingDirectory,
+            Duration interval,
+            Clock clock,
+            PageOpener opener,
+            Supplier<Map<String, Long>> recorded,
+            Supplier<RunsRead> runsReader) {
         this.workingDirectory = workingDirectory.toAbsolutePath().normalize();
         this.page = this.workingDirectory.resolve(FILE_NAME);
         this.interval = interval;
         this.clock = clock;
         this.opener = opener;
         this.recorded = recorded;
+        this.runsReader = runsReader;
+    }
+
+    /** What the ledger holds of every run, asked statement by statement and sorting nothing (ADR-269 section 5). */
+    static RunsRead readRuns(Ledger ledger) {
+        List<Runs.Listed> listed = ledger.runs().listed();
+        Map<String, Map<String, Long>> kinds = new java.util.HashMap<>();
+        for (Runs.Listed run : listed) {
+            kinds.put(run.id(), ledger.verdicts().countsOfRun(new RunId(run.id())));
+        }
+        return new RunsRead(listed, ledger.runs().finishedSteps(), kinds);
+    }
+
+    /**
+     * Reads the runs on the thread that runs the job (ADR-269 section 5); whatever it throws is logged once in the
+     * invocation, as the exception class's name only, and the tab says the runs could not be read.
+     */
+    private void readTheRuns(int reading) {
+        RunsRead read = null;
+        try {
+            read = runsReader.get();
+        } catch (RuntimeException e) {
+            if (!warnedOfRuns) {
+                warnedOfRuns = true;
+                log.warn("the runs on the progress page could not be read: {}", e.getClass().getName());
+            }
+        }
+        heldRuns = new HeldRuns(reading, read);
     }
 
     /** The page's absolute, normalised path in {@code workingDirectory} (ADR-266 section 1). */
@@ -247,6 +386,7 @@ final class ProgressPage implements JobExecutionListener {
         synchronized (writing) {
             command = commandLine;
             commandStarted = clock.instant();
+            firstWrite = null;
             ended = false;
             written = write(false);
         }
@@ -294,6 +434,9 @@ final class ProgressPage implements JobExecutionListener {
             ended = false;
             baseline = recorded.get();
             samples.clear();
+            firstWrite = null;
+            heldRuns = null;
+            warnedOfRuns = false;
             written = write(false);
         }
         openOnce(written);
@@ -312,6 +455,7 @@ final class ProgressPage implements JobExecutionListener {
                 failed(e);
             }
         }
+        readTheRuns(1);
     }
 
     @Override
@@ -325,6 +469,7 @@ final class ProgressPage implements JobExecutionListener {
         }
         listenedTo.clear();
         appenders.clear();
+        readTheRuns(2);
         synchronized (writing) {
             ended = true;
             this.jobExecution = jobExecution;
@@ -348,17 +493,18 @@ final class ProgressPage implements JobExecutionListener {
     private boolean write(boolean last, String outcome, Map<String, Integer> counts) {
         try {
             if (command == null) {
-                String[] pages = render(last); // steps, samples, progress: the order they are moved into place
+                String[] pages = render(last); // steps, samples, runs, progress: the order they are moved into place
                 put(STEPS_FILE_NAME, pages[0]);
                 put(SAMPLES_FILE_NAME, pages[1]);
-                put(FILE_NAME, pages[2]);
+                put(RUNS_FILE_NAME, pages[2]);
+                put(FILE_NAME, pages[3]);
             } else {
                 put(FILE_NAME, renderCommand(last, outcome, counts));
             }
             warned = false;
             return true;
         } catch (IOException | RuntimeException e) {
-            for (String name : List.of(STEPS_FILE_NAME, SAMPLES_FILE_NAME, FILE_NAME)) {
+            for (String name : List.of(STEPS_FILE_NAME, SAMPLES_FILE_NAME, RUNS_FILE_NAME, FILE_NAME)) {
                 try {
                     Files.deleteIfExists(workingDirectory.resolve(name + ".part"));
                 } catch (IOException | RuntimeException ignored) {
@@ -389,7 +535,10 @@ final class ProgressPage implements JobExecutionListener {
         JobExecution job = jobExecution;
         Instant now = clock.instant();
         ZoneId zone = ZoneId.systemDefault();
-        Instant started = job.getStartTime() == null ? now : job.getStartTime().atZone(zone).toInstant();
+        if (firstWrite == null) {
+            firstWrite = now;
+        }
+        Instant started = job.getStartTime() == null ? firstWrite : job.getStartTime().atZone(zone).toInstant();
         Map<String, StepExecution> executions = new java.util.HashMap<>();
         for (StepExecution execution : new ArrayList<>(job.getStepExecutions())) {
             executions.put(execution.getStepName(), execution);
@@ -467,18 +616,27 @@ final class ProgressPage implements JobExecutionListener {
         Sample latest = samples.getLast();
         Sample base = rateBase();
 
+        String startedAt = WRITTEN_AT.format(LocalDateTime.ofInstant(started, zone));
         String status = last
-                ? "This invocation has ended: " + job.getStatus().name().toLowerCase(Locale.ROOT) + "."
-                : "This invocation is running. This page is rewritten every " + seconds + " s.";
+                ? "This invocation has ended: " + job.getStatus().name().toLowerCase(Locale.ROOT) + ". It started at "
+                        + startedAt + " and ended at " + WRITTEN_AT.format(LocalDateTime.ofInstant(now, zone)) + "."
+                : "This invocation is running. It started at " + startedAt + ", and this page is rewritten every "
+                        + seconds + " s.";
         String writtenAt = "Written at " + WRITTEN_AT.format(LocalDateTime.ofInstant(now, zone));
-        String head = ReportPage.paragraph(ReportPage.escape(status));
-        String detailHead = head
-                + ReportPage.paragraph(writtenAt)
-                + ReportPage.paragraph("<a href=\"" + FILE_NAME + "\">Back to the progress page</a>");
+        String mark = last
+                ? "<span class=\"liveness\">ended</span> "
+                : "<span class=\"liveness\" data-written=\"" + now.toEpochMilli() + "\" data-interval=\""
+                        + interval.toMillis() + "\">live</span> ";
+        String[] heads = new String[TAB_NAMES.length];
+        for (int tab = 0; tab < heads.length; tab++) {
+            heads[tab] = ReportPage.heading(1, tab == 0 ? TITLE : TITLE + ": " + TAB_NAMES[tab].toLowerCase(Locale.ROOT))
+                    + tabBar(tab)
+                    + ReportPage.paragraph(ReportPage.escape(status))
+                    + ReportPage.paragraph(mark + writtenAt);
+        }
 
-        String stepsBody = ReportPage.heading(1, TITLE + ": steps")
-                + detailHead
-                + ReportPage.table(
+        String stepsBody = heads[1]
+                + ReportPage.tableCard(
                         ReportPage.headerRow("Step", "State", "Read", "Written", "Skipped", "Duration", "Progress"),
                         rows.toString());
         StringBuilder sampleRows = new StringBuilder();
@@ -504,14 +662,9 @@ final class ProgressPage implements JobExecutionListener {
         for (int i = 0; i < BLOCKING.size(); i++) {
             sampleHeaders[8 + i] = BLOCKING.get(i);
         }
-        String samplesBody = ReportPage.heading(1, TITLE + ": samples")
-                + detailHead
-                + ReportPage.table(ReportPage.headerRow(sampleHeaders), sampleRows.toString());
+        String samplesBody = heads[2] + ReportPage.tableCard(ReportPage.headerRow(sampleHeaders), sampleRows.toString());
+        String runsBody = heads[3] + runsTab(job);
 
-        String mark = last
-                ? "<span class=\"liveness\">ended</span> "
-                : "<span class=\"liveness\" data-written=\"" + now.toEpochMilli() + "\" data-interval=\""
-                        + interval.toMillis() + "\">live</span> ";
         String bar = "";
         if (runningExecution != null) {
             Matcher counted = COUNT_OF_TOTAL.matcher(lastLine.getOrDefault(running, ""));
@@ -530,32 +683,96 @@ final class ProgressPage implements JobExecutionListener {
         tiles.append(tile("database", "Database size", size(bytes), growth(base, latest)));
         if (outcomeStep != null) {
             tiles.append(tile(
-                    "survivors", "Survivors", count(survivors), "of " + count(entered) + " when " + outcomeStep + " started"));
+                    "survivors", "Survivors", count(survivors),
+                    "of " + count(entered) + " when " + outcomeStep + " started"
+                            + ("running".equals(states.get(outcomeStep)) ? ", including those not yet judged" : "")));
             for (String kind : OUTCOME_STEPS.get(outcomeStep)) {
                 int at = BLOCKING.indexOf(kind);
                 tiles.append(tile(kind, kind, count(latest.kinds()[at]), kindRate(base, latest, at)));
             }
         }
-        String progressBody = ReportPage.heading(1, TITLE)
-                + head
-                + ReportPage.paragraph(mark + writtenAt)
+        String progressBody = heads[0]
                 + "<div class=\"tiles\">\n" + tiles + "</div>\n"
                 + bar
                 + timeline(states, executions, started, now, zone)
                 + databaseChart()
                 + countsChart()
-                + verdictsChart()
-                + ReportPage.paragraph("<a href=\"" + STEPS_FILE_NAME + "\">The steps as a table</a> &middot; <a href=\""
-                        + SAMPLES_FILE_NAME + "\">The samples as a table</a>")
-                + (last ? "" : "<script>\n" + LIVENESS_SCRIPT + "\n</script>\n");
+                + verdictsChart();
         return new String[] {
             page("steps", stepsBody, last, seconds), page("samples", samplesBody, last, seconds),
-            page("", progressBody, last, seconds)
+            page("runs", runsBody, last, seconds), page("", progressBody, last, seconds)
         };
     }
 
+    /** The bar of the four tabs, relative links, the page's own marked (ADR-269 section 1). */
+    private static String tabBar(int current) {
+        StringBuilder bar = new StringBuilder("<nav class=\"tabs\" aria-label=\"Progress pages\">");
+        for (int tab = 0; tab < TAB_NAMES.length; tab++) {
+            bar.append("<a href=\"").append(TAB_FILES[tab]).append('"').append(tab == current ? " aria-current=\"page\"" : "")
+                    .append('>').append(TAB_NAMES[tab]).append("</a>");
+        }
+        return bar.append("</nav>\n").toString();
+    }
+
+    /** The tab of runs below its heading: which reading it shows, and the table of the held reading (section 5). */
+    private String runsTab(JobExecution job) {
+        HeldRuns held = heldRuns;
+        if (held == null) {
+            return ReportPage.paragraph("The runs this working directory holds are read before the first step starts.");
+        }
+        String shows = ReportPage.paragraph(
+                held.reading() == 1
+                        ? "The runs this working directory held when this invocation started."
+                        : "The runs this working directory held when this invocation ended.");
+        if (held.read() == null) {
+            return shows + ReportPage.paragraph("The runs could not be read.");
+        }
+        if (held.read().listed().isEmpty()) {
+            return shows + ReportPage.paragraph("No run is recorded in this working directory.");
+        }
+        Set<String> arrivedAt = new java.util.HashSet<>(new InvocationRuns(job.getExecutionContext()).all().values());
+        Map<String, Integer> ordinals = new java.util.HashMap<>();
+        List<Object[]> runs = new ArrayList<>();
+        for (Runs.Listed run : held.read().listed()) {
+            int ordinal = ordinals.merge(run.walk() + "|" + run.stage(), 1, Integer::sum);
+            runs.add(new Object[] {run, ordinal});
+        }
+        List<String> cascade = Arrays.stream(StageModules.values()).map(StageModules::stage).toList();
+        runs.sort(java.util.Comparator.<Object[]>comparingLong(r -> ((Runs.Listed) r[0]).walk())
+                .thenComparingInt(r -> {
+                    int rank = cascade.indexOf(((Runs.Listed) r[0]).stage());
+                    return rank < 0 ? cascade.size() : rank;
+                })
+                .thenComparing(r -> ((Runs.Listed) r[0]).stage())
+                .thenComparingInt(r -> (Integer) r[1]));
+        StringBuilder rows = new StringBuilder();
+        for (Object[] entry : runs) {
+            Runs.Listed run = (Runs.Listed) entry[0];
+            List<String> steps = STEPS_OF_A_STAGE.get(run.stage());
+            Set<String> done = held.read().finished().getOrDefault(run.id(), Set.of());
+            long finished = steps == null ? 0 : steps.stream().filter(done::contains).count();
+            String[] cells = new String[6 + BLOCKING.size()];
+            cells[0] = ReportPage.numberCell(count(run.walk()));
+            cells[1] = ReportPage.textCell(run.stage());
+            cells[2] = ReportPage.numberCell(count((Integer) entry[1]));
+            cells[3] = ReportPage.textCell(steps == null ? "" : finished + " of " + steps.size());
+            cells[4] = ReportPage.textCell(steps == null ? "" : finished == steps.size() ? "finished" : "not finished");
+            cells[5] = ReportPage.textCell(arrivedAt.contains(run.id()) ? "arrived at" : "");
+            Map<String, Long> kinds = held.read().kinds().getOrDefault(run.id(), Map.of());
+            for (int i = 0; i < BLOCKING.size(); i++) {
+                cells[6 + i] = ReportPage.numberCell(count(kinds.getOrDefault(BLOCKING.get(i), 0L)));
+            }
+            rows.append(ReportPage.row(cells));
+        }
+        List<String> headers = new ArrayList<>(
+                List.of("Walk", "Stage", "Run", "Steps finished", "State", "This invocation"));
+        headers.addAll(BLOCKING);
+        return shows + ReportPage.tableCard(ReportPage.headerRow(headers.toArray(new String[0])), rows.toString());
+    }
+
     private static String page(String which, String body, boolean last, int seconds) {
-        return last ? ReportPage.drawn(titled(which), body) : ReportPage.drawnReloading(titled(which), body, seconds);
+        String withScript = body + "<script>\n" + SCRIPT + "\n</script>\n";
+        return last ? ReportPage.drawn(titled(which), withScript) : ReportPage.drawnReloading(titled(which), withScript, seconds);
     }
 
     private static String titled(String which) {
@@ -940,10 +1157,14 @@ final class ProgressPage implements JobExecutionListener {
                 x = left + (double) (seconds.get(i) - from) / span * plot;
                 y = bottom - (line.values()[i] - axis.lo()) / (axis.hi() - axis.lo()) * PLOT_HEIGHT;
                 points.append(points.isEmpty() ? "" : " ").append(f1(x)).append(',').append(f1(y));
+                String at = clockTime(Duration.ofSeconds(seconds.get(i)));
+                String shown = ReportPage.escape(show.apply(line.values()[i]));
+                // the database chart's one series has no legend or end label, and is named size (ADR-269 section 4)
                 circles.append("<circle class=\"hit\" cx=\"").append(f1(x)).append("\" cy=\"").append(f1(y))
-                        .append("\" r=\"12\" fill=\"transparent\"><title>")
-                        .append(clockTime(Duration.ofSeconds(seconds.get(i)))).append(": ")
-                        .append(ReportPage.escape(show.apply(line.values()[i]))).append("</title></circle>");
+                        .append("\" r=\"12\" fill=\"transparent\" data-series=\"")
+                        .append(ReportPage.escape(line.name().isEmpty() ? "size" : line.name()))
+                        .append("\" data-at=\"").append(at).append("\" data-value=\"").append(shown)
+                        .append("\"><title>").append(at).append(": ").append(shown).append("</title></circle>");
             }
             svg.append("<polyline class=\"line ").append(line.css()).append("\" fill=\"none\" stroke-width=\"2\""
                     + " stroke-linejoin=\"round\" stroke-linecap=\"round\"")
@@ -965,9 +1186,11 @@ final class ProgressPage implements JobExecutionListener {
     private String renderCommand(boolean last, String outcome, Map<String, Integer> counts) {
         Instant now = clock.instant();
         int seconds = (int) Math.max(1, (interval.toMillis() + 999) / 1000);
+        String startedAt = WRITTEN_AT.format(LocalDateTime.ofInstant(commandStarted, ZoneId.systemDefault()));
         String status = last
-                ? "This invocation has ended: " + outcome + "."
-                : "This invocation is running. This page is rewritten when it ends.";
+                ? "This invocation has ended: " + outcome + ". It started at " + startedAt + " and ended at "
+                        + WRITTEN_AT.format(LocalDateTime.ofInstant(now, ZoneId.systemDefault())) + "."
+                : "This invocation is running. It started at " + startedAt + ", and this page is rewritten when it ends.";
         StringBuilder rows = new StringBuilder();
         counts.forEach((words, value) ->
                 rows.append(ReportPage.row(ReportPage.textCell(words), ReportPage.numberCell(count(value)))));
@@ -979,7 +1202,7 @@ final class ProgressPage implements JobExecutionListener {
                 + tile("elapsed", "Elapsed", clockTime(Duration.between(commandStarted, now)), null)
                 + tile("database", "Database size", size(databaseBytes()), null)
                 + "</div>\n"
-                + (counts.isEmpty() ? "" : ReportPage.table(ReportPage.headerRow("Answers", "Count"), rows.toString()));
+                + (counts.isEmpty() ? "" : ReportPage.tableCard(ReportPage.headerRow("Answers", "Count"), rows.toString()));
         return last ? ReportPage.drawn(TITLE, body) : ReportPage.drawnReloading(TITLE, body, seconds);
     }
 

@@ -55,7 +55,12 @@ public class VesperaJobConfiguration {
             Clock clock,
             Ledger ledger) {
         return new ProgressPage(
-                workingDirectory, progressInterval, clock, opener.getIfAvailable(), () -> ledger.verdicts().recorded());
+                workingDirectory,
+                progressInterval,
+                clock,
+                opener.getIfAvailable(),
+                () -> ledger.verdicts().recorded(),
+                () -> ProgressPage.readRuns(ledger));
     }
 
     @Bean

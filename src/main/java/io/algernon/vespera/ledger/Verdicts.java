@@ -195,6 +195,29 @@ public class Verdicts {
     }
 
     /**
+     * The verdicts of each blocking kind recorded under {@code runId}, by the kind's name as {@link #recorded}
+     * writes it and in {@link VerdictKind}'s order, {@code 0} where none (ADR-269 section 5). ADR-224's form: one
+     * statement, a sum a kind, {@code NOCASE} because a kind is stored in either case, through
+     * {@code verdict_by_run_id}, sorting nothing.
+     */
+    public Map<String, Long> countsOfRun(RunId runId) {
+        List<String> kinds = Arrays.stream(VerdictKind.values()).filter(VerdictKind::blocking).map(Enum::name).toList();
+        String sql = "SELECT SUM(kind = 'BROKEN' COLLATE NOCASE), SUM(kind = 'DUPLICATE_OF' COLLATE NOCASE),"
+                + " SUM(kind = 'SUPERSEDED_BY' COLLATE NOCASE), SUM(kind = 'OUT_OF_SCOPE' COLLATE NOCASE),"
+                + " SUM(kind = 'EXTRACTION_FAILED' COLLATE NOCASE), SUM(kind = 'DEGENERATE_OUTPUT' COLLATE NOCASE),"
+                + " SUM(kind = 'REDUNDANT_WITH' COLLATE NOCASE), SUM(kind = 'BELOW_THRESHOLD' COLLATE NOCASE)"
+                + " FROM verdict WHERE run_id = ?";
+        return jdbcTemplate.query(sql, resultSet -> {
+            Map<String, Long> counts = new LinkedHashMap<>();
+            resultSet.next();
+            for (int i = 0; i < kinds.size(); i++) {
+                counts.put(kinds.get(i).toLowerCase(Locale.ROOT).replace('_', '-'), resultSet.getLong(i + 1));
+            }
+            return counts;
+        }, runId.value());
+    }
+
+    /**
      * How many verdicts of each blocking kind this process has appended and committed, by the kind's name as
      * {@code CONTEXT.md} writes it ({@code extraction-failed}), in {@link VerdictKind}'s order: held in memory so a
      * page can show them with no query (ADR-268 section 2). A delete subtracts nothing.
