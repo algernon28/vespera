@@ -185,6 +185,7 @@ class ProgressPageOutcomesInvocationTest {
     }
 
     @Test
+    @Link(name = "ADR-269", url = Adr.THE_PROGRESS_PAGE_IS_FOUR_TABS_AND_LISTS_THE_RUNS_THE_WORKING_DIRECTORY_HOLDS, type = "adr")
     @Story("The page shows what the step removing occurrences has removed, by kind, and how many survive")
     @DisplayName("While byte-level reduction is held at the last line of its broken check, its one transaction still open, the page already shows the out-of-scope verdict it recorded and two survivors of three")
     void aSampleInTheMiddleOfATaskletCountsItsVerdicts(@TempDir Path root, @TempDir Path seeds) throws IOException {
@@ -229,11 +230,12 @@ class ProgressPageOutcomesInvocationTest {
         List<String[]> tiles = tiles(seen.get());
         claim(
                 "that write names byte-level reduction as the step running and as the outcome step, with two"
-                        + " survivors of the three that entered it",
+                        + " survivors of the three that entered it, those it has not judged yet counted among them",
                 () -> {
                     assertThat(tile(tiles, "step")).containsExactly("step", "Step", StepNames.BYTE_LEVEL_REDUCTION, "running");
                     assertThat(tile(tiles, "survivors")).containsExactly(
-                            "survivors", "Survivors", "2", "of 3 when " + StepNames.BYTE_LEVEL_REDUCTION + " started");
+                            "survivors", "Survivors", "2", "of 3 when " + StepNames.BYTE_LEVEL_REDUCTION
+                                    + " started, including those not yet judged");
                 });
     }
 
