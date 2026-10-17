@@ -169,7 +169,7 @@ A value the pipeline requires and does not have. Not a pause — supply the valu
 _Avoid_: approval step, pause. Also "checkpoint" **for this concept**: a gate is not a point work resumes from, and the word now names one (see Checkpoint below).
 
 **Archive**:
-The operator's files as they lie on disk, whether or not any walk has observed them: what Vespera is pointed at and curates. The files, never a path. Vespera writes nothing into it: everything an invocation writes goes in a working directory (ADR-054), and the deliverable references the surviving originals where they are instead of copying them. An archive can hold sensitive documents, so a document is read only by the local models Vespera runs, and no agent reads a document in an archive or writes there, though it may list the names in one (ADR-196, ADR-264).
+The operator's files as they lie on disk, whether or not any walk has observed them: what Vespera is pointed at and curates. The files, never a path. Vespera writes nothing into it: everything an invocation writes goes in a working directory (ADR-054), and the deliverable holds a verified copy of each survivor it lists, read from the archive and never written there (ADR-274). An archive can hold sensitive documents, so a document is read only by the local models Vespera runs, and no agent reads a document in an archive or writes there, though it may list the names in one (ADR-196, ADR-264).
 _Avoid_: knowledge base (what Vespera makes from an archive, never the archive itself), repository (this project's git checkout), dataset, source folder
 
 **Corpus root**:
@@ -241,7 +241,7 @@ What stage 6b calls a cluster in the deliverable: written by the model that read
 _Avoid_: cluster name, cluster label (the label is derived and 6a's; this is generated and 6b's)
 
 **Citation**:
-How a synthesis doc points at a document it was written from: an ordinal into the documents that call sent, rendered in the deliverable as a link to that document's entry in the cluster file's membership list. Minted by Vespera for one call rather than written by the model, so a fabricated one is out of range rather than merely wrong. What it points at is never an occurrence id: the reader follows it without a database.
+How a synthesis doc points at a document it was written from: an ordinal into the documents that call sent, rendered in the deliverable as a link to that document's entry in the membership list on the cluster's page. Minted by Vespera for one call rather than written by the model, so a fabricated one is out of range rather than merely wrong. What it points at is never an occurrence id: the reader follows it without a database.
 _Avoid_: reference, source, footnote
 
 **Picture**:
@@ -265,8 +265,16 @@ A re-run of generation that finishes what an earlier one left behind: the cluste
 _Avoid_: retry, regeneration, repairing a synthesis doc (a synthesis doc is written or it is not; nothing edits one)
 
 **Publication-ready artifact**:
-The pipeline's terminal state, and the deliverable: the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges — self-contained and handed over as files. It carries no copy of the surviving originals: those stay in the archive and are referenced from it. The files are written; nothing in this project carries them to a destination. Publication is the state they are handed over in, never an action this system takes.
+The pipeline's terminal state, and the deliverable: the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges — self-contained and handed over as files. It carries a verified copy of each surviving original it lists, checked against the key stage 2 recorded, so every link lands inside it (ADR-274). The files are written; nothing in this project carries them to a destination. Publication is the state they are handed over in, never an action this system takes.
 _Avoid_: the wiki, the Confluence output, the export
+
+**Copy**:
+A survivor's file, byte for byte as stage 2 read it, put in the deliverable's `documents/` under a name made of its occurrence id and its stem, and put there only once its bytes hash to the key stage 2 recorded (ADR-274 §2). Read from the archive, never written there, and recorded nowhere but in the tree. Not the "copy" of a representative occurrence: that is a file occurrence in the archive sharing a content identity with others, and a copy is the deliverable's, made whether or not the survivor has duplicates.
+_Avoid_: duplicate (a file occurrence sharing a content identity), mirror, backup, export, the original (the file in the archive it was made from)
+
+**Copy outcome**:
+What became of one survivor's copy in one drawing of the tree: `copied`, `changed`, `gone`, `no-room` or `not-copied` (ADR-274 §2.3). A fact about that survivor, stated in its membership entry and its manifest row; it fails nothing, removes nothing and writes no row of the ledger, and the next invocation tries every copy that does not stand again.
+_Avoid_: copy status, copy error, copy verdict (a verdict is about a document, and it removes one)
 
 ### Cached artifacts
 

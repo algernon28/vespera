@@ -43,12 +43,13 @@ class ModuleBoundariesTest {
     private static final ApplicationModules MODULES = ApplicationModules.of(VesperaApplication.class);
 
     /**
-     * ADR-040's modules, less the one ADR-101 struck — eight. Six are capability modules;
-     * {@code ledger} is what they depend on, and {@code pipeline} is the composition root that
-     * depends on all of them.
+     * ADR-040's modules, less the one ADR-101 struck, and the one ADR-274 added — nine. Seven are
+     * capability modules; {@code ledger} is what they depend on, and {@code pipeline} is the
+     * composition root that depends on all of them.
      *
      * <p>{@code publication} is deliberately absent (ADR-101, ADR-110): the run ends at the generated
-     * documents, so nothing renders or uploads them and no module exists to. This list is an
+     * documents, so nothing uploads them and no module exists to. {@code deliverable} draws the tree
+     * those documents are handed over in, and carries it nowhere (ADR-274). This list is an
      * allow-list, so a struck name left in it is invisible until somebody creates the package it
      * permits — which is the one moment it would do harm.
      */
@@ -60,22 +61,25 @@ class ModuleBoundariesTest {
                     "similarity",
                     "embedding",
                     "synthesis",
+                    "deliverable",
                     "profile",
                     "pipeline");
 
     /**
      * What a capability module is allowed to declare, where that is not {@code ledger} alone.
      *
-     * <p>One entry, and it is the only horizontal capability-to-capability edge in the tree:
+     * <p>Two entries, the only horizontal capability-to-capability edges in the tree.
      * {@code extraction} names {@code corpus} for the two detection enumerations Docling's pipeline
      * choice is derived from (ADR-100), and, since ADR-226, what a seed the floor stopped is sent as and
      * which detected formats list their pictures: a wider purpose for the same two types, the declaration
-     * unchanged. Recorded here as a named exception rather than by relaxing
-     * the assertion, so that a second module widening its declaration still fails this test, and so
-     * does {@code extraction} widening beyond {@code corpus}.
+     * unchanged. {@code deliverable} names {@code synthesis} for the records it draws the tree from, the
+     * citation pattern and the filename stem (ADR-274 §4). Recorded here as named exceptions rather than
+     * by relaxing the assertion, so that a third module widening its declaration still fails this test,
+     * and so does either of the two widening beyond what is named here.
      */
-    private static final Map<String, List<String>> DECLARED_DEPENDENCIES =
-            Map.of("extraction", List.of("ledger", "corpus"));
+    private static final Map<String, List<String>> DECLARED_DEPENDENCIES = Map.of(
+            "extraction", List.of("ledger", "corpus"),
+            "deliverable", List.of("ledger", "synthesis"));
 
     /**
      * The capability modules, derived rather than re-listed: the recorded eight less {@code ledger},
@@ -162,7 +166,7 @@ class ModuleBoundariesTest {
 
         claim(
                 "every capability module present declares exactly what is recorded for it -- ledger,"
-                        + " and for extraction the one horizontal exception in the tree; one named here has"
+                        + " and for extraction and the tree's module the two horizontal exceptions in the tree; one named here has"
                         + " been widened beyond that, and the profile is the dependency that would be"
                         + " reached for first -- the values a pass is switched on and off by are read where"
                         + " the passes are assembled and handed down as plain numbers and paths, never read"
@@ -184,8 +188,31 @@ class ModuleBoundariesTest {
                         .toList();
 
         claim(
-                "every module found in the application is one of the eight the architecture defines;"
-                        + " one named here is a module nobody decided on",
+                "every module found in the application is one of the " + RECORDED_MODULES.size() + " the"
+                        + " architecture defines; one named here is a module nobody decided on",
                 () -> assertThat(unrecorded).isEmpty());
+    }
+
+    /**
+     * The tree the operator is handed is drawn by a module of its own, which no stage's version names, so a page
+     * drawn differently asks the model nothing again (ADR-274 §4, §5).
+     */
+    @Test
+    @Story("The boundary rule holds for every module")
+    @DisplayName("The tree the operator is handed is drawn by a module of its own, which may read the writing's records")
+    @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+    void theDeliverableIsAModuleOfItsOwn() {
+        List<List<String>> declared = MODULES.stream()
+                .filter(module -> "deliverable".equals(module.getIdentifier().toString()))
+                .map(module -> module.getBasePackage()
+                        .getAnnotation(ApplicationModule.class)
+                        .map(declaration -> List.of(declaration.allowedDependencies()))
+                        .orElse(List.of()))
+                .toList();
+
+        claim(
+                "there is one module that draws the tree, and it declares the ledger and the module whose records it"
+                        + " draws, and nothing else",
+                () -> assertThat(declared).containsExactly(List.of("ledger", "synthesis")));
     }
 }

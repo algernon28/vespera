@@ -326,6 +326,7 @@ class RunIdentityGoldenTest {
     @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
     @Issue("479")
     @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
+    @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
     void generation() {
         Map<String, Object> run = theRunOf("generation");
 
@@ -343,12 +344,12 @@ class RunIdentityGoldenTest {
                                         + "\"contextWindow\":8192,\"replyAllowance\":1024,\"numKeep\":-1}")
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("arrangement"))));
         claim(
-                "and its code version is the synthesis module's, then extraction's, then embedding's, then the"
-                        + " profile module's, which reads every key the index states off the profile, and not"
-                        + " the version of the code that runs the stages, which holds nothing that decides"
-                        + " what this one writes",
+                "and its code version is the synthesis module's, then extraction's, then embedding's: the code"
+                        + " that decides what it asks and keeps, and not the code that draws the pages from it,"
+                        + " the profile's rule for the keys the index states among them, nor the code that runs"
+                        + " the stages, which holds nothing that decides what this one writes",
                 () -> assertThat(run.get("implementation_version"))
-                        .isEqualTo("synthesis+extraction+embedding+profile"));
+                        .isEqualTo("synthesis+extraction+embedding"));
     }
 
     /**

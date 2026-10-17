@@ -7,7 +7,7 @@ import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.synthesis.Arrangement;
 import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.Clusters;
-import io.algernon.vespera.synthesis.Deliverable;
+import io.algernon.vespera.deliverable.Deliverable;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.algernon.vespera.synthesis.SynthesisStatement;
 import io.qameta.allure.Epic;
@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
 
-    private static final String SYNTHESIS = "io.algernon.vespera.synthesis.";
+    private static final String DELIVERABLE = "io.algernon.vespera.deliverable.";
 
     private static final String PIPELINE = "io.algernon.vespera.pipeline.";
 
@@ -89,8 +89,8 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
                 () -> assertThat(methodsNamed(Deliverable.class, "writeTo"))
                         .anySatisfy(method -> assertThat(Arrays.stream(method.getParameterTypes()).map(Class::getSimpleName))
                                 .contains("ArrangedSurvivors")));
-        Class<?> indexPage = Class.forName(SYNTHESIS + "IndexPage");
-        Class<?> manifest = Class.forName(SYNTHESIS + "ManifestCsv");
+        Class<?> indexPage = Class.forName(DELIVERABLE + "IndexPage");
+        Class<?> manifest = Class.forName(DELIVERABLE + "ManifestCsv");
         claim(
                 "the index and the listing are appended to as their rows come: neither composes its whole file,"
                         + " and the index no longer gathers every group or every exemplar's path into a map",
@@ -98,7 +98,7 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
                     assertThat(namesOf(indexPage.getDeclaredMethods())).doesNotContain("contents", "partitions", "seedPaths");
                     assertThat(namesOf(manifest.getDeclaredMethods())).doesNotContain("contents");
                 });
-        Class<?> entryPictures = Class.forName(SYNTHESIS + "EntryPictures");
+        Class<?> entryPictures = Class.forName(DELIVERABLE + "EntryPictures");
         claim(
                 "the pass that finds which pictures recur is fed its documents by the same source, not a list",
                 () -> assertThat(methodsNamed(entryPictures, "among"))

@@ -36,7 +36,7 @@ Getting from a folder of documents to a curated archive takes **five invocations
 | **2** | `boilerplateDocumentFrequencyFloor`, `embeddingModel` | `vespera run` | deduplicates, reads your seed folder, scores every survivor against it, groups them, and writes you sixty documents to judge. **Removes nothing** |
 | **3** | sixty answers in `relevance-labels.yaml` | `vespera label` | records your answers. They belong to the documents, not to the run, so they survive everything afterwards |
 | **4** | `relevanceScoreFloor` | `vespera run` | applies your threshold. This is the first invocation that removes anything for being irrelevant |
-| **5** | `arrangementApproved` | `vespera run` | writes the connecting text over the arrangement you approved, and leaves the finished tree of Markdown in your working directory |
+| **5** | `arrangementApproved` | `vespera run` | writes the connecting text over the arrangement you approved, and leaves the finished tree of HTML pages, with a copy of every surviving document, in your working directory |
 
 **You will be told which value is missing, every time.** You do not need this table in front of you and you do not need to know which stage you are at — read the last line of the output and it names what to set next.
 
@@ -138,8 +138,10 @@ relevance-labelling.html         the report you read to choose the threshold
 relevance-labels.yaml            the sixty questions you answer
 cluster-sizes.html               how the survivors grouped under each exemplar
 arrangement.html                 the groups, named and in order, for you to approve
-deliverable/<run>/index.md       what was written, group by group, and what produced it
-deliverable/<run>/documents.csv  every surviving document, with its place in the order
+deliverable/<run>/index.html     what was written, group by group, and what produced it, opened when written
+deliverable/<run>/documents.csv  every surviving document, with its place in the order and its copy
+deliverable/<run>/documents/     a checked copy of every surviving document the tree lists
+deliverable/<run>/<exemplar>/<group>.html  one page per group
 ```
 
 A `vespera.log` an earlier version wrote at the top of the working directory, with the files it rolled into, stays there, and so do accounts written to a folder `vespera.account-dir` named: Vespera moves nothing. Move or delete them yourself.
@@ -272,8 +274,8 @@ When `compose.yaml` has changed since you started the sidecars, for example afte
 
 ## Where the run ends
 
-Approving the arrangement is the last thing you are asked for. The fifth invocation writes the connecting text over each group and leaves you a tree of Markdown in your working directory: an index and a listing of every surviving document at its root, and beneath it one directory per exemplar holding one file per group, each named and placed the way you approved them.
+Approving the arrangement is the last thing you are asked for. The fifth invocation writes the connecting text over each group and leaves you a tree of HTML pages in your working directory: `index.html`, a listing of every surviving document, `documents.csv`, and a folder `documents/` holding a copy of each at its root, and beneath it one directory per exemplar holding one page per group, each named and placed the way you approved them. Each copy is made byte for byte from your archive and checked against the digest taken when the document was converted; one changed or gone since then, or one the drive had no room left for, is not copied, and its entry and its row in `documents.csv` say why. Every invocation that reaches the tree draws it again, without asking the model anything, and makes the copies still missing. It opens `index.html` in your default browser once the tree is written, and its last line names it: *The deliverable is at `<path>/index.html`, with N groups left unwritten and M documents not copied.*
 
-A group's file opens with the heading written for it, carries the prose with every citation resolved into a link to that document's numbered place in the list below, and then lists the group entire — including the documents the writing never mentioned. Each entry in that list links to the original where it already sits in your archive, so a sentence you doubt is two clicks from the document behind it. Where a group was written from part of its documents, the page says so and names both numbers. Where an answer was turned down, the group keeps its place and its file says plainly that nothing was written over it, rather than leaving a gap you have to notice.
+A group's page opens with the heading written for it, carries the prose with every citation resolved into a link to that document's numbered place in the list below, and then lists the group entire — including the documents the writing never mentioned. Each entry in that list links to its document's copy inside the tree, so a sentence you doubt is two clicks from the document behind it, and the tree can be carried elsewhere and opened with every link still working. Where a group was written from part of its documents, the page says so and names both numbers. Where an answer was turned down, the group keeps its place and its page says plainly that nothing was written over it, rather than leaving a gap you have to notice.
 
-Those files are where Vespera stops. It does not turn them into a wiki, a site or a page anywhere, and it does not upload or send them (ADR-101). Your archive is untouched throughout: the tree links to your documents where they already sit and copies none of them (ADR-104). What you do with any of it is yours.
+Those files are where Vespera stops. It does not turn them into a wiki, a site or a page anywhere, and it does not upload or send them (ADR-101). Your archive is untouched throughout: each document is opened only to be read and copied, and nothing is written there (ADR-274). What you do with any of it is yours.

@@ -74,7 +74,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
     private static final String A_VERDICT_KIND = "io/algernon/vespera/ledger/VerdictKind";
 
     /** How the class that writes the deliverable is written inside a compiled class that calls it. */
-    private static final String THE_DELIVERABLE = "io/algernon/vespera/synthesis/Deliverable";
+    private static final String THE_DELIVERABLE = "io/algernon/vespera/deliverable/Deliverable";
 
     /**
      * ADR-222's allowance: the classes of {@code pipeline} that hold a rule, by the persisted name of the
@@ -233,12 +233,12 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
     private static final Set<String> NAMING_THE_DELIVERABLE = Set.of("GenerationTasklet", "NextAction");
 
     /**
-     * A type of one of the five capability modules or of {@code profile}, as a compiled class writes it,
+     * A type of one of the six capability modules or of {@code profile}, as a compiled class writes it,
      * read up to the first character that is not a letter, a digit or an underscore: a nested type answers
-     * for the type it is nested in.
+     * for the type it is nested in. {@code deliverable} is among them since ADR-274.
      */
     private static final Pattern A_CAPABILITY_TYPE = Pattern.compile(
-            "io/algernon/vespera/(corpus|extraction|similarity|embedding|synthesis|profile)/(\\w+)");
+            "io/algernon/vespera/(corpus|extraction|similarity|embedding|synthesis|deliverable|profile)/(\\w+)");
 
     /**
      * The classes that run content census, content redundancy, both runs of stage 5, arrangement and
@@ -440,11 +440,20 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "extraction.ExtractorIdentity",
                             "extraction.LeadingChunks",
                             "extraction.PicturePlace",
+                            "deliverable.ArrangedSurvivors",
+                            "deliverable.Deliverable",
+                            "deliverable.DeliverableProgress",
+                            "deliverable.DeliverableProvenance",
+                            "deliverable.ListedPartition",
+                            "deliverable.ListedPicture",
+                            "deliverable.ListedPicturePlace",
+                            "deliverable.ListedSurvivor",
+                            "deliverable.NamedValue",
+                            "deliverable.SurvivorPictures",
                             "profile.Profile",
                             "profile.ProfileStore",
                             "synthesis.ArrangedCluster",
                             "synthesis.ArrangedPartition",
-                            "synthesis.ArrangedSurvivors",
                             "synthesis.ClusterExemplars",
                             "synthesis.ClusterFault",
                             "synthesis.ClusterFaultKind",
@@ -453,20 +462,11 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "synthesis.ClusterMaterial",
                             "synthesis.ClusterSlot",
                             "synthesis.Clusters",
-                            "synthesis.Deliverable",
-                            "synthesis.DeliverableProgress",
-                            "synthesis.DeliverableProvenance",
                             "synthesis.GenerationOutcome",
                             "synthesis.GenerationProgress",
-                            "synthesis.ListedPartition",
-                            "synthesis.ListedPicture",
-                            "synthesis.ListedPicturePlace",
-                            "synthesis.ListedSurvivor",
-                            "synthesis.NamedValue",
                             "synthesis.OpeningChunk",
                             "synthesis.OpeningText",
                             "synthesis.RecordedCluster",
-                            "synthesis.SurvivorPictures",
                             "synthesis.SynthesisDocs",
                             "synthesis.SynthesisStatement",
                             "synthesis.Unwritten")),
