@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,7 +48,7 @@ import org.junit.jupiter.params.provider.EnumSource;
  * Deliverable#NOTHING_WAS_WRITTEN_OVER_IT} is both halves of that split on one line and is claimed
  * as such below.
  */
-@Epic("Synthesis")
+@Epic("The deliverable")
 @Feature("The tree the operator is handed")
 @Issue("186")
 @Link(name = "ADR-103", url = Adr.THE_DELIVERABLE_IS_A_MARKDOWN_TREE_PER_RUN, type = "adr")

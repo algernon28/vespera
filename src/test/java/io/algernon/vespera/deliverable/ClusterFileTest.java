@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,7 +60,7 @@ import org.junit.jupiter.api.io.TempDir;
  * one of that record's outside-facing surfaces, so every word a reader meets in it uses the plain
  * word, while every name here that is ours does not.
  */
-@Epic("Synthesis")
+@Epic("The deliverable")
 @Feature("The page a group is read on")
 @Issue("187")
 @Link(name = "ADR-103", url = Adr.THE_DELIVERABLE_IS_A_MARKDOWN_TREE_PER_RUN, type = "adr")

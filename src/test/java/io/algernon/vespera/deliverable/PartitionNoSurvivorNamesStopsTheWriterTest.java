@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -7,6 +7,9 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
+import io.algernon.vespera.synthesis.ArrangedCluster;
+import io.algernon.vespera.synthesis.ClusterLabel;
+import io.algernon.vespera.synthesis.RecordedCluster;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -36,7 +39,7 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p>Pure: the tree goes into a temporary directory and no database is used.
  */
-@Epic("Synthesis")
+@Epic("The deliverable")
 @Feature("The tree the operator is handed")
 @Issue("351")
 @Issue("472")
@@ -93,7 +96,7 @@ class PartitionNoSurvivorNamesStopsTheWriterTest {
         claim(
                 "nothing was written: the tree's own directory was never made, so there is no directory for the"
                         + " first partition, which is named and comes before the refused one, no page, no"
-                        + " index.md, no documents.csv and no file left half written beside either",
+                        + " index.html, no documents.csv, no copy and no file left half written beside either",
                 () -> assertThat(tree)
                         .as("the tree's directory after the writer stopped")
                         .doesNotExist());

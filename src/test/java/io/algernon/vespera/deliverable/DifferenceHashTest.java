@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
  * <p>The images are built here and encoded as PNG, which is lossless, so the pixels the hash reads are
  * exactly the ones written (ADR-063).
  */
-@Epic("Synthesis")
+@Epic("The deliverable")
 @Feature("The pictures a document carries")
 @Issue("286")
 @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")

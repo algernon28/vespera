@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -6,6 +6,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
+import io.algernon.vespera.synthesis.ArrangedCluster;
+import io.algernon.vespera.synthesis.ClusterLabel;
+import io.algernon.vespera.synthesis.ListedDoc;
+import io.algernon.vespera.synthesis.RecordedCluster;
+import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -28,18 +33,19 @@ import org.junit.jupiter.api.io.TempDir;
  * files and the membership entries are announced, the last two summed across the partitions; then each
  * membership entry with a document is reported after its pictures, each cluster file after its entries, and
  * each partition after its files. An entry for a document the call carried that the cluster no longer holds
- * reads no picture and is not counted.
+ * reads no picture and is not counted. Since ADR-273 §2.5 the copies about to be made are announced once the
+ * pictures are listed, and a partition's copies are made, each reported by its outcome, before its pages.
  *
  * <p>The furniture rules compute over pictures already in memory and are not counted (ADR-192 section 7).
  *
- * <p><b>Part (d) of ADR-192.</b> Does not compile until {@code DeliverableProgress} and the overload of {@code
- * writeTo} exist; part (d) moves it into {@code src/test}. Pure: the tree is written into a temporary directory
- * and no database is used.
+ * <p>Pure: the tree is written into a temporary directory, over an archive that is not there, and no database is
+ * used.
  */
-@Epic("Synthesis")
+@Epic("The deliverable")
 @Feature("Progress reporting")
 @Issue("412")
 @Link(name = "ADR-192", url = Adr.EVERY_LOOP_REPORTS_ITS_PROGRESS, type = "adr")
+@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class DeliverableProgressTest {
 
     private static final String RUN_ID = "c".repeat(48) + "0123456789abcdef";
@@ -80,15 +86,20 @@ class DeliverableProgressTest {
                 "the four survivors are asked for their pictures once each, before anything else is written",
                 () -> assertThat(events.subList(0, 5)).containsExactly("to-list 4", "listed", "listed", "listed", "listed"));
         claim(
+                "then the copies about to be made are announced once: all four, none standing, whose originals'"
+                        + " sizes could not be read and so count as no bytes",
+                () -> assertThat(events.subList(5, 6)).containsExactly("to-copy 4 of 0 bytes"));
+        claim(
                 "then the partitions, the cluster files and the entries are each announced once, the files and the"
                         + " entries as their sums across the two partitions, three and four",
-                () -> assertThat(events.subList(5, 8)).containsExactly("to-partitions 2", "to-files 3", "to-entries 4"));
+                () -> assertThat(events.subList(6, 9)).containsExactly("to-partitions 2", "to-files 3", "to-entries 4"));
         claim(
-                "and each entry is reported before its file, and each file before its partition",
-                () -> assertThat(events.subList(8, events.size()))
+                "and within each partition its copies come before its pages, each gone since the archive is not"
+                        + " there, each entry is reported before its file, and each file before its partition",
+                () -> assertThat(events.subList(9, events.size()))
                         .containsExactly(
-                                "entry", "file", "entry", "entry", "file", "partition",
-                                "entry", "file", "partition"));
+                                "gone", "gone", "gone", "entry", "file", "entry", "entry", "file", "partition",
+                                "gone", "entry", "file", "partition"));
     }
 
     @Test
@@ -114,8 +125,8 @@ class DeliverableProgressTest {
                         + " entry with a document is announced and reported",
                 () -> assertThat(events)
                         .containsExactly(
-                                "to-list 1", "listed", "to-partitions 1", "to-files 1", "to-entries 1",
-                                "entry", "file", "partition"));
+                                "to-list 1", "listed", "to-copy 1 of 0 bytes", "to-partitions 1", "to-files 1",
+                                "to-entries 1", "gone", "entry", "file", "partition"));
     }
 
     private static RecordedCluster cluster(
@@ -150,6 +161,41 @@ class DeliverableProgressTest {
             @Override
             public void picturesListed() {
                 events.add("listed");
+            }
+
+            @Override
+            public void toCopySurvivors(long survivors, long bytes, long usableBytes) {
+                events.add("to-copy " + survivors + " of " + bytes + " bytes");
+            }
+
+            @Override
+            public void survivorCopied(long bytes) {
+                events.add("copied");
+            }
+
+            @Override
+            public void survivorAlreadyCopied() {
+                events.add("already copied");
+            }
+
+            @Override
+            public void survivorChanged() {
+                events.add("changed");
+            }
+
+            @Override
+            public void survivorGone() {
+                events.add("gone");
+            }
+
+            @Override
+            public void survivorWithNoRoom() {
+                events.add("no room");
+            }
+
+            @Override
+            public void survivorNotCopied() {
+                events.add("not copied");
             }
 
             @Override

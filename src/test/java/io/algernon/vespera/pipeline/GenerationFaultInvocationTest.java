@@ -13,7 +13,7 @@ import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.synthesis.ClusterFaultKind;
 import io.algernon.vespera.synthesis.ClusterFaults;
-import io.algernon.vespera.synthesis.Deliverable;
+import io.algernon.vespera.deliverable.Deliverable;
 import io.algernon.vespera.synthesis.ListedFault;
 import io.algernon.vespera.synthesis.ListedDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
@@ -151,10 +151,10 @@ class GenerationFaultInvocationTest {
     private static final String A_TITLE = "What The Two Stubbed Documents Have In Common";
 
     /** The plain line a page carried before it said why, and which the index cell still carries (ADR-174 §3). */
-    private static final String THE_LINE_THE_REASON_REPLACES = "*nothing was written over this group*";
+    private static final String THE_LINE_THE_REASON_REPLACES = "<em>nothing was written over this group</em>";
 
     /** The heading the membership list sits under on every group's page, written or not (ADR-104). */
-    private static final String THE_MEMBERSHIP_HEADING = "## The documents in this group";
+    private static final String THE_MEMBERSHIP_HEADING = "<h2>The documents in this group</h2>";
 
     /**
      * An answer that reads back perfectly well and carries no writing: a title arrived, and the
@@ -1223,7 +1223,7 @@ class GenerationFaultInvocationTest {
                         + " carries no link",
                 () -> assertThat(UnwrittenPage.indexRowFor(tree, theOnlyCluster()))
                         .contains(THE_LINE_THE_REASON_REPLACES)
-                        .doesNotContain("]("));
+                        .doesNotContain("<a "));
         claim(
                 "and the listing of documents beside the index carries none of the sentences: it is read"
                         + " by machine, and its columns are what they were",

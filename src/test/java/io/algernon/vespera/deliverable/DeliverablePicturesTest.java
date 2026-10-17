@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -56,7 +56,7 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p><b>The report says <em>group</em> and the code says <em>cluster</em></b> (ADR-122).
  */
-@Epic("Synthesis")
+@Epic("The deliverable")
 @Feature("The pictures a document carries")
 @Issue("285")
 @Link(name = "ADR-149", url = Adr.A_SURVIVORS_PICTURES_REACH_ITS_CLUSTER_FILE, type = "adr")

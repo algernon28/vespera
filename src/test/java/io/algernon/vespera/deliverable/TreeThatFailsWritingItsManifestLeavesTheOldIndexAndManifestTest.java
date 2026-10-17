@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,7 +35,7 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p>Pure: no database.
  */
-@Epic("Synthesis")
+@Epic("The deliverable")
 @Feature("The tree the operator is handed")
 @Issue("472")
 @Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")

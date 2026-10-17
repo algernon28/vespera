@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,7 +31,7 @@ import org.junit.jupiter.api.io.TempDir;
  * for the same cluster, writing and members, with the page four directories below the parent of the
  * archive, as every page of a tree is.
  */
-@Epic("Synthesis")
+@Epic("The deliverable")
 @Feature("The page a group is read on")
 @Issue("351")
 @Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")

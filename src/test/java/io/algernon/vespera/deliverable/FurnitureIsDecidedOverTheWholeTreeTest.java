@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,7 +36,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>Pure: no database, and no file.
  */
-@Epic("Synthesis")
+@Epic("The deliverable")
 @Feature("The pictures a document carries")
 @Issue("472")
 @Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")
@@ -77,7 +77,8 @@ class FurnitureIsDecidedOverTheWholeTreeTest {
                     asked.add(survivor.occurrence());
                     return picturesOf(survivor.occurrence());
                 },
-                DeliverableProgress.NONE);
+                DeliverableProgress.NONE,
+                page -> {});
 
         claim(
                 "each of the eleven documents was asked for its pictures once, in the order they were first"

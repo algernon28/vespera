@@ -1,4 +1,4 @@
-package io.algernon.vespera.pipeline;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,22 +18,22 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The rules every sentence ADR-174 fixes is held to, checked over the sentences themselves so a
- * later edit to one cannot break a rule the invocation tests would only meet on the page it lands on.
+ * The rules every sentence ADR-174 fixes is held to, checked over the sentences themselves so a later edit to one
+ * cannot break a rule the invocation tests would only meet on the page it lands on. The sentences are written by
+ * {@code deliverable}'s {@link UnwrittenSentences} since ADR-273 §4; {@code Unwritten} stays a reason with no words.
  *
- * <p>These hold today and are meant to: they guard the wording, while {@link
- * GenerationFaultInvocationTest} and {@link GenerationBreakerInvocationTest} are where the page is
- * held to it.
+ * <p>These hold today and are meant to: they guard the wording, while {@code GenerationFaultInvocationTest} and
+ * {@code GenerationBreakerInvocationTest} are where the page is held to it.
  *
- * <p><b>Three words are refused because a re-run can make them false</b> (ADR-174 §5, ADR-111): the
- * page is written again by every invocation that reaches the writing, so a sentence about this run is
- * replaced by the writing once a repair pass gets it, and a sentence saying the gap was permanent
- * would have been false the day it was written.
+ * <p><b>Three words are refused because a re-run can make them false</b> (ADR-174 §5, ADR-111): the page is written
+ * again by every invocation that reaches the writing, so a sentence about this run is replaced by the writing once a
+ * repair pass gets it, and a sentence saying the gap was permanent would have been false the day it was written.
  */
-@Epic("Synthesis")
+@Epic("The deliverable")
 @Feature("The tree the operator is handed")
 @Issue("325")
 @Link(name = "ADR-174", url = Adr.A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY, type = "adr")
+@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class UnwrittenPageWordingTest {
 
     /** Words a sentence about one run may not use, since running again can make each one false. */
@@ -45,8 +45,7 @@ class UnwrittenPageWordingTest {
     /** How many cases the record gives a sentence: four kinds of fault, and three cases with no row. */
     private static final int SEVEN_CASES = 7;
 
-    /** How many asterisks a line of emphasis carries: the one that opens it and the one that closes it. */
-    private static final long ONE_PAIR_OF_ASTERISKS = 2L;
+    private static final List<String> EVERY_SENTENCE = UnwrittenSentencesOnRecord.EVERY_SENTENCE;
 
     @Test
     @Story("A page with nothing written on it says why, in words a reader of the tree can follow")
@@ -56,12 +55,12 @@ class UnwrittenPageWordingTest {
                 "there are " + SEVEN_CASES + " sentences, one for each way a group can end up with nothing"
                         + " written over it, and no two are the same: a reader who meets one has to be able"
                         + " to tell which case it was without the database",
-                () -> assertThat(UnwrittenPage.EVERY_SENTENCE).hasSize(SEVEN_CASES).doesNotHaveDuplicates());
+                () -> assertThat(EVERY_SENTENCE).hasSize(SEVEN_CASES).doesNotHaveDuplicates());
         claim(
                 "and every way an answer can be turned down has one of the four that say so",
-                () -> assertThat(Arrays.stream(ClusterFaultKind.values()).map(UnwrittenPage::forKind))
+                () -> assertThat(Arrays.stream(ClusterFaultKind.values()).map(UnwrittenSentencesOnRecord::forKind))
                         .doesNotHaveDuplicates()
-                        .allSatisfy(sentence -> assertThat(UnwrittenPage.EVERY_SENTENCE).contains(sentence)));
+                        .allSatisfy(sentence -> assertThat(EVERY_SENTENCE).contains(sentence)));
     }
 
     @Test
@@ -72,22 +71,22 @@ class UnwrittenPageWordingTest {
                 "the code's sentence for every way an answer can be turned down is the record's, word for"
                         + " word, and a new way of turning one down cannot be added without one",
                 () -> assertThat(ClusterFaultKind.values()).allSatisfy(kind -> assertThat(
-                                Unwritten.of(kind).sentence())
-                        .isEqualTo(UnwrittenPage.forKind(kind))));
+                                UnwrittenSentences.of(Unwritten.of(kind)))
+                        .isEqualTo(UnwrittenSentencesOnRecord.forKind(kind))));
         claim(
                 "and so is its sentence for each of the three cases no reason is recorded for",
                 () -> {
-                    assertThat(Unwritten.NO_SENDABLE_DOCUMENT.sentence())
-                            .isEqualTo(UnwrittenPage.NO_DOCUMENT_COULD_BE_SENT);
-                    assertThat(Unwritten.NOTHING_FITS_THE_WINDOW.sentence())
-                            .isEqualTo(UnwrittenPage.NO_DOCUMENT_FITS_THE_ROOM);
-                    assertThat(Unwritten.NOT_REACHED.sentence())
-                            .isEqualTo(UnwrittenPage.WRITING_STOPPED_BEFORE_IT);
+                    assertThat(UnwrittenSentences.of(Unwritten.NO_SENDABLE_DOCUMENT))
+                            .isEqualTo(UnwrittenSentencesOnRecord.NO_DOCUMENT_COULD_BE_SENT);
+                    assertThat(UnwrittenSentences.of(Unwritten.NOTHING_FITS_THE_WINDOW))
+                            .isEqualTo(UnwrittenSentencesOnRecord.NO_DOCUMENT_FITS_THE_ROOM);
+                    assertThat(UnwrittenSentences.of(Unwritten.NOT_REACHED))
+                            .isEqualTo(UnwrittenSentencesOnRecord.WRITING_STOPPED_BEFORE_IT);
                 });
         claim(
                 "and the code has no sentence the record does not",
-                () -> assertThat(Arrays.stream(Unwritten.values()).map(Unwritten::sentence))
-                        .containsExactlyInAnyOrderElementsOf(UnwrittenPage.EVERY_SENTENCE));
+                () -> assertThat(Arrays.stream(Unwritten.values()).map(UnwrittenSentences::of))
+                        .containsExactlyInAnyOrderElementsOf(EVERY_SENTENCE));
     }
 
     @Test
@@ -98,8 +97,7 @@ class UnwrittenPageWordingTest {
                 "no sentence says permanent, never or always: each describes what happened in this run,"
                         + " and the next run over the same settings writes the page again, so a gap called"
                         + " permanent would be a false page the day a repair filled it",
-                () -> assertThat(UnwrittenPage.EVERY_SENTENCE).allSatisfy(sentence -> assertThat(
-                                sentence.toLowerCase(Locale.ROOT))
+                () -> assertThat(EVERY_SENTENCE).allSatisfy(sentence -> assertThat(sentence.toLowerCase(Locale.ROOT))
                         .doesNotContain(WORDS_A_RE_RUN_CAN_MAKE_FALSE)));
     }
 
@@ -110,36 +108,32 @@ class UnwrittenPageWordingTest {
         claim(
                 "no sentence carries the name the code gives a reason, since a reader of the tree has no"
                         + " way to look one up",
-                () -> assertThat(UnwrittenPage.EVERY_SENTENCE).allSatisfy(sentence -> assertThat(sentence)
+                () -> assertThat(EVERY_SENTENCE).allSatisfy(sentence -> assertThat(sentence)
                         .doesNotContain(Arrays.stream(ClusterFaultKind.values())
                                 .map(Enum::name)
                                 .toList())));
         claim(
                 "and every sentence says group rather than the word the code uses, which to that reader"
                         + " means a set of things that are all alike",
-                () -> assertThat(UnwrittenPage.EVERY_SENTENCE).allSatisfy(sentence -> assertThat(sentence)
+                () -> assertThat(EVERY_SENTENCE).allSatisfy(sentence -> assertThat(sentence)
                         .contains("group")
                         .doesNotContainIgnoringCase(OUR_OWN_WORD)));
     }
 
     @Test
     @Story("A page with nothing written on it says why, in words a reader of the tree can follow")
-    @DisplayName("Every sentence is one line of emphasis, as the line it replaces was")
-    void keepsTheShapeOfTheLineItReplaces() {
+    @DisplayName("Every sentence is one plain line of text, which the page shows in italics")
+    void isOnePlainLineOfText() {
         claim(
-                "each sentence is a single line wrapped in one pair of asterisks, the shape the line it"
-                        + " replaces has, so it renders as a paragraph of emphasis and nothing inside it"
-                        + " opens a second one",
-                () -> assertThat(UnwrittenPage.EVERY_SENTENCE).allSatisfy(sentence -> assertThat(sentence)
-                        .startsWith("*")
-                        .endsWith(".*")
-                        .doesNotContain("\n")
-                        .satisfies(s -> assertThat(s.chars().filter(c -> c == '*').count())
-                                .isEqualTo(ONE_PAIR_OF_ASTERISKS))));
+                "each sentence is a single line ending in a full stop, with no asterisk: the page puts it in"
+                        + " italics itself, and the asterisks Markdown wanted would show as typed",
+                () -> assertThat(EVERY_SENTENCE).allSatisfy(sentence -> assertThat(sentence)
+                        .endsWith(".")
+                        .doesNotContain("\n", "*")));
         claim(
-                "and no sentence carries a link or anything a renderer could read as one, so the tree"
-                        + " still needs no database and no network to read",
-                () -> assertThat(UnwrittenPage.EVERY_SENTENCE).allSatisfy(sentence -> assertThat(sentence)
-                        .doesNotContain("[", "]", "(", ")", "<", ">", "`", "|", "&", "\\")));
+                "and no sentence carries a link or anything markup could be made of, so the tree still needs no"
+                        + " database and no network to read",
+                () -> assertThat(EVERY_SENTENCE).allSatisfy(sentence -> assertThat(sentence)
+                        .doesNotContain("[", "]", "(", ")", "<", ">", "`", "|", "&", "\\", "_")));
     }
 }

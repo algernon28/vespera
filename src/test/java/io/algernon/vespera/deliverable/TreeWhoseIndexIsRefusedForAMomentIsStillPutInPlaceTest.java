@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,7 +33,7 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>Pure: no database, and no Windows. The move is stood in for by one refused as Windows refuses it, and the
  * waits between attempts are counted and not slept.
  */
-@Epic("Synthesis")
+@Epic("The deliverable")
 @Feature("The tree the operator is handed")
 @Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")
 @Link(name = "ADR-242", url = Adr.A_MOVE_REFUSED_AS_ACCESS_DENIED_IS_ATTEMPTED_AGAIN, type = "adr")

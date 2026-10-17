@@ -5,13 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
-import io.algernon.vespera.ledger.OccurrencePath;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -37,20 +35,16 @@ class ClusterSlotTest {
 
     @Test
     @Story("One key names a cluster")
-    @DisplayName("A cluster and each of its members give the same key")
-    void everyValueOfOneClusterGivesOneKey() {
-        ClusterSlot expected = new ClusterSlot(THE_SEED, THE_ORDINAL);
-
+    @DisplayName("A cluster gives the key of its seed and its ordinal")
+    void anArrangedClusterGivesItsKey() {
         // A synthesis doc and a fault no longer travel with their cluster's identity: since ADR-223 each is
-        // asked for by this key, so the key is what the asker already holds and nothing reads one off them.
+        // asked for by this key, so the key is what the asker already holds and nothing reads one off them. A
+        // survivor's key is the tree's, read by ListedSurvivor.slot in deliverable (ADR-273 §4), and held there.
         claim(
-                "the arranged cluster and a survivor in it each give the key of seed 1, ordinal 4, so a"
-                        + " survivor is lined up with its cluster, and the cluster's writing and fault are"
-                        + " asked for, by one key",
-                () -> assertThat(List.of(
-                                ClusterSlot.of(arranged(THE_SEED, THE_ORDINAL)),
-                                ClusterSlot.of(member(THE_SEED, THE_ORDINAL))))
-                        .containsOnly(expected));
+                "the arranged cluster gives the key of seed 1, ordinal 4, by which its writing and its fault are"
+                        + " asked for",
+                () -> assertThat(ClusterSlot.of(arranged(THE_SEED, THE_ORDINAL)))
+                        .isEqualTo(new ClusterSlot(THE_SEED, THE_ORDINAL)));
     }
 
     @Test
@@ -64,8 +58,8 @@ class ClusterSlotTest {
                         .isNotEqualTo(ClusterSlot.of(arranged(THE_SEED, THE_ORDINAL))));
         claim(
                 "another ordinal under the same seed is another cluster",
-                () -> assertThat(ClusterSlot.of(member(THE_SEED, ANOTHER_ORDINAL)))
-                        .isNotEqualTo(ClusterSlot.of(member(THE_SEED, THE_ORDINAL))));
+                () -> assertThat(ClusterSlot.of(arranged(THE_SEED, ANOTHER_ORDINAL)))
+                        .isNotEqualTo(ClusterSlot.of(arranged(THE_SEED, THE_ORDINAL))));
     }
 
     @Test
@@ -85,10 +79,5 @@ class ClusterSlotTest {
 
     private static RecordedCluster arranged(OccurrenceId seed, int ordinal) {
         return new RecordedCluster(new ArrangedCluster(seed, ordinal, 2, 1, 1), new ClusterLabel("Sprinklers"));
-    }
-
-    private static ListedSurvivor member(OccurrenceId seed, int ordinal) {
-        return new ListedSurvivor(
-                new OccurrenceId(10), new OccurrencePath("reports/a.pdf"), "h10", seed, "seeds/s.pdf", ordinal, 0.5);
     }
 }

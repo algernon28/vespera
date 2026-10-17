@@ -1,6 +1,13 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.ReplacingMove;
+import io.algernon.vespera.synthesis.ArrangedCluster;
+import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.ListedDoc;
+import io.algernon.vespera.synthesis.RecordedCluster;
+import io.algernon.vespera.synthesis.SynthesisDoc;
+import io.algernon.vespera.synthesis.Unwritten;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -9,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
@@ -132,7 +140,7 @@ public final class ListedArrangement {
                 workingDirectory, provenance, of(arrangement, written, survivors, unwritten), pictures, progress);
     }
 
-    /** {@code index.md} for these lists, whole: its opening lines, then each partition's heading and rows as the writer appends them. */
+    /** {@code index.html} for these lists, whole: its opening lines, then each partition's heading, rows and end as the writer appends them. */
     static String indexContents(
             DeliverableProvenance provenance,
             List<RecordedCluster> arrangement,
@@ -149,7 +157,9 @@ public final class ListedArrangement {
                     IndexPage.clusterRow(
                             index, partition, partitions.size(), recorded, source.writtenOver(ClusterSlot.of(recorded)));
                 }
+                IndexPage.partitionEnd(index);
             }
+            IndexPage.close(index);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -161,13 +171,23 @@ public final class ListedArrangement {
         return manifestContents(arrangement, survivors, Integer.MAX_VALUE);
     }
 
-    /** {@code documents.csv} for these lists, whole, its survivors handed over {@code survivorsInAPage} at a time. */
+    /**
+     * {@code documents.csv} for these lists, whole, its survivors handed over {@code survivorsInAPage} at a time,
+     * over an archive that is not there: every row's copy is {@code gone}, and its {@code copy} cell empty.
+     */
     static String manifestContents(
             List<RecordedCluster> arrangement, List<ListedSurvivor> survivors, int survivorsInAPage) {
         StringBuilder csv = new StringBuilder();
+        Path nowhere = Path.of(System.getProperty("java.io.tmpdir"), "no-archive-" + UUID.randomUUID());
+        Copies copies = new Copies(nowhere.resolve("tree"), nowhere.toString(), ReplacingMove.ATOMIC, () -> 0,
+                DeliverableProgress.NONE);
+        copies.copyAll(survivors);
         try {
             ManifestCsv.write(
-                    csv, of(arrangement, List.of(), survivors, Map.of(), survivorsInAPage), DeliverableProgress.NONE);
+                    csv,
+                    of(arrangement, List.of(), survivors, Map.of(), survivorsInAPage),
+                    DeliverableProgress.NONE,
+                    copies);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -177,7 +197,7 @@ public final class ListedArrangement {
     /** The furniture rule's first pass over these survivors, in one page. */
     static EntryPictures picturesAmong(
             List<ListedSurvivor> survivors, SurvivorPictures pictures, DeliverableProgress progress) {
-        return EntryPictures.among(of(List.of(), List.of(), survivors, Map.of()), pictures, progress);
+        return EntryPictures.among(of(List.of(), List.of(), survivors, Map.of()), pictures, progress, page -> {});
     }
 
     /**

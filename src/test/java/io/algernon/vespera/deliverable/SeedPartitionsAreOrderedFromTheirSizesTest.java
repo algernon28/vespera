@@ -1,10 +1,15 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.synthesis.ArrangedCluster;
+import io.algernon.vespera.synthesis.Arrangement;
+import io.algernon.vespera.synthesis.ClusteredDocument;
+import io.algernon.vespera.synthesis.Partition;
+import io.algernon.vespera.synthesis.RecordedCluster;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -24,10 +29,12 @@ import org.junit.jupiter.api.Test;
  * ordered at once.
  *
  * <p><b>The expected arrangement is the one the whole-run rule gave.</b> {@link ThreePartitions#arrangement()}
- * states the places of six clusters, and the program that captured {@link TheTreeWrittenFromLists} checked
- * them against {@code Arrangement.order(Arrangement.partitionsOf(...))} over the same eleven survivors at
- * {@code 5b0cc20}, the commit before ADR-223 was built: they were equal. That whole-run {@code order} is gone
- * with this record.
+ * states the places of six clusters, which were checked against {@code Arrangement.order(Arrangement.partitionsOf(...))}
+ * over the same eleven survivors at the commit before ADR-223 was built: they were equal. That whole-run {@code
+ * order} is gone with that record.
+ *
+ * <p>It lies beside {@link ThreePartitions}, which the tree's tests share and which moved with them to {@code
+ * deliverable} (ADR-273 §4); what it calls is {@code synthesis}'s public arrangement.
  *
  * <p>Pure: no database.
  */

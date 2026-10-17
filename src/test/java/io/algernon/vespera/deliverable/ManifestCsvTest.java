@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -7,6 +7,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
+import io.algernon.vespera.synthesis.ArrangedCluster;
+import io.algernon.vespera.synthesis.ClusterLabel;
+import io.algernon.vespera.synthesis.RecordedCluster;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -22,12 +25,13 @@ import org.junit.jupiter.api.Test;
  * parser rather than a reader (ADR-136 §5, ADR-137 §4).
  *
  * <p><b>The expected file is what {@code Deliverable.writeManifest} wrote at {@code 4b99a03}</b> for the
- * same arrangement and survivors.
+ * same arrangement and survivors, with the two columns ADR-273 §1.4 adds at its end: the archive is not there, so
+ * each copy is {@code gone} and names nothing.
  *
  * <p>Since ADR-223 the manifest is written a page of survivors at a time and nothing composes it whole, so the
  * lists here go through {@link ListedArrangement}, which hands them over as the tree's writer is handed them.
  */
-@Epic("Synthesis")
+@Epic("The deliverable")
 @Feature("The listing of every document the tree arranges")
 @Issue("351")
 @Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
@@ -48,12 +52,12 @@ class ManifestCsvTest {
 
     /** The whole file for {@link #anArrangement()} and {@link #itsSurvivors()}. */
     private static final String THE_MANIFEST = "occurrence_id,path,content_hash,winning_seed,relevance_score,"
-            + "seed_partition,cluster,partition_order,cluster_order\n"
-            + "10,reports/a.docx,h10,1,0.9,seeds/Fire & Safety [2019].docx,0,1,1\n"
-            + "11,\"reports/b, c.pdf\",h11,1,0.5,seeds/Fire & Safety [2019].docx,0,1,1\n"
-            + "14,reports/f.pdf,h14,1,0.6,seeds/Fire & Safety [2019].docx,0,1,1\n"
-            + "12,reports/d.pdf,h12,1,0.7,seeds/Fire & Safety [2019].docx,1,1,2\n"
-            + "13,reports/e.pdf,h13,1,0.7,seeds/Fire & Safety [2019].docx,1,1,2\n";
+            + "seed_partition,cluster,partition_order,cluster_order,copy,copy_outcome\n"
+            + "10,reports/a.docx,h10,1,0.9,seeds/Fire & Safety [2019].docx,0,1,1,,gone\n"
+            + "11,\"reports/b, c.pdf\",h11,1,0.5,seeds/Fire & Safety [2019].docx,0,1,1,,gone\n"
+            + "14,reports/f.pdf,h14,1,0.6,seeds/Fire & Safety [2019].docx,0,1,1,,gone\n"
+            + "12,reports/d.pdf,h12,1,0.7,seeds/Fire & Safety [2019].docx,1,1,2,,gone\n"
+            + "13,reports/e.pdf,h13,1,0.7,seeds/Fire & Safety [2019].docx,1,1,2,,gone\n";
 
     @Test
     @Story("The manifest lists every survivor with its cluster's place")

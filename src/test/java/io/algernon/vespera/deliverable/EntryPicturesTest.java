@@ -1,4 +1,4 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,17 +37,21 @@ import org.junit.jupiter.api.io.TempDir;
  * rather than {@code DeliverablePictures} so that the two test classes are not read as one another's
  * unit test (ADR-213 §1).
  *
- * <p><b>Every expected line here is what {@code Deliverable.appendPictures} wrote at {@code 4b99a03}</b>;
- * one file name is pinned as a literal, read off a tree that commit wrote.
+ * <p>Until ADR-273 every expected line here was Markdown that {@code Deliverable.appendPictures} wrote at {@code
+ * 4b99a03}; the lines are HTML now, a paragraph holding an {@code <img>}, and the file name pinned as a literal is
+ * still the one read off a tree that commit wrote. Retired with the Markdown: the indent that kept a picture inside
+ * a numbered entry, an entry being an {@code <li>} now, and the folding of a caption onto one line, an attribute
+ * keeping its line breaks.
  */
-@Epic("Synthesis")
+@Epic("The deliverable")
 @Feature("The pictures a document carries")
 @Issue("351")
 @Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
 @Link(name = "ADR-149", url = Adr.A_SURVIVORS_PICTURES_REACH_ITS_CLUSTER_FILE, type = "adr")
+@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class EntryPicturesTest {
 
-    /** The directory beside the page that its pictures are written to: the page's name without {@code .md}. */
+    /** The directory beside the page that its pictures are written to: the page's name without {@code .html}. */
     private static final String THE_PICTURE_DIRECTORY = "1-fire-suppression-retrofits";
 
     /** The bytes of a picture only one document carries. */
@@ -62,19 +66,13 @@ class EntryPicturesTest {
     /** The bytes of a picture Docling placed in a page header. */
     private static final byte[] IN_THE_HEADER = bytes("in the header");
 
-    /** The indent under a one-digit entry: the width of {@code "1. "}. */
-    private static final String UNDER_A_ONE_DIGIT_ENTRY = "   ";
-
-    /** The indent under a two-digit entry: the width of {@code "10. "}. */
-    private static final String UNDER_A_TWO_DIGIT_ENTRY = "    ";
-
     /** A caption carrying a link, an image, a tag, an entity, a code span, a backslash and a blank line. */
     private static final String A_HOSTILE_CAPTION =
             "Fig. 2 a]b ![x](https://example.com/i.png) <b>bold</b> &copy; `c` \\ end\n\nsecond line";
 
-    /** That caption as alt text: folded, then escaped by the membership entry's rule (ADR-149 §5). */
+    /** That caption as alt text: escaped by the one rule, its line breaks kept (ADR-149 §5, ADR-273 §1.3). */
     private static final String THAT_CAPTION_AS_ALT_TEXT =
-            "Fig. 2 a\\]b !\\[x\\](https://example.com/i.png) \\<b>bold\\</b> \\&copy; \\`c\\` \\\\ end second line";
+            "Fig. 2 a]b ![x](https://example.com/i.png) &lt;b&gt;bold&lt;/b&gt; &amp;copy; `c` \\ end\n\nsecond line";
 
     private static final ListedSurvivor FIRST = survivor(10, "reports/a.docx");
 
@@ -139,20 +137,20 @@ class EntryPicturesTest {
 
     @Test
     @Story("A picture only one document carries is shown under that document")
-    @DisplayName("A picture is written beside the page under its digest's name and shown, indented, under its entry")
+    @DisplayName("A picture is written beside the page under its digest's name and shown in its entry")
     void writesAPictureAndShowsItUnderTheEntry(@TempDir Path pageDirectory) throws IOException {
         EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST), source(Map.of(FIRST.occurrence(), List.of(png(A_DIAGRAM)))), DeliverableProgress.NONE);
         StringBuilder page = new StringBuilder();
 
-        pictures.appendUnder(page, FIRST, 1, pageDirectory, THE_PICTURE_DIRECTORY);
+        pictures.appendUnder(page, FIRST, pageDirectory, THE_PICTURE_DIRECTORY);
 
         claim(
-                "the entry gains one line, indented under a one-digit entry, showing the picture with empty alt"
-                        + " text from the page's picture directory under the name the deliverable gave it",
+                "the entry gains one paragraph showing the picture with empty alt text from the page's picture"
+                        + " directory under the name the deliverable gave it",
                 () -> assertThat(page.toString())
-                        .isEqualTo(UNDER_A_ONE_DIGIT_ENTRY + "![](" + THE_PICTURE_DIRECTORY + "/" + THE_DIAGRAMS_FILE
-                                + ")\n\n"));
+                        .isEqualTo("<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + THE_DIAGRAMS_FILE
+                                + "\" alt=\"\"></p>\n"));
         claim(
                 "the file holds the picture's own bytes, beside the page",
                 () -> assertThat(pageDirectory.resolve(THE_PICTURE_DIRECTORY).resolve(THE_DIAGRAMS_FILE))
@@ -171,7 +169,7 @@ class EntryPicturesTest {
                 DeliverableProgress.NONE);
         StringBuilder page = new StringBuilder();
 
-        pictures.appendUnder(page, SECOND, 2, pageDirectory, THE_PICTURE_DIRECTORY);
+        pictures.appendUnder(page, SECOND, pageDirectory, THE_PICTURE_DIRECTORY);
 
         claim(
                 "neither the shared logo nor the header picture is shown, nothing is said about them, and the"
@@ -184,7 +182,7 @@ class EntryPicturesTest {
 
     @Test
     @Story("A picture's alt text is the converter's caption or nothing")
-    @DisplayName("A caption becomes alt text folded onto one line and escaped by the membership entry's rule")
+    @DisplayName("A caption becomes alt text with every character markup could be made of escaped")
     void escapesTheCaptionAsAltText(@TempDir Path pageDirectory) throws IOException {
         EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST),
@@ -192,14 +190,15 @@ class EntryPicturesTest {
                 DeliverableProgress.NONE);
         StringBuilder page = new StringBuilder();
 
-        pictures.appendUnder(page, FIRST, 1, pageDirectory, THE_PICTURE_DIRECTORY);
+        pictures.appendUnder(page, FIRST, pageDirectory, THE_PICTURE_DIRECTORY);
 
         claim(
-                "the caption's blank line is folded away and every character that could form a link, an image, a"
-                        + " tag, an entity or a code span is written behind a backslash, the backslash first",
+                "the tag and the entity are written as entities, so the caption can neither close the attribute nor"
+                        + " add markup, and the brackets, the backtick and the backslash, which mean nothing to HTML,"
+                        + " stay as the converter wrote them",
                 () -> assertThat(page.toString())
-                        .isEqualTo(UNDER_A_ONE_DIGIT_ENTRY + "![" + THAT_CAPTION_AS_ALT_TEXT + "](" + THE_PICTURE_DIRECTORY
-                                + "/" + THE_DIAGRAMS_FILE + ")\n\n"));
+                        .isEqualTo("<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + THE_DIAGRAMS_FILE + "\" alt=\""
+                                + THAT_CAPTION_AS_ALT_TEXT + "\"></p>\n"));
     }
 
     @Test
@@ -213,15 +212,15 @@ class EntryPicturesTest {
                 "of twelve pictures the first " + Deliverable.PICTURES_PER_DOCUMENT + " are shown and the line after"
                         + " them says the other two are not, in the plural",
                 () -> {
-                    assertThat(twelve.lines().filter(line -> line.contains("![")).count())
+                    assertThat(twelve.lines().filter(line -> line.contains("<img ")).count())
                             .isEqualTo(Deliverable.PICTURES_PER_DOCUMENT);
                     assertThat(twelve)
-                            .endsWith(UNDER_A_ONE_DIGIT_ENTRY + "*2 more pictures from this document are not shown.*\n\n");
+                            .endsWith("<p><em>2 more pictures from this document are not shown.</em></p>\n");
                 });
         claim(
                 "of eleven, the line says one more picture is not shown, in the singular",
                 () -> assertThat(eleven)
-                        .endsWith(UNDER_A_ONE_DIGIT_ENTRY + "*1 more picture from this document is not shown.*\n\n"));
+                        .endsWith("<p><em>1 more picture from this document is not shown.</em></p>\n"));
     }
 
     @Test
@@ -237,34 +236,18 @@ class EntryPicturesTest {
                 DeliverableProgress.NONE);
         StringBuilder page = new StringBuilder();
 
-        pictures.appendUnder(page, FIRST, 1, pageDirectory, THE_PICTURE_DIRECTORY);
+        pictures.appendUnder(page, FIRST, pageDirectory, THE_PICTURE_DIRECTORY);
 
         claim(
                 "the JPEG is shown from a .jpg file named from its digest, and the GIF, for which no file is"
                         + " written, is counted in the line saying what is not shown",
                 () -> assertThat(page.toString())
-                        .isEqualTo(UNDER_A_ONE_DIGIT_ENTRY + "![](" + THE_PICTURE_DIRECTORY + "/" + nameOf(jpeg, ".jpg")
-                                + ")\n\n" + UNDER_A_ONE_DIGIT_ENTRY
-                                + "*1 more picture from this document is not shown.*\n\n"));
+                        .isEqualTo("<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + nameOf(jpeg, ".jpg")
+                                + "\" alt=\"\"></p>\n"
+                                + "<p><em>1 more picture from this document is not shown.</em></p>\n"));
     }
 
-    @Test
-    @Story("A picture only one document carries is shown under that document")
-    @DisplayName("Under a two-digit entry a picture is indented four spaces, so it stays inside that entry")
-    void indentsByTheWidthOfTheEntrysNumber(@TempDir Path pageDirectory) throws IOException {
-        EntryPictures pictures = ListedArrangement.picturesAmong(
-                List.of(FIRST), source(Map.of(FIRST.occurrence(), List.of(png(A_DIAGRAM)))), DeliverableProgress.NONE);
-        StringBuilder page = new StringBuilder();
-
-        pictures.appendUnder(page, FIRST, 10, pageDirectory, THE_PICTURE_DIRECTORY);
-
-        claim(
-                "the picture's line is indented by the width of \"10. \", four spaces, so a renderer keeps it"
-                        + " inside the tenth entry rather than ending the list",
-                () -> assertThat(page.toString()).startsWith(UNDER_A_TWO_DIGIT_ENTRY + "![]("));
-    }
-
-    /** The lines {@code count} distinct PNG pictures of one document add under entry 1. */
+    /** The lines {@code count} distinct PNG pictures of one document add to its entry. */
     private static String picturesUnder(Path pageDirectory, int count) throws IOException {
         List<ListedPicture> many = IntStream.range(0, count)
                 .mapToObj(n -> png(bytes("picture " + n)))
@@ -272,7 +255,7 @@ class EntryPicturesTest {
         EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST), source(Map.of(FIRST.occurrence(), many)), DeliverableProgress.NONE);
         StringBuilder page = new StringBuilder();
-        pictures.appendUnder(page, FIRST, 1, pageDirectory, THE_PICTURE_DIRECTORY);
+        pictures.appendUnder(page, FIRST, pageDirectory, THE_PICTURE_DIRECTORY);
         return page.toString();
     }
 

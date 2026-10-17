@@ -1,14 +1,22 @@
-package io.algernon.vespera.synthesis;
+package io.algernon.vespera.deliverable;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
+import io.algernon.vespera.synthesis.ArrangedCluster;
+import io.algernon.vespera.synthesis.ClusterFaultKind;
+import io.algernon.vespera.synthesis.ClusterLabel;
+import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.ListedDoc;
+import io.algernon.vespera.synthesis.RecordedCluster;
+import io.algernon.vespera.synthesis.SynthesisDoc;
+import io.algernon.vespera.synthesis.Unwritten;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * An arrangement of three seed partitions and eleven survivors, as lists: what the tests of ADR-223 hand the
- * tree's writer, and what {@link TheTreeWrittenFromLists} was captured from.
+ * tree's writer.
  *
  * <p>Chosen so that every case the record names is in it. The survivors' occurrence ids run 10 to 20 and
  * alternate between the partitions, so occurrence order cuts across them. Seed 2's partition holds five and
@@ -16,8 +24,6 @@ import java.util.Map;
  * score alike in each partition. Cluster 0 of seed 2 is written from two of its three survivors, neither the
  * highest-scoring, in an order that is not occurrence order. Of the four clusters with no writing, one carries
  * a fault, nothing could be sent for one, one was not reached, and one has no reason given.
- *
- * <p>It names no type ADR-223 adds, so it compiles against the tree the expected bytes were captured from.
  */
 final class ThreePartitions {
 
@@ -32,9 +38,6 @@ final class ThreePartitions {
     static final String BETA_PATH = "seeds/Beta & Co [2019].pdf";
 
     static final String GAMMA_PATH = "seeds/gamma.docx";
-
-    /** What stands in the captured files where the corpus root was, which differs on every machine. */
-    static final String CORPUS_ROOT_TOKEN = "{CORPUS_ROOT}";
 
     private ThreePartitions() {}
 
