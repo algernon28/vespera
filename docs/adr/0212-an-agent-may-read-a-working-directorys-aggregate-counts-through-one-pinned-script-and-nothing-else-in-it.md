@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-264](0264-the-private-paths-guard-refuses-only-what-reads-or-writes-outside-the-allow-list-and-a-working-directory-is-open-as-the-place-it-lies-in.md).** These passages below are no longer the whole of the decision: §1's "and nothing else in it" and "The script is the only way in", since every file of a working directory the allow list names is open to every tool; §7, since `vespera.log` is open with the rest; and §8's K219 to K222, which now claim the call is let through. The counting command, the script, what it prints and its pin stand, and the script stays admitted.
 
+> **Partly amended — see [ADR-270](0270-every-log-vespera-writes-is-in-the-working-directorys-logs-folder-the-invocation-account-among-them.md).** §3's `folder=log` counts every regular file under the working directory's `logs/` folder, where `vespera.log`, the files it rolls into and the invocation accounts are written; a `vespera.log` left at the top is counted in `folder=working-directory` only. The script and its pin change by a draft the operator installs. The account is written by every invocation that starts the job, so §7's "since `vespera.account-dir` was set", Decided here 3's "with `vespera.account-dir` set" and the alternative "The invocation account alone"'s "before `vespera.account-dir` was set" read "since ADR-270's build".
+
 - **Date**: 2026-10-08
 - **Status**: accepted on 2026-10-08.
 - **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md), in these places and no others:

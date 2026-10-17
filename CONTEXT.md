@@ -169,7 +169,7 @@ The directory a walk starts from: the one `vespera run <root>` names, or `vesper
 _Avoid_: archive root, archive (the files, where this is the path), input directory, base path
 
 **Working directory**:
-The one directory an invocation writes into, kept apart from the archive and never derived from the corpus root (ADR-054). It holds `vespera.db`, `vespera.lock`, `vespera.log`, `profile.yaml`, the pages the stages write for the operator, the label file and the deliverable. Named by `vespera.working-dir` or `--db-dir`, and `.vespera` under the directory the command is started from when neither names one. What it holds is derived from the operator's documents and names them, so no agent opens a working directory either, but for the profile and the pages of paths, counts and reasons ADR-261 names, and one is recognised wherever it is by the `vespera.db` or `vespera.lock` in it (ADR-196).
+The one directory an invocation writes into, kept apart from the archive and never derived from the corpus root (ADR-054). It holds `vespera.db`, `vespera.lock`, the `logs` folder with `vespera.log` and the invocation accounts (ADR-270), `profile.yaml`, the pages the stages write for the operator, the label file and the deliverable. Named by `vespera.working-dir` or `--db-dir`, and `.vespera` under the directory the command is started from when neither names one. What it holds is derived from the operator's documents and names them, so no agent opens a working directory either, but for the profile and the pages of paths, counts and reasons ADR-261 names, and one is recognised wherever it is by the `vespera.db` or `vespera.lock` in it (ADR-196).
 _Avoid_: db dir (the option's spelling, not the term), output directory, data directory, workspace
 _Not to be confused with_: the directory a process or a shell command is started in. That is the **current directory**, as ADR-066 writes it, in every name and record of ours, never the working directory.
 
@@ -207,7 +207,7 @@ The operating system's lock on `vespera.lock` in the working directory, taken by
 _Avoid_: mutex, pidfile
 
 **Invocation account**:
-The one file an invocation that starts the job writes for a hosted model to read, in a folder outside every working directory: each step and how it ended, durations, counts, progress lines, and a failed step's exception types. It is built from typed values and an allow-list, so it names no path, file name, title or document text, and it keeps no exception message (ADR-198).
+The one file an invocation that starts the job writes for a hosted model to read, in the working directory's `logs` folder (ADR-270): each step and how it ended, durations, counts, progress lines, and a failed step's exception types. It is built from typed values and an allow-list, so it names no path, file name, title or document text, and it keeps no exception message (ADR-198).
 _Avoid_: run summary, summary
 
 **Progress page**:

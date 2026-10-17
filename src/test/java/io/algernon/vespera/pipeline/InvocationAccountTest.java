@@ -2,28 +2,24 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.TestLinks;
 import io.algernon.vespera.ledger.RunId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,14 +36,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 
 /**
- * The account's writer on its own (ADR-198): a built job execution, a fixed clock, a folder of its own and
- * an in-memory database holding only the columns the counts read. What the whole job adds is in {@code
- * InvocationAccountInvocationTest}; what only a writer fed by hand can reach is here.
+ * The account's writer on its own (ADR-198, ADR-270): a built job execution, a fixed clock, a working
+ * directory of its own and an in-memory database holding only the columns the counts read. The account is
+ * written in the working directory's {@value #LOGS} folder, with no setting. What the whole job adds is in
+ * {@code InvocationAccountInvocationTest}; what only a writer fed by hand can reach is here.
  */
 @Epic("Pipeline")
 @Feature("The invocation account")
 @Issue("424")
 @Link(name = "ADR-198", url = Adr.EVERY_INVOCATION_WRITES_AN_ACCOUNT_THAT_NAMES_NO_DOCUMENT, type = "adr")
+@Link(name = "ADR-270", url = Adr.EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER, type = "adr")
 class InvocationAccountTest {
 
     /** A word nobody would write into a diagnostic by chance. */
@@ -67,29 +65,17 @@ class InvocationAccountTest {
 
     private static final String PROGRESS_LOGGER_NAME = StageProgress.class.getName();
 
-    /** The file whose presence makes a folder a working directory, which is all the account looks for here. */
-    private static final String DATABASE = "vespera.db";
+    /** The folder of the working directory every log is written in, the account among them (ADR-270 section 1). */
+    private static final String LOGS = "logs";
 
-    /** The line an invocation logs when it writes no account for a folder at or below a working directory. */
-    private static final String LINE_FOR_A_FOLDER_INSIDE_A_WORKING_DIRECTORY =
-            "no invocation account was written: vespera.account-dir lies inside a working directory";
-
-    /** The line for a folder, a name above it or the working directory, that is there and cannot be followed. */
-    private static final String LINE_FOR_A_FOLDER_THAT_CANNOT_BE_FOLLOWED =
-            "no invocation account was written: vespera.account-dir cannot be followed to where it leads";
-
-    /** The reason a test aborts when the machine will make neither a symbolic link nor a junction. */
-    private static final String NO_LINK = "this machine would not make a symbolic link or a junction here";
-
-    /** The name every test gives the link it builds, beside the folder it is made in. */
-    private static final String A_LINK = "a-link";
-
-    /** The folder inside a working directory that a link leads to, in the tests that need only one. */
-    private static final String SUBFOLDER = "subfolder";
+    /** How the one line for a configured {@code vespera.account-dir} begins; the folder written to follows. */
+    private static final String THE_SETTING_IS_NO_LONGER_READ =
+            "vespera.account-dir is no longer read, and the invocation account is written to ";
 
     @TempDir
     Path workingDirectory;
 
+    /** A folder outside the working directory, which a configured {@code vespera.account-dir} names. */
     @TempDir
     Path accountDirectory;
 
@@ -112,7 +98,7 @@ class InvocationAccountTest {
     @Story("A progress line is carried only if it has a counter's shape")
     @DisplayName("A line that is not a counter's, written through the counters' logger, is withheld and counted")
     void aLineThatIsNotACounterIsWithheld() throws IOException {
-        InvocationAccount account = anAccountIn(accountDirectory);
+        InvocationAccount account = anAccount();
         JobExecution job = aJob();
 
         account.beforeJob(job);
@@ -134,7 +120,7 @@ class InvocationAccountTest {
     @Story("An account says which runs the invocation arrived at")
     @DisplayName("A run is written as its stage and its 64-character digest")
     void aRunLineCarriesTheDigest() throws IOException {
-        InvocationAccount account = anAccountIn(accountDirectory);
+        InvocationAccount account = anAccount();
         JobExecution job = aJob();
         new InvocationRuns(job.getExecutionContext()).record(StageModules.EXTRACTION.stage(), new RunId(A_RUN_ID));
 
@@ -150,7 +136,7 @@ class InvocationAccountTest {
     @Story("A stored value outside a closed vocabulary is never written")
     @DisplayName("A verdict kind that is not in the vocabulary is written as other, and its text is not")
     void anUnknownStoredValueIsWrittenAsOther() throws IOException {
-        InvocationAccount account = anAccountIn(accountDirectory);
+        InvocationAccount account = anAccount();
         JobExecution job = aJob();
         new InvocationRuns(job.getExecutionContext()).record(StageModules.EXTRACTION.stage(), new RunId(A_RUN_ID));
         jdbc.update("INSERT INTO verdict (run_id, kind) VALUES (?, 'BROKEN')", A_RUN_ID);
@@ -174,8 +160,8 @@ class InvocationAccountTest {
     void aSecondAccountInTheSameSecondTakesASuffix() throws IOException {
         JobExecution first = aJob();
         JobExecution second = aJob();
-        InvocationAccount one = anAccountIn(accountDirectory);
-        InvocationAccount other = anAccountIn(accountDirectory);
+        InvocationAccount one = anAccount();
+        InvocationAccount other = anAccount();
 
         one.beforeJob(first);
         other.beforeJob(second);
@@ -183,487 +169,73 @@ class InvocationAccountTest {
         one.afterJob(first);
 
         claim(
-                "the folder holds the account and its suffixed neighbour, and nothing else",
-                () -> assertThat(namesIn(accountDirectory)).containsExactlyInAnyOrder(FIRST_NAME, SECOND_NAME));
+                "the logs folder holds the account and its suffixed neighbour, and nothing else",
+                () -> assertThat(namesInTheLogsFolder()).containsExactlyInAnyOrder(FIRST_NAME, SECOND_NAME));
     }
 
     @Test
     @Story("The account is never a gate")
-    @DisplayName("A folder that cannot be created leaves no account and fails nothing")
+    @DisplayName("A logs folder that cannot be created leaves no account, fails nothing and says where it tried")
+    @Link(name = "ADR-270", url = Adr.EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER, type = "adr")
     void aFailedWriteNeverFailsTheInvocation() throws IOException {
-        Path aFile = Files.writeString(accountDirectory.resolve("a-file-not-a-folder"), "x");
-        InvocationAccount account = anAccountIn(aFile.resolve("beneath"));
-        JobExecution job = aJob();
+        Path aFileWhereTheFolderGoes = Files.writeString(workingDirectory.resolve(LOGS), "x");
 
-        account.beforeJob(job);
-        account.afterJob(job);
+        List<String> logged = linesLoggedByAnInvocationOf(anAccount());
 
         claim(
-                "both calls returned, and nothing was written beneath a file",
-                () -> assertThat(namesIn(accountDirectory)).containsExactly("a-file-not-a-folder"));
+                "both calls returned, and the file standing where the logs folder goes is still a file",
+                () -> assertThat(aFileWhereTheFolderGoes).isRegularFile().hasContent("x"));
+        claim(
+                "one line was logged, saying the account could not be written to the logs folder of the working"
+                        + " directory",
+                () -> assertThat(logged)
+                        .singleElement()
+                        .asString()
+                        .startsWith("the invocation account could not be written to " + aFileWhereTheFolderGoes + ": "));
     }
 
     @Test
-    @Story("An account is written only outside every working directory")
-    @DisplayName("An unset folder, or one inside the working directory, or beneath a vespera.db or vespera.lock, writes nothing")
-    void noAccountWhereTheFolderIsUnsetOrInsideAWorkingDirectory() throws IOException {
-        Path insideTheWorkingDirectory = workingDirectory.resolve("accounts");
-        Path anotherWorkingDirectory = Files.createDirectory(accountDirectory.resolve("another"));
-        Files.writeString(anotherWorkingDirectory.resolve("vespera.db"), "");
-        Path beneathIt = anotherWorkingDirectory.resolve("accounts");
-        Path heldByALockOnly = Files.createDirectory(accountDirectory.resolve("locked"));
-        Files.writeString(heldByALockOnly.resolve("vespera.lock"), "");
-
-        for (Path folder : Arrays.asList(null, insideTheWorkingDirectory, beneathIt, heldByALockOnly.resolve("accounts"))) {
-            JobExecution job = aJob();
-            InvocationAccount account = anAccountIn(folder);
-            account.beforeJob(job);
-            account.afterJob(job);
-        }
+    @Story("The account is written in the working directory's logs folder")
+    @DisplayName("With no setting at all, the account is written in the working directory's logs folder and nothing is logged")
+    @Link(name = "ADR-270", url = Adr.EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER, type = "adr")
+    void anAccountIsWrittenInTheLogsFolderWithNoSetting() throws IOException {
+        List<String> logged = linesLoggedByAnInvocationOf(anAccount());
 
         claim(
-                "no account was written for an unset folder, for one inside the working directory or for one"
-                        + " beneath a folder holding the database",
-                () -> {
-                    assertThat(namesIn(workingDirectory)).isEmpty();
-                    assertThat(namesIn(anotherWorkingDirectory)).containsExactly("vespera.db");
-                    assertThat(namesIn(heldByALockOnly)).containsExactly("vespera.lock");
-                });
+                "the logs folder holds the account, and nothing else",
+                () -> assertThat(namesInTheLogsFolder()).containsExactly(FIRST_NAME));
+        claim(
+                "the top of the working directory holds the logs folder and no account",
+                () -> assertThat(namesIn(workingDirectory)).containsExactly(LOGS));
+        claim("and no warning was logged", () -> assertThat(logged).isEmpty());
     }
 
     @Test
-    @Story("An account is written only outside every working directory")
-    @DisplayName("A link that leads to a subfolder of the working directory is a folder inside it, and writes nothing")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void noAccountWhereTheFolderIsALinkIntoAWorkingDirectory() throws IOException {
-        Path subfolder = aWorkingDirectoryHolding(SUBFOLDER);
-        Path link = aLinkTo(subfolder);
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(link));
-
-        claim(
-                "nothing was written in the working directory: it holds the database and the subfolder the"
-                        + " link leads to, and no account",
-                () -> assertThat(everythingBeneath(workingDirectory)).containsExactlyInAnyOrder(DATABASE, SUBFOLDER));
-        claim(
-                "the folder the link was made in holds the link and no account",
-                () -> assertThat(namesIn(accountDirectory)).containsExactly(A_LINK));
-        claim(
-                "the one line logged says why no account was written",
-                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_INSIDE_A_WORKING_DIRECTORY));
-    }
-
-    @Test
-    @Story("An account is written only outside every working directory")
-    @DisplayName("A name whose text lies outside every working directory, and whose parent step after a link walks into one, writes nothing")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void noAccountWhereAParentOfTheFolderLeadsIntoAWorkingDirectory() throws IOException {
-        Path beside = aWorkingDirectoryHolding("deep/beside");
-        Files.createDirectory(workingDirectory.resolve("deep").resolve(SUBFOLDER));
-        Path viaTheParent = aLinkTo(beside).resolve("..").resolve(SUBFOLDER);
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(viaTheParent));
-
-        claim(
-                "nothing was written in the working directory: it holds the database and the folders the"
-                        + " fixture made, and no account",
-                () -> assertThat(everythingBeneath(workingDirectory))
-                        .containsExactlyInAnyOrder(DATABASE, "deep", "deep/beside", "deep/" + SUBFOLDER));
-        claim(
-                "the folder the link was made in holds the link and no account",
-                () -> assertThat(namesIn(accountDirectory)).containsExactly(A_LINK));
-        claim(
-                "the one line logged says why no account was written",
-                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_INSIDE_A_WORKING_DIRECTORY));
-    }
-
-    @Test
-    @Story("An account is written only outside every working directory")
-    @DisplayName("A name whose text lies inside a working directory, and whose parent step after a link leads out of it, writes nothing")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void noAccountWhereOnlyTheTextOfAParentStepLiesInsideAWorkingDirectory() throws IOException {
-        aWorkingDirectoryHolding();
-        Path outside = Files.createDirectory(accountDirectory.resolve("outside"));
-        Path inner = Files.createDirectory(outside.resolve("inner"));
-        Path link = workingDirectory.resolve(A_LINK);
-        assumeTrue(TestLinks.make(link, inner), NO_LINK);
-        Path viaTheParent = link.resolve("..").resolve("accounts");
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(viaTheParent));
-
-        claim(
-                "nothing was written where the text lands, in the working directory: it holds the database"
-                        + " and the link, and no account folder",
-                () -> assertThat(namesIn(workingDirectory)).containsExactlyInAnyOrder(DATABASE, A_LINK));
-        claim(
-                "nothing was written where the walk lands, beside the folder the link leads to: the folder"
-                        + " holds that folder and no account folder",
-                () -> assertThat(namesIn(outside)).containsExactly("inner"));
-        claim(
-                "the one line logged says the folder lies inside a working directory",
-                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_INSIDE_A_WORKING_DIRECTORY));
-    }
-
-    @Test
-    @Story("An account is written only outside every working directory")
-    @DisplayName("A link that leads to a folder outside every working directory is written through")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void anAccountIsWrittenThroughALinkToAFolderOutsideEveryWorkingDirectory() throws IOException {
-        aWorkingDirectoryHolding();
-        Path outside = Files.createDirectory(accountDirectory.resolve("outside"));
-        Path link = aLinkTo(outside);
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(link));
-
-        claim(
-                "the account is in the folder the link leads to, and is the only thing in it",
-                () -> assertThat(namesIn(outside)).containsExactly(FIRST_NAME));
-        claim(
-                "the working directory holds the database and nothing else",
-                () -> assertThat(everythingBeneath(workingDirectory)).containsExactly(DATABASE));
-        claim("and nothing was logged", () -> assertThat(logged).isEmpty());
-    }
-
-    @Test
-    @Story("An account is written only outside every working directory")
-    @DisplayName("A link inside the working directory that leads outside every working directory writes nothing")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void noAccountWhereTheFolderIsALinkInAWorkingDirectoryThatLeadsOutOfIt() throws IOException {
-        aWorkingDirectoryHolding();
-        Path outside = Files.createDirectory(accountDirectory.resolve("outside"));
-        Path link = workingDirectory.resolve(A_LINK);
-        assumeTrue(TestLinks.make(link, outside), NO_LINK);
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(link));
-
-        claim(
-                "nothing was written where the link leads: the folder is as empty as it was made, because the"
-                        + " configured name lies inside a working directory, and the agent's path guard reads that"
-                        + " name by its text too",
-                () -> assertThat(namesIn(outside)).isEmpty());
-        claim(
-                "the working directory holds the database and the link, and no account",
-                () -> assertThat(namesIn(workingDirectory)).containsExactlyInAnyOrder(DATABASE, A_LINK));
-        claim(
-                "the one line logged says the folder lies inside a working directory",
-                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_INSIDE_A_WORKING_DIRECTORY));
-    }
-
-    @Test
-    @Story("A folder that does not exist yet is still usable")
-    @DisplayName("A folder that does not exist yet, beneath one that does and is outside every working directory, is created and written")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void anAccountIsWrittenInAFolderThatDoesNotExistYet() throws IOException {
-        aWorkingDirectoryHolding();
-        Path notYet = accountDirectory.resolve("not").resolve("yet").resolve("there");
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(notYet));
-
-        claim(
-                "the folders were created and the account is the only thing in the innermost",
-                () -> assertThat(namesIn(notYet)).containsExactly(FIRST_NAME));
-        claim("and nothing was logged", () -> assertThat(logged).isEmpty());
-    }
-
-    @Test
-    @Story("A folder that does not exist yet is still usable")
-    @DisplayName("A folder that does not exist yet, beneath a link into the working directory, creates nothing and writes nothing")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void noAccountWhereTheFolderDoesNotExistYetBeneathALinkIntoAWorkingDirectory() throws IOException {
-        Path subfolder = aWorkingDirectoryHolding(SUBFOLDER);
-        Path link = aLinkTo(subfolder);
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(link.resolve("not").resolve("yet")));
-
-        claim(
-                "no folder and no account were created in the working directory: it holds the database and the"
-                        + " subfolder the link leads to, and no more",
-                () -> assertThat(everythingBeneath(workingDirectory)).containsExactlyInAnyOrder(DATABASE, SUBFOLDER));
-        claim(
-                "the folder the link was made in holds the link and no account",
-                () -> assertThat(namesIn(accountDirectory)).containsExactly(A_LINK));
-        claim(
-                "the one line logged says why no account was written",
-                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_INSIDE_A_WORKING_DIRECTORY));
-    }
-
-    @Test
-    @Story("A folder that cannot be followed is refused for that")
-    @DisplayName("A link to nothing, leading to where a working directory would hold it, writes nothing and says it cannot be followed")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void noAccountWhereTheFolderIsALinkToNothing() throws IOException {
-        aWorkingDirectoryHolding();
-        Path link = aLinkTo(workingDirectory.resolve("nothing-here"));
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(link));
-
-        claim(
-                "nothing was created at the name the link leads to: the working directory holds the database only",
-                () -> assertThat(everythingBeneath(workingDirectory)).containsExactly(DATABASE));
-        claim(
-                "the folder the link was made in holds the link and no account",
-                () -> assertThat(namesIn(accountDirectory)).containsExactly(A_LINK));
-        claim(
-                "the one line logged says the folder cannot be followed, and not that it is inside a working directory",
-                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_THAT_CANNOT_BE_FOLLOWED));
-    }
-
-    @Test
-    @Story("A folder that cannot be followed is refused for that")
-    @DisplayName("A folder beneath a link to nothing writes nothing and says it cannot be followed")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void noAccountWhereAFolderAboveItIsALinkToNothing() throws IOException {
-        aWorkingDirectoryHolding();
-        Path link = aLinkTo(workingDirectory.resolve("nothing-here"));
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(link.resolve("accounts")));
-
-        claim(
-                "nothing was created at the name the link leads to: the working directory holds the database only",
-                () -> assertThat(everythingBeneath(workingDirectory)).containsExactly(DATABASE));
-        claim(
-                "the folder the link was made in holds the link and no account",
-                () -> assertThat(namesIn(accountDirectory)).containsExactly(A_LINK));
-        claim(
-                "the one line logged says the folder cannot be followed",
-                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_THAT_CANNOT_BE_FOLLOWED));
-    }
-
-    @Test
-    @Story("A folder that cannot be followed is refused for that")
-    @DisplayName("A name that steps up out of a link to nothing writes nothing, creates nothing and says it cannot be followed")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void noAccountWhereAParentStepClimbsOutOfALinkToNothing() throws IOException {
-        aWorkingDirectoryHolding();
-        Path link = aLinkTo(accountDirectory.resolve("nothing-here"));
-        Path climbingOut = link.resolve("..").resolve("accounts");
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(climbingOut));
-
-        claim(
-                "the folder the link was made in holds the link and nothing else: no account folder was made"
-                        + " beside it, where the text of the name lands, and nothing at the name the link leads to",
-                () -> assertThat(namesIn(accountDirectory)).containsExactly(A_LINK));
-        claim(
-                "the working directory holds the database and nothing else",
-                () -> assertThat(everythingBeneath(workingDirectory)).containsExactly(DATABASE));
-        claim(
-                "the one line logged says the folder cannot be followed, though the parent step climbs out of the"
-                        + " link",
-                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_THAT_CANNOT_BE_FOLLOWED));
-    }
-
-    @Test
-    @Story("A folder that cannot be followed is refused for that")
-    @DisplayName("Two links that lead to each other write nothing and say the folder cannot be followed")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void noAccountWhereTheFolderIsALinkInALoop() throws IOException {
-        Path one = accountDirectory.resolve("one");
-        Path other = accountDirectory.resolve("other");
-        assumeTrue(TestLinks.make(one, other) && TestLinks.make(other, one), NO_LINK);
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(one));
-
-        claim(
-                "the folder holds the two links and no account",
-                () -> assertThat(namesIn(accountDirectory)).containsExactlyInAnyOrder("one", "other"));
-        claim(
-                "the one line logged says the folder cannot be followed",
-                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_THAT_CANNOT_BE_FOLLOWED));
-    }
-
-    @Test
-    @Story("A folder that cannot be followed is refused for that")
-    @DisplayName("A working directory that is a link to nothing writes nothing and says a name cannot be followed")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void noAccountWhereTheWorkingDirectoryCannotBeFollowed() throws IOException {
-        Path workingDirectoryThatLeadsNowhere = aLinkTo(accountDirectory.resolve("nothing-here"));
-        Path folder = accountDirectory.resolve("accounts");
-
+    @Story("The account is written in the working directory's logs folder")
+    @DisplayName("A configured vespera.account-dir sends the account nowhere else, and one line says where it is")
+    @Link(name = "ADR-270", url = Adr.EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER, type = "adr")
+    void aConfiguredAccountFolderIsIgnoredWithOneLine() throws IOException {
         List<String> logged = linesLoggedByAnInvocationOf(
-                new InvocationAccount(workingDirectoryThatLeadsNowhere, folder, jdbc, clock));
+                new InvocationAccount(workingDirectory, accountDirectory, jdbc, clock));
 
         claim(
-                "the folder holds the link and nothing else: the account folder was not made",
-                () -> assertThat(namesIn(accountDirectory)).containsExactly(A_LINK));
+                "the folder vespera.account-dir names gained nothing",
+                () -> assertThat(namesIn(accountDirectory)).isEmpty());
         claim(
-                "the one line logged says a name cannot be followed",
-                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_THAT_CANNOT_BE_FOLLOWED));
-    }
-
-    @Test
-    @Story("A folder that cannot be followed is refused for that")
-    @DisplayName("A link to nothing, made inside a working directory and named as the folder, says it cannot be followed, and not that it lies inside")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void noAccountWhereTheFolderIsALinkToNothingInAWorkingDirectory() throws IOException {
-        aWorkingDirectoryHolding();
-        Path link = workingDirectory.resolve(A_LINK);
-        assumeTrue(TestLinks.make(link, accountDirectory.resolve("nothing-here")), NO_LINK);
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(link));
-
+                "the account is in the working directory's logs folder, as it is with no setting",
+                () -> assertThat(namesInTheLogsFolder()).containsExactly(FIRST_NAME));
         claim(
-                "nothing was written: the working directory holds the database and the link, and the folder the"
-                        + " link leads to was not made",
-                () -> {
-                    assertThat(namesIn(workingDirectory)).containsExactlyInAnyOrder(DATABASE, A_LINK);
-                    assertThat(namesIn(accountDirectory)).isEmpty();
-                });
-        claim(
-                "the one line logged says the folder cannot be followed: no reading is judged until every name on"
-                        + " it has been followed, though the text of this name lies inside a working directory",
-                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_THAT_CANNOT_BE_FOLLOWED));
-    }
-
-    @Test
-    @Story("An account is written only outside every working directory")
-    @DisplayName("A name that steps up out of a folder that is not there, onto a link into a working directory, writes nothing")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void noAccountWhereAParentStepAfterAMissingFolderLeadsOntoALinkIntoAWorkingDirectory() throws IOException {
-        Path subfolder = aWorkingDirectoryHolding(SUBFOLDER);
-        aLinkTo(subfolder);
-        Path viaTheMissingFolder = accountDirectory.resolve("missing").resolve("..").resolve(A_LINK);
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(viaTheMissingFolder));
-
-        claim(
-                "nothing was written in the working directory: it holds the database and the subfolder the link"
-                        + " leads to, and no account",
-                () -> assertThat(everythingBeneath(workingDirectory)).containsExactlyInAnyOrder(DATABASE, SUBFOLDER));
-        claim(
-                "the folder the link was made in holds the link and no folder that was not there",
-                () -> assertThat(namesIn(accountDirectory)).containsExactly(A_LINK));
-        claim(
-                "the one line logged says the folder lies inside a working directory",
-                () -> assertThat(logged).containsExactly(LINE_FOR_A_FOLDER_INSIDE_A_WORKING_DIRECTORY));
-    }
-
-    @Test
-    @Story("An account is written only outside every working directory")
-    @DisplayName("A name that steps up out of a folder that is not there, onto a link to a folder outside every working directory, is written in the folder the link leads to")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void anAccountIsWrittenWhereAParentStepAfterAMissingFolderLeadsOntoALinkOutsideEveryWorkingDirectory()
-            throws IOException {
-        aWorkingDirectoryHolding();
-        Path outside = Files.createDirectory(accountDirectory.resolve("outside"));
-        aLinkTo(outside);
-        Path viaTheMissingFolder = accountDirectory.resolve("missing").resolve("..").resolve(A_LINK);
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(viaTheMissingFolder));
-
-        claim(
-                "the account is in the folder the link leads to, and is the only thing in it",
-                () -> assertThat(namesIn(outside)).containsExactly(FIRST_NAME));
-        claim(
-                "the folder the link was made in holds the link and the folder it leads to, and no folder that was"
-                        + " not there",
-                () -> assertThat(namesIn(accountDirectory)).containsExactlyInAnyOrder(A_LINK, "outside"));
-        claim(
-                "the working directory holds the database and nothing else",
-                () -> assertThat(everythingBeneath(workingDirectory)).containsExactly(DATABASE));
-        claim("and nothing was logged", () -> assertThat(logged).isEmpty());
-    }
-
-    @Test
-    @Story("The account is never a gate")
-    @DisplayName("A write that fails beneath a link reached by a parent step after a folder that is not there names where the link leads, and not the link")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void theWarningForAFailedWriteAfterAParentStepNamesTheFileBeyondTheLink() throws IOException {
-        aWorkingDirectoryHolding();
-        Path outside = Files.createDirectory(accountDirectory.resolve("outside"));
-        Files.writeString(outside.resolve("a-file-not-a-folder"), "x");
-        aLinkTo(outside);
-        Path beneathTheFile = accountDirectory
-                .resolve("missing")
-                .resolve("..")
-                .resolve(A_LINK)
-                .resolve("a-file-not-a-folder")
-                .resolve("beneath");
-        Path whereItLeads = outside.toRealPath().resolve("a-file-not-a-folder").resolve("beneath");
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(beneathTheFile));
-
-        claim(
-                "one line was logged, saying the account could not be written to the place the link leads to: the"
-                        + " place written to has no link in it, though a parent step was folded after the link was met",
+                "the one warning logged says the setting is no longer read and names the logs folder",
                 () -> assertThat(logged)
-                        .singleElement()
-                        .asString()
-                        .startsWith("the invocation account could not be written to " + whereItLeads + ": "));
-        claim(
-                "and the link's own name is not in it",
-                () -> assertThat(logged.getFirst()).doesNotContain(A_LINK));
+                        .containsExactly(THE_SETTING_IS_NO_LONGER_READ
+                                + workingDirectory.toAbsolutePath().resolve(LOGS)));
     }
 
-    @Test
-    @Story("The account is never a gate")
-    @DisplayName("A write that fails beneath a link names the file where the link leads, and not the link")
-    @Issue("436")
-    @Link(name = "ADR-203", url = Adr.THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME, type = "adr")
-    void theWarningForAFailedWriteNamesTheFileBeyondTheLink() throws IOException {
-        aWorkingDirectoryHolding();
-        Path outside = Files.createDirectory(accountDirectory.resolve("outside"));
-        Files.writeString(outside.resolve("a-file-not-a-folder"), "x");
-        Path link = aLinkTo(outside);
-        Path beneathTheFile = link.resolve("a-file-not-a-folder").resolve("beneath");
-        Path whereItLeads = outside.toRealPath().resolve("a-file-not-a-folder").resolve("beneath");
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccountIn(beneathTheFile));
-
-        claim(
-                "one line was logged, saying the account could not be written to the place the link leads to",
-                () -> assertThat(logged)
-                        .singleElement()
-                        .asString()
-                        .startsWith("the invocation account could not be written to " + whereItLeads + ": "));
-        claim(
-                "and the link's own name is not in it",
-                () -> assertThat(logged.getFirst()).doesNotContain(A_LINK));
+    private InvocationAccount anAccount() {
+        return new InvocationAccount(workingDirectory, null, jdbc, clock);
     }
 
-    private InvocationAccount anAccountIn(Path folder) {
-        return new InvocationAccount(workingDirectory, folder, jdbc, clock);
-    }
-
-    /**
-     * Makes {@link #workingDirectory} one, by the file the account looks for, and makes {@code subfolders}
-     * beneath it.
-     *
-     * @return the innermost folder made, or the working directory when none was asked for
-     */
-    private Path aWorkingDirectoryHolding(String... subfolders) throws IOException {
-        Files.writeString(workingDirectory.resolve(DATABASE), "");
-        Path innermost = workingDirectory;
-        for (String subfolder : subfolders) {
-            innermost = Files.createDirectories(workingDirectory.resolve(subfolder));
-        }
-        return innermost;
-    }
-
-    /** A link named {@link #A_LINK} in the folder that is no working directory, leading to {@code target}. */
-    private Path aLinkTo(Path target) {
-        Path link = accountDirectory.resolve(A_LINK);
-        assumeTrue(TestLinks.make(link, target), NO_LINK);
-        return link;
-    }
-
-    /** What the account's logger said, as the messages an operator reads, while one invocation went by. */
+    /** What the account's logger warned of, as the messages an operator reads, while one invocation went by. */
     private List<String> linesLoggedByAnInvocationOf(InvocationAccount account) {
         Logger logger = (Logger) LoggerFactory.getLogger(InvocationAccount.class);
         ListAppender<ILoggingEvent> logged = new ListAppender<>();
@@ -682,16 +254,6 @@ class InvocationAccountTest {
                 .toList();
     }
 
-    /** Every name below {@code folder}, at any depth, written from it with a slash between folders. */
-    private static List<String> everythingBeneath(Path folder) throws IOException {
-        try (Stream<Path> all = Files.walk(folder)) {
-            return all.filter(path -> !path.equals(folder))
-                    .map(path -> folder.relativize(path).toString().replace(File.separatorChar, '/'))
-                    .sorted()
-                    .toList();
-        }
-    }
-
     private static JobExecution aJob() {
         JobExecution job = new JobExecution(1L, new JobInstance(1L, "vespera"), new JobParameters());
         job.setStatus(BatchStatus.COMPLETED);
@@ -701,9 +263,17 @@ class InvocationAccountTest {
     }
 
     private String theOneAccount() throws IOException {
-        List<String> names = namesIn(accountDirectory);
+        List<String> names = namesInTheLogsFolder();
         claim("exactly one account was written", () -> assertThat(names).hasSize(1));
-        return Files.readString(accountDirectory.resolve(names.getFirst()));
+        return Files.readString(workingDirectory.resolve(LOGS).resolve(names.getFirst()));
+    }
+
+    /** The names in the working directory's logs folder, after a plain claim that the folder was made. */
+    private List<String> namesInTheLogsFolder() throws IOException {
+        Path logs = workingDirectory.resolve(LOGS);
+        claim("the working directory has a logs folder, where the account is written", () -> assertThat(logs)
+                .isDirectory());
+        return namesIn(logs);
     }
 
     private static List<String> namesIn(Path folder) throws IOException {

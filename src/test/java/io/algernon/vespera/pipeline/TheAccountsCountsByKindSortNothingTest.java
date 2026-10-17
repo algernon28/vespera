@@ -102,9 +102,6 @@ class TheAccountsCountsByKindSortNothingTest {
     @TempDir
     Path workingDirectory;
 
-    @TempDir
-    Path accountDirectory;
-
     private SingleConnectionDataSource database;
     private SingleConnectionDataSource shippedSchema;
     private StatementLog log;
@@ -371,7 +368,7 @@ class TheAccountsCountsByKindSortNothingTest {
      */
     private List<String> theAccountOfAnInvocationOverBothRuns() throws IOException {
         InvocationAccount account =
-                new InvocationAccount(workingDirectory, accountDirectory, jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+                new InvocationAccount(workingDirectory, null, jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
         JobExecution job = new JobExecution(1L, new JobInstance(1L, "vespera"), new JobParameters());
         job.setStatus(BatchStatus.COMPLETED);
         StepExecution step = new StepExecution(StepNames.CENSUS, job);
@@ -383,8 +380,12 @@ class TheAccountsCountsByKindSortNothingTest {
         account.beforeJob(job);
         account.afterJob(job);
 
+        // The account is written in the working directory's logs folder, with no setting (ADR-270 section 2).
+        Path logs = workingDirectory.resolve("logs");
+        claim("the working directory has a logs folder, where the account is written", () -> assertThat(logs)
+                .isDirectory());
         List<Path> written;
-        try (Stream<Path> files = Files.list(accountDirectory)) {
+        try (Stream<Path> files = Files.list(logs)) {
             written = files.toList();
         }
         claim("exactly one account was written", () -> assertThat(written).hasSize(1));

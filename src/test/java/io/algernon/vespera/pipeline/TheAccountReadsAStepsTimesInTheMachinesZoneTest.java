@@ -48,9 +48,6 @@ class TheAccountReadsAStepsTimesInTheMachinesZoneTest {
     @TempDir
     Path workingDirectory;
 
-    @TempDir
-    Path accountDirectory;
-
     private TimeZone machineZone;
 
     @BeforeEach
@@ -99,15 +96,19 @@ class TheAccountReadsAStepsTimesInTheMachinesZoneTest {
         job.addStepExecution(step);
         InvocationAccount account = new InvocationAccount(
                 workingDirectory,
-                accountDirectory,
+                null,
                 new JdbcTemplate(),
                 Clock.fixed(Instant.parse("2026-10-14T08:05:53Z"), ZoneOffset.UTC));
 
         account.beforeJob(job);
         account.afterJob(job);
 
+        // The account is written in the working directory's logs folder, with no setting (ADR-270 section 2).
+        Path logs = workingDirectory.resolve("logs");
+        claim("the working directory has a logs folder, where the account is written", () -> assertThat(logs)
+                .isDirectory());
         List<Path> files;
-        try (Stream<Path> listed = Files.list(accountDirectory)) {
+        try (Stream<Path> listed = Files.list(logs)) {
             files = listed.toList();
         }
         claim("exactly one account was written", () -> assertThat(files).hasSize(1));

@@ -1,5 +1,7 @@
 # ADR-203 — The invocation account's folder is judged by every reading of its name, and a name that cannot be followed is refused
 
+> **Amended whole but for its measurements — see [ADR-270](0270-every-log-vespera-writes-is-in-the-working-directorys-logs-folder-the-invocation-account-among-them.md).** No configured folder is judged: the account is written in the working directory's `logs` folder, so §1 to §6 have nothing to judge, their three `no invocation account was written` warnings go, and the seventeen tests below are removed. The measurements in Context stay true of Windows.
+
 - **Date**: 2026-10-06
 - **Status**: accepted
 - **Amends**: [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md), in these places and no others: §1's sentence on when the account is written ("is not at or below the working directory this invocation uses, and has no folder at or above it that holds `vespera.db` or `vespera.lock`"), which is now a judgement of every reading of the name and not of its text; §1's two warnings, to which a third is added; §6's "with the file it tried to create", made exact; and §7's "The only lines added are the warnings of §1 and §6", which the third line made false. ADR-198's allow-list (§2), its counts (§3), its progress lines (§4), its exception types (§5) and its timing (§8) stand as written.

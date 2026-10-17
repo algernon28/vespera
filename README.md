@@ -115,6 +115,8 @@ Everything the tool writes goes in one working directory, never inside your arch
 profile.yaml                     the values you set, and how you arrived at them
 vespera.db                       the ledger: every file seen, every verdict, every measurement
 vespera.lock                     held by the command running now, so a second one is refused
+logs/vespera.log                 what the console shows, with dates; older days roll in beside it
+logs/invocation-account-*.txt    one per vespera run: its steps and counts, and no document's name
 progress.html                    what the command running now has done, opened as it starts
 progress-steps.html              the same progress page's steps, as a table
 progress-samples.html            the same progress page's samples over time, as a table
@@ -133,6 +135,8 @@ deliverable/<run>/index.md       what was written, group by group, and what prod
 deliverable/<run>/documents.csv  every surviving document, with its place in the order
 ```
 
+A `vespera.log` an earlier version wrote at the top of the working directory, with the files it rolled into, stays there, and so do accounts written to a folder `vespera.account-dir` named: Vespera moves nothing. Move or delete them yourself.
+
 Every `vespera run` and `vespera label` opens `progress.html` in your default browser as it starts, and the command's first line, `Progress page: <path>`, names where it is. The progress page of `vespera run` is four tabs, `Overview` (`progress.html`), `Steps` (`progress-steps.html`), `Samples` (`progress-samples.html`) and `Runs` (`progress-runs.html`), linked from a bar at the top of each, and every tab says when the invocation started and, once it has, when it ended. While `vespera run` runs, every tab reloads itself every five seconds (`vespera.progress-interval`), and a tab that is no longer rewritten says so. `Overview` shows how many steps have finished, the step running and how far it has got, a timeline of the steps, and charts of the database's size and the running step's counts over time, with the survivors and the verdicts of the stage removing occurrences, their rates, and the database's growth; a pointer over a chart shows every series' value at the time under it. `Steps` and `Samples` hold the same as tables, and `Runs` lists every run this working directory holds, which finished, which this invocation reached and what each removed, read when the invocation starts and when it ends. The pages fill your browser's window; a chart or a table scrolls sideways only when the window is too narrow to read it. `vespera label` writes `progress.html` when it starts and when it ends, with how many answers it recorded. It names no path and no document, so it can be sent to anyone.
 
 Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vespera.working-dir` in configuration. Both commands take `--db-dir=<path>`, so if you moved the working directory, name it on `vespera label` as well as on `vespera run`. A command given a `--db-dir` other than the directory it actually opened refuses and records nothing.
@@ -150,7 +154,7 @@ vespera run <root> [--db-dir=<path>]     walk a corpus and take it as far as the
 vespera label [file] [--db-dir=<path>]   record the answers you wrote into the label file
 ```
 
-To have `vespera run` write an invocation account (a file with no document's name or words in it, which a hosted model may read), set `vespera.account-dir` to a folder outside every working directory, in `application-local.yaml` or with `--vespera.account-dir=<path>`; left unset, or set inside a working directory, no account is written. `vespera.progress-interval`, set the same way, is how often `vespera run` rewrites `progress.html`: `5s` unless you set it. No browser is opened where the environment variable `CI` is set, or on Linux with no display.
+Every `vespera run` that starts the job writes an invocation account in the working directory's `logs` folder: a file with no document's name or words in it, which a hosted model may read. There is nothing to set for it. `vespera.account-dir` is no longer read: left in your configuration, it is ignored, and the run logs one warning naming the `logs` folder. `vespera.progress-interval`, set in `application-local.yaml` or with `--vespera.progress-interval=<duration>`, is how often `vespera run` rewrites `progress.html`: `5s` unless you set it. No browser is opened where the environment variable `CI` is set, or on Linux with no display.
 
 `vespera run` takes the archive root as its argument, falling back to `vespera.corpus-root` in configuration. Given neither, it refuses rather than guessing — a census of the wrong tree reports success.
 
