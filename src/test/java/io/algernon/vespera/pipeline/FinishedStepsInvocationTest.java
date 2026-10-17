@@ -68,10 +68,11 @@ class FinishedStepsInvocationTest {
     /**
      * Every piece of work the job records as finished, as {@code the run's stage / the step's name}.
      *
-     * <p>Twelve of the fifteen steps. Census works under no run, so it has nothing to record under.
+     * <p>Thirteen of the sixteen steps. Census works under no run, so it has nothing to record under.
      * The relevance-floor and relevance-report steps record nothing at all (ADR-118): both read the
      * answers a person gave on the labelling page, which no run names, so both decide again on every
-     * invocation and an answer given between two of them takes effect. Written out literally, since
+     * invocation and an answer given between two of them takes effect. The translation step records
+     * under the scoring run, which names everything it reads (ADR-271 §5). Written out literally, since
      * each half is a persisted name.
      */
     private static final List<String> EVERY_FINISHED_STEP = List.of(
@@ -83,6 +84,7 @@ class FinishedStepsInvocationTest {
             "seed-measurement / seed-extraction",
             "seed-measurement / seed-corpus-comparison",
             "embedding-scoring / embedding-scoring",
+            "embedding-scoring / translation",
             "embedding-scoring / relevance-scoring",
             "embedding-scoring / clustering",
             "arrangement / arrangement",

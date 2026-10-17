@@ -1841,6 +1841,16 @@ public final class Adr {
             + "0270-every-log-vespera-writes-is-in-the-working-directorys-logs-folder-the-invocation-account-among-them.md";
 
     /**
+     * ADR-271 -- a survivor whose content another survivor carries in another language, found by a path that
+     * differs from the other's in one lowercase language folder or by mutual nearest mean vectors at or above
+     * {@code translationSimilarityFloor}, is {@code translation-of} the copy in the language {@code
+     * preferredLanguages} names first; a new step between embedding scoring and relevance scoring, and a page
+     * the floor is read off (amends ADR-057 and ADR-157).
+     */
+    public static final String ONE_COPY_OF_A_TRANSLATION_SET_SURVIVES = FILE
+            + "0271-one-copy-of-a-translation-set-survives-in-the-language-the-profile-prefers-first.md";
+
+    /**
      * ADR-272 -- the build asks git for each module's last commit and its parents, and writes {@code unknown}, with
      * its existing warning, for a module answered by a commit with no parent in a shallow clone, so the module is
      * refused at mint time; a module answered inside the window keeps its SHA (amends ADR-058).

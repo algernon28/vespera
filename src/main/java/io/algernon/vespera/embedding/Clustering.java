@@ -71,6 +71,30 @@ public class Clustering {
         this.documentClusters = documentClusters;
     }
 
+    /**
+     * One document's mean vector computed from its stored chunk vectors as clustering computes it (ADR-087), for
+     * the translation step (ADR-271 section 3): empty where none is stored, which makes the document no candidate
+     * and is no error there. Returned to be discarded.
+     */
+    float[] meanVectorOf(
+            String contentHash, String chunkerIdentity, String chunkingRuleIdentity, String embedderIdentity) {
+        List<float[]> chunks =
+                vectorCache.vectorsFor(contentHash, chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
+        if (chunks.isEmpty()) {
+            return new float[0];
+        }
+        float[] mean = new float[chunks.getFirst().length];
+        for (float[] chunk : chunks) {
+            for (int component = 0; component < mean.length && component < chunk.length; component++) {
+                mean[component] += chunk[component];
+            }
+        }
+        for (int component = 0; component < mean.length; component++) {
+            mean[component] /= chunks.size();
+        }
+        return mean;
+    }
+
     /** The seeds whose partitions {@code runId} scored, in occurrence order — one clustering pass each. */
     public List<OccurrenceId> partitions(RunId runId) {
         return scoreCache.winningSeeds(runId);
@@ -220,23 +244,14 @@ public class Clustering {
          * cluster the arithmetic put the origin in.
          */
         private float[] meanOf(int document) {
-            List<float[]> chunks = vectorCache.vectorsFor(
+            float[] mean = meanVectorOf(
                     contentHashes.get(document), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
-            if (chunks.isEmpty()) {
+            if (mean.length == 0) {
                 throw new IllegalStateException(
                         "no stored chunk vectors under content hash " + contentHashes.get(document)
                                 + " for a document that carries a relevance score; scoring refuses a"
                                 + " survivor with no chunks (#108), so the vectors were written under a"
                                 + " different embedder identity, chunker or chunking rule than the ones asked for here");
-            }
-            float[] mean = new float[chunks.getFirst().length];
-            for (float[] chunk : chunks) {
-                for (int component = 0; component < mean.length && component < chunk.length; component++) {
-                    mean[component] += chunk[component];
-                }
-            }
-            for (int component = 0; component < mean.length; component++) {
-                mean[component] /= chunks.size();
             }
             return mean;
         }

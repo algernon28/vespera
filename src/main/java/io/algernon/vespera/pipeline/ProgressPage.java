@@ -164,7 +164,7 @@ final class ProgressPage implements JobExecutionListener {
             StageModules.CONTENT_REDUNDANCY.stage(), List.of(StepNames.REDUNDANCY_SIGNATURE, StepNames.CONTENT_REDUNDANCY),
             StageModules.SEED_MEASUREMENT.stage(), List.of(StepNames.SEED_EXTRACTION, StepNames.SEED_CORPUS_COMPARISON),
             StageModules.EMBEDDING_SCORING.stage(),
-            List.of(StepNames.EMBEDDING_SCORING, StepNames.RELEVANCE_SCORING, StepNames.CLUSTERING),
+            List.of(StepNames.EMBEDDING_SCORING, StepNames.TRANSLATION, StepNames.RELEVANCE_SCORING, StepNames.CLUSTERING),
             StageModules.ARRANGEMENT.stage(), List.of(StepNames.ARRANGEMENT),
             StageModules.GENERATION.stage(), List.of(StepNames.GENERATION));
 
@@ -207,6 +207,7 @@ final class ProgressPage implements JobExecutionListener {
             StepNames.SEED_EXTRACTION,
             StepNames.SEED_CORPUS_COMPARISON,
             StepNames.EMBEDDING_SCORING,
+            StepNames.TRANSLATION,
             StepNames.RELEVANCE_SCORING,
             StepNames.RELEVANCE_FLOOR,
             StepNames.CLUSTERING,
@@ -220,7 +221,7 @@ final class ProgressPage implements JobExecutionListener {
      */
     private static final List<String> BLOCKING = List.of(
             "broken", "duplicate-of", "superseded-by", "out-of-scope",
-            "extraction-failed", "degenerate-output", "redundant-with", "below-threshold");
+            "extraction-failed", "degenerate-output", "redundant-with", "translation-of", "below-threshold");
 
     /** The steps that remove occurrences, in job order, and the kinds each records (ADR-268 section 1). */
     private static final Map<String, List<String>> OUTCOME_STEPS = new LinkedHashMap<>();
@@ -230,6 +231,7 @@ final class ProgressPage implements JobExecutionListener {
                 StepNames.BYTE_LEVEL_REDUCTION, List.of("broken", "duplicate-of", "superseded-by", "out-of-scope"));
         OUTCOME_STEPS.put(StepNames.EXTRACTION, List.of("extraction-failed", "degenerate-output"));
         OUTCOME_STEPS.put(StepNames.CONTENT_REDUNDANCY, List.of("redundant-with"));
+        OUTCOME_STEPS.put(StepNames.TRANSLATION, List.of("translation-of"));
         OUTCOME_STEPS.put(StepNames.RELEVANCE_FLOOR, List.of("below-threshold"));
     }
 

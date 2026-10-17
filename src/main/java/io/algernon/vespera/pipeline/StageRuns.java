@@ -9,9 +9,13 @@ import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
+import io.algernon.vespera.profile.LanguagesValue;
+import io.algernon.vespera.profile.NumericValue;
+import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.synthesis.ClusterSynthesis;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import org.springframework.batch.core.configuration.annotation.JobScope;
@@ -80,6 +84,8 @@ class StageRuns {
     private String embeddingModelName;
     private ModelArtefact embeddingModelArtefact;
     private Double relevanceScoreFloor;
+    private Double translationSimilarityFloor;
+    private List<String> preferredLanguages;
     private RunId arrangement;
     private RunId generation;
 
@@ -249,6 +255,16 @@ class StageRuns {
         // Read here, fresh on every mint, rather than through a bean of its own: this holder is
         // @JobScope, so this is the freshness ADR-117 needs a changed profile value to be seen with.
         Double relevanceScoreFloor = RelevanceScoreFloorValue.readFrom(profileStore).value();
+        // The two keys of ADR-271 section 6 are read beside it: a number or null, the codes or none.
+        Profile profile = profileStore.load();
+        Double translationSimilarityFloor =
+                profile.translationSimilarityFloor().reading() instanceof NumericValue.Answered answered
+                        ? answered.number()
+                        : null;
+        List<String> preferredLanguages =
+                profile.preferredLanguages().reading() instanceof LanguagesValue.Answered answered
+                        ? answered.languages()
+                        : List.of();
         // The artefact is read once, here, beside the floor (ADR-228).
         ModelArtefact artefact = ollamaClient.artefactOf(modelName);
         WalkId walk = runMint.finishedWalk(canonicalRoot, "stage 5");
@@ -260,12 +276,16 @@ class StageRuns {
                         artefact.digest(),
                         artefact.weightDtype(),
                         measurementRunId.value(),
-                        relevanceScoreFloor),
+                        relevanceScoreFloor,
+                        translationSimilarityFloor,
+                        preferredLanguages),
                 walk,
                 Optional.of(measurementRunId));
         embeddingModelName = modelName;
         embeddingModelArtefact = artefact;
         this.relevanceScoreFloor = relevanceScoreFloor;
+        this.translationSimilarityFloor = translationSimilarityFloor;
+        this.preferredLanguages = preferredLanguages;
     }
 
     /**
@@ -295,6 +315,23 @@ class StageRuns {
     OptionalDouble relevanceScoreFloor() {
         embeddingScoring();
         return relevanceScoreFloor == null ? OptionalDouble.empty() : OptionalDouble.of(relevanceScoreFloor);
+    }
+
+    /**
+     * The similarity floor for copies in other languages the scoring run was minted under, empty where it was
+     * unset or unreadable then, which mints that run if it has not yet been (ADR-271 section 6).
+     */
+    OptionalDouble translationSimilarityFloor() {
+        embeddingScoring();
+        return translationSimilarityFloor == null
+                ? OptionalDouble.empty()
+                : OptionalDouble.of(translationSimilarityFloor);
+    }
+
+    /** The preferred languages the scoring run was minted under, none where unset or unreadable (ADR-271 section 6). */
+    List<String> preferredLanguages() {
+        embeddingScoring();
+        return preferredLanguages;
     }
 
     /** The artefact the scoring run was minted under, which mints that run if it has not yet been (ADR-228). */
@@ -398,7 +435,9 @@ class StageRuns {
             String embeddingModelDigest,
             String embeddingModelWeightDtype,
             String measurementRunId,
-            Double relevanceScoreFloor) {}
+            Double relevanceScoreFloor,
+            Double translationSimilarityFloor,
+            List<String> preferredLanguages) {}
 
     /**
      * Stage 6a's own {@code ConfigConsumed}, extended once (ADR-230 section 3). {@code standingRemovals}

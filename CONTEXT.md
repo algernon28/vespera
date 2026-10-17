@@ -76,6 +76,14 @@ _Avoid_: duplicate group, cluster (a cluster is an arrangement of relevant docum
 The relation where one document's text appears near-whole inside another's, and the two are therefore not interchangeable: the container carries everything the contained document does, and more. Directional, always — naming it of a pair without saying which way round says nothing.
 _Avoid_: overlap, subset, inclusion
 
+**Translation set**:
+File occurrences that carry one content in different languages, of which exactly one survives: the one in the language the profile's `preferredLanguages` names first, or the lowest path where none is listed, the rest each `translation-of` it (ADR-271). Its members are joined by their paths, the same path but for one language folder, or by their embeddings, two occurrences of different detected languages each nearest the other, at or above `translationSimilarityFloor`. A set two of whose members are in one language stands whole. Distinct from a redundancy set, whose members say the same thing in one language and are found by their shingles.
+_Avoid_: language duplicates, localised copies, language variants, translation cluster (a cluster is an arrangement)
+
+**Language folder**:
+A directory in an occurrence's path named for a language: two lowercase letters, the ISO 639-1 code of a language the language detector knows, alone or followed by `-` or `_` and a two-letter region or a four-letter script (`en`, `zh_CN`, `pt-BR`, `zh-Hans`). A segment in capitals is not one, so `IT` and `HR` are not Italian and Croatian (ADR-271).
+_Avoid_: locale folder, language directory
+
 ### Relevance
 
 **Seed set**:

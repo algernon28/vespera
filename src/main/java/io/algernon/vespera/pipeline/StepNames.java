@@ -1,7 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 /**
- * The job's fifteen persisted step names, in job order, each byte-identical to its value before this
+ * The job's sixteen persisted step names, in job order, each byte-identical to its value before this
  * record (ADR-157 §7, amending ADR-131's second reason for a per-stage configuration class).
  *
  * <p>Seven of these values are also a {@link StageModules} stage name — two persisted facts that
@@ -24,6 +24,7 @@ final class StepNames {
     static final String SEED_EXTRACTION = "seed-extraction";
     static final String SEED_CORPUS_COMPARISON = "seed-corpus-comparison";
     static final String EMBEDDING_SCORING = "embedding-scoring";
+    static final String TRANSLATION = "translation";
     static final String RELEVANCE_SCORING = "relevance-scoring";
     static final String RELEVANCE_FLOOR = "relevance-floor";
     static final String CLUSTERING = "clustering";

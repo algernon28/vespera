@@ -135,7 +135,7 @@ final class NearestNeighbourGraph {
     }
 
     /** Cosine similarity over two unit-length-agnostic vectors. */
-    private static double cosine(float[] left, float[] right) {
+    static double cosine(float[] left, float[] right) {
         double dot = 0;
         double leftNorm = 0;
         double rightNorm = 0;

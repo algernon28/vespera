@@ -69,6 +69,7 @@ class RunsAndNamesHaveOnePlaceTest {
             "seed-measurement",
             "seed-corpus-comparison",
             "embedding-scoring",
+            "translation",
             "relevance-scoring",
             "relevance-floor",
             "clustering",
@@ -151,9 +152,9 @@ class RunsAndNamesHaveOnePlaceTest {
                         + " StepNames declares, so a name added to either table is a name this guard looks for",
                 () -> assertThat(PERSISTED_NAMES).containsAll(declared));
         claim(
-                "the scan reads StepNames' own fifteen literals, so a scan that had stopped reading literals"
+                "the scan reads StepNames' own sixteen literals, so a scan that had stopped reading literals"
                         + " fails here rather than passing the claim below",
-                () -> assertThat(stepNamesLiterals).hasSize(15));
+                () -> assertThat(stepNamesLiterals).hasSize(16));
         claim(
                 "no pipeline source outside StageModules and StepNames writes a literal equal to a persisted"
                         + " stage or step name. Each name is written in one table and read from there"

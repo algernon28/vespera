@@ -16,7 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
- * The whole job: the job named {@code vespera}, its fifteen steps in order, and the clock (ADR-157 §7,
+ * The whole job: the job named {@code vespera}, its sixteen steps in order, and the clock (ADR-157 §7,
  * amending ADR-131's second reason for the ten one-bean configuration classes this folds in — "the
  * place each stage's step is named"). Renamed from {@code CensusJobConfiguration} for what it now
  * holds: a step's name has one place, {@link StepNames}, and a plain step's construction has one
@@ -83,6 +83,7 @@ public class VesperaJobConfiguration {
             Step seedExtractionStep,
             Step seedCorpusComparisonStep,
             Step embeddingScoringStep,
+            Step translationStep,
             Step relevanceScoringStep,
             Step relevanceFloorStep,
             Step clusteringStep,
@@ -99,6 +100,7 @@ public class VesperaJobConfiguration {
                 .next(seedExtractionStep)
                 .next(seedCorpusComparisonStep)
                 .next(embeddingScoringStep)
+                .next(translationStep)
                 .next(relevanceScoringStep)
                 .next(relevanceFloorStep)
                 .next(clusteringStep)
@@ -159,6 +161,15 @@ public class VesperaJobConfiguration {
             EmbeddingScoringTasklet embeddingScoringTasklet) {
         return TaskletSteps.taskletStep(
                 StepNames.EMBEDDING_SCORING, jobRepository, transactionManager, embeddingScoringTasklet);
+    }
+
+    /** Stage 5's translation step: one copy of a translation set survives (ADR-271). */
+    @Bean
+    Step translationStep(
+            JobRepository jobRepository,
+            PlatformTransactionManager transactionManager,
+            TranslationTasklet translationTasklet) {
+        return TaskletSteps.taskletStep(StepNames.TRANSLATION, jobRepository, transactionManager, translationTasklet);
     }
 
     /** Stage 5's fourth step: relevance scoring (ADR-020, #108). */

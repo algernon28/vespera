@@ -4,6 +4,7 @@ import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.profile.LanguagesValue;
 import io.algernon.vespera.profile.NameEndingsValue;
 import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
@@ -388,7 +389,40 @@ class NextAction {
             return logFloor;
         }
         Optional<String> nameEndings = theNameEndingsUnreadable(profile);
-        return nameEndings.isPresent() ? nameEndings : theExtractionAttemptIgnored(profile);
+        if (nameEndings.isPresent()) {
+            return nameEndings;
+        }
+        Optional<String> translationFloor = theTranslationFloorUnreadable(profile);
+        if (translationFloor.isPresent()) {
+            return translationFloor;
+        }
+        Optional<String> languages = thePreferredLanguagesUnreadable(profile);
+        return languages.isPresent() ? languages : theExtractionAttemptIgnored(profile);
+    }
+
+    // The line for translationSimilarityFloor (ADR-271 section 8), in the shape of logTimestampShareFloor's:
+    // empty unless it holds something no number can be read from. Unset is not reported.
+    private static Optional<String> theTranslationFloorUnreadable(Profile profile) {
+        if (profile.translationSimilarityFloor().reading() instanceof NumericValue.Unreadable unreadable) {
+            return Optional.of("Every run value is set, but translationSimilarityFloor reads "
+                    + quoted(unreadable.text()) + ", which is not a number, so this run ignored it and applied"
+                    + " no likeness between languages. Next: write a similarity between 0 and 1 into"
+                    + " translationSimilarityFloor in " + PROFILE + ", read off " + TranslationTasklet.PAGE_FILE_NAME
+                    + ", and run again.");
+        }
+        return Optional.empty();
+    }
+
+    // The line for preferredLanguages (ADR-271 section 8): empty unless a piece of it is not a two-letter code.
+    private static Optional<String> thePreferredLanguagesUnreadable(Profile profile) {
+        if (profile.preferredLanguages().reading() instanceof LanguagesValue.Unreadable unreadable) {
+            return Optional.of("Every run value is set, but preferredLanguages reads "
+                    + quoted(unreadable.text()) + ", which is not a list of two-letter language codes, so this"
+                    + " run ignored it and removed no copy in another language. Next: write the languages to keep"
+                    + " into preferredLanguages in " + PROFILE + ", most preferred first, as two-letter codes"
+                    + " separated by spaces or commas, and run again.");
+        }
+        return Optional.empty();
     }
 
     /**

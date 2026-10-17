@@ -480,7 +480,7 @@ class ProgressPageReadabilityTest {
 
     @Test
     @Story("The timeline says each step's state in words")
-    @DisplayName("Each of the timeline's fifteen marks holds its state's word as text, equal to the state it is drawn in")
+    @DisplayName("Each of the timeline's sixteen marks holds its state's word as text, equal to the state it is drawn in")
     void theTimelineSaysEveryStepsStateInWords() throws IOException {
         ProgressPage progressPage = aPage(Clock.systemDefaultZone());
         JobExecution execution = anExecution(LocalDateTime.now());
@@ -499,7 +499,7 @@ class ProgressPageReadabilityTest {
             stateOf.put(mark.group(1), mark.group(2));
             wordsOf.put(mark.group(1), all(STATE_WORD, mark.group(3)));
         }
-        claim("the timeline has a mark for each of the fifteen steps", () -> assertThat(stateOf).hasSize(15));
+        claim("the timeline has a mark for each of the sixteen steps", () -> assertThat(stateOf).hasSize(16));
         claim(
                 "each mark says its state in words, the state it is drawn in, so that no state is told by colour alone",
                 () -> assertThat(stateOf).allSatisfy((step, state) -> assertThat(wordsOf.get(step)).containsExactly(state)));
