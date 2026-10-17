@@ -73,7 +73,10 @@ class EveryTableKeyedByARunIsOnRecordTest {
      */
     private static final Set<String> WRITTEN_OVER_ACROSS_RUNS = Set.of("relevance_label", "relevance_label_provenance");
 
-    /** The twenty-six tables ADR-229 states the growth of, each with the module that owns it. */
+    /**
+     * The twenty-six tables ADR-229 states the growth of, and translation_of, which ADR-271 adds, each with the
+     * module that owns it.
+     */
     private static final Map<String, String> ON_RECORD = new TreeMap<>(Map.ofEntries(
             Map.entry("run_upstream", "ledger"),
             Map.entry("finished_step", "ledger"),
@@ -97,6 +100,7 @@ class EveryTableKeyedByARunIsOnRecordTest {
             Map.entry("document_cluster", "embedding"),
             Map.entry("relevance_label", "embedding"),
             Map.entry("relevance_label_provenance", "embedding"),
+            Map.entry("translation_of", "embedding"),
             Map.entry("cluster", "synthesis"),
             Map.entry("synthesis_doc", "synthesis"),
             Map.entry("call_exemplar", "synthesis"),
@@ -114,7 +118,7 @@ class EveryTableKeyedByARunIsOnRecordTest {
 
     @Test
     @Story("The tables that grow with each piece of work are listed")
-    @DisplayName("The tables that keep rows by piece of work are the twenty-six on record, each owned by the part of the code on record")
+    @DisplayName("The tables that keep rows by piece of work are the twenty-seven on record, each owned by the part of the code on record")
     void theTablesKeyedByARunAreTheOnesOnRecord() throws IOException {
         Map<String, String> keyedByARun = new TreeMap<>();
         Matcher table = OWNED_TABLE.matcher(schema());
@@ -125,7 +129,7 @@ class EveryTableKeyedByARunIsOnRecordTest {
         }
 
         claim(
-                "the tables whose rows name the piece of work they were written under are the twenty-six the"
+                "the tables whose rows name the piece of work they were written under are the twenty-seven the"
                         + " record lists, with their owners: a table added to them, or taken from them, grows"
                         + " or stops growing with every new piece of work, and the record must say so",
                 () -> assertThat(keyedByARun).isEqualTo(ON_RECORD));

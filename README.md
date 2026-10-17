@@ -59,6 +59,8 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `generationContextWindow` | how much your own machine can read in one go | — |
 | `logTimestampShareFloor` | how much of each text file begins with a date or a time | `format-mix.html` |
 | `outOfScopeNameEndings` | which files, of no known kind or text, you know are not documents by the ending of their name | `format-mix.html` |
+| `preferredLanguages` | which language's copy you keep of a document held in several | `translations.html` |
+| `translationSimilarityFloor` | how alike two documents in different languages must be to be taken for one | `translations.html` |
 
 `document-frequency.html` shows `boilerplateDocumentFrequencyFloor`'s measurement. For each passage of five words found in two documents or more, stage 3 counts how many documents it is in, out of the documents it measured. The floor is a share between 0 and 1 of the documents measured: a passage is boilerplate, and is left out when documents are compared, when the documents it is found in number at least the floor times the documents measured. A passage is stored as a number, not as its words, so the page shows counts and shares and no text, and names no file.
 
@@ -78,7 +80,7 @@ If you moved the working directory, put its `vespera.db` in place of `.vespera/v
 
 The first line names the content census it read: the one whose id you put at the end, or, with no id, of the content censuses that finished, the one whose run was created last. Each line after the first is a row as the page shows it, the share written as Python writes it, `1.0` for `1.00`; the rule for choosing the floor is the same. If the command stops with `TypeError: 'NoneType' object is not subscriptable`, no content census has finished in that database. If it stops with `unable to open database file`, there is no `vespera.db` where it looked, and it has made none: run it from the directory you run `vespera` from, or name the moved `vespera.db`. If it stops with `no such table: run`, the `vespera.db` it opened holds no ledger, as an empty file of that name does: check that it is the working directory's. If it prints the `run` line and nothing else, no run with that id stored any passages.
 
-Six of these are **optional** and none of them is one of the five stops; all six are here so that you know they exist.
+Eight of these are **optional** and none of them is one of the five stops; all eight are here so that you know they exist.
 
 `degenerateOutputConfidenceFloor`, left unset, removes nothing for extracting badly. `logTimestampShareFloor`, left unset, removes no logs: set it, as a share between 0 and 1, to leave out as a log every text file of ten lines or more in which at least that share of the lines read begin with a date or a time. `generationModel` and `generationContextWindow`, left unset, write the connecting text with the model and the reading window Vespera ships with — they are the values that already have answers, and setting one only replaces the answer it already had.
 
@@ -89,6 +91,10 @@ outOfScopeNameEndings:
   value: ".P3A .P3L .P3P .P3S .P3O .P3K .P3T .DGN .LGN .PGN .SGN"
   provenance: "format-mix.html: payment terminal package and signature files, not documents"
 ```
+
+`preferredLanguages`, left unset, keeps every copy of a document held in several languages. Two files whose paths are the same but for one folder named for a language, written in lowercase, such as `en/api/index.html` and `zh/api/index.html`, are one document in two languages; so are two documents in different languages whose meaning is at least `translationSimilarityFloor` alike, once that is set. `translations.html` counts them, and the languages it found. Write the languages you want kept into `preferredLanguages`, as two-letter codes, the one you prefer first, such as `it, en`, with why in `provenance`, and run again: of each document, the copy in the first of them present is kept and the others are left out. Where no copy is in a language you listed, the one with the lowest path is kept. A document with two copies in one language keeps every copy.
+
+`translationSimilarityFloor`, left unset, leaves out no copy found by its meaning, only those found by their paths. `translations.html` has a row for each hundredth of likeness, from the least alike pair to the most, with how many pairs are on it, how many of those their paths confirm to be one document, and how many their paths refute, showing them to be two. Pick the lowest row from which on no row has a refuted pair, and set the floor to the likeness it shows: the pairs on that row and on every row after it are then taken for one document, and none on the rows before.
 
 `extractionAttempt`, left unset, is the first attempt at extracting text from your archive. Some files may not have been read because the converter was busy, failing or too slow at the time. `extraction-failures.html` lists those files beside the ones it could not convert. To have the converter asked about them again, write `2` into `extractionAttempt`, with why in `provenance`, and run again. Files it already answered about are not converted again. Everything after extraction is redone, because what was read may have changed: deduplication, scoring, grouping and the connecting text. The groups are new, so you approve the arrangement again before anything is written. Nothing from the first attempt is deleted. Remove the value, or write `1`, and the next run is back on the first attempt, with nothing redone. If you had approved the second attempt's arrangement, write the first one's name back into `arrangementApproved` before the connecting text is written again; the last line of the output names it. Next time, write `3`. Do not delete rows from `vespera.db` to make a stage run again.
 
@@ -127,6 +133,7 @@ extraction-survivors.html        the files that were read and kept
 confidence-distribution.html     how well the text came out
 document-frequency.html          how many documents share each passage
 seed-corpus-comparison.html      how far your exemplars resemble the archive
+translations.html                the documents held in several languages, and how alike they are
 relevance-labelling.html         the report you read to choose the threshold
 relevance-labels.yaml            the sixty questions you answer
 cluster-sizes.html               how the survivors grouped under each exemplar

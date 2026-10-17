@@ -2,7 +2,7 @@
 
 - **Date**: 2026-10-17
 - **Status**: accepted on 2026-10-17.
-- **Amends**: [ADR-057](0057-the-verdict-vocabulary-is-eight-values-a-closed-enum-edited-by-a-pr.md)'s closed vocabulary, by the one value §1 adds, in the way that record provides for; [ADR-157](0157-a-stage-asks-for-its-run-after-its-own-gate-one-helper-mints-every-run-and-every-step-is-named-once.md) §7's fifteen step names, which §5 makes sixteen; and what stage 5's relevance-scoring step scores, the survivors of the seed measurement run, of which it scores those carrying no `translation-of` under the scoring run (§5).
+- **Amends**: [ADR-057](0057-the-verdict-vocabulary-is-eight-values-a-closed-enum-edited-by-a-pr.md)'s closed vocabulary, by the one value §1 adds, in the way that record provides for; [ADR-157](0157-a-stage-asks-for-its-run-after-its-own-gate-one-helper-mints-every-run-and-every-step-is-named-once.md) §7's fifteen step names, which §5 makes sixteen; and what stage 5's relevance-scoring step scores, the survivors of the seed measurement run, of which it scores those carrying no `translation-of` under the scoring run (§5); and [ADR-269](0269-the-progress-page-is-four-tabs-draws-a-hover-over-each-chart-and-lists-the-runs-the-working-directory-holds.md) §5's table of the steps each run records, in which the scoring run's are four (§5).
 - **Keeps**: [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md), a floor that is unset does not stop the run; [ADR-260](0260-a-shingle-reaches-the-boilerplate-floor-by-exact-decimal-arithmetic.md), a floor compared in exact decimal arithmetic; [ADR-262](0262-stage-3-writes-the-page-the-boilerplate-floor-is-read-off.md) §3, a page written when its step works and left as it is when the step is skipped as recorded; [ADR-228](0228-a-scoring-run-names-the-embedding-models-artefact-and-reads-the-vectors-of-one-embedder-identity.md), a scoring run reads the vectors of one embedder identity; [ADR-087](0087-clusters-are-modularity-communities-over-a-k-nearest-neighbour-graph-built-in-blocks.md), a mean vector computed from an occurrence's chunk vectors, read in blocks and discarded; [ADR-116](0116-a-runs-completion-is-recorded-per-step-because-several-steps-share-one-run.md), completion recorded per step; [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md), no stage's version names `pipeline`.
 
 ## Context
@@ -35,7 +35,9 @@ CREATE TABLE IF NOT EXISTS translation_of (
 );
 ```
 
-with an index on `run_id` and one on `translation_of_occurrence_id` (ADR-173). `language` and `kept_language` are ISO 639-1 codes, `evidence` is `parallel-paths`, `embeddings` or `both` (§4). Nothing existing depends on the table, so `EmbeddingSchema`'s version does not move (ADR-197).
+with an index on `run_id` and one on `translation_of_occurrence_id` (ADR-173), `translation_of_by_run_id` and `translation_of_by_translation_of_occurrence_id`, built with the table, over no row, and so sorting nothing on any database: a database written before this record gains the empty table and both indexes at start-up. `language` and `kept_language` are ISO 639-1 codes, `evidence` is `parallel-paths`, `embeddings` or `both`, no other value (§4). Nothing existing depends on the table, so `EmbeddingSchema`'s version does not move (ADR-197).
+
+The verdict's reason is one fixed sentence for every such verdict, `the content is carried, in another language, by an occurrence that survives`: it names no path and no language, since the row names both, and a reader of the reasons by kind reads one line for the kind.
 
 ### 2. Translations by their paths
 
@@ -71,9 +73,11 @@ Translations by their paths and applied likenesses are the links; **a translatio
 
 - After 5c, because a likeness needs the vectors. Before 5d, so that no removed copy is scored, put to a person on the labelling page, judged by the relevance floor, clustered or arranged: 5d scores the survivors of the seed measurement run carrying no `translation-of` under the scoring run, and every step from 5e on reads the scoring run's survivors, as it does now.
 - Translations by their paths are decided in this step and not before 5c, though they need no vector, because the copies a path pair removes have to be embedded for the page to count the likenesses the paths confirm and refute. The cost is the embedding of those copies, once, since a vector is kept by content (ADR-085).
+- **The survivors entering the step are the seed measurement run's**, the run 5c embeds the survivors of, handed to `embedding` in occurrence-id order, the order a tie in §3 and the lowest index of a likeness are read in. Their languages are read under the stage-2 run that run names upstream.
 - It consults the gates every step of the scoring half consults (`StageFiveGates.modelSeedWalkUsable`), and none of its own (§6).
+- **Where the vectors under the run's model carry no single embedder identity**, no mean vector can be read on one scale (ADR-228): the step compares nothing, removes nothing, writes no page, records no completion, and is shown as ended at a shut gate on the progress page, so that the next invocation asks again. Relevance scoring then scores every survivor of the seed measurement run, as it did before this record.
 - It records its completion (ADR-116): what it reads, the survivors, the vectors and the two values of §6, is all named by the scoring run. A step that finds its work unfinished discards its own `translation-of` verdicts and `translation_of` rows under the run and decides again.
-- It counts its verdicts as it inserts them, as the steps removing occurrences do, so the progress page shows it as one (ADR-268).
+- It counts its verdicts as it inserts them, as the steps removing occurrences do, so the progress page shows it as one (ADR-268): the page's timeline has sixteen marks, its samples a column for `translation-of` between `redundant-with` and `below-threshold`, the order `VerdictKind` declares, and its tab of runs counts four steps a scoring run records, this one second, where ADR-269 §5 tables three.
 
 ### 6. The profile
 
@@ -179,6 +183,11 @@ Every rule is `embedding`'s: `Languages`, §2's language folder and a stored Lin
 | `pipeline.FinishedStepsInvocationTest.everyStepRecordsItsWorkUnderItsOwnRunAndName` | `embedding-scoring / translation` is recorded finished |
 | `pipeline.RunsAndNamesHaveOnePlaceTest.noPipelineSourceWritesAPersistedNameOutsideItsTwoTables` | `translation` is a persisted name, and `StepNames` holds sixteen |
 | `pipeline.RunIdentityGoldenTest.embeddingScoring` | the scoring run records `"translationSimilarityFloor":null,"preferredLanguages":[]` |
+| `PipelineHoldsOnlyTheRulesOnRecordTest` | `TranslationTasklet` and `TranslationReport` hold no rule; `TranslationTasklet` and `RelevanceScoringTasklet` name a verdict kind; `TranslationTasklet`'s collaborators are on record |
+| `EveryTableKeyedByARunIsOnRecordTest.theTablesKeyedByARunAreTheOnesOnRecord` | `translation_of`, owned by `embedding`, is the twenty-seventh |
+| `EveryStatementThatSortsIsRecordedTest.theIndexesOfTheSchemaAreTheRecordedOnes` | `translation_of`'s two indexes |
+| `profile.ProfileTest`, `profile.ProfileStoreTest.everyAnswerLandsOnTheKeyThatCarriedIt` | thirteen keys, the last two read from the file |
+| `pipeline.ProgressPageChartsTest`, `pipeline.ProgressPageReadabilityTest`, `pipeline.ProgressPageOutcomesInvocationTest`, `pipeline.ProgressPageRunsInvocationTest` | sixteen steps, nine blocking kinds with `translation-of`, four steps of a scoring run |
 
 ## What this does not decide
 

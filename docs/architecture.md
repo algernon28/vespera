@@ -24,7 +24,7 @@ Eight stages, each defined by the verdicts it writes. Stages never call each oth
 | 2  | Extraction                   | `extraction-failed`, `degenerate-output`  | Docling, out-of-process, cached; silent about text fidelity, never about failure (ADR-010, ADR-070).  |
 | 3  | Content census               | *(no verdicts)*                           | The corpus-wide pass over what stage 2 stored — document frequency for boilerplate (ADR-038), report distributions. Per-document metrics and shingles are written in stage 2's own pass, under stage 2's run (ADR-019, ADR-073). |
 | 4  | Content redundancy (lexical) | `redundant-with`                          | MinHash + LSH banding over shingles (ADR-018), boilerplate-stripped (ADR-038).                        |
-| 5  | Relevance (embeddings)       | `below-threshold`                         | Scoring against the seed set (ADR-020), clustering within each seed partition (ADR-027, ADR-045).     |
+| 5  | Relevance (embeddings)       | `translation-of`, `below-threshold`       | One copy kept of a content held in several languages, found by paths one language folder apart or by mutual nearest mean vectors, before anything is scored (ADR-271); scoring against the seed set (ADR-020), clustering within each seed partition (ADR-027, ADR-045). |
 | 6a | Arrangement                  | *(no verdicts)*                           | Seed-named taxonomy + within-seed clusters (ADR-022), each cluster given a row of its own carrying a derived label, a count and a place in the order (ADR-105, ADR-106, ADR-112). Writes `arrangement.html`, the human gate before 6b (ADR-107). |
 | 6b | Generation                   | *(no verdicts; a fault, not a verdict)*   | One exemplar-first call per cluster, every answer verified before it is believed and a turned-down one recorded as a cluster fault (ADR-108, ADR-111). Citations are exemplar ordinals checked for being in range (ADR-109). Writes the deliverable: a Markdown tree, one per run id (ADR-103, ADR-104, ADR-112). |
 
@@ -39,7 +39,7 @@ flowchart TD
     S2["<b>2 · Extraction</b><br/>extraction-failed · degenerate-output"]
     S3["<b>3 · Content census</b><br/>corpus-wide pass over stage 2's columns<br/><i>writes no verdicts</i>"]
     S4["<b>4 · Content redundancy</b><br/>redundant-with"]
-    S5["<b>5 · Relevance</b><br/>below-threshold"]
+    S5["<b>5 · Relevance</b><br/>translation-of · below-threshold"]
     S6A["<b>6a · Arrangement</b><br/>cluster rows: label · count · order<br/><i>writes no verdicts</i>"]
     S6B["<b>6b · Generation</b><br/>cited overviews per cluster<br/><i>a turned-down answer faults its cluster</i>"]
     LEDGER[("<b>Ledger</b><br/>occurrences · verdicts · runs")]
@@ -238,7 +238,7 @@ flowchart TD
 - **No Spring Modulith event publication registry** — no application events exist in this design (stages never call each other); `spring-modulith-api` — the `@ApplicationModule` annotation the boundary test reads — is retained, and Modulith's runtime is not (ADR-141).
 - **CLI surface** (ADR-047, narrowed by ADR-101) — `vespera run` takes the pipeline through 6b and `vespera label` runs the operator's labelling pass. The `publish` subcommand is gone, removed under ADR-101's own follow-up. Nothing more, because there's no interactive pause left to expose.
 
-**One invocation, end to end.** What a person starting the command actually sets in motion, as the code is wired today. The root is the argument, and `vespera.corpus-root` in `application.yaml` answers only an invocation that names none (ADR-066) — unset by default, and an invocation with neither refuses rather than guessing a tree to census. The working directory is prepared before Spring can open anything inside it (ADR-054), the schema is checked before any stage runs (ADR-049), and the job is a single Spring Batch job whose steps are the cascade — fifteen of them today, census through generation, each later stage having been another step appended to the same job. Stage 6b is the last: it opens over the arrangement the operator approved, mints the run everything it writes is recorded under, calls once per cluster, and writes the deliverable. The run ends at stage 6b, and nothing follows it (ADR-101).
+**One invocation, end to end.** What a person starting the command actually sets in motion, as the code is wired today. The root is the argument, and `vespera.corpus-root` in `application.yaml` answers only an invocation that names none (ADR-066) — unset by default, and an invocation with neither refuses rather than guessing a tree to census. The working directory is prepared before Spring can open anything inside it (ADR-054), the schema is checked before any stage runs (ADR-049), and the job is a single Spring Batch job whose steps are the cascade — sixteen of them today, census through generation, each later stage having been another step appended to the same job. Stage 6b is the last: it opens over the arrangement the operator approved, mints the run everything it writes is recorded under, calls once per cluster, and writes the deliverable. The run ends at stage 6b, and nothing follows it (ADR-101).
 
 ```mermaid
 flowchart TD

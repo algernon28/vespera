@@ -69,7 +69,10 @@ class ProgressPageChartsTest {
 
     private static final String ENDED_COMPLETED = "This invocation has ended: completed.";
 
-    /** The fifteen steps in the order the job runs them, as ADR-265 section 1 lists them. */
+    /**
+     * The sixteen steps in the order the job runs them, as ADR-265 section 1 lists them, with the translation
+     * step ADR-271 §5 puts between embedding and relevance scoring.
+     */
     private static final List<String> STEPS_IN_JOB_ORDER = List.of(
             StepNames.CENSUS,
             StepNames.BYTE_LEVEL_REDUCTION,
@@ -80,6 +83,7 @@ class ProgressPageChartsTest {
             StepNames.SEED_EXTRACTION,
             StepNames.SEED_CORPUS_COMPARISON,
             StepNames.EMBEDDING_SCORING,
+            StepNames.TRANSLATION,
             StepNames.RELEVANCE_SCORING,
             StepNames.RELEVANCE_FLOOR,
             StepNames.CLUSTERING,
@@ -136,7 +140,7 @@ class ProgressPageChartsTest {
     private static final String SAMPLES_HEADER = ReportPage.headerRow(
             "Elapsed", "Database size", "Step", "Read", "Written", "Progress", "Outcome step", "Survivors",
             "broken", "duplicate-of", "superseded-by", "out-of-scope", "extraction-failed", "degenerate-output",
-            "redundant-with", "below-threshold");
+            "redundant-with", "translation-of", "below-threshold");
 
     private static final String STEPS_HEADER =
             ReportPage.headerRow("Step", "State", "Read", "Written", "Skipped", "Duration", "Progress");
@@ -193,7 +197,7 @@ class ProgressPageChartsTest {
 
     @Test
     @Story("The tiles say how many steps finished, which step runs, the time elapsed and the database's size")
-    @DisplayName("With the census finished and byte-level reduction running, the tiles say one of fifteen steps finished, name byte-level reduction as running, and give the time elapsed and the database's size")
+    @DisplayName("With the census finished and byte-level reduction running, the tiles say one of sixteen steps finished, name byte-level reduction as running, and give the time elapsed and the database's size")
     void theTilesSayTheStepsFinishedTheStepRunningTheTimeAndTheSize() throws IOException {
         ProgressPage progressPage = aPage(Clock.systemDefaultZone());
         JobExecution execution = anExecution(1L, LocalDateTime.now());

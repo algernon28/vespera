@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -189,6 +190,12 @@ class ProfileStoreTest {
             outOfScopeNameEndings:
               value: ".P3A .DGN"
               provenance: "read off the format mix"
+            translationSimilarityFloor:
+              value: "0.55"
+              provenance: "read off the translations page"
+            preferredLanguages:
+              value: "it, en"
+              provenance: "the languages the readers read"
             """;
 
     @Test
@@ -217,11 +224,16 @@ class ProfileStoreTest {
                         + " values along by a position",
                 () -> assertThat(loaded.relevanceScoreFloor().value()).isEqualTo("0.53"));
         claim(
-                "the key before the last carries its own answer, the attempt",
+                "the attempt carries its own answer",
                 () -> assertThat(loaded.extractionAttempt().value()).isEqualTo("3"));
         claim(
+                "and so do the name endings and the key before the last, the similarity floor",
+                () -> assertThat(List.of(
+                                loaded.outOfScopeNameEndings().value(), loaded.translationSimilarityFloor().value()))
+                        .containsExactly(".P3A .DGN", "0.55"));
+        claim(
                 "including the last key, which is the one a shorter way in could not have filled",
-                () -> assertThat(loaded.outOfScopeNameEndings().value()).isEqualTo(".P3A .DGN"));
+                () -> assertThat(loaded.preferredLanguages().value()).isEqualTo("it, en"));
     }
 
     @Test

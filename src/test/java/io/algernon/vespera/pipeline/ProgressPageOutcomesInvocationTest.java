@@ -83,10 +83,13 @@ class ProgressPageOutcomesInvocationTest {
 
     private static final Pattern A_CELL = Pattern.compile("<td[^>]*>([^<]*)</td>");
 
-    /** The eight blocking kinds in {@code VerdictKind}'s order, as ADR-268 section 1 writes them. */
+    /**
+     * The nine blocking kinds in {@code VerdictKind}'s order, as ADR-268 section 1 writes them, with the
+     * translation-of ADR-271 §1 adds.
+     */
     private static final List<String> BLOCKING_KINDS = List.of(
             "broken", "duplicate-of", "superseded-by", "out-of-scope",
-            "extraction-failed", "degenerate-output", "redundant-with", "below-threshold");
+            "extraction-failed", "degenerate-output", "redundant-with", "translation-of", "below-threshold");
 
     @TempDir
     static Path workingDirectory;
@@ -155,8 +158,8 @@ class ProgressPageOutcomesInvocationTest {
         }
         claim(
                 "and its last row, the last write's sample, names extraction as the outcome step, its three survivors"
-                        + " and the count of each of the eight kinds in the order VerdictKind declares them",
-                () -> assertThat(rows.getLast()).hasSize(16).endsWith(expected.toArray(String[]::new)));
+                        + " and the count of each of the nine kinds in the order VerdictKind declares them",
+                () -> assertThat(rows.getLast()).hasSize(17).endsWith(expected.toArray(String[]::new)));
     }
 
     @Test

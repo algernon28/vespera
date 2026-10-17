@@ -92,12 +92,15 @@ class ProgressPageRunsInvocationTest {
     /** The column of the tab that says whether this invocation arrived at the run, counted from nought. */
     private static final int THIS_INVOCATION = 5;
 
-    /** The eight blocking kinds, as the tab heads its columns, in the vocabulary's order. */
+    /** The nine blocking kinds, as the tab heads its columns, in the vocabulary's order (ADR-271 §1 adds translation-of). */
     private static final List<String> BLOCKING = List.of(
             "broken", "duplicate-of", "superseded-by", "out-of-scope",
-            "extraction-failed", "degenerate-output", "redundant-with", "below-threshold");
+            "extraction-failed", "degenerate-output", "redundant-with", "translation-of", "below-threshold");
 
-    /** The steps that record their completion under a run of each stage, as ADR-269 section 5 tables them. */
+    /**
+     * The steps that record their completion under a run of each stage, as ADR-269 section 5 tables them, with the
+     * translation step ADR-271 §5 records under the scoring run.
+     */
     private static final Map<String, List<String>> STEPS_OF_A_STAGE = new LinkedHashMap<>();
 
     static {
@@ -110,7 +113,7 @@ class ProgressPageRunsInvocationTest {
                 StageModules.SEED_MEASUREMENT.stage(), List.of(StepNames.SEED_EXTRACTION, StepNames.SEED_CORPUS_COMPARISON));
         STEPS_OF_A_STAGE.put(
                 StageModules.EMBEDDING_SCORING.stage(),
-                List.of(StepNames.EMBEDDING_SCORING, StepNames.RELEVANCE_SCORING, StepNames.CLUSTERING));
+                List.of(StepNames.EMBEDDING_SCORING, StepNames.TRANSLATION, StepNames.RELEVANCE_SCORING, StepNames.CLUSTERING));
         STEPS_OF_A_STAGE.put(StageModules.ARRANGEMENT.stage(), List.of(StepNames.ARRANGEMENT));
         STEPS_OF_A_STAGE.put(StageModules.GENERATION.stage(), List.of(StepNames.GENERATION));
     }
@@ -168,7 +171,7 @@ class ProgressPageRunsInvocationTest {
         String header = ReportPage.headerRow(headers());
         claim(
                 "its table's header row is the walk, the stage, the run's ordinal, the steps finished, the state, whether"
-                        + " this invocation arrived at it, and the eight kinds",
+                        + " this invocation arrived at it, and the nine kinds",
                 () -> assertThat(made.lastPage()).contains(header));
         List<List<String>> expected = new ArrayList<>();
         for (Run run : made.afterSecond()) {

@@ -11,6 +11,7 @@ import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.embedding.RelevanceScoringBeans;
 import io.algernon.vespera.embedding.SeedCorpusComparison;
+import io.algernon.vespera.embedding.TranslationOf;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.DocumentTitles;
@@ -153,6 +154,9 @@ import org.springframework.transaction.annotation.Transactional;
     EmbeddingScoringTasklet.class,
     ChunkEmbedderBeans.class,
     EmbeddingScriptedBeans.class,
+    // The translation step between embedding and relevance scoring (ADR-271 §5).
+    TranslationTasklet.class,
+    TranslationOf.class,
     RelevanceScoringTasklet.class,
     RelevanceScoringBeans.class,
     RelevanceFloorTasklet.class,
