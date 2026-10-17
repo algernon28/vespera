@@ -2,6 +2,8 @@
 
 > **Amended — see [ADR-249](0249-a-decision-record-holds-its-decision-and-no-history.md).** Whether the operator has used `vespera run` is no record's to say: §1's check reads it when a change is merged, from the operator, in the pull request.
 
+> **Read with [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md).** Of §7's *"A javadoc in `ledger` or `profile` costs no run id and may be corrected at any time"*: generation's version names `profile` (ADR-226 §7, §9), so a commit to `profile` alone mints generation again (ADR-226 §12), and a javadoc in `profile` waits, as any other module's does, for a change that already re-mints it, or for §1's rule. `ledger`, which no stage's version names, still costs no run id, and a javadoc in it may be corrected at any time.
+
 - **Date**: 2026-10-09
 - **Status**: accepted.
 - **Amends**: [ADR-046](0046-the-pom-carries-what-a-recorded-decision-requires.md)'s list of removals. It gains the actuator starter and its test starter, the batch test starter, Lombok, and the compiler configuration that only named annotation processors (§2). It also records the removal of the OpenAI starter, which [ADR-195](0195-the-reference-model-and-every-bake-off-candidate-are-served-locally.md) §3 made without putting a block on ADR-046. *"The pom carries what a recorded decision requires"* stands, and this record applies it.
