@@ -26,7 +26,7 @@ import java.util.stream.Stream;
 
 /**
  * An arrangement, its writing and its survivors held as lists, answering {@link ArrangedSurvivors} from them, and
- * what the tests of the tree read back out of what was written (ADR-272).
+ * what the tests of the tree read back out of what was written (ADR-273).
  *
  * <p>{@code src/main} reads one seed partition at a time and holds no such lists (ADR-223). A test's arrangement is a
  * handful of clusters, so it may hold all of it. A partition is the clusters sharing a winning seed, in the order

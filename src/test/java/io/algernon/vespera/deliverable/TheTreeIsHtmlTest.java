@@ -29,7 +29,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The tree stage 6b leaves is HTML and nothing else, every page standing alone, every value escaped and the writing
- * rendered on its group's page (ADR-272 §1). {@code TheWritingIsRenderedFromASubsetOfMarkdownTest} holds the
+ * rendered on its group's page (ADR-273 §1). {@code TheWritingIsRenderedFromASubsetOfMarkdownTest} holds the
  * renderer's subset.
  *
  * <p>Written over an archive that is not there, so every copy is {@code gone}: what this class claims is about the
@@ -37,7 +37,7 @@ import org.junit.jupiter.api.io.TempDir;
  */
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
-@Link(name = "ADR-272", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class TheTreeIsHtmlTest {
 
     /** The seed every cluster here sits under. */

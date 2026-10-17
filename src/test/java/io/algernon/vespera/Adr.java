@@ -1859,14 +1859,14 @@ public final class Adr {
             + "0272-a-module-whose-answer-is-the-boundary-of-a-shallow-clone-is-written-as-unknown.md";
 
     /**
-     * ADR-272 -- the deliverable is HTML, {@code index.html} and one page a cluster, with every value escaped and
+     * ADR-273 -- the deliverable is HTML, {@code index.html} and one page a cluster, with every value escaped and
      * the writing's Markdown rendered from a subset by a renderer of Vespera's own; every survivor it lists is copied from the archive, read only, into {@code
      * documents/} and kept only where its SHA-256 equals the key stage 2 recorded; a module of its own, {@code
      * deliverable}, writes it and no stage names it, so the tree is drawn again with no question put; the closing
      * line names the index, which is opened once (amends ADR-103, ADR-104, ADR-135, ADR-206, ADR-222 and others).
      */
     public static final String THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR = FILE
-            + "0272-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md";
+            + "0273-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md";
 
     private Adr() {
     }

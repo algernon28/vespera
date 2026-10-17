@@ -36,7 +36,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Every survivor the tree lists is copied from the archive into {@code documents/}, byte for byte, and kept only where
- * its bytes hash to the key stage 2 recorded for it (ADR-272 §2).
+ * its bytes hash to the key stage 2 recorded for it (ADR-273 §2).
  *
  * <p>Each test lays out {@code <base>/archive} as the corpus root and {@code <base>/work} as the working directory,
  * with two survivors of one cluster: occurrence 42, {@code reports/Q3 Report (final).PDF}, and occurrence 43, {@code
@@ -44,7 +44,7 @@ import org.junit.jupiter.api.io.TempDir;
  */
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
-@Link(name = "ADR-272", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-273", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
 class EverySurvivorIsCopiedTest {
 
