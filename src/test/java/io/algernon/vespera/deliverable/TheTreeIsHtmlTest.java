@@ -29,7 +29,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The tree stage 6b leaves is HTML and nothing else, every page standing alone, every value escaped and the writing
- * shown as the model wrote it (ADR-272 §1).
+ * rendered on its group's page (ADR-272 §1). {@code TheWritingIsRenderedFromASubsetOfMarkdownTest} holds the
+ * renderer's subset.
  *
  * <p>Written over an archive that is not there, so every copy is {@code gone}: what this class claims is about the
  * pages, which are written whatever became of the copies. {@code EverySurvivorIsCopiedTest} holds the copies.
@@ -57,9 +58,9 @@ class TheTreeIsHtmlTest {
     /** The writing over the first cluster, its call having sent occurrences 10 and then 11. */
     private static final String PROSE = "First line [1] & <more>.\n\n  Indented [2], as written.";
 
-    /** That writing as the page must carry it: escaped whole, then each citation a link, every line break kept. */
-    private static final String PROSE_ON_THE_PAGE = "First line <a href=\"#document-1\">[1]</a> &amp; &lt;more&gt;.\n\n"
-            + "  Indented <a href=\"#document-2\">[2]</a>, as written.";
+    /** That writing as the page must carry it: escaped whole, two paragraphs, each citation a link. */
+    private static final String PROSE_ON_THE_PAGE = "<p>First line <a href=\"#document-1\">[1]</a> &amp; &lt;more&gt;.</p>\n"
+            + "<p>Indented <a href=\"#document-2\">[2]</a>, as written.</p>";
 
     /** The sentence ADR-174 gives a cluster none of whose documents could be sent, in its own words. */
     private static final String NO_SENDABLE_DOCUMENT = "Nothing was written over this group: none of its documents"
@@ -181,18 +182,20 @@ class TheTreeIsHtmlTest {
 
     @Test
     @Story("Nothing a document or the model wrote is read as markup")
-    @DisplayName("The writing is shown as the model wrote it, line breaks kept, each citation a link to its document")
-    void keepsTheWritingAsWrittenWithEachCitationALink(@TempDir Path base) throws IOException {
+    @DisplayName("The writing is on its group's page as HTML, each citation a link to its document")
+    void rendersTheWritingOnItsPageWithEachCitationALink(@TempDir Path base) throws IOException {
         Path tree = theFixtureWritten(base);
         String page = Files.readString(tree.resolve(PARTITION_FOLDER + "/1-fire-doors.html"), StandardCharsets.UTF_8);
 
         claim(
-                "the writing is on the page escaped whole, with both citations as links to the entries they name and"
-                        + " its blank line and its two leading spaces where the model put them",
-                () -> assertThat(page).contains(PROSE_ON_THE_PAGE));
-        claim(
-                "the page keeps those line breaks and spaces on screen as written",
-                () -> assertThat(page).contains("white-space: pre-wrap"));
+                "the writing is on the page escaped whole and rendered as its two paragraphs, with both citations as"
+                        + " links to the entries they name, inside the block that holds the writing",
+                () -> {
+                    assertThat(page).contains(PROSE_ON_THE_PAGE);
+                    assertThat(page.indexOf("<div class=\"writing\">"))
+                            .isNotNegative()
+                            .isLessThan(page.indexOf(PROSE_ON_THE_PAGE));
+                });
         claim(
                 "no citation is left as the model's own notation",
                 () -> assertThat(A_RAW_CITATION.matcher(page).find()).isFalse());

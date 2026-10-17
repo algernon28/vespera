@@ -72,6 +72,9 @@ class TheTreeInHtmlInvocationTest {
     /** One piece of writing stands behind this corpus's tree, however many invocations draw it. */
     private static final int ONE_RUN = 1;
 
+    /** The one document of the corpus taken away before the tree is written, so not copied. */
+    private static final int ONE_NOT_COPIED = 1;
+
     /** How many times the index is opened in an invocation that writes the tree. */
     private static final int ONCE = 1;
 
@@ -196,8 +199,10 @@ class TheTreeInHtmlInvocationTest {
                 .filter(request -> request.page().getPath().endsWith("/index.html"))
                 .toList();
         claim(
-                "the last line the invocation writes names the index by its whole path",
-                () -> assertThat(operatorLines().getLast()).contains(index.toString()));
+                "the last line the invocation writes names the index by its whole path, and says that no group was"
+                        + " left unwritten and no document left uncopied, stating both counts at nothing",
+                () -> assertThat(operatorLines().getLast())
+                        .contains(index + ", with 0 groups left unwritten and 0 documents not copied."));
         claim(
                 "the opener was asked " + ONCE + " time for an index, and it was this tree's, with the page in place",
                 () -> {
@@ -238,6 +243,10 @@ class TheTreeInHtmlInvocationTest {
                             .containsExactlyInAnyOrderEntriesOf(Map.of(FIRST, "gone", SECOND, "copied"));
                     assertThat(columnByPath(root, "copy")).containsEntry(FIRST, "");
                 });
+        claim(
+                "the closing line counts the " + ONE_NOT_COPIED + " document whose copy does not stand, in the singular",
+                () -> assertThat(operatorLines().getLast())
+                        .endsWith("with 0 groups left unwritten and " + ONE_NOT_COPIED + " document not copied."));
         claim(
                 "no line written after it went, at any level, names it",
                 () -> assertThat(operatorLines().subList(linesBeforeItWent.get(), operatorLines().size()))

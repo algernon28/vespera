@@ -1860,7 +1860,7 @@ public final class Adr {
 
     /**
      * ADR-272 -- the deliverable is HTML, {@code index.html} and one page a cluster, with every value escaped and
-     * the writing shown as written; every survivor it lists is copied from the archive, read only, into {@code
+     * the writing's Markdown rendered from a subset by a renderer of Vespera's own; every survivor it lists is copied from the archive, read only, into {@code
      * documents/} and kept only where its SHA-256 equals the key stage 2 recorded; a module of its own, {@code
      * deliverable}, writes it and no stage names it, so the tree is drawn again with no question put; the closing
      * line names the index, which is opened once (amends ADR-103, ADR-104, ADR-135, ADR-206, ADR-222 and others).

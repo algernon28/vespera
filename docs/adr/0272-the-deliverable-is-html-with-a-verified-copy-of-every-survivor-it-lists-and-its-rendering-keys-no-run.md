@@ -48,17 +48,37 @@ No `.md` is written. `documents.csv` stays, being what a program loads. Nothing 
 
 #### 1.1 Every page stands alone
 
-Each page is `<!DOCTYPE html>`, `<html lang="en">`, `<meta charset="UTF-8">`, a `<title>`, and one inline `<style>`; no `<script>`, no `<link>`, and no `src` or `href` that names a scheme or a host. Every link is relative and lands inside the tree. The stylesheet is `ReportPage`'s shared rules (font, margins, table and cell borders), written again in `deliverable` because a capability module cannot name `pipeline`, and one rule of its own, `.writing { white-space: pre-wrap; }` (§1.3).
+Each page is `<!DOCTYPE html>`, `<html lang="en">`, `<meta charset="UTF-8">`, a `<title>`, and one inline `<style>`; no `<script>`, no `<link>`, and no `src` or `href` that names a scheme or a host. Every link is relative and lands inside the tree. The stylesheet is `ReportPage`'s shared rules (font, margins, table and cell borders), written again in `deliverable` because a capability module cannot name `pipeline`.
 
 #### 1.2 Names
 
 The index is `index.html`. A partition's folder and a cluster's page are named as ADR-112 names them, the page ending `.html`, with each slug cut to its first 40 characters and any hyphen that then ends it dropped. The order prefix keeps two names apart however their slugs are cut.
 
-#### 1.3 One escaping rule, and the writing as it was written
+#### 1.3 One escaping rule, and the writing's Markdown rendered from a subset
 
-**Every value the tree did not write itself is escaped by one rule**: `&` as `&amp;`, `<` as `&lt;`, `>` as `&gt;`, `"` as `&quot;` and `'` as `&#39;`, wherever it lands, text or attribute. That covers a title, a label, a path, a seed path, a profile key and value, a reason, a caption and the writing. No value is folded onto one line: HTML ends no element at a line break.
+**Every value the tree did not write itself is escaped by one rule**: `&` as `&amp;`, `<` as `&lt;`, `>` as `&gt;`, `"` as `&quot;` and `'` as `&#39;`, wherever it lands, text or attribute. That covers a title, a label, a path, a seed path, a profile key and value, a reason, a caption and the writing. No value but the writing is folded onto one line or split: HTML ends no element at a line break.
 
-**The writing is escaped whole, then each citation becomes a link.** `Citation.AS_WRITTEN` is matched on the escaped text, which the rule leaves alone because it escapes no bracket and no digit, and each `[n]` becomes `<a href="#document-n">[n]</a>`. The result stands in one `<div class="writing">`, whose `white-space: pre-wrap` keeps every line break and every space the model wrote. **No Markdown is rendered**: a `**` or a `- ` the model wrote reads as it was written. A renderer for a few constructs would be a parser of the model's output written for this tree, and a construct it guessed wrongly would change what a reader is told the model said; and no dependency is added for it (ADR-046).
+**The writing's Markdown is converted to HTML by a renderer of `deliverable`'s own, `ProseHtml`, from a fixed subset, with no dependency** (ADR-046): the pom carries no Markdown renderer, and a subset of a few constructs needs none. Its output stands in one `<div class="writing">`.
+
+**Escaping comes first, always.** The writing is escaped whole by the rule above before any markup is added, and every construct below is recognised on the escaped text, whose delimiters (`#`, `*`, `_`, `-`, digits and `.`, the backtick, `[` and `]`) the rule leaves as they are. So the only tags in the output are the ones the renderer writes — `p`, `br`, `h3`, `h4`, `h5`, `ul`, `ol`, `li`, `strong`, `em`, `code` and `a` — and the only attribute is a citation's `href="#document-n"`, made of digits the writing matched. No input produces any other tag or attribute.
+
+**Blocks.** The writing is read in blocks separated by one or more blank lines, and each line of a block is stripped of the spaces around it. In a block, line by line:
+
+- **A heading** is a line of one, two or three `#` and a space: `<h3>`, `<h4>` and `<h5>`, a level beneath the page's own `<h1>` and `<h2>`. Four or more `#`, or `#` with no space, is text.
+- **A list item** is a line opening with `- ` or `* ` (`<ul>`) or with digits, a dot and a space (`<ol>`, counting from 1, the written numbers not kept). Consecutive items of one kind are one list; an item of the other kind starts a new one. Indentation is not read, so a nested list is shown flat, its items in order. A line that is none of these, following an item in the same block, continues that item after a `<br>`.
+- **Any other line** is part of a paragraph, `<p>`, its lines joined by `<br>`: every line break the model wrote is kept.
+
+Each element is on a line of its own in the page, and each list item too.
+
+**Inline**, in headings, items and paragraphs alike:
+
+- **Code**: text between a pair of backticks on one line is `<code>`, and nothing in it is read as emphasis.
+- **Bold**: `**text**` on one line, opening before a character that is not a space and closing after one, is `<strong>`.
+- **Italic**: `*text*` or `_text_` on one line, likewise, is `<em>`; a `_` with a letter or digit on its outer side is text, so `a_b_c` stays as written. Bold is read before italic, so `**a *b* c**` is italic inside bold.
+- **A delimiter with no partner on its line stays as written**: an unterminated `**`, a lone `*` or `_`, an odd backtick.
+- **Citations**: `Citation.AS_WRITTEN` is matched everywhere, inside code, bold, italic, items and headings included, and each `[n]` becomes `<a href="#document-n">[n]</a>`.
+
+**Everything else is shown as escaped text and never read**: a table, a link, an image, raw HTML, a block quote, a rule, a fenced code block, four `#` and more. `[x](javascript:…)` reads as those characters; `<script>` as `&lt;script&gt;`.
 
 #### 1.4 The pages
 
@@ -134,13 +154,13 @@ The tree is written by every invocation in which the generation step has an appr
 
 ### 7. What the operator is told
 
-The closing line names the index, where it named the folder: *"The deliverable is at `<absolute path>/index.html`, with N groups left unwritten."* The generation step hands `index.html`'s URI to the `PageOpener` of ADR-266 **once, after the index is in place**, in every invocation that wrote the tree; it opens nothing where `CI` is set or a Linux has no display, an opener that throws is one warning and fails nothing, and no setting turns it off. The progress page is opened when the job starts and the index when the tree is written, so an invocation that writes the tree opens two pages.
+The closing line names the index, where it named the folder, and counts the survivors whose copy does not stand: *"The deliverable is at `<absolute path>/index.html`, with N groups left unwritten and M documents not copied."*, `group` and `document` in the singular for 1. M is stated when it is 0, as N is, and is the count of every outcome but `copied` in the tree this invocation wrote, handed from the generation step to the closing line in the job's execution context; where this invocation wrote no tree, the clause is left out. The generation step hands `index.html`'s URI to the `PageOpener` of ADR-266 **once, after the index is in place**, in every invocation that wrote the tree; it opens nothing where `CI` is set or a Linux has no display, an opener that throws is one warning and fails nothing, and no setting turns it off. The progress page is opened when the job starts and the index when the tree is written, so an invocation that writes the tree opens two pages.
 
 ### 8. Nothing outside the tree names a document
 
 - **The lines.** What `pipeline` writes of the copies is counts and outcomes: §2.5's two lines and a counter, `Stage 6b (generation, survivors copied)`. No line names a path, a file name or a document's text, and no exception's message is written, since an I/O exception's message names its path. `DeliverableProgress` takes only numbers and enumerations, so the module has nothing else to hand over.
 - **The progress page and the account** carry the counter's line as they carry every progress line, and nothing else of the copies.
-- **The copies are the operator's documents.** They lie in a working directory, which the guard opens to every tool (ADR-264 §2), and **no agent reads one**, as no agent reads the archive they came from (ADR-196). The written rule covers them from this record on; whether the guard should also refuse `deliverable/*/documents/` is left to the operator (What this does not decide).
+- **The copies are the operator's documents.** They lie in a working directory, and **no agent reads one**, as no agent reads the archive they came from (ADR-196). **The guard is not changed**: `deliverable/*/documents/` stays open as the working directory it lies in is (ADR-264 §2), and what keeps an agent from a copy is the written rule, from this record on.
 
 ### 9. The run ids that move
 
@@ -158,7 +178,7 @@ The implementer's, in the change that builds this:
 ## Decided here
 
 1. **HTML only**, no Markdown beside it (§1). Nothing reads the `.md`, and two renderings of one tree are two to keep in step.
-2. **The writing is shown as written**, escaped and wrapped, and no Markdown is rendered (§1.3).
+2. **The writing's Markdown is rendered from a subset of Vespera's own** (§1.3), escaped before any markup is added; whatever is outside the subset is shown as text. A model writing in Markdown is read as a reader expects, and nothing it writes can add markup the renderer did not.
 3. **A collision-free flat name for each copy**, where the root-relative path could have been kept (§2.1): it bounds the path, and the path is still on the page and in the manifest.
 4. **The recorded key verifies a copy** (§2.2), not a digest of the copy taken afterwards: the key is what everything the tree says rests on.
 5. **A copy at its name is trusted on resume** (§2.4), where it could have been hashed again: only the verified move puts one there.
@@ -166,6 +186,8 @@ The implementer's, in the change that builds this:
 7. **A gibibyte left free** (§2.5), checked before each copy, rather than a total checked once: a copy that would not fit is passed over and a smaller one after it still made.
 8. **A module of its own for the tree** (§4, §5), where its classes could have stayed in `synthesis` at the cost of a generation for every change to a page, or gone to `pipeline`, which holds no rule (ADR-226).
 9. **The index opens by default** (§7), as the progress page does, with no setting.
+10. **The closing line counts the copies that do not stand** (§7), beside the groups left unwritten, even at 0.
+11. **The guard stays as it is for the copies** (§8).
 
 ## Consequences
 
@@ -173,14 +195,18 @@ The implementer's, in the change that builds this:
 - **It costs the archive's survivors again in disk**, measured by the invocation and not before (§2.5), and a second tree under a new generation run costs it a second time. Nothing deletes a tree (ADR-103).
 - **A copy is the archive's file as stage 2 read it, or no copy**: one changed or gone since says so on its page and in its row.
 - **A page drawn differently is seen at the next invocation, with no question put** (§6), and rewrites the tree under the same name: a tree already handed over is not kept from a change to how it is drawn, only from a change to what was written.
-- **The model's Markdown, where it writes any, is shown as typed.**
+- **The model's Markdown is rendered within the subset, and the rest of it shows as typed**: a table or a link the model writes reads as its characters.
+- **An agent is kept from a copy by the written rule alone** (§8).
 - **This build mints an arrangement to approve and a generation of every cluster** (§9).
 - **Fifteen classes and their tests move to `deliverable`**, and the Markdown surroundings' tests go with them.
 
 ## Alternatives refused
 
 - **Markdown beside the HTML.** Nothing reads it (Decided here 1).
-- **A Markdown renderer**, a dependency or a few constructs written here (§1.3).
+- **A Markdown library.** A dependency for a subset of a few constructs, and one whose output would have to be checked against the safety rule rather than built on it (§1.3).
+- **The writing shown as typed**, under `white-space: pre-wrap`. A model writing Markdown would be read as markup characters.
+- **Rendering links, images, tables or raw HTML.** Each could take a reader out of the tree or carry markup the renderer did not write; none is needed to read connected prose.
+- **Refusing the guard to `deliverable/*/documents/`** (§8).
 - **Copies under their root-relative paths.** Long paths, names a path parser refuses and two names one case apart (§2.1).
 - **A link into the archive where no copy stands.** It breaks when the tree is carried away, and for a changed or gone survivor it leads to the wrong file or to none.
 - **Failing the step on a copy that does not stand.** A bad copy is that survivor's, not the run's (§2.3).
@@ -191,9 +217,7 @@ The implementer's, in the change that builds this:
 
 ## What this does not decide
 
-- **Whether the private-paths guard refuses `deliverable/*/documents/`**, as the archive's documents are refused: a change to the guard is a draft the operator installs (ADR-215 §7), and the written rule covers the copies meanwhile (§8).
-- **A rendering of the model's Markdown** (§1.3).
-- **Whether the closing line counts the copies that do not stand.**
+- **A construct beyond §1.3's subset**, which a later record adds to it.
 - **A program opening a path past 260 characters** (§2.7).
 - **Removing an earlier tree, or an earlier tree's `.md`.** Nothing deletes in the working directory (ADR-103).
 
@@ -204,7 +228,8 @@ The implementer's, in the change that builds this:
 | `deliverable.TheTreeIsHtmlTest.writesAnHtmlIndexAndAnHtmlPageForEachClusterAndNoMarkdown` | §1: `index.html`, one `.html` page a cluster, `documents.csv`, and no `.md` anywhere |
 | `deliverable.TheTreeIsHtmlTest.everyPageStandsAlone` | §1.1: a doctype, a character set, one inline stylesheet, no script, no stylesheet link and no scheme or host in any `src` or `href` |
 | `deliverable.TheTreeIsHtmlTest.escapesEveryValueInTextAndInAttributes` | §1.3: a title, a label, a path, a seed path and a caption carrying `& < > " '` land escaped by the five rules, the caption in `alt` |
-| `deliverable.TheTreeIsHtmlTest.keepsTheWritingAsWrittenWithEachCitationALink` | §1.3: the writing escaped whole, its line breaks kept, `white-space: pre-wrap`, each `[n]` a link to `#document-n` and an entry of that id |
+| `deliverable.TheTreeIsHtmlTest.rendersTheWritingOnItsPageWithEachCitationALink` | §1.3 on a page: the writing rendered in `<div class="writing">`, each `[n]` a link to `#document-n` and an entry of that id |
+| `deliverable.TheWritingIsRenderedFromASubsetOfMarkdownTest` | §1.3: each construct of the subset as exact output — paragraphs and their line breaks, `#` to `###`, `- `, `* ` and `1. ` lists and a line continuing an item, a flattened nested list, `**bold**`, `*italic*`, `_italic_` and italic inside bold, inline code; a citation inside bold, italic, an item, a heading and code; an unterminated `**` and a lone `*` and `_` left as written, `a_b_c` untouched; `####`, a table, a link, an image, a quote and raw HTML as text; `<script>`, `"><img onerror=…>`, `[x](javascript:…)` inert; and over every input of the class, no tag outside the renderer's twelve and no attribute but a citation's `href` |
 | `deliverable.TheTreeIsHtmlTest.saysWhyNothingWasWrittenInItalics` | §1.4: ADR-174's words in `<em>` with no asterisk, and the index row with no link |
 | `deliverable.TheTreeIsHtmlTest.cutsEverySlugToFortyCharacters` | §1.2 and §2.1: a long label, seed and file name give names of 40 characters of slug after their prefix |
 | `deliverable.EverySurvivorIsCopiedTest.copiesEverySurvivorByteForByteAndLinksToTheCopy` | §2.1, §2.2, §2.6: the copy's name, its bytes, the entry's link, the manifest's header and its two cells |
@@ -218,7 +243,7 @@ The implementer's, in the change that builds this:
 | `ModuleBoundariesTest.theDeliverableIsAModuleOfItsOwn` | §4: a module `deliverable` declaring `ledger` and `synthesis` |
 | `pipeline.TheTreeInHtmlInvocationTest.aCampaignLeavesAnHtmlTreeWithACopyOfEverySurvivor` | §1, §2: a whole campaign's tree, each copy equal to its file, the archive unchanged |
 | `pipeline.TheTreeInHtmlInvocationTest.aFinishedGenerationIsDrawnAgainWithoutAQuestion` | §6: with the step recorded finished, the index is written again, no question is put and no run is minted |
-| `pipeline.TheTreeInHtmlInvocationTest.theClosingLineNamesTheIndexAndTheIndexIsOpenedOnce` | §7 |
-| `pipeline.TheTreeInHtmlInvocationTest.aSurvivorGoneBeforeTheTreeIsNamedNowhereOutsideIt` | §2.3 and §8: `gone` in the manifest, and no line after it went and no progress page names it |
+| `pipeline.TheTreeInHtmlInvocationTest.theClosingLineNamesTheIndexAndTheIndexIsOpenedOnce` | §7: the index by its whole path and `0 documents not copied`, opened once with the page in place |
+| `pipeline.TheTreeInHtmlInvocationTest.aSurvivorGoneBeforeTheTreeIsNamedNowhereOutsideIt` | §2.3, §7 and §8: `gone` in the manifest, the closing line's `1 document not copied`, and no line after it went and no progress page names it |
 
 **Moved or rewritten with the classes** (§4): the tests of the tree in `synthesis` (`DeliverableTest`, `ClusterPageTest`, `IndexPageTest`, `ManifestCsvTest`, `EntryPicturesTest`, `DeliverablePicturesTest`, `DeliverableProgressTest`, `FurnitureIsDecidedOverTheWholeTreeTest`, `ManifestIsWrittenAPageAtATimeTest`, `PartitionNoSurvivorNamesStopsTheWriterTest`, `TreeIsTheSameWrittenAPartitionAtATimeTest`, the three `TreeThat…`/`TreeWhose…` tests, `WhyAClusterIsUnwrittenTest`, `ListedSurvivorTest`, `DifferenceHashTest`, `FilenameStemTest` and their fixtures) move to `deliverable` and read HTML; `ArchiveLinkTest` and `MarkdownSurroundingsTest` go; `DeliverableRulesHaveOneHomeTest`, `PipelineHoldsOnlyTheRulesOnRecordTest`, `RunIdentityGoldenTest`, `EveryPageIsMovedIntoPlaceByTheMoveThatTriesAgainTest`, and in `pipeline` `DeliverableInvocationTest`, `DeliverablePicturesInvocationTest`, the three `ClosingLine…` tests and `NextActionTest` follow the move, the names and the closing line.
