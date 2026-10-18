@@ -8,10 +8,12 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
+import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
+import io.algernon.vespera.profile.TextValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -116,14 +118,23 @@ class TheDeliverableRootInvocationTest {
     @Autowired
     private RecordingPageOpener opener;
 
+    @Autowired
+    private Ledger ledger;
+
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger applicationLogger;
 
+    /**
+     * Each test starts from a root not made yet and from a profile naming no seed folder: the working directory, and
+     * its {@code profile.yaml}, serve the whole class, and a seed folder an earlier test named would otherwise be
+     * compared with this test's root, its line depending on the order the tests ran in.
+     */
     @BeforeEach
     void startFromARootNotMadeYet() throws IOException {
         GenerationScriptedBeans.forgetScriptedAnswers();
         opener.forget();
         takeAway(deliverableRoot());
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load()).seedFolder(TextValue.unset()).build());
         logged = new ListAppender<>();
         logged.start();
         applicationLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(APPLICATION_LOGGER);
@@ -205,12 +216,7 @@ class TheDeliverableRootInvocationTest {
     @Story("A folder that holds anything but this tree is refused")
     @DisplayName("A folder holding another generation's tree is not drawn over, and the invocation says so in one line and exits 1")
     void aRootHoldingAnotherRunsTreeIsNotDrawnOver(@TempDir Path corpusRoot, @TempDir Path seeds) throws IOException {
-        Files.createDirectories(deliverableRoot());
-        Files.writeString(
-                deliverableRoot().resolve(MARKER),
-                "working-directory=" + workingDirectory.toRealPath() + "\n" + "generation-run=" + ANOTHER_GENERATION_RUN + "\n",
-                StandardCharsets.UTF_8);
-        Files.writeString(deliverableRoot().resolve("index.html"), "another generation's index", StandardCharsets.UTF_8);
+        anotherRunsTreeInTheRoot();
         Map<String, String> before = everythingIn(deliverableRoot());
         anApprovedCorpus(corpusRoot, seeds);
         opener.forget();
@@ -237,6 +243,86 @@ class TheDeliverableRootInvocationTest {
         claim(
                 "and the tree was not drawn under the working directory instead",
                 () -> assertThat(workingDirectory.resolve("deliverable")).doesNotExist());
+    }
+
+    @Test
+    @Story("A folder that holds anything but this tree is refused")
+    @DisplayName("A drawing refused keeps what was written, and the next invocation draws it in an empty folder without asking the model")
+    void aRefusedDrawingKeepsTheWritingAndAnEmptyRootDrawsItWithoutAQuestion(@TempDir Path corpusRoot, @TempDir Path seeds)
+            throws IOException {
+        anotherRunsTreeInTheRoot();
+        anApprovedCorpus(corpusRoot, seeds);
+
+        cli.run("run", corpusRoot.toString());
+
+        claim(
+                "the precondition: the invocation was refused at the drawing, under the " + ONE_RUN + " generation this"
+                        + " corpus minted",
+                () -> {
+                    assertThat(cli.getExitCode()).isEqualTo(REFUSED);
+                    assertThat(generationRuns(corpusRoot)).hasSize(ONE_RUN);
+                });
+        claim(
+                "the writing step is recorded finished under that generation all the same: its work was done, and only"
+                        + " the drawing was refused",
+                () -> assertThat(ledger.runs().stepFinished(
+                                new RunId(generationRuns(corpusRoot).getLast()), StepNames.GENERATION))
+                        .isTrue());
+        int questionsBefore = GenerationScriptedBeans.callsMade();
+        takeAway(deliverableRoot());
+
+        cli.run("run", corpusRoot.toString());
+
+        claim("with the folder emptied, the next invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "it drew the tree in the folder, the index at its top and the marker naming this working directory and"
+                        + " the same generation",
+                () -> {
+                    assertThat(deliverableRoot().resolve("index.html")).isRegularFile();
+                    assertThat(Files.readString(deliverableRoot().resolve(MARKER), StandardCharsets.UTF_8))
+                            .isEqualTo("working-directory=" + workingDirectory.toRealPath() + "\n"
+                                    + "generation-run=" + generationRuns(corpusRoot).getLast() + "\n");
+                });
+        claim(
+                "under the " + ONE_RUN + " generation that stood before",
+                () -> assertThat(generationRuns(corpusRoot)).hasSize(ONE_RUN));
+        claim(
+                "and it put no question to the model: what was written before the refusal is what was drawn",
+                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(questionsBefore));
+    }
+
+    @Test
+    @Story("A folder over the archive is refused before anything is walked")
+    @DisplayName("A folder inside the seed folder the profile names is refused in one line before anything is walked, and exits 1")
+    void aRootInsideTheSeedFolderIsRefusedBeforeAnythingIsWalked(@TempDir Path corpusRoot) throws IOException {
+        Files.writeString(corpusRoot.resolve(FIRST), "a corpus document");
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                .seedFolder(base.toString(), "set by this test, so the named folder lies inside it")
+                .build());
+
+        String printed = standardErrorOf(() -> cli.run("run", corpusRoot.toString()));
+
+        claim("the invocation exits " + REFUSED, () -> assertThat(cli.getExitCode()).isEqualTo(REFUSED));
+        claim(
+                "and says why in " + ONE_LINE + " line on standard error, naming the folder and the seed folder it lies in",
+                () -> assertThat(printed.lines().toList())
+                        .hasSize(ONE_LINE)
+                        .containsExactly("vespera run refused the deliverable root "
+                                + base.toRealPath().resolve(deliverableRoot().getFileName())
+                                + ": it is inside the seed folder " + base.toRealPath()
+                                + ". Name a folder outside the corpus root and the seed folder in vespera.deliverable-root."));
+        claim("nothing was walked: no walk of the corpus root is recorded", () -> assertThat(walksOver(corpusRoot)).isZero());
+        claim("and the folder was not made", () -> assertThat(deliverableRoot()).doesNotExist());
+    }
+
+    /** The class's root holding a tree this working directory drew under another generation: its marker and an index. */
+    private static void anotherRunsTreeInTheRoot() throws IOException {
+        Files.createDirectories(deliverableRoot());
+        Files.writeString(
+                deliverableRoot().resolve(MARKER),
+                "working-directory=" + workingDirectory.toRealPath() + "\n" + "generation-run=" + ANOTHER_GENERATION_RUN + "\n",
+                StandardCharsets.UTF_8);
+        Files.writeString(deliverableRoot().resolve("index.html"), "another generation's index", StandardCharsets.UTF_8);
     }
 
     @Test

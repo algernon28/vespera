@@ -177,6 +177,8 @@ The writer reads the usable space of **the tree's file store**, `usableBytesAt(t
 | `pipeline.TheDeliverableRootInvocationTest.aNamedRootHoldsTheTreeAndTheClosingLineNamesItsIndex` | §1 and §5: a campaign's tree at the root, its marker, nothing under `deliverable/`, the closing line naming `<root>/index.html`, and that index opened once |
 | `pipeline.TheDeliverableRootInvocationTest.aSecondInvocationOfTheSameRunRedrawsTheRootInPlace` | §3: the same run's root redrawn, its index put back, under one generation run |
 | `pipeline.TheDeliverableRootInvocationTest.aRootHoldingAnotherRunsTreeIsNotDrawnOver` | §3: exit 1, the one line at error level, the root as it was, no index opened and nothing under `deliverable/` |
+| `pipeline.TheDeliverableRootInvocationTest.aRefusedDrawingKeepsTheWritingAndAnEmptyRootDrawsItWithoutAQuestion` | §3 and Decided here 6: after the drawing is refused, the generation step is recorded finished under its one run; with the root emptied, the next invocation exits 0 and draws the index and the marker under that same run, with no question put |
+| `pipeline.TheDeliverableRootInvocationTest.aRootInsideTheSeedFolderIsRefusedBeforeAnythingIsWalked` | §2: with the profile's `seedFolder` holding the root, exit 1, the one line naming the seed folder on standard error, no walk recorded, no root made |
 | `pipeline.TheDeliverableRootInvocationTest.aRootThatIsNotEmptyAndHoldsNoTreeIsRefusedBeforeAnythingIsWalked` | §2 and §3: exit 1, the one line on standard error, no walk recorded, the root's file as it was |
 | `pipeline.TheDeliverableRootInvocationTest.aRootInsideTheCorpusRootIsRefusedBeforeAnythingIsWalked` | §2: exit 1, the one line on standard error, no walk recorded, no root made |
 
