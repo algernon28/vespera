@@ -26,6 +26,10 @@ import java.util.Optional;
  */
 final class ClusterPage {
 
+    /** What the writing's block shows (ADR-275 section 2): fixed words, none of the cluster's. */
+    private static final String WRITING_HOVER = "What the local model wrote over this group from the documents listed below it;"
+            + " each number in brackets is a link to the document it cites.";
+
     /**
      * The heading a page opens its membership list with — rendered prose, so it says <em>group</em> (ADR-122).
      */
@@ -92,7 +96,7 @@ final class ClusterPage {
                     .append(Html.escape(why == null ? Deliverable.NOTHING_WAS_WRITTEN_OVER_IT : UnwrittenSentences.of(why)))
                     .append("</em></p>\n");
         } else {
-            page.append("<div class=\"writing\">\n").append(ProseHtml.of(doc.prose())).append("\n</div>\n");
+            page.append("<div class=\"writing\" title=\"").append(Html.escape(WRITING_HOVER)).append("\">\n").append(ProseHtml.of(doc.prose())).append("\n</div>\n");
             int documentCount = recorded.cluster().documentCount();
             if (doc.documentsSent() < documentCount) {
                 page.append("<p>")

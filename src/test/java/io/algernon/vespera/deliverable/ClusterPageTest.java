@@ -94,7 +94,8 @@ class ClusterPageTest {
     /** The written cluster's page, whole. */
     private static final String THE_WRITTEN_PAGE = Html.head(THE_WRITING.title())
             + "<h1>Retrofitting `Suppression` &amp; Sprinklers, 2018 [draft]</h1>\n"
-            + "<div class=\"writing\">\n"
+            + "<div class=\"writing\" title=\"What the local model wrote over this group from the documents listed below it;"
+            + " each number in brackets is a link to the document it cites.\">\n"
             + "<p>Both <a href=\"#document-2\">[2]</a> and <a href=\"#document-1\">[1]</a> agree;"
             + " <a href=\"#document-3\">[3]</a> is gone.</p>\n"
             + "</div>\n"

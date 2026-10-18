@@ -33,6 +33,9 @@ final class ConfidenceDistributionReport {
 
     private ConfidenceDistributionReport() {}
 
+    /** What every grade's bar shows (ADR-275 section 2). */
+    private static final String BAR_HOVER = "The length of the bar is this grade's share of the documents counted.";
+
     static String render(ConfidenceDistribution.Distribution distribution) {
         long total = distribution.totalCounted();
         StringBuilder rows = new StringBuilder();
@@ -44,7 +47,7 @@ final class ConfidenceDistributionReport {
                     ReportPage.htmlCell(Long.toString(bucket.documentCount())),
                     ReportPage.htmlCell("<div class=\"bar\" style=\"width:"
                             + String.format(Locale.ROOT, "%.1f", proportion * 100)
-                            + "%\"></div>")));
+                            + "%\" title=\"" + ReportPage.escapeAttribute(BAR_HOVER) + "\"></div>")));
         }
 
         String body = ReportPage.heading(1, "Confidence-score distribution")
