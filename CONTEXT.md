@@ -219,6 +219,10 @@ _Avoid_: run, session, job
 The operating system's lock on `vespera.lock` in the working directory, taken by an invocation before it opens the database file and held until its process ends, so a second invocation on the same working directory is refused before it reads or writes anything. The process ending releases it, however it ends; the file itself is never deleted, and its existence means nothing (ADR-177).
 _Avoid_: mutex, pidfile
 
+**Corpus-root lock**:
+The operating system's lock `vespera run` takes on a file named for its corpus root, outside the archive and every working directory, held until its process ends, so a second invocation walking the same corpus root is refused whatever working directory it names (ADR-279). The same corpus root is the same directory once its spelling, its case and any junction on the way are resolved; a root inside another is a different one.
+_Avoid_: root mutex, archive lock (nothing is written into the archive)
+
 **Invocation account**:
 The one file an invocation that starts the job writes for a hosted model to read, in the working directory's `logs` folder (ADR-270): each step and how it ended, durations, counts, progress lines, and a failed step's exception types. It is built from typed values and an allow-list, so it names no path, file name, title or document text, and it keeps no exception message (ADR-198).
 _Avoid_: run summary, summary
@@ -226,6 +230,10 @@ _Avoid_: run summary, summary
 **Progress page**:
 The page `vespera run` rewrites in the working directory while it runs, `progress.html`: each step of the job with its state, its counts and its last progress line, the time elapsed and the database's size, read from what the invocation holds in memory and, but for the tab of runs below, never from a query, and ending on a write that says how the invocation ended (ADR-265); drawn as tiles, a timeline of the steps and charts over time, with its table of steps and a table of its samples on two pages beside it, `progress-steps.html` and `progress-samples.html` (ADR-267); and showing, for the stage removing occurrences now or last, its survivors of what entered it and its verdicts by kind with their rates, from counts held in memory (ADR-268); and, since ADR-269, four tabs, `Overview`, `Steps`, `Samples` and `Runs`, each a page with one bar of tabs, the fourth `progress-runs.html`, listing every run the working directory holds, read before the first step and after the last, the only reads of the database the page makes. `vespera label` writes it too, when it starts and when it ends, with the answers it counted; every invocation that writes it names its path on the command's first line and opens it once in the default browser (ADR-266). It names no path, no title and no text of a document, so it can be sent to anyone. Not the invocation account, one file per invocation that starts the job, in the working directory's `logs` folder, for a hosted model: it is opened with its first line when the job starts, carries the progress lines as they come, and gets its step, run, count and failure lines, then `invocation ended`, when the job ends (ADR-198 §8, ADR-270).
 _Avoid_: dashboard, monitor, status page
+
+**Control panel**:
+The program on the operator's machine that starts one invocation at a time as its own child, shows how it goes and how it ended, and stops it by ending its process (ADR-278). It runs the command as shipped (ADR-278), judges nothing, and passes only values the operator typed or confirmed.
+_Avoid_: console (the jar's standard output, ADR-093), launcher (ADR-158; the Docling image's `launcher.py`, ADR-179), GUI, dashboard, front-end, app, UI, wrapper. Also "panel" alone, in a name of ours.
 
 ### Output
 
