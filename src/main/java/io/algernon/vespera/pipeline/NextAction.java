@@ -11,6 +11,7 @@ import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.deliverable.Deliverable;
+import io.algernon.vespera.deliverable.DeliverableRoot;
 import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import java.nio.file.Files;
@@ -57,6 +58,7 @@ class NextAction {
     private final ObjectProvider<SynthesisDocs> synthesisDocs;
     private final ObjectProvider<ArrangementGate> arrangementGate;
     private final Path workingDirectory;
+    private final DeliverableRoot deliverableRoot;
 
     NextAction(
             ProfileStore profileStore,
@@ -66,8 +68,10 @@ class NextAction {
             ObjectProvider<Clusters> clusters,
             ObjectProvider<SynthesisDocs> synthesisDocs,
             ObjectProvider<ArrangementGate> arrangementGate,
-            @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory) {
+            @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
+            @Value("${" + VesperaCommand.Run.DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot) {
         this.profileStore = profileStore;
+        this.deliverableRoot = DeliverableRoot.of(deliverableRoot);
         this.relevanceLabels = relevanceLabels;
         this.ledger = ledger;
         this.generationModel = generationModel;
@@ -201,7 +205,7 @@ class NextAction {
             // renders a correct, shorter line.
             return Optional.empty();
         }
-        Path tree = workingDirectory.resolve(Deliverable.DIRECTORY_NAME).resolve(generation.value());
+        Path tree = deliverableRoot.treeOf(workingDirectory, generation.value());
         List<RunId> upstream = ledger.runs().upstreamRuns(generation);
         if (upstream.size() != 1) {
             throw new IllegalStateException("generation run " + generation.value() + " records "
