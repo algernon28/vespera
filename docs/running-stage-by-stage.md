@@ -226,7 +226,7 @@ Read a number off `relevance-labelling.html`, write it into `relevanceScoreFloor
 
 **Run:** `vespera run <root>`
 
-**What it does.** Asks the model once for each group, checks every answer before believing it, and writes the tree of HTML pages under `deliverable/<run>/`, with a checked copy of every surviving document in its `documents/` folder. Where `vespera.deliverable-root` (`VESPERA_DELIVERABLE_ROOT`) names a folder, the tree is drawn in that folder instead, `index.html` at its top, as README's "Where things live" describes. An answer that is turned down leaves its group in place with a note that nothing was written over it.
+**What it does.** Asks the model once for each group, checks every answer before believing it, and writes the tree of HTML pages under `deliverable/<run>/`, with a folder for each group holding its page and a checked copy of each of its documents under the document's own file name. Where `vespera.deliverable-root` (`VESPERA_DELIVERABLE_ROOT`) names a folder, the tree is drawn in that folder instead, `index.html` at its top, as README's "Where things live" describes. An answer that is turned down leaves its group in place with a note that nothing was written over it.
 
 **Where it stops.** Gated when no arrangement is approved, or the approval names another arrangement. It also stops if the model keeps failing, and, with what it wrote kept, when the folder named for the tree holds another run's tree: name a new, empty folder and run again.
 
@@ -234,7 +234,7 @@ Read a number off `relevance-labelling.html`, write it into `relevanceScoreFloor
 
 - **Interrupted:** the next invocation skips every group already written and asks only about the rest.
 - **Finished with some groups unwritten:** the last line says how many. Run the same command again: it asks again about exactly those groups and leaves the written ones alone. The stage counts as finished only when every group is written.
-- **Finished with every group written:** no group is asked about again, but the tree is drawn again from what was written, and any copy still missing is made. The last line says nothing is left to set, where the tree's `index.html` is, and how many documents were not copied.
+- **Finished with every group written:** no group is asked about again, but the tree is drawn again from what was written, and any copy still missing is made. The last line says nothing is left to set, where the tree's `index.html` is and how many documents were not copied; where an earlier drawing left folders in the tree, it names a `documents/` folder and counts the others, each of which can be deleted by hand.
 
 ## Going back: making a stage run again
 
