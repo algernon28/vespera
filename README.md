@@ -115,7 +115,7 @@ Answer them, then run `vespera label`. At roughly two minutes a document that is
 
 ## Where things live
 
-Everything the tool writes goes in one working directory, never inside your archive:
+Everything the tool writes goes in one working directory, never inside your archive, except the deliverable when you name a folder for it (below):
 
 ```
 profile.yaml                     the values you set, and how you arrived at them
@@ -142,7 +142,10 @@ deliverable/<run>/index.html     what was written, group by group, and what prod
 deliverable/<run>/documents.csv  every surviving document, with its place in the order and its copy
 deliverable/<run>/documents/     a checked copy of every surviving document the tree lists
 deliverable/<run>/<exemplar>/<group>.html  one page per group
+deliverable/<run>/vespera-deliverable.txt  which working directory and which run drew this folder
 ```
+
+The deliverable can be drawn in a folder of your choosing instead: name it with `vespera.deliverable-root`, in `application-local.yaml`, as the environment variable `VESPERA_DELIVERABLE_ROOT`, or with `--vespera.deliverable-root=<path>`. The folder is then the deliverable itself, `index.html` at its top, everything listed above under `deliverable/<run>/` directly in it, and nothing under the working directory's `deliverable/`. Left unset, the deliverable goes to `deliverable/<run>/` as above. `vespera run` refuses, in one line and with exit code 1, before it walks anything, a folder that is the corpus root or the seed folder, lies inside either or holds either; and a folder that already holds anything but a deliverable this working directory drew. It is compared where it really leads, links followed. A folder inside the working directory is fine. With no folder named, the working directory's `deliverable/` is checked the same way, so a working directory inside the corpus root or the seed folder is refused. Keeping it out of the rest of your archive is yours to watch: Vespera cannot see where your archive ends. Once a folder holds one run's deliverable, a later run that writes anew needs a new, empty folder: that run stops with one line and exit code 1 before drawing over it, and what it wrote is kept for when you name one. Vespera deletes nothing in the folder.
 
 A `vespera.log` an earlier version wrote at the top of the working directory, with the files it rolled into, stays there, and so do accounts written to a folder `vespera.account-dir` named: Vespera moves nothing. Move or delete them yourself.
 

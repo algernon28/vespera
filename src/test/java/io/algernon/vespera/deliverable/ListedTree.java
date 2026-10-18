@@ -100,6 +100,7 @@ final class ListedTree {
             SurvivorPictures pictures) {
         return Deliverable.writeTo(
                 workingDirectory,
+                DeliverableRoot.UNNAMED,
                 provenance(corpusRoot),
                 of(arrangement, written, survivors, unwritten),
                 pictures,
@@ -116,6 +117,7 @@ final class ListedTree {
             LongSupplier usableSpace) {
         return Deliverable.writeTo(
                 workingDirectory,
+                DeliverableRoot.UNNAMED,
                 provenance(corpusRoot),
                 of(arrangement, written, survivors, Map.of()),
                 SurvivorPictures.none(),

@@ -444,6 +444,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "deliverable.Deliverable",
                             "deliverable.DeliverableProgress",
                             "deliverable.DeliverableProvenance",
+                            "deliverable.DeliverableRoot",
                             "deliverable.ListedPartition",
                             "deliverable.ListedPicture",
                             "deliverable.ListedPicturePlace",

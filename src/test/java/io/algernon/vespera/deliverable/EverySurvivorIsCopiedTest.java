@@ -377,6 +377,7 @@ class EverySurvivorIsCopiedTest {
 
         Path tree = Deliverable.writeTo(
                 base.resolve("work"),
+                DeliverableRoot.UNNAMED,
                 ListedTree.provenance(archive),
                 ListedTree.of(List.of(THE_CLUSTER), writtenFromBoth(), bothSurvivors(sha256Of(FIRST_BYTES)), Map.of()),
                 SurvivorPictures.none(),

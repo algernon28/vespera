@@ -8,7 +8,7 @@ This file is what an agent needs to start working. Everything it points at is au
 
 **A verdict ledger, not a moving pipeline.** Documents never move between stages. One table is populated once by the census; every stage *appends* verdict rows against a file occurrence. "Survivors" is a query asked of one run: the occurrences carrying no blocking verdict under that run or any run upstream of it, never a place things are put. Retuning a threshold mints a new run of that stage beside the old one, and each later stage reads the run the invocation arrived at (ADR-154). Nothing deletes the old run's rows. Its verdicts stay recorded and remove nothing from a run that does not name it upstream, so a loosened floor brings documents back, and putting the stricter value back removes them again at no cost (ADR-156, [#297](https://github.com/algernon28/vespera/issues/297)).
 
-**Seven stages, cheapest filter first**, each defined by the verdicts it writes: census (0), byte-level reduction (1), extraction (2), content census (3), content redundancy (4), relevance (5), arrangement and generation (6a/6b). The run ends at 6b: what it produces is the deliverable — a directory of HTML in the working directory, a page per cluster and a verified copy of every survivor it lists, every link landing inside it (ADR-103, ADR-274). The files are written; nothing here carries them to a destination of any kind — no wiki, no site, no upload (ADR-101). Stages never call each other — they read and write only through the ledger.
+**Seven stages, cheapest filter first**, each defined by the verdicts it writes: census (0), byte-level reduction (1), extraction (2), content census (3), content redundancy (4), relevance (5), arrangement and generation (6a/6b). The run ends at 6b: what it produces is the deliverable — a directory of HTML in the working directory or at the deliverable root, a page per cluster and a verified copy of every survivor it lists, every link landing inside it (ADR-103, ADR-274, ADR-276). The files are written; nothing here carries them to a destination of any kind — no wiki, no site, no upload (ADR-101). Stages never call each other — they read and write only through the ledger.
 
 **Two independent identities.** A **walk** owns file occurrence rows because they are filesystem observations; a **run** owns verdict rows because they are derived under a configuration. Content identity is a relation discovered over occurrences, never a collapse of them.
 
@@ -18,7 +18,7 @@ This file is what an agent needs to start working. Everything it points at is au
 
 ## Where it stands today
 
-**The cascade is built end to end.** `vespera run <root>` walks a corpus and takes it as far as the next missing value, through one Spring Batch job of sixteen steps, each behind its own gate; `vespera label` records the answers written into the relevance label file. Stages 0 to 4 judge, stage 5 measures without judging, stage 6a names and orders what stage 5 measured for the operator to approve, and stage 6b writes the deliverable under `deliverable/<run-id>/` in the working directory. What each stage judges and writes is `docs/architecture.md` §1; the invocations an operator makes, and the value each stop wants, are the README's.
+**The cascade is built end to end.** `vespera run <root>` walks a corpus and takes it as far as the next missing value, through one Spring Batch job of sixteen steps, each behind its own gate; `vespera label` records the answers written into the relevance label file. Stages 0 to 4 judge, stage 5 measures without judging, stage 6a names and orders what stage 5 measured for the operator to approve, and stage 6b writes the deliverable under `deliverable/<run-id>/` in the working directory, or at the deliverable root `vespera.deliverable-root` names. What each stage judges and writes is `docs/architecture.md` §1; the invocations an operator makes, and the value each stop wants, are the README's.
 
 **No defect is known and open against what ships, except the cases ADR-210 leaves open by the operator's decision**: two wrong readings and three limits, each stated there. A defect is opened as an issue on the tracker. A closed one is recorded by its ADR and its issue, and is not added here (ADR-216 §9); `docs/closed-defects.md` keeps, closed to edits, what this file said of the thirty-five closed before.
 
@@ -43,9 +43,9 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 
 Work is charted as a **wayfinder map** on the issue tracker — one issue labelled `wayfinder:map` per slice, holding one child issue per decision, worked one per session. On a closed ticket the **resolution comment is the real spec**, so read comments rather than bodies.
 
-**No wayfinder map is open.** Seven have closed, one per slice: the census [#1](https://github.com/algernon28/vespera/issues/1), stage 1 [#28](https://github.com/algernon28/vespera/issues/28), stage 2 [#38](https://github.com/algernon28/vespera/issues/38), stage 3 [#53](https://github.com/algernon28/vespera/issues/53), stage 4 [#65](https://github.com/algernon28/vespera/issues/65), stage 5 [#78](https://github.com/algernon28/vespera/issues/78), and the stage 6a/6b slice [#151](https://github.com/algernon28/vespera/issues/151), charted on 2026-09-12 and closed on 2026-09-20 once 6a and 6b shipped. **A closed map is still the record**: its body carries the destination, what was settled and what was ruled out of scope; each closed ticket's resolution comment carries the decision itself; and its closing comment carries the retrospective the next map should read before charting. Stage 7 never had a map and never will — ADR-101 struck it.
+The current map is [issue #551](https://github.com/algernon28/vespera/issues/551): a control panel, the per-cluster deliverable, code sets and two new removals. Seven have closed, one per slice: the census [#1](https://github.com/algernon28/vespera/issues/1), stage 1 [#28](https://github.com/algernon28/vespera/issues/28), stage 2 [#38](https://github.com/algernon28/vespera/issues/38), stage 3 [#53](https://github.com/algernon28/vespera/issues/53), stage 4 [#65](https://github.com/algernon28/vespera/issues/65), stage 5 [#78](https://github.com/algernon28/vespera/issues/78), and the stage 6a/6b slice [#151](https://github.com/algernon28/vespera/issues/151). **A closed map is still the record**: its body carries the destination, what was settled and what was ruled out of scope; each closed ticket's resolution comment carries the decision itself; and its closing comment carries the retrospective the next map should read before charting. Stage 7 never had a map and never will — ADR-101 struck it.
 
-**So what is takeable is whatever the tracker holds**: bugs, and decisions no slice has been charted for. A map's **frontier** — open child issues with no open blocker and no assignee — is how to read one while a slice is being walked, and nothing is being walked today. **Chart a new map when the next slice of work is too big for one session**; the retrospective on [#151](https://github.com/algernon28/vespera/issues/151) says what the last seven learned, and this sentence and the one above it are what the claims guard checks, so a new map means editing both.
+**So what is takeable is whatever the tracker holds**: #551's frontier, bugs, and decisions no slice has been charted for. A map's **frontier** — open child issues with no open blocker and no assignee — is how to read one while its slice is walked. **Chart a new map when the next slice of work is too big for one session**; the retrospective on [#151](https://github.com/algernon28/vespera/issues/151) says what the last seven learned, and this sentence and the one above it are what the claims guard checks, so a new map means editing both.
 
 ## Building and testing
 
@@ -117,8 +117,7 @@ Work is charted as a **wayfinder map** on the issue tracker — one issue labell
 **`README.md` is for the operator; this file is for you.** It documents how the tool is driven — the five
 invocations, which value each stop wants, which report informs it. It must carry no claim about
 project state: what is built, how many ADRs, how many tests, which stage is part-built all live
-here, and two files describing the state is the drift that #132 and #134 each cost a pull request
-to correct (ADR-098).
+here, because two files describing the state drift apart (ADR-098).
 
 `docs/check-claims.mjs` reads both documents and checks each for its own kind of claim. The
 README's are all derived from code — the subcommands, the profile keys, the files written beside the
@@ -129,7 +128,7 @@ nothing in the tree can produce it.
 
 `docs/architecture.md` and `docs/decision-ledger.md` are the sources; the `.html` beside them is generated and published by GitHub Pages at [algernon28.github.io/vespera](https://algernon28.github.io/vespera/).
 
-**Why generated at all:** Pages runs Jekyll, which only converts Markdown carrying YAML front matter. These files have none, so Pages would serve them as raw text. The HTML is what actually renders.
+**Why generated:** Pages' Jekyll converts only Markdown with YAML front matter, which these files lack, so it would serve them as raw text.
 
 ```
 node docs/render-docs.mjs           # rewrite both pages
@@ -140,8 +139,8 @@ Edit the Markdown, re-run the script, commit both. Editing the HTML directly is 
 
 What the renderer does beyond formatting:
 
-- **It refuses to guess.** It supports exactly the constructs these documents use and throws with a `file:line` on anything else — an image, a nested list, a code fence that is not `mermaid`. A renderer that silently drops a section and leaves a plausible-looking page is the one failure that matters here, so it stops instead.
-- **It asserts nothing was lost**, checking that every word of the Markdown survives into the page. That check has already caught a real defect: a placeholder bug that swallowed code spans and turned "all 49 decisions" into one merged token.
+- **It refuses to guess.** It supports exactly the constructs these documents use and throws with a `file:line` on anything else — an image, a nested list, a code fence that is not `mermaid`. A silently dropped section is the one failure that matters here.
+- **It asserts nothing was lost**, checking that every word of the Markdown survives into the page.
 - **It links the record together.** Every `ADR-NNN` mention becomes a link to that record, with the id-to-file map read out of the ledger table rather than hardcoded, and relative `.md` links are pointed at whichever page renders them.
 - **Diagrams are Mermaid** in fenced blocks, so they render natively on github.com and client-side on the published page. `docs/extract-diagrams.mjs` pulls each one into a standalone file so a parser can check it.
 

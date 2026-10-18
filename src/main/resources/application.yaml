@@ -12,6 +12,9 @@ vespera:
   # application-local.yaml, as the environment variable VESPERA_CORPUS_ROOT (VESPERA_CORPUSROOT is
   # read too), or with --vespera.corpus-root=<path>.
   corpus-root: ""
+  # The folder the deliverable is drawn at, with index.html at its top (ADR-276); empty draws it in the
+  # working directory's deliverable folder. Set per machine, as VESPERA_DELIVERABLE_ROOT.
+  deliverable-root:
   # How often the progress page progress.html is rewritten in the working directory while a run goes on (ADR-265).
   progress-interval: 5s
   docling:
