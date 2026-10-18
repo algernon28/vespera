@@ -113,7 +113,7 @@ class ProgressPageChartsTest {
     private static final String COULD_NOT_BE_WRITTEN = "the progress page could not be written: ";
 
     /** A tile: its key, label, value and, where it has one, detail (ADR-268 section 5). */
-    private static final Pattern TILE = Pattern.compile("<div class=\"tile\" data-tile=\"([a-z-]+)\">"
+    private static final Pattern TILE = Pattern.compile("<div class=\"tile\" data-tile=\"([a-z-]+)\"(?: title=\"[^\"]*\")?>"
             + "<span class=\"label\">([^<]*)</span><span class=\"value\">([^<]*)</span>"
             + "(?:<span class=\"detail\">([^<]*)</span>)?</div>");
 
@@ -533,7 +533,7 @@ class ProgressPageChartsTest {
                 () -> assertThat(text(STEPS_PAGE)).contains(NONE_OF_NONE));
         claim(
                 "and no bar is drawn for it: a total of nought has nothing to fill",
-                () -> assertThat(text(PAGE)).contains("<div class=\"tile\" data-tile=\"steps\">").doesNotContain("<progress"));
+                () -> assertThat(text(PAGE)).containsPattern("<div class=\"tile\" data-tile=\"steps\"(?: title=\"[^\"]*\")?>").doesNotContain("<progress"));
     }
 
     @Test

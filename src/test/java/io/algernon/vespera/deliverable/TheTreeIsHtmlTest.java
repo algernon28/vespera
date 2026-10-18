@@ -192,7 +192,7 @@ class TheTreeIsHtmlTest {
                         + " links to the entries they name, inside the block that holds the writing",
                 () -> {
                     assertThat(page).contains(PROSE_ON_THE_PAGE);
-                    assertThat(page.indexOf("<div class=\"writing\">"))
+                    assertThat(page.indexOf("<div class=\"writing\" title=\""))
                             .isNotNegative()
                             .isLessThan(page.indexOf(PROSE_ON_THE_PAGE));
                 });

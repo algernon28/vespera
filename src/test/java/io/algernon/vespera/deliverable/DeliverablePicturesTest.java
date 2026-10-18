@@ -201,7 +201,8 @@ class DeliverablePicturesTest {
      */
     private static final String THE_PAGE_WITH_NO_PICTURES = Html.head(THE_TITLE)
             + "<h1>" + THE_TITLE + "</h1>\n"
-            + "<div class=\"writing\">\n"
+            + "<div class=\"writing\" title=\"What the local model wrote over this group from the documents listed below it;"
+            + " each number in brackets is a link to the document it cites.\">\n"
             + "<p>Both <a href=\"#document-1\">[1]</a> and <a href=\"#document-2\">[2]</a>.</p>\n"
             + "</div>\n"
             + "<h2>The documents in this group</h2>\n"

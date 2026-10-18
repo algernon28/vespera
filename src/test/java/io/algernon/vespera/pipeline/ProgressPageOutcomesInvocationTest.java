@@ -70,7 +70,7 @@ class ProgressPageOutcomesInvocationTest {
     private static final String BROKEN_CHECK_DONE = "Stage 1 (byte-level reduction, broken check): 3 of 3 (100%)";
 
     /** A tile: its key, label, value and, where it has one, detail (ADR-268 section 5). */
-    private static final Pattern TILE = Pattern.compile("<div class=\"tile\" data-tile=\"([a-z-]+)\">"
+    private static final Pattern TILE = Pattern.compile("<div class=\"tile\" data-tile=\"([a-z-]+)\"(?: title=\"[^\"]*\")?>"
             + "<span class=\"label\">([^<]*)</span><span class=\"value\">([^<]*)</span>"
             + "(?:<span class=\"detail\">([^<]*)</span>)?</div>");
 

@@ -215,6 +215,30 @@ final class ProgressPage implements JobExecutionListener {
             StepNames.ARRANGEMENT,
             StepNames.GENERATION);
 
+    /** What the row of tiles on the progress page shows (ADR-275 section 2). */
+    private static final String JOB_TILES_HOVER = "The figures of the job so far.";
+
+    /** What the row of tiles on the label page shows (ADR-275 section 2). */
+    private static final String INVOCATION_TILES_HOVER = "The figures of this invocation.";
+
+    /** What each tile shows, as hover text: one for each tile key and each blocking kind (ADR-275 section 2). */
+    private static final Map<String, String> TILE_HOVER = Map.ofEntries(
+            Map.entry("steps", "How many of the job's steps have finished or stopped at a gate."),
+            Map.entry("step", "The step running now, or the last one to run, with its state."),
+            Map.entry("elapsed", "Time since this invocation started."),
+            Map.entry("database", "Size of the working directory's database and, where shown, how fast it has grown per minute lately."),
+            Map.entry("survivors", "Occurrences the latest step that removes them has not removed, of those that entered it."),
+            Map.entry("command", "The vespera command this page reports on."),
+            Map.entry("broken", "Occurrences removed because the file is broken and cannot be read."),
+            Map.entry("duplicate-of", "Occurrences removed because another file has exactly the same bytes."),
+            Map.entry("superseded-by", "Occurrences removed because a newer version of the same file exists."),
+            Map.entry("out-of-scope", "Occurrences removed because their format or place is outside what the job reads."),
+            Map.entry("extraction-failed", "Occurrences removed because the document converter could not turn them into text."),
+            Map.entry("degenerate-output", "Occurrences removed because the converted text is too poor to use."),
+            Map.entry("redundant-with", "Occurrences removed because their text repeats or is contained in another document."),
+            Map.entry("translation-of", "Occurrences removed because they are a translation of a document kept in another language."),
+            Map.entry("below-threshold", "Occurrences removed because their relevance scores below the threshold."));
+
     /**
      * The blocking kinds as {@code CONTEXT.md} writes them, in {@code VerdictKind}'s order (ADR-268 section 1). Names,
      * not the enum: the page decides no verdict, and no class of {@code pipeline} that does not is to name a kind.
@@ -639,6 +663,7 @@ final class ProgressPage implements JobExecutionListener {
 
         String stepsBody = heads[1]
                 + ReportPage.tableCard(
+                        "Each step of the job with its state, the rows it read and wrote, and how long it took.",
                         ReportPage.headerRow("Step", "State", "Read", "Written", "Skipped", "Duration", "Progress"),
                         rows.toString());
         StringBuilder sampleRows = new StringBuilder();
@@ -664,7 +689,9 @@ final class ProgressPage implements JobExecutionListener {
         for (int i = 0; i < BLOCKING.size(); i++) {
             sampleHeaders[8 + i] = BLOCKING.get(i);
         }
-        String samplesBody = heads[2] + ReportPage.tableCard(ReportPage.headerRow(sampleHeaders), sampleRows.toString());
+        String samplesBody = heads[2] + ReportPage.tableCard(
+                "One line per sample of the job: elapsed time, database size, the running step and the verdict counts.",
+                ReportPage.headerRow(sampleHeaders), sampleRows.toString());
         String runsBody = heads[3] + runsTab(job);
 
         String bar = "";
@@ -694,7 +721,7 @@ final class ProgressPage implements JobExecutionListener {
             }
         }
         String progressBody = heads[0]
-                + "<div class=\"tiles\">\n" + tiles + "</div>\n"
+                + "<div class=\"tiles\" title=\"" + ReportPage.escapeAttribute(JOB_TILES_HOVER) + "\">\n" + tiles + "</div>\n"
                 + bar
                 + timeline(states, executions, started, now, zone)
                 + databaseChart()
@@ -769,7 +796,9 @@ final class ProgressPage implements JobExecutionListener {
         List<String> headers = new ArrayList<>(
                 List.of("Walk", "Stage", "Run", "Steps finished", "State", "This invocation"));
         headers.addAll(BLOCKING);
-        return shows + ReportPage.tableCard(ReportPage.headerRow(headers.toArray(new String[0])), rows.toString());
+        return shows + ReportPage.tableCard(
+                "Each run this working directory holds: its walk and stage, how many of its steps finished, whether this invocation arrived at it, and what it removed by kind.",
+                ReportPage.headerRow(headers.toArray(new String[0])), rows.toString());
     }
 
     private static String page(String which, String body, boolean last, int seconds) {
@@ -781,9 +810,16 @@ final class ProgressPage implements JobExecutionListener {
         return which.isEmpty() ? TITLE : TITLE + ": " + which;
     }
 
-    /** A tile: a label, a value and, where it has one, a detail, each text and no other element (ADR-268 section 5). */
+    /**
+     * A tile: a label, a value and, where it has one, a detail, each text and no other element (ADR-268 section 5),
+     * with the fixed hover text of its key as its {@code title} (ADR-275 section 2).
+     */
     private static String tile(String key, String label, String value, String detail) {
-        return "<div class=\"tile\" data-tile=\"" + key + "\"><span class=\"label\">" + ReportPage.escape(label)
+        String hover = TILE_HOVER.get(key);
+        if (hover == null) {
+            throw new IllegalStateException("no hover text for tile " + key);
+        }
+        return "<div class=\"tile\" data-tile=\"" + key + "\" title=\"" + ReportPage.escapeAttribute(hover) + "\"><span class=\"label\">" + ReportPage.escape(label)
                 + "</span><span class=\"value\">" + ReportPage.escape(value) + "</span>"
                 + (detail == null ? "" : "<span class=\"detail\">" + ReportPage.escape(detail) + "</span>")
                 + "</div>\n";
@@ -874,7 +910,8 @@ final class ProgressPage implements JobExecutionListener {
             String state = states.get(step);
             int y = row++ * TIMELINE_ROW;
             svg.append("<g class=\"step\" data-step=\"").append(step).append("\" data-state=\"").append(state)
-                    .append("\"><text x=\"4\" y=\"").append(y + 16).append("\">").append(ReportPage.escape(step))
+                    .append("\"><title>").append(ReportPage.escape(StepNames.description(step))).append("</title><text x=\"4\" y=\"")
+                    .append(y + 16).append("\">").append(ReportPage.escape(step))
                     .append("</text><text class=\"state\" x=\"").append(TIMELINE_STATES).append("\" y=\"").append(y + 16)
                     .append("\">").append(ReportPage.escape(state)).append("</text>");
             StepExecution execution = executions.get(step);
@@ -1199,12 +1236,13 @@ final class ProgressPage implements JobExecutionListener {
         String body = ReportPage.heading(1, TITLE)
                 + ReportPage.paragraph(ReportPage.escape(status))
                 + ReportPage.paragraph("Written at " + WRITTEN_AT.format(LocalDateTime.ofInstant(now, ZoneId.systemDefault())))
-                + "<div class=\"tiles\">\n"
+                + "<div class=\"tiles\" title=\"" + ReportPage.escapeAttribute(INVOCATION_TILES_HOVER) + "\">\n"
                 + tile("command", "Command", command, null)
                 + tile("elapsed", "Elapsed", clockTime(Duration.between(commandStarted, now)), null)
                 + tile("database", "Database size", size(databaseBytes()), null)
                 + "</div>\n"
-                + (counts.isEmpty() ? "" : ReportPage.tableCard(ReportPage.headerRow("Answers", "Count"), rows.toString()));
+                + (counts.isEmpty() ? "" : ReportPage.tableCard(
+                "How many answers this invocation recorded, by kind.", ReportPage.headerRow("Answers", "Count"), rows.toString()));
         return last ? ReportPage.drawn(TITLE, body) : ReportPage.drawnReloading(TITLE, body, seconds);
     }
 
