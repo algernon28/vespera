@@ -67,7 +67,7 @@ class ProgressPageReadabilityTest {
 
     private static final Instant T0 = Instant.parse("2026-10-16T08:00:00Z");
 
-    private static final Pattern TILE = Pattern.compile("<div class=\"tile\" data-tile=\"([a-z-]+)\">"
+    private static final Pattern TILE = Pattern.compile("<div class=\"tile\" data-tile=\"([a-z-]+)\"(?: title=\"[^\"]*\")?>"
             + "<span class=\"label\">([^<]*)</span><span class=\"value\">([^<]*)</span>"
             + "(?:<span class=\"detail\">([^<]*)</span>)?</div>");
 

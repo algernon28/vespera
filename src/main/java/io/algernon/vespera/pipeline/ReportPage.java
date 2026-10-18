@@ -157,8 +157,8 @@ final class ReportPage {
     }
 
     /** A table in a card of its own, which scrolls sideways where the table is too wide for the window (ADR-269). */
-    static String tableCard(String headers, String rows) {
-        return "<div class=\"table-card\">\n" + table(headers, rows) + "</div>\n";
+    static String tableCard(String hover, String headers, String rows) {
+        return "<div class=\"table-card\" title=\"" + escapeAttribute(hover) + "\">\n" + table(headers, rows) + "</div>\n";
     }
 
     private static String head(String title, String extraMeta) {
@@ -186,6 +186,11 @@ final class ReportPage {
      */
     static String escape(String text) {
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    /** Escapes text for a double-quoted attribute value: {@link #escape}'s three and both quotes (ADR-275 section 3). */
+    static String escapeAttribute(String text) {
+        return escape(text).replace("\"", "&quot;").replace("'", "&#39;");
     }
 
     /** A heading of the given level, with its text escaped. */
