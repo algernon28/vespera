@@ -1878,6 +1878,15 @@ public final class Adr {
             + "0274-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md";
 
     /**
+     * ADR-275 -- every {@code <div>} of every page Vespera writes carries a {@code title}, fixed words saying what it
+     * shows and holding no value of the invocation, escaped for its attribute; each of the sixteen steps has one
+     * description in {@code StepNames}, which its step of the timeline opens with as a {@code <title>} (amends
+     * ADR-268, ADR-269, ADR-274 and ADR-075).
+     */
+    public static final String EVERY_DIV_SAYS_ON_HOVER_WHAT_IT_SHOWS_AND_EVERY_STEP_WHAT_IT_DOES = FILE
+            + "0275-every-div-of-every-page-vespera-writes-says-on-hover-what-it-shows-and-every-step-of-the-timeline-what-it-does.md";
+
+    /**
      * ADR-276 -- {@code vespera.deliverable-root} names the folder a generation run's tree is drawn in, its index at
      * the top, or the tree is drawn at {@code <working directory>/deliverable/<generation run>} as before; {@code
      * vespera run} refuses, before the job, a root equal to, inside or above the corpus root or the seed folder,

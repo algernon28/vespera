@@ -352,7 +352,7 @@ class ProgressPageTabsTest {
         claim(
                 "the last write holds the tiles, the timeline of the steps and the chart of the database's size",
                 () -> assertThat(page)
-                        .contains("<div class=\"tile\" data-tile=\"steps\">")
+                        .containsPattern("<div class=\"tile\" data-tile=\"steps\"(?: title=\"[^\"]*\")?>")
                         .contains("<svg class=\"timeline\"")
                         .contains("data-chart=\"database\""));
         claim(
@@ -486,7 +486,7 @@ class ProgressPageTabsTest {
                     "and every table of " + name + " lies directly in a table's card",
                     () -> {
                         assertThat(page).contains("<table");
-                        assertThat(count(Pattern.compile("<div class=\"table-card\">\\s*<table"), page))
+                        assertThat(count(Pattern.compile("<div class=\"table-card\"(?: title=\"[^\"]*\")?>\\s*<table"), page))
                                 .isEqualTo(count(Pattern.compile("<table"), page));
                     });
         }
