@@ -1,5 +1,7 @@
 # ADR-274 — The deliverable is HTML with a verified copy of every survivor it lists, and its rendering keys no run
 
+> **Partly amended — see [ADR-276](0276-the-deliverable-is-drawn-at-a-root-the-operator-may-name-outside-the-corpus-root-and-the-seed-folder.md).** The tree is drawn at the deliverable root, which `vespera.deliverable-root` may name and which is `deliverable/<generation run>/` in the working directory where none is named, and every tree carries a marker, `vespera-deliverable.txt` (§1); the gibibyte of §2.5 is read on the drive the tree is written to; §2.7's bound of 69 characters is, for a named root, one of 146 on the root's path; §6's redrawing in place holds at a named root only for this working directory's tree of the same generation run; and §7's index is the root's. Everything else in this record stands.
+
 - **Date**: 2026-10-17
 - **Status**: accepted on 2026-10-17.
 - **Amends**: [ADR-103](0103-the-deliverable-is-a-markdown-tree-in-the-working-directory-one-tree-per-run-id.md), in "Markdown, not HTML", the tree drawn under its Decision, `index.md`'s name, and "A re-run under a changed configuration writes a new tree beside the old one", which holds of a change to what the generation run is keyed by and not of a change to how the tree is drawn (§1, §6). One tree per generation run, in the working directory, with no new key, and "every link inside the deliverable resolves with no database, no ledger and no network" stand.
