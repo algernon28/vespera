@@ -70,13 +70,17 @@ public class ByteLevelReductionTasklet implements Tasklet {
      * or unreadable. The name endings the profile's {@code outOfScopeNameEndings} lists (ADR-256 §6) are
      * recorded in their canonical form, lower case, each once, sorted, and written as {@code []} where the
      * key is unset or unreadable, as the floor's {@code null} is: stage 1 acts on them, and its version
-     * does not name {@code profile}, so only this record can move its run id when they change.
+     * does not name {@code profile}, so only this record can move its run id when they change. The endings of
+     * {@code codeNameEndings} are recorded the same way (ADR-277 section 9), beside the version of the
+     * documentation generators' marks built into {@code corpus}.
      */
     record ConfigConsumed(
             long textSizeCeilingBytes,
             String textParts,
             Double logTimestampShareFloor,
-            List<String> outOfScopeNameEndings) {}
+            List<String> outOfScopeNameEndings,
+            List<String> codeNameEndings,
+            String generatorMarks) {}
 
     /** The page stage 1 leaves beside the database: what its detection found across the corpus (ADR-095). */
     static final String FORMAT_MIX_FILE_NAME = "format-mix.html";
@@ -125,10 +129,11 @@ public class ByteLevelReductionTasklet implements Tasklet {
         var walk = runMint.finishedWalk(canonicalRoot, "stage 1");
         Profile profile = profileStore.load();
         Double logFloor = logFloorOf(profile);
-        List<String> nameEndings = nameEndingsOf(profile);
+        List<String> nameEndings = nameEndingsOf(profile.outOfScopeNameEndings());
+        List<String> codeEndings = nameEndingsOf(profile.codeNameEndings());
         RunId runId = runMint.mint(
                 StageModules.BYTE_LEVEL_REDUCTION,
-                configConsumed(logFloor, nameEndings),
+                configConsumed(logFloor, nameEndings, codeEndings),
                 walk,
                 Optional.empty());
 
@@ -146,13 +151,18 @@ public class ByteLevelReductionTasklet implements Tasklet {
                     // same run id. Discarding this step's own rows before working is ADR-115's other half
                     // (ADR-116).
                     () -> {
-                        ledger.verdicts().discardVerdicts(runId, VerdictKind.BROKEN, VerdictKind.OUT_OF_SCOPE, VerdictKind.SUPERSEDED_BY);
+                        ledger.verdicts().discardVerdicts(
+                                runId,
+                                VerdictKind.BROKEN,
+                                VerdictKind.OUT_OF_SCOPE,
+                                VerdictKind.CODE,
+                                VerdictKind.SUPERSEDED_BY);
                         detectedFormats.discardForRun(runId);
                         contentIdentity.discardForRun(runId);
                     },
                     () -> {
                         log.info("Stage 1 (byte-level reduction) starting under run {}", runId.value());
-                        verdictBrokenSurvivors(runId, canonicalRoot, logFloor, nameEndings);
+                        verdictBrokenSurvivors(runId, canonicalRoot, logFloor, nameEndings, codeEndings);
                         resolveDuplicates(runId, canonicalRoot);
                         log.info("Stage 1 (byte-level reduction) finished under run {}", runId.value());
                         return true;
@@ -172,7 +182,8 @@ public class ByteLevelReductionTasklet implements Tasklet {
      * The first pass, and the page and the profile measurement it earns. {@code corpus} holds the rules
      * and the tally; what is written here is the operator's text, the page, and the floor's measurement.
      */
-    private void verdictBrokenSurvivors(RunId runId, Path canonicalRoot, Double logFloor, List<String> nameEndings)
+    private void verdictBrokenSurvivors(
+            RunId runId, Path canonicalRoot, Double logFloor, List<String> nameEndings, List<String> codeEndings)
             throws Exception {
         long survivors = TimedStatement.of(
                 "Stage 1 (byte-level reduction)",
@@ -183,7 +194,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
         ProgressPage.entered(survivors);
         StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", survivors);
         FormatMix mix = new BrokenOrOutOfScope(ledger, detectedFormats, textSizeLimits())
-                .verdictSurvivors(runId, canonicalRoot, logFloor, nameEndings, new CheckingProgress() {
+                .verdictSurvivors(runId, canonicalRoot, logFloor, nameEndings, codeEndings, new CheckingProgress() {
                     @Override
                     public void checked(OccurrenceId occurrence, BrokenOrOutOfScope.Outcome outcome) {
                         log.info(
@@ -192,6 +203,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
                                 switch (outcome) {
                                     case BrokenOrOutOfScope.Outcome.Broken broken -> "broken: " + broken.reason();
                                     case BrokenOrOutOfScope.Outcome.LeftOut leftOut -> "out of scope: " + leftOut.reason();
+                                    case BrokenOrOutOfScope.Outcome.Code code -> "code: " + code.reason();
                                     case BrokenOrOutOfScope.Outcome.Kept kept -> "kept";
                                 });
                         progress.itemDone();
@@ -222,8 +234,15 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 mix.leftOutByName(),
                 mix.byTimestampBand(),
                 mix.fewerThanTenLines(),
+                mix.code(),
+                mix.codeByEnding(),
+                mix.codeByMark(),
+                mix.codeEndingCounts(),
+                mix.codeGeneratorCounts(),
+                mix.textEndingCounts(),
                 logFloor,
-                nameEndings));
+                nameEndings,
+                codeEndings));
         // The floor's measurement is this page (ADR-171 §3), pointed at the way stage 3 points its own, and
         // so is the name endings' (ADR-256 §7).
         Measurement thePage =
@@ -231,7 +250,8 @@ public class ByteLevelReductionTasklet implements Tasklet {
         profileStore.save(profileStore
                 .load()
                 .withLogTimestampShareFloorMeasurement(thePage)
-                .withOutOfScopeNameEndingsMeasurement(thePage));
+                .withOutOfScopeNameEndingsMeasurement(thePage)
+                .withCodeNameEndingsMeasurement(thePage));
     }
 
     /**
@@ -314,16 +334,21 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 : null;
     }
 
-    /** The answered endings, canonical; none where the key is unset or unreadable (ADR-256 §5). */
-    private static List<String> nameEndingsOf(Profile profile) {
-        return profile.outOfScopeNameEndings().reading() instanceof NameEndingsValue.Answered answered
+    /** The answered endings, canonical; none where the key is unset or unreadable (ADR-256 §5, ADR-277 §2). */
+    private static List<String> nameEndingsOf(NameEndingsValue key) {
+        return key.reading() instanceof NameEndingsValue.Answered answered
                 ? answered.endings()
                 : List.of();
     }
 
-    private static String configConsumed(Double logFloor, List<String> nameEndings) {
-        return JSON.writeValueAsString(
-                new ConfigConsumed(DoclingClient.TEXT_SIZE_CEILING_BYTES, TextParts.RULE, logFloor, nameEndings));
+    private static String configConsumed(Double logFloor, List<String> nameEndings, List<String> codeEndings) {
+        return JSON.writeValueAsString(new ConfigConsumed(
+                DoclingClient.TEXT_SIZE_CEILING_BYTES,
+                TextParts.RULE,
+                logFloor,
+                nameEndings,
+                codeEndings,
+                BrokenOrOutOfScope.GENERATOR_MARKS));
     }
 
     private void writeFormatMix(FormatMixReport.Mix mix) {

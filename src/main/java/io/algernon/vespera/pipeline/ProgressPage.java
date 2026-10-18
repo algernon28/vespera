@@ -220,7 +220,7 @@ final class ProgressPage implements JobExecutionListener {
      * not the enum: the page decides no verdict, and no class of {@code pipeline} that does not is to name a kind.
      */
     private static final List<String> BLOCKING = List.of(
-            "broken", "duplicate-of", "superseded-by", "out-of-scope",
+            "broken", "duplicate-of", "superseded-by", "out-of-scope", "code",
             "extraction-failed", "degenerate-output", "redundant-with", "translation-of", "below-threshold");
 
     /** The steps that remove occurrences, in job order, and the kinds each records (ADR-268 section 1). */
@@ -228,7 +228,7 @@ final class ProgressPage implements JobExecutionListener {
 
     static {
         OUTCOME_STEPS.put(
-                StepNames.BYTE_LEVEL_REDUCTION, List.of("broken", "duplicate-of", "superseded-by", "out-of-scope"));
+                StepNames.BYTE_LEVEL_REDUCTION, List.of("broken", "duplicate-of", "superseded-by", "out-of-scope", "code"));
         OUTCOME_STEPS.put(StepNames.EXTRACTION, List.of("extraction-failed", "degenerate-output"));
         OUTCOME_STEPS.put(StepNames.CONTENT_REDUNDANCY, List.of("redundant-with"));
         OUTCOME_STEPS.put(StepNames.TRANSLATION, List.of("translation-of"));
@@ -690,7 +690,7 @@ final class ProgressPage implements JobExecutionListener {
                             + ("running".equals(states.get(outcomeStep)) ? ", including those not yet judged" : "")));
             for (String kind : OUTCOME_STEPS.get(outcomeStep)) {
                 int at = BLOCKING.indexOf(kind);
-                tiles.append(tile(kind, kind, count(latest.kinds()[at]), kindRate(base, latest, at)));
+                tiles.append(tile(kind, "code".equals(kind) ? "code (kept)" : kind, count(latest.kinds()[at]), kindRate(base, latest, at)));
             }
         }
         String progressBody = heads[0]
