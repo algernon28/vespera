@@ -40,6 +40,11 @@ class InvocationRuns {
     /** Where the count of documents not copied is handed to the closing line; outside {@link #KEY_PREFIX}, which {@link #all} reads as runs. */
     private static final String DOCUMENTS_NOT_COPIED = "vespera.deliverable.documents-not-copied";
 
+    /** Where what an earlier drawing left in the tree is handed to the closing line (ADR-280 §4). */
+    private static final String DOCUMENTS_FOLDER_LEFT_BEHIND = "vespera.deliverable.documents-folder-left-behind";
+
+    private static final String FOLDERS_LEFT_BEHIND = "vespera.deliverable.folders-left-behind";
+
     private final ExecutionContext executionContext;
 
     InvocationRuns(ExecutionContext executionContext) {
@@ -75,6 +80,22 @@ class InvocationRuns {
         return executionContext.containsKey(DOCUMENTS_NOT_COPIED)
                 ? OptionalInt.of(executionContext.getInt(DOCUMENTS_NOT_COPIED))
                 : OptionalInt.empty();
+    }
+
+    /** Records what the drawing found an earlier one left in the tree, for the closing line (ADR-280 §4). */
+    void recordLeftBehind(boolean documentsFolder, int otherFolders) {
+        executionContext.putString(DOCUMENTS_FOLDER_LEFT_BEHIND, String.valueOf(documentsFolder));
+        executionContext.putInt(FOLDERS_LEFT_BEHIND, otherFolders);
+    }
+
+    /** Whether {@link #recordLeftBehind} recorded a {@code documents/} folder; false where none was recorded. */
+    boolean documentsFolderLeftBehind() {
+        return Boolean.parseBoolean(executionContext.getString(DOCUMENTS_FOLDER_LEFT_BEHIND, "false"));
+    }
+
+    /** The count of other folders {@link #recordLeftBehind} recorded; 0 where none was recorded. */
+    int foldersLeftBehind() {
+        return executionContext.getInt(FOLDERS_LEFT_BEHIND, 0);
     }
 
     /** The run this invocation minted or continued for {@code stage}, if it has run yet this invocation. */
