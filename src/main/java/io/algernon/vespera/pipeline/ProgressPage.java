@@ -223,7 +223,7 @@ final class ProgressPage implements JobExecutionListener {
 
     /** What each tile shows, as hover text: one for each tile key and each blocking kind (ADR-275 section 2). */
     private static final Map<String, String> TILE_HOVER = Map.ofEntries(
-            Map.entry("steps", "How many of the steps of the job have finished."),
+            Map.entry("steps", "How many of the job's steps have finished or stopped at a gate."),
             Map.entry("step", "The step running now, or the last one to run, with its state."),
             Map.entry("elapsed", "Time since this invocation started."),
             Map.entry("database", "Size of the working directory's database and, where shown, how fast it has grown per minute lately."),
@@ -810,7 +810,10 @@ final class ProgressPage implements JobExecutionListener {
         return which.isEmpty() ? TITLE : TITLE + ": " + which;
     }
 
-    /** A tile: a label, a value and, where it has one, a detail, each text and no other element (ADR-268 section 5). */
+    /**
+     * A tile: a label, a value and, where it has one, a detail, each text and no other element (ADR-268 section 5),
+     * with the fixed hover text of its key as its {@code title} (ADR-275 section 2).
+     */
     private static String tile(String key, String label, String value, String detail) {
         String hover = TILE_HOVER.get(key);
         if (hover == null) {

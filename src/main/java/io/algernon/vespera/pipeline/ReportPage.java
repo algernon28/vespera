@@ -158,6 +158,9 @@ final class ReportPage {
 
     /** A table in a card of its own, which scrolls sideways where the table is too wide for the window (ADR-269). */
     static String tableCard(String hover, String headers, String rows) {
+        if (hover == null || hover.isBlank()) {
+            throw new IllegalArgumentException("a table card needs a hover text (ADR-275)");
+        }
         return "<div class=\"table-card\" title=\"" + escapeAttribute(hover) + "\">\n" + table(headers, rows) + "</div>\n";
     }
 
@@ -180,9 +183,9 @@ final class ReportPage {
     }
 
     /**
-     * HTML-escapes the three characters that would otherwise be read as markup. The one escape table
-     * the reports share; it deliberately leaves quotes alone, because nothing here writes text into
-     * an attribute unquoted.
+     * HTML-escapes the three characters that would otherwise be read as markup, for text between tags only:
+     * it leaves quotes alone, and an attribute's value goes through {@link #escapeAttribute} instead (ADR-275
+     * section 3).
      */
     static String escape(String text) {
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
