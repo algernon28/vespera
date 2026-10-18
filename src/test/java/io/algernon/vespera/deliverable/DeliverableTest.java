@@ -226,8 +226,11 @@ class DeliverableTest {
     /** The archive the rest of these fixtures were walked from, recorded once in the index. */
     private static final String THE_ARCHIVE_ROOT = Path.of("D:", "archive").toString();
 
-    /** What the tree holds when one cluster was written over and no copy could be made: the index, the listing, and one page. */
-    private static final int THE_INDEX_THE_LISTING_AND_ONE_PAGE = 3;
+    /**
+     * What the tree holds when one cluster was written over and no copy could be made: the index, the listing, one page
+     * and the marker naming the working directory and generation run that drew it (ADR-276 §3).
+     */
+    private static final int THE_INDEX_THE_LISTING_ONE_PAGE_AND_THE_MARKER = 4;
 
     /** The one line above the listing's rows, which names the columns rather than carrying a document. */
     private static final int THE_HEADER_ROW = 1;
@@ -926,9 +929,12 @@ class DeliverableTest {
                         .hasSize(TWO_SURVIVORS)
                         .allSatisfy(row -> assertThat(columnsOf(row)[THE_COPY_OUTCOME_COLUMN]).isEqualTo("gone")));
         claim(
-                "and no copy stands in the tree -- it holds " + THE_INDEX_THE_LISTING_AND_ONE_PAGE + " files,"
-                        + " being the index, the listing and the one group's own page, and nothing else",
-                () -> assertThat(everyFileUnder(tree)).hasSize(THE_INDEX_THE_LISTING_AND_ONE_PAGE));
+                "and no copy stands in the tree -- it holds " + THE_INDEX_THE_LISTING_ONE_PAGE_AND_THE_MARKER
+                        + " files, being the index, the listing, the one group's own page and the marker saying what"
+                        + " drew the tree, and nothing else",
+                () -> assertThat(everyFileUnder(tree))
+                        .hasSize(THE_INDEX_THE_LISTING_ONE_PAGE_AND_THE_MARKER)
+                        .contains(tree.resolve(DeliverableRoot.MARKER_FILE_NAME)));
     }
 
     @Test

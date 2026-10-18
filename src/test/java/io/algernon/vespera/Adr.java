@@ -1877,6 +1877,18 @@ public final class Adr {
     public static final String THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR = FILE
             + "0274-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md";
 
+    /**
+     * ADR-276 -- {@code vespera.deliverable-root} names the folder a generation run's tree is drawn in, its index at
+     * the top, or the tree is drawn at {@code <working directory>/deliverable/<generation run>} as before; {@code
+     * vespera run} refuses, before the job, a root equal to, inside or above the corpus root or the seed folder,
+     * compared by real path and on Windows without case, and a named root that is not empty and holds no tree of this
+     * working directory; every tree carries {@code vespera-deliverable.txt} naming its working directory and generation
+     * run, and a root holding another run's tree is not drawn over; the copies' gibibyte is read on the tree's drive
+     * (amends ADR-274 and ADR-103).
+     */
+    public static final String THE_DELIVERABLE_IS_DRAWN_AT_A_ROOT_THE_OPERATOR_MAY_NAME = FILE
+            + "0276-the-deliverable-is-drawn-at-a-root-the-operator-may-name-outside-the-corpus-root-and-the-seed-folder.md";
+
     private Adr() {
     }
 }

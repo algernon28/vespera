@@ -56,17 +56,27 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
     /** How many survivors the source hands over at once: fewer than any partition here holds. */
     private static final int TWO_SURVIVORS_IN_A_PAGE = 2;
 
-    /** The files of the tree: the index, the listing and a page for each of the six groups. */
-    private static final int EIGHT_FILES = 8;
+    /** The files of the tree: the index, the listing, a page for each of the six groups and the marker. */
+    private static final int NINE_FILES = 9;
+
+    /**
+     * The marker at the top of every tree, naming the working directory that drew it (ADR-276 §3): the two writings
+     * here have two working directories, so it is the one file whose bytes differ between them by design.
+     */
+    private static final String MARKER = "vespera-deliverable.txt";
 
     @Test
     @Story("The tree is the same tree, written one exemplar at a time")
     @DisplayName("Every file of a tree of three exemplars is byte for byte the file written with every document in one page")
+    @Link(name = "ADR-276", url = Adr.THE_DELIVERABLE_IS_DRAWN_AT_A_ROOT_THE_OPERATOR_MAY_NAME, type = "adr")
     void everyFileIsTheSame(@TempDir Path base) throws IOException {
         String corpusRoot = base.resolve("archive").toString();
+        Path pagedWork = base.resolve("paged");
+        Path wholeWork = base.resolve("whole");
 
         Path paged = Deliverable.writeTo(
-                base.resolve("paged"),
+                pagedWork,
+                DeliverableRoot.UNNAMED,
                 ThreePartitions.provenance(corpusRoot),
                 ListedArrangement.of(
                         ThreePartitions.arrangement(),
@@ -77,7 +87,8 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
                 SurvivorPictures.none(),
                 DeliverableProgress.NONE);
         Path whole = Deliverable.writeTo(
-                base.resolve("whole"),
+                wholeWork,
+                DeliverableRoot.UNNAMED,
                 ThreePartitions.provenance(corpusRoot),
                 ListedArrangement.of(
                         ThreePartitions.arrangement(),
@@ -91,20 +102,35 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
         Map<String, String> expected = filesOf(whole);
 
         claim(
-                "the tree holds the same " + EIGHT_FILES + " files and nothing else: the index, the listing and a"
-                        + " page for each of the six groups under its exemplar's directory, with no file left half"
-                        + " written beside any of them",
+                "the tree holds the same " + NINE_FILES + " files and nothing else: the index, the listing, a page"
+                        + " for each of the six groups under its exemplar's directory and the marker, with no file left"
+                        + " half written beside any of them",
                 () -> {
-                    assertThat(expected).hasSize(EIGHT_FILES);
+                    assertThat(expected).hasSize(NINE_FILES).containsKey(MARKER);
                     assertThat(written.keySet()).containsExactlyElementsOf(expected.keySet());
                 });
         for (Map.Entry<String, String> file : expected.entrySet()) {
+            if (file.getKey().equals(MARKER)) {
+                continue;
+            }
             claim(
                     file.getKey() + " is byte for byte what it was",
                     () -> assertThat(written.get(file.getKey()))
                             .as("the contents of %s", file.getKey())
                             .isEqualTo(file.getValue()));
         }
+        claim(
+                "and each marker names the working directory its own tree was drawn for, under the same generation",
+                () -> {
+                    assertThat(written.get(MARKER)).isEqualTo(markerFor(pagedWork));
+                    assertThat(expected.get(MARKER)).isEqualTo(markerFor(wholeWork));
+                });
+    }
+
+    /** The marker a tree drawn for {@code work} under {@link ThreePartitions}' generation carries (ADR-276 §3). */
+    private static String markerFor(Path work) throws IOException {
+        return "working-directory=" + work.toRealPath() + "\n"
+                + "generation-run=" + ThreePartitions.provenance("").runId() + "\n";
     }
 
     @Test
@@ -149,6 +175,7 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
 
         Deliverable.writeTo(
                 base.resolve("work"),
+                DeliverableRoot.UNNAMED,
                 ThreePartitions.provenance(base.resolve("archive").toString()),
                 ArrangedSurvivors.reading(
                         whole::partitions,

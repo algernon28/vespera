@@ -52,7 +52,7 @@ One invocation runs these sixteen steps. The names are the ones the log prints.
 | 5f | `clustering` | scores | the groups, `cluster-sizes.html` |
 | 5 | `relevance-report` | scores | `relevance-labelling.html`, `relevance-labels.yaml` |
 | 6a | `arrangement` | groups | `arrangement.html` |
-| 6b | `generation` | `arrangementApproved`, the generation model served by Ollama | `deliverable/<run>/` |
+| 6b | `generation` | `arrangementApproved`, the generation model served by Ollama | `deliverable/<run>/`, or the folder `vespera.deliverable-root` names |
 
 `vespera label` is a second command, not a step. It runs between two invocations of `vespera run` and is described under [stage 5](#stage-5--relevance).
 
@@ -226,9 +226,9 @@ Read a number off `relevance-labelling.html`, write it into `relevanceScoreFloor
 
 **Run:** `vespera run <root>`
 
-**What it does.** Asks the model once for each group, checks every answer before believing it, and writes the tree of HTML pages under `deliverable/<run>/`, with a checked copy of every surviving document in its `documents/` folder. An answer that is turned down leaves its group in place with a note that nothing was written over it.
+**What it does.** Asks the model once for each group, checks every answer before believing it, and writes the tree of HTML pages under `deliverable/<run>/`, with a checked copy of every surviving document in its `documents/` folder. Where `vespera.deliverable-root` (`VESPERA_DELIVERABLE_ROOT`) names a folder, the tree is drawn in that folder instead, `index.html` at its top, as README's "Where things live" describes. An answer that is turned down leaves its group in place with a note that nothing was written over it.
 
-**Where it stops.** Gated when no arrangement is approved, or the approval names another arrangement. It also stops if the model keeps failing.
+**Where it stops.** Gated when no arrangement is approved, or the approval names another arrangement. It also stops if the model keeps failing, and, with what it wrote kept, when the folder named for the tree holds another run's tree: name a new, empty folder and run again.
 
 **Resume.** Generation is recorded group by group, because each group costs a model call.
 
