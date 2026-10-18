@@ -137,7 +137,12 @@ public final class ListedArrangement {
             Map<ClusterSlot, Unwritten> unwritten,
             DeliverableProgress progress) {
         return Deliverable.writeTo(
-                workingDirectory, provenance, of(arrangement, written, survivors, unwritten), pictures, progress);
+                workingDirectory,
+                DeliverableRoot.UNNAMED,
+                provenance,
+                of(arrangement, written, survivors, unwritten),
+                pictures,
+                progress);
     }
 
     /** {@code index.html} for these lists, whole: its opening lines, then each partition's heading, rows and end as the writer appends them. */

@@ -63,7 +63,7 @@ working-directory=<the working directory's real path, or its absolute normalised
 generation-run=<the generation run's id>
 ```
 
-It is written after the partitions are asked for, so a partition `ListedPartition` refuses still leaves nothing written, as `Deliverable.writeTo` has it, and **before the first copy**, so a drawing stopped partway leaves a root the next invocation of the same run accepts. It is written over at each drawing. `DeliverableRoot` writes it and reads it, one class for the rule (ADR-213). A marker that cannot be read, or lacks either line, is read as no marker.
+It is written after the partitions are asked for, so a partition `ListedPartition` refuses still leaves nothing written, as `Deliverable.writeTo` has it, and **before the first copy**, so a drawing stopped partway leaves a root the next invocation of the same run accepts. It is written in place, over itself at each drawing, and not moved into place as the index and the manifest are (ADR-242): a reader of the tree has nothing to find half written in it. `DeliverableRoot` writes it and reads it, one class for the rule (ADR-213). A marker that cannot be read, or lacks either line, is read as no marker.
 
 **At the start** (§2), after the comparisons, a named root is accepted where it does not exist, where it is an empty folder, or where it is a folder whose marker names this working directory, compared as §2 compares, whatever generation run it names. Anything else is refused with one line and exit 1:
 
@@ -96,7 +96,8 @@ The writer reads the usable space of **the tree's file store**, `usableBytesAt(t
 ### 7. What the documents say
 
 - **`CONTEXT.md`**, in this change: **Deliverable root** is added; **Working directory** is the directory an invocation writes into, and the deliverable root when one is named, and holds the deliverable only where none is; **Archive**'s "everything an invocation writes goes in a working directory" reads "in a working directory, or at the deliverable root". **Publication-ready artifact** and **Copy** stay as they read: neither says where the tree lies, and `documents/` is still where a copy is put.
-- **The implementer's, in the change that builds this**: `application.yaml`'s empty `deliverable-root:` key and its comment; README's "Where things live", which names `vespera-deliverable.txt` and says the tree is drawn at the deliverable root where `vespera.deliverable-root` names one, and its configuration section, which names the property beside `vespera.corpus-root`; `docs/check-claims.mjs`'s check of the files README says it writes, whose pattern reads `.txt` too, since `MARKER_FILE_NAME` is a constant the check reads; `docs/architecture.md` §1's 6b and `docs/running-stage-by-stage.md`'s stage 6b; and `AGENTS.md`'s two sentences that put the deliverable in the working directory.
+- **README**, in this change: "Where things live" names `vespera-deliverable.txt`, the property, `VESPERA_DELIVERABLE_ROOT` and what is refused. **`docs/architecture.md`** §1's 6b and the cascade, **`docs/running-stage-by-stage.md`**'s stage 6b, and **`AGENTS.md`**'s two sentences that put the deliverable in the working directory, likewise.
+- **The implementer's, in the change that builds this**: `application.yaml`'s empty `deliverable-root:` key and its comment; and `docs/check-claims.mjs`'s check of the files README says it writes, whose pattern reads `.txt` too, since `MARKER_FILE_NAME` is a constant the check reads and README names it.
 
 ### 8. No run id moves
 
@@ -126,7 +127,7 @@ The writer reads the usable space of **the tree's file store**, `usableBytesAt(t
 - **Two working directories cannot share a root**: the first to draw marks it, and the second is refused.
 - **ADR-212's counting script does not count a tree drawn at a named root.**
 - **An agent meets a named root as the place it lies in** (ADR-264 §2): refused outside the allow list, open inside it, and kept from every copy by ADR-274 §8's written rule wherever the root lies.
-- **The callers of `Deliverable.writeTo` pass the root**: the ten test classes and fixtures that call it pass `DeliverableRoot.UNNAMED`, and draw where they drew.
+- **The callers of `Deliverable.writeTo` pass the root**: the seven test classes and fixtures that call it pass `DeliverableRoot.UNNAMED`, and draw where they drew.
 - **No run id moves** (§8).
 
 ## Alternatives refused
@@ -179,6 +180,6 @@ The writer reads the usable space of **the tree's file store**, `usableBytesAt(t
 | `pipeline.TheDeliverableRootInvocationTest.aRootThatIsNotEmptyAndHoldsNoTreeIsRefusedBeforeAnythingIsWalked` | §2 and §3: exit 1, the one line on standard error, no walk recorded, the root's file as it was |
 | `pipeline.TheDeliverableRootInvocationTest.aRootInsideTheCorpusRootIsRefusedBeforeAnythingIsWalked` | §2: exit 1, the one line on standard error, no walk recorded, no root made |
 
-**Restated with the build**: every call of `Deliverable.writeTo` in `DeliverableProgressTest`, `EntryPicturesTest`, `EverySurvivorIsCopiedTest`, `IndexPageTest`, `TreeIsTheSameWrittenAPartitionAtATimeTest`, `TreeThatFailsPartwayLeavesTheOldIndexAndManifestTest`, `TreeThatFailsWritingItsManifestLeavesTheOldIndexAndManifestTest`, `TreeWhoseIndexIsRefusedForAMomentIsStillPutInPlaceTest` and the fixtures `ListedArrangement` and `ListedTree` passes `DeliverableRoot.UNNAMED`, and its claims stand. `TreeIsTheSameWrittenAPartitionAtATimeTest.everyFileIsTheSame` holds the eight files and the marker, every file but the marker byte for byte the same, the two trees being drawn for two working directories that each marker names. `ConfiguredRootTest.refusesWhenNoRootIsNamedAnywhere` and `ProgressPageRunsInvocationTest`, which build `VesperaCommand.Run` themselves, follow its constructor.
+**Restated**: every call of `Deliverable.writeTo` in `EverySurvivorIsCopiedTest`, `TreeIsTheSameWrittenAPartitionAtATimeTest`, `TreeThatFailsPartwayLeavesTheOldIndexAndManifestTest`, `TreeThatFailsWritingItsManifestLeavesTheOldIndexAndManifestTest`, `TreeWhoseIndexIsRefusedForAMomentIsStillPutInPlaceTest` and the fixtures `ListedArrangement` and `ListedTree` passes `DeliverableRoot.UNNAMED`, and its claims stand. `TreeIsTheSameWrittenAPartitionAtATimeTest.everyFileIsTheSame` holds nine files, the eight and the marker, every file but the marker byte for byte the same, and each marker naming the working directory its own tree was drawn for. `TreeWhoseIndexIsRefusedForAMomentIsStillPutInPlaceTest`'s list of what was moved into place is unchanged, the marker being written in place (§3).
 
 **Not pinned, and why**: §6's clause of the closing line, since no layout but ADR-274's exists to draw over, which #570's record pins; that `vespera label` asks nothing, since it never reaches the job; and the 146 characters of §1, a bound stated as ADR-274 §2.7's is.
