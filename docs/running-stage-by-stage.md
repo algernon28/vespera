@@ -164,11 +164,11 @@ Stage 5 is eight steps and spans three invocations, with `vespera label` between
 
 ### Between 5c and 5d — translations
 
-**Needs:** nothing. With `preferredLanguages` unset it removes nothing.
+**Needs:** what 5c and 5d need. With `preferredLanguages` unset it removes nothing.
 
-**What it does.** `translation` finds survivors that are one content in two languages: by their paths, and, once `translationSimilarityFloor` is set, by how alike their vectors are. It writes `translations.html`. Once `preferredLanguages` is set, it keeps the copy in the language listed first and removes the others. A set with two copies in one language stands whole.
+**What it does.** `translation` finds survivors that are one content in more than one language: by their paths, and, once `translationSimilarityFloor` is set, by how alike their vectors are. It writes `translations.html`. Once `preferredLanguages` is set, it keeps the copy whose language comes earliest in that list, or, where no copy's language is listed, the one whose path sorts first, and removes the others. A set with two copies in one language stands whole.
 
-**Where it stops.** Gated when the vectors under the model carry no single embedder identity: it removes nothing, and `relevance-scoring` scores every survivor.
+**Where it stops.** Gated for the same reasons as 5c and 5d, and when the vectors under the model carry no single embedder identity: it removes nothing, and `relevance-scoring` scores every survivor.
 
 **Resume.** Interrupted, it discards its own verdicts and decides again.
 
