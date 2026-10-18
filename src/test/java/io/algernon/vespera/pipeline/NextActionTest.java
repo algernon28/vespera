@@ -451,6 +451,91 @@ class NextActionTest {
                 () -> assertThat(line).doesNotContain(OutOfScopeNameEndingsInProfile.KEY));
     }
 
+    /**
+     * ADR-277 §2: a list of name endings kept as code is read as {@code outOfScopeNameEndings} is, so a piece that is
+     * not an ending makes it unreadable as a whole, ignored, and named in the closing line with its text quoted back.
+     * Written as YAML through {@link CodeNameEndingsInProfile}, so this compiles before the key exists.
+     */
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {".", "...", "java", ".java c", ".j*", ".c?", "src/.java", "src\\.java", ", ,"})
+    @Story("A list of name endings nothing can be read from changes nothing, and the line says so")
+    @DisplayName("A list of name endings kept as code that is not one is reported, with what was written")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
+    void anUnreadableListOfCodeNameEndingsIsReported(String written, @TempDir Path workingDirectory) {
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        profileStore.save(theRunValuesSet());
+        CodeNameEndingsInProfile.write(profileStore, written, RECORDED_BY_THE_OPERATOR);
+
+        String line = NextAction.line(
+                profileStore.load(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+
+        claim(
+                "the key is named, with the words that say what an ending is and that nothing was kept as code for its"
+                        + " name, so an operator who meant files to be kept as code learns that none was",
+                () -> assertThat(line)
+                        .contains(CodeNameEndingsInProfile.KEY)
+                        .contains("beginning with a dot")
+                        .contains("kept nothing as code for the ending of its name"));
+        claim(
+                "their own text is quoted back to them",
+                () -> assertThat(line).contains('"' + written + '"'));
+        claim(
+                "and it is still one line",
+                () -> assertThat(line.lines()).hasSize(1));
+    }
+
+    /** ADR-277 §2: the same endings {@code outOfScopeNameEndings} reads are read here, and none is reported. */
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {".java", ".java .C", ".java,.h", ".java, .h", ", .java", ".spec.ts", "  .py  "})
+    @Story("A list of name endings nothing can be read from changes nothing, and the line says so")
+    @DisplayName("A list of name endings kept as code that can be read is not reported")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
+    void aReadableListOfCodeNameEndingsIsNotReported(String written, @TempDir Path workingDirectory) {
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        profileStore.save(theRunValuesSet());
+        CodeNameEndingsInProfile.write(profileStore, written, RECORDED_BY_THE_OPERATOR);
+
+        String line = NextAction.line(
+                profileStore.load(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+
+        claim(
+                "the line does not name the key, because the run applied what it holds",
+                () -> assertThat(line).doesNotContain(CodeNameEndingsInProfile.KEY));
+    }
+
+    /**
+     * ADR-277 §6: an ending both lists hold leaves its files out of scope, and the closing line names the ending and
+     * the two keys, so the operator learns that the files they listed as code were left out instead.
+     */
+    @Test
+    @Story("A list of name endings nothing can be read from changes nothing, and the line says so")
+    @DisplayName("An ending listed both as out of scope and as code is named in the closing line, which says its files were left out")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
+    void anEndingBothListsHoldIsReported(@TempDir Path workingDirectory) {
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        profileStore.save(theRunValuesSet());
+        OutOfScopeNameEndingsInProfile.write(profileStore, ".P3A .INC", RECORDED_BY_THE_OPERATOR);
+        CodeNameEndingsInProfile.write(profileStore, ".java .inc", RECORDED_BY_THE_OPERATOR);
+
+        String line = NextAction.line(
+                profileStore.load(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+
+        claim(
+                "the line names both keys and the ending they share, in the form the run used, and says its files"
+                        + " were left out of scope",
+                () -> assertThat(line)
+                        .contains(OutOfScopeNameEndingsInProfile.KEY)
+                        .contains(CodeNameEndingsInProfile.KEY)
+                        .contains("both list .inc")
+                        .contains("left its files out of scope"));
+        claim(
+                "an ending only one list holds is not named",
+                () -> assertThat(line).doesNotContain(".java").doesNotContain(".p3a"));
+        claim(
+                "and it is still one line",
+                () -> assertThat(line.lines()).hasSize(1));
+    }
+
     @Test
     @Story("The operator is never sent to a file the invocation did not write")
     @DisplayName("With no questions written, the line does not send the operator to the label file")

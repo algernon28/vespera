@@ -1877,6 +1877,16 @@ public final class Adr {
     public static final String THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR = FILE
             + "0274-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md";
 
+    /**
+     * ADR-277 -- code is a text file, or a file of no known kind whose bytes read as text in its first and last
+     * 64 KB, whose name ends with an ending the profile's codeNameEndings lists, or a reference page carrying the
+     * mark of a documentation generator built into corpus; stage 1 verdicts it code in its first pass, after what
+     * is out of scope and before the log rule, so it is never hashed and no later stage reads it (extends ADR-057,
+     * ADR-146, ADR-256 and ADR-268, answers ADR-252, keeps ADR-094 and ADR-095).
+     */
+    public static final String CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK = FILE
+            + "0277-code-is-recognised-by-a-name-ending-the-profile-lists-or-by-a-documentation-generators-mark-and-stage-1-takes-it-out-of-the-survivors.md";
+
     private Adr() {
     }
 }

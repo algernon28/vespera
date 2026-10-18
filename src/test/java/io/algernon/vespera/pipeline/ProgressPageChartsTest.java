@@ -139,7 +139,7 @@ class ProgressPageChartsTest {
 
     private static final String SAMPLES_HEADER = ReportPage.headerRow(
             "Elapsed", "Database size", "Step", "Read", "Written", "Progress", "Outcome step", "Survivors",
-            "broken", "duplicate-of", "superseded-by", "out-of-scope", "extraction-failed", "degenerate-output",
+            "broken", "duplicate-of", "superseded-by", "out-of-scope", "code", "extraction-failed", "degenerate-output",
             "redundant-with", "translation-of", "below-threshold");
 
     private static final String STEPS_HEADER =
