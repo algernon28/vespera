@@ -68,6 +68,7 @@ class TreeThatFailsWritingItsManifestLeavesTheOldIndexAndManifestTest {
 
         Throwable thrown = catchThrowable(() -> Deliverable.writeTo(
                 base.resolve("work"),
+                DeliverableRoot.UNNAMED,
                 ThreePartitions.provenance(corpusRoot),
                 aSourceThatFailsAtTheManifestsSecondPage(),
                 SurvivorPictures.none(),
@@ -97,6 +98,7 @@ class TreeThatFailsWritingItsManifestLeavesTheOldIndexAndManifestTest {
 
         Throwable thrown = catchThrowable(() -> Deliverable.writeTo(
                 base.resolve("work"),
+                DeliverableRoot.UNNAMED,
                 provenance,
                 aSourceThatFailsAtTheManifestsSecondPage(),
                 SurvivorPictures.none(),

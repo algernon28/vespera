@@ -27,6 +27,7 @@ import io.algernon.vespera.deliverable.ArrangedSurvivors;
 import io.algernon.vespera.deliverable.Deliverable;
 import io.algernon.vespera.deliverable.DeliverableProgress;
 import io.algernon.vespera.deliverable.DeliverableProvenance;
+import io.algernon.vespera.deliverable.DeliverableRoot;
 import io.algernon.vespera.deliverable.ListedPartition;
 import io.algernon.vespera.deliverable.ListedPicture;
 import io.algernon.vespera.deliverable.ListedPicturePlace;
@@ -157,6 +158,7 @@ class GenerationTasklet implements Tasklet {
     private final ObjectProvider<PageOpener> opener;
     private final Path root;
     private final Path workingDirectory;
+    private final DeliverableRoot deliverableRoot;
 
     GenerationTasklet(
             ArrangementGate arrangementGate,
@@ -178,7 +180,9 @@ class GenerationTasklet implements Tasklet {
             OllamaClient ollamaClient,
             ObjectProvider<PageOpener> opener,
             @Value("#{jobParameters['root']}") Path root,
-            @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory) {
+            @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
+            @Value("${" + VesperaCommand.Run.DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot) {
+        this.deliverableRoot = DeliverableRoot.of(deliverableRoot);
         this.arrangementGate = arrangementGate;
         this.stageRuns = stageRuns;
         this.generationModel = generationModel;
@@ -347,9 +351,14 @@ class GenerationTasklet implements Tasklet {
                     }
 
                     GenerationOutcome.Finished finished = (GenerationOutcome.Finished) outcome;
-                    Path tree = drawTree(
+                    Optional<Path> drawn = drawTree(
                             chunkContext, generation, walk.get(), byteLevelReductionRun, canonicalRoot,
                             arrangement, scoring, partitions, places, outcome.unsendable());
+                    if (drawn.isEmpty()) {
+                        // The work is done and recorded; the next invocation draws the tree again (ADR-276 §3).
+                        return true;
+                    }
+                    Path tree = drawn.get();
                     LOG.info(
                             "The generation step finished under {}, over the arrangement approved as {}:"
                                     + " {} synthesis doc(s) written under model {} in a window of {}, {}"
@@ -490,9 +499,14 @@ class GenerationTasklet implements Tasklet {
      * opened once it is in place (ADR-274 §6, §7). Every invocation that reaches the tree does this, the step
      * already recorded finished included, and none puts a question to the model.
      *
-     * <p>What it writes is counts: no path, file name or document text, and no exception's message (ADR-274 §8).
+     * <p>Where the deliverable root refuses the drawing (ADR-276 §3) it writes that one line at error level, draws
+     * nothing, opens no index, hands the closing line no count and answers none. It fails the step and throws
+     * nothing, for {@link #stopTheStep}'s reason, so every row recorded stands.
+     *
+     * <p>Besides the refusal, which names the deliverable root as ADR-276 §3 writes it, what it writes is counts: no
+     * document's path, file name or text, and no exception's message (ADR-274 §8).
      */
-    private Path drawTree(
+    private Optional<Path> drawTree(
             ChunkContext chunkContext,
             RunId generation,
             WalkId walkId,
@@ -503,6 +517,12 @@ class GenerationTasklet implements Tasklet {
             List<ArrangedPartition> arranged,
             Map<OccurrenceId, Integer> places,
             Map<ClusterSlot, Unwritten> foundThisRun) {
+        Optional<String> refusal = deliverableRoot.refusalAtTheDrawing(workingDirectory, generation.value());
+        if (refusal.isPresent()) {
+            LOG.error("{}", refusal.get());
+            chunkContext.getStepContext().getStepExecution().setStatus(BatchStatus.FAILED);
+            return Optional.empty();
+        }
         CopyCounts copies = new CopyCounts();
         Path tree = writeDeliverable(
                 copies, generation, walkId, byteLevelReductionRun, canonicalRoot, arrangement, scoring, arranged,
@@ -516,7 +536,7 @@ class GenerationTasklet implements Tasklet {
         new InvocationRuns(chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext())
                 .recordDocumentsNotCopied(copies.notStanding());
         openTheIndex(tree);
-        return tree;
+        return Optional.of(tree);
     }
 
     /** Hands the index to the opener once, after it is in place; an opener that fails is one warning (ADR-274 §7). */
@@ -742,6 +762,7 @@ class GenerationTasklet implements Tasklet {
                         reads, survivorCount, scoring, extractionRun, page));
         return Deliverable.writeTo(
                 workingDirectory,
+                deliverableRoot,
                 provenance,
                 source,
                 survivorPictures(byteLevelReductionRun),

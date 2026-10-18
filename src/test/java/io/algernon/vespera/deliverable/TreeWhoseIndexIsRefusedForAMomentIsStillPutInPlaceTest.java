@@ -72,6 +72,7 @@ class TreeWhoseIndexIsRefusedForAMomentIsStillPutInPlaceTest {
         Path[] tree = new Path[1];
         Throwable thrown = catchThrowable(() -> tree[0] = Deliverable.writeTo(
                 base.resolve("work"),
+                DeliverableRoot.UNNAMED,
                 ThreePartitions.provenance(corpusRoot),
                 ListedArrangement.of(
                         ThreePartitions.arrangement(),

@@ -1,7 +1,11 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.deliverable.DeliverableRoot;
+import io.algernon.vespera.profile.ProfileStore;
+import io.algernon.vespera.profile.TextValue;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +14,7 @@ import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.parameters.JobParametersBuilder;
 import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import picocli.CommandLine;
@@ -112,6 +117,9 @@ public class VesperaCommand implements Callable<Integer> {
         /** The root an invocation that names none falls back to (ADR-066). Ships unset. */
         public static final String ROOT_PROPERTY = "vespera.corpus-root";
 
+        /** The folder the deliverable is drawn at when the operator names one (ADR-276 §1). Ships unset. */
+        public static final String DELIVERABLE_ROOT_PROPERTY = "vespera.deliverable-root";
+
         private static final Logger log = LoggerFactory.getLogger(Run.class);
 
         private final JobOperator jobOperator;
@@ -119,6 +127,8 @@ public class VesperaCommand implements Callable<Integer> {
         private final NextAction nextAction;
         private final Path workingDirectoryInUse;
         private final String configuredRoot;
+        private final String deliverableRoot;
+        private final ProfileStore profileStore;
 
         @Parameters(
                 index = "0",
@@ -138,6 +148,21 @@ public class VesperaCommand implements Callable<Integer> {
                 NextAction nextAction,
                 @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse,
                 @Value("${" + ROOT_PROPERTY + ":}") String configuredRoot) {
+            this(jobOperator, vesperaJob, nextAction, workingDirectoryInUse, configuredRoot, "", null);
+        }
+
+        /** As above, naming the deliverable root and the profile whose seed folder it may not lie over (ADR-276 §2). */
+        @Autowired
+        Run(
+                JobOperator jobOperator,
+                Job vesperaJob,
+                NextAction nextAction,
+                @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse,
+                @Value("${" + ROOT_PROPERTY + ":}") String configuredRoot,
+                @Value("${" + DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot,
+                ProfileStore profileStore) {
+            this.deliverableRoot = deliverableRoot;
+            this.profileStore = profileStore;
             this.jobOperator = jobOperator;
             this.vesperaJob = vesperaJob;
             this.nextAction = nextAction;
@@ -174,6 +199,12 @@ public class VesperaCommand implements Callable<Integer> {
                         + " success.");
                 return CommandLine.ExitCode.USAGE;
             }
+            Optional<String> misplacedDeliverableRoot = DeliverableRoot.of(deliverableRoot)
+                    .refusalAtTheStart(workingDirectoryInUse, corpusRoot, seedFolder());
+            if (misplacedDeliverableRoot.isPresent()) {
+                System.err.println(misplacedDeliverableRoot.get());
+                return CommandLine.ExitCode.SOFTWARE;
+            }
             log.info("Progress page: {}", ProgressPage.pathIn(workingDirectoryInUse));
             log.info(
                     "Walking {}, named {}",
@@ -190,6 +221,22 @@ public class VesperaCommand implements Callable<Integer> {
             }
             log.info("{}", nextAction.line(corpusRoot, new InvocationRuns(execution.getExecutionContext())));
             return CommandLine.ExitCode.OK;
+        }
+
+        /**
+         * The profile's seed folder where one is set and the profile can be read. A profile that cannot be read is
+         * left to the job's own refusal of it, so it names no seed folder here.
+         */
+        private Optional<Path> seedFolder() {
+            if (profileStore == null) {
+                return Optional.empty();
+            }
+            try {
+                TextValue seedFolder = profileStore.load().seedFolder();
+                return seedFolder.isSet() ? Optional.of(Path.of(seedFolder.value())) : Optional.empty();
+            } catch (RuntimeException unreadable) {
+                return Optional.empty();
+            }
         }
 
         /**

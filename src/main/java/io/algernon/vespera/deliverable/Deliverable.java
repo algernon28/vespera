@@ -69,9 +69,10 @@ public final class Deliverable {
     public static final String MANIFEST_FILE_NAME = "documents.csv";
 
     /**
-     * What the working directory's drive must still have free after a copy is made (ADR-274 §2.5): the database lives
-     * there, and a full drive would fail a step that had finished its work. A bound of the tool, as {@link
-     * #PICTURES_PER_DOCUMENT} is, and not a judgement about any corpus.
+     * What the tree's drive must still have free after a copy is made (ADR-274 §2.5, ADR-276 §4): the copies, the
+     * pages, the index and the manifest are written there, and a full drive would fail a step that had finished its
+     * work. Where the root shares the working directory's drive, the database's room is kept with the tree's. A
+     * bound of the tool, as {@link #PICTURES_PER_DOCUMENT} is, and not a judgement about any corpus.
      */
     public static final long COPY_HEADROOM_BYTES = 1L << 30;
 
@@ -119,59 +120,68 @@ public final class Deliverable {
      * write the pictures that pass it.
      *
      * <p>The partitions are asked for before anything is made or reported, so a partition {@link
-     * ListedPartition} refuses leaves nothing written. A partition's copies are made before its pages are written
-     * (ADR-274 §2.2), so each page states what stands. A cluster nothing was written over has its page say why
+     * ListedPartition} refuses leaves nothing written. The marker is written in place before the first copy
+     * (ADR-276 §3), so a drawing stopped partway leaves a root the next one of the same run accepts. A partition's
+     * copies are made before its pages are written (ADR-274 §2.2), so each page states what stands. A cluster
+     * nothing was written over has its page say why
      * where {@code source} gives a reason (ADR-174); only the cluster's own page changes, the index cell and
      * the manifest read the same either way.
      *
-     * @param workingDirectory the directory the database is in — the one thing that moves anything
-     *     this tool writes (ADR-103)
+     * @param workingDirectory the directory the database is in, which the marker names (ADR-276 §3)
+     * @param root where the tree is drawn: the working directory's {@code deliverable/} folder, or the folder the
+     *     operator named (ADR-276 §1)
      * @param provenance what produced the tree, stated so {@code index.html} needs no database beside it
      * @param source the arrangement, its writing and its survivors, a seed partition at a time
      * @param pictures where a survivor's pictures come from, {@link SurvivorPictures#none()} to write
      *     the tree this class wrote before it knew about pictures
-     * @return {@code <workingDirectory>/deliverable/<runId>}
+     * @return {@code root.treeOf(workingDirectory, provenance.runId())}
      */
     public static Path writeTo(
             Path workingDirectory,
+            DeliverableRoot root,
             DeliverableProvenance provenance,
             ArrangedSurvivors source,
             SurvivorPictures pictures,
             DeliverableProgress progress) {
-        return writeTo(workingDirectory, provenance, source, pictures, progress, ReplacingMove.ATOMIC);
+        return writeTo(workingDirectory, root, provenance, source, pictures, progress, ReplacingMove.ATOMIC);
     }
 
     /**
-     * As {@link #writeTo(Path, DeliverableProvenance, ArrangedSurvivors, SurvivorPictures, DeliverableProgress)},
-     * the index and the manifest put in place by {@code moves}, which the shipped form gives as {@link
-     * ReplacingMove#ATOMIC} (ADR-242).
+     * As {@link #writeTo(Path, DeliverableRoot, DeliverableProvenance, ArrangedSurvivors, SurvivorPictures,
+     * DeliverableProgress)}, the index and the manifest put in place by {@code moves}, which the shipped form gives as
+     * {@link ReplacingMove#ATOMIC} (ADR-242).
      */
     static Path writeTo(
             Path workingDirectory,
+            DeliverableRoot root,
             DeliverableProvenance provenance,
             ArrangedSurvivors source,
             SurvivorPictures pictures,
             DeliverableProgress progress,
             ReplacingMove moves) {
-        return writeTo(workingDirectory, provenance, source, pictures, progress, moves, () -> usableBytesAt(workingDirectory));
+        Path tree = root.treeOf(workingDirectory, provenance.runId());
+        return writeTo(
+                workingDirectory, root, provenance, source, pictures, progress, moves, () -> usableBytesAt(tree));
     }
 
     /**
-     * As above, with {@code usableSpace} answering how many bytes the working directory's drive has free each time
-     * a copy asks (ADR-274 §2.5), which the shipped form reads off the file store.
+     * As above, with {@code usableSpace} answering how many bytes the tree's drive has free each time a copy asks
+     * (ADR-274 §2.5, ADR-276 §4), which the shipped form reads off the tree's file store.
      */
     static Path writeTo(
             Path workingDirectory,
+            DeliverableRoot root,
             DeliverableProvenance provenance,
             ArrangedSurvivors source,
             SurvivorPictures pictures,
             DeliverableProgress progress,
             ReplacingMove moves,
             LongSupplier usableSpace) {
-        Path tree = workingDirectory.resolve(DIRECTORY_NAME).resolve(provenance.runId());
+        Path tree = root.treeOf(workingDirectory, provenance.runId());
         List<ListedPartition> partitions = source.partitions();
         try {
             Files.createDirectories(tree.resolve(Copies.DIRECTORY_NAME));
+            DeliverableRoot.markTree(tree, workingDirectory, provenance.runId());
             Copies copies = new Copies(tree, provenance.corpusRoot(), moves, usableSpace, progress);
             long[] aboutToCopy = new long[2];
             EntryPictures entryPictures = EntryPictures.among(source, pictures, progress, page -> {

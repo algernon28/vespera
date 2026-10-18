@@ -66,6 +66,7 @@ class TreeThatFailsPartwayLeavesTheOldIndexAndManifestTest {
 
         Throwable thrown = catchThrowable(() -> Deliverable.writeTo(
                 base.resolve("work"),
+                DeliverableRoot.UNNAMED,
                 ThreePartitions.provenance(corpusRoot),
                 aSourceThatFailsAtItsSecondPartition(),
                 SurvivorPictures.none(),
@@ -95,6 +96,7 @@ class TreeThatFailsPartwayLeavesTheOldIndexAndManifestTest {
 
         Throwable thrown = catchThrowable(() -> Deliverable.writeTo(
                 base.resolve("work"),
+                DeliverableRoot.UNNAMED,
                 provenance,
                 aSourceThatFailsAtItsSecondPartition(),
                 SurvivorPictures.none(),
