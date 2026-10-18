@@ -215,13 +215,19 @@ final class ProgressPage implements JobExecutionListener {
             StepNames.ARRANGEMENT,
             StepNames.GENERATION);
 
+    /** What the row of tiles on the progress page shows (ADR-275 section 2). */
+    private static final String JOB_TILES_HOVER = "The figures of the job so far.";
+
+    /** What the row of tiles on the label page shows (ADR-275 section 2). */
+    private static final String INVOCATION_TILES_HOVER = "The figures of this invocation.";
+
     /** What each tile shows, as hover text: one for each tile key and each blocking kind (ADR-275 section 2). */
     private static final Map<String, String> TILE_HOVER = Map.ofEntries(
             Map.entry("steps", "How many of the steps of the job have finished."),
             Map.entry("step", "The step running now, or the last one to run, with its state."),
-            Map.entry("elapsed", "Time since the command started."),
-            Map.entry("database", "Size of the working directory's database, and its growth since the first sample."),
-            Map.entry("survivors", "Occurrences still in the corpus after the steps that remove them."),
+            Map.entry("elapsed", "Time since this invocation started."),
+            Map.entry("database", "Size of the working directory's database and, where shown, how fast it has grown per minute lately."),
+            Map.entry("survivors", "Occurrences the latest step that removes them has not removed, of those that entered it."),
             Map.entry("command", "The vespera command this page reports on."),
             Map.entry("broken", "Occurrences removed because the file is broken and cannot be read."),
             Map.entry("duplicate-of", "Occurrences removed because another file has exactly the same bytes."),
@@ -715,7 +721,7 @@ final class ProgressPage implements JobExecutionListener {
             }
         }
         String progressBody = heads[0]
-                + "<div class=\"tiles\" title=\"The figures of the job so far.\">\n" + tiles + "</div>\n"
+                + "<div class=\"tiles\" title=\"" + ReportPage.escapeAttribute(JOB_TILES_HOVER) + "\">\n" + tiles + "</div>\n"
                 + bar
                 + timeline(states, executions, started, now, zone)
                 + databaseChart()
@@ -791,7 +797,7 @@ final class ProgressPage implements JobExecutionListener {
                 List.of("Walk", "Stage", "Run", "Steps finished", "State", "This invocation"));
         headers.addAll(BLOCKING);
         return shows + ReportPage.tableCard(
-                "Each run of a stage with its configuration, the steps it recorded and its outcome.",
+                "Each run this working directory holds: its walk and stage, how many of its steps finished, whether this invocation arrived at it, and what it removed by kind.",
                 ReportPage.headerRow(headers.toArray(new String[0])), rows.toString());
     }
 
@@ -807,6 +813,9 @@ final class ProgressPage implements JobExecutionListener {
     /** A tile: a label, a value and, where it has one, a detail, each text and no other element (ADR-268 section 5). */
     private static String tile(String key, String label, String value, String detail) {
         String hover = TILE_HOVER.get(key);
+        if (hover == null) {
+            throw new IllegalStateException("no hover text for tile " + key);
+        }
         return "<div class=\"tile\" data-tile=\"" + key + "\" title=\"" + ReportPage.escapeAttribute(hover) + "\"><span class=\"label\">" + ReportPage.escape(label)
                 + "</span><span class=\"value\">" + ReportPage.escape(value) + "</span>"
                 + (detail == null ? "" : "<span class=\"detail\">" + ReportPage.escape(detail) + "</span>")
@@ -1224,7 +1233,7 @@ final class ProgressPage implements JobExecutionListener {
         String body = ReportPage.heading(1, TITLE)
                 + ReportPage.paragraph(ReportPage.escape(status))
                 + ReportPage.paragraph("Written at " + WRITTEN_AT.format(LocalDateTime.ofInstant(now, ZoneId.systemDefault())))
-                + "<div class=\"tiles\" title=\"The figures of this invocation.\">\n"
+                + "<div class=\"tiles\" title=\"" + ReportPage.escapeAttribute(INVOCATION_TILES_HOVER) + "\">\n"
                 + tile("command", "Command", command, null)
                 + tile("elapsed", "Elapsed", clockTime(Duration.between(commandStarted, now)), null)
                 + tile("database", "Database size", size(databaseBytes()), null)

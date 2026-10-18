@@ -1,5 +1,7 @@
 package io.algernon.vespera.pipeline;
 
+import java.util.Map;
+
 /**
  * The job's sixteen persisted step names, in job order, each byte-identical to its value before this
  * record (ADR-157 §7, amending ADR-131's second reason for a per-stage configuration class).
@@ -32,23 +34,24 @@ final class StepNames {
     static final String ARRANGEMENT = "arrangement";
     static final String GENERATION = "generation";
 
-    private static final java.util.Map<String, String> DESCRIPTIONS = java.util.Map.ofEntries(
-            java.util.Map.entry(CENSUS, "walks the archive and records every file it finds, with its size and times"),
-            java.util.Map.entry(BYTE_LEVEL_REDUCTION, "removes files that are broken, exact copies, superseded or out of scope, judging their bytes alone"),
-            java.util.Map.entry(EXTRACTION, "converts each file to text, removing those that cannot be converted or whose text is too poor to use"),
-            java.util.Map.entry(CONTENT_CENSUS, "measures the converted text and writes the pages the confidence and boilerplate floors are read off"),
-            java.util.Map.entry(REDUNDANCY_SIGNATURE, "computes a signature of each document's text, leaving out boilerplate, so that near-copies can be found"),
-            java.util.Map.entry(CONTENT_REDUNDANCY, "finds documents that repeat or contain another and keeps the fuller of each set"),
-            java.util.Map.entry(SEED_EXTRACTION, "converts the seed set, the documents known to be relevant, to text"),
-            java.util.Map.entry(SEED_CORPUS_COMPARISON, "compares the seed set with the archive's documents and writes how far they differ"),
-            java.util.Map.entry(EMBEDDING_SCORING, "turns each document's text into vectors with the embedding model"),
-            java.util.Map.entry(TRANSLATION, "finds documents that are translations of one another and keeps one, in the language preferred first"),
-            java.util.Map.entry(RELEVANCE_SCORING, "scores each document by how close it lies to the seed set"),
-            java.util.Map.entry(RELEVANCE_FLOOR, "removes the documents scoring below the relevance threshold"),
-            java.util.Map.entry(CLUSTERING, "gathers the documents under each seed into groups of documents alike"),
-            java.util.Map.entry(RELEVANCE_REPORT, "writes the page of documents to judge that the relevance threshold is chosen from"),
-            java.util.Map.entry(ARRANGEMENT, "names and orders the groups and writes the arrangement page to approve"),
-            java.util.Map.entry(GENERATION, "has the local model write over each group and writes the deliverable, with a copy of each document it lists"));
+    /** What each step does, in the operator's words; the table of ADR-275 section 4. */
+    private static final Map<String, String> DESCRIPTIONS = Map.ofEntries(
+            Map.entry(CENSUS, "walks the archive and records every file it finds, with its size and times"),
+            Map.entry(BYTE_LEVEL_REDUCTION, "removes files that are broken, exact copies, superseded or out of scope, judging their bytes alone"),
+            Map.entry(EXTRACTION, "converts each file to text, removing those that cannot be converted or whose text is too poor to use"),
+            Map.entry(CONTENT_CENSUS, "measures the converted text and writes the pages the confidence and boilerplate floors are read off"),
+            Map.entry(REDUNDANCY_SIGNATURE, "computes a signature of each document's text, leaving out boilerplate, so that near-copies can be found"),
+            Map.entry(CONTENT_REDUNDANCY, "finds documents that repeat or contain another and keeps the fuller of each set"),
+            Map.entry(SEED_EXTRACTION, "converts the seed set, the documents known to be relevant, to text"),
+            Map.entry(SEED_CORPUS_COMPARISON, "compares the seed set with the archive's documents and writes how far they differ"),
+            Map.entry(EMBEDDING_SCORING, "turns each document's text into vectors with the embedding model"),
+            Map.entry(TRANSLATION, "finds documents that are translations of one another and keeps one, in the language preferred first"),
+            Map.entry(RELEVANCE_SCORING, "scores each document by how close it lies to the seed set"),
+            Map.entry(RELEVANCE_FLOOR, "removes the documents scoring below the relevance threshold"),
+            Map.entry(CLUSTERING, "gathers the documents under each seed into groups of documents alike"),
+            Map.entry(RELEVANCE_REPORT, "writes the page of documents to judge that the relevance threshold is chosen from"),
+            Map.entry(ARRANGEMENT, "names and orders the groups and writes the arrangement page to approve"),
+            Map.entry(GENERATION, "has the local model write over each group and writes the deliverable, with a copy of each document it lists"));
 
     /** What the step does, in the operator's words (ADR-275 section 4); refuses a name this class does not hold. */
     static String description(String step) {
