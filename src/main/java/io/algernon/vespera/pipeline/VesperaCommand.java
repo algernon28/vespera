@@ -10,7 +10,9 @@ import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.parameters.JobParametersBuilder;
 import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationArguments;
 import org.springframework.stereotype.Component;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -119,6 +121,8 @@ public class VesperaCommand implements Callable<Integer> {
         private final NextAction nextAction;
         private final Path workingDirectoryInUse;
         private final String configuredRoot;
+        private CorpusRootLock corpusRootLock;
+        private String[] arguments = new String[0];
 
         @Parameters(
                 index = "0",
@@ -158,6 +162,16 @@ public class VesperaCommand implements Callable<Integer> {
             databaseDirectory = new WorkingDirectoryOption();
         }
 
+        /**
+         * The corpus-root lock and the arguments it records, provided only by {@code VesperaApplication.main}
+         * (ADR-278 §7): a context built by Spring's test support has no lock, and this is then not called.
+         */
+        @Autowired(required = false)
+        void holdCorpusRootWith(CorpusRootLock corpusRootLock, ApplicationArguments arguments) {
+            this.corpusRootLock = corpusRootLock;
+            this.arguments = arguments.getSourceArgs();
+        }
+
         @Override
         public Integer call() throws Exception {
             String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
@@ -173,6 +187,14 @@ public class VesperaCommand implements Callable<Integer> {
                         + "=<path>. A root is never guessed, because a census of the wrong tree reports"
                         + " success.");
                 return CommandLine.ExitCode.USAGE;
+            }
+            if (corpusRootLock != null) {
+                try {
+                    corpusRootLock.take(corpusRoot, workingDirectoryInUse, arguments);
+                } catch (CorpusRootInUseException | CorpusRootLockUnavailableException refused) {
+                    System.err.println(refused.getMessage());
+                    return CommandLine.ExitCode.SOFTWARE;
+                }
             }
             log.info("Progress page: {}", ProgressPage.pathIn(workingDirectoryInUse));
             log.info(
