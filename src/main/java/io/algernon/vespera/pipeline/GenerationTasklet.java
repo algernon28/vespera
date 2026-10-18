@@ -503,7 +503,8 @@ class GenerationTasklet implements Tasklet {
      * nothing, opens no index, hands the closing line no count and answers none. It fails the step and throws
      * nothing, for {@link #stopTheStep}'s reason, so every row recorded stands.
      *
-     * <p>What it writes is counts: no path, file name or document text, and no exception's message (ADR-274 §8).
+     * <p>Besides the refusal, which names the deliverable root as ADR-276 §3 writes it, what it writes is counts: no
+     * document's path, file name or text, and no exception's message (ADR-274 §8).
      */
     private Optional<Path> drawTree(
             ChunkContext chunkContext,

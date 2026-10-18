@@ -71,8 +71,8 @@ public final class Deliverable {
     /**
      * What the tree's drive must still have free after a copy is made (ADR-274 §2.5, ADR-276 §4): the copies, the
      * pages, the index and the manifest are written there, and a full drive would fail a step that had finished its
-     * work. Where the root shares the working directory's drive, the database's room is kept with the tree's. A bound of the tool, as {@link
-     * #PICTURES_PER_DOCUMENT} is, and not a judgement about any corpus.
+     * work. Where the root shares the working directory's drive, the database's room is kept with the tree's. A
+     * bound of the tool, as {@link #PICTURES_PER_DOCUMENT} is, and not a judgement about any corpus.
      */
     public static final long COPY_HEADROOM_BYTES = 1L << 30;
 
@@ -121,8 +121,9 @@ public final class Deliverable {
      *
      * <p>The partitions are asked for before anything is made or reported, so a partition {@link
      * ListedPartition} refuses leaves nothing written. The marker is written in place before the first copy
-     * (ADR-276 §3), so a drawing stopped partway leaves a root the next one of the same run accepts. A partition's copies are made before its pages are written
-     * (ADR-274 §2.2), so each page states what stands. A cluster nothing was written over has its page say why
+     * (ADR-276 §3), so a drawing stopped partway leaves a root the next one of the same run accepts. A partition's
+     * copies are made before its pages are written (ADR-274 §2.2), so each page states what stands. A cluster
+     * nothing was written over has its page say why
      * where {@code source} gives a reason (ADR-174); only the cluster's own page changes, the index cell and
      * the manifest read the same either way.
      *

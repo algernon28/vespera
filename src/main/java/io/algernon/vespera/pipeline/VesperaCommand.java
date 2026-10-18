@@ -122,7 +122,6 @@ public class VesperaCommand implements Callable<Integer> {
 
         private static final Logger log = LoggerFactory.getLogger(Run.class);
 
-
         private final JobOperator jobOperator;
         private final Job vesperaJob;
         private final NextAction nextAction;

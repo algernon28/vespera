@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -40,7 +41,7 @@ public final class DeliverableRoot {
             ". Name a folder outside the corpus root and the seed folder in vespera.deliverable-root.";
 
     private static final boolean NAMES_IGNORE_CASE =
-            System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).startsWith("windows");
+            System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");
 
     /** The marker as it was read: the working directory and the generation run it names. */
     private record Marker(String workingDirectory, String generationRun) {}
