@@ -12,7 +12,7 @@ Read the README first if you have not set the tool up. The sidecars, the models 
 vespera run <root>
 ```
 
-Every invocation starts at the first step and goes through all fifteen in order. A step whose work is already recorded does nothing and says so in one line. A step that was interrupted picks its work up or does it again, as its section below describes. A step whose input is missing says it is gated and does nothing. The invocation then ends with one line that names what to set next.
+Every invocation starts at the first step and goes through all sixteen in order. A step whose work is already recorded does nothing and says so in one line. A step that was interrupted picks its work up or does it again, as its section below describes. A step whose input is missing says it is gated and does nothing. The invocation then ends with one line that names what to set next.
 
 So you never choose where to resume. The ledger in `vespera.db` records what is done, and the command reads it.
 
@@ -33,7 +33,7 @@ You do not need to know the stage to continue. To find out anyway:
 
 ## The steps, in the order they run
 
-One invocation runs these fifteen steps. The names are the ones the log prints.
+One invocation runs these sixteen steps. The names are the ones the log prints.
 
 | Stage | Step | Needs | Leaves |
 |---|---|---|---|
@@ -46,6 +46,7 @@ One invocation runs these fifteen steps. The names are the ones the log prints.
 | 5a | `seed-extraction` | `seedFolder`, stage 4 done | your exemplars' text |
 | 5b | `seed-corpus-comparison` | exemplars that produced text | `seed-corpus-comparison.html` |
 | 5c | `embedding-scoring` | `embeddingModel`, served by Ollama | a vector for each piece of text |
+| 5 | `translation` | vectors under one embedder; `translationSimilarityFloor` and `preferredLanguages`, or nothing | `translations.html`; of each translation set, every copy but one removed |
 | 5d | `relevance-scoring` | the same | a score for each document |
 | 5e | `relevance-floor` | `relevanceScoreFloor`, or nothing | documents below the floor removed |
 | 5f | `clustering` | scores | the groups, `cluster-sizes.html` |

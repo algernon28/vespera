@@ -30,7 +30,7 @@ public enum VerdictKind {
     /** Extraction did not produce text. Stage 2. */
     EXTRACTION_FAILED(true),
 
-    /** Extraction produced text carrying no usable content. Stage 3. */
+    /** Extraction produced text carrying no usable content. Stage 2. */
     DEGENERATE_OUTPUT(true),
 
     /** The content is already carried by another surviving occurrence. Stage 4. */

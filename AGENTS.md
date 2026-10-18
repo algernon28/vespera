@@ -43,9 +43,9 @@ Java 26, Spring Boot 4.1.1, Spring Batch with `ResourcelessJobRepository` (no ba
 
 Work is charted as a **wayfinder map** on the issue tracker — one issue labelled `wayfinder:map` per slice, holding one child issue per decision, worked one per session. On a closed ticket the **resolution comment is the real spec**, so read comments rather than bodies.
 
-**No wayfinder map is open.** Seven have closed, one per slice: the census [#1](https://github.com/algernon28/vespera/issues/1), stage 1 [#28](https://github.com/algernon28/vespera/issues/28), stage 2 [#38](https://github.com/algernon28/vespera/issues/38), stage 3 [#53](https://github.com/algernon28/vespera/issues/53), stage 4 [#65](https://github.com/algernon28/vespera/issues/65), stage 5 [#78](https://github.com/algernon28/vespera/issues/78), and the stage 6a/6b slice [#151](https://github.com/algernon28/vespera/issues/151), charted on 2026-09-12 and closed on 2026-09-20 once 6a and 6b shipped. **A closed map is still the record**: its body carries the destination, what was settled and what was ruled out of scope; each closed ticket's resolution comment carries the decision itself; and its closing comment carries the retrospective the next map should read before charting. Stage 7 never had a map and never will — ADR-101 struck it.
+The current map is [issue #551](https://github.com/algernon28/vespera/issues/551): a control panel, the per-cluster deliverable, code sets and two new removals. Seven have closed, one per slice: the census [#1](https://github.com/algernon28/vespera/issues/1), stage 1 [#28](https://github.com/algernon28/vespera/issues/28), stage 2 [#38](https://github.com/algernon28/vespera/issues/38), stage 3 [#53](https://github.com/algernon28/vespera/issues/53), stage 4 [#65](https://github.com/algernon28/vespera/issues/65), stage 5 [#78](https://github.com/algernon28/vespera/issues/78), and the stage 6a/6b slice [#151](https://github.com/algernon28/vespera/issues/151). **A closed map is still the record**: its body carries the destination, what was settled and what was ruled out of scope; each closed ticket's resolution comment carries the decision itself; and its closing comment carries the retrospective the next map should read before charting. Stage 7 never had a map and never will — ADR-101 struck it.
 
-**So what is takeable is whatever the tracker holds**: bugs, and decisions no slice has been charted for. A map's **frontier** — open child issues with no open blocker and no assignee — is how to read one while a slice is being walked, and nothing is being walked today. **Chart a new map when the next slice of work is too big for one session**; the retrospective on [#151](https://github.com/algernon28/vespera/issues/151) says what the last seven learned, and this sentence and the one above it are what the claims guard checks, so a new map means editing both.
+**So what is takeable is whatever the tracker holds**: #551's frontier, bugs, and decisions no slice has been charted for. A map's **frontier** — open child issues with no open blocker and no assignee — is how to read one while its slice is walked. **Chart a new map when the next slice of work is too big for one session**; the retrospective on [#151](https://github.com/algernon28/vespera/issues/151) says what the last seven learned, and this sentence and the one above it are what the claims guard checks, so a new map means editing both.
 
 ## Building and testing
 
@@ -117,8 +117,7 @@ Work is charted as a **wayfinder map** on the issue tracker — one issue labell
 **`README.md` is for the operator; this file is for you.** It documents how the tool is driven — the five
 invocations, which value each stop wants, which report informs it. It must carry no claim about
 project state: what is built, how many ADRs, how many tests, which stage is part-built all live
-here, and two files describing the state is the drift that #132 and #134 each cost a pull request
-to correct (ADR-098).
+here, because two files describing the state drift apart (ADR-098).
 
 `docs/check-claims.mjs` reads both documents and checks each for its own kind of claim. The
 README's are all derived from code — the subcommands, the profile keys, the files written beside the
@@ -129,7 +128,7 @@ nothing in the tree can produce it.
 
 `docs/architecture.md` and `docs/decision-ledger.md` are the sources; the `.html` beside them is generated and published by GitHub Pages at [algernon28.github.io/vespera](https://algernon28.github.io/vespera/).
 
-**Why generated at all:** Pages runs Jekyll, which only converts Markdown carrying YAML front matter. These files have none, so Pages would serve them as raw text. The HTML is what actually renders.
+**Why generated:** Pages' Jekyll converts only Markdown with YAML front matter, which these files lack, so it would serve them as raw text.
 
 ```
 node docs/render-docs.mjs           # rewrite both pages
@@ -140,8 +139,8 @@ Edit the Markdown, re-run the script, commit both. Editing the HTML directly is 
 
 What the renderer does beyond formatting:
 
-- **It refuses to guess.** It supports exactly the constructs these documents use and throws with a `file:line` on anything else — an image, a nested list, a code fence that is not `mermaid`. A renderer that silently drops a section and leaves a plausible-looking page is the one failure that matters here, so it stops instead.
-- **It asserts nothing was lost**, checking that every word of the Markdown survives into the page. That check has already caught a real defect: a placeholder bug that swallowed code spans and turned "all 49 decisions" into one merged token.
+- **It refuses to guess.** It supports exactly the constructs these documents use and throws with a `file:line` on anything else — an image, a nested list, a code fence that is not `mermaid`. A silently dropped section is the one failure that matters here.
+- **It asserts nothing was lost**, checking that every word of the Markdown survives into the page.
 - **It links the record together.** Every `ADR-NNN` mention becomes a link to that record, with the id-to-file map read out of the ledger table rather than hardcoded, and relative `.md` links are pointed at whichever page renders them.
 - **Diagrams are Mermaid** in fenced blocks, so they render natively on github.com and client-side on the published page. `docs/extract-diagrams.mjs` pulls each one into a standalone file so a parser can check it.
 
