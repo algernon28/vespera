@@ -1899,9 +1899,10 @@ public final class Adr {
             + "0276-the-deliverable-is-drawn-at-a-root-the-operator-may-name-outside-the-corpus-root-and-the-seed-folder.md";
 
     /**
-     * ADR-278 -- the control panel starts the unchanged jar as its one child, with {@code CI=1} and the two UTF-8
-     * encoding flags, reads its merged output to the end on one thread and opens no connection to {@code vespera.db},
-     * finds an invocation it did not start by its holder line, and stops only its own child, descendants first.
+     * ADR-278 -- the control panel starts the jar as its one child, changing nothing in it, with {@code CI=1} and the
+     * two UTF-8 encoding flags, reads its merged output to the end on one thread and opens no connection to {@code
+     * vespera.db}, finds an invocation it did not start by its holder line, and stops only its own child, descendants
+     * first.
      */
     public static final String THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN = FILE
             + "0278-the-control-panel-starts-the-jar-as-its-child-reads-its-output-to-the-end-and-stops-only-its-own-child.md";

@@ -11,6 +11,7 @@
 - **Keeps**: [ADR-222](0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md) and [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md): the lock is in `pipeline`, which no stage's version names, so no run id moves (§8).
 - **Keeps**: [ADR-266](0266-every-invocation-names-its-progress-page-first-and-opens-it-and-vespera-label-writes-it-too.md): an invocation refused here writes no progress page, so it names none and opens none.
 - **Read with**: [ADR-278](0278-the-control-panel-starts-the-jar-as-its-child-reads-its-output-to-the-end-and-stops-only-its-own-child.md) §3 and §4, which read this lock's holder line (§9).
+- **Read with**: [ADR-276](0276-the-deliverable-is-drawn-at-a-root-the-operator-may-name-outside-the-corpus-root-and-the-seed-folder.md) §2, whose refusal of a misplaced deliverable root comes just before the lock is taken (§5), so a run refused for its deliverable root takes no corpus-root lock.
 - **Settles**, with ADR-278, [#559](https://github.com/algernon28/vespera/issues/559).
 
 ## Context
@@ -62,7 +63,7 @@ As ADR-177 §1 takes `vespera.lock`:
 
 ### 5. Who takes it, and when
 
-Only `vespera run`, the one command that walks a root; `vespera label` names none. In `run`, after `--db-dir` is checked against the working directory and the root is known, and before anything else: before the `Progress page:` line, before the root is logged, before the progress page is written and before the job starts. A refused invocation writes no progress page, opens no browser and starts no walk. The working-directory lock was taken before, while the environment was prepared (ADR-177). The seed folder, which is walked too, is not locked.
+Only `vespera run`, the one command that walks a root; `vespera label` names none. In `run`, after `--db-dir` is checked against the working directory, the root is known and the deliverable root is refused or allowed (ADR-276 §2), and before anything else: before the `Progress page:` line, before the root is logged, before the progress page is written and before the job starts. A refused invocation writes no progress page, opens no browser and starts no walk. The working-directory lock was taken before, while the environment was prepared (ADR-177). The seed folder, which is walked too, is not locked.
 
 ### 6. The refusal
 

@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.abort;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -16,6 +17,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -76,7 +78,7 @@ class TheControlPanelsChildIT {
     @Story("The control panel reads its child's output")
     @DisplayName("Started with the two encoding flags and CI=1, the jar's refusal of a working directory in use whose name holds ł and 漢 reads as strict UTF-8 on the merged stream, naming the directory whole")
     void itsRefusalOfAWorkingDirectoryInUseIsUtf8OnTheMergedStream(@TempDir Path temporary) throws Exception {
-        Path workingDirectory = Files.createDirectory(temporary.resolve(NAME_OUTSIDE_WINDOWS_1252)).toAbsolutePath();
+        Path workingDirectory = directoryNamedOutsideWindows1252In(temporary);
         hold(workingDirectory);
 
         ProcessBuilder builder = new ProcessBuilder(
@@ -114,6 +116,18 @@ class TheControlPanelsChildIT {
                 () -> assertThat(lines.getFirst())
                         .startsWith("another Vespera invocation is already using the working directory")
                         .contains(workingDirectory.toString()));
+    }
+
+    /**
+     * The working directory named {@link #NAME_OUTSIDE_WINDOWS_1252}, or the test aborted where the locale cannot name
+     * it.
+     */
+    private static Path directoryNamedOutsideWindows1252In(Path temporary) {
+        try {
+            return Files.createDirectory(temporary.resolve(NAME_OUTSIDE_WINDOWS_1252)).toAbsolutePath();
+        } catch (InvalidPathException | IOException e) {
+            return abort("this filesystem, in this locale, will not create a name holding ł and 漢: " + e.getMessage());
+        }
     }
 
     /** Decodes as UTF-8 and fails on any byte sequence UTF-8 does not allow, rather than replacing it. */

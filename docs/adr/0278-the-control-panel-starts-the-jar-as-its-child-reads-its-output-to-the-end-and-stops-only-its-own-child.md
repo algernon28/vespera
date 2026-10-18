@@ -2,7 +2,7 @@
 
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.
-- **Keeps**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md), whose What this does not decide leaves a program that starts the jar for the operator to a decision of its own: this is that decision for the **control panel**, and the packaged jar, its commands and what it starts are unchanged.
+- **Keeps**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md), whose What this does not decide leaves a program that starts the jar for the operator to a decision of its own: this is that decision for the **control panel**, and this record changes nothing in the packaged jar, its commands or what it starts; ADR-279 adds the corpus-root lock to `run`.
 - **Keeps**: [ADR-047](0047-the-pipeline-never-blocks.md), the CLI sized to two commands. The control panel adds no command and no option to it.
 - **Keeps**: [ADR-141](0141-the-cli-exits-with-the-commands-exit-code-and-the-scheduler-no-feature-uses-is-removed-at-its-source.md): the process exits with the command's exit code, which, with the last line of output, is what the control panel reads (§5).
 - **Keeps**: [ADR-177](0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md) §1: every invocation takes `vespera.lock`, `--help` and `--version` included, and a killed holder's lock is released by the operating system while its line stays in the file.
@@ -86,7 +86,7 @@ An orderly exit asks whether to stop the child or leave it running, leaving it b
 
 ### 8. What changes in the jar
 
-Nothing. No module of `src/main` changes, so no run id moves.
+Nothing, by this record: it adds no option, command or output to the jar, and no module of `src/main` changes for it, so no run id moves. The same ticket adds the corpus-root lock to `vespera run` by [ADR-279](0279-one-vespera-run-per-corpus-root-by-a-lock-on-a-file-named-for-its-real-path-outside-every-working-directory.md), whose holder line §3 and §4 read.
 
 ## Alternatives refused
 
@@ -129,7 +129,7 @@ The control panel's own code has no home yet: where it lives and how it is built
 ## What this does not decide
 
 - **How the jar and a JDK 26 are found** (#567), **which values are passed and remembered** (#564), **where the pages sit on screen** (#561), and **where the control panel's code lives and how it is built** (#562).
-- **The corpus-root lock** itself: where its file lies, its name and its refusal are its own record's. This record reads its holder line as it reads `vespera.lock`'s.
+- **The corpus-root lock** itself: where its file lies, its name and its refusal are [ADR-279](0279-one-vespera-run-per-corpus-root-by-a-lock-on-a-file-named-for-its-real-path-outside-every-working-directory.md)'s. This record reads its holder line as it reads `vespera.lock`'s.
 - **The closing line as the last line** (#579), a fix in the jar.
 - **A path the ANSI code page cannot hold.** How the control panel passes, or refuses, a working directory or corpus root holding such a character is not decided here.
 - **Reading `vespera.db` between invocations.**
