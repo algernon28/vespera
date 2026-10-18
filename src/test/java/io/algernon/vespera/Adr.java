@@ -1877,6 +1877,15 @@ public final class Adr {
     public static final String THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR = FILE
             + "0274-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md";
 
+    /**
+     * ADR-275 -- every {@code <div>} of every page Vespera writes carries a {@code title}, fixed words saying what it
+     * shows and holding no value of the invocation, escaped for its attribute; each of the sixteen steps has one
+     * description in {@code StepNames}, which its step of the timeline opens with as a {@code <title>} (amends
+     * ADR-268, ADR-269, ADR-274 and ADR-075).
+     */
+    public static final String EVERY_DIV_SAYS_ON_HOVER_WHAT_IT_SHOWS_AND_EVERY_STEP_WHAT_IT_DOES = FILE
+            + "0275-every-div-of-every-page-vespera-writes-says-on-hover-what-it-shows-and-every-step-of-the-timeline-what-it-does.md";
+
     private Adr() {
     }
 }
