@@ -1,5 +1,7 @@
 # ADR-276 — The deliverable is drawn at a root the operator may name, outside the corpus root and the seed folder
 
+> **Partly amended — see [ADR-280](0280-a-clusters-folder-holds-its-page-and-a-copy-of-each-of-its-survivors-under-the-originals-own-name-suffixed-only-on-a-collision.md).** A named root holds no `documents/` (§1); §1's bound of 146 characters holds for the index, the pages and the pictures and not for the copies; and §6's clause of the closing line, owed to the record that changes the layout, is stated and pinned there. Everything else in this record stands.
+
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.
 - **Amends**: [ADR-274](0274-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md), in these places and no others: §1's tree, drawn at `deliverable/<generation run>/`, which is drawn at the deliverable root and gains one file, the marker (§1, §3); §2.5's "the working directory's drive" and the reason it gives, the gibibyte being read on the drive the tree is written to (§4); §2.7's bound of 69 characters on the working directory's path, which for a named root is a bound of 146 on the root's own (§1); §6's "redraws the tree it already had, in place, under the same name", which holds of a named root only where it holds this working directory's tree of the same generation run (§3); and §7's `<absolute path>/index.html`, which is the root's index (§5). Its Decided here 7, a gibibyte left free, stands, read on that drive.

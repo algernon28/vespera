@@ -46,6 +46,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("Where the tree is drawn")
 @Issue("557")
 @Link(name = "ADR-276", url = Adr.THE_DELIVERABLE_IS_DRAWN_AT_A_ROOT_THE_OPERATOR_MAY_NAME, type = "adr")
+@Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class TheTreeIsDrawnAtTheDeliverableRootTest {
 
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
@@ -59,14 +60,14 @@ class TheTreeIsDrawnAtTheDeliverableRootTest {
 
     private static final byte[] FIRST_BYTES = "the first survivor".getBytes(StandardCharsets.UTF_8);
 
-    /** The first survivor's copy, from the top of the tree. */
-    private static final String FIRST_COPY = "documents/42-q3.pdf";
+    /** The first survivor's copy, from the top of the tree: in its cluster's folder, under its original's name. */
+    private static final String FIRST_COPY = "1-fire-safety/1-fire-doors/q3.pdf";
 
     private static final String SECOND_PATH = "notes/risers.txt";
 
     private static final byte[] SECOND_BYTES = "the second survivor".getBytes(StandardCharsets.UTF_8);
 
-    private static final String SECOND_COPY = "documents/43-risers.txt";
+    private static final String SECOND_COPY = "1-fire-safety/1-fire-doors/risers.txt";
 
     /** What the tree's marker is called, at the top of every tree. */
     private static final String MARKER = "vespera-deliverable.txt";
@@ -114,7 +115,7 @@ class TheTreeIsDrawnAtTheDeliverableRootTest {
                     assertThat(root.resolve("documents.csv")).isRegularFile();
                 });
         claim(
-                "each copy is under the root's documents folder, holding the bytes of its file in the archive",
+                "each copy is in its group's folder at the root, holding the bytes of its file in the archive",
                 () -> {
                     assertThat(root.resolve(FIRST_COPY)).hasBinaryContent(FIRST_BYTES);
                     assertThat(root.resolve(SECOND_COPY)).hasBinaryContent(SECOND_BYTES);
@@ -209,7 +210,8 @@ class TheTreeIsDrawnAtTheDeliverableRootTest {
         Path work = Files.createDirectories(base.resolve("work"));
         Path root = base.resolve("handed over");
         drawAt(work, DeliverableRoot.named(root), archive);
-        Path anEarlierLayoutsCopy = root.resolve("documents").resolve("7-a-copy-an-earlier-layout-left.pdf");
+        Path anEarlierLayoutsCopy =
+                Files.createDirectories(root.resolve("documents")).resolve("7-a-copy-an-earlier-layout-left.pdf");
         Files.writeString(anEarlierLayoutsCopy, "a copy no survivor of this tree is named by", StandardCharsets.UTF_8);
         Path theOperatorsNotes = root.resolve("notes.txt");
         Files.writeString(theOperatorsNotes, "the operator's notes", StandardCharsets.UTF_8);

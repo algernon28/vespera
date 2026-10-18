@@ -38,6 +38,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class TheTreeIsHtmlTest {
 
     /** The seed every cluster here sits under. */
@@ -95,12 +96,13 @@ class TheTreeIsHtmlTest {
         Path tree = theFixtureWritten(base);
 
         claim(
-                "the pages of the tree are exactly index.html at its root and one page for each of its groups, in"
-                        + " the partition's folder, named by the group's place and its label",
+                "the pages of the tree are exactly index.html at its root and one page for each of its groups,"
+                        + " index.html in the group's folder in the partition's folder, the group's folder named by its"
+                        + " place and its label",
                 () -> assertThat(filesUnder(tree).stream().filter(name -> name.endsWith(".html")))
                         .containsExactly(
-                                PARTITION_FOLDER + "/1-fire-doors.html",
-                                PARTITION_FOLDER + "/2-smoke-dampers.html",
+                                PARTITION_FOLDER + "/1-fire-doors/index.html",
+                                PARTITION_FOLDER + "/2-smoke-dampers/index.html",
                                 "index.html"));
         claim(
                 "documents.csv is still at the root, for a program to load",
@@ -185,7 +187,7 @@ class TheTreeIsHtmlTest {
     @DisplayName("The writing is on its group's page as HTML, each citation a link to its document")
     void rendersTheWritingOnItsPageWithEachCitationALink(@TempDir Path base) throws IOException {
         Path tree = theFixtureWritten(base);
-        String page = Files.readString(tree.resolve(PARTITION_FOLDER + "/1-fire-doors.html"), StandardCharsets.UTF_8);
+        String page = Files.readString(tree.resolve(PARTITION_FOLDER + "/1-fire-doors/index.html"), StandardCharsets.UTF_8);
 
         claim(
                 "the writing is on the page escaped whole and rendered as its two paragraphs, with both citations as"
@@ -216,7 +218,7 @@ class TheTreeIsHtmlTest {
     @DisplayName("A group nothing was written over says why in italics, and the index lists it with nothing to open")
     void saysWhyNothingWasWrittenInItalics(@TempDir Path base) throws IOException {
         Path tree = theFixtureWritten(base);
-        String page = Files.readString(tree.resolve(PARTITION_FOLDER + "/2-smoke-dampers.html"), StandardCharsets.UTF_8);
+        String page = Files.readString(tree.resolve(PARTITION_FOLDER + "/2-smoke-dampers/index.html"), StandardCharsets.UTF_8);
         String row = theIndexRowNaming(tree, "Smoke dampers");
 
         claim(
@@ -232,7 +234,7 @@ class TheTreeIsHtmlTest {
 
     @Test
     @Story("Every file of the tree has a name of bounded length")
-    @DisplayName("A long label and a long seed name give a folder and a page named by forty characters of slug")
+    @DisplayName("A long label and a long seed name give folders named by forty characters of slug")
     void cutsEverySlugToFortyCharacters(@TempDir Path base) throws IOException {
         String longSeed = "seeds/Building Regulations Approved Document B Fire Safety Volume 2.pdf";
         RecordedCluster longLabel =
@@ -243,12 +245,13 @@ class TheTreeIsHtmlTest {
                 base.resolve("work"), base.resolve("archive"), List.of(longLabel), Map.of(), List.of(member), Map.of());
 
         claim(
-                "the folder is the partition's place and the first " + SLUG_LENGTH + " characters of its seed's slug,"
-                        + " and the page the group's place and the first " + SLUG_LENGTH + " of its label's, less the"
-                        + " hyphen the cut left at its end",
+                "the partition's folder is its place and the first " + SLUG_LENGTH + " characters of its seed's"
+                        + " slug, and the group's folder, holding its page, its place and the first " + SLUG_LENGTH
+                        + " of its label's, less the hyphen the cut left at its end",
                 () -> assertThat(filesUnder(tree).stream().filter(name -> name.endsWith(".html")))
                         .containsExactly(
-                                "1-building-regulations-approved-document-b/1-annual-inspection-of-every-fire-door-in.html",
+                                "1-building-regulations-approved-document-b/1-annual-inspection-of-every-fire-door-in"
+                                        + "/index.html",
                                 "index.html"));
     }
 
@@ -267,7 +270,7 @@ class TheTreeIsHtmlTest {
                 Map.of(slotOf(UNWRITTEN), Unwritten.NO_SENDABLE_DOCUMENT));
     }
 
-    /** The one page beneath {@code tree} that is not the index. */
+    /** The one page beneath {@code tree} that is not the tree's own index. */
     private static Path theOnePageUnder(Path tree) throws IOException {
         List<String> pages = filesUnder(tree).stream()
                 .filter(name -> name.endsWith(".html") && !name.equals("index.html"))

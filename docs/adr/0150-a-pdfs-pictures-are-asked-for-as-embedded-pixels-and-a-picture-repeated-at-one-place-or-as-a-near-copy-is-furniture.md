@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md).** §4's *"`pipeline` enforces it"* and *"The check sits there rather than in `synthesis` …"* no longer hold as written: which detected formats list their pictures is decided in `extraction`, by `DocumentPicture.listedFor`, for the reason given there, and `pipeline` reads the recorded format and asks. The rule, its three formats and its order of reads stand.
 
+> **Partly amended — see [ADR-280](0280-a-clusters-folder-holds-its-page-and-a-copy-of-each-of-its-survivors-under-the-originals-own-name-suffixed-only-on-a-collision.md).** §4 is struck where it says an image survivor is not copied: its copy stands in its cluster's folder like every other (ADR-274 §2). That no picture is written under its entry stands.
+
 - **Date**: 2026-09-25
 - **Status**: accepted
 - **Amends**: [ADR-147](0147-the-docling-sidecar-is-a-derived-image-with-libreoffice-writer-and-impress-and-the-image-joins-the-extractor-identity.md). The extractor identity it composes keeps its shape, `docling-serve;image=<name>;<versions>;<sent options>`. It changes value, because the sent options gain `image_export_mode=embedded`. Every conversion cached under the old value is made again once (§2).

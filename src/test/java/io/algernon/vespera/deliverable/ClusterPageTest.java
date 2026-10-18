@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,13 +33,14 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * One cluster's page: its heading, the writing or the sentence written in its place (ADR-174), the
  * sentence saying the writing rests on part of the cluster, the citations as links (ADR-109), and the
- * membership list numbered from what the call sent (ADR-133), each entry leading to its copy in the tree or
- * saying why none stands (ADR-274 §1.4, §2.6).
+ * membership list numbered from what the call sent (ADR-133), each entry leading to its copy beside the page or
+ * saying why none stands (ADR-274 §1.4, §2.6, ADR-280 §5).
  *
  * <p>Every expected page here is the page's body as ADR-274 §1.4 lays it out, inside the skeleton {@link Html}
- * writes for every page of the tree, which {@code TheTreeIsHtmlTest} holds. The page sits in a partition's folder
- * of a tree under {@code <base>/wd}, the archive is {@code <base>/archive}, and each member's file there holds its
- * own path's bytes, which its recorded key is taken from, save one member whose file is not there.
+ * writes for every page of the tree, which {@code TheTreeIsHtmlTest} holds. The page is {@code index.html} in its
+ * cluster's folder of a tree under {@code <base>/wd}, the copies beside it (ADR-280 §0), the archive is {@code
+ * <base>/archive}, and each member's file there holds its own path's bytes, which its recorded key is taken from,
+ * save one member whose file is not there.
  */
 @Epic("The deliverable")
 @Feature("The page a group is read on")
@@ -47,6 +49,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-133", url = Adr.THE_EXEMPLARS_ONE_CALL_SENT_ARE_RECORDED, type = "adr")
 @Link(name = "ADR-109", url = Adr.A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL, type = "adr")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class ClusterPageTest {
 
     /** The seed whose partition the cluster sits in. */
@@ -103,10 +106,10 @@ class ClusterPageTest {
             + "<h2>The documents in this group</h2>\n"
             + "<ol>\n"
             + "<li id=\"document-1\">\n"
-            + "<a href=\"" + inTheTree("11-b-c.pdf") + "\">reports/b, c.pdf</a>\n"
+            + "<a href=\"" + beside("b%2C%20c.pdf") + "\">reports/b, c.pdf</a>\n"
             + "</li>\n"
             + "<li id=\"document-2\">\n"
-            + "<a href=\"" + inTheTree("10-a.docx") + "\">reports/a.docx</a>\n"
+            + "<a href=\"" + beside("a.docx") + "\">reports/a.docx</a>\n"
             + "</li>\n"
             + "<li id=\"document-3\">\n"
             + "<em>a document the writing was made from, which this group no longer holds</em>\n"
@@ -124,10 +127,10 @@ class ClusterPageTest {
             + "<h2>The documents in this group</h2>\n"
             + "<ol>\n"
             + "<li id=\"document-1\">\n"
-            + "<a href=\"" + inTheTree("12-d.pdf") + "\">reports/d.pdf</a>\n"
+            + "<a href=\"" + beside("d.pdf") + "\">reports/d.pdf</a>\n"
             + "</li>\n"
             + "<li id=\"document-2\">\n"
-            + "<a href=\"" + inTheTree("13-e.pdf") + "\">reports/e.pdf</a>\n"
+            + "<a href=\"" + beside("e.pdf") + "\">reports/e.pdf</a>\n"
             + "</li>\n"
             + "</ol>\n"
             + Html.tail();
@@ -185,7 +188,7 @@ class ClusterPageTest {
     @Story("A written page")
     @DisplayName("A written page is its title, its writing with links, the subset sentence, and the numbered list leading to the copies")
     void writesAWrittenPageWhole(@TempDir Path base) throws IOException {
-        Path page = aPageIn(base, "1-fire-suppression-retrofits.html");
+        Path page = aPageIn(base, "1-fire-suppression-retrofits");
 
         ClusterPage.write(
                 page,
@@ -193,15 +196,15 @@ class ClusterPageTest {
                 THE_WRITING,
                 null,
                 List.of(HIGHEST, LOWEST, MIDDLE),
-                copiesOf(base, List.of(HIGHEST, LOWEST, MIDDLE)),
+                copiesOf(base, page, List.of(HIGHEST, LOWEST, MIDDLE)),
                 noPictures(),
                 DeliverableProgress.NONE);
 
         claim(
                 "the page is the title escaped as its heading, the writing with each citation a link, the sentence"
                         + " saying it was written from 3 of the 4 documents, and the list numbered from what the"
-                        + " call sent, each entry a relative link to its copy, the gone document's entry its path"
-                        + " and why no copy stands, linking nowhere",
+                        + " call sent, each entry a link to its copy beside the page, its name percent-encoded, the"
+                        + " gone document's entry its path and why no copy stands, linking nowhere",
                 () -> assertThat(Files.readString(page, StandardCharsets.UTF_8)).isEqualTo(THE_WRITTEN_PAGE));
     }
 
@@ -209,7 +212,7 @@ class ClusterPageTest {
     @Story("A page nothing was written over")
     @DisplayName("A page nothing was written over is headed by its label, says so, and lists its documents by score")
     void writesAnUnwrittenPageWhole(@TempDir Path base) throws IOException {
-        Path page = aPageIn(base, "2-sprinkler-maintenance.html");
+        Path page = aPageIn(base, "2-sprinkler-maintenance");
 
         ClusterPage.write(
                 page,
@@ -217,7 +220,7 @@ class ClusterPageTest {
                 null,
                 null,
                 List.of(TIED_FIRST, TIED_SECOND),
-                copiesOf(base, List.of(TIED_FIRST, TIED_SECOND)),
+                copiesOf(base, page, List.of(TIED_FIRST, TIED_SECOND)),
                 noPictures(),
                 DeliverableProgress.NONE);
 
@@ -232,7 +235,7 @@ class ClusterPageTest {
     @Story("A page nothing was written over")
     @DisplayName("A page nothing was written over carries the reason it was handed, in the place the writing would be")
     void writesTheReasonInPlaceOfTheWriting(@TempDir Path base) throws IOException {
-        Path page = aPageIn(base, "2-sprinkler-maintenance.html");
+        Path page = aPageIn(base, "2-sprinkler-maintenance");
 
         ClusterPage.write(
                 page,
@@ -240,7 +243,7 @@ class ClusterPageTest {
                 null,
                 Unwritten.NOT_REACHED,
                 List.of(TIED_FIRST, TIED_SECOND),
-                copiesOf(base, List.of(TIED_FIRST, TIED_SECOND)),
+                copiesOf(base, page, List.of(TIED_FIRST, TIED_SECOND)),
                 noPictures(),
                 DeliverableProgress.NONE);
 
@@ -263,13 +266,15 @@ class ClusterPageTest {
             }
         };
 
+        Path page = aPageIn(base, "1-fire-suppression-retrofits");
+
         ClusterPage.write(
-                aPageIn(base, "1-fire-suppression-retrofits.html"),
+                page,
                 THE_WRITTEN_CLUSTER,
                 THE_WRITING,
                 null,
                 List.of(HIGHEST, LOWEST, MIDDLE),
-                copiesOf(base, List.of(HIGHEST, LOWEST, MIDDLE)),
+                copiesOf(base, page, List.of(HIGHEST, LOWEST, MIDDLE)),
                 noPictures(),
                 counting);
 
@@ -279,9 +284,9 @@ class ClusterPageTest {
                 () -> assertThat(entriesReported.get()).isEqualTo(3));
     }
 
-    /** Where an entry links to the copy named {@code name}: up from the partition's folder, into the copies'. */
-    private static String inTheTree(String name) {
-        return "../" + Copies.DIRECTORY_NAME + "/" + name;
+    /** Where an entry links to the copy whose name is {@code encoded} once percent-encoded: beside the page. */
+    private static String beside(String encoded) {
+        return "./" + encoded;
     }
 
     /** The tree's root beneath {@code base}, as the writer names it. */
@@ -289,28 +294,27 @@ class ClusterPageTest {
         return base.resolve("wd").resolve("deliverable").resolve("run-1").toAbsolutePath();
     }
 
-    /** A page's path in a partition's folder of the tree, that folder made, as the writer makes it. */
-    private static Path aPageIn(Path base, String fileName) throws IOException {
-        Path partition = theTree(base).resolve("1-fire-safety-2019");
-        Files.createDirectories(partition);
-        return partition.resolve(fileName);
+    /** A page's path, {@code index.html} in a cluster's folder of the tree, that folder made, as the writer makes it. */
+    private static Path aPageIn(Path base, String clusterFolder) throws IOException {
+        Path folder = theTree(base).resolve("1-fire-safety-2019").resolve(clusterFolder);
+        Files.createDirectories(folder);
+        return folder.resolve("index.html");
     }
 
     /**
-     * The copies of {@code members}, made as the writer makes them before a page is written, over an archive beside
-     * the working directory that holds every member's file but {@link #MIDDLE}'s.
+     * The copies of {@code members}, made as the writer makes them before a page is written, into the folder of {@code
+     * page}, over an archive beside the working directory that holds every member's file but {@link #MIDDLE}'s.
      */
-    private static Copies copiesOf(Path base, List<ListedSurvivor> members) throws IOException {
+    private static Copies copiesOf(Path base, Path page, List<ListedSurvivor> members) throws IOException {
         Path archive = base.resolve("archive").toAbsolutePath();
         for (ListedSurvivor member : IN_THE_ARCHIVE) {
             Path file = archive.resolve(member.path().value());
             Files.createDirectories(file.getParent());
             Files.write(file, bytesOf(member.path().value()));
         }
-        Files.createDirectories(theTree(base).resolve(Copies.DIRECTORY_NAME));
         Copies copies = new Copies(
                 theTree(base), archive.toString(), ReplacingMove.ATOMIC, () -> Long.MAX_VALUE, DeliverableProgress.NONE);
-        copies.copyAll(members);
+        copies.copyAll(page.getParent(), members, Set.of());
         return copies;
     }
 

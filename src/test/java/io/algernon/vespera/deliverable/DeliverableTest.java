@@ -60,6 +60,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 @Link(name = "ADR-104", url = Adr.THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED, type = "adr")
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class DeliverableTest {
 
     /** A run id of the shape the ledger mints: sixty-four hexadecimal characters (ADR-048). */
@@ -340,11 +341,12 @@ class DeliverableTest {
         claim(
                 "the one directory beneath it is named after the operator's own seed document, so the"
                         + " top of the tree reads in their vocabulary rather than in an author's -- and"
-                        + " the page inside it after the name stage 6a derived, never after the heading"
+                        + " the page inside it in a folder named after the name stage 6a derived, never after the heading"
                         + " the model wrote, because a path that depended on the writing succeeding would"
                         + " not exist for a group nothing was written over",
                 () -> assertThat(tree.resolve(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED)
-                                .resolve(THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED + ".html"))
+                                .resolve(THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED)
+                                .resolve(Deliverable.INDEX_FILE_NAME))
                         .isRegularFile());
     }
 
@@ -498,7 +500,8 @@ class DeliverableTest {
                         + " directory listing is the second place the approved order is stated, and a"
                         + " missing file would leave that listing saying something the index does not",
                 () -> assertThat(tree.resolve(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED)
-                                .resolve(THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED + ".html"))
+                                .resolve(THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED)
+                                .resolve(Deliverable.INDEX_FILE_NAME))
                         .isRegularFile());
         claim(
                 "and it keeps its place, in front of the group that was written: a group that sank to the"
