@@ -1867,6 +1867,16 @@ public final class Adr {
     public static final String THE_TRANSLATION_STEP_READS_A_MEAN_VECTOR_ONLY_TO_COMPARE_IT_AND_THE_PROFILE_ONCE = FILE
             + "0273-the-translation-step-reads-each-mean-vector-only-to-compare-it-and-the-profile-only-when-its-run-is-minted.md";
 
+    /**
+     * ADR-274 -- the deliverable is HTML, {@code index.html} and one page a cluster, with every value escaped and
+     * the writing's Markdown rendered from a subset by a renderer of Vespera's own; every survivor it lists is copied from the archive, read only, into {@code
+     * documents/} and kept only where its SHA-256 equals the key stage 2 recorded; a module of its own, {@code
+     * deliverable}, writes it and no stage names it, so the tree is drawn again with no question put; the closing
+     * line names the index, which is opened once (amends ADR-103, ADR-104, ADR-135, ADR-206, ADR-222 and others).
+     */
+    public static final String THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR = FILE
+            + "0274-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md";
+
     private Adr() {
     }
 }

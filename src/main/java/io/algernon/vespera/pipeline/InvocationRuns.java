@@ -3,6 +3,7 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.ledger.RunId;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.TreeMap;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 
@@ -36,6 +37,9 @@ class InvocationRuns {
     /** Namespaced so this record's keys cannot collide with anything else a step writes into the context. */
     private static final String KEY_PREFIX = "vespera.invocation-run.";
 
+    /** Where the count of documents not copied is handed to the closing line; outside {@link #KEY_PREFIX}, which {@link #all} reads as runs. */
+    private static final String DOCUMENTS_NOT_COPIED = "vespera.deliverable.documents-not-copied";
+
     private final ExecutionContext executionContext;
 
     InvocationRuns(ExecutionContext executionContext) {
@@ -56,6 +60,21 @@ class InvocationRuns {
             }
         }
         return runs;
+    }
+
+    /**
+     * Records how many documents' copies do not stand in the tree this invocation wrote, for the closing line
+     * (ADR-274 §7). Written at most once, by the generation step.
+     */
+    void recordDocumentsNotCopied(int documents) {
+        executionContext.putInt(DOCUMENTS_NOT_COPIED, documents);
+    }
+
+    /** The count {@link #recordDocumentsNotCopied} recorded, or empty where this invocation wrote no tree. */
+    OptionalInt documentsNotCopied() {
+        return executionContext.containsKey(DOCUMENTS_NOT_COPIED)
+                ? OptionalInt.of(executionContext.getInt(DOCUMENTS_NOT_COPIED))
+                : OptionalInt.empty();
     }
 
     /** The run this invocation minted or continued for {@code stage}, if it has run yet this invocation. */

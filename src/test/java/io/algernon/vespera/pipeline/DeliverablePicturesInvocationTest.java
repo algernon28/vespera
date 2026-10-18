@@ -5,11 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
+import io.algernon.vespera.deliverable.Deliverable;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.synthesis.Deliverable;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -41,8 +41,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * A survivor's pictures, carried by a whole invocation from the extraction cache to its cluster file
- * (ADR-149, #285).
+ * A survivor's pictures, carried by a whole invocation from the extraction cache to its cluster's page
+ * (ADR-149, ADR-274, #285).
  *
  * <p>{@code DeliverablePicturesTest} holds every claim about what the writer does with pictures it is
  * handed. What only an invocation can show is that it is handed them at all: that stage 2's cached
@@ -71,6 +71,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-149", url = Adr.A_SURVIVORS_PICTURES_REACH_ITS_CLUSTER_FILE, type = "adr")
 @Link(name = "ADR-103", url = Adr.THE_DELIVERABLE_IS_A_MARKDOWN_TREE_PER_RUN, type = "adr")
 @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class DeliverablePicturesInvocationTest {
 
     /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
@@ -105,11 +106,11 @@ class DeliverablePicturesInvocationTest {
     /** How many hexadecimal characters of a picture's digest name its file. */
     private static final int NAME_LENGTH = 16;
 
-    /** An image on a page, as its alt text and its destination. */
-    private static final Pattern AN_IMAGE = Pattern.compile("!\\[((?:\\\\.|[^\\]\\\\])*)\\]\\(([^)]*)\\)");
+    /** An image on a page, as its destination and its alt text. */
+    private static final Pattern AN_IMAGE = Pattern.compile("<img src=\"([^\"]*)\" alt=\"([^\"]*)\">");
 
-    /** Where one membership entry begins: its number and its anchor. */
-    private static final Pattern AN_ENTRY = Pattern.compile("(?m)^\\d+\\. <a id=\"document-\\d+\"></a>");
+    /** Where one membership entry begins: its item, which carries its anchor. */
+    private static final Pattern AN_ENTRY = Pattern.compile("(?m)^<li id=\"document-\\d+\">");
 
     @TempDir
     static Path workingDirectory;
@@ -160,7 +161,7 @@ class DeliverablePicturesInvocationTest {
                 });
         Path page = theOnePageOf(root);
         String text = Files.readString(page);
-        String stem = page.getFileName().toString().replaceFirst("\\.md$", "");
+        String stem = page.getFileName().toString().replaceFirst("\\.html$", "");
         String diagramName = nameOf(PictureScriptedExtractionBeans.THE_DIAGRAM);
         String letterheadName = nameOf(PictureScriptedExtractionBeans.THE_LETTERHEAD);
         Path diagramFile = page.resolveSibling(stem).resolve(diagramName);
@@ -181,7 +182,7 @@ class DeliverablePicturesInvocationTest {
                 "and the page shows it inside the entry of the document it came from, and not inside the"
                         + " other document's entry",
                 () -> assertThat(theEntryNaming(text, PictureScriptedExtractionBeans.THE_DOCUMENT_WITH_A_DIAGRAM))
-                        .contains("](" + stem + "/" + diagramName + ")"));
+                        .contains("<img src=\"" + stem + "/" + diagramName + "\""));
         claim(
                 "and the only image on the page leads, by a relative path followed from the page's own"
                         + " directory, to that file: nothing outside the tree and nothing on a network is"
@@ -201,7 +202,7 @@ class DeliverablePicturesInvocationTest {
     /**
      * ADR-150 §4: a standalone image file that survives shows its entry and nothing else, although its
      * conversion carries a picture that recurs nowhere. That picture is a re-encoded crop of the
-     * original, and writing it would be the copy of an original ADR-104 refuses. The picture's bytes
+     * original, whose own verified copy the tree already holds (ADR-274 §2). The picture's bytes
      * are no image, so no rule that decodes a picture can be what leaves it out: only the file's
      * detected format can.
      */
@@ -228,13 +229,14 @@ class DeliverablePicturesInvocationTest {
                 () -> assertThat(text).contains(PictureScriptedExtractionBeans.THE_SCREENSHOT));
         claim(
                 "but the picture its conversion carried is written nowhere in the tree, although no other"
-                        + " document carries it: it is a copy of the original, which stays in the archive",
+                        + " document carries it: it is a re-encoded crop of the original, whose own copy is the"
+                        + " one the tree holds",
                 () -> assertThat(everyFileIn(theTreeOf(root)))
                         .noneMatch(file -> file.getFileName().toString().equals(cropName)));
         claim(
                 "and the image file's entry shows no image at all",
                 () -> assertThat(theEntryNaming(text, PictureScriptedExtractionBeans.THE_SCREENSHOT))
-                        .doesNotContain("!["));
+                        .doesNotContain("<img"));
         claim(
                 "while the diagram of the other document is still shown, so the image file costs its"
                         + " neighbours nothing",
@@ -266,7 +268,7 @@ class DeliverablePicturesInvocationTest {
                 () -> assertThat(cli.getExitCode()).isZero());
         Path page = theOnePageOf(root);
         String text = Files.readString(page);
-        String stem = page.getFileName().toString().replaceFirst("\\.md$", "");
+        String stem = page.getFileName().toString().replaceFirst("\\.html$", "");
         String chartName = nameOf(PictureScriptedExtractionBeans.THE_CHART);
         Path chartFile = page.resolveSibling(stem).resolve(chartName);
         List<String> headerNames = List.of(
@@ -285,7 +287,7 @@ class DeliverablePicturesInvocationTest {
         claim(
                 "and it is shown inside the report's own entry",
                 () -> assertThat(theEntryNaming(text, PictureScriptedExtractionBeans.THE_REPORT))
-                        .contains("](" + stem + "/" + chartName + ")"));
+                        .contains("<img src=\"" + stem + "/" + chartName + "\""));
         claim(
                 "while neither crop of the header is written anywhere in the tree or linked from the page:"
                         + " each sits on another page within a point of the other's box, and a picture that"
@@ -316,13 +318,13 @@ class DeliverablePicturesInvocationTest {
 
     /**
      * Where every image on {@code page} leads, each destination refused if it carries a scheme or is
-     * rooted, then decoded and followed from the page's own directory, as a renderer follows it.
+     * rooted, then decoded and followed from the page's own directory, as a browser follows it.
      */
     private static List<Path> whereEveryImageLeads(Path page) throws IOException {
         Matcher image = AN_IMAGE.matcher(Files.readString(page));
         List<Path> targets = new ArrayList<>();
         while (image.find()) {
-            URI destination = URI.create(image.group(2));
+            URI destination = URI.create(image.group(1));
             if (destination.isAbsolute() || destination.getPath().startsWith("/")) {
                 throw new IllegalStateException("an image on " + page + " is not relative: " + destination);
             }
@@ -346,10 +348,10 @@ class DeliverablePicturesInvocationTest {
         return workingDirectory.resolve(Deliverable.DIRECTORY_NAME).resolve(generationRuns(root).getLast());
     }
 
-    /** The one cluster page of that tree: the one Markdown file that is not the index. */
+    /** The one cluster page of that tree: the one HTML file that is not the index. */
     private Path theOnePageOf(Path root) throws IOException {
         List<Path> pages = everyFileIn(theTreeOf(root)).stream()
-                .filter(file -> file.getFileName().toString().endsWith(".md"))
+                .filter(file -> file.getFileName().toString().endsWith(".html"))
                 .filter(file -> !file.getFileName().toString().equals(Deliverable.INDEX_FILE_NAME))
                 .toList();
         if (pages.size() != ONE_PAGE) {

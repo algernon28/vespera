@@ -22,144 +22,115 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Each rule the deliverable is written by has one class in {@code synthesis}, and nothing is written
- * twice (ADR-213). Read off the compiled classes, as {@link OnlyPipelineNamesSpringBatchTest} reads them,
- * so a copy is found wherever it is put.
+ * Each rule the deliverable is written by has one class, and nothing is written twice (ADR-213), the classes lying
+ * in {@code deliverable} since ADR-274 §4 and the citation pattern, the filename stem and the cluster key staying in
+ * {@code synthesis}, written once where the check and the label read them. Read off the compiled classes, as {@link
+ * OnlyPipelineNamesSpringBatchTest} reads them, so a copy is found wherever it is put.
  *
- * <p><b>ADR-134's reopen trigger, held by a test for the first time.</b> ADR-134 §2 reads: <em>a second
- * class under {@code synthesis} grows a Markdown escaping method</em>. Until this class it was a sentence
- * checked by whoever read it; {@code DeliverableTest} holds what each surrounding writes, and nothing held
- * where the rule lives. Exactly one class may carry a Markdown escaping rule, and here a class carries
- * one when its compiled form shows any of five things:
+ * <p><b>The escaping rule is HTML's, in one class.</b> ADR-134's Markdown surroundings went with ADR-274 §1.3, and
+ * their reopen trigger with them; what replaces it is that exactly one class of the two modules writes the five
+ * entities, {@code Html}, and none writes a backslash in front of markup.
  *
- * <ul>
- *   <li>a text holding a backslash escape of a character a renderer reads as markup ({@link
- *       #MARKDOWN_ESCAPES}), the citation pattern excepted;
- *   <li>a text built by putting a backslash straight before a value ({@link #A_BACKSLASH_BEFORE_A_VALUE}),
- *       which is what {@code "\\" + c} compiles to and how {@code MarkdownSurroundings} itself escapes;
- *   <li>a text that is one backslash and nothing else ({@link #A_BACKSLASH});
- *   <li>a regex replacement writing a backslash before what it matched ({@link
- *       #A_BACKSLASH_BEFORE_WHAT_A_REGEX_MATCHED});
- *   <li>a backslash character appended to a text being built, as {@code append('\\')}.
- * </ul>
+ * <p><b>What it cannot see</b>: an escaper whose entities or backslash appear in no string constant the class holds.
+ * There the sentence is still checked by whoever reads it.
  *
- * <p><b>What it cannot see</b>: an escaper whose backslash appears in none of those forms, one held in a
- * {@code char} variable before it is appended or taken from another class among them. There the
- * sentence is still checked by whoever reads it.
- *
- * <p><b>Red against {@code 4b99a03}, by design</b>: every rule below lives in {@code Deliverable} there,
- * the citation pattern and the filename stem twice, and the cluster key three times.
+ * <p>Retired with ADR-274: the claim that the destination's percent-encoding lies in {@code ArchiveLink} alone, the
+ * class and its rule being gone; and that {@code MarkdownSurroundings} is the one class with a Markdown escape.
  */
 @Epic("Architecture")
 @Feature("Where the deliverable's rules live")
 @Issue("351")
 @Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
-@Link(name = "ADR-134", url = Adr.A_BREAK_IS_FOLDED_AND_THREE_ESCAPING_RULES_STAND, type = "adr")
-@Link(name = "ADR-137", url = Adr.A_DESTINATIONS_AMPERSAND_IS_PERCENT_ENCODED, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class DeliverableRulesHaveOneHomeTest {
 
-    /** The module every rule here belongs to. */
-    private static final String SYNTHESIS = "synthesis";
+    /** The two modules the deliverable's rules lie in. */
+    private static final Set<String> THE_MODULES = Set.of("synthesis", "deliverable");
 
-    /** Where the module's classes are named from. */
     private static final String IN_SYNTHESIS = "io.algernon.vespera.synthesis.";
 
-    /**
-     * A backslash before a character a Markdown renderer reads as markup: what each Markdown surrounding
-     * inserts (ADR-136, ADR-138, ADR-148). A class whose constants hold one carries a Markdown escaping
-     * rule.
-     */
+    private static final String IN_DELIVERABLE = "io.algernon.vespera.deliverable.";
+
+    /** A backslash before a character a Markdown renderer reads as markup: what the Markdown surroundings inserted. */
     private static final List<String> MARKDOWN_ESCAPES = List.of("\\<", "\\&", "\\[", "\\]", "\\|", "\\`");
 
-    /** The one character every Markdown escape here begins with. */
+    /** A text that is one backslash and nothing else. */
     private static final String A_BACKSLASH = "\\";
 
-    /**
-     * A backslash straight before a value, in a text built at run time: the compiler holds such a text as
-     * its fixed parts with the character U+0001 where each value goes, so {@code "\\" + c} is held as a
-     * backslash and that mark. A compiler that stopped holding it so would leave a lone backslash constant
-     * or an appended backslash character instead, which {@link #A_BACKSLASH} and the appended characters catch.
-     */
+    /** A backslash straight before a value, in a text built at run time ({@code "\\" + c}). */
     private static final String A_BACKSLASH_BEFORE_A_VALUE = A_BACKSLASH + '\u0001';
-
-    /**
-     * Two backslashes and a dollar sign: in a regex replacement, a literal backslash followed by a
-     * reference to what was matched, as in {@code replaceAll("([<&])", "\\\\$1")}.
-     */
-    private static final String A_BACKSLASH_BEFORE_WHAT_A_REGEX_MATCHED = "\\\\$";
 
     /** A citation as the model writes it (ADR-109), the one regular expression that also holds {@code \[}. */
     private static final String THE_CITATION_PATTERN = "\\[(\\d+)\\]";
 
-    /** What a destination's rule adds on top of the URI's own quoting (ADR-135, ADR-137 §1). */
-    private static final List<String> PERCENT_ENCODINGS = List.of("%26", "%28", "%29");
+    /** The five entities ADR-274 §1.3's one escaping rule writes. */
+    private static final List<String> THE_FIVE_ENTITIES = List.of("&amp;", "&lt;", "&gt;", "&quot;", "&#39;");
 
     /** A quote doubled inside a quoted CSV field (RFC 4180). */
     private static final String A_DOUBLED_QUOTE = "\"\"";
 
-    /** The package-private collaborators ADR-213 §1 and §4 name, each carrying one rule. */
+    /** The package-private collaborators of the tree's writer, each carrying one rule (ADR-213 §1, ADR-274 §4). */
     private static final List<String> THE_COLLABORATORS = List.of(
-            "MarkdownSurroundings",
-            "ArchiveLink",
             "ManifestCsv",
             "ClusterPage",
             "IndexPage",
             "EntryPictures",
-            "Citation",
-            "FilenameStem");
+            "Copies",
+            "Html",
+            "ProseHtml",
+            "UnwrittenSentences");
 
     @Test
     @Story("Each rule has one class")
-    @DisplayName("Each collaborator the deliverable is split into exists in synthesis and is package-private")
+    @DisplayName("Each collaborator the tree's writer is split into exists in its module and is not public")
     void eachCollaboratorIsPackagePrivate() throws Exception {
-        Set<String> classes = synthesisClasses();
+        Set<String> classes = classesOf(THE_MODULES);
         for (String collaborator : THE_COLLABORATORS) {
             claim(
-                    collaborator + " is a class of synthesis and is not public: it carries one rule of the"
-                            + " deliverable, and Deliverable is the module's one door to them (ADR-213 §1)",
+                    collaborator + " is a class of deliverable and is not public: it carries one rule of the"
+                            + " tree, and Deliverable is the module's one door to them",
                     () -> {
-                        assertThat(classes).contains(IN_SYNTHESIS + collaborator);
-                        assertThat(Modifier.isPublic(loaded(IN_SYNTHESIS + collaborator).getModifiers()))
+                        assertThat(classes).contains(IN_DELIVERABLE + collaborator);
+                        assertThat(Modifier.isPublic(loaded(IN_DELIVERABLE + collaborator).getModifiers()))
                                 .as("whether %s is public", collaborator)
                                 .isFalse();
                     });
         }
+        claim(
+                "and the citation pattern and the filename stem are synthesis's, the generation check and the label"
+                        + " reading them there as the tree does",
+                () -> assertThat(classes).contains(IN_SYNTHESIS + "Citation", IN_SYNTHESIS + "FilenameStem"));
     }
 
     @Test
     @Story("Each rule has one class")
-    @DisplayName("One class under synthesis carries a Markdown escaping rule, MarkdownSurroundings, and Deliverable carries none")
-    void oneClassCarriesAMarkdownEscapingRule() throws Exception {
-        Set<String> escaping = classesHolding(DeliverableRulesHaveOneHomeTest::writesAMarkdownEscape);
-        escaping.addAll(classesAppending(A_BACKSLASH));
+    @DisplayName("One class writes the five entities the escaping rule writes, and none writes a backslash in front of markup")
+    void oneClassEscapes() throws Exception {
+        Set<String> entities = classesHolding(constant -> THE_FIVE_ENTITIES.stream().anyMatch(constant::contains));
+        Set<String> backslashing = classesHolding(DeliverableRulesHaveOneHomeTest::writesAMarkdownEscape);
+        backslashing.addAll(classesAppending(A_BACKSLASH));
 
         claim(
-                "the classes under synthesis that write a backslash in front of markup are exactly one,"
-                        + " MarkdownSurroundings. A class counts when its compiled form holds a backslash"
-                        + " escape of < & [ ] | or `, a text built with a backslash straight before a value,"
-                        + " a text that is one backslash, a regex replacement that puts a backslash before"
-                        + " what it matched, or a backslash character appended to a text. A second such"
-                        + " class is two copies of one rule for one grammar, and Deliverable being one"
-                        + " means the rules were copied rather than moved",
-                () -> assertThat(escaping)
-                        .as("the classes under synthesis that write a backslash in front of markup")
-                        .containsExactly(IN_SYNTHESIS + "MarkdownSurroundings"));
+                "the classes of synthesis and deliverable that hold any of &amp; &lt; &gt; &quot; and &#39; are"
+                        + " exactly one, Html: a second is two copies of one rule, and the copy is where a"
+                        + " character goes unescaped",
+                () -> assertThat(entities).containsExactly(IN_DELIVERABLE + "Html"));
+        claim(
+                "and no class of the two writes a backslash escape of < & [ ] | or `, a backslash straight before"
+                        + " a value or a text that is one backslash: the Markdown surroundings are gone, and"
+                        + " nothing is written as Markdown",
+                () -> assertThat(backslashing).isEmpty());
     }
 
     @Test
     @Story("Each rule has one class")
-    @DisplayName("The destination's percent-encoding is in ArchiveLink alone, and the CSV's doubled quote in ManifestCsv alone")
-    void theOtherTwoSurroundingsHaveOneClassEach() throws Exception {
-        Set<String> encoding = classesHolding(constant -> PERCENT_ENCODINGS.stream().anyMatch(constant::contains));
+    @DisplayName("The CSV's doubled quote is in ManifestCsv alone")
+    void theCsvsQuotingHasOneClass() throws Exception {
         Set<String> doubling = classesHolding(constant -> constant.contains(A_DOUBLED_QUOTE));
 
         claim(
-                "%26, %28 and %29 are written by one class, ArchiveLink: the destination answers to a resolver,"
-                        + " so its rule is percent-encoding and not a row of the Markdown table (ADR-137 §4)",
-                () -> assertThat(encoding).containsExactly(IN_SYNTHESIS + "ArchiveLink"));
-        claim(
                 "a doubled quote is written by one class, ManifestCsv: the CSV answers to a parser (ADR-136 §5)",
-                () -> assertThat(doubling).containsExactly(IN_SYNTHESIS + "ManifestCsv"));
+                () -> assertThat(doubling).containsExactly(IN_DELIVERABLE + "ManifestCsv"));
     }
 
     @Test
@@ -169,17 +140,17 @@ class DeliverableRulesHaveOneHomeTest {
         Set<String> holding = classesHolding(THE_CITATION_PATTERN::equals);
 
         claim(
-                "one class holds the citation pattern, Citation, so the range check and the link rewrite cannot"
-                        + " come to disagree about what a citation is (ADR-213 §4)",
+                "one class of the two modules holds the citation pattern, Citation, so the range check and the"
+                        + " link the page writes cannot come to disagree about what a citation is (ADR-213 §4)",
                 () -> assertThat(holding).containsExactly(IN_SYNTHESIS + "Citation"));
     }
 
     @Test
     @Story("Nothing is written twice")
-    @DisplayName("No class under synthesis declares a stem method of its own, so FilenameStem is the one rule")
+    @DisplayName("No class of the two modules declares a stem method of its own, so FilenameStem is the one rule")
     void theFilenameStemIsWrittenOnce() throws Exception {
         Set<String> declaring = new TreeSet<>();
-        for (String name : synthesisClasses()) {
+        for (String name : classesOf(THE_MODULES)) {
             for (Method method : loaded(name).getDeclaredMethods()) {
                 if (method.getName().toLowerCase(Locale.ROOT).contains("stem")) {
                     declaring.add(name + "." + method.getName());
@@ -188,17 +159,17 @@ class DeliverableRulesHaveOneHomeTest {
         }
 
         claim(
-                "no method under synthesis is named for a stem: ClusterLabel and the deliverable both call"
-                        + " FilenameStem.of, where the one rule is (ADR-213 §4)",
+                "no method of synthesis or deliverable is named for a stem: ClusterLabel, the pages and the copies"
+                        + " all call FilenameStem.of, where the one rule is (ADR-213 §4)",
                 () -> assertThat(declaring).isEmpty());
     }
 
     @Test
     @Story("Nothing is written twice")
-    @DisplayName("One record under synthesis is a winning seed and an ordinal, ClusterSlot")
+    @DisplayName("One record of the two modules is a winning seed and an ordinal, ClusterSlot")
     void theClusterKeyIsWrittenOnce() throws Exception {
         Set<String> keys = new TreeSet<>();
-        for (String name : synthesisClasses()) {
+        for (String name : classesOf(THE_MODULES)) {
             Class<?> type = loaded(name);
             if (type.isRecord()
                     && Arrays.stream(type.getRecordComponents())
@@ -210,8 +181,8 @@ class DeliverableRulesHaveOneHomeTest {
         }
 
         claim(
-                "the only record under synthesis made of a winning seed and an ordinal is ClusterSlot: the"
-                        + " private keys Deliverable and SynthesisDocs kept are gone into it (ADR-213 §3)",
+                "the only record of synthesis or deliverable made of a winning seed and an ordinal is ClusterSlot:"
+                        + " a survivor answers its own with ListedSurvivor.slot, which makes one (ADR-213 §3)",
                 () -> assertThat(keys).containsExactly(IN_SYNTHESIS + "ClusterSlot"));
     }
 
@@ -220,28 +191,25 @@ class DeliverableRulesHaveOneHomeTest {
         return Class.forName(name, false, Thread.currentThread().getContextClassLoader());
     }
 
-    /** Every shipped class under {@code synthesis}, nested classes included. */
-    private static Set<String> synthesisClasses() throws Exception {
+    /** Every shipped class of {@code modules}, nested classes included. */
+    private static Set<String> classesOf(Set<String> modules) throws Exception {
         Set<String> names = new TreeSet<>();
         for (String name : ShippedClasses.stringsByClass().keySet()) {
-            if (SYNTHESIS.equals(ShippedClasses.moduleOf(name))) {
+            if (modules.contains(ShippedClasses.moduleOf(name))) {
                 names.add(name);
             }
         }
         if (names.isEmpty()) {
-            throw new IllegalStateException("the scan found no class under synthesis, so an empty answer would mean nothing");
+            throw new IllegalStateException("the scan found no class of " + modules + ", so an empty answer would mean nothing");
         }
         return names;
     }
 
-    /**
-     * The top-level classes under {@code synthesis} one of whose string constants {@code holds} matches,
-     * a nested class answering for the class it is declared in.
-     */
+    /** The top-level classes of the two modules one of whose string constants {@code holds} matches. */
     private static Set<String> classesHolding(Predicate<String> holds) throws Exception {
         Set<String> holding = new TreeSet<>();
         for (Map.Entry<String, List<String>> shipped : ShippedClasses.stringsByClass().entrySet()) {
-            if (SYNTHESIS.equals(ShippedClasses.moduleOf(shipped.getKey()))
+            if (THE_MODULES.contains(ShippedClasses.moduleOf(shipped.getKey()))
                     && shipped.getValue().stream().anyMatch(holds)) {
                 holding.add(shipped.getKey().split("\\$")[0]);
             }
@@ -249,14 +217,11 @@ class DeliverableRulesHaveOneHomeTest {
         return holding;
     }
 
-    /**
-     * The top-level classes under {@code synthesis} that append {@code character} to a text they are
-     * building, a nested class answering for the class it is declared in.
-     */
+    /** The top-level classes of the two modules that append {@code character} to a text they are building. */
     private static Set<String> classesAppending(String character) throws Exception {
         Set<String> appending = new TreeSet<>();
         for (Map.Entry<String, List<String>> shipped : ShippedClasses.appendedCharactersByClass().entrySet()) {
-            if (SYNTHESIS.equals(ShippedClasses.moduleOf(shipped.getKey()))
+            if (THE_MODULES.contains(ShippedClasses.moduleOf(shipped.getKey()))
                     && shipped.getValue().contains(character)) {
                 appending.add(shipped.getKey().split("\\$")[0]);
             }
@@ -268,9 +233,6 @@ class DeliverableRulesHaveOneHomeTest {
     private static boolean writesAMarkdownEscape(String constant) {
         boolean holdsAnEscape =
                 !constant.equals(THE_CITATION_PATTERN) && MARKDOWN_ESCAPES.stream().anyMatch(constant::contains);
-        return holdsAnEscape
-                || constant.equals(A_BACKSLASH)
-                || constant.contains(A_BACKSLASH_BEFORE_A_VALUE)
-                || constant.contains(A_BACKSLASH_BEFORE_WHAT_A_REGEX_MATCHED);
+        return holdsAnEscape || constant.equals(A_BACKSLASH) || constant.contains(A_BACKSLASH_BEFORE_A_VALUE);
     }
 }

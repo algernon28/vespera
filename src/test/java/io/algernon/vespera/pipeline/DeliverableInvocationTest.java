@@ -8,6 +8,7 @@ import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.corpus.Walk;
+import io.algernon.vespera.deliverable.Deliverable;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.PathScriptedExtractor;
 import io.algernon.vespera.ledger.RunId;
@@ -16,7 +17,6 @@ import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileKeys;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.synthesis.Clusters;
-import io.algernon.vespera.synthesis.Deliverable;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -49,9 +49,9 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * What an invocation of stage 6b actually leaves on disk (ADR-103, ADR-104, ADR-111, ADR-112, #186):
- * a tree named for the run that wrote it, the index that opens it, the listing beside it, and the
- * line that tells the operator both are there.
+ * What an invocation of stage 6b actually leaves on disk (ADR-103, ADR-104, ADR-111, ADR-112, ADR-274, #186):
+ * a tree named for the run that wrote it, the index that opens it, the listing beside it, a copy of every
+ * survivor it lists, and the line that tells the operator where the index is.
  *
  * <p>Driven end to end rather than against the writer, because every claim here is about something
  * the writer is handed rather than something it decides: which run the tree is named for, which
@@ -77,6 +77,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-103", url = Adr.THE_DELIVERABLE_IS_A_MARKDOWN_TREE_PER_RUN, type = "adr")
 @Link(name = "ADR-104", url = Adr.THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED, type = "adr")
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
+@Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 class DeliverableInvocationTest {
 
     /** The logger every operator-facing line in this application is written through. */
@@ -160,19 +161,20 @@ class DeliverableInvocationTest {
     private static final String WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS = "a second corpus document";
 
     /**
-     * A bracketed ordinal not immediately followed by {@code (}, which is a citation the page failed to
-     * rewrite (ADR-109): a link's own {@code [n]} is followed by its destination and so is not one.
+     * A bracketed ordinal that is not the text of a citation's link, which is a citation the page failed to
+     * rewrite (ADR-109): a link's own {@code [n]} follows the {@code ">} that ends its opening tag.
      */
-    private static final Pattern A_RAW_CITATION = Pattern.compile("\\[\\d+\\](?!\\()");
+    private static final Pattern A_RAW_CITATION = Pattern.compile("(?<!\">)\\[\\d+\\]");
 
-    /**
-     * The destination of one membership entry, captured the way a renderer reads one: everything
-     * between the parenthesis that opens the destination and the one that closes it. The link text is
-     * skipped over rather than matched loosely, because a document's own name may carry an escaped
-     * bracket and a pattern stopping at the first {@code ]} would read half a name as a destination.
-     */
+    /** The destination of one membership entry: the link that opens its item, where its copy stands (ADR-274 §2.6). */
     private static final Pattern A_MEMBERSHIP_DESTINATION =
-            Pattern.compile("\\d+\\. <a id=\"document-\\d+\"></a>\\[(?:\\\\.|[^\\]])*\\]\\(([^)]*)\\)");
+            Pattern.compile("<li id=\"document-\\d+\">\n<a href=\"([^\"]*)\">");
+
+    /** The folder of the tree the copies lie in (ADR-274 §1). */
+    private static final String THE_COPIES = "documents";
+
+    /** The column of the listing that says what became of each document's copy (ADR-274 §1.4). */
+    private static final String THE_COPY_OUTCOME_COLUMN = "copy_outcome";
 
     /**
      * Every key the profile carries, each of which the index states beside the value it held — read
@@ -426,8 +428,8 @@ class DeliverableInvocationTest {
                 "and a value nobody set is stated with nothing beside it, the way every unanswered value"
                         + " is: the attempt at reading the archive was left unset here, so this was the"
                         + " first attempt",
-                () -> assertThat(theIndexLineNaming(root, "- " + THE_ATTEMPT_KEY + ":").strip())
-                        .isEqualTo("- " + THE_ATTEMPT_KEY + ":"));
+                () -> assertThat(textOf(theIndexLineNaming(root, "<li>" + THE_ATTEMPT_KEY + ":")))
+                        .isEqualTo(THE_ATTEMPT_KEY + ":"));
     }
 
     @Test
@@ -455,8 +457,8 @@ class DeliverableInvocationTest {
                         + " the operator wrote, rather than leaving it off or putting a number of its own"
                         + " in its place -- what the file said is what a reader of this tree needs, the"
                         + " way a misspelt threshold is shown as it was misspelt",
-                () -> assertThat(theIndexLineNaming(root, "- " + THE_ATTEMPT_KEY + ":").strip())
-                        .isEqualTo("- " + THE_ATTEMPT_KEY + ": " + AN_ATTEMPT_THAT_IS_IGNORED));
+                () -> assertThat(textOf(theIndexLineNaming(root, "<li>" + THE_ATTEMPT_KEY + ":")))
+                        .isEqualTo(THE_ATTEMPT_KEY + ": " + AN_ATTEMPT_THAT_IS_IGNORED));
     }
 
     @Test
@@ -525,12 +527,12 @@ class DeliverableInvocationTest {
                 "and there is nothing to open from it -- no link, because there is no page for one to"
                         + " lead to. A link to writing that was never produced is worse than the hole it"
                         + " would cover",
-                () -> assertThat(theIndexLineNaming(root, THE_CLUSTER_PLACED_FIRST)).doesNotContain("]("));
+                () -> assertThat(theIndexLineNaming(root, THE_CLUSTER_PLACED_FIRST)).doesNotContain("<a "));
         claim(
                 "while the group after it was still written over and still has its page, so one answer"
                         + " nobody believed cost its own group and nothing else",
                 () -> assertThat(theIndexLineNaming(root, SeedScriptedExtractionBeans.STUBBED_TITLE))
-                        .contains("]("));
+                        .contains("<a href="));
     }
 
     @Test
@@ -619,8 +621,14 @@ class DeliverableInvocationTest {
                 () -> assertThat(gone).doesNotExist());
         claim(
                 "both of the " + TWO_DOCUMENTS + " survivors are still listed: the tree is written from"
-                        + " what was recorded about each document, and never opens one to write it",
+                        + " what was recorded about each document, and opens one only to copy it",
                 () -> assertThat(rowsOfTheListing(root)).hasSize(TWO_DOCUMENTS));
+        claim(
+                "and the gone document's row says it is gone, so no copy stands for it, while the other's was"
+                        + " copied",
+                () -> assertThat(columnOfTheListing(root, THE_COPY_OUTCOME_COLUMN))
+                        .containsEntry("corpus.txt", "gone")
+                        .containsEntry("another-corpus-document.txt", "copied"));
         claim(
                 "the gone document's content_hash cell is the SHA-256 of the bytes it held, computed here"
                         + " with the JDK before it was deleted: the cell is the value recorded when the"
@@ -681,6 +689,10 @@ class DeliverableInvocationTest {
                         + " the file's hash finds that the file has changed since",
                 () -> assertThat(contentHashesOfTheListing(root))
                         .containsEntry("corpus.txt", theHashItWasConvertedUnder));
+        claim(
+                "and its row says it changed since it was read, so no copy of bytes nothing was computed from"
+                        + " stands in the tree",
+                () -> assertThat(columnOfTheListing(root, THE_COPY_OUTCOME_COLUMN)).containsEntry("corpus.txt", "changed"));
         claim(
                 "and no warning names the rewritten file: nothing about it was left out",
                 () -> assertThat(logged.list)
@@ -765,7 +777,7 @@ class DeliverableInvocationTest {
     @DisplayName("A group's own page carries the writing with its citation resolved and the whole group beneath it")
     @Link(name = "ADR-109", url = Adr.A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL, type = "adr")
     @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
-    void writesAPageWhoseCitationLeadsToADocumentOfTheArchive(@TempDir Path root, @TempDir Path seeds)
+    void writesAPageWhoseCitationLeadsToACopyOfADocumentOfTheArchive(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
 
@@ -779,7 +791,7 @@ class DeliverableInvocationTest {
                         + " notation it arrived as, on a page a whole invocation produced: every other"
                         + " claim about this rewriting is made against the writer holding values by hand,"
                         + " and none of them says a real run reaches it",
-                () -> assertThat(page).contains("[1](#document-1)"));
+                () -> assertThat(page).contains("<a href=\"#document-1\">[1]</a>"));
         claim(
                 "and no raw marker is left anywhere on it, so what a reader meets is the link and never"
                         + " the model's own numbering",
@@ -788,46 +800,58 @@ class DeliverableInvocationTest {
                 "the entry that citation points at is the first of the list, and both of this corpus's "
                         + TWO_DOCUMENTS + " documents are on it -- the group entire, not the one document"
                         + " the writing happened to cite",
-                () -> assertThat(page).contains("1. <a id=\"document-1\"></a>[", "2. <a id=\"document-2\"></a>["));
+                () -> assertThat(page).contains("<li id=\"document-1\">", "<li id=\"document-2\">"));
         claim(
-                "no destination on the page names a scheme: the reader's renderer decides what a link is,"
-                        + " and the two that were measured as a person's way into this tree make no link at"
-                        + " all of one that begins \"file:\" -- one printing the entry's source at the"
-                        + " reader, the other keeping the text and dropping the destination",
-                () -> assertThat(page).doesNotContain("file:"));
+                "no destination on the page names a scheme or leaves the tree: a link that leaves it breaks the"
+                        + " moment the folder is carried elsewhere",
+                () -> assertThat(page).doesNotContain("file:").doesNotContain(Walk.canonicalRoot(root).toString()));
         claim(
-                "and each entry leads on to the document where it already sits: both destinations are"
-                        + " followed from the directory the page is in, and both land on a file that is"
-                        + " really there -- the second click of the chain, and the whole of what this tool"
-                        + " owes a reader who doubts a sentence. This is the one claim in the project that"
-                        + " exercises a link rather than reading its text, because only a whole invocation"
-                        + " leaves an archive on disk for one to land in",
+                "and each entry leads on to the document's copy inside the tree: both destinations are"
+                        + " followed from the directory the page is in, and both land on a copy holding exactly"
+                        + " the bytes of a document of the archive -- the second click of the chain, and the"
+                        + " whole of what this tool owes a reader who doubts a sentence",
                 () -> assertThat(whereTheEntriesLeadFrom(pageFile))
                         .hasSize(TWO_DOCUMENTS)
-                        .allSatisfy(document -> assertThat(document).exists()));
+                        .allSatisfy(copy -> assertThat(copy.startsWith(theTreeOf(root).resolve(THE_COPIES))).isTrue())
+                        .extracting(DeliverableInvocationTest::contentOf)
+                        .containsExactlyInAnyOrder(WHAT_A_CORPUS_DOCUMENT_SAYS, WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS));
     }
 
     @Test
-    @Story("The archive is referenced and never copied")
-    @DisplayName("Nothing in the tree is a copy of a document, and the archive is left exactly as it was")
-    void copiesNoOriginalIntoTheTree(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    @Story("Every document listed is copied into the tree, and the archive is left as it was")
+    @DisplayName("Each document is copied into the tree byte for byte, and the archive is left exactly as it was")
+    void copiesEverySurvivorIntoTheTreeAndLeavesTheArchiveAsItWas(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
         anApprovedCorpus(root, seeds);
 
         cli.run("run", root.toString());
 
         claim(
-                "nothing in the tree carries the text of a document from the archive -- not the documents"
-                        + " themselves and not the text pulled out of them, which would be a third version"
-                        + " of every document and an invitation to read the wrong one",
-                () -> assertThat(everyFileIn(theTreeOf(root)))
-                        .allSatisfy(file -> assertThat(Files.readString(file))
-                                .doesNotContain(WHAT_A_CORPUS_DOCUMENT_SAYS)
-                                .doesNotContain(WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS)));
+                "the tree's copies are exactly the " + TWO_DOCUMENTS + " documents of the archive, byte for"
+                        + " byte, and nothing else in the tree carries a document's text -- not the text pulled"
+                        + " out of one, which would be a third version of every document",
+                () -> {
+                    assertThat(everyFileIn(theTreeOf(root).resolve(THE_COPIES)))
+                            .extracting(DeliverableInvocationTest::contentOf)
+                            .containsExactlyInAnyOrder(WHAT_A_CORPUS_DOCUMENT_SAYS, WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS);
+                    assertThat(everyFileIn(theTreeOf(root)))
+                            .filteredOn(file -> !file.startsWith(theTreeOf(root).resolve(THE_COPIES)))
+                            .allSatisfy(file -> assertThat(Files.readString(file))
+                                    .doesNotContain(WHAT_A_CORPUS_DOCUMENT_SAYS)
+                                    .doesNotContain(WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS));
+                });
         claim(
-                "and the archive holds exactly the " + TWO_DOCUMENTS + " documents it held before,"
-                        + " unmoved and unaugmented: curating hundreds of gigabytes must never duplicate"
-                        + " them, and nothing here writes inside the archive at all",
-                () -> assertThat(everyFileIn(root)).hasSize(TWO_DOCUMENTS));
+                "and every row of the listing says its document was copied",
+                () -> assertThat(columnOfTheListing(root, THE_COPY_OUTCOME_COLUMN).values())
+                        .hasSize(TWO_DOCUMENTS)
+                        .containsOnly("copied"));
+        claim(
+                "and the archive holds exactly the " + TWO_DOCUMENTS + " documents it held before, with the"
+                        + " bytes they held: the originals are read and never written, and nothing here writes"
+                        + " inside the archive at all",
+                () -> assertThat(everyFileIn(root))
+                        .extracting(DeliverableInvocationTest::contentOf)
+                        .containsExactlyInAnyOrder(WHAT_A_CORPUS_DOCUMENT_SAYS, WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS));
     }
 
     @Test
@@ -845,16 +869,19 @@ class DeliverableInvocationTest {
         cli.run("run", root.toString());
 
         claim(
-                "the last thing the invocation says names the tree it just wrote: a name of "
+                "the last thing the invocation says names the index of the tree it just wrote: a name of "
                         + THE_WHOLE_RUN_NAME + " characters is neither readable nor in any order, so the"
                         + " one place an operator can be handed the path is here",
-                () -> assertThat(operatorLines().getLast()).contains(theTreeOf(root).toString()));
+                () -> assertThat(operatorLines().getLast()).contains(theIndexFileOf(root).toString()));
         claim(
                 "and it counts the " + ONE_CLUSTER_LEFT_UNWRITTEN + " group left unwritten beside it, so"
                         + " the operator knows what they have before they open it rather than after"
                         + " reading to the hole",
                 () -> assertThat(whatTheClosingLineSaysBesideThePath(root))
-                        .containsPattern("\\b" + ONE_CLUSTER_LEFT_UNWRITTEN + "\\b"));
+                        .contains("with " + ONE_CLUSTER_LEFT_UNWRITTEN + " group left unwritten"));
+        claim(
+                "and it counts the documents whose copy does not stand, none here, saying so even at nothing",
+                () -> assertThat(whatTheClosingLineSaysBesideThePath(root)).endsWith("and 0 documents not copied."));
     }
 
     @Test
@@ -876,9 +903,9 @@ class DeliverableInvocationTest {
                         + " leaving the count off when it is nothing: a line that says how much is missing"
                         + " only when something is teaches an operator to read silence as success",
                 () -> {
-                    assertThat(operatorLines().getLast()).contains(theTreeOf(root).toString());
+                    assertThat(operatorLines().getLast()).contains(theIndexFileOf(root).toString());
                     assertThat(whatTheClosingLineSaysBesideThePath(root))
-                            .containsPattern("\\b" + NO_CLUSTER_LEFT_UNWRITTEN + "\\b");
+                            .contains("with " + NO_CLUSTER_LEFT_UNWRITTEN + " groups left unwritten");
                 });
     }
 
@@ -887,6 +914,20 @@ class DeliverableInvocationTest {
         return workingDirectory
                 .resolve(Deliverable.DIRECTORY_NAME)
                 .resolve(generationRuns(root).getLast());
+    }
+
+    /** The index of that tree, which the closing line names (ADR-274 §7). */
+    private Path theIndexFileOf(Path root) {
+        return theTreeOf(root).resolve(Deliverable.INDEX_FILE_NAME);
+    }
+
+    /** What {@code file} holds, read as text. */
+    private static String contentOf(Path file) {
+        try {
+            return Files.readString(file);
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
     }
 
     /**
@@ -927,7 +968,7 @@ class DeliverableInvocationTest {
         }
     }
 
-    /** Every file anywhere beneath {@code directory}, which is what a claim about copying counts. */
+    /** Every file anywhere beneath {@code directory}, which is what a claim about the copies counts. */
     private static List<Path> everyFileIn(Path directory) throws IOException {
         try (Stream<Path> entries = Files.walk(directory)) {
             return entries.filter(Files::isRegularFile).toList();
@@ -950,12 +991,17 @@ class DeliverableInvocationTest {
      * double quotes, the way a program loading the file splits it.
      */
     private Map<String, String> contentHashesOfTheListing(Path root) throws IOException {
+        return columnOfTheListing(root, "content_hash");
+    }
+
+    /** Each listed document's cell of {@code column}, keyed by the path the listing gives it, read as above. */
+    private Map<String, String> columnOfTheListing(Path root, String column) throws IOException {
         List<String> lines = Files.readAllLines(theTreeOf(root).resolve(Deliverable.MANIFEST_FILE_NAME)).stream()
                 .filter(line -> !line.isBlank())
                 .toList();
         List<String> header = cellsOf(lines.getFirst());
         int path = header.indexOf("path");
-        int contentHash = header.indexOf("content_hash");
+        int contentHash = header.indexOf(column);
         Map<String, String> byPath = new LinkedHashMap<>();
         for (String row : lines.subList(1, lines.size())) {
             List<String> cells = cellsOf(row);
@@ -1011,7 +1057,7 @@ class DeliverableInvocationTest {
     /**
      * The one cluster's page beneath the tree this corpus's work wrote.
      *
-     * <p>Found as the one Markdown file that is not the index, rather than by composing the name from
+     * <p>Found as the one HTML file that is not the index, rather than by composing the name from
      * a label and an ordinal: a claim about what a page carries should not also depend on this test
      * having predicted what the page would be called.
      */
@@ -1025,7 +1071,7 @@ class DeliverableInvocationTest {
      */
     private Path theClusterPageFileOf(Path root) throws IOException {
         List<Path> pages = everyFileIn(theTreeOf(root)).stream()
-                .filter(file -> file.getFileName().toString().endsWith(".md"))
+                .filter(file -> file.getFileName().toString().endsWith(".html"))
                 .filter(file -> !file.getFileName().toString().equals(Deliverable.INDEX_FILE_NAME))
                 .toList();
         if (pages.size() != ONE_CLUSTER) {
@@ -1035,14 +1081,7 @@ class DeliverableInvocationTest {
         return pages.getFirst();
     }
 
-    /**
-     * Where every membership entry on {@code page} leads, each destination decoded as a renderer
-     * decodes it and followed from the directory the page is in.
-     *
-     * <p>Decoded rather than read as characters of a filename: the percent-escapes are the renderer's
-     * to undo, and a claim that treated them as part of the name would be checking the encoding against
-     * itself instead of following the link.
-     */
+    /** Where every membership entry on {@code page} leads, each destination followed from the directory the page is in. */
     private static List<Path> whereTheEntriesLeadFrom(Path page) throws IOException {
         List<Path> documents = new ArrayList<>();
         Matcher entry = A_MEMBERSHIP_DESTINATION.matcher(Files.readString(page));
@@ -1060,41 +1099,38 @@ class DeliverableInvocationTest {
     }
 
     /**
-     * The keys the index's provenance block states, in the order it states them: every {@code - key:}
-     * line from the run's own line to the first blank one, less the three lines about the work itself.
+     * The keys the index's provenance block states, in the order it states them: every {@code <li>key:}
+     * line from the run's own line to the end of the list, less the three lines about the work itself.
      */
     private List<String> theValuesTheIndexStates(Path root) throws IOException {
         List<String> keys = new ArrayList<>();
         for (String line : theProfileLinesOfTheIndex(root)) {
-            Matcher stated = A_STATED_VALUE.matcher(line);
-            if (stated.find()) {
-                keys.add(stated.group(1));
-            }
+            keys.add(line.substring(0, line.indexOf(':')));
         }
         return keys;
     }
 
-    /** How a provenance line names its key: everything between the dash and the first colon. */
-    private static final Pattern A_STATED_VALUE = Pattern.compile("^- ([^:]+):");
+    /** How a provenance line names its key: everything between the item's opening tag and the first colon. */
+    private static final Pattern A_STATED_VALUE = Pattern.compile("^<li>([^:]+):");
 
     /**
-     * The profile's own lines of the index's provenance block, whole and stripped, in the order the
-     * index states them: every {@code - key:} line from the run's own line to the first blank one,
-     * less the three lines about the work itself.
+     * The profile's own lines of the index's provenance block, as the text each item shows, in the order the
+     * index states them: every {@code <li>key:} line from the run's own line to the end of the list, less the
+     * three lines about the work itself.
      */
     private List<String> theProfileLinesOfTheIndex(Path root) throws IOException {
         List<String> lines = Files.readAllLines(theTreeOf(root).resolve(Deliverable.INDEX_FILE_NAME));
         List<String> profileLines = new ArrayList<>();
         boolean inTheBlock = false;
         for (String line : lines) {
-            if (line.startsWith("- Run: ")) {
+            if (line.startsWith("<li>Run: ")) {
                 inTheBlock = true;
-            } else if (inTheBlock && line.isBlank()) {
+            } else if (inTheBlock && line.equals("</ul>")) {
                 break;
             }
             Matcher stated = A_STATED_VALUE.matcher(line);
             if (inTheBlock && stated.find() && !THE_LINES_ABOUT_THE_WORK.contains(stated.group(1))) {
-                profileLines.add(line.strip());
+                profileLines.add(textOf(line));
             }
         }
         return profileLines;
@@ -1103,13 +1139,27 @@ class DeliverableInvocationTest {
     /**
      * The lines the profile on disk should make on the index, one per key in the record's order: the
      * key, a colon, and the value as written where the key holds one (ADR-186 §2), stripped as the
-     * index's lines are.
+     * index's lines are read.
      */
     private List<String> theLinesTheProfileMakes() {
         List<String> expected = new ArrayList<>();
         ProfileKeys.valuesOf(profileStore.load()).forEach((key, value) -> expected.add(
-                ("- " + key + ":" + (value.value() == null ? "" : " " + value.value())).strip()));
+                (key + ":" + (value.value() == null ? "" : " " + value.value())).strip()));
         return expected;
+    }
+
+    /**
+     * The text one line of a page shows: its tags taken off and the five entities the tree writes read back as
+     * the characters they stand for, stripped.
+     */
+    private static String textOf(String line) {
+        return line.replaceAll("<[^>]*>", "")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&amp;", "&")
+                .strip();
     }
 
     /** The one line of the index mentioning {@code name}, so a claim is about an entry and not a page. */
@@ -1135,7 +1185,7 @@ class DeliverableInvocationTest {
     }
 
     /**
-     * The closing line with the path it names cut out of it.
+     * The closing line with the path of the index it names cut out of it.
      *
      * <p>A count is claimed against this rather than against the whole line, because the path carries
      * sixty-four hexadecimal characters and a temporary directory of its own: a digit found anywhere
@@ -1143,7 +1193,7 @@ class DeliverableInvocationTest {
      * having stated one.
      */
     private String whatTheClosingLineSaysBesideThePath(Path root) {
-        return operatorLines().getLast().replace(theTreeOf(root).toString(), "");
+        return operatorLines().getLast().replace(theIndexFileOf(root).toString(), "");
     }
 
     /** Every line this application wrote for an operator, in the order they were written. */

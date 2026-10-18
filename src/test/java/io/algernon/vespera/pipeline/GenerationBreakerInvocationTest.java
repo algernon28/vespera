@@ -219,6 +219,9 @@ class GenerationBreakerInvocationTest {
     /** Nothing is written over a cluster whose answer was turned down. */
     private static final int NO_WRITING_AT_ALL = 0;
 
+    /** How many times the index is opened in an invocation that writes the tree (ADR-274 §7). */
+    private static final int ONCE = 1;
+
     /** One line, and no second one: what "this and nothing else was said" comes to as a count. */
     private static final int A_SINGLE_LINE = 1;
 
@@ -244,6 +247,9 @@ class GenerationBreakerInvocationTest {
 
     @Autowired
     private ClusterFaults clusterFaults;
+
+    @Autowired
+    private RecordingPageOpener opener;
 
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger applicationLogger;
@@ -275,6 +281,7 @@ class GenerationBreakerInvocationTest {
         applicationLogger.detachAppender(logged);
         logged.stop();
         GenerationScriptedBeans.forgetScriptedAnswers();
+        opener.forget();
     }
 
     @Test
@@ -640,6 +647,64 @@ class GenerationBreakerInvocationTest {
         claim(
                 "and that invocation reports success, because nothing in it was turned down",
                 () -> assertThat(cli.getExitCode()).isZero());
+    }
+
+    @Test
+    @Story("Answers nobody believes, one after another, stop the step")
+    @DisplayName("A step stopped by five answers turned down still draws the tree and opens its index once")
+    @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+    void aStoppedStepOpensTheTreesIndexOnce(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedArrangementOf(ONE_MORE_CLUSTER_THAN_THE_STREAK, root, seeds);
+        fiveAnswersTurnedDownForFourDifferentReasons();
+        opener.forget();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the precondition: the step stopped, so the invocation reports failure and the work is not recorded"
+                        + " as done",
+                () -> {
+                    assertThat(cli.getExitCode()).isNotZero();
+                    assertThat(theWorkIsRecordedAsDone(root)).isFalse();
+                });
+        claim(
+                "the opener was asked " + ONCE + " time for an index, this tree's, with the page in place",
+                () -> assertTheIndexWasOpenedOnceInPlace(root));
+    }
+
+    @Test
+    @Story("An answer that is believed clears what came before it")
+    @DisplayName("A step left unfinished by answers turned down still draws the tree and opens its index once")
+    @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+    void anUnfinishedStepOpensTheTreesIndexOnce(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedArrangementOf(FOUR_EITHER_SIDE_OF_A_BELIEVED_ANSWER, root, seeds);
+        everyAnswerTurnedDownExceptTheFifth();
+        opener.forget();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the precondition: the step was left unfinished, the invocation succeeding with its work not recorded"
+                        + " as done, since " + EIGHT_REASONS_KEPT + " groups stand with a fault",
+                () -> {
+                    assertThat(cli.getExitCode()).isZero();
+                    assertThat(theWorkIsRecordedAsDone(root)).isFalse();
+                    assertThat(reasonsKept(root)).hasSize(EIGHT_REASONS_KEPT);
+                });
+        claim(
+                "the opener was asked " + ONCE + " time for an index, this tree's, with the page in place",
+                () -> assertTheIndexWasOpenedOnceInPlace(root));
+    }
+
+    /** That the opener was handed this corpus's tree's index exactly once, and that the page was there then. */
+    private void assertTheIndexWasOpenedOnceInPlace(Path root) {
+        Path index = workingDirectory.resolve("deliverable").resolve(generationRuns(root).getLast()).resolve("index.html");
+        List<RecordingPageOpener.Request> indexOpened = opener.requests().stream()
+                .filter(request -> request.page().getPath().endsWith("/index.html"))
+                .toList();
+        assertThat(indexOpened).hasSize(ONCE);
+        assertThat(Path.of(indexOpened.getFirst().page())).isEqualTo(index.toAbsolutePath().normalize());
+        assertThat(indexOpened.getFirst().thePageWasThere()).isTrue();
     }
 
     /**
