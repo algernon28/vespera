@@ -2113,6 +2113,15 @@ public final class Adr {
             + "0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md";
 
     /**
+     * ADR-302 -- the control panel's screens: a launch page and an invocation page of server-written forms, each
+     * report of the working directory re-served read-only at {@code /report/<file name>} under {@code sandbox
+     * allow-scripts}, and the next invocation's values, the label answers, the code-set names and the profile on pages
+     * of their own; a form is submitted by pressing one of its buttons by name.
+     */
+    public static final String THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS = FILE
+            + "0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md";
+
+    /**
      * ADR-303 -- {@code clusterPageByteCeiling}, a whole number of bytes from 1, shipped unset, splits a cluster's page
      * whose one-page size is greater into {@code index.html} and {@code index-<k>.html} at entries' ends, filled
      * greedily, each page within it but one of a single entry, linked first, previous, next and last, the citations
@@ -2130,6 +2139,15 @@ public final class Adr {
      */
     public static final String VESPERA_NEVER_SENDS_THE_TREE_TO_CONFLUENCE = FILE
             + "0304-vespera-never-sends-the-deliverable-tree-to-confluence-itself-and-holds-no-uploader-no-credential-and-no-connection-for-it.md";
+
+    /**
+     * ADR-305 -- the Confluence rendering is drawn in storage format, one rendering for Cloud and Data Center alike;
+     * loading it into a Cloud site is the operator's act, accepted explicitly, and the Archive's rule, ADR-195 §2
+     * and ADR-197 bind Vespera itself; nothing that differs per edition is a value the operator sets, so no run id
+     * moves.
+     */
+    public static final String THE_CONFLUENCE_RENDERING_IS_DRAWN_FOR_BOTH_EDITIONS = FILE
+            + "0305-the-confluence-rendering-is-drawn-in-storage-format-for-cloud-and-data-center-alike-and-loading-it-into-cloud-is-the-operators-act-outside-what-binds-vespera.md";
 
     private Adr() {
     }

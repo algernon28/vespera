@@ -1,5 +1,7 @@
 # ADR-297 — The control panel's screens are tested failing-first through the pages it serves, read as a browser reads them
 
+> **Partly amended — see [ADR-302](0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md).** Of §2: a form is submitted by pressing one of its submit buttons by name, only that button is sent, `submit` sends none, and a button the form does not hold, or holds disabled, fails the test and sends nothing. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel's jar names `java.base` and `jdk.httpserver` alone; the one dependency added here is at test scope and is in neither jar (§3).
