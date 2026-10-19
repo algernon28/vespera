@@ -57,16 +57,16 @@ class TheClusterPageSizesReportTest {
     private static final String SEED_PATH = "seeds/Fire Safety.docx";
 
     /** The largest group's documents: entries of near 900 bytes, enough to pass a million bytes. */
-    private static final int LARGEST_GROUPS_DOCUMENTS = 1_300;
+    private static final int LARGEST_CLUSTERS_DOCUMENTS = 1_300;
 
     /** The second largest's: enough to pass a hundred thousand bytes and not a million. */
-    private static final int SECOND_GROUPS_DOCUMENTS = 150;
+    private static final int SECOND_CLUSTERS_DOCUMENTS = 150;
 
     /** How many small groups there are, of 1 to this many documents each, one group of each size. */
-    private static final int SMALL_GROUPS = 19;
+    private static final int SMALL_CLUSTERS = 19;
 
     /** Every group: the two large ones, the small ones, and one of no document. */
-    private static final int EVERY_GROUP = 2 + SMALL_GROUPS + 1;
+    private static final int EVERY_CLUSTER = 2 + SMALL_CLUSTERS + 1;
 
     /** How many of the largest the report ranks. */
     private static final int RANKED = 10;
@@ -107,15 +107,15 @@ class TheClusterPageSizesReportTest {
         List<Long> ascending = drawn.stream().map(Drawn::onePageSize).sorted().toList();
 
         claim(
-                "the tree shows " + EVERY_GROUP + " groups, so every number below is read off each of their pages",
-                () -> assertThat(drawn).hasSize(EVERY_GROUP));
+                "the tree shows " + EVERY_CLUSTER + " groups, so every number below is read off each of their pages",
+                () -> assertThat(drawn).hasSize(EVERY_CLUSTER));
         claim(
-                "the report states, in this order: the key as unset; " + EVERY_GROUP + " groups; the largest page"
+                "the report states, in this order: the key as unset; " + EVERY_CLUSTER + " groups; the largest page"
                         + " written whole; the 95th percentile and the median, each the size at rank ceil(p x n / 100)"
                         + " of the sizes in ascending order; and how many groups are larger than each of the four marks",
                 () -> assertThat(labelledRowsOf(report)).containsExactly(
                         new Row("clusterPageByteCeiling", "unset"),
-                        new Row("Groups", String.valueOf(EVERY_GROUP)),
+                        new Row("Groups", String.valueOf(EVERY_CLUSTER)),
                         new Row("Largest, in bytes", String.valueOf(ascending.getLast())),
                         new Row("95th percentile, in bytes", String.valueOf(nearestRank(ascending, 95))),
                         new Row("Median, in bytes", String.valueOf(nearestRank(ascending, 50))),
@@ -162,7 +162,7 @@ class TheClusterPageSizesReportTest {
                         + " ceiling, and then the groups it split, the pages written in all and those larger than it",
                 () -> assertThat(labelledRowsOf(report)).containsSubsequence(
                         new Row("clusterPageByteCeiling", String.valueOf(A_CEILING)),
-                        new Row("Groups", String.valueOf(EVERY_GROUP)),
+                        new Row("Groups", String.valueOf(EVERY_CLUSTER)),
                         new Row("Largest, in bytes", String.valueOf(
                                 whole.stream().mapToLong(Drawn::onePageSize).max().orElseThrow())),
                         new Row("Groups split", "1"),
@@ -221,24 +221,24 @@ class TheClusterPageSizesReportTest {
     }
 
     /**
-     * The fixture, drawn under {@code base}: a group of {@value #LARGEST_GROUPS_DOCUMENTS} long-pathed documents written
-     * over, one of {@value #SECOND_GROUPS_DOCUMENTS} nothing was written over, {@value #SMALL_GROUPS} small groups of 1
-     * to {@value #SMALL_GROUPS} documents, and one of none.
+     * The fixture, drawn under {@code base}: a group of {@value #LARGEST_CLUSTERS_DOCUMENTS} long-pathed documents written
+     * over, one of {@value #SECOND_CLUSTERS_DOCUMENTS} nothing was written over, {@value #SMALL_CLUSTERS} small groups of 1
+     * to {@value #SMALL_CLUSTERS} documents, and one of none.
      */
     private static Path drawTheFixture(Path base, ClusterPageCeiling ceiling) {
         List<RecordedCluster> arrangement = new ArrayList<>();
         List<ListedSurvivor> survivors = new ArrayList<>();
         long[] next = {1_000};
-        RecordedCluster largest = cluster(THE_SEED, 0, "Hydrant valves", 1, LARGEST_GROUPS_DOCUMENTS);
+        RecordedCluster largest = cluster(THE_SEED, 0, "Hydrant valves", 1, LARGEST_CLUSTERS_DOCUMENTS);
         arrangement.add(largest);
-        survivors.addAll(members(0, LARGEST_GROUPS_DOCUMENTS, true, next));
-        arrangement.add(cluster(THE_SEED, 1, "Sprinkler heads", 2, SECOND_GROUPS_DOCUMENTS));
-        survivors.addAll(members(1, SECOND_GROUPS_DOCUMENTS, true, next));
-        for (int small = 1; small <= SMALL_GROUPS; small++) {
+        survivors.addAll(members(0, LARGEST_CLUSTERS_DOCUMENTS, true, next));
+        arrangement.add(cluster(THE_SEED, 1, "Sprinkler heads", 2, SECOND_CLUSTERS_DOCUMENTS));
+        survivors.addAll(members(1, SECOND_CLUSTERS_DOCUMENTS, true, next));
+        for (int small = 1; small <= SMALL_CLUSTERS; small++) {
             arrangement.add(cluster(THE_SEED, 1 + small, "Alarm panel " + small, 2 + small, small));
             survivors.addAll(members(1 + small, small, false, next));
         }
-        arrangement.add(cluster(THE_SEED, 2 + SMALL_GROUPS, "Empty riser", 3 + SMALL_GROUPS, 0));
+        arrangement.add(cluster(THE_SEED, 2 + SMALL_CLUSTERS, "Empty riser", 3 + SMALL_CLUSTERS, 0));
         Map<ClusterSlot, SynthesisDoc> written =
                 Map.of(slotOf(largest), writing("Inspection of hydrant valves", "Valves [1] and seals [2].", 1_000, 1_001));
         return ListedTree.writeWithCeiling(
