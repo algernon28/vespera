@@ -42,6 +42,7 @@ import org.junit.jupiter.api.Test;
 @Issue("351")
 @Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class DeliverableRulesHaveOneHomeTest {
 
     /** The two modules the deliverable's rules lie in. */
@@ -69,13 +70,17 @@ class DeliverableRulesHaveOneHomeTest {
     /** A quote doubled inside a quoted CSV field (RFC 4180). */
     private static final String A_DOUBLED_QUOTE = "\"\"";
 
-    /** The package-private collaborators of the tree's writer, each carrying one rule (ADR-213 §1, ADR-274 §4). */
+    /**
+     * The package-private collaborators of the tree's writer, each carrying one rule (ADR-213 §1, ADR-274 §4), a copy's
+     * name in its cluster folder among them (ADR-280 §6).
+     */
     private static final List<String> THE_COLLABORATORS = List.of(
             "ManifestCsv",
             "ClusterPage",
             "IndexPage",
             "EntryPictures",
             "Copies",
+            "CopyNames",
             "Html",
             "ProseHtml",
             "UnwrittenSentences");

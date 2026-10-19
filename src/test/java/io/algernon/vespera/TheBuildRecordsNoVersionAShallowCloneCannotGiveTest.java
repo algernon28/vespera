@@ -12,8 +12,6 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -89,7 +87,7 @@ class TheBuildRecordsNoVersionAShallowCloneCannotGiveTest {
 
     @BeforeAll
     static void threeCommits() throws IOException {
-        assumeTrue(gitRuns(), "git is not on the path, and the build asks it for every module's version");
+        assumeTrue(FixtureGit.runs(), "git is not on the path, and the build asks it for every module's version");
         origin = Files.createDirectories(folder.resolve("origin"));
         git(origin, "init", "--quiet");
         for (String module : List.of("corpus", "ledger", "pipeline")) {
@@ -225,43 +223,7 @@ class TheBuildRecordsNoVersionAShallowCloneCannotGiveTest {
         return git(origin, "rev-parse", "HEAD");
     }
 
-    private static boolean gitRuns() {
-        try {
-            Process process = new ProcessBuilder("git", "--version").redirectErrorStream(true).start();
-            process.getInputStream().readAllBytes();
-            return process.waitFor() == 0;
-        } catch (IOException e) {
-            return false;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
-        }
-    }
-
-    /** Runs git with an identity and no signing of its own, so a machine's configuration cannot stop a commit. */
     private static String git(Path directory, String... arguments) {
-        List<String> command = new ArrayList<>(List.of(
-                "git",
-                "-c", "user.name=Vespera test",
-                "-c", "user.email=test@vespera.invalid",
-                "-c", "commit.gpgsign=false",
-                "-c", "init.defaultBranch=main"));
-        command.addAll(List.of(arguments));
-        try {
-            Process process = new ProcessBuilder(command).directory(directory.toFile()).redirectErrorStream(true).start();
-            String output;
-            try (InputStream out = process.getInputStream()) {
-                output = new String(out.readAllBytes(), StandardCharsets.UTF_8).trim();
-            }
-            if (process.waitFor() != 0) {
-                throw new IllegalStateException(String.join(" ", command) + " failed: " + output);
-            }
-            return output;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(e);
-        }
+        return FixtureGit.git(directory, arguments);
     }
 }

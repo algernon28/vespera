@@ -19,8 +19,9 @@ import java.util.Set;
  * <p>The CSV is the surrounding that answers to a parser, so its rule is a doubled quote and not the HTML
  * escaping rule (ADR-137 §4). It is opened in a spreadsheet too, so a path that one would run
  * as a formula is written behind a single quote (ADR-235). Its last two columns, {@code copy} and {@code
- * copy_outcome}, say what became of each survivor's copy (ADR-274 §1.4); both are words and names of the tree's
- * own, and need no quoting.
+ * copy_outcome}, say what became of each survivor's copy (ADR-274 §1.4). The outcome is a word and needs no quoting;
+ * the copy is the original's own file name, commas and quotes kept (ADR-280 §1.2), and is quoted like the path
+ * columns.
  */
 final class ManifestCsv {
 
@@ -50,7 +51,7 @@ final class ManifestCsv {
                 Map<ClusterSlot, ArrangedCluster> places = clusters.isEmpty() ? Map.of() : source.placesOf(clusters);
                 for (ListedSurvivor survivor : page) {
                     try {
-                        append(csv, survivor, places, copies.outcomeOf(survivor));
+                        append(csv, survivor, places, copies.outcomeOf(survivor), copies);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -63,7 +64,8 @@ final class ManifestCsv {
     }
 
     private static void append(
-            Appendable csv, ListedSurvivor survivor, Map<ClusterSlot, ArrangedCluster> places, CopyOutcome outcome)
+            Appendable csv, ListedSurvivor survivor, Map<ClusterSlot, ArrangedCluster> places, CopyOutcome outcome,
+            Copies copies)
             throws IOException {
         ArrangedCluster cluster = Optional.ofNullable(places.get(survivor.slot()))
                 .orElseThrow(() ->
@@ -93,7 +95,7 @@ final class ManifestCsv {
                 .append(',')
                 .append(String.valueOf(cluster.clusterOrder()))
                 .append(',')
-                .append(outcome == CopyOutcome.COPIED ? Copies.pathOf(survivor) : "")
+                .append(outcome == CopyOutcome.COPIED ? cell(copies.pathOf(survivor)) : "")
                 .append(',')
                 .append(outcome.word())
                 .append('\n');

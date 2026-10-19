@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-241](0241-the-manifest-asks-a-pages-places-together-a-clusters-synthesis-doc-is-read-once-and-a-survivors-pictures-are-looked-up-by-its-listed-key.md).** In §9, `SurvivorPictures.of` is handed the `ListedSurvivor` and not its `OccurrenceId`, so a survivor's pictures are looked up by the content hash its listing read, with no lookup of their own. The two passes, the one survivor's pixels held at a time and everything else of §9 stand.
 
+> **Partly amended — see [ADR-280](0280-a-clusters-folder-holds-its-page-and-a-copy-of-each-of-its-survivors-under-the-originals-own-name-suffixed-only-on-a-collision.md).** The cluster's page lies, as `index.html`, in the folder §3 names for its pictures, so a picture's destination from the page is `<hex>.<ext>`; and §4's "It is not copied into the tree" is struck: every survivor listed is copied, an image included (ADR-274 §2). That no picture from the cache is written under an image survivor's entry, and none shown inline from the archive, stands.
+
 - **Date**: 2026-09-25
 - **Status**: accepted
 - **Amends**: [ADR-104](0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md), on two points (§10). First, where it refuses the extracted text ("Why not the extracted text either"): a survivor's pictures are carved out of that refusal, within the rule and the budget below. The extracted text stays refused, and so does any copy of an original, a standalone image file included (§4). Second, where it says 6b does not check that the originals are still there: writing the tree now reads every listed survivor's original in full, once, to hash it. That read still records no verdict and still keeps the entry. It is a read, not an existence check.

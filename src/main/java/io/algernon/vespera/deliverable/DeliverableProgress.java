@@ -19,8 +19,9 @@ package io.algernon.vespera.deliverable;
  * holds reads no picture and is neither in the total nor reported.
  *
  * <p><b>Of the copies</b>, exactly one of {@link #survivorCopied}, {@link #survivorChanged}, {@link #survivorGone},
- * {@link #survivorWithNoRoom} and {@link #survivorNotCopied} is called for each survivor whose copy did not stand when
- * {@link #toCopySurvivors} counted, and {@link #survivorAlreadyCopied} for each whose copy did.
+ * {@link #survivorWithNoRoom} and {@link #survivorNotCopied} is called for each survivor whose copy does not stand
+ * when its cluster is reached, and {@link #survivorAlreadyCopied} for each whose copy does; so exactly one of the six
+ * is called for each survivor {@link #toCopySurvivors} counted.
  *
  * <p>Every method does nothing by default, and {@link #NONE} overrides none, for a caller with no line to
  * write.
@@ -37,9 +38,10 @@ public interface DeliverableProgress {
     default void picturesListed() {}
 
     /**
-     * Called once, after the pictures are listed and before the first copy, with how many survivors have no copy
-     * standing and so are about to be copied, how many bytes their originals hold (as far as their sizes could be
-     * read), and how many bytes the working directory's drive has free.
+     * Called once, after the pictures are listed and before the first copy, with how many survivors are listed, how
+     * many bytes their originals hold (as far as their sizes could be read), and how many bytes the working
+     * directory's drive has free. A copy's name is known only once its cluster is reached, so the count includes
+     * survivors whose copy already stands, and it is an upper bound on what will be copied.
      */
     default void toCopySurvivors(long survivors, long bytes, long usableBytes) {}
 
@@ -84,4 +86,17 @@ public interface DeliverableProgress {
 
     /** Called after each row of the manifest has been written. */
     default void manifestRowWritten() {}
+
+    /**
+     * Called once, after the last copy, with how many copies stand, made or kept, at an absolute path longer than 259
+     * characters (ADR-280 §3). A count and no name.
+     */
+    default void copiesAtALongPath(long copies) {}
+
+    /**
+     * Called once, after the index and the manifest are in place, with whether the tree's top level holds a {@code
+     * documents/} folder this drawing did not write, and how many other folders, at the top or in a partition folder
+     * this drawing wrote, it did not write either (ADR-280 §4).
+     */
+    default void leftBehind(boolean documentsFolder, long otherFolders) {}
 }

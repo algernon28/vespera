@@ -1,5 +1,7 @@
 # ADR-112 — The arrangement is ordered by partition size and cluster mean score, and the path carries the order
 
+> **Partly amended — see [ADR-280](0280-a-clusters-folder-holds-its-page-and-a-copy-of-each-of-its-survivors-under-the-originals-own-name-suffixed-only-on-a-collision.md).** A cluster's segment of the path is a folder, named as its page was, and the page in it is `index.html`. The order prefix, its padding and the slug stand.
+
 - **Date**: 2026-09-13
 - **Status**: accepted
 - **Amends**: [ADR-104](0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md) — **its `documents.csv` column list only**, which gains `partition_order` and `cluster_order`. Everything that record decided — the originals stay where they are, nothing is copied, links are absolute `file:` targets and are not durable — is untouched.

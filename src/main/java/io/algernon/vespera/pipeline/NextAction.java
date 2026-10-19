@@ -184,7 +184,11 @@ class NextAction {
      */
     private Optional<DeliverableSummary> deliverableFor(Optional<RunId> generation, InvocationRuns invocationRuns) {
         return generation.flatMap(this::summarize).map(summary -> new DeliverableSummary(
-                summary.tree(), summary.clustersLeftUnwritten(), invocationRuns.documentsNotCopied()));
+                summary.tree(),
+                summary.clustersLeftUnwritten(),
+                invocationRuns.documentsNotCopied(),
+                invocationRuns.documentsFolderLeftBehind(),
+                invocationRuns.foldersLeftBehind()));
     }
 
     /**
@@ -213,7 +217,7 @@ class NextAction {
         }
         int arranged = clustersBean.countForRun(upstream.getFirst());
         int written = synthesisDocsBean.countForRun(generation);
-        return Optional.of(new DeliverableSummary(tree, Math.max(0, arranged - written), OptionalInt.empty()));
+        return Optional.of(new DeliverableSummary(tree, Math.max(0, arranged - written), OptionalInt.empty(), false, 0));
     }
 
     /**
@@ -224,8 +228,17 @@ class NextAction {
      * @param clustersLeftUnwritten how many clusters of the arrangement carry no writing
      * @param documentsNotCopied how many documents' copies do not stand in the tree this invocation wrote, or empty
      *     where this invocation wrote none (ADR-274 §7)
+     * @param documentsFolderLeftBehind whether the tree holds a {@code documents/} folder an earlier layout wrote and
+     *     this drawing did not (ADR-280 §4)
+     * @param foldersLeftBehind how many other folders this drawing did not write the tree holds, at its top or in a
+     *     partition folder this drawing wrote (ADR-280 §4)
      */
-    record DeliverableSummary(Path tree, int clustersLeftUnwritten, OptionalInt documentsNotCopied) {}
+    record DeliverableSummary(
+            Path tree,
+            int clustersLeftUnwritten,
+            OptionalInt documentsNotCopied,
+            boolean documentsFolderLeftBehind,
+            int foldersLeftBehind) {}
 
     /**
      * Whether a label file exists to be answered.
@@ -299,6 +312,28 @@ class NextAction {
     }
 
     /**
+     * What the line says of what an earlier drawing left in the tree, to follow the count of documents not copied and
+     * precede the line's last full stop (ADR-280 §4): {@code documents/} named, any other folder counted and not named,
+     * and nothing where nothing was left or this invocation drew no tree.
+     */
+    private static String leftBehind(DeliverableSummary deliverable) {
+        if (deliverable.documentsNotCopied().isEmpty()) {
+            return "";
+        }
+        String documents = deliverable.documentsFolderLeftBehind()
+                ? "documents/ holds an earlier layout's copies and can be deleted by hand"
+                : "";
+        int others = deliverable.foldersLeftBehind();
+        String folders = others == 0
+                ? ""
+                : others + (others == 1 ? " folder" : " folders") + " left by an earlier drawing can be deleted by hand";
+        if (documents.isEmpty() && folders.isEmpty()) {
+            return "";
+        }
+        return "; " + documents + (documents.isEmpty() || folders.isEmpty() ? "" : ", and ") + folders;
+    }
+
+    /**
      * {@link #line(Profile, int, boolean, String, String, boolean)}, with the deliverable this
      * invocation's corpus already has, where there is one (ADR-103, ADR-111, #186) — empty for {@code
      * vespera label}, which arranges nothing, and for every state before the arrangement is approved,
@@ -358,7 +393,7 @@ class NextAction {
                     + deliverable.tree().resolve(Deliverable.INDEX_FILE_NAME)
                     + ", with " + deliverable.clustersLeftUnwritten() + " "
                     + (deliverable.clustersLeftUnwritten() == 1 ? "group" : "groups") + " left unwritten"
-                    + notCopied + ".";
+                    + notCopied + leftBehind(deliverable) + ".";
         }
         if (!questionsWritten) {
             return whatIsSet(profile, answersRecorded) + " No questions were written this invocation,"

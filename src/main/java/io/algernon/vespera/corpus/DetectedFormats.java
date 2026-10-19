@@ -31,6 +31,14 @@ public class DetectedFormats {
     }
 
     /**
+     * The set pass of ADR-284, reading and writing the database these detected formats are kept in and reading
+     * their formats. A new instance on each call; it holds no state between calls.
+     */
+    public CodeSets codeSets() {
+        return new CodeSets(jdbcTemplate, this);
+    }
+
+    /**
      * Records what {@code occurrenceId} was found to be under {@code runId}.
      *
      * @param subtype what the format turned out to be more precisely, or {@code null} where the bytes

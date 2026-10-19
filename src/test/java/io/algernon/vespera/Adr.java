@@ -1926,6 +1926,20 @@ public final class Adr {
             + "0279-one-vespera-run-per-corpus-root-by-a-lock-on-a-file-named-for-its-real-path-outside-every-working-directory.md";
 
     /**
+     * ADR-280 -- {@code <partition>/<cluster>/} holds the cluster's page, {@code index.html}, its pictures and a copy
+     * of each of its survivors, and {@code documents/} is no longer written; a copy keeps its original's file name,
+     * made safe for every operating system and cut to 100 code units and to 255 UTF-8 bytes with {@code .part}, the
+     * device and empty rules applying again after the cut, and only where two names collide without regard to case,
+     * or one meets the page's, a picture's or another copy's part, takes its occurrence id after a tilde before its
+     * extension; the names are worked out from the cluster's members before its first copy, so a copy that
+     * stands is still trusted unread; the survey counts the copies past 259 characters, and the closing line names a
+     * {@code documents/} an earlier drawing left and counts its other folders (amends ADR-274, ADR-276, ADR-112,
+     * ADR-149 and ADR-150).
+     */
+    public static final String A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES = FILE
+            + "0280-a-clusters-folder-holds-its-page-and-a-copy-of-each-of-its-survivors-under-the-originals-own-name-suffixed-only-on-a-collision.md";
+
+    /**
      * ADR-281 -- {@code com.zaxxer.hikari} and Spring Batch's {@code TaskExecutorJobLauncher} write to the console
      * only at WARN and to {@code logs/vespera.log} at INFO, so the last line of output that is not blank is the
      * invocation's closing line.
@@ -1952,6 +1966,17 @@ public final class Adr {
             + "0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md";
 
     /**
+     * ADR-284 -- code is kept in code sets: each below the nearest folder under the corpus root holding a build file
+     * of a list built into corpus, told by its name alone, else below the first folder under the root, the root's own
+     * files forming the root's set; a set pass of stage 1, before the hashing, keeps a set's build files and the
+     * pictures and companion files of a generated tree as code; two corpus tables record the sets and members; a set's
+     * default name is its folder's, and code-set-names.yaml renames it where names are rendered, moving no run (amends
+     * ADR-277).
+     */
+    public static final String CODE_IS_KEPT_IN_CODE_SETS_NAMED_FOR_THEIR_FOLDER = FILE
+            + "0284-code-is-kept-in-code-sets-each-below-the-nearest-folder-under-the-corpus-root-holding-a-build-file.md";
+
+    /**
      * ADR-285 -- the control panel's code lives in this build under {@code io.algernon.controlpanel}, outside the
      * nine modules, and is packaged as a second jar, classifier {@code control-panel}, that the Spring Boot jar does
      * not carry; it names only its own package, {@code java.base} and {@code jdk.httpserver}, so no class of the jar,
@@ -1967,6 +1992,13 @@ public final class Adr {
      */
     public static final String THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT = FILE
             + "0286-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md";
+
+    /**
+     * ADR-290 -- a fixture repository is run without any {@code GIT_*} variable, so a test's git commits into its own
+     * folder and never into a repository the environment names.
+     */
+    public static final String A_FIXTURE_REPOSITORY_IS_RUN_WITHOUT_GITS_LOCATION_VARIABLES = FILE
+            + "0290-a-fixture-repository-is-run-without-gits-location-variables.md";
 
     private Adr() {
     }

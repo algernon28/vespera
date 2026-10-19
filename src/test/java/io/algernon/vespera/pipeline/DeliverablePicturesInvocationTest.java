@@ -72,6 +72,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-103", url = Adr.THE_DELIVERABLE_IS_A_MARKDOWN_TREE_PER_RUN, type = "adr")
 @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class DeliverablePicturesInvocationTest {
 
     /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
@@ -161,10 +162,9 @@ class DeliverablePicturesInvocationTest {
                 });
         Path page = theOnePageOf(root);
         String text = Files.readString(page);
-        String stem = page.getFileName().toString().replaceFirst("\\.html$", "");
         String diagramName = nameOf(PictureScriptedExtractionBeans.THE_DIAGRAM);
         String letterheadName = nameOf(PictureScriptedExtractionBeans.THE_LETTERHEAD);
-        Path diagramFile = page.resolveSibling(stem).resolve(diagramName);
+        Path diagramFile = page.resolveSibling(diagramName);
 
         claim(
                 "both corpus documents reached the group's page, which the claims below depend on: a"
@@ -173,16 +173,15 @@ class DeliverablePicturesInvocationTest {
                         .contains(PictureScriptedExtractionBeans.THE_DOCUMENT_WITH_A_DIAGRAM)
                         .contains(PictureScriptedExtractionBeans.THE_DOCUMENT_WITH_ONLY_THE_LETTERHEAD));
         claim(
-                "the diagram only one document's conversion carried is written into the tree, in a"
-                        + " directory beside the group's page named after it, holding exactly the pixels the"
-                        + " converter returned: read out of what stage 2 stored, with no conversion asked"
-                        + " for again",
+                "the diagram only one document's conversion carried is written into the tree, in the"
+                        + " group's folder beside its page, holding exactly the pixels the converter returned:"
+                        + " read out of what stage 2 stored, with no conversion asked for again",
                 () -> assertThat(diagramFile).isRegularFile().hasBinaryContent(PictureScriptedExtractionBeans.THE_DIAGRAM));
         claim(
                 "and the page shows it inside the entry of the document it came from, and not inside the"
                         + " other document's entry",
                 () -> assertThat(theEntryNaming(text, PictureScriptedExtractionBeans.THE_DOCUMENT_WITH_A_DIAGRAM))
-                        .contains("<img src=\"" + stem + "/" + diagramName + "\""));
+                        .contains("<img src=\"" + diagramName + "\""));
         claim(
                 "and the only image on the page leads, by a relative path followed from the page's own"
                         + " directory, to that file: nothing outside the tree and nothing on a network is"
@@ -234,6 +233,14 @@ class DeliverablePicturesInvocationTest {
                 () -> assertThat(everyFileIn(theTreeOf(root)))
                         .noneMatch(file -> file.getFileName().toString().equals(cropName)));
         claim(
+                "the image file itself is copied like every other document, under its own name in the group's"
+                        + " folder beside the page, and its entry links to that copy",
+                () -> {
+                    assertThat(page.resolveSibling(PictureScriptedExtractionBeans.THE_SCREENSHOT)).isRegularFile();
+                    assertThat(theEntryNaming(text, PictureScriptedExtractionBeans.THE_SCREENSHOT))
+                            .contains("<a href=\"./" + PictureScriptedExtractionBeans.THE_SCREENSHOT + "\">");
+                });
+        claim(
                 "and the image file's entry shows no image at all",
                 () -> assertThat(theEntryNaming(text, PictureScriptedExtractionBeans.THE_SCREENSHOT))
                         .doesNotContain("<img"));
@@ -268,9 +275,8 @@ class DeliverablePicturesInvocationTest {
                 () -> assertThat(cli.getExitCode()).isZero());
         Path page = theOnePageOf(root);
         String text = Files.readString(page);
-        String stem = page.getFileName().toString().replaceFirst("\\.html$", "");
         String chartName = nameOf(PictureScriptedExtractionBeans.THE_CHART);
-        Path chartFile = page.resolveSibling(stem).resolve(chartName);
+        Path chartFile = page.resolveSibling(chartName);
         List<String> headerNames = List.of(
                 nameOf(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_ONE),
                 nameOf(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_TWO));
@@ -287,7 +293,7 @@ class DeliverablePicturesInvocationTest {
         claim(
                 "and it is shown inside the report's own entry",
                 () -> assertThat(theEntryNaming(text, PictureScriptedExtractionBeans.THE_REPORT))
-                        .contains("<img src=\"" + stem + "/" + chartName + "\""));
+                        .contains("<img src=\"" + chartName + "\""));
         claim(
                 "while neither crop of the header is written anywhere in the tree or linked from the page:"
                         + " each sits on another page within a point of the other's box, and a picture that"
@@ -348,11 +354,11 @@ class DeliverablePicturesInvocationTest {
         return workingDirectory.resolve(Deliverable.DIRECTORY_NAME).resolve(generationRuns(root).getLast());
     }
 
-    /** The one cluster page of that tree: the one HTML file that is not the index. */
+    /** The one cluster page of that tree: the one HTML file that is not the tree's own index (ADR-280 §0). */
     private Path theOnePageOf(Path root) throws IOException {
         List<Path> pages = everyFileIn(theTreeOf(root)).stream()
                 .filter(file -> file.getFileName().toString().endsWith(".html"))
-                .filter(file -> !file.getFileName().toString().equals(Deliverable.INDEX_FILE_NAME))
+                .filter(file -> !file.equals(theTreeOf(root).resolve(Deliverable.INDEX_FILE_NAME)))
                 .toList();
         if (pages.size() != ONE_PAGE) {
             throw new IllegalStateException(
