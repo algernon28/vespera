@@ -2103,6 +2103,15 @@ public final class Adr {
     public static final String THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT = FILE
             + "0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md";
 
+    /**
+     * ADR-305 -- the Confluence rendering is drawn in storage format, one rendering for Cloud and Data Center alike;
+     * loading it into a Cloud site is the operator's act, accepted explicitly, and the Archive's rule, ADR-195 §2
+     * and ADR-197 bind Vespera itself; nothing that differs per edition is a value the operator sets, so no run id
+     * moves.
+     */
+    public static final String THE_CONFLUENCE_RENDERING_IS_DRAWN_FOR_BOTH_EDITIONS = FILE
+            + "0305-the-confluence-rendering-is-drawn-in-storage-format-for-cloud-and-data-center-alike-and-loading-it-into-cloud-is-the-operators-act-outside-what-binds-vespera.md";
+
     private Adr() {
     }
 }
