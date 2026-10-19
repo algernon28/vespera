@@ -14,14 +14,23 @@ import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.Unwritten;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
+import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,7 +42,9 @@ import org.junit.jupiter.api.io.TempDir;
  * renderer's subset.
  *
  * <p>Written over an archive that is not there, so every copy is {@code gone}: what this class claims is about the
- * pages, which are written whatever became of the copies. {@code EverySurvivorIsCopiedTest} holds the copies.
+ * pages, which are written whatever became of the copies. {@code EverySurvivorIsCopiedTest} holds the copies. The one
+ * test of every source and link (ADR-286 §5) draws over an archive that holds every document, so each link has a
+ * copy to land on.
  */
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
@@ -82,9 +93,21 @@ class TheTreeIsHtmlTest {
     /** A slug's longest length, in characters, after the order prefix. */
     private static final int SLUG_LENGTH = 40;
 
-    /** A scheme opening a {@code src} or {@code href}, or a host after {@code //}: a page reaching off itself. */
-    private static final Pattern A_LINK_OFF_THE_TREE =
-            Pattern.compile("(?i)\\b(?:src|href)\\s*=\\s*\"(?:[a-z][a-z0-9+.-]*:|//)");
+    /** An element's tag, its name and its attributes, attribute values holding no {@code >} once escaped. */
+    private static final Pattern A_TAG = Pattern.compile("<([a-zA-Z][a-zA-Z0-9]*)([^>]*)>");
+
+    /** A {@code src} or an {@code href} among a tag's attributes, as its name and its value. */
+    private static final Pattern A_SOURCE_OR_LINK = Pattern.compile("\\b(src|href)=\"([^\"]*)\"");
+
+    /** The one scheme a page may name, on an image's source alone, and its payload in RFC 4648's padded alphabet. */
+    private static final Pattern AN_INLINED_PICTURE = Pattern.compile(
+            "data:(image/png|image/jpeg);base64,((?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?)");
+
+    /** What every PNG begins with. */
+    private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
+
+    /** What every JPEG begins with. */
+    private static final byte[] JPEG_SIGNATURE = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
 
     /** A citation as the model wrote it, standing anywhere but as the text of the link it became. */
     private static final Pattern A_RAW_CITATION = Pattern.compile("(?<!>)\\[\\d+\\](?!</a>)");
@@ -114,7 +137,7 @@ class TheTreeIsHtmlTest {
 
     @Test
     @Story("The tree is a set of web pages")
-    @DisplayName("Every page carries its own styling and no script, and links to nothing outside the tree")
+    @DisplayName("Every page carries its own styling and no script, and loads no stylesheet from elsewhere")
     void everyPageStandsAlone(@TempDir Path base) throws IOException {
         Path tree = theFixtureWritten(base);
         List<String> pages = filesUnder(tree).stream().filter(name -> name.endsWith(".html")).toList();
@@ -134,12 +157,126 @@ class TheTreeIsHtmlTest {
                         assertThat(Pattern.compile("<style>").matcher(page).results().count()).isEqualTo(1);
                     });
             claim(
-                    name + " runs no script, loads no stylesheet from elsewhere, and no source or link on it names a"
-                            + " scheme or a host: it opens offline, carried anywhere",
-                    () -> {
-                        assertThat(page).doesNotContain("<script", "<link");
-                        assertThat(A_LINK_OFF_THE_TREE.matcher(page).find()).isFalse();
-                    });
+                    name + " runs no script and loads no stylesheet from elsewhere",
+                    () -> assertThat(page).doesNotContain("<script", "<link"));
+        }
+    }
+
+    /**
+     * ADR-286 §5, the test of self-contained that replaces ADR-103's as ADR-135 bound it: every {@code src} and {@code
+     * href} of every page lands on that page, on a file inside the tree, or is a picture inlined on an image's source,
+     * and a group's folder holds its page and its copies alone. The tree is drawn over an archive that holds every
+     * document, so each copy stands and each entry links one; one document carries a PNG and a JPEG picture, and one
+     * is itself a PNG image whose name carries a space and a {@code #}.
+     */
+    @Test
+    @Story("The tree is a set of web pages")
+    @DisplayName("Every source and link on every page lands on that page or on a file inside the tree, or is a picture inlined on an image")
+    @Issue("560")
+    @Link(name = "ADR-286", url = Adr.A_CLUSTERS_PAGE_IS_ONE_FILE_ITS_PICTURES_INLINED, type = "adr")
+    void everySourceAndLinkStaysOnItsPageOrInTheTree(@TempDir Path base) throws IOException {
+        byte[] firstDocument = "the first document".getBytes(StandardCharsets.UTF_8);
+        byte[] secondDocument = "the second document".getBytes(StandardCharsets.UTF_8);
+        byte[] aDamperScan = ListedTree.anImage("png", 6, 4);
+        Path archive = base.resolve("archive");
+        Map<String, byte[]> originals = Map.of(
+                "reports/doors a.docx", firstDocument,
+                "reports/doors b.docx", secondDocument,
+                "scans/damper #2.png", aDamperScan);
+        for (Map.Entry<String, byte[]> original : originals.entrySet()) {
+            Path file = archive.resolve(original.getKey());
+            Files.createDirectories(file.getParent());
+            Files.write(file, original.getValue());
+        }
+        List<ListedSurvivor> survivors = List.of(
+                survivor(10, "reports/doors a.docx", ListedTree.sha256Of(firstDocument), THE_SEED, SEED_PATH, 0, 0.9),
+                survivor(11, "reports/doors b.docx", ListedTree.sha256Of(secondDocument), THE_SEED, SEED_PATH, 0, 0.8),
+                survivor(12, "scans/damper #2.png", ListedTree.sha256Of(aDamperScan), THE_SEED, SEED_PATH, 1, 0.7));
+        Path tree = ListedTree.write(
+                base.resolve("work"),
+                archive,
+                List.of(WRITTEN, UNWRITTEN),
+                Map.of(slotOf(WRITTEN), writing("Fire doors and their inspection", PROSE, 10, 11)),
+                survivors,
+                Map.of(slotOf(UNWRITTEN), Unwritten.NO_SENDABLE_DOCUMENT),
+                survivor -> survivor.occurrence().value() == 10
+                        ? List.of(
+                                new ListedPicture("image/png", ListedTree.anImage("png", 5, 5), false, ""),
+                                new ListedPicture("image/jpeg", ListedTree.anImage("jpg", 7, 3), false, ""))
+                        : List.of());
+        List<String> pages = filesUnder(tree).stream().filter(name -> name.endsWith(".html")).toList();
+        Set<String> kindsSeen = new TreeSet<>();
+        List<String> imagesNamingAFile = new ArrayList<>();
+
+        for (String name : pages) {
+            Path page = tree.resolve(name);
+            String text = Files.readString(page, StandardCharsets.UTF_8);
+            Matcher tag = A_TAG.matcher(text);
+            while (tag.find()) {
+                String element = tag.group(1);
+                Matcher attribute = A_SOURCE_OR_LINK.matcher(tag.group(2));
+                while (attribute.find()) {
+                    String which = element + " " + attribute.group(1);
+                    String value = attribute.group(2).replace("&amp;", "&");
+                    if (value.startsWith("#")) {
+                        kindsSeen.add("a fragment");
+                        claim(
+                                which + "=\"" + value + "\" on " + name + " names an id on the same page",
+                                () -> assertThat(text).contains("id=\"" + value.substring(1) + "\""));
+                    } else if (value.startsWith("data:")) {
+                        kindsSeen.add("an inlined picture");
+                        Matcher inlined = AN_INLINED_PICTURE.matcher(value);
+                        claim(
+                                "the data source on " + name + " is an image's source, of a PNG or a JPEG, its payload in"
+                                        + " the standard alphabet, padded, with no line break, decoding to bytes"
+                                        + " that begin with the signature of the kind it declares",
+                                () -> {
+                                    assertThat(which).isEqualTo("img src");
+                                    assertThat(inlined.matches()).isTrue();
+                                    byte[] decoded = Base64.getDecoder().decode(inlined.group(2));
+                                    byte[] signature =
+                                            inlined.group(1).equals("image/png") ? PNG_SIGNATURE : JPEG_SIGNATURE;
+                                    assertThat(Arrays.copyOf(decoded, signature.length)).isEqualTo(signature);
+                                });
+                    } else {
+                        kindsSeen.add("a file in the tree");
+                        if (element.equals("img")) {
+                            imagesNamingAFile.add(name + ": " + value);
+                        }
+                        URI destination = URI.create(value);
+                        claim(
+                                which + "=\"" + value + "\" on " + name + " names no scheme, is not rooted, and,"
+                                        + " decoded and followed from the page's own folder, is a file inside the tree",
+                                () -> {
+                                    assertThat(destination.isAbsolute()).isFalse();
+                                    assertThat(destination.getRawPath()).doesNotStartWith("/");
+                                    Path landed = page.getParent().resolve(destination.getPath()).normalize();
+                                    assertThat(landed.startsWith(tree.normalize())).isTrue();
+                                    assertThat(landed).isRegularFile();
+                                });
+                    }
+                }
+            }
+        }
+
+        claim(
+                "every kind of source and link the tree has was met on its pages, so the claims above read each one",
+                () -> assertThat(kindsSeen).containsExactly("a file in the tree", "a fragment", "an inlined picture"));
+        claim(
+                "and no image's source names a file",
+                () -> assertThat(imagesNamingAFile).isEmpty());
+        Map<String, List<String>> copiesByFolder = new TreeMap<>();
+        for (String copy : ListedTree.columnByPath(tree, "copy").values()) {
+            copiesByFolder.computeIfAbsent(copy.substring(0, copy.lastIndexOf('/')), folder -> new ArrayList<>())
+                    .add(copy.substring(copy.lastIndexOf('/') + 1));
+        }
+        for (String folder : List.of(PARTITION_FOLDER + "/1-fire-doors", PARTITION_FOLDER + "/2-smoke-dampers")) {
+            List<String> expected = new ArrayList<>(copiesByFolder.getOrDefault(folder, List.of()));
+            expected.add("index.html");
+            claim(
+                    "the group's folder " + folder + " holds its page and the copies the listing names in it, and"
+                            + " nothing else",
+                    () -> assertThat(filesUnder(tree.resolve(folder))).containsExactlyInAnyOrderElementsOf(expected));
         }
     }
 
@@ -151,7 +288,8 @@ class TheTreeIsHtmlTest {
         RecordedCluster hostile = cluster(THE_SEED, 0, "Label " + FIVE_HOSTILE, 1, 1);
         String path = "reports/Path " + FIVE_HOSTILE + ".docx";
         ListedSurvivor member = survivor(10, path, "0".repeat(64), THE_SEED, seedPath, 0, 0.9);
-        ListedPicture captioned = new ListedPicture("image/png", new byte[] {1, 2, 3}, false, "Caption " + FIVE_HOSTILE);
+        ListedPicture captioned =
+                new ListedPicture("image/png", ListedTree.anImage("png", 2, 2), false, "Caption " + FIVE_HOSTILE);
 
         Path tree = ListedTree.write(
                 base.resolve("work"),

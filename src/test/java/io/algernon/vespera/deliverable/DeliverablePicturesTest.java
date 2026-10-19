@@ -20,15 +20,13 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,24 +39,25 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * A survivor's pictures in the tree (ADR-149, #285): which of them are furniture and left out, where
- * the ones kept are written and what they are named, how each is shown under its document's
- * membership entry, what its alt text is, and how many a document may show.
+ * A survivor's pictures in the tree (ADR-149, #285): which of them are furniture and left out, how each
+ * one kept is shown under its document's membership entry, by its own bytes as a base64 source on its
+ * image (ADR-286 §1), what its alt text is, and how many a document may show.
  *
  * <p>Written against the writer with the pictures handed in by hand, as {@code ClusterFileTest} is:
  * the pictures a real run hands in come out of the extraction cache through {@code pipeline}, and a
  * stubbed extractor that gives every document the same response gives every document the same
  * pictures, which the furniture rule rightly removes. Nothing here renders a page; the bytes of the
- * page and of the files beside it are the evidence, and the destinations are followed the way a
- * browser follows them.
+ * page are the evidence, a picture being found on it as its {@code data:} source.
  *
  * <p>The archive these fixtures name is not on this machine, so no copy stands and each entry names its
  * document with the reason in italics (ADR-274 §2.6); the pictures are shown under it all the same. A cluster's page
- * is {@code index.html} in its cluster folder, and its pictures lie beside it there (ADR-280 §0), so the folder
- * holds the page and its pictures and nothing else.
+ * is {@code index.html} in its cluster folder (ADR-280 §0), and its pictures are in it, written into no file
+ * (ADR-286 §4), which {@code AClusterPageIsOneFileWithItsPicturesInlinedTest} holds.
  *
- * <p>Most pixels are short byte strings rather than real images. They cannot be decoded, so they have
- * no difference hash, and the rules that need one leave them alone (ADR-150 §3): what those tests claim
+ * <p>Most pixels are short byte strings behind the signature of the kind they declare, rather than real
+ * images, since a picture whose bytes are not of its kind is not shown (ADR-286 §1). They cannot be
+ * decoded, so they have no difference hash, and the rules that need one leave them alone (ADR-150 §3): what
+ * those tests claim
  * is decided by bytes, layer, budget and naming alone, and a string still being written is itself the
  * evidence that a picture which does not decode is not dropped. The tests of ADR-150's near-copy and
  * same-place rules use real PNGs, built so that their difference hashes differ in a stated number of
@@ -74,6 +73,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 @Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
+@Link(name = "ADR-286", url = Adr.A_CLUSTERS_PAGE_IS_ONE_FILE_ITS_PICTURES_INLINED, type = "adr")
 class DeliverablePicturesTest {
 
     /** A run id of the shape the ledger mints: sixty-four hexadecimal characters (ADR-048). */
@@ -177,14 +177,17 @@ class DeliverablePicturesTest {
     /** The media type every picture in the measured cache carried. */
     private static final String PNG = "image/png";
 
-    /** The other media type the tree writes a file for. */
+    /** The other media type a page shows a picture of. */
     private static final String JPEG = "image/jpeg";
 
-    /** A media type the tree writes no file for, because none was ever measured in the cache. */
+    /** A media type no page shows, because none was ever measured in the cache. */
     private static final String GIF = "image/gif";
 
-    /** How many hexadecimal characters of a picture's digest name its file. */
-    private static final int NAME_LENGTH = 16;
+    /** What every PNG begins with. */
+    private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
+
+    /** What every JPEG begins with. */
+    private static final byte[] JPEG_SIGNATURE = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
 
     /** The most pictures one document shows, as the writer states it. */
     private static final int THE_BUDGET = Deliverable.PICTURES_PER_DOCUMENT;
@@ -245,17 +248,17 @@ class DeliverablePicturesTest {
     private static final String THAT_CAPTION_AS_ALT_TEXT =
             "Fig. 2 a]b ![x](https://example.com/i.png) &lt;b&gt;bold&lt;/b&gt; &amp;copy; `c` \\ end\n\nsecond line";
 
-    /** Characters a picture's destination may be made of: hex, a dot, an extension. */
-    private static final Pattern A_SAFE_DESTINATION = Pattern.compile("[0-9a-f]{16}\\.(png|jpg)");
+    /** What a picture's source may be made of: its media type, then the base64 alphabet and its padding alone. */
+    private static final Pattern A_SAFE_SOURCE = Pattern.compile("data:image/png;base64,[A-Za-z0-9+/]*={0,2}");
 
     /** Every image a page shows, as its destination and its alt text. */
     private static final Pattern AN_IMAGE = Pattern.compile("<img src=\"([^\"]*)\" alt=\"([^\"]*)\">");
 
     @Test
     @Story("A picture only one document carries is shown under that document")
-    @DisplayName("A picture only one document carries is written beside the group's page and shown under its entry")
-    void writesAPictureBesideThePageAndShowsItUnderItsEntry(@TempDir Path workingDirectory) throws IOException {
-        byte[] diagram = bytes("an architecture diagram");
+    @DisplayName("A picture only one document carries is shown under its entry by its own bytes")
+    void showsAPictureUnderItsEntryByItsOwnBytes(@TempDir Path workingDirectory) throws IOException {
+        byte[] diagram = pixels("an architecture diagram");
         Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(new OccurrenceId(10), List.of(png(diagram)));
 
         Path tree = writeOneCluster(
@@ -264,32 +267,22 @@ class DeliverablePicturesTest {
                 List.of(aMember(10, "reports/2019/retrofit.docx", A_HIGH_SCORE)),
                 pictures);
         Path page = thePageOf(tree);
-        Path file = theClusterFolderOf(tree).resolve(nameOf(diagram, ".png"));
 
         claim(
-                "the picture is written as a file in the group's folder, beside its page, and the file holds"
-                        + " exactly the bytes that were handed in",
-                () -> assertThat(file).isRegularFile().hasBinaryContent(diagram));
-        claim(
-                "and the page shows it as an image directly under the document's own entry, inside that"
-                        + " entry's item so the list stays one list, with no alt text because none was given",
+                "the page shows the picture directly under the document's own entry, inside that entry's item so"
+                        + " the list stays one list, its source exactly the bytes that were handed in, and no alt text"
+                        + " because none was given",
                 () -> assertThat(Files.readString(page))
                         .contains("<li id=\"document-1\">\nreports/2019/retrofit.docx " + GONE + "\n"
-                                + "<p><img src=\"" + nameOf(diagram, ".png")
-                                + "\" alt=\"\"></p>\n</li>\n"));
-        claim(
-                "and the image's destination is relative, carries no scheme, and followed from the page's"
-                        + " own directory lands on the file that was written: nothing outside the tree and"
-                        + " nothing on a network is needed to see it",
-                () -> assertThat(whereTheOnlyImageLeads(page)).isEqualTo(file));
+                                + "<p><img src=\"" + shown(diagram) + "\" alt=\"\"></p>\n</li>\n"));
     }
 
     @Test
     @Story("A picture that recurs is furniture and is left out")
     @DisplayName("A picture two documents share is left out of both, even when they sit on different pages")
     void leavesOutAPictureTwoDocumentsShare(@TempDir Path workingDirectory) throws IOException {
-        byte[] logo = bytes("a letterhead logo");
-        byte[] diagram = bytes("a diagram only the first document has");
+        byte[] logo = pixels("a letterhead logo");
+        byte[] diagram = pixels("a diagram only the first document has");
         Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(
                 new OccurrenceId(10), List.of(png(logo), png(diagram)),
                 new OccurrenceId(20), List.of(png(logo)));
@@ -303,33 +296,25 @@ class DeliverablePicturesTest {
         Path partition = tree.resolve(THE_PARTITION_DIRECTORY);
 
         claim(
-                "the letterhead both documents carry is written nowhere in the tree, although each page holds only"
+                "the letterhead both documents carry is shown on neither page, although each page holds only"
                         + " one of the two documents: recurrence is counted over every document the tree"
                         + " lists, not page by page",
-                () -> assertThat(allFilesUnder(tree)).noneMatch(file -> file.getFileName().toString()
-                        .equals(nameOf(logo, ".png"))));
+                () -> assertThat(shownAnywhere(tree)).doesNotContain(shown(logo)));
         claim(
-                "and neither page links it",
-                () -> assertThat(Files.readString(partition.resolve(THE_CLUSTER_PAGE))
-                                + Files.readString(partition.resolve(THE_OTHER_CLUSTER_PAGE)))
-                        .doesNotContain(nameOf(logo, ".png")));
-        claim(
-                "while the diagram only the first document carries is still written and shown, so leaving"
+                "while the diagram only the first document carries is still shown on the first page, so leaving"
                         + " out the shared picture costs its neighbour nothing",
-                () -> assertThat(partition.resolve(THE_CLUSTER_FOLDER).resolve(nameOf(diagram, ".png")))
-                        .hasBinaryContent(diagram));
+                () -> assertThat(sourcesOn(partition.resolve(THE_CLUSTER_PAGE))).containsExactly(shown(diagram)));
         claim(
-                "and the second group's folder, whose document carried nothing but the shared letterhead, holds"
-                        + " its page and no picture",
-                () -> assertThat(allFilesUnder(partition.resolve(THE_OTHER_CLUSTER_FOLDER)))
-                        .containsExactly(partition.resolve(THE_OTHER_CLUSTER_PAGE)));
+                "and the second group's page, whose document carried nothing but the shared letterhead, shows no"
+                        + " picture",
+                () -> assertThat(Files.readString(partition.resolve(THE_OTHER_CLUSTER_PAGE))).doesNotContain("<img"));
     }
 
     @Test
     @Story("A picture that recurs is furniture and is left out")
     @DisplayName("A picture repeated inside one document is left out, every copy of it")
     void leavesOutAPictureRepeatedInsideOneDocument(@TempDir Path workingDirectory) throws IOException {
-        byte[] icon = bytes("a server icon repeated across a diagram");
+        byte[] icon = pixels("a server icon repeated across a diagram");
         Map<OccurrenceId, List<ListedPicture>> pictures =
                 Map.of(new OccurrenceId(10), List.of(png(icon), png(icon), png(icon)));
 
@@ -337,12 +322,9 @@ class DeliverablePicturesTest {
                 workingDirectory, null, List.of(aMember(10, "reports/deck.pptx", A_HIGH_SCORE)), pictures);
 
         claim(
-                "an icon repeated three times inside one document is written not even once: the repetition"
-                        + " is the evidence it is part of the document's furniture, and keeping the first"
-                        + " copy would keep the furniture",
-                () -> assertThat(picturesOf(tree)).isEmpty());
-        claim(
-                "and the entry carries no image",
+                "an icon repeated three times inside one document is shown not even once, and the entry carries no"
+                        + " image: the repetition is the evidence it is part of the document's furniture, and"
+                        + " keeping the first copy would keep the furniture",
                 () -> assertThat(Files.readString(thePageOf(tree))).doesNotContain("<img"));
     }
 
@@ -350,7 +332,7 @@ class DeliverablePicturesTest {
     @Story("A picture that recurs is furniture and is left out")
     @DisplayName("A picture the converter itself placed in the page header or footer is left out")
     void leavesOutAPictureTheConverterPlacedInThePageFurniture(@TempDir Path workingDirectory) throws IOException {
-        byte[] header = bytes("a page-header logo in a one-page document");
+        byte[] header = pixels("a page-header logo in a one-page document");
         Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(
                 new OccurrenceId(10), List.of(new ListedPicture(PNG, header, true, "")));
 
@@ -360,16 +342,15 @@ class DeliverablePicturesTest {
         claim(
                 "a picture the converter placed in its page furniture is left out although nothing else in"
                         + " the tree carries the same bytes: that is the one case recurrence cannot see",
-                () -> assertThat(allFilesUnder(tree)).noneMatch(file -> file.getFileName().toString()
-                        .equals(nameOf(header, ".png"))));
+                () -> assertThat(shownAnywhere(tree)).doesNotContain(shown(header)));
     }
 
     @Test
     @Story("A picture that recurs is furniture and is left out")
     @DisplayName("A picture one document's header carries and another's body carries is left out of both")
     void countsAHeaderPictureTowardsRecurrenceInAnotherDocument(@TempDir Path workingDirectory) throws IOException {
-        byte[] logo = bytes("a logo in one document's header and another's body");
-        byte[] chart = bytes("a chart only the second document has");
+        byte[] logo = pixels("a logo in one document's header and another's body");
+        byte[] chart = pixels("a chart only the second document has");
         Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(
                 new OccurrenceId(10), List.of(new ListedPicture(PNG, logo, true, "")),
                 new OccurrenceId(11), List.of(png(logo), png(chart)));
@@ -383,24 +364,22 @@ class DeliverablePicturesTest {
                 pictures);
 
         claim(
-                "the emblem is written nowhere: in the second document it sits in the body, where its flag"
+                "the emblem is shown nowhere: in the second document it sits in the body, where its flag"
                         + " alone would have kept it, but its bytes recur because the first document carries"
                         + " them too, in its header -- recurrence counts every picture of every document,"
                         + " whichever layer it sits in",
-                () -> assertThat(allFilesUnder(tree)).noneMatch(file -> file.getFileName().toString()
-                        .equals(nameOf(logo, ".png"))));
+                () -> assertThat(shownAnywhere(tree)).doesNotContain(shown(logo)));
         claim(
                 "while the chart only the second document carries is still shown",
-                () -> assertThat(destinationsOn(thePageOf(tree)))
-                        .containsExactly(nameOf(chart, ".png")));
+                () -> assertThat(sourcesOn(thePageOf(tree))).containsExactly(shown(chart)));
     }
 
     @Test
     @Story("A picture only one document carries is shown under that document")
     @DisplayName("Each document's picture sits directly under its own entry, and the next entry follows it")
     void placesEachPictureDirectlyUnderItsOwnEntry(@TempDir Path workingDirectory) throws IOException {
-        byte[] first = bytes("the first document's diagram");
-        byte[] second = bytes("the second document's diagram");
+        byte[] first = pixels("the first document's diagram");
+        byte[] second = pixels("the second document's diagram");
         Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(
                 new OccurrenceId(10), List.of(png(first)),
                 new OccurrenceId(11), List.of(png(second)));
@@ -414,10 +393,10 @@ class DeliverablePicturesTest {
                 pictures);
         String text = Files.readString(thePageOf(tree));
         String layout = "<li id=\"document-1\">\nreports/a.docx " + GONE + "\n"
-                + "<p><img src=\"" + nameOf(first, ".png") + "\" alt=\"\"></p>\n"
+                + "<p><img src=\"" + shown(first) + "\" alt=\"\"></p>\n"
                 + "</li>\n"
                 + "<li id=\"document-2\">\nreports/b.docx " + GONE + "\n"
-                + "<p><img src=\"" + nameOf(second, ".png") + "\" alt=\"\"></p>\n"
+                + "<p><img src=\"" + shown(second) + "\" alt=\"\"></p>\n"
                 + "</li>\n";
 
         claim(
@@ -433,7 +412,7 @@ class DeliverablePicturesTest {
     void asksForEachDocumentsPicturesOncePerPass(@TempDir Path workingDirectory) {
         Map<OccurrenceId, Integer> asked = new HashMap<>();
         Map<OccurrenceId, List<ListedPicture>> pictures =
-                Map.of(new OccurrenceId(10), List.of(png(bytes("a diagram"))));
+                Map.of(new OccurrenceId(10), List.of(png(pixels("a diagram"))));
         List<ListedSurvivor> members = List.of(
                 aMemberOf(10, "reports/first.docx", A_HIGH_SCORE, FIRST_ORDINAL),
                 aMemberOf(20, "reports/second.docx", A_HIGH_SCORE, SECOND_ORDINAL),
@@ -463,10 +442,11 @@ class DeliverablePicturesTest {
     }
 
     @Test
-    @Story("A picture's file is named from its own bytes")
-    @DisplayName("No character of a document's name or a group's label reaches a picture's file name or link")
-    void namesThePictureFromItsBytesWhateverTheDocumentIsCalled(@TempDir Path workingDirectory) throws IOException {
-        byte[] screenshot = bytes("a table screenshot");
+    @Story("A picture is shown by its own bytes")
+    @DisplayName("No character of a document's name or a group's label reaches a picture's source or a file")
+    @Issue("560")
+    void noCharacterOfADocumentsNameOrALabelReachesAPicturesSource(@TempDir Path workingDirectory) throws IOException {
+        byte[] screenshot = pixels("a table screenshot");
         Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(new OccurrenceId(10), List.of(png(screenshot)));
 
         Path tree = write(
@@ -477,34 +457,27 @@ class DeliverablePicturesTest {
                 pictures);
         Path partition = tree.resolve(THE_PARTITION_DIRECTORY);
         Path page = partition.resolve(THE_HOSTILE_LABELS_PAGE_STEM).resolve("index.html");
-        Path expected = partition.resolve(THE_HOSTILE_LABELS_PAGE_STEM).resolve(nameOf(screenshot, ".png"));
 
         claim(
-                "the picture's file is named from the first " + NAME_LENGTH + " hexadecimal characters of"
-                        + " its own digest and sits beside the page in the group's folder, whose name the label"
-                        + " only reaches after being reduced to letters, digits and hyphens",
-                () -> assertThat(expected).isRegularFile().hasBinaryContent(screenshot));
+                "the picture's source is its media type and its own bytes in base64, made only of the base64"
+                        + " alphabet and its padding, so no character of the document's name or the label reaches it"
+                        + " and nothing in it is special to HTML",
+                () -> assertThat(sourcesOn(page))
+                        .singleElement()
+                        .isEqualTo(shown(screenshot))
+                        .matches(source -> A_SAFE_SOURCE.matcher(source).matches(), "a source of the safe shape"));
         claim(
-                "and it is the only file written anywhere beneath the partition apart from the page, so"
-                        + " neither the document's name nor the label climbed out of the tree or named a"
-                        + " second file",
-                () -> assertThat(allFilesUnder(partition)).containsExactlyInAnyOrder(page, expected));
-        claim(
-                "and the destination the page gives it is made only of hexadecimal, a dot and an extension --"
-                        + " no character an HTML, URI or filesystem rule treats as special, so there is nothing to"
-                        + " escape and nothing to decode",
-                () -> assertThat(destinationsOn(page)).singleElement().matches(d -> A_SAFE_DESTINATION
-                        .matcher(d).matches(), "a destination of the safe shape"));
-        claim(
-                "and following it from the page's own directory lands on that file",
-                () -> assertThat(whereTheOnlyImageLeads(page)).isEqualTo(expected));
+                "and the page is the only file written anywhere beneath the partition, in the group's folder whose"
+                        + " name the label only reaches after being reduced to letters, digits and hyphens: neither"
+                        + " the document's name nor the label climbed out of the tree or named a second file",
+                () -> assertThat(allFilesUnder(partition)).containsExactly(page));
     }
 
     @Test
     @Story("A picture's alt text is the converter's caption or nothing")
     @DisplayName("A caption is written as the picture's alt text, with nothing in it able to end the attribute or form a tag")
     void escapesACaptionWrittenAsAltText(@TempDir Path workingDirectory) throws IOException {
-        byte[] chart = bytes("a chart with a caption");
+        byte[] chart = pixels("a chart with a caption");
         Map<OccurrenceId, List<ListedPicture>> pictures =
                 Map.of(new OccurrenceId(10), List.of(new ListedPicture(PNG, chart, false, A_HOSTILE_CAPTION)));
 
@@ -517,13 +490,12 @@ class DeliverablePicturesTest {
                         + " written through, the tag inside it would end the attribute and the image's tag early,"
                         + " and what follows would be markup of the caption's own",
                 () -> assertThat(text)
-                        .contains("<p><img src=\"" + nameOf(chart, ".png")
+                        .contains("<p><img src=\"" + shown(chart)
                                 + "\" alt=\"" + THAT_CAPTION_AS_ALT_TEXT + "\"></p>\n"));
         claim(
-                "and the page shows exactly one image, the one from the tree, with no second image and no"
-                        + " remote destination anywhere",
-                () -> assertThat(destinationsOn(thePageOf(tree)))
-                        .containsExactly(nameOf(chart, ".png")));
+                "and the page shows exactly one image, the picture handed in, with no second image and no"
+                        + " remote source anywhere",
+                () -> assertThat(sourcesOn(thePageOf(tree))).containsExactly(shown(chart)));
     }
 
     @Test
@@ -532,7 +504,7 @@ class DeliverablePicturesTest {
     void showsTheFirstTenPicturesAndCountsTheRest(@TempDir Path workingDirectory) throws IOException {
         List<ListedPicture> twelve = new ArrayList<>();
         for (int at = 0; at < THE_BUDGET + TWO_OVER; at++) {
-            twelve.add(png(bytes("slide " + at)));
+            twelve.add(png(pixels("slide " + at)));
         }
         Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(new OccurrenceId(10), List.copyOf(twelve));
 
@@ -541,7 +513,7 @@ class DeliverablePicturesTest {
         Path page = thePageOf(tree);
         List<String> expected = new ArrayList<>();
         for (int at = 0; at < THE_BUDGET; at++) {
-            expected.add(nameOf(bytes("slide " + at), ".png"));
+            expected.add(shown(pixels("slide " + at)));
         }
 
         claim(
@@ -550,11 +522,7 @@ class DeliverablePicturesTest {
         claim(
                 "the page shows the first " + TEN + " pictures, in the order the document gave them, and"
                         + " not the " + TWO_OVER + " after them",
-                () -> assertThat(destinationsOn(page)).containsExactlyElementsOf(expected));
-        claim(
-                "and only those " + TEN + " files are written",
-                () -> assertThat(picturesOf(tree))
-                        .hasSize(TEN));
+                () -> assertThat(sourcesOn(page)).containsExactlyElementsOf(expected));
         claim(
                 "and the entry says, after its pictures, how many more the document has, so the page never"
                         + " passes off part of a document's pictures as all of them",
@@ -569,10 +537,10 @@ class DeliverablePicturesTest {
         List<ListedPicture> eleven = new ArrayList<>();
         List<ListedPicture> three = new ArrayList<>();
         for (int at = 0; at <= THE_BUDGET; at++) {
-            eleven.add(png(bytes("first document, slide " + at)));
+            eleven.add(png(pixels("first document, slide " + at)));
         }
         for (int at = 0; at < 3; at++) {
-            three.add(png(bytes("second document, figure " + at)));
+            three.add(png(pixels("second document, figure " + at)));
         }
         Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(
                 new OccurrenceId(10), List.copyOf(eleven),
@@ -596,11 +564,12 @@ class DeliverablePicturesTest {
     }
 
     @Test
-    @Story("A picture's file is named from its own bytes")
-    @DisplayName("A JPEG picture is written as .jpg, and a picture of any other kind is counted rather than written")
-    void writesAJpegAsJpgAndCountsAnyOtherKind(@TempDir Path workingDirectory) throws IOException {
-        byte[] photo = bytes("a photograph");
-        byte[] animation = bytes("an animation");
+    @Story("A picture is shown by its own bytes")
+    @DisplayName("A JPEG picture is shown as a JPEG, and a picture of any other kind is counted rather than shown")
+    @Issue("560")
+    void showsAJpegAsAJpegAndCountsAnyOtherKind(@TempDir Path workingDirectory) throws IOException {
+        byte[] photo = withSignature(JPEG_SIGNATURE, "a photograph");
+        byte[] animation = "GIF89a an animation".getBytes(StandardCharsets.UTF_8);
         Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(
                 new OccurrenceId(10),
                 List.of(new ListedPicture(JPEG, photo, false, ""), new ListedPicture(GIF, animation, false, "")));
@@ -609,12 +578,10 @@ class DeliverablePicturesTest {
                 workingDirectory, null, List.of(aMember(10, "reports/site.docx", A_HIGH_SCORE)), pictures);
 
         claim(
-                "the JPEG is written with a .jpg extension and linked by it",
-                () -> assertThat(destinationsOn(thePageOf(tree)))
-                        .containsExactly(nameOf(photo, ".jpg")));
-        claim(
-                "and the picture of a kind never measured in the cache is not written under any name",
-                () -> assertThat(picturesOf(tree)).containsExactly(theClusterFolderOf(tree).resolve(nameOf(photo, ".jpg"))));
+                "the JPEG is shown as a JPEG, by its own bytes, and the picture of a kind never measured in the"
+                        + " cache is not shown at all",
+                () -> assertThat(sourcesOn(thePageOf(tree)))
+                        .containsExactly("data:" + JPEG + ";base64," + Base64.getEncoder().encodeToString(photo)));
         claim(
                 "but it is counted as not shown, so the page does not pass it off as absent",
                 () -> assertThat(Files.readString(thePageOf(tree)))
@@ -626,7 +593,7 @@ class DeliverablePicturesTest {
     @DisplayName("The manifest and the index read the same with pictures as without them")
     void leavesTheManifestAndTheIndexAsTheyWere(@TempDir Path withPictures, @TempDir Path withoutPictures)
             throws IOException {
-        byte[] diagram = bytes("a diagram");
+        byte[] diagram = pixels("a diagram");
         List<ListedSurvivor> members = List.of(aMember(10, "reports/a.docx", A_HIGH_SCORE));
 
         Path shown = writeOneCluster(
@@ -688,7 +655,7 @@ class DeliverablePicturesTest {
                 null,
                 List.of(aMember(10, "reports/v1.pdf", A_HIGH_SCORE), aMember(20, "reports/v2.pdf", A_MIDDLE_SCORE)),
                 pictures);
-        List<String> written = namesOf(picturesOf(tree));
+        List<String> written = shownAnywhere(tree);
 
         claim(
                 "the emblem and its crop from the other document are different bytes, so recurrence of bytes"
@@ -696,10 +663,10 @@ class DeliverablePicturesTest {
                         + " height and exactly " + NEAR_COPY_BITS + " bits apart in their hash, both are left"
                         + " out: each limit is included",
                 () -> assertThat(written)
-                        .doesNotContain(nameOf(logo, ".png"), nameOf(theSameLogoCroppedElsewhere, ".png")));
+                        .doesNotContain(shown(logo), shown(theSameLogoCroppedElsewhere)));
         claim(
                 "while the diagram, like neither of them, is still written",
-                () -> assertThat(written).containsExactly(nameOf(diagram, ".png")));
+                () -> assertThat(written).containsExactly(shown(diagram)));
     }
 
     @Test
@@ -724,17 +691,17 @@ class DeliverablePicturesTest {
                         aMember(20, "reports/b.docx", A_MIDDLE_SCORE),
                         aMember(30, "reports/c.docx", A_LOW_SCORE)),
                 pictures);
-        List<String> written = namesOf(picturesOf(tree));
+        List<String> written = shownAnywhere(tree);
 
         claim(
                 "two pictures of one size whose hashes differ in " + (NEAR_COPY_BITS + 1) + " bits are both"
-                        + " written: heading banners with different text were measured that close, and they"
+                        + " shown: heading banners with different text were measured that close, and they"
                         + " are content",
-                () -> assertThat(written).contains(nameOf(banner, ".png"), nameOf(aBannerWithOtherText, ".png")));
+                () -> assertThat(written).contains(shown(banner), shown(aBannerWithOtherText)));
         claim(
                 "and a picture with the same hash but " + (NEAR_COPY_PIXELS + 1) + " pixels wider is written"
                         + " too: both conditions have to hold for a near-copy",
-                () -> assertThat(written).contains(nameOf(theBannerAtAnotherSize, ".png")));
+                () -> assertThat(written).contains(shown(theBannerAtAnotherSize)));
     }
 
     @Test
@@ -757,23 +724,23 @@ class DeliverablePicturesTest {
 
         Path tree = writeOneCluster(
                 workingDirectory, null, List.of(aMember(10, "reports/spec.pdf", A_HIGH_SCORE)), pictures);
-        List<String> written = namesOf(picturesOf(tree));
+        List<String> written = shownAnywhere(tree);
 
         claim(
                 "the two crops of the header are " + SAME_PLACE_BITS_SEEN + " bits apart, too far for a"
                         + " near-copy, and sit " + SAME_PLACE_POINTS + " points apart on different pages of one"
                         + " document: that is page furniture, and both are left out",
                 () -> assertThat(written)
-                        .doesNotContain(nameOf(headerOnPageOne, ".png"), nameOf(headerOnPageTwo, ".png")));
+                        .doesNotContain(shown(headerOnPageOne), shown(headerOnPageTwo)));
         claim(
                 "two footer stamps exactly " + SAME_PLACE_BITS + " bits apart, each edge exactly "
                         + SAME_PLACE_POINTS + " points apart, on pages one and three, are left out too: each limit"
                         + " is included",
                 () -> assertThat(written)
-                        .doesNotContain(nameOf(footerOnPageOne, ".png"), nameOf(footerOnPageThree, ".png")));
+                        .doesNotContain(shown(footerOnPageOne), shown(footerOnPageThree)));
         claim(
                 "while the chart on the first page, somewhere else on it, is written",
-                () -> assertThat(written).containsExactly(nameOf(chart, ".png")));
+                () -> assertThat(written).containsExactly(shown(chart)));
     }
 
     @Test
@@ -798,20 +765,20 @@ class DeliverablePicturesTest {
 
         Path tree = writeOneCluster(
                 workingDirectory, null, List.of(aMember(10, "reports/report.pdf", A_HIGH_SCORE)), pictures);
-        List<String> written = namesOf(picturesOf(tree));
+        List<String> written = shownAnywhere(tree);
 
         claim(
                 "two charts in the same frame on two pages, " + (SAME_PLACE_BITS + 1) + " bits apart, are both"
                         + " written: a report that draws one chart per page in one frame keeps its charts",
-                () -> assertThat(written).contains(nameOf(chartOnPageOne, ".png"), nameOf(anotherChartOnPageTwo, ".png")));
+                () -> assertThat(written).contains(shown(chartOnPageOne), shown(anotherChartOnPageTwo)));
         claim(
                 "two pictures alike enough, but " + (SAME_PLACE_POINTS + 1) + " points apart, are both written",
                 () -> assertThat(written)
-                        .contains(nameOf(iconOnPageOne, ".png"), nameOf(iconSlightlyElsewhereOnPageThree, ".png")));
+                        .contains(shown(iconOnPageOne), shown(iconSlightlyElsewhereOnPageThree)));
         claim(
                 "and two alike at the same place on the same page are both written: the rule is about a"
                         + " page repeating what another page has",
-                () -> assertThat(written).contains(nameOf(stampOnPageFour, ".png"), nameOf(stampAgainOnPageFour, ".png")));
+                () -> assertThat(written).contains(shown(stampOnPageFour), shown(stampAgainOnPageFour)));
     }
 
     /** One cluster holding {@code members}, arranged at their count, written over by {@code doc} or not. */
@@ -875,8 +842,8 @@ class DeliverablePicturesTest {
         return tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_CLUSTER_PAGE);
     }
 
-    /** Every image destination on {@code page}, in the order the page gives them. */
-    private static List<String> destinationsOn(Path page) throws IOException {
+    /** Every image source on {@code page}, in the order the page gives them. */
+    private static List<String> sourcesOn(Path page) throws IOException {
         Matcher image = AN_IMAGE.matcher(Files.readString(page));
         List<String> found = new ArrayList<>();
         while (image.find()) {
@@ -885,20 +852,15 @@ class DeliverablePicturesTest {
         return List.copyOf(found);
     }
 
-    /**
-     * Where the page's one image leads, followed from the page's own directory and decoded first, as a
-     * browser follows it. A destination carrying a scheme fails here rather than resolving somewhere.
-     */
-    private static Path whereTheOnlyImageLeads(Path page) throws IOException {
-        List<String> destinations = destinationsOn(page);
-        if (destinations.size() != 1) {
-            throw new IllegalStateException("expected one image on " + page + ", found " + destinations);
+    /** Every image source on every page of {@code tree}, page by page. */
+    private static List<String> shownAnywhere(Path tree) throws IOException {
+        List<String> found = new ArrayList<>();
+        for (Path file : allFilesUnder(tree)) {
+            if (file.getFileName().toString().endsWith(".html")) {
+                found.addAll(sourcesOn(file));
+            }
         }
-        URI destination = URI.create(destinations.getFirst());
-        if (destination.isAbsolute() || destination.getPath().startsWith("/")) {
-            throw new IllegalStateException("the image on " + page + " is not relative: " + destination);
-        }
-        return page.getParent().resolve(destination.getPath()).normalize();
+        return List.copyOf(found);
     }
 
     private static List<Path> allFilesUnder(Path directory) throws IOException {
@@ -910,18 +872,21 @@ class DeliverablePicturesTest {
         }
     }
 
-    /** The file name ADR-149 gives a picture: sixteen hex characters of its digest, then the extension. */
-    private static String nameOf(byte[] pixels, String extension) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(pixels);
-            return HexFormat.of().formatHex(digest).substring(0, NAME_LENGTH) + extension;
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is required of every JVM", e);
-        }
+    /** How a page shows PNG {@code pixels}: their media type and their bytes in base64, as an image's source. */
+    private static String shown(byte[] pixels) {
+        return "data:" + PNG + ";base64," + Base64.getEncoder().encodeToString(pixels);
     }
 
-    private static byte[] bytes(String text) {
-        return text.getBytes(StandardCharsets.UTF_8);
+    /** Bytes that begin as a PNG does and then are {@code text}: of the kind they declare, decoding to no image. */
+    private static byte[] pixels(String text) {
+        return withSignature(PNG_SIGNATURE, text);
+    }
+
+    private static byte[] withSignature(byte[] signature, String text) {
+        byte[] tail = text.getBytes(StandardCharsets.UTF_8);
+        byte[] whole = Arrays.copyOf(signature, signature.length + tail.length);
+        System.arraycopy(tail, 0, whole, signature.length, tail.length);
+        return whole;
     }
 
     private static ListedPicture png(byte[] pixels) {
@@ -946,16 +911,9 @@ class DeliverablePicturesTest {
                         frame.bottom() + shift)));
     }
 
-    /** The folder of {@code tree}'s one group, which holds its page and the pictures the page shows. */
+    /** The folder of {@code tree}'s one group, which holds its page. */
     private static Path theClusterFolderOf(Path tree) {
         return tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_CLUSTER_FOLDER);
-    }
-
-    /** The pictures written for {@code tree}'s one page: every file of its folder but the page itself. */
-    private static List<Path> picturesOf(Path tree) throws IOException {
-        return allFilesUnder(theClusterFolderOf(tree)).stream()
-                .filter(file -> !file.getFileName().toString().equals("index.html"))
-                .toList();
     }
 
     /**
@@ -994,10 +952,6 @@ class DeliverablePicturesTest {
     /** A mask of the lowest {@code count} bits, to flip that many bits of a hash. */
     private static long bitsFlipped(int count) {
         return (1L << count) - 1;
-    }
-
-    private static List<String> namesOf(List<Path> files) {
-        return files.stream().map(file -> file.getFileName().toString()).toList();
     }
 
     private static List<OccurrenceId> sent(long... occurrences) {

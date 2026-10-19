@@ -99,4 +99,12 @@ public interface DeliverableProgress {
      * this drawing wrote, it did not write either (ADR-280 §4).
      */
     default void leftBehind(boolean documentsFolder, long otherFolders) {}
+
+    /**
+     * Called once, right after {@link #leftBehind}, with how many regular files, summed over the cluster folders this
+     * drawing wrote, are neither a cluster's {@code index.html} nor a name this drawing gave one of that cluster's
+     * survivors (ADR-286 §4). A folder inside a cluster folder is not counted, and nothing is deleted. A count and no
+     * name.
+     */
+    default void filesLeftBehind(long files) {}
 }

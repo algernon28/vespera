@@ -31,7 +31,8 @@ import org.junit.jupiter.api.io.TempDir;
  * move rolls back every synthesis doc the invocation wrote.
  *
  * <p>Pure: no database, and no Windows. The move is stood in for by one refused as Windows refuses it, and the
- * waits between attempts are counted and not slept.
+ * waits between attempts are counted and not slept. Only the moves at the tree's top are counted and refused: each
+ * group's page is moved into its folder by the same move (ADR-286 §3), and goes through at once.
  */
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
@@ -57,10 +58,15 @@ class TreeWhoseIndexIsRefusedForAMomentIsStillPutInPlaceTest {
                 ThreePartitions.unwritten());
         List<String> moved = new ArrayList<>();
         int[] indexRefusals = {0};
+        String theTreesName = ThreePartitions.provenance(corpusRoot).runId();
         ReplacingMove refusingTheIndexTwice = new ReplacingMove(
                 (part, target) -> {
-                    moved.add(target.getFileName().toString());
-                    if (target.getFileName().toString().equals(Deliverable.INDEX_FILE_NAME)
+                    boolean atTheTop = target.getParent().getFileName().toString().equals(theTreesName);
+                    if (atTheTop) {
+                        moved.add(target.getFileName().toString());
+                    }
+                    if (atTheTop
+                            && target.getFileName().toString().equals(Deliverable.INDEX_FILE_NAME)
                             && indexRefusals[0] < REFUSED_TWICE) {
                         indexRefusals[0]++;
                         throw new AccessDeniedException(part.toString(), target.toString(), null);

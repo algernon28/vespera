@@ -38,9 +38,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * A cluster's folder in the tree (ADR-280): it holds the cluster's page, {@code index.html}, the pictures the page
- * shows, and the copy of each of the cluster's survivors under its original's own name, and {@code documents/} is no
- * longer written. A copy at its name is trusted unread, one whose name is too long in bytes is not copied, the
+ * A cluster's folder in the tree (ADR-280): it holds the cluster's page, {@code index.html}, and the copy of each of
+ * the cluster's survivors under its original's own name, the page's pictures inlined in it (ADR-286), and {@code
+ * documents/} is no longer written. A copy at its name is trusted unread, one whose name is too long in bytes is not copied, the
  * listing names it in its folder, an entry links it by its name percent-encoded, the survey counts the copies past Windows' limit, and the writer reports what an earlier
  * drawing left at the top of the tree and in each partition folder.
  *
@@ -298,50 +298,6 @@ class TheClusterFolderHoldsItsPageAndItsCopiesTest {
                     assertThat(numbered).hasBinaryContent(bytes("the second report"));
                     assertThat(List.of(Files.getLastModifiedTime(plain), Files.getLastModifiedTime(numbered)))
                             .containsExactly(plainWritten, numberedWritten);
-                });
-    }
-
-    @Test
-    @Story("A document keeps its own name in its group's folder")
-    @DisplayName("A document named as a picture its group's page shows takes its number, and both stand side by side")
-    void anOriginalNamedAsAPictureOfItsClusterYieldsToThePicture(@TempDir Path base) throws IOException {
-        byte[] diagram = bytes("an architecture diagram");
-        String thePicturesName = sha256Of(diagram).substring(0, 16) + ".png";
-        String theNumberedName = thePicturesName.replace(".png", "~43.png");
-        String aScanNamedAsThePicture = "scans/" + thePicturesName;
-        Path archive = anArchive(base, Map.of(
-                "reports/retrofit.docx", "a report holding a diagram",
-                aScanNamedAsThePicture, "a scan that happens to share the picture's name"));
-        SurvivorPictures theReportsDiagram = survivor -> survivor.occurrence().value() == 42
-                ? List.of(new ListedPicture("image/png", diagram, false, ""))
-                : List.of();
-
-        Path tree = ListedTree.write(
-                base.resolve("work"),
-                archive,
-                List.of(THE_CLUSTER),
-                writtenFrom(THE_CLUSTER, 42, 43),
-                List.of(
-                        aSurvivor(42, "reports/retrofit.docx", "a report holding a diagram", 0),
-                        aSurvivor(43, aScanNamedAsThePicture, "a scan that happens to share the picture's name", 0)),
-                Map.of(),
-                theReportsDiagram);
-        String page = Files.readString(tree.resolve(THE_FOLDER).resolve("index.html"), StandardCharsets.UTF_8);
-
-        claim(
-                "the picture stands in the group's folder under its own name, holding its pixels, and the page"
-                        + " shows it by that name alone, the page being in the same folder",
-                () -> {
-                    assertThat(tree.resolve(THE_FOLDER).resolve(thePicturesName)).hasBinaryContent(diagram);
-                    assertThat(page).contains("<img src=\"" + thePicturesName + "\" alt=\"\">");
-                });
-        claim(
-                "and the document of that name stands beside it with its number before the extension, holding"
-                        + " its own bytes, its entry linking there",
-                () -> {
-                    assertThat(tree.resolve(THE_FOLDER).resolve(theNumberedName))
-                            .hasBinaryContent(bytes("a scan that happens to share the picture's name"));
-                    assertThat(page).contains("<a href=\"./" + theNumberedName + "\">" + aScanNamedAsThePicture + "</a>");
                 });
     }
 

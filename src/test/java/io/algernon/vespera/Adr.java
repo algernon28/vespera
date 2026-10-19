@@ -1986,6 +1986,18 @@ public final class Adr {
             + "0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md";
 
     /**
+     * ADR-286 -- a cluster's page is one file: a picture, and an image survivor's copy that is a PNG or a JPEG, are
+     * shown by a base64 {@code data:} URI on an {@code <img>}'s {@code src}, the one scheme a page names, and no
+     * picture file is written; the page is written as UTF-8 to a stream an entry at a time, the bytes counted at each
+     * entry's end, to {@code index.html.part} and moved into place, a copy yielding to that part; the files an earlier
+     * drawing left in a cluster folder are counted on the closing line; every {@code src} and {@code href} stays on its
+     * page or in the tree (amends ADR-274, ADR-280, ADR-276, ADR-149, ADR-150, ADR-242, ADR-223, ADR-220, ADR-103 and
+     * ADR-135).
+     */
+    public static final String A_CLUSTERS_PAGE_IS_ONE_FILE_ITS_PICTURES_INLINED = FILE
+            + "0286-a-clusters-page-is-one-file-written-an-entry-at-a-time-through-its-part-with-its-pictures-and-a-png-or-jpeg-image-inlined.md";
+
+    /**
      * ADR-287 -- a log is told by a timestamp in each counted line's first 64 characters, continuation lines left
      * out, and is read in a file of no known kind whose bytes read as text too; a configuration file is told by its
      * first XML element or by its share of setting lines under the profile's configurationSettingShareFloor, an
@@ -2017,6 +2029,32 @@ public final class Adr {
      */
     public static final String A_FIXTURE_REPOSITORY_IS_RUN_WITHOUT_GITS_LOCATION_VARIABLES = FILE
             + "0290-a-fixture-repository-is-run-without-gits-location-variables.md";
+
+    /**
+     * ADR-291 -- the control panel's server listens on {@code 127.0.0.1} alone at a port the system picks, and answers
+     * only a request addressed to it by that address, holding the cookie its start's token is exchanged for, a
+     * {@code POST} only from its own origin, with four headers on every response and no file served.
+     */
+    public static final String THE_CONTROL_PANEL_ANSWERS_ONLY_A_BROWSER_HOLDING_ITS_STARTS_TOKEN_ON_ITS_OWN_ADDRESS = FILE
+            + "0291-the-control-panel-listens-on-127-0-0-1-alone-at-a-port-the-system-picks-and-answers-only-a-browser-holding-its-starts-token-on-its-own-address.md";
+
+    /**
+     * ADR-292 -- the control panel remembers seven launch values, keyed by the jar's own properties, and the last seed
+     * folder in one UTF-8 properties file in a folder of the user's own under the temp directory; the corpus root and
+     * the working directory reach the child on its command line, the other five in its environment, an empty one not
+     * at all; Run is refused without the first two, Label without the working directory (amends ADR-278 and ADR-288).
+     */
+    public static final String THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES = FILE
+            + "0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md";
+
+    /**
+     * ADR-293 -- an operational record that is neither a log nor a configuration file is left to relevance, with no
+     * rule of stage 1's of its own; a JSON or YAML export keyed line by line is read as settings by ADR-287's rule and
+     * is left as that rule leaves it; a flow file or a lookup-table export is left out by the ending of its name where
+     * the operator lists it in outOfScopeNameEndings.
+     */
+    public static final String AN_OPERATIONAL_RECORD_THAT_IS_NOT_A_LOG_OR_A_CONFIGURATION_FILE_IS_LEFT_TO_RELEVANCE = FILE
+            + "0293-an-operational-record-that-is-not-a-log-or-a-configuration-file-is-left-to-relevance-and-its-name-ending-is-the-operators-to-list.md";
 
     /**
      * ADR-294 -- every invocation ending on the closing line writes {@code next-invocation.properties} in the working

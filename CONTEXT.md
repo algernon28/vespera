@@ -43,6 +43,11 @@ Of a kind of file this tool leaves out whatever it holds: a spreadsheet since AD
 _Avoid_: excluded, filtered, unsupported (Docling supports spreadsheets; this tool chooses not to read them), skip list (for `outOfScopeNameEndings`)
 _Not to be confused with_: **Code**, which stage 1 also stops in its first pass, under a verdict of its own, and which is not left out for what it is: what the deliverable carries of it is still to be decided (#573). Compiled code stays out of scope (ADR-252).
 
+**Operational record**:
+What a program or a system writes or reads in its running, and not documentation: a log, a configuration file, a data export, a flow file, a lookup-table export. Stage 1 tells a log and a configuration file by their bytes once their floors are set (ADR-171, ADR-287), and no other by a rule of its own: the rest is relevance's to remove, unless the operator lists the ending of its name in `outOfScopeNameEndings` (ADR-293). A JSON or YAML export written one key to a line can read as settings, and is taken for a configuration file once `configurationSettingShareFloor` is set and its share reaches it.
+_Avoid_: data file, machine record
+_Not to be confused with_: a decision record in `docs/adr/`.
+
 **Log**:
 A file whose bytes read as text, detected as text or of no known kind, with at least ten lines counted, reading its first and last 64 KB, where at least the profile's `logTimestampShareFloor` of those lines carry a timestamp in their first 64 characters (ADR-171, widened by ADR-287). A line continuing the entry above it, indented or opening with `at `, `Caused by:` or `...`, is not counted, nor is a blank one. Decided from the bytes alone, never from the name: most logs here are not named `.log`, and most files named `.log` are not logs by this measure. An operational record, and out of scope once the floor is set, inside a code set or not. A log held inside a PDF, a Word document or another container is not recognised: it exists only as converted text, and no rule reads that for it yet.
 _Avoid_: log file (as a name-based kind), trace, journal
@@ -266,6 +271,10 @@ _Avoid_: dashboard, monitor, status page
 The program on the operator's machine that starts one invocation at a time as its own child, shows how it goes and how it ended, and stops it by ending its process (ADR-278). It runs the command as shipped (ADR-278), judges nothing, and passes only values the operator typed or confirmed. What the next invocation wants it reads from `next-invocation.properties`, which the jar writes with the closing line, and never from the line's words (ADR-294).
 _Avoid_: console (the jar's standard output, ADR-093), launcher (ADR-158; the Docling image's `launcher.py`, ADR-179), GUI, dashboard, front-end, app, UI, wrapper. Also "panel" alone, in a name of ours.
 
+**Launch value**:
+A value the control panel passes when it starts an invocation, remembered per user: the corpus root, the working directory, the deliverable root, the Docling image, Docling's and Ollama's addresses and the label model, each keyed by the jar's own property (ADR-292). Not a profile value: it names where things are on one machine, and judges nothing about a corpus.
+_Avoid_: parameter, setting, config
+
 ### Output
 
 **Synthesis doc**:
@@ -289,7 +298,7 @@ How a synthesis doc points at a document it was written from: an ordinal into th
 _Avoid_: reference, source, footnote
 
 **Picture**:
-Something visual that Docling found inside a converted document and returned among its `pictures`, with its pixels where the response carries them. It comes along with its document and is shown under that document's membership entry, never judged on its own: survival stays a fact about documents (ADR-149). A standalone image file is not a picture. It is a document whose format is an image, or, inside a generated tree, code (ADR-284).
+Something visual that Docling found inside a converted document and returned among its `pictures`, with its pixels where the response carries them. It comes along with its document and is shown under that document's membership entry, never judged on its own: survival stays a fact about documents (ADR-149). It is shown inline on the page, its bytes written into it, and written into no file of its own (ADR-286). A standalone image file is not a picture. It is a document whose format is an image, or, inside a generated tree, code (ADR-284); where its copy is a PNG or a JPEG, its entry shows that copy inline (ADR-286).
 _Avoid_: image (the word for a standalone image file, and for Markdown's image syntax), figure, illustration, attachment
 
 **Furniture picture**:
@@ -313,7 +322,7 @@ The pipeline's terminal state, and the deliverable: the arrangement, the synthes
 _Avoid_: the wiki, the Confluence output, the export
 
 **Cluster folder**:
-The folder of the deliverable a cluster's page lies in, `<partition>/<cluster>/`, named with the cluster's place in its seed partition and the slug of its cluster label (ADR-112, ADR-280). It holds the page, `index.html`, the pictures the page shows, and the copy of each of the cluster's survivors. A rendering, like the label it is named from: never the cluster's identity.
+The folder of the deliverable a cluster's page lies in, `<partition>/<cluster>/`, named with the cluster's place in its seed partition and the slug of its cluster label (ADR-112, ADR-280). It holds the page, `index.html`, and the copy of each of the cluster's survivors, and nothing else: the pictures the page shows are inlined in it (ADR-286). A rendering, like the label it is named from: never the cluster's identity.
 _Avoid_: group folder (group is how a cluster renders for a reader, never a name of ours), page folder
 
 **Copy**:

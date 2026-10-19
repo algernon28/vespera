@@ -1,5 +1,7 @@
 # ADR-150 — A PDF's pictures are asked for as embedded pixels, and a picture repeated at one place or as a near-copy is furniture
 
+> **Partly amended — see [ADR-286](0286-a-clusters-page-is-one-file-written-an-entry-at-a-time-through-its-part-with-its-pictures-and-a-png-or-jpeg-image-inlined.md).** §4: an image survivor's entry shows its copy inline where the copy is a PNG or a JPEG. That no picture of the cache is shown under it, and §3's rule, stand.
+
 > **Partly amended — see [ADR-223](0223-5fs-size-report-6a-and-6b-go-through-one-seed-partition-at-a-time-and-what-is-still-held-says-why.md).** §5's *"The first pass of ADR-149 §9 keeps, for each picture, the digest, the width and height, the difference hash and the place"* no longer holds as written: condition (d) is decided as each document's pictures are read, so no place is kept past its document, and what is kept is the digest and the difference hash of each distinct picture. §3's rule and its population stand.
 
 > **Partly amended — see [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md).** §4's *"`pipeline` enforces it"* and *"The check sits there rather than in `synthesis` …"* no longer hold as written: which detected formats list their pictures is decided in `extraction`, by `DocumentPicture.listedFor`, for the reason given there, and `pipeline` reads the recorded format and asks. The rule, its three formats and its order of reads stand.

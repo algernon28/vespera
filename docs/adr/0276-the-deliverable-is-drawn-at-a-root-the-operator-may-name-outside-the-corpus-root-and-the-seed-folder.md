@@ -1,5 +1,7 @@
 # ADR-276 — The deliverable is drawn at a root the operator may name, outside the corpus root and the seed folder
 
+> **Partly amended — see [ADR-286](0286-a-clusters-page-is-one-file-written-an-entry-at-a-time-through-its-part-with-its-pictures-and-a-png-or-jpeg-image-inlined.md).** §1's bound of 146 characters holds of the index and the pages, the tree writing no picture file. Everything else in this record stands.
+
 > **Partly amended — see [ADR-280](0280-a-clusters-folder-holds-its-page-and-a-copy-of-each-of-its-survivors-under-the-originals-own-name-suffixed-only-on-a-collision.md).** A named root holds no `documents/` (§1); §1's bound of 146 characters holds for the index, the pages and the pictures and not for the copies; and §6's clause of the closing line, owed to the record that changes the layout, is stated and pinned there. Everything else in this record stands.
 
 > **Partly amended — see [ADR-283](0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md).** The Consequence "An agent meets a named root as the place it lies in" no longer holds under an allowed root: a named root is refused there by its marker, as every tree is.

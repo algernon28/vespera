@@ -44,6 +44,7 @@ class InvocationRuns {
     private static final String DOCUMENTS_FOLDER_LEFT_BEHIND = "vespera.deliverable.documents-folder-left-behind";
 
     private static final String FOLDERS_LEFT_BEHIND = "vespera.deliverable.folders-left-behind";
+    private static final String FILES_LEFT_BEHIND = "vespera.deliverable.files-left-behind";
 
     private final ExecutionContext executionContext;
 
@@ -82,10 +83,19 @@ class InvocationRuns {
                 : OptionalInt.empty();
     }
 
-    /** Records what the drawing found an earlier one left in the tree, for the closing line (ADR-280 §4). */
-    void recordLeftBehind(boolean documentsFolder, int otherFolders) {
+    /**
+     * Records what the drawing found an earlier one left in the tree, for the closing line (ADR-280 §4, ADR-286 §4):
+     * counts, never names.
+     */
+    void recordLeftBehind(boolean documentsFolder, int otherFolders, int files) {
         executionContext.putString(DOCUMENTS_FOLDER_LEFT_BEHIND, String.valueOf(documentsFolder));
         executionContext.putInt(FOLDERS_LEFT_BEHIND, otherFolders);
+        executionContext.putInt(FILES_LEFT_BEHIND, files);
+    }
+
+    /** The count of files {@link #recordLeftBehind} recorded; 0 where none was recorded. */
+    int filesLeftBehind() {
+        return executionContext.getInt(FILES_LEFT_BEHIND, 0);
     }
 
     /** Whether {@link #recordLeftBehind} recorded a {@code documents/} folder; false where none was recorded. */
