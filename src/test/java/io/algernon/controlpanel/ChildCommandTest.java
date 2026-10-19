@@ -2,6 +2,7 @@ package io.algernon.controlpanel;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -21,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -50,6 +52,17 @@ class ChildCommandTest {
 
     private static final Path WORKING_DIRECTORY = Path.of("work");
 
+    /** The launch values naming the corpus root and the working directory, and nothing else. */
+    private static final LaunchValues THE_TWO = new LaunchValues(CORPUS_ROOT.toString(),
+            WORKING_DIRECTORY.toString(), "", "", "", "", "", "");
+
+    /** Every launch value named, and a last seed folder that must reach the child nowhere. */
+    private static final String LAST_SEED_FOLDER = "seeds-last-confirmed";
+
+    private static final LaunchValues EVERY_VALUE = new LaunchValues(CORPUS_ROOT.toString(),
+            WORKING_DIRECTORY.toString(), "out", "image:v1", "http://docling", "http://ollama", "qwen3:14b",
+            LAST_SEED_FOLDER);
+
     private static final List<String> BEFORE_THE_COMMAND = List.of(
             JAVA.toString(), "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8", "-jar", absolute(JAR));
 
@@ -68,7 +81,7 @@ class ChildCommandTest {
     void runIsTheJarsRunCommandWithBothEncodingFlagsAndAbsolutePaths() {
         claim("the command line is the JVM, the two encoding flags, -jar and the jar, then run, the corpus root and"
                         + " --db-dir naming the working directory, every path absolute, in that order",
-                () -> assertThat(ChildCommand.run(JAVA, JAR, CORPUS_ROOT, WORKING_DIRECTORY).command())
+                () -> assertThat(ChildCommand.run(JAVA, JAR, THE_TWO).command())
                         .containsExactlyElementsOf(with("run", absolute(CORPUS_ROOT), DB_DIR)));
     }
 
@@ -77,10 +90,10 @@ class ChildCommandTest {
     @DisplayName("Label is the jar's label command, with --auto only when asked, and the working directory absolute")
     void labelIsTheJarsLabelCommandWithAutoOnlyWhenAsked() {
         claim("asked for no model's answers, the command line ends with label and --db-dir",
-                () -> assertThat(ChildCommand.label(JAVA, JAR, false, WORKING_DIRECTORY).command())
+                () -> assertThat(ChildCommand.label(JAVA, JAR, false, THE_TWO).command())
                         .containsExactlyElementsOf(with("label", DB_DIR)));
         claim("asked for them, it ends with label, --auto and --db-dir",
-                () -> assertThat(ChildCommand.label(JAVA, JAR, true, WORKING_DIRECTORY).command())
+                () -> assertThat(ChildCommand.label(JAVA, JAR, true, THE_TWO).command())
                         .containsExactlyElementsOf(with("label", "--auto", DB_DIR)));
     }
 
@@ -88,10 +101,11 @@ class ChildCommandTest {
     @Story("The control panel starts the jar as shipped")
     @DisplayName("The child gets CI=1 in its environment and the working directory as its current directory")
     void theChildHasCiSetToOneAndTheWorkingDirectoryAsItsCurrentDirectory() {
-        ChildCommand command = ChildCommand.run(JAVA, JAR, CORPUS_ROOT, WORKING_DIRECTORY);
+        ChildCommand command = ChildCommand.run(JAVA, JAR, THE_TWO);
         ProcessBuilder builder = command.processBuilder();
 
-        claim("what the control panel adds to the child's environment is CI=1, and nothing else",
+        claim("with no launch value but the corpus root and the working directory, what the control panel adds to"
+                        + " the child's environment is CI=1, and nothing else",
                 () -> assertThat(command.environment()).isEqualTo(Map.of("CI", "1")));
         claim("the process builder starts that command line, with CI=1 in its environment",
                 () -> {
@@ -103,6 +117,65 @@ class ChildCommandTest {
                     assertThat(command.directory()).isEqualTo(WORKING_DIRECTORY.toAbsolutePath());
                     assertThat(builder.directory()).isEqualTo(WORKING_DIRECTORY.toAbsolutePath().toFile());
                 });
+    }
+
+    @Test
+    @Story("The control panel passes its launch values to the jar")
+    @DisplayName("The child of Run and of Label gets CI=1 and the launch values in its environment, and the same command line")
+    @Issue("564")
+    @Link(name = "ADR-292", url = Adr.THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES, type = "adr")
+    void theChildGetsCiAndTheLaunchValuesInItsEnvironment() {
+        Map<String, String> expected = new HashMap<>(EVERY_VALUE.toChildEnvironment());
+        expected.put("CI", "1");
+        for (ChildCommand command : List.of(ChildCommand.run(JAVA, JAR, EVERY_VALUE),
+                ChildCommand.label(JAVA, JAR, true, EVERY_VALUE))) {
+            claim("the child's environment adds CI=1 and the launch values' five variables, and nothing else",
+                    () -> assertThat(command.environment()).isEqualTo(expected));
+            claim("the process builder carries every one of them",
+                    () -> assertThat(command.processBuilder().environment()).containsAllEntriesOf(expected));
+        }
+        claim("and the command lines are those built from the corpus root and the working directory alone",
+                () -> {
+                    assertThat(ChildCommand.run(JAVA, JAR, EVERY_VALUE).command())
+                            .isEqualTo(ChildCommand.run(JAVA, JAR, THE_TWO).command());
+                    assertThat(ChildCommand.label(JAVA, JAR, true, EVERY_VALUE).command())
+                            .isEqualTo(ChildCommand.label(JAVA, JAR, true, THE_TWO).command());
+                });
+    }
+
+    @Test
+    @Story("The control panel refuses what it cannot start")
+    @DisplayName("Run without a corpus root and Label without a working directory are not built, the refusal given")
+    @Issue("564")
+    @Link(name = "ADR-292", url = Adr.THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES, type = "adr")
+    void aRefusedCommandIsNotBuilt() {
+        LaunchValues noCorpusRoot = new LaunchValues("", WORKING_DIRECTORY.toString(), "", "", "", "", "", "");
+        LaunchValues noWorkingDirectory = new LaunchValues(CORPUS_ROOT.toString(), "", "", "", "", "", "", "");
+
+        claim("Run with no corpus root is refused, with Run's refusal as the message",
+                () -> assertThatThrownBy(() -> ChildCommand.run(JAVA, JAR, noCorpusRoot))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage(noCorpusRoot.refusalToRun().orElseThrow()));
+        claim("Label with no working directory is refused, with Label's refusal as the message",
+                () -> assertThatThrownBy(() -> ChildCommand.label(JAVA, JAR, false, noWorkingDirectory))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage(noWorkingDirectory.refusalToLabel().orElseThrow()));
+    }
+
+    @Test
+    @Story("The control panel passes its launch values to the jar")
+    @DisplayName("The last seed folder is in neither the command line nor the environment of Run or Label")
+    @Issue("564")
+    @Link(name = "ADR-292", url = Adr.THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES, type = "adr")
+    void theLastSeedFolderReachesTheChildNowhere() {
+        for (ChildCommand command : List.of(ChildCommand.run(JAVA, JAR, EVERY_VALUE),
+                ChildCommand.label(JAVA, JAR, false, EVERY_VALUE))) {
+            claim("no argument of the command line holds the last seed folder",
+                    () -> assertThat(command.command()).noneMatch(argument -> argument.contains(LAST_SEED_FOLDER)));
+            claim("and no variable the control panel adds holds it",
+                    () -> assertThat(command.environment().values())
+                            .noneMatch(value -> value.contains(LAST_SEED_FOLDER)));
+        }
     }
 
     @Test

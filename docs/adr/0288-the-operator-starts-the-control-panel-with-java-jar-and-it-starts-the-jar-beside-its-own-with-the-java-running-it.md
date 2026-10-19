@@ -1,5 +1,7 @@
 # ADR-288 — The operator starts the control panel with `java -jar`, and it starts the jar beside its own with the Java running it
 
+> **Partly amended — see [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md).** Of What this does not decide: the values passed to the child are the seven launch values, and the jar is not one of them. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md): no launcher script, installer or image is shipped, and the operator starts the control panel as they start the jar, by `java -jar` (§1); distribution stays out of scope.
