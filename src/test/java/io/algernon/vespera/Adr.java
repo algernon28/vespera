@@ -1952,6 +1952,17 @@ public final class Adr {
             + "0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md";
 
     /**
+     * ADR-284 -- code is kept in code sets: each below the nearest folder under the corpus root holding a build file
+     * of a list built into corpus, told by its name alone, else below the first folder under the root, the root's own
+     * files forming the root's set; a set pass of stage 1, before the hashing, keeps a set's build files and the
+     * pictures and companion files of a generated tree as code; two corpus tables record the sets and members; a set's
+     * default name is its folder's, and code-set-names.yaml renames it where names are rendered, moving no run (amends
+     * ADR-277).
+     */
+    public static final String CODE_IS_KEPT_IN_CODE_SETS_NAMED_FOR_THEIR_FOLDER = FILE
+            + "0284-code-is-kept-in-code-sets-each-below-the-nearest-folder-under-the-corpus-root-holding-a-build-file.md";
+
+    /**
      * ADR-285 -- the control panel's code lives in this build under {@code io.algernon.controlpanel}, outside the
      * nine modules, and is packaged as a second jar, classifier {@code control-panel}, that the Spring Boot jar does
      * not carry; it names only its own package, {@code java.base} and {@code jdk.httpserver}, so no class of the jar,

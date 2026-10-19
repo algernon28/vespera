@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.corpus.CodeSets;
 import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedSubtype;
 import io.algernon.vespera.corpus.FormatMix;
@@ -38,7 +39,8 @@ final class FormatMixReport {
      * name and {@code codeByMark} for a generator's mark; {@code codeEndingCounts} and {@code codeGeneratorCounts}
      * count them by the ending listed and by the generator named; {@code textEndingCounts} counts every file detected
      * as text or as of no known kind by the ending of its name; and {@code codeEndings} are the canonical endings
-     * {@code codeNameEndings} lists, empty where it lists none.
+     * {@code codeNameEndings} lists, empty where it lists none. {@code codeSets} is what the set pass found
+     * (ADR-284 section 10): the page counts the sets and their members by role, and names no folder.
      */
     record Mix(
             Map<DetectedFormat, Integer> byFormat,
@@ -58,7 +60,8 @@ final class FormatMixReport {
             Map<String, Integer> textEndingCounts,
             Double logFloor,
             List<String> nameEndings,
-            List<String> codeEndings) {}
+            List<String> codeEndings,
+            CodeSets.Tally codeSets) {}
 
     /** How many bands of a tenth the timestamped share is counted in. */
     static final int BANDS = FormatMix.TIMESTAMP_BANDS;
@@ -153,6 +156,10 @@ final class FormatMixReport {
                         + ", and kept for the mark of a documentation generator: "
                         + mix.codeByMark()
                         + ". They are still counted in the table below, with everything else."))
+                .append(ReportPage.paragraph("Code sets: " + mix.codeSets().sets()
+                        + ", whose members are files of code: " + mix.codeSets().code()
+                        + ", build files: " + mix.codeSets().build()
+                        + ", and files of generated reference trees: " + mix.codeSets().companion() + "."))
                 .append(ReportPage.paragraph(mix.codeEndings().isEmpty()
                         ? "No name endings are listed as code. Listing them in codeNameEndings in profile.yaml keeps as"
                                 + " code every file of no known kind, and every text file, whose name ends with one and"
@@ -222,8 +229,11 @@ final class FormatMixReport {
                     codeRows.append(ReportPage.row(ReportPage.textCell(ending), ReportPage.numberCell(files))));
             mix.codeGeneratorCounts().forEach((generator, files) ->
                     codeRows.append(ReportPage.row(ReportPage.textCell(generator), ReportPage.numberCell(files))));
+            codeRows.append(ReportPage.row(ReportPage.textCell("build file"), ReportPage.numberCell(mix.codeSets().build())));
+            mix.codeSets().companionsByGenerator().forEach((generator, files) -> codeRows.append(ReportPage.row(
+                    ReportPage.textCell("file of a tree " + generator + " generated"), ReportPage.numberCell(files))));
             body.append(ReportPage.table(
-                    ReportPage.headerRow("Name ending listed, or generator whose mark the page carries", "Files"),
+                    ReportPage.headerRow("Name ending listed, generator whose mark the page carries, build file, or tree of a generator", "Files"),
                     codeRows.toString()));
         }
 

@@ -199,6 +199,34 @@ CREATE TABLE IF NOT EXISTS detected_format (
 -- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS detected_format_by_run_id ON detected_format (run_id);
 
+-- corpus's own tables for code sets (ADR-284 section 7), additive: built empty on a database written before them,
+-- so CorpusSchema's version does not move (ADR-197 section 3). Both grow by a copy for each stage-1 run (ADR-229).
+-- code_set: a set of one run, by its folder relative to the corpus root, '' for the root's set; default_name is
+-- the folder's last element, and a rename is the operator's file and is stored nowhere here (section 8).
+-- owner: corpus
+CREATE TABLE IF NOT EXISTS code_set (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    folder TEXT NOT NULL,
+    default_name TEXT NOT NULL,
+    PRIMARY KEY (run_id, folder)
+);
+
+-- code_set_member: one occurrence of a set's extent, with its role (code, companion or build); generator is a
+-- companion's, and the generator of a page kept as code for its mark, and null for every other member.
+-- owner: corpus
+CREATE TABLE IF NOT EXISTS code_set_member (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    folder TEXT NOT NULL,
+    role TEXT NOT NULL,
+    generator TEXT,
+    PRIMARY KEY (occurrence_id, run_id)
+);
+
+-- SQLite checks the foreign key to run by scanning without it; code_set's primary key already leads with run_id
+-- and code_set_member's with occurrence_id (ADR-173).
+CREATE INDEX IF NOT EXISTS code_set_member_by_run_id ON code_set_member (run_id);
+
 -- extraction's own table (ADR-010, ADR-012, ADR-070, ADR-071, ADR-183): a cached Docling response,
 -- keyed on content hash plus full extractor identity, so re-running the same content under the same
 -- engine does not ask the converter about it again and changing the configured engine mints a new row

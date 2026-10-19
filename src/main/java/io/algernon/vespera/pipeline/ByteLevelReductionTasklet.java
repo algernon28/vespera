@@ -2,12 +2,14 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.BrokenOrOutOfScope;
 import io.algernon.vespera.corpus.CheckingProgress;
+import io.algernon.vespera.corpus.CodeSets;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.ContentIdentityResolution;
 import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.FormatMix;
 import io.algernon.vespera.corpus.HashingProgress;
+import io.algernon.vespera.corpus.MarkedFolders;
 import io.algernon.vespera.corpus.TextSizeLimits;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.extraction.DoclingClient;
@@ -41,20 +43,22 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Stage 1: byte-level reduction. Two passes over one run, in order:
+ * Stage 1: byte-level reduction. Three passes over one run, in order (ADR-284 section 6):
  *
  * <ol>
  *   <li>Every survivor of census is checked against {@code BrokenCheck}; a mechanically-corrupt
  *       occurrence is verdicted {@code broken} (ADR-068) — the cheapest filter in the cascade, so
  *       nothing broken ever reaches extraction. An intact one of a kind {@code corpus} names as out of
  *       scope is verdicted {@code out-of-scope} in the same pass (ADR-146), so it is never hashed either.
+ *   <li>The set pass, {@code CodeSets}, finds the code sets and keeps their build files and the files of a
+ *       generated tree as {@code code} too, before the format-mix page is written and before any hashing.
  *   <li>Every occurrence still surviving (re-read from the ledger, so {@code broken} occurrences are
  *       excluded automatically) is grouped by size, hashed within any group of two or more, and
  *       every content-identity group resolves to one representative — the rest verdicted
  *       {@code superseded-by} (ADR-067, ADR-069).
  * </ol>
  *
- * <p>{@code corpus} holds the rules for both passes, so a change to one moves this stage's run id
+ * <p>{@code corpus} holds the rules for the passes, so a change to one moves this stage's run id
  * (ADR-058); {@code pipeline} holds the step and its text: the run, the discard of an unfinished
  * attempt, the operator's lines, the format-mix page and the log floor's measurement (ADR-188).
  */
@@ -72,7 +76,8 @@ public class ByteLevelReductionTasklet implements Tasklet {
      * key is unset or unreadable, as the floor's {@code null} is: stage 1 acts on them, and its version
      * does not name {@code profile}, so only this record can move its run id when they change. The endings of
      * {@code codeNameEndings} are recorded the same way (ADR-277 section 9), beside the version of the
-     * documentation generators' marks built into {@code corpus}.
+     * documentation generators' marks built into {@code corpus}, and after them the versions of the lists of build
+     * files and of generators' companion files (ADR-284 section 10).
      */
     record ConfigConsumed(
             long textSizeCeilingBytes,
@@ -80,7 +85,9 @@ public class ByteLevelReductionTasklet implements Tasklet {
             Double logTimestampShareFloor,
             List<String> outOfScopeNameEndings,
             List<String> codeNameEndings,
-            String generatorMarks) {}
+            String generatorMarks,
+            String buildFiles,
+            String generatorCompanions) {}
 
     /** The page stage 1 leaves beside the database: what its detection found across the corpus (ADR-095). */
     static final String FORMAT_MIX_FILE_NAME = "format-mix.html";
@@ -158,6 +165,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
                                 VerdictKind.CODE,
                                 VerdictKind.SUPERSEDED_BY);
                         detectedFormats.discardForRun(runId);
+                        detectedFormats.codeSets().discardForRun(runId);
                         contentIdentity.discardForRun(runId);
                     },
                     () -> {
@@ -193,6 +201,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 () -> ledger.verdicts().survivorCount(runId));
         ProgressPage.entered(survivors);
         StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", survivors);
+        MarkedFolders markedFolders = new MarkedFolders();
         FormatMix mix = new BrokenOrOutOfScope(ledger, detectedFormats, textSizeLimits())
                 .verdictSurvivors(runId, canonicalRoot, logFloor, nameEndings, codeEndings, new CheckingProgress() {
                     @Override
@@ -231,7 +240,29 @@ public class ByteLevelReductionTasklet implements Tasklet {
                         // (ADR-210 section 2). Otherwise the file is marked broken, as it always was.
                         new CorpusRootCheck(canonicalRoot).requireListable();
                     }
-                });
+                }, markedFolders);
+        CodeSets.Tally codeSets = detectedFormats.codeSets().pass(ledger, runId, canonicalRoot, markedFolders, codeEndings, new CodeSets.Progress() {
+            @Override
+            public void kept(OccurrenceId occurrence, String reason) {
+                log.info("[byte-level-reduction] kept {} with its code set -> code: {}", occurrence.value(), reason);
+            }
+
+            @Override
+            public void unreadable(OccurrenceId occurrence, Exception cause) {
+                log.warn(
+                        "[byte-level-reduction] could not read {} to see whether it reads as text, so it is left as it was: {}",
+                        occurrence.value(),
+                        cause.toString());
+            }
+
+            @Override
+            public void markUnreadable(OccurrenceId occurrence, Exception cause) {
+                log.warn(
+                        "[byte-level-reduction] could not read {} to see which generator's mark it carries, so it is kept with none: {}",
+                        occurrence.value(),
+                        cause.toString());
+            }
+        });
         writeFormatMix(new FormatMixReport.Mix(
                 mix.byFormat(),
                 mix.bySubtype(),
@@ -250,7 +281,8 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 mix.textEndingCounts(),
                 logFloor,
                 nameEndings,
-                codeEndings));
+                codeEndings,
+                codeSets));
         // The floor's measurement is this page (ADR-171 §3), pointed at the way stage 3 points its own, and
         // so is the name endings' (ADR-256 §7).
         Measurement thePage =
@@ -356,7 +388,9 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 logFloor,
                 nameEndings,
                 codeEndings,
-                BrokenOrOutOfScope.GENERATOR_MARKS));
+                BrokenOrOutOfScope.GENERATOR_MARKS,
+                BrokenOrOutOfScope.BUILD_FILES,
+                BrokenOrOutOfScope.GENERATOR_COMPANIONS));
     }
 
     private void writeFormatMix(FormatMixReport.Mix mix) {
