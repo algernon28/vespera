@@ -51,7 +51,9 @@ import tools.jackson.databind.json.JsonMapper;
 @Epic("Architecture")
 @Feature("Process exit")
 @Issue("579")
+@Issue("585")
 @Link(name = "ADR-281", url = Adr.THE_CLOSING_LINE_IS_THE_LAST_LINE, type = "adr")
+@Link(name = "ADR-289", url = Adr.A_FAILING_STEP_ENDS_ON_ITS_OWN_CLOSING_LINE, type = "adr")
 @Link(name = "ADR-158", url = Adr.THE_PACKAGED_JAR_STARTS_NO_SIDECAR, type = "adr")
 @Link(name = "ADR-278", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN, type = "adr")
 class TheClosingLineIsTheLastLineIT {
@@ -91,6 +93,8 @@ class TheClosingLineIsTheLastLineIT {
     private static Printed labelRecording;
     private static Printed labelRefused;
     private static Printed runWhoseStageTwoFails;
+    private static Printed runWhoseEmbeddingFails;
+    private static HttpServer brokenOllama;
     private static Path missingLabelFile;
 
     /** What a launch printed, standard error merged into standard output, and how it ended. */
@@ -155,6 +159,12 @@ class TheClosingLineIsTheLastLineIT {
         String nothingListening = "http://127.0.0.1:" + LoopbackSidecar.aFreePort();
         runWhoseStageTwoFails = launch(nothingListening, ollamaUrl,
                 "run", "--db-dir=" + failingWorkingDirectory, corpusRoot.toString());
+
+        brokenOllama = ollamaWhoseEmbeddingFails();
+        Path embeddingWorkingDirectory = Files.createDirectories(temporary.resolve("embedding-working-directory"));
+        Files.copy(workingDirectory.resolve("profile.yaml"), embeddingWorkingDirectory.resolve("profile.yaml"));
+        runWhoseEmbeddingFails = launch(converterUrl, "http://127.0.0.1:" + brokenOllama.getAddress().getPort(),
+                "run", "--db-dir=" + embeddingWorkingDirectory, corpusRoot.toString());
     }
 
     @AfterAll
@@ -164,6 +174,9 @@ class TheClosingLineIsTheLastLineIT {
         }
         if (ollama != null) {
             ollama.stop(0);
+        }
+        if (brokenOllama != null) {
+            brokenOllama.stop(0);
         }
     }
 
@@ -193,6 +206,22 @@ class TheClosingLineIsTheLastLineIT {
 
         endedWith(printed, CommandLine.ExitCode.SOFTWARE, "a failure");
         claim("the run printed the line saying stage 2 failed and what to do about it",
+                () -> assertThat(printed.anyLine(line -> line.contains(closingLine) && line.endsWith(advice)))
+                        .isTrue());
+        claim("and that line is the last line that is not blank, standard output and standard error together",
+                () -> assertThat(printed.lastLine()).contains(closingLine).endsWith(advice));
+    }
+
+    @Test
+    @Story("The closing line is the last line")
+    @DisplayName("vespera run whose embedding-scoring step fails prints the line saying so last (#585)")
+    void aRunWhoseEmbeddingStepFailsPrintsItsClosingLineLast() {
+        Printed printed = runWhoseEmbeddingFails;
+        String closingLine = "embedding-scoring failed and is not recorded as finished";
+        String advice = "and run the same command again.";
+
+        endedWith(printed, CommandLine.ExitCode.SOFTWARE, "a failure");
+        claim("the run printed the line saying the embedding-scoring step failed and what to do about it",
                 () -> assertThat(printed.anyLine(line -> line.contains(closingLine) && line.endsWith(advice)))
                         .isTrue());
         claim("and that line is the last line that is not blank, standard output and standard error together",
@@ -282,6 +311,18 @@ class TheClosingLineIsTheLastLineIT {
             answer(exchange, body.append("]}").toString());
         });
         server.start();
+        return server;
+    }
+
+    /** As {@link #ollamaStandIn()}, except that every embedding call fails with a server error. */
+    private static HttpServer ollamaWhoseEmbeddingFails() throws IOException {
+        HttpServer server = ollamaStandIn();
+        server.removeContext("/api/embed");
+        server.createContext("/api/embed", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            exchange.sendResponseHeaders(500, -1);
+            exchange.close();
+        });
         return server;
     }
 

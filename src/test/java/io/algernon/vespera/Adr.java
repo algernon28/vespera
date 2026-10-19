@@ -1985,6 +1985,13 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR = FILE
             + "0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md";
 
+    /**
+     * ADR-289 -- a plain tasklet step that fails with an exception logs one closing line naming the step and that
+     * it is not recorded as finished, last in the output.
+     */
+    public static final String A_FAILING_STEP_ENDS_ON_ITS_OWN_CLOSING_LINE = FILE
+            + "0289-a-plain-tasklet-step-that-fails-with-an-exception-ends-the-output-on-one-closing-line-of-its-own.md";
+
     private Adr() {
     }
 }
