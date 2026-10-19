@@ -188,7 +188,8 @@ class NextAction {
                 summary.clustersLeftUnwritten(),
                 invocationRuns.documentsNotCopied(),
                 invocationRuns.documentsFolderLeftBehind(),
-                invocationRuns.foldersLeftBehind()));
+                invocationRuns.foldersLeftBehind(),
+                invocationRuns.filesLeftBehind()));
     }
 
     /**
@@ -217,7 +218,7 @@ class NextAction {
         }
         int arranged = clustersBean.countForRun(upstream.getFirst());
         int written = synthesisDocsBean.countForRun(generation);
-        return Optional.of(new DeliverableSummary(tree, Math.max(0, arranged - written), OptionalInt.empty(), false, 0));
+        return Optional.of(new DeliverableSummary(tree, Math.max(0, arranged - written), OptionalInt.empty(), false, 0, 0));
     }
 
     /**
@@ -232,13 +233,16 @@ class NextAction {
      *     this drawing did not (ADR-280 §4)
      * @param foldersLeftBehind how many other folders this drawing did not write the tree holds, at its top or in a
      *     partition folder this drawing wrote (ADR-280 §4)
+     * @param filesLeftBehind how many files an earlier drawing left in the cluster folders this drawing wrote (ADR-286
+     *     §4)
      */
     record DeliverableSummary(
             Path tree,
             int clustersLeftUnwritten,
             OptionalInt documentsNotCopied,
             boolean documentsFolderLeftBehind,
-            int foldersLeftBehind) {}
+            int foldersLeftBehind,
+            int filesLeftBehind) {}
 
     /**
      * Whether a label file exists to be answered.
@@ -313,8 +317,8 @@ class NextAction {
 
     /**
      * What the line says of what an earlier drawing left in the tree, to follow the count of documents not copied and
-     * precede the line's last full stop (ADR-280 §4): {@code documents/} named, any other folder counted and not named,
-     * and nothing where nothing was left or this invocation drew no tree.
+     * precede the line's last full stop (ADR-280 §4, ADR-286 §4): {@code documents/} named, any other folder and any
+     * file counted and not named, in one clause, and nothing where nothing was left or this invocation drew no tree.
      */
     private static String leftBehind(DeliverableSummary deliverable) {
         if (deliverable.documentsNotCopied().isEmpty()) {
@@ -324,13 +328,15 @@ class NextAction {
                 ? "documents/ holds an earlier layout's copies and can be deleted by hand"
                 : "";
         int others = deliverable.foldersLeftBehind();
-        String folders = others == 0
-                ? ""
-                : others + (others == 1 ? " folder" : " folders") + " left by an earlier drawing can be deleted by hand";
-        if (documents.isEmpty() && folders.isEmpty()) {
+        int files = deliverable.filesLeftBehind();
+        String counted = (others == 0 ? "" : others + (others == 1 ? " folder" : " folders"))
+                + (others != 0 && files != 0 ? " and " : "")
+                + (files == 0 ? "" : files + (files == 1 ? " file" : " files"));
+        String earlier = counted.isEmpty() ? "" : counted + " left by an earlier drawing can be deleted by hand";
+        if (documents.isEmpty() && earlier.isEmpty()) {
             return "";
         }
-        return "; " + documents + (documents.isEmpty() || folders.isEmpty() ? "" : ", and ") + folders;
+        return "; " + documents + (documents.isEmpty() || earlier.isEmpty() ? "" : ", and ") + earlier;
     }
 
     /**
@@ -454,6 +460,10 @@ class NextAction {
         if (sharedEndings.isPresent()) {
             return sharedEndings;
         }
+        Optional<String> configurationFloor = theConfigurationFloorUnreadable(profile);
+        if (configurationFloor.isPresent()) {
+            return configurationFloor;
+        }
         Optional<String> translationFloor = theTranslationFloorUnreadable(profile);
         if (translationFloor.isPresent()) {
             return translationFloor;
@@ -564,6 +574,20 @@ class NextAction {
                     + " ignored it and extracted under the first attempt. Next: write a whole number of 1"
                     + " or more into " + ExtractionAttempt.KEY + " in " + PROFILE + ", or remove it, and run"
                     + " again.");
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The line for {@code configurationSettingShareFloor} (ADR-287 §7), where it holds something no number can be
+     * read from -- empty otherwise. An unset floor is not reported: it ships unset, and unset means no rule.
+     */
+    private static Optional<String> theConfigurationFloorUnreadable(Profile profile) {
+        if (profile.configurationSettingShareFloor().reading() instanceof NumericValue.Unreadable unreadable) {
+            return Optional.of("Every run value is set, but configurationSettingShareFloor reads "
+                    + quoted(unreadable.text()) + ", which is not a number, so this run ignored it and found no"
+                    + " configuration file. Next: write a share between 0 and 1 into configurationSettingShareFloor"
+                    + " in " + PROFILE + ", and run again.");
         }
         return Optional.empty();
     }

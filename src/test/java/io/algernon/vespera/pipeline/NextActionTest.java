@@ -557,6 +557,39 @@ class NextActionTest {
     }
 
     /**
+     * ADR-287 §7: a floor on the share of settings that no number can be read from is ignored as unset, so no file is
+     * found to be a configuration file, and the closing line names the key and quotes back what is written. Written
+     * as YAML through {@link ConfigurationSettingShareFloorInProfile}, so this compiles before the key exists.
+     */
+    @Test
+    @Story("A threshold nobody can parse is not a threshold, and the line says so")
+    @DisplayName("A floor on the share of settings that is not a number is reported, with what was written")
+    @Issue("575")
+    @Link(name = "ADR-287", url = Adr.LOGS_AND_CONFIGURATION_FILES_ARE_TOLD_BY_THEIR_BYTES, type = "adr")
+    void anUnreadableConfigurationFloorIsReported(@TempDir Path workingDirectory) {
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        profileStore.save(theRunValuesSet());
+        ConfigurationSettingShareFloorInProfile.write(profileStore, A_MISTYPED_FLOOR, RECORDED_BY_THE_OPERATOR);
+
+        String line = NextAction.line(
+                profileStore.load(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+
+        claim(
+                "the key is named, with the words that say it is not a number and that no configuration file was found,"
+                        + " so an operator who set it learns that the rule did not run",
+                () -> assertThat(line)
+                        .contains(ConfigurationSettingShareFloorInProfile.KEY)
+                        .contains("which is not a number")
+                        .contains("found no configuration file"));
+        claim(
+                "their own text is quoted back to them",
+                () -> assertThat(line).contains('"' + A_MISTYPED_FLOOR + '"'));
+        claim(
+                "and it is still one line",
+                () -> assertThat(line.lines()).hasSize(1));
+    }
+
+    /**
      * ADR-277 §6: an ending both lists hold leaves its files out of scope, and the closing line names the ending and
      * the two keys, so the operator learns that the files they listed as code were left out instead.
      */

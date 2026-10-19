@@ -1,5 +1,7 @@
 # ADR-281 — The closing line is the last line of output, and two library loggers write to the console only at WARN
 
+> **Partly amended — see [ADR-289](0289-a-plain-tasklet-step-that-fails-with-an-exception-ends-the-output-on-one-closing-line-of-its-own.md).** Of What this does not decide, its first entry: a plain tasklet step that fails with an exception ends the output on a closing line of its own.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md)'s *The last line*: the operator reads the last line of the output for the value to set next. §1 holds it of the packaged jar.

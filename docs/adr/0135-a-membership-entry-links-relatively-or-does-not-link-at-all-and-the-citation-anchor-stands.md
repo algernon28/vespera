@@ -1,5 +1,7 @@
 # ADR-135 — A membership entry links relatively or does not link at all, and the citation anchor stands
 
+> **Partly amended — see [ADR-286](0286-a-clusters-page-is-one-file-written-an-entry-at-a-time-through-its-part-with-its-pictures-and-a-png-or-jpeg-image-inlined.md).** The test it binds is replaced by ADR-286 §5's, which reads every `src` and `href` of every page. Everything else stands.
+
 - **Date**: 2026-09-21
 - **Status**: accepted
 - **Amends**: [ADR-104](0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md) — one sentence of its Consequences (*"A `file:` link satisfies ADR-103's test"*) and one bullet of *What a link physically is* (*"In the prose, a link is an absolute `file:` target"*). Everything else in that record stands: the originals are still referenced and never copied, the extracted text is still refused, the membership is still complete, the manifest is still root-relative, and nothing is still stat-ed.

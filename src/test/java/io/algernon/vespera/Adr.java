@@ -1986,12 +1986,42 @@ public final class Adr {
             + "0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md";
 
     /**
-     * ADR-298 -- the embedding model ships with a default, {@code bge-m3:latest}, under {@code
-     * spring.ai.ollama.embedding.options.model}; the profile's {@code embeddingModel} overrides it; stage 5 is gated
-     * only where neither names a model; and the scoring run is identified by the name resolved, not by its source.
+     * ADR-286 -- a cluster's page is one file: a picture, and an image survivor's copy that is a PNG or a JPEG, are
+     * shown by a base64 {@code data:} URI on an {@code <img>}'s {@code src}, the one scheme a page names, and no
+     * picture file is written; the page is written as UTF-8 to a stream an entry at a time, the bytes counted at each
+     * entry's end, to {@code index.html.part} and moved into place, a copy yielding to that part; the files an earlier
+     * drawing left in a cluster folder are counted on the closing line; every {@code src} and {@code href} stays on its
+     * page or in the tree (amends ADR-274, ADR-280, ADR-276, ADR-149, ADR-150, ADR-242, ADR-223, ADR-220, ADR-103 and
+     * ADR-135).
      */
-    public static final String THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT = FILE
-            + "0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md";
+    public static final String A_CLUSTERS_PAGE_IS_ONE_FILE_ITS_PICTURES_INLINED = FILE
+            + "0286-a-clusters-page-is-one-file-written-an-entry-at-a-time-through-its-part-with-its-pictures-and-a-png-or-jpeg-image-inlined.md";
+
+    /**
+     * ADR-287 -- a log is told by a timestamp in each counted line's first 64 characters, continuation lines left
+     * out, and is read in a file of no known kind whose bytes read as text too; a configuration file is told by its
+     * first XML element or by its share of setting lines under the profile's configurationSettingShareFloor, an
+     * interface definition never being one, and a third pass of stage 1 keeps it with its code set as code or leaves
+     * it out of scope outside every set.
+     */
+    public static final String LOGS_AND_CONFIGURATION_FILES_ARE_TOLD_BY_THEIR_BYTES = FILE
+            + "0287-a-log-and-a-configuration-file-are-told-by-their-bytes-whatever-their-detected-format-and-a-configuration-file-is-kept-with-its-code-set-or-is-out-of-scope.md";
+
+    /**
+     * ADR-288 -- the operator starts the control panel with {@code java -jar} on its jar, whose manifest names
+     * {@code io.algernon.controlpanel.ControlPanel} as {@code Main-Class} and the Spring Boot jar's file name as
+     * {@code Vespera-Jar}; the control panel starts that jar, found beside its own, with the {@code java} of the runtime
+     * running it, and refuses with one line where none is there (amends ADR-285 and ADR-278).
+     */
+    public static final String THE_CONTROL_PANEL_STARTS_THE_JAR_BESIDE_ITS_OWN_WITH_THE_JAVA_RUNNING_IT = FILE
+            + "0288-the-operator-starts-the-control-panel-with-java-jar-and-it-starts-the-jar-beside-its-own-with-the-java-running-it.md";
+
+    /**
+     * ADR-289 -- a plain tasklet step that fails with an exception logs one closing line naming the step and that
+     * it is not recorded as finished, last in the output.
+     */
+    public static final String A_FAILING_STEP_ENDS_ON_ITS_OWN_CLOSING_LINE = FILE
+            + "0289-a-plain-tasklet-step-that-fails-with-an-exception-ends-the-output-on-one-closing-line-of-its-own.md";
 
     /**
      * ADR-290 -- a fixture repository is run without any {@code GIT_*} variable, so a test's git commits into its own
@@ -1999,6 +2029,49 @@ public final class Adr {
      */
     public static final String A_FIXTURE_REPOSITORY_IS_RUN_WITHOUT_GITS_LOCATION_VARIABLES = FILE
             + "0290-a-fixture-repository-is-run-without-gits-location-variables.md";
+
+    /**
+     * ADR-291 -- the control panel's server listens on {@code 127.0.0.1} alone at a port the system picks, and answers
+     * only a request addressed to it by that address, holding the cookie its start's token is exchanged for, a
+     * {@code POST} only from its own origin, with four headers on every response and no file served.
+     */
+    public static final String THE_CONTROL_PANEL_ANSWERS_ONLY_A_BROWSER_HOLDING_ITS_STARTS_TOKEN_ON_ITS_OWN_ADDRESS = FILE
+            + "0291-the-control-panel-listens-on-127-0-0-1-alone-at-a-port-the-system-picks-and-answers-only-a-browser-holding-its-starts-token-on-its-own-address.md";
+
+    /**
+     * ADR-292 -- the control panel remembers seven launch values, keyed by the jar's own properties, and the last seed
+     * folder in one UTF-8 properties file in a folder of the user's own under the temp directory; the corpus root and
+     * the working directory reach the child on its command line, the other five in its environment, an empty one not
+     * at all; Run is refused without the first two, Label without the working directory (amends ADR-278 and ADR-288).
+     */
+    public static final String THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES = FILE
+            + "0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md";
+
+    /**
+     * ADR-293 -- an operational record that is neither a log nor a configuration file is left to relevance, with no
+     * rule of stage 1's of its own; a JSON or YAML export keyed line by line is read as settings by ADR-287's rule and
+     * is left as that rule leaves it; a flow file or a lookup-table export is left out by the ending of its name where
+     * the operator lists it in outOfScopeNameEndings.
+     */
+    public static final String AN_OPERATIONAL_RECORD_THAT_IS_NOT_A_LOG_OR_A_CONFIGURATION_FILE_IS_LEFT_TO_RELEVANCE = FILE
+            + "0293-an-operational-record-that-is-not-a-log-or-a-configuration-file-is-left-to-relevance-and-its-name-ending-is-the-operators-to-list.md";
+
+    /**
+     * ADR-297 -- the control panel's screens are tested failing-first through {@code PanelBrowser}, the JDK's HTTP
+     * client with a cookie store and jsoup at test scope, which opens the printed address, follows a {@code 303},
+     * and submits a form by its name as a browser sends it, a {@code POST} from the panel's own origin; no browser is
+     * downloaded, and every such test is a unit test on both CI jobs.
+     */
+    public static final String THE_CONTROL_PANELS_SCREENS_ARE_TESTED_THROUGH_THE_PAGES_IT_SERVES = FILE
+            + "0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md";
+
+    /**
+     * ADR-298 -- the embedding model ships with a default, {@code bge-m3:latest}, under {@code
+     * spring.ai.ollama.embedding.options.model}; the profile's {@code embeddingModel} overrides it; stage 5 is gated
+     * only where neither names a model; and the scoring run is identified by the name resolved, not by its source.
+     */
+    public static final String THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT = FILE
+            + "0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md";
 
     private Adr() {
     }

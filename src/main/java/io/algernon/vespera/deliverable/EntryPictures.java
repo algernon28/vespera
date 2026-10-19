@@ -1,11 +1,16 @@
 package io.algernon.vespera.deliverable;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,30 +22,36 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * The pictures a document carries under its membership entry (ADR-149, ADR-150, #285): which pictures
- * across the whole tree are furniture, and what is written and shown for the rest.
+ * The pictures a document carries under its membership entry (ADR-149, ADR-150, ADR-286, #285): which pictures
+ * across the whole tree are furniture, and what is shown for the rest, inline.
  *
  * <p><b>Two passes that never hold more than one document's pixels at a time (ADR-149 §9).</b> {@link
  * #among} is the first: every listed survivor's pictures are asked for once, and only the digest and difference
  * hash of each distinct picture are kept, from which the set of furniture digests is decided under
- * ADR-149 §1(a)/(b) and ADR-150 §3(c)/(d) (ADR-223 §7). {@link #appendUnder} is the second, one entry at a time: the
- * source is asked again, and what passes the furniture rule is written beside the cluster page.
+ * ADR-149 §1(a)/(b) and ADR-150 §3(c)/(d) (ADR-223 §7). {@link #writeUnder} is the second, one entry at a time: the
+ * source is asked again, and what passes the furniture rule is written into the page's stream (ADR-286 §2).
  *
- * <p><b>One SHA-256 per picture per pass</b> (ADR-213 §5). The second pass digests each picture once, and
- * that one digest answers the furniture check and names the file. The first pass's digests are not
- * carried into it: the second answer is a new answer, and a picture's file is named from its own bytes
- * (ADR-149 §3), so the bytes digested must be the bytes written.
+ * <p><b>One SHA-256 per picture per pass</b> (ADR-213 §5). The second pass digests each picture once, for the
+ * furniture check; the first pass's digests are not carried into it, the second answer being a new answer.
  */
 final class EntryPictures {
 
-    /** The media type a survivor's picture is written under a {@code .png} file for. */
+    /** The media type a PNG's bytes are shown under (ADR-286 §1). */
     private static final String PNG_MEDIA_TYPE = "image/png";
 
-    /** The media type a survivor's picture is written under a {@code .jpg} file for. */
+    /** The media type a JPEG's bytes are shown under (ADR-286 §1). */
     private static final String JPEG_MEDIA_TYPE = "image/jpeg";
 
-    /** How many hexadecimal characters of a picture's SHA-256 digest its file is named from (ADR-149 §3). */
-    private static final int PICTURE_NAME_LENGTH = 16;
+    /** The eight bytes a PNG begins with. */
+    private static final byte[] PNG_SIGNATURE = {
+        (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
+    };
+
+    /** The three bytes a JPEG begins with. */
+    private static final byte[] JPEG_SIGNATURE = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
+
+    /** How many bytes of a copy are read at a time to be encoded. */
+    private static final int COPY_BUFFER_BYTES = 1 << 15;
 
     /** The near-copy rule's pixel tolerance, on width and height each (ADR-150 §3(c)). */
     private static final int NEAR_COPY_PIXELS = 2;
@@ -57,8 +68,6 @@ final class EntryPictures {
     private final SurvivorPictures source;
 
     private final Set<String> furniture;
-
-    private final Map<Long, String> prepared = new HashMap<>();
 
     private EntryPictures(SurvivorPictures source, Set<String> furniture) {
         this.source = source;
@@ -114,51 +123,30 @@ final class EntryPictures {
     }
 
     /**
-     * A survivor's pictures under its own membership entry (ADR-149 §3, §5, §6): the first {@link
-     * Deliverable#PICTURES_PER_DOCUMENT} that pass the furniture rule, each written as a file beside the
-     * page and shown by an {@code <img>} in the entry, then, where any were left uncounted or
-     * unwritten, one line saying how many.
+     * What a survivor's membership entry shows under its link, written to {@code page} (ADR-286 §1, §2, §6): its
+     * copy where {@code copy} names one that stands and begins with the PNG or the JPEG signature, then the first
+     * {@link Deliverable#PICTURES_PER_DOCUMENT} of its pictures that pass the furniture rule, each shown by an
+     * {@code <img>} whose {@code src} is a {@code data:} URI, then, where any were left uncounted or not of the kind
+     * they declare, one line saying how many. Nothing is written into any folder.
      *
-     * <p><b>The budget is positions, not files written.</b> The first {@link
-     * Deliverable#PICTURES_PER_DOCUMENT} non-furniture pictures in reading order are the ones this entry
-     * may show; among those, only the two media types ever measured in the cache are written, and any
-     * other kind, though it holds a position within the budget, is counted as not shown rather than
-     * written under no extension (ADR-149 §6).
+     * <p><b>The source is asked once, here</b>, while the survivor's own entry is written (ADR-149 §9), and what is
+     * held is what it hands for that survivor. Each payload is encoded straight from its bytes into {@code page}, a
+     * copy a buffer at a time, and no string of either is made.
      *
-     * <p><b>The alt text is the caption under the one escaping rule</b> (ADR-149 §5, ADR-274 §1.3): the
-     * converter's own text, escaped like every value the tree did not write, in an attribute.
+     * <p><b>The budget is positions, not pictures shown.</b> The first {@link Deliverable#PICTURES_PER_DOCUMENT}
+     * non-furniture pictures in reading order are the ones this entry may show; among those, one whose bytes do not
+     * begin with the signature of the media type it declares, or whose type is neither PNG nor JPEG, holds its
+     * position and is counted as not shown (ADR-149 §6, ADR-286 §1). A copy is no picture: outside the budget and
+     * the count (ADR-286 §6).
      *
-     * @param folder the cluster's folder, the page's own, into which each picture is written and by whose file name
-     *     alone it is shown (ADR-280 §0)
+     * <p><b>The alt text is the caption under the one escaping rule</b> (ADR-149 §5, ADR-274 §1.3); a copy's is empty.
+     *
+     * @param copy the survivor's copy in its cluster's folder where one stands, otherwise empty
      */
-    void appendUnder(StringBuilder page, ListedSurvivor member, Path folder) throws IOException {
-        String held = prepared.remove(member.occurrence().value());
-        page.append(held != null ? held : writeAndShow(member, folder).html());
-    }
-
-    /**
-     * Writes the pictures of each of {@code members} into {@code folder} and holds how each is shown, returning the
-     * names written (ADR-280 §1.5): a copy's name yields to a picture's, so the names are wanted before the cluster's
-     * first copy, and a document's pictures are asked of the source once for the page, never again for the entry that
-     * shows them (ADR-149 §9). What is held is each entry's few lines of HTML until {@link #appendUnder} takes it, or
-     * {@link #forgetPrepared} lets it go, and never a picture's pixels.
-     */
-    Set<String> writeFor(List<ListedSurvivor> members, Path folder) throws IOException {
-        Set<String> names = new HashSet<>();
-        for (ListedSurvivor member : members) {
-            Written written = writeAndShow(member, folder);
-            prepared.put(member.occurrence().value(), written.html());
-            names.addAll(written.names());
+    void writeUnder(OutputStream page, ListedSurvivor member, Optional<Path> copy) throws IOException {
+        if (copy.isPresent()) {
+            writeCopyInline(page, copy.get());
         }
-        return names;
-    }
-
-    /** Lets go of every entry {@link #writeFor} held and {@link #appendUnder} did not take. */
-    void forgetPrepared() {
-        prepared.clear();
-    }
-
-    private Written writeAndShow(ListedSurvivor member, Path folder) throws IOException {
         List<NamedPicture> kept = new ArrayList<>();
         for (ListedPicture picture : source.of(member)) {
             String digest = sha256Hex(picture.pixels());
@@ -166,41 +154,123 @@ final class EntryPictures {
                 kept.add(new NamedPicture(picture, digest));
             }
         }
-        StringBuilder page = new StringBuilder();
-        Set<String> names = new HashSet<>();
         if (kept.isEmpty()) {
-            return new Written("", names);
+            return;
         }
         int withinBudget = Math.min(Deliverable.PICTURES_PER_DOCUMENT, kept.size());
         int notShown = kept.size() - withinBudget;
         for (NamedPicture candidate : kept.subList(0, withinBudget)) {
-            Optional<String> extension = fileExtensionFor(candidate.picture().mediaType());
-            if (extension.isEmpty()) {
+            byte[] pixels = candidate.picture().pixels();
+            Optional<String> mediaType = declaredAndCarried(candidate.picture().mediaType(), pixels);
+            if (mediaType.isEmpty()) {
                 notShown++;
                 continue;
             }
-            Files.createDirectories(folder);
-            String fileName = candidate.digest().substring(0, PICTURE_NAME_LENGTH) + extension.get();
-            Files.write(folder.resolve(fileName), candidate.picture().pixels());
-            names.add(fileName);
-            page.append("<p><img src=\"")
-                    .append(Html.escape(fileName))
-                    .append("\" alt=\"")
-                    .append(Html.escape(candidate.picture().caption()))
-                    .append("\"></p>\n");
+            startImage(page, mediaType.get());
+            encodeInto(page, pixels);
+            text(page, "\" alt=\"" + Html.escape(candidate.picture().caption()) + "\"></p>\n");
         }
         if (notShown > 0) {
-            page.append("<p><em>")
-                    .append(notShown)
-                    .append(notShown == 1 ? " more picture from this document is not shown." : " more"
-                            + " pictures from this document are not shown.")
-                    .append("</em></p>\n");
+            text(
+                    page,
+                    "<p><em>" + notShown
+                            + (notShown == 1
+                                    ? " more picture from this document is not shown."
+                                    : " more pictures from this document are not shown.")
+                            + "</em></p>\n");
         }
-        return new Written(page.toString(), names);
     }
 
-    /** What one entry shows of its document's pictures, and the names of the files written for it. */
-    private record Written(String html, Set<String> names) {}
+    /**
+     * Shows {@code copy} if its first bytes are a PNG's or a JPEG's signature, and writes nothing if not, or if the
+     * copy cannot be opened or its first bytes read (ADR-286 §6); those bytes are read before any tag is begun.
+     */
+    private static void writeCopyInline(OutputStream page, Path copy) throws IOException {
+        InputStream opened = null;
+        byte[] head;
+        try {
+            opened = Files.newInputStream(copy);
+            head = opened.readNBytes(PNG_SIGNATURE.length);
+        } catch (IOException unreadable) {
+            if (opened != null) {
+                opened.close();
+            }
+            return;
+        }
+        try (InputStream in = opened) {
+            String mediaType = mediaTypeOfSignature(head);
+            if (mediaType == null) {
+                return;
+            }
+            startImage(page, mediaType);
+            try (OutputStream encoder = Base64.getEncoder().wrap(new NonClosing(page))) {
+                encoder.write(head);
+                byte[] buffer = new byte[COPY_BUFFER_BYTES];
+                for (int read = in.read(buffer); read >= 0; read = in.read(buffer)) {
+                    encoder.write(buffer, 0, read);
+                }
+            }
+            // An empty alt text: its value is the empty string between these two writes (ADR-286 §6).
+            text(page, "\" alt=\"");
+            text(page, "\"></p>\n");
+        }
+    }
+
+    private static void startImage(OutputStream page, String mediaType) throws IOException {
+        text(page, "<p><img src=\"data:" + mediaType + ";base64,");
+    }
+
+    private static void encodeInto(OutputStream page, byte[] bytes) throws IOException {
+        try (OutputStream encoder = Base64.getEncoder().wrap(new NonClosing(page))) {
+            encoder.write(bytes);
+        }
+    }
+
+    private static void text(OutputStream page, String text) throws IOException {
+        page.write(text.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** The media type {@code declared} where {@code bytes} begin with that type's signature, otherwise empty. */
+    private static Optional<String> declaredAndCarried(String declared, byte[] bytes) {
+        String carried = mediaTypeOfSignature(bytes);
+        return carried != null && carried.equals(declared) ? Optional.of(declared) : Optional.empty();
+    }
+
+    /** The media type whose signature {@code bytes} begin with (ADR-286 §1), or {@code null} for neither. */
+    private static String mediaTypeOfSignature(byte[] bytes) {
+        if (startsWith(bytes, PNG_SIGNATURE)) {
+            return PNG_MEDIA_TYPE;
+        }
+        return startsWith(bytes, JPEG_SIGNATURE) ? JPEG_MEDIA_TYPE : null;
+    }
+
+    private static boolean startsWith(byte[] bytes, byte[] signature) {
+        return bytes.length >= signature.length && Arrays.equals(bytes, 0, signature.length, signature, 0, signature.length);
+    }
+
+    /** A stream that passes everything on and leaves the stream beneath it open when it is closed. */
+    private static final class NonClosing extends OutputStream {
+        private final OutputStream beneath;
+
+        NonClosing(OutputStream beneath) {
+            this.beneath = beneath;
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            beneath.write(b);
+        }
+
+        @Override
+        public void write(byte[] bytes, int offset, int length) throws IOException {
+            beneath.write(bytes, offset, length);
+        }
+
+        @Override
+        public void flush() throws IOException {
+            beneath.flush();
+        }
+    }
 
     /** A picture the second pass kept, with the one digest taken of its bytes. */
     private record NamedPicture(ListedPicture picture, String digest) {}
@@ -289,17 +359,6 @@ final class EntryPictures {
     private static boolean isSamePlace(PictureEntry a, PictureEntry b) {
         return a.place().get().withinPointsOf(b.place().get(), SAME_PLACE_POINTS)
                 && a.hash().bitsApartFrom(b.hash()) <= SAME_PLACE_BITS;
-    }
-
-    /** The file extension a picture's media type is written under, or empty for a kind never measured. */
-    private static Optional<String> fileExtensionFor(String mediaType) {
-        if (PNG_MEDIA_TYPE.equals(mediaType)) {
-            return Optional.of(".png");
-        }
-        if (JPEG_MEDIA_TYPE.equals(mediaType)) {
-            return Optional.of(".jpg");
-        }
-        return Optional.empty();
     }
 
     /** {@code pixels}' SHA-256 digest, lower-case hexadecimal, in full (ADR-149 §1, §3). */

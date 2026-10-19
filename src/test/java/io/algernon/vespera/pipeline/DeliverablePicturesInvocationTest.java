@@ -17,13 +17,10 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HexFormat;
+import java.util.Base64;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -47,7 +44,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p>{@code DeliverablePicturesTest} holds every claim about what the writer does with pictures it is
  * handed. What only an invocation can show is that it is handed them at all: that stage 2's cached
  * response for a document is found again at stage 6b through that document's own file, and that what
- * comes out of it lands on the right page, under the right entry, as a file the page links to.
+ * comes out of it lands on the right page, under the right entry, its bytes inlined as the image's
+ * source (ADR-286 §1).
  *
  * <p><b>Why a sibling class with its own converter double.</b> The double the rest of this package
  * shares answers every document with one response, so every document would carry the same pictures,
@@ -73,6 +71,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 @Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
+@Link(name = "ADR-286", url = Adr.A_CLUSTERS_PAGE_IS_ONE_FILE_ITS_PICTURES_INLINED, type = "adr")
 class DeliverablePicturesInvocationTest {
 
     /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
@@ -103,9 +102,6 @@ class DeliverablePicturesInvocationTest {
 
     /** How many pages the tree holds: this corpus arranges one group. */
     private static final int ONE_PAGE = 1;
-
-    /** How many hexadecimal characters of a picture's digest name its file. */
-    private static final int NAME_LENGTH = 16;
 
     /** An image on a page, as its destination and its alt text. */
     private static final Pattern AN_IMAGE = Pattern.compile("<img src=\"([^\"]*)\" alt=\"([^\"]*)\">");
@@ -146,7 +142,7 @@ class DeliverablePicturesInvocationTest {
 
     @Test
     @Story("A picture only one document carries is shown under that document")
-    @DisplayName("A picture one document's conversion carried reaches that document's entry as a file beside the page, and one both carried is left out")
+    @DisplayName("A picture one document's conversion carried reaches that document's entry inlined on the page, and one both carried is left out")
     void carriesAPictureFromTheConversionToItsDocumentsEntryAndLeavesOutTheOneEveryDocumentCarries(
             @TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
@@ -162,9 +158,8 @@ class DeliverablePicturesInvocationTest {
                 });
         Path page = theOnePageOf(root);
         String text = Files.readString(page);
-        String diagramName = nameOf(PictureScriptedExtractionBeans.THE_DIAGRAM);
-        String letterheadName = nameOf(PictureScriptedExtractionBeans.THE_LETTERHEAD);
-        Path diagramFile = page.resolveSibling(diagramName);
+        String diagram = shown(PictureScriptedExtractionBeans.THE_DIAGRAM);
+        String letterhead = shown(PictureScriptedExtractionBeans.THE_LETTERHEAD);
 
         claim(
                 "both corpus documents reached the group's page, which the claims below depend on: a"
@@ -173,45 +168,35 @@ class DeliverablePicturesInvocationTest {
                         .contains(PictureScriptedExtractionBeans.THE_DOCUMENT_WITH_A_DIAGRAM)
                         .contains(PictureScriptedExtractionBeans.THE_DOCUMENT_WITH_ONLY_THE_LETTERHEAD));
         claim(
-                "the diagram only one document's conversion carried is written into the tree, in the"
-                        + " group's folder beside its page, holding exactly the pixels the converter returned:"
-                        + " read out of what stage 2 stored, with no conversion asked for again",
-                () -> assertThat(diagramFile).isRegularFile().hasBinaryContent(PictureScriptedExtractionBeans.THE_DIAGRAM));
+                "the diagram only one document's conversion carried is the only image on the page, its source"
+                        + " exactly the pixels the converter returned, as a base64 PNG: read out of what stage 2"
+                        + " stored, with no conversion asked for again",
+                () -> assertThat(sourcesOn(text)).containsExactly(diagram));
         claim(
                 "and the page shows it inside the entry of the document it came from, and not inside the"
                         + " other document's entry",
                 () -> assertThat(theEntryNaming(text, PictureScriptedExtractionBeans.THE_DOCUMENT_WITH_A_DIAGRAM))
-                        .contains("<img src=\"" + diagramName + "\""));
+                        .contains("<img src=\"" + diagram + "\""));
         claim(
-                "and the only image on the page leads, by a relative path followed from the page's own"
-                        + " directory, to that file: nothing outside the tree and nothing on a network is"
-                        + " needed to see it",
-                () -> assertThat(whereEveryImageLeads(page)).containsExactly(diagramFile));
-        claim(
-                "the letterhead both documents' conversions carried is written nowhere in the tree and"
-                        + " linked from nowhere on the page: a picture every document carries is furniture,"
-                        + " not information",
-                () -> {
-                    assertThat(everyFileIn(theTreeOf(root)))
-                            .noneMatch(file -> file.getFileName().toString().equals(letterheadName));
-                    assertThat(text).doesNotContain(letterheadName);
-                });
+                "the letterhead both documents' conversions carried is shown nowhere on the page: a picture"
+                        + " every document carries is furniture, not information",
+                () -> assertThat(text).doesNotContain(letterhead));
     }
 
     /**
-     * ADR-150 §4: a standalone image file that survives shows its entry and nothing else, although its
-     * conversion carries a picture that recurs nowhere. That picture is a re-encoded crop of the
-     * original, whose own verified copy the tree already holds (ADR-274 §2). The picture's bytes
-     * are no image, so no rule that decodes a picture can be what leaves it out: only the file's
-     * detected format can.
+     * ADR-150 §4 as ADR-286 §6 amends it: a standalone image file that survives, a PNG, shows its own verified copy
+     * inline on its entry, and none of the pictures its conversion carries, although one recurs nowhere. That picture
+     * is a re-encoded crop of the original, whose copy the tree already holds (ADR-274 §2). The picture's bytes are no
+     * image, so no rule that decodes a picture can be what leaves it out: only the file's detected format can.
      */
     @Test
-    @Story("A standalone image file shows its entry and nothing else")
-    @DisplayName("An image file that survived shows its entry, and none of the pictures its conversion carried")
-    @Issue("286")
+    @Story("A standalone image file shows its entry and its own copy")
+    @DisplayName("An image file that survived shows its own copy on its entry, and none of the pictures its conversion carried")
+    @Issue("560")
     @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
     @Link(name = "ADR-104", url = Adr.THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED, type = "adr")
-    void showsAnImageFileAsItsEntryAndNothingElse(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    void showsAnImageFileInlineFromItsCopyAndNoneOfItsConversionsPictures(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
         anApprovedCorpusWithAScreenshot(root, seeds);
 
         cli.run("run", root.toString());
@@ -221,17 +206,17 @@ class DeliverablePicturesInvocationTest {
                 () -> assertThat(cli.getExitCode()).isZero());
         Path page = theOnePageOf(root);
         String text = Files.readString(page);
-        String cropName = nameOf(PictureScriptedExtractionBeans.THE_SCREENSHOTS_CROP);
+        String crop = shown(PictureScriptedExtractionBeans.THE_SCREENSHOTS_CROP);
+        String theScreenshotAsCopied = shown(Files.readAllBytes(root.resolve(PictureScriptedExtractionBeans.THE_SCREENSHOT)));
 
         claim(
                 "the image file reached the group's page as a membership entry of its own",
                 () -> assertThat(text).contains(PictureScriptedExtractionBeans.THE_SCREENSHOT));
         claim(
-                "but the picture its conversion carried is written nowhere in the tree, although no other"
+                "but the picture its conversion carried is shown nowhere on the page, although no other"
                         + " document carries it: it is a re-encoded crop of the original, whose own copy is the"
                         + " one the tree holds",
-                () -> assertThat(everyFileIn(theTreeOf(root)))
-                        .noneMatch(file -> file.getFileName().toString().equals(cropName)));
+                () -> assertThat(text).doesNotContain(crop));
         claim(
                 "the image file itself is copied like every other document, under its own name in the group's"
                         + " folder beside the page, and its entry links to that copy",
@@ -241,13 +226,13 @@ class DeliverablePicturesInvocationTest {
                             .contains("<a href=\"./" + PictureScriptedExtractionBeans.THE_SCREENSHOT + "\">");
                 });
         claim(
-                "and the image file's entry shows no image at all",
-                () -> assertThat(theEntryNaming(text, PictureScriptedExtractionBeans.THE_SCREENSHOT))
-                        .doesNotContain("<img"));
+                "and the image file's entry shows exactly one image, its own copy's bytes as a base64 PNG",
+                () -> assertThat(sourcesOn(theEntryNaming(text, PictureScriptedExtractionBeans.THE_SCREENSHOT)))
+                        .containsExactly(theScreenshotAsCopied));
         claim(
                 "while the diagram of the other document is still shown, so the image file costs its"
                         + " neighbours nothing",
-                () -> assertThat(text).contains(nameOf(PictureScriptedExtractionBeans.THE_DIAGRAM)));
+                () -> assertThat(text).contains(shown(PictureScriptedExtractionBeans.THE_DIAGRAM)));
     }
 
     /**
@@ -275,11 +260,10 @@ class DeliverablePicturesInvocationTest {
                 () -> assertThat(cli.getExitCode()).isZero());
         Path page = theOnePageOf(root);
         String text = Files.readString(page);
-        String chartName = nameOf(PictureScriptedExtractionBeans.THE_CHART);
-        Path chartFile = page.resolveSibling(chartName);
-        List<String> headerNames = List.of(
-                nameOf(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_ONE),
-                nameOf(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_TWO));
+        String chart = shown(PictureScriptedExtractionBeans.THE_CHART);
+        List<String> headers = List.of(
+                shown(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_ONE),
+                shown(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_TWO));
 
         claim(
                 "the header's two crops are different bytes, so the rule for a picture whose bytes recur"
@@ -287,22 +271,15 @@ class DeliverablePicturesInvocationTest {
                 () -> assertThat(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_ONE)
                         .isNotEqualTo(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_TWO));
         claim(
-                "the chart is written into the tree beside the group's page, holding exactly the pixels the"
-                        + " converter returned",
-                () -> assertThat(chartFile).isRegularFile().hasBinaryContent(PictureScriptedExtractionBeans.THE_CHART));
-        claim(
-                "and it is shown inside the report's own entry",
+                "the chart is shown inside the report's own entry, its source exactly the pixels the converter"
+                        + " returned",
                 () -> assertThat(theEntryNaming(text, PictureScriptedExtractionBeans.THE_REPORT))
-                        .contains("<img src=\"" + chartName + "\""));
+                        .contains("<img src=\"" + chart + "\""));
         claim(
-                "while neither crop of the header is written anywhere in the tree or linked from the page:"
-                        + " each sits on another page within a point of the other's box, and a picture that"
-                        + " repeats at one place from page to page is page furniture",
-                () -> {
-                    assertThat(everyFileIn(theTreeOf(root)))
-                            .noneMatch(file -> headerNames.contains(file.getFileName().toString()));
-                    assertThat(text).doesNotContain(headerNames.get(0)).doesNotContain(headerNames.get(1));
-                });
+                "while neither crop of the header is shown on the page: each sits on another page within a point"
+                        + " of the other's box, and a picture that repeats at one place from page to page is page"
+                        + " furniture",
+                () -> assertThat(text).doesNotContain(headers.get(0)).doesNotContain(headers.get(1)));
     }
 
     /** The one membership entry of {@code page} naming {@code document}, from its number to the next. */
@@ -322,31 +299,19 @@ class DeliverablePicturesInvocationTest {
         throw new IllegalStateException("no entry on the page names " + document);
     }
 
-    /**
-     * Where every image on {@code page} leads, each destination refused if it carries a scheme or is
-     * rooted, then decoded and followed from the page's own directory, as a browser follows it.
-     */
-    private static List<Path> whereEveryImageLeads(Path page) throws IOException {
-        Matcher image = AN_IMAGE.matcher(Files.readString(page));
-        List<Path> targets = new ArrayList<>();
+    /** Every image source in {@code html}, in the order it gives them. */
+    private static List<String> sourcesOn(String html) {
+        Matcher image = AN_IMAGE.matcher(html);
+        List<String> found = new ArrayList<>();
         while (image.find()) {
-            URI destination = URI.create(image.group(1));
-            if (destination.isAbsolute() || destination.getPath().startsWith("/")) {
-                throw new IllegalStateException("an image on " + page + " is not relative: " + destination);
-            }
-            targets.add(page.getParent().resolve(destination.getPath()).normalize());
+            found.add(image.group(1));
         }
-        return List.copyOf(targets);
+        return List.copyOf(found);
     }
 
-    /** The file name ADR-149 gives a picture: sixteen hex characters of its digest, then {@code .png}. */
-    private static String nameOf(byte[] pixels) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(pixels);
-            return HexFormat.of().formatHex(digest).substring(0, NAME_LENGTH) + ".png";
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is required of every JVM", e);
-        }
+    /** How a page shows PNG {@code pixels}: their media type and their bytes in base64, as an image's source. */
+    private static String shown(byte[] pixels) {
+        return "data:image/png;base64," + Base64.getEncoder().encodeToString(pixels);
     }
 
     /** The tree this corpus's one piece of work wrote, found by that work's own name. */

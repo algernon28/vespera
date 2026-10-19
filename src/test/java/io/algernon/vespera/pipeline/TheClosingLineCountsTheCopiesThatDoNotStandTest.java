@@ -52,6 +52,9 @@ class TheClosingLineCountsTheCopiesThatDoNotStandTest {
     /** Nor any other folder an earlier drawing left. */
     private static final int NO_OTHER_FOLDER_LEFT_BEHIND = 0;
 
+    /** Nor any file an earlier drawing left in a group's folder (ADR-286 §4). */
+    private static final int NO_FILE_LEFT_BEHIND = 0;
+
     @Test
     @Story("The last thing an invocation says is what it produced and what is missing from it")
     @DisplayName("Where this invocation wrote no tree, the closing line names the index and says nothing of copies")
@@ -100,7 +103,8 @@ class TheClosingLineCountsTheCopiesThatDoNotStandTest {
                         NO_GROUP_LEFT_UNWRITTEN,
                         documentsNotCopied,
                         NO_DOCUMENTS_FOLDER_LEFT_BEHIND,
-                        NO_OTHER_FOLDER_LEFT_BEHIND),
+                        NO_OTHER_FOLDER_LEFT_BEHIND,
+                        NO_FILE_LEFT_BEHIND),
                 APPROVAL_MATCHES_THIS_INVOCATION);
     }
 
