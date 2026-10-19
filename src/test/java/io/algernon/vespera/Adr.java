@@ -2048,6 +2048,17 @@ public final class Adr {
     public static final String AN_OPERATIONAL_RECORD_THAT_IS_NOT_A_LOG_OR_A_CONFIGURATION_FILE_IS_LEFT_TO_RELEVANCE = FILE
             + "0293-an-operational-record-that-is-not-a-log-or-a-configuration-file-is-left-to-relevance-and-its-name-ending-is-the-operators-to-list.md";
 
+    /**
+     * ADR-296 -- every member of every code set is copied to {@code code/<set>/<kept path>}, checked against the size
+     * and last-modified time the walk recorded, before and after the stream, and {@code changed} where either differs;
+     * a set's folder is its typed or default name made safe and cut, then told apart by the copies' two keys; a
+     * member's path below its set's folder is kept, each element made safe; the index gains a section of the sets and
+     * {@code code.csv} a row a member; the closing line counts the files of code not copied and the dormant names
+     * (amends ADR-274, ADR-280, ADR-284 and ADR-220).
+     */
+    public static final String EACH_CODE_SET_IS_COPIED_WHOLE_UNDER_CODE = FILE
+            + "0296-each-code-set-is-copied-whole-under-code-its-paths-kept-and-each-file-checked-against-the-size-and-time-the-walk-recorded.md";
+
     private Adr() {
     }
 }

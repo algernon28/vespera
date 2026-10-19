@@ -10,6 +10,7 @@ import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
+import io.algernon.vespera.deliverable.CodeSetNames;
 import io.algernon.vespera.deliverable.Deliverable;
 import io.algernon.vespera.deliverable.DeliverableRoot;
 import io.algernon.vespera.synthesis.Clusters;
@@ -189,7 +190,9 @@ class NextAction {
                 invocationRuns.documentsNotCopied(),
                 invocationRuns.documentsFolderLeftBehind(),
                 invocationRuns.foldersLeftBehind(),
-                invocationRuns.filesLeftBehind()));
+                invocationRuns.filesLeftBehind(),
+                invocationRuns.codeFilesNotCopied(),
+                invocationRuns.dormantCodeSetNames()));
     }
 
     /**
@@ -218,7 +221,8 @@ class NextAction {
         }
         int arranged = clustersBean.countForRun(upstream.getFirst());
         int written = synthesisDocsBean.countForRun(generation);
-        return Optional.of(new DeliverableSummary(tree, Math.max(0, arranged - written), OptionalInt.empty(), false, 0, 0));
+        return Optional.of(new DeliverableSummary(
+                tree, Math.max(0, arranged - written), OptionalInt.empty(), false, 0, 0, OptionalInt.empty(), 0));
     }
 
     /**
@@ -235,6 +239,10 @@ class NextAction {
      *     partition folder this drawing wrote (ADR-280 §4)
      * @param filesLeftBehind how many files an earlier drawing left in the cluster folders this drawing wrote (ADR-286
      *     §4)
+     * @param codeFilesNotCopied how many files of code have no copy standing in the tree this invocation wrote, or
+     *     empty where the tree has no code set or this invocation wrote none (ADR-296 §6.1)
+     * @param dormantCodeSetNames how many entries of {@code code-set-names.yaml} name no code set of the run (ADR-296
+     *     §6.2)
      */
     record DeliverableSummary(
             Path tree,
@@ -242,7 +250,51 @@ class NextAction {
             OptionalInt documentsNotCopied,
             boolean documentsFolderLeftBehind,
             int foldersLeftBehind,
-            int filesLeftBehind) {}
+            int filesLeftBehind,
+            OptionalInt codeFilesNotCopied,
+            int dormantCodeSetNames) {
+
+        /** A summary of a tree with no code set and no dormant name. */
+        DeliverableSummary(
+                Path tree,
+                int clustersLeftUnwritten,
+                OptionalInt documentsNotCopied,
+                boolean documentsFolderLeftBehind,
+                int foldersLeftBehind,
+                int filesLeftBehind) {
+            this(
+                    tree,
+                    clustersLeftUnwritten,
+                    documentsNotCopied,
+                    documentsFolderLeftBehind,
+                    foldersLeftBehind,
+                    filesLeftBehind,
+                    OptionalInt.empty(),
+                    0);
+        }
+    }
+
+    /**
+     * What the line says of code, to follow the count of documents not copied (ADR-296 §6): the files of code not
+     * copied where the tree has a code set, even at none, and then the entries of the names file that name no set of
+     * the run, whether or not it has one. Nothing where this invocation drew no tree.
+     */
+    private static String ofCode(DeliverableSummary deliverable) {
+        if (deliverable.documentsNotCopied().isEmpty()) {
+            return "";
+        }
+        String files = "";
+        if (deliverable.codeFilesNotCopied().isPresent()) {
+            int count = deliverable.codeFilesNotCopied().getAsInt();
+            files = ", and " + count + (count == 1 ? " file" : " files") + " of code not copied";
+        }
+        int dormant = deliverable.dormantCodeSetNames();
+        String names = dormant == 0
+                ? ""
+                : "; " + dormant + (dormant == 1 ? " name" : " names") + " in " + CodeSetNames.FILE_NAME
+                        + (dormant == 1 ? " names" : " name") + " no code set of this run";
+        return files + names;
+    }
 
     /**
      * Whether a label file exists to be answered.
@@ -399,7 +451,7 @@ class NextAction {
                     + deliverable.tree().resolve(Deliverable.INDEX_FILE_NAME)
                     + ", with " + deliverable.clustersLeftUnwritten() + " "
                     + (deliverable.clustersLeftUnwritten() == 1 ? "group" : "groups") + " left unwritten"
-                    + notCopied + leftBehind(deliverable) + ".";
+                    + notCopied + ofCode(deliverable) + leftBehind(deliverable) + ".";
         }
         if (!questionsWritten) {
             return whatIsSet(profile, answersRecorded) + " No questions were written this invocation,"

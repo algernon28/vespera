@@ -128,6 +128,31 @@ public class Occurrences {
         return paths;
     }
 
+    /**
+     * The size and last-modified time the walk recorded for each of {@code occurrences}, holding only those that have
+     * a row: asked of the table's primary key {@value KeysetPages#ROWS_IN_A_PAGE} occurrences at most to a statement,
+     * none for an empty collection (ADR-240). The time is read back as the {@code Instant} the census wrote as text,
+     * so a file's own time compares equal to it exactly where the census would have written the same text (ADR-296
+     * §2).
+     */
+    public Map<OccurrenceId, ObservedSizeAndTime> sizesAndTimesOf(Collection<OccurrenceId> occurrences) {
+        Map<OccurrenceId, ObservedSizeAndTime> observed = new HashMap<>();
+        ListedPages.each(occurrences, batch -> {
+            jdbcTemplate.query(
+                    "SELECT id, size_bytes, last_modified FROM file_occurrence WHERE id IN ("
+                            + Placeholders.of(batch.size()) + ")",
+                    resultSet -> {
+                        observed.put(
+                                new OccurrenceId(resultSet.getLong("id")),
+                                new ObservedSizeAndTime(
+                                        resultSet.getLong("size_bytes"),
+                                        Instant.parse(resultSet.getString("last_modified"))));
+                    },
+                    batch.stream().map(OccurrenceId::value).toArray());
+        });
+        return observed;
+    }
+
     /** The id of an occurrence within a walk, for a stage holding a path and needing the key. */
     public Optional<OccurrenceId> occurrenceId(WalkId walkId, OccurrencePath path) {
         return jdbcTemplate

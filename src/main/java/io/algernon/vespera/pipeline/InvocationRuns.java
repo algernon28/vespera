@@ -46,6 +46,11 @@ class InvocationRuns {
     private static final String FOLDERS_LEFT_BEHIND = "vespera.deliverable.folders-left-behind";
     private static final String FILES_LEFT_BEHIND = "vespera.deliverable.files-left-behind";
 
+    /** Where what the tree's code sets and the names file came to is handed to the closing line (ADR-296 §6). */
+    private static final String CODE_FILES_NOT_COPIED = "vespera.deliverable.code-files-not-copied";
+
+    private static final String DORMANT_CODE_SET_NAMES = "vespera.deliverable.dormant-code-set-names";
+
     private final ExecutionContext executionContext;
 
     InvocationRuns(ExecutionContext executionContext) {
@@ -106,6 +111,31 @@ class InvocationRuns {
     /** The count of other folders {@link #recordLeftBehind} recorded; 0 where none was recorded. */
     int foldersLeftBehind() {
         return executionContext.getInt(FOLDERS_LEFT_BEHIND, 0);
+    }
+
+    /**
+     * Records how many files of code have no copy standing in the tree this invocation wrote, for the closing line;
+     * not called where the tree has no code set (ADR-296 §6.1).
+     */
+    void recordCodeFilesNotCopied(int files) {
+        executionContext.putInt(CODE_FILES_NOT_COPIED, files);
+    }
+
+    /** The count {@link #recordCodeFilesNotCopied} recorded, or empty where the tree has no code set. */
+    OptionalInt codeFilesNotCopied() {
+        return executionContext.containsKey(CODE_FILES_NOT_COPIED)
+                ? OptionalInt.of(executionContext.getInt(CODE_FILES_NOT_COPIED))
+                : OptionalInt.empty();
+    }
+
+    /** Records how many entries of the names file name no code set of the run, for the closing line (ADR-296 §6.2). */
+    void recordDormantCodeSetNames(int entries) {
+        executionContext.putInt(DORMANT_CODE_SET_NAMES, entries);
+    }
+
+    /** The count {@link #recordDormantCodeSetNames} recorded; 0 where none was recorded. */
+    int dormantCodeSetNames() {
+        return executionContext.getInt(DORMANT_CODE_SET_NAMES, 0);
     }
 
     /** The run this invocation minted or continued for {@code stage}, if it has run yet this invocation. */

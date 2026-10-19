@@ -437,6 +437,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             Map.entry(
                     "GenerationTasklet",
                     Set.of(
+                            "corpus.CodeSets",
                             "corpus.DetectedFormat",
                             "corpus.DetectedFormats",
                             "corpus.Walk",
@@ -454,10 +455,14 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "extraction.LeadingChunks",
                             "extraction.PicturePlace",
                             "deliverable.ArrangedSurvivors",
+                            "deliverable.CodeSetNames",
                             "deliverable.Deliverable",
                             "deliverable.DeliverableProgress",
                             "deliverable.DeliverableProvenance",
                             "deliverable.DeliverableRoot",
+                            "deliverable.ListedCodeFile",
+                            "deliverable.ListedCodeSet",
+                            "deliverable.ListedCodeSets",
                             "deliverable.ListedPartition",
                             "deliverable.ListedPicture",
                             "deliverable.ListedPicturePlace",

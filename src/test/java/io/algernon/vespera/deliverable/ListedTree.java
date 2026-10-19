@@ -211,8 +211,16 @@ final class ListedTree {
      * quote read as one, the way a program loading the file splits it.
      */
     static List<List<String>> manifestOf(Path tree) throws IOException {
+        return csvOf(tree.resolve("documents.csv"));
+    }
+
+    /**
+     * The rows of the CSV file {@code file}, header first, each split as {@link #manifestOf} splits {@code
+     * documents.csv}'s: {@code code.csv} is quoted as it is (ADR-296 §5).
+     */
+    static List<List<String>> csvOf(Path file) throws IOException {
         List<List<String>> rows = new ArrayList<>();
-        for (String line : Files.readAllLines(tree.resolve("documents.csv"))) {
+        for (String line : Files.readAllLines(file)) {
             if (!line.isBlank()) {
                 rows.add(cellsOf(line));
             }

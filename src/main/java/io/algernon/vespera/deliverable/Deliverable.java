@@ -84,6 +84,9 @@ public final class Deliverable {
      */
     public static final long COPY_HEADROOM_BYTES = 1L << 30;
 
+    /** The listing of the members of the code sets, at the root of a tree whose run has one (ADR-296 §5). */
+    public static final String CODE_LISTING_FILE_NAME = CodeCopies.LISTING_FILE_NAME;
+
     /** A cluster's page, in its cluster's folder (ADR-280 §0). */
     static final String CLUSTER_PAGE_NAME = "index.html";
 
@@ -154,7 +157,25 @@ public final class Deliverable {
             ArrangedSurvivors source,
             SurvivorPictures pictures,
             DeliverableProgress progress) {
-        return writeTo(workingDirectory, root, provenance, source, pictures, progress, ReplacingMove.ATOMIC);
+        return writeTo(
+                workingDirectory, root, provenance, source, ListedCodeSets.NONE, pictures, progress,
+                ReplacingMove.ATOMIC);
+    }
+
+    /**
+     * As {@link #writeTo(Path, DeliverableRoot, DeliverableProvenance, ArrangedSurvivors, SurvivorPictures,
+     * DeliverableProgress)}, with the code sets of the run copied whole under {@code code/} (ADR-296), {@link
+     * ListedCodeSets#NONE} to write the tree this class wrote before it knew about code.
+     */
+    public static Path writeTo(
+            Path workingDirectory,
+            DeliverableRoot root,
+            DeliverableProvenance provenance,
+            ArrangedSurvivors source,
+            ListedCodeSets code,
+            SurvivorPictures pictures,
+            DeliverableProgress progress) {
+        return writeTo(workingDirectory, root, provenance, source, code, pictures, progress, ReplacingMove.ATOMIC);
     }
 
     /**
@@ -170,9 +191,23 @@ public final class Deliverable {
             SurvivorPictures pictures,
             DeliverableProgress progress,
             ReplacingMove moves) {
+        return writeTo(workingDirectory, root, provenance, source, ListedCodeSets.NONE, pictures, progress, moves);
+    }
+
+    /** As above, with the code sets of the run (ADR-296) and the moves. */
+    static Path writeTo(
+            Path workingDirectory,
+            DeliverableRoot root,
+            DeliverableProvenance provenance,
+            ArrangedSurvivors source,
+            ListedCodeSets code,
+            SurvivorPictures pictures,
+            DeliverableProgress progress,
+            ReplacingMove moves) {
         Path tree = root.treeOf(workingDirectory, provenance.runId());
         return writeTo(
-                workingDirectory, root, provenance, source, pictures, progress, moves, () -> usableBytesAt(tree));
+                workingDirectory, root, provenance, source, code, pictures, progress, moves,
+                () -> usableBytesAt(tree));
     }
 
     /**
@@ -188,12 +223,29 @@ public final class Deliverable {
             DeliverableProgress progress,
             ReplacingMove moves,
             LongSupplier usableSpace) {
+        return writeTo(
+                workingDirectory, root, provenance, source, ListedCodeSets.NONE, pictures, progress, moves,
+                usableSpace);
+    }
+
+    /** As above, with the code sets of the run (ADR-296) and the free space. */
+    static Path writeTo(
+            Path workingDirectory,
+            DeliverableRoot root,
+            DeliverableProvenance provenance,
+            ArrangedSurvivors source,
+            ListedCodeSets code,
+            SurvivorPictures pictures,
+            DeliverableProgress progress,
+            ReplacingMove moves,
+            LongSupplier usableSpace) {
         Path tree = root.treeOf(workingDirectory, provenance.runId());
         List<ListedPartition> partitions = source.partitions();
         try {
             Files.createDirectories(tree);
             DeliverableRoot.markTree(tree, workingDirectory, provenance.runId());
             Copies copies = new Copies(tree, provenance.corpusRoot(), moves, usableSpace, progress);
+            CodeCopies codeCopies = new CodeCopies(tree, provenance.corpusRoot(), moves, usableSpace, progress);
             long[] aboutToCopy = new long[2];
             Set<String> written = new HashSet<>();
             // A copy's name follows from its cluster's members and the pictures its page shows, which are known only
@@ -209,22 +261,40 @@ public final class Deliverable {
             });
             progress.toCopySurvivors(aboutToCopy[0], aboutToCopy[1], usableSpace.getAsLong());
             long[] filesLeft = new long[1];
+            Path[] listingPart = new Path[1];
             Path indexPart =
                     writeIndexAndClusterPages(
                             tree, provenance, partitions, source, entryPictures, copies, written, filesLeft, moves,
-                            progress);
-            progress.copiesAtALongPath(copies.copiesAtALongPath());
+                            progress,
+                            index -> listingPart[0] = codeCopies.draw(code, namesTypedIn(workingDirectory, progress), index, written));
+            progress.copiesAtALongPath(copies.copiesAtALongPath() + codeCopies.copiesAtALongPath());
             Path manifestPart = writeManifest(tree, source, copies, progress);
             // Both are whole before either is moved, so a write that fails before the first move leaves the pair
             // the write before left, or none; only the manifest's own move failing leaves the new index beside the
             // old manifest (ADR-223 section 6). The index is still the last of the pages to appear.
             moves.intoPlace(indexPart, tree.resolve(INDEX_FILE_NAME));
             moves.intoPlace(manifestPart, tree.resolve(MANIFEST_FILE_NAME));
+            if (listingPart[0] != null) {
+                moves.intoPlace(listingPart[0], tree.resolve(CODE_LISTING_FILE_NAME));
+            }
             leftBehindBy(tree, written, progress);
             progress.filesLeftBehind(filesLeft[0]);
             return tree;
         } catch (IOException e) {
             throw new UncheckedIOException("could not write the deliverable tree at " + tree, e);
+        }
+    }
+
+    /**
+     * The entries of the names file beside the database. A file refused whole, or one that cannot be read, fails nothing:
+     * the tree is drawn with every set's default name and {@code progress} is told once (ADR-296 §6.2).
+     */
+    private static List<CodeSetNames.Entry> namesTypedIn(Path workingDirectory, DeliverableProgress progress) {
+        try {
+            return CodeSetNames.read(workingDirectory);
+        } catch (IllegalArgumentException | UncheckedIOException refused) {
+            progress.codeSetNamesRefused();
+            return List.of();
         }
     }
 
@@ -249,7 +319,8 @@ public final class Deliverable {
             Set<String> written,
             long[] filesLeft,
             ReplacingMove moves,
-            DeliverableProgress progress)
+            DeliverableProgress progress,
+            TheCode theCode)
             throws IOException {
         // The three totals, announced before the loop over partitions. An entry carries a document exactly
         // where a survivor of its cluster is listed, so the entries with a document are the survivors the
@@ -315,9 +386,17 @@ public final class Deliverable {
                 IndexPage.partitionEnd(index);
                 progress.partitionWritten();
             }
+            theCode.drawn(index);
             IndexPage.close(index);
         }
         return indexPart;
+    }
+
+    /** What is drawn after the last group's table: the code sets, and the section of the index that lists them. */
+    @FunctionalInterface
+    private interface TheCode {
+
+        void drawn(Appendable index) throws IOException;
     }
 
     /**

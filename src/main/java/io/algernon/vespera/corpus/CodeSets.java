@@ -3,6 +3,7 @@ package io.algernon.vespera.corpus;
 import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceAtPath;
+import io.algernon.vespera.ledger.ObservedSizeAndTime;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
@@ -10,6 +11,7 @@ import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.ledger.WalkId;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -186,6 +188,95 @@ public class CodeSets {
             folder = folder.substring(0, folder.lastIndexOf('/'));
         }
     }
+
+    /** One set of a stage-1 run as {@link #setsOf} reads it: its folder, its default name and its lowest member. */
+    public record ListedSet(String folder, String defaultName, OccurrenceId lowestMember) {}
+
+    /**
+     * One member of a set as {@link #eachPageOfMembers} reads it, with the size and last-modified time the walk
+     * recorded for the occurrence.
+     */
+    public record ListedMember(
+            OccurrenceId occurrence,
+            OccurrencePath path,
+            String folder,
+            String role,
+            String generator,
+            long recordedSizeBytes,
+            Instant recordedLastModified) {}
+
+    /**
+     * The sets {@code stageOneRun} recorded, in the order of their folders as the table's primary key reads them,
+     * each with its lowest member's occurrence id (ADR-296 §8). The members are gone through once, a page at a time
+     * and in id order, and what is kept of them is one number for each set (ADR-220); a set with no member is not
+     * listed, there being no lowest member to name it by.
+     */
+    public List<ListedSet> setsOf(RunId stageOneRun) {
+        Map<String, OccurrenceId> lowest = new HashMap<>();
+        new KeysetPages<MemberKey>(
+                        jdbcTemplate,
+                        "SELECT occurrence_id, folder FROM code_set_member WHERE +run_id = ? AND occurrence_id > ?"
+                                + " ORDER BY occurrence_id",
+                        List.of(stageOneRun.value()),
+                        List.of(Long.MIN_VALUE),
+                        key -> List.of(key.occurrence().value()),
+                        (resultSet, rowNumber) -> new MemberKey(
+                                new OccurrenceId(resultSet.getLong("occurrence_id")), resultSet.getString("folder")))
+                .eachPage(page -> page.forEach(key -> lowest.putIfAbsent(key.folder(), key.occurrence())));
+        List<ListedSet> sets = new ArrayList<>();
+        jdbcTemplate.query(
+                "SELECT folder, default_name FROM code_set WHERE run_id = ? ORDER BY folder",
+                resultSet -> {
+                    String folder = resultSet.getString("folder");
+                    OccurrenceId first = lowest.get(folder);
+                    if (first != null) {
+                        sets.add(new ListedSet(folder, resultSet.getString("default_name"), first));
+                    }
+                },
+                stageOneRun.value());
+        return sets;
+    }
+
+    private record MemberKey(OccurrenceId occurrence, String folder) {}
+
+    /**
+     * The members of the set at {@code folder} under {@code stageOneRun}, in ascending occurrence id, handed to
+     * {@code page} {@value KeysetPages#ROWS_IN_A_PAGE} at a time (ADR-220), each with the path, size and
+     * last-modified time the walk recorded, which {@code ledger} owns and is asked for by key (ADR-209, ADR-296 §8).
+     */
+    public void eachPageOfMembers(Ledger ledger, RunId stageOneRun, String folder, Consumer<List<ListedMember>> page) {
+        new KeysetPages<MemberRow>(
+                        jdbcTemplate,
+                        "SELECT occurrence_id, role, generator FROM code_set_member WHERE +run_id = ? AND folder = ?"
+                                + " AND occurrence_id > ? ORDER BY occurrence_id",
+                        List.of(stageOneRun.value(), folder),
+                        List.of(Long.MIN_VALUE),
+                        row -> List.of(row.occurrence().value()),
+                        (resultSet, rowNumber) -> new MemberRow(
+                                new OccurrenceId(resultSet.getLong("occurrence_id")),
+                                resultSet.getString("role"),
+                                resultSet.getString("generator")))
+                .eachPage(rows -> {
+                    List<OccurrenceId> ids = rows.stream().map(MemberRow::occurrence).toList();
+                    Map<OccurrenceId, OccurrencePath> paths = ledger.occurrences().pathsOf(ids);
+                    Map<OccurrenceId, ObservedSizeAndTime> observed = ledger.occurrences().sizesAndTimesOf(ids);
+                    List<ListedMember> members = new ArrayList<>(rows.size());
+                    for (MemberRow row : rows) {
+                        OccurrencePath path = paths.get(row.occurrence());
+                        ObservedSizeAndTime facts = observed.get(row.occurrence());
+                        if (path == null || facts == null) {
+                            throw new IllegalStateException(
+                                    "no facts recorded for occurrence " + row.occurrence().value());
+                        }
+                        members.add(new ListedMember(
+                                row.occurrence(), path, folder, row.role(), row.generator(), facts.sizeBytes(),
+                                facts.lastModified()));
+                    }
+                    page.accept(members);
+                });
+    }
+
+    private record MemberRow(OccurrenceId occurrence, String role, String generator) {}
 
     /**
      * The generator whose mark a member as code carries, read again from its bytes (section 5): only for a page

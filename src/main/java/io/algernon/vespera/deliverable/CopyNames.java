@@ -61,12 +61,31 @@ final class CopyNames {
      * @return each member's name, in ascending occurrence id
      */
     static Map<OccurrenceId, String> of(List<ListedSurvivor> members) {
-        List<ListedSurvivor> ascending = new ArrayList<>(members);
+        List<Named> named = new ArrayList<>();
+        for (ListedSurvivor member : members) {
+            named.add(new Named(member.occurrence(), lastElementOf(member.path().value())));
+        }
+        return namesIn(named, Set.of(), true);
+    }
+
+    /** A file to be named in a folder: its occurrence id, and the name its original has. */
+    record Named(OccurrenceId occurrence, String originalName) {}
+
+    /**
+     * Every name of {@code files} in one folder, worked out together as {@link #of} works out a cluster's (ADR-280
+     * §1.4 to §1.6): the lowest occurrence id keeps the plain name, and a name that meets another's, or one of {@code
+     * reservedKeys}, takes {@code ~} and its occurrence id before its extension. A folder of a code set reserves no
+     * page's name, there being no page written there (ADR-296 §3.2); {@code pagesReserved} says whether this one does.
+     *
+     * @param reservedKeys the collision keys of the names the folder's own folders are drawn with, which a file yields to
+     */
+    static Map<OccurrenceId, String> namesIn(List<Named> files, Set<String> reservedKeys, boolean pagesReserved) {
+        List<Named> ascending = new ArrayList<>(files);
         ascending.sort(Comparator.comparingLong(member -> member.occurrence().value()));
 
         List<Shape> shapes = new ArrayList<>();
-        Set<String> reserved = new HashSet<>();
-        for (ListedSurvivor member : ascending) {
+        Set<String> reserved = new HashSet<>(reservedKeys);
+        for (Named member : ascending) {
             Shape shape = shapeOf(member);
             shapes.add(shape);
             reserved.addAll(keysOf(shape.name() + PART));
@@ -83,7 +102,7 @@ final class CopyNames {
             Set<String> keys = keysOf(name);
             boolean first = keys.stream().noneMatch(seen::contains);
             seen.addAll(keys);
-            if (first && keys.stream().noneMatch(key -> isReserved(key, reserved))) {
+            if (first && keys.stream().noneMatch(key -> isReserved(key, reserved, pagesReserved))) {
                 keepsItsName[at] = true;
                 given.addAll(keys);
                 givenParts.addAll(keysOf(name + PART));
@@ -102,7 +121,7 @@ final class CopyNames {
             String suffix = "~" + occurrence.value();
             String candidate = original.withSuffixes(suffix, 1);
             int attempts = 1;
-            while (isTaken(candidate, reserved, given, givenParts)) {
+            while (isTaken(candidate, reserved, pagesReserved, given, givenParts)) {
                 attempts++;
                 candidate = original.withSuffixes(suffix, attempts);
             }
@@ -113,9 +132,10 @@ final class CopyNames {
         return inOrder;
     }
 
-    private static boolean isTaken(String name, Set<String> reserved, Set<String> given, Set<String> givenParts) {
+    private static boolean isTaken(
+            String name, Set<String> reserved, boolean pagesReserved, Set<String> given, Set<String> givenParts) {
         for (String key : keysOf(name)) {
-            if (isReserved(key, reserved) || given.contains(key) || givenParts.contains(key)) {
+            if (isReserved(key, reserved, pagesReserved) || given.contains(key) || givenParts.contains(key)) {
                 return true;
             }
         }
@@ -144,11 +164,10 @@ final class CopyNames {
         return new String(units);
     }
 
-    private static boolean isReserved(String key, Set<String> reserved) {
+    private static boolean isReserved(String key, Set<String> reserved, boolean pagesReserved) {
         return reserved.contains(key)
-                || THE_PAGE.equals(key)
-                || THE_PAGES_PART.equals(key)
-                || A_FURTHER_PAGE.matcher(key).matches();
+                || (pagesReserved
+                        && (THE_PAGE.equals(key) || THE_PAGES_PART.equals(key) || A_FURTHER_PAGE.matcher(key).matches()));
     }
 
     /**
@@ -167,7 +186,50 @@ final class CopyNames {
      * safe (§1.2) and cut (§3), before any suffix. A function of the survivor alone.
      */
     static String plainName(ListedSurvivor member) {
-        return shapeOf(member).name();
+        return shapeOf(new Named(member.occurrence(), lastElementOf(member.path().value()))).name();
+    }
+
+    /** The part of {@code path} after its last {@code /}. */
+    private static String lastElementOf(String path) {
+        return path.substring(path.lastIndexOf('/') + 1);
+    }
+
+    /**
+     * A folder's name made safe (§1.2) and cut to {@value #LONGEST_NAME} UTF-16 code units and {@value
+     * #LONGEST_NAME_IN_BYTES} UTF-8 bytes, the whole of it being its stem: a folder is written through no {@code .part}
+     * and opens by no extension, so none is counted (ADR-296 §3.1). Empty where nothing is left, the caller naming it
+     * by an occurrence id; made safe again where the cut undid it, as {@link #shapeOf} does.
+     */
+    static String folderName(String original) {
+        StringBuilder replaced = new StringBuilder(original.length());
+        for (int at = 0; at < original.length(); at++) {
+            char c = original.charAt(at);
+            replaced.append(isRefused(c) ? '_' : c);
+        }
+        int end = replaced.length();
+        while (end > 0 && (replaced.charAt(end - 1) == '.' || replaced.charAt(end - 1) == ' ')) {
+            end--;
+        }
+        String trimmed = replaced.substring(0, end);
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        if (isDevice(trimmed)) {
+            trimmed = "_" + trimmed;
+        }
+        String cut = new Shape(trimmed, "").cut(0, 0).name();
+        if (cut.isEmpty()) {
+            return "";
+        }
+        return isDevice(cut) ? new Shape("_" + cut, "").cut(0, 0).name() : cut;
+    }
+
+    /**
+     * {@code folder}'s name with {@code suffix} repeated {@code times} at its end, the stem cut to leave room for every
+     * one (ADR-296 §3.1).
+     */
+    static String folderNameWithSuffixes(String folder, String suffix, int times) {
+        return new Shape(folder, "").withSuffixes(suffix, times, 0);
     }
 
     /**
@@ -175,7 +237,7 @@ final class CopyNames {
      * nothing, or to a device name, which §1.2's rules did not see on the uncut name. A suffixed name carries a
      * {@code ~} in its stem and so is neither empty nor a device name.
      */
-    private static Shape shapeOf(ListedSurvivor member) {
+    private static Shape shapeOf(Named member) {
         Shape cut = Shape.of(safeName(member));
         String name = cut.name();
         if (name.isEmpty()) {
@@ -188,9 +250,8 @@ final class CopyNames {
     }
 
     /** The original's file name made safe (§1.2), before it is cut. */
-    private static String safeName(ListedSurvivor member) {
-        String path = member.path().value();
-        String name = path.substring(path.lastIndexOf('/') + 1);
+    private static String safeName(Named member) {
+        String name = member.originalName();
         StringBuilder replaced = new StringBuilder(name.length());
         for (int at = 0; at < name.length(); at++) {
             char c = name.charAt(at);
@@ -260,8 +321,13 @@ final class CopyNames {
 
         /** This name cut so that {@code suffixLength} more units fit within {@value #LONGEST_NAME}. */
         private Shape cut(int suffixLength) {
+            return cut(suffixLength, PART.length());
+        }
+
+        /** As {@link #cut(int)}, with {@code partBytes} of the byte bound kept for a {@code .part}, none for a folder. */
+        private Shape cut(int suffixLength, int partBytes) {
             int room = Math.max(0, LONGEST_NAME - extension.length() - suffixLength);
-            int fixedBytes = utf8Length(extension) + suffixLength + PART.length();
+            int fixedBytes = utf8Length(extension) + suffixLength + partBytes;
             if (body.length() <= room && utf8Length(body) + fixedBytes <= LONGEST_NAME_IN_BYTES) {
                 return this;
             }
@@ -284,7 +350,12 @@ final class CopyNames {
          * every one.
          */
         String withSuffixes(String suffix, int times) {
-            Shape cut = cut(suffix.length() * times);
+            return withSuffixes(suffix, times, PART.length());
+        }
+
+        /** As {@link #withSuffixes(String, int)}, with {@code partBytes} kept for a {@code .part}, none for a folder. */
+        String withSuffixes(String suffix, int times, int partBytes) {
+            Shape cut = cut(suffix.length() * times, partBytes);
             return cut.body + suffix.repeat(times) + extension;
         }
     }
