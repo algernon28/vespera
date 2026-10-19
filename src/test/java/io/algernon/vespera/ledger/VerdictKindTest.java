@@ -30,17 +30,21 @@ import org.junit.jupiter.api.Test;
 class VerdictKindTest {
 
     /**
-     * The size of the closed vocabulary: nine ways to be ruled out, one way to be let through. Ten
-     * since ADR-271 added translation-of, nine since ADR-146 added out-of-scope, and eight before it
-     * (ADR-057).
+     * The size of the closed vocabulary: ten ways to be taken out of the survivors, one way to be let
+     * through. Eleven since ADR-277 added code, ten since ADR-271 added translation-of, nine since
+     * ADR-146 added out-of-scope, and eight before it (ADR-057).
      */
-    private static final int RECORDED_VERDICT_KINDS = 10;
+    private static final int RECORDED_VERDICT_KINDS = 11;
+
+    /** The kind ADR-277 adds, named by its stored name so that this compiles before the value exists. */
+    private static final String CODE = "CODE";
 
     @Test
     @Story("The vocabulary is closed")
-    @DisplayName("There are exactly ten verdicts, and adding one is a decision rather than an edit")
+    @DisplayName("There are exactly eleven verdicts, and adding one is a decision rather than an edit")
     @Link(name = "ADR-146", url = Adr.SPREADSHEETS_ARE_OUT_OF_SCOPE, type = "adr")
     @Link(name = "ADR-271", url = Adr.ONE_COPY_OF_A_TRANSLATION_SET_SURVIVES, type = "adr")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
     void isExactlyTheRecordedVocabulary() {
         claim(
                 "there are " + RECORDED_VERDICT_KINDS + " verdict kinds; a value here without a decision"
@@ -57,6 +61,26 @@ class VerdictKindTest {
                 "translation-of removes the copy it is written against, so that one copy of a text held in"
                         + " several languages survives",
                 () -> assertThat(VerdictKind.TRANSLATION_OF.blocking()).isTrue());
+    }
+
+    @Test
+    @Story("The vocabulary is closed")
+    @DisplayName("Code is a kind of its own, after out-of-scope, and takes the occurrence out of the survivors")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
+    void codeTakesTheOccurrenceOutOfTheSurvivors() {
+        claim(
+                "code is a value of the vocabulary, stored under its own name",
+                () -> assertThat(Arrays.stream(VerdictKind.values()).map(Enum::name)).contains(CODE));
+        claim(
+                "it comes straight after out-of-scope, the other kind stage 1's first pass writes for what a file is,"
+                        + " so every count by kind in the vocabulary's order shows the two side by side",
+                () -> assertThat(Arrays.stream(VerdictKind.values()).map(Enum::name).toList())
+                        .containsSubsequence(VerdictKind.OUT_OF_SCOPE.name(), CODE, VerdictKind.EXTRACTION_FAILED.name())
+                        .satisfies(names -> assertThat(names.indexOf(CODE))
+                                .isEqualTo(names.indexOf(VerdictKind.OUT_OF_SCOPE.name()) + 1)));
+        claim(
+                "and it blocks: code is not a survivor, so no stage after the first reads it",
+                () -> assertThat(VerdictKind.valueOf(CODE).blocking()).isTrue());
     }
 
     @Test

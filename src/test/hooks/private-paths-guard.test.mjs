@@ -21,8 +21,10 @@
 // a draft in a folder of its own and the operator installs it. VESPERA_GUARD_DRAFT names that folder,
 // which is laid out as .claude is (hooks/private-paths-guard.mjs, hooks/run-private-paths-guard.sh,
 // hooks/working-directory-counts.mjs, allowed-paths.txt, settings.json), and every case is then held
-// against the draft's files, each file the draft does not hold being taken from this checkout. P01 and
-// P02 always start this checkout's own. CI sets no such variable, so what is committed is what is held.
+// against the draft's files. Each file that folder does not hold is taken from docs/agents/guard-draft,
+// the draft committed for the operator to install, while that holds it, and else from this checkout's
+// own. P01 and P02 always start this checkout's own. CI sets no such variable, so what is committed is
+// what is held.
 //
 //   VESPERA_GUARD_DRAFT=<folder> node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -116,8 +118,8 @@ const SETTINGS = ".claude/settings.json";
 // The counting script of docs/adr/0212, which the guard admits by one exact command.
 const COUNTS = `${HOOKS}/working-directory-counts.mjs`;
 
-// The file that is held: the draft's when VESPERA_GUARD_DRAFT names a folder that holds it, else this
-// checkout's. A draft folder that is not there stops the run: a mistyped name must not end in a green
+// The file that is held: the draft's when VESPERA_GUARD_DRAFT names a folder that holds it, else
+// docs/agents/guard-draft's while that holds it, else this checkout's. A draft folder that is not there stops the run: a mistyped name must not end in a green
 // run of the files that are already installed. Neither may it lie in a .claude folder, where no agent
 // writes: a name of its path, as written and as its links and an 8.3 name lead, is compared with .claude
 // as the guard compares one, with its case folded and, on Windows, without a stream name after a colon
@@ -132,9 +134,12 @@ if (DRAFT && [DRAFT, fwd(realpathSync.native(DRAFT))].some((path) => path.split(
 if (DRAFT && ![WRAPPER, GUARD, COUNTS, ALLOW_LIST, SETTINGS].some((file) => existsSync(`${DRAFT}/${file.slice(".claude/".length)}`))) {
   throw new Error(`VESPERA_GUARD_DRAFT names ${DRAFT}, which holds none of the guard's five files, so nothing of it would be held`);
 }
+// The folder each of the guard's files is held from: VESPERA_GUARD_DRAFT's, then the draft's, then the
+// installed .claude, each only where it holds that file.
+const sources = [DRAFT, `${repo}/docs/agents/guard-draft`, `${repo}/.claude`].filter(Boolean);
 const held = (file) => {
-  const drafted = DRAFT ? `${DRAFT}/${file.slice(".claude/".length)}` : null;
-  return drafted && existsSync(drafted) ? drafted : `${repo}/${file}`;
+  const inside = file.slice(".claude/".length);
+  return `${sources.find((folder) => existsSync(`${folder}/${inside}`)) ?? `${repo}/.claude`}/${inside}`;
 };
 // The counting script is copied into a fixture checkout only when there is one to hold, the draft's or
 // this checkout's: without it, the K1 cases are refused.

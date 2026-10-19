@@ -407,6 +407,14 @@ class NextAction {
         if (nameEndings.isPresent()) {
             return nameEndings;
         }
+        Optional<String> codeEndings = theCodeNameEndingsUnreadable(profile);
+        if (codeEndings.isPresent()) {
+            return codeEndings;
+        }
+        Optional<String> sharedEndings = theSharedNameEndings(profile);
+        if (sharedEndings.isPresent()) {
+            return sharedEndings;
+        }
         Optional<String> translationFloor = theTranslationFloorUnreadable(profile);
         if (translationFloor.isPresent()) {
             return translationFloor;
@@ -451,6 +459,39 @@ class NextAction {
                     + " dot, so this run ignored it and left nothing out for the ending of its name. Next: write"
                     + " the endings into outOfScopeNameEndings in " + PROFILE + ", each beginning with a dot,"
                     + " with no wildcard, and separated by spaces, and run again.");
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The line for {@code codeNameEndings} (ADR-277 §2), where it holds a piece that is not an ending --
+     * empty otherwise. Unset is not reported: it ships unset, and unset keeps nothing as code for its name.
+     */
+    private static Optional<String> theCodeNameEndingsUnreadable(Profile profile) {
+        if (profile.codeNameEndings().reading() instanceof NameEndingsValue.Unreadable unreadable) {
+            return Optional.of("Every run value is set, but codeNameEndings reads "
+                    + quoted(unreadable.text()) + ", which is not a list of name endings each beginning with a"
+                    + " dot, so this run ignored it and kept nothing as code for the ending of its name. Next: write"
+                    + " the endings into codeNameEndings in " + PROFILE + ", each beginning with a dot,"
+                    + " with no wildcard, and separated by spaces, and run again.");
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The line for an ending both {@code outOfScopeNameEndings} and {@code codeNameEndings} list (ADR-277 §6),
+     * empty where none is shared. Several are named in canonical order, separated by commas.
+     */
+    private static Optional<String> theSharedNameEndings(Profile profile) {
+        if (profile.outOfScopeNameEndings().reading() instanceof NameEndingsValue.Answered outOfScope
+                && profile.codeNameEndings().reading() instanceof NameEndingsValue.Answered code) {
+            List<String> shared = outOfScope.endings().stream().filter(code.endings()::contains).toList();
+            if (!shared.isEmpty()) {
+                return Optional.of("Every run value is set, but outOfScopeNameEndings and codeNameEndings both list "
+                        + String.join(", ", shared) + ", so this run left its files out of scope and kept none of them"
+                        + " as code. Next: remove each from the list it does not belong in, in " + PROFILE
+                        + ", and run again.");
+            }
         }
         return Optional.empty();
     }

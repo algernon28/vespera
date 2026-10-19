@@ -47,6 +47,8 @@ public final class ProfileFixture {
 
     private NumericValue extractionAttempt = NumericValue.unset();
 
+    private NameEndingsValue codeNameEndings = NameEndingsValue.unset();
+
     private NameEndingsValue outOfScopeNameEndings = NameEndingsValue.unset();
 
     private NumericValue translationSimilarityFloor = NumericValue.unset();
@@ -74,6 +76,7 @@ public final class ProfileFixture {
         fixture.generationContextWindow = existing.generationContextWindow();
         fixture.logTimestampShareFloor = existing.logTimestampShareFloor();
         fixture.extractionAttempt = existing.extractionAttempt();
+        fixture.codeNameEndings = existing.codeNameEndings();
         fixture.outOfScopeNameEndings = existing.outOfScopeNameEndings();
         fixture.translationSimilarityFloor = existing.translationSimilarityFloor();
         fixture.preferredLanguages = existing.preferredLanguages();
@@ -189,6 +192,12 @@ public final class ProfileFixture {
         return this;
     }
 
+    /** Stage 1's list of name endings kept as code (ADR-277 §2), written as one line. */
+    public ProfileFixture codeNameEndings(String value, String provenance) {
+        this.codeNameEndings = new NameEndingsValue(value, provenance, null);
+        return this;
+    }
+
     /** Stage 1's list of name endings left out (ADR-256), written as one line. */
     public ProfileFixture outOfScopeNameEndings(String value, String provenance) {
         this.outOfScopeNameEndings = new NameEndingsValue(value, provenance, null);
@@ -220,6 +229,7 @@ public final class ProfileFixture {
                 generationContextWindow,
                 logTimestampShareFloor,
                 extractionAttempt,
+                codeNameEndings,
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages);
