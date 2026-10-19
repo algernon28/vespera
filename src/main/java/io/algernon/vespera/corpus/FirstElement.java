@@ -63,7 +63,7 @@ final class FirstElement {
         Charset charset = TimestampedLines.charsetOf(bytes);
         String text = new String(bytes, skip, bytes.length - skip, charset);
         // A UTF-16 or UTF-32 mark stays in the bytes the XML reader gets, since it names their encoding.
-        String opening = text.stripLeading();
+        String opening = (text.startsWith("\uFEFF") ? text.substring(1) : text).stripLeading();
         if (opening.startsWith("<")) {
             return new Opening.Xml(firstElement(bytes, skip));
         }
@@ -74,17 +74,23 @@ final class FirstElement {
         return bytes.length >= 3 && (bytes[0] & 0xFF) == 0xEF && (bytes[1] & 0xFF) == 0xBB && (bytes[2] & 0xFF) == 0xBF;
     }
 
+    private static final XMLInputFactory XML = xmlFactory();
+
+    private static XMLInputFactory xmlFactory() {
+        XMLInputFactory factory = XMLInputFactory.newFactory();
+        factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+        factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+        factory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        factory.setXMLResolver((publicId, systemId, baseUri, namespace) -> {
+            throw new XMLStreamException("an external entity is never resolved");
+        });
+        return factory;
+    }
+
     private static Optional<Element> firstElement(byte[] bytes, int skip) {
         XMLStreamReader reader = null;
         try {
-            XMLInputFactory factory = XMLInputFactory.newFactory();
-            factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
-            factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
-            factory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-            factory.setXMLResolver((publicId, systemId, baseUri, namespace) -> {
-                throw new XMLStreamException("an external entity is never resolved");
-            });
-            reader = factory.createXMLStreamReader(new ByteArrayInputStream(bytes, skip, bytes.length - skip));
+            reader = XML.createXMLStreamReader(new ByteArrayInputStream(bytes, skip, bytes.length - skip));
             while (reader.hasNext()) {
                 if (reader.next() == XMLStreamConstants.START_ELEMENT) {
                     String namespace = reader.getNamespaceURI();

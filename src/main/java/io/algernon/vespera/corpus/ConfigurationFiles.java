@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.LinkedHashMap;
 import java.util.TreeMap;
@@ -109,9 +110,16 @@ public class ConfigurationFiles {
         CodeSets.eachPage(ledger, walk, page -> {
             for (OccurrenceAtPath occurrence : CodeSets.survivorsOf(ledger, runId, page)) {
                 Path file = canonicalRoot.resolve(occurrence.path().value());
+                Optional<DetectedFormat> format = detectedFormats.formatFor(occurrence.occurrenceId(), runId);
+                if (format.isEmpty()
+                        || (format.get() != DetectedFormat.PLAIN_TEXT && format.get() != DetectedFormat.UNRECOGNISED)
+                        || (format.get() == DetectedFormat.PLAIN_TEXT
+                                && detectedFormats.subtypeFor(occurrence.occurrenceId(), runId).isPresent())) {
+                    continue;
+                }
                 Optional<String> reason;
                 try {
-                    if (!isRead(occurrence.occurrenceId(), runId, file)) {
+                    if (format.get() == DetectedFormat.UNRECOGNISED && !Code.readsAsText(file)) {
                         continue;
                     }
                     reason = judge(file, floor, bands, counts, roots, interfaceDefinitions);
@@ -142,18 +150,6 @@ public class ConfigurationFiles {
         return new Tally(counts[1], counts[2], bands, counts[0], orderedRoots(roots), orderedDefinitions(interfaceDefinitions));
     }
 
-    /** Section 3.1: text with no subtype, and a file of no known kind whose bytes read as text. */
-    private boolean isRead(OccurrenceId occurrence, RunId runId, Path file) throws IOException {
-        Optional<DetectedFormat> format = detectedFormats.formatFor(occurrence, runId);
-        if (format.isEmpty()) {
-            return false;
-        }
-        if (format.get() == DetectedFormat.PLAIN_TEXT) {
-            return detectedFormats.subtypeFor(occurrence, runId).isEmpty();
-        }
-        return format.get() == DetectedFormat.UNRECOGNISED && Code.readsAsText(file);
-    }
-
     /**
      * Section 3.6's order over one file: the part of the reason that follows the fixed words where it is a
      * configuration file, empty where it is not, or where {@code floor} is {@code null}. Counts what it finds.
@@ -176,7 +172,7 @@ public class ConfigurationFiles {
             FirstElement.Element element = xml.root().get();
             for (Root root : CONFIGURATION_ROOTS) {
                 if (root.localName().equals(element.localName())
-                        && java.util.Objects.equals(root.namespace(), element.namespace())) {
+                        && Objects.equals(root.namespace(), element.namespace())) {
                     String named = nameOf(root);
                     roots.merge(named, 1, Integer::sum);
                     return floor == null ? Optional.empty() : Optional.of("its first element is " + named);

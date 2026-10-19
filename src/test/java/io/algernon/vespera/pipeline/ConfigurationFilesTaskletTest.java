@@ -285,6 +285,7 @@ class ConfigurationFilesTaskletTest {
         write(root, "xml/pom.xml", "<project xmlns=\"" + MAVEN + "\">\n  <artifactId>xml</artifactId>\n</project>\n");
         write(root, "xml/beans.xml", "<b:beans xmlns:b=\"" + SPRING_BEANS + "\">\n  <b:bean id=\"x\"/>\n</b:beans>\n");
         write(root, "xml/registrazione.txt", logback("registrazione"));
+        write(root, "xml/utf16.xml", utf16WithItsMark(logback("utf16").replace("UTF-8", "UTF-16")));
         write(root, "xml/progetto.xml", "<project>\n  <name>progetto</name>\n</project>\n");
         write(root, "xml/note.xml", "<note>\n  <body>a note in XML</body>\n</note>\n");
         write(root, "xml/maiuscole.xml", "<CONFIGURATION>\n  <appender name=\"a\"/>\n</CONFIGURATION>\n");
@@ -304,6 +305,10 @@ class ConfigurationFilesTaskletTest {
         claim(
                 "a file named as text holding logback's configuration is one all the same: the name is not read",
                 () -> assertThat(verdictReasonsFor("xml/registrazione.txt")).containsExactly(BY_ITS_ROOT.formatted("configuration")));
+        claim(
+                "logback's configuration in UTF-16, behind its byte-order mark, is read for its first element as any"
+                        + " other is, and left out by it",
+                () -> assertThat(verdictReasonsFor("xml/utf16.xml")).containsExactly(BY_ITS_ROOT.formatted("configuration")));
         claim(
                 "a project in no namespace, another first element, and configuration spelt in capitals are kept",
                 () -> {
@@ -408,6 +413,10 @@ class ConfigurationFilesTaskletTest {
         write(root, "shop/docs/guida.txt", guide());
         write(root, "Avvio.java", "class Avvio {}\n");
         write(root, "application.yaml", keyed("radice", SETTINGS, ": "));
+        // Byte for byte the same, so the hashing, which reads only files sharing a size, would read both if either
+        // reached it: one lies in the set, the other in a folder of no code.
+        write(root, "shop/conf/copia.properties", settings("copia"));
+        write(root, "impostazioni/copia.properties", settings("copia"));
         CodeNameEndingsInProfile.write(new ProfileStore(workingDirectory), CODE_ENDINGS, SET_BY_THIS_TEST);
 
         List<String> logged = logging(() -> stageOne(root, workingDirectory, FLOOR));
@@ -427,6 +436,16 @@ class ConfigurationFilesTaskletTest {
                 () -> {
                     assertThat(verdictReasonsFor("application.yaml")).containsExactly(IN_ITS_SET.formatted("the corpus root"));
                     assertThat(membershipOf("application.yaml")).containsExactly("configuration in ''");
+                });
+        claim(
+                "two identical configuration files, one kept with the set as code and one left out as lying in no set,"
+                        + " carry those verdicts and have no content hash: the third pass took both before the hashing,"
+                        + " which would otherwise have read both, their size being shared",
+                () -> {
+                    assertThat(verdictKindsFor("shop/conf/copia.properties")).containsExactly(CODE);
+                    assertThat(verdictKindsFor("impostazioni/copia.properties")).containsExactly(OUT_OF_SCOPE);
+                    assertThat(contentHashRowsFor("shop/conf/copia.properties")).isZero();
+                    assertThat(contentHashRowsFor("impostazioni/copia.properties")).isZero();
                 });
         claim(
                 "the set's build file, whose first element is Maven's, stays the build file the set pass kept",
@@ -826,6 +845,23 @@ class ConfigurationFilesTaskletTest {
                 "SELECT d.format FROM detected_format d JOIN file_occurrence o ON o.id = d.occurrence_id WHERE o.path = ?",
                 String.class,
                 path);
+    }
+
+    private int contentHashRowsFor(String path) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM content_hash h JOIN file_occurrence o ON o.id = h.occurrence_id WHERE o.path = ?",
+                Integer.class,
+                path);
+    }
+
+    /** {@code text} in UTF-16, little-endian, behind its byte-order mark. */
+    private static byte[] utf16WithItsMark(String text) {
+        byte[] body = text.getBytes(StandardCharsets.UTF_16LE);
+        byte[] bytes = new byte[body.length + 2];
+        bytes[0] = (byte) 0xFF;
+        bytes[1] = (byte) 0xFE;
+        System.arraycopy(body, 0, bytes, 2, body.length);
+        return bytes;
     }
 
     private static String formatMix(Path workingDirectory) throws IOException {
