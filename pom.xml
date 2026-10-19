@@ -171,7 +171,7 @@
           ADR-297: the control panel's screens are tested through PanelBrowser, which parses each page
           the panel serves as a browser parses HTML and reads a form's fields as a browser sends them.
           Test scope: the control panel's jar stays on java.base and jdk.httpserver (ADR-285 section 3).
-          Maven brings nothing with it: its one compile dependency, re2j, is optional.
+          Maven brings nothing with it: its compile dependency re2j is optional, jspecify provided.
         -->
         <dependency>
             <groupId>org.jsoup</groupId>

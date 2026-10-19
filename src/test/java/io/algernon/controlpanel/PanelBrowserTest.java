@@ -54,7 +54,10 @@ class PanelBrowserTest {
     /** A corpus root no code page of Windows' but UTF-8 holds whole, with a backslash and a space a form encodes. */
     private static final String CORPUS_ROOT = "D:\\archiwum łódź\\漢字";
 
-    /** The forms page: a form of each method to the echo, one to the store, and one whose action leaves the panel. */
+    /**
+     * The forms page: a form of each method to the echo, one to the store, two of one name, and one whose action leaves
+     * the panel.
+     */
     private static final String FORMS_PAGE = """
             <!doctype html>
             <html lang="en"><head><meta charset="utf-8"><title>Forms</title></head><body>
@@ -66,6 +69,8 @@ class PanelBrowserTest {
             </form>
             <form name="find" method="get" action="/echo"><input type="text" name="q" value=""></form>
             <form name="answer" method="post" action="/store"><input type="hidden" name="choice" value="keep"></form>
+            <form name="twice" method="post" action="/echo"></form>
+            <form name="twice" method="post" action="/echo"></form>
             <form name="elsewhere" method="post" action="http://192.0.2.1/x"><input name="corpus" value=""></form>
             </body></html>
             """;
@@ -164,7 +169,7 @@ class PanelBrowserTest {
 
     @Test
     @Story("The control panel's screens are tested as a browser uses them")
-    @DisplayName("A form the page does not hold, or a field its form does not hold, fails the test naming it")
+    @DisplayName("A form the page does not hold, two forms of one name, or a field its form does not hold, fails the test naming it")
     void aFormOrAFieldThePageDoesNotHoldFailsTheTest() {
         PanelBrowser browser = PanelBrowser.opening(server.firstAddress());
 
@@ -172,11 +177,15 @@ class PanelBrowserTest {
                 () -> assertThatThrownBy(() -> browser.submit("absent", Map.of()))
                         .isInstanceOf(AssertionError.class)
                         .hasMessage("the page at / holds 0 forms named 'absent', where a test submits exactly one"));
+        claim("submitting a form by a name two forms of the page carry fails, naming the form and the page",
+                () -> assertThatThrownBy(() -> browser.submit("twice", Map.of()))
+                        .isInstanceOf(AssertionError.class)
+                        .hasMessage("the page at / holds 2 forms named 'twice', where a test submits exactly one"));
         claim("setting a field the form holds no control for fails, naming the form and the field",
                 () -> assertThatThrownBy(() -> browser.submit("find", Map.of("corpus", CORPUS_ROOT)))
                         .isInstanceOf(AssertionError.class)
                         .hasMessage("the form 'find' holds no control named 'corpus'"));
-        claim("and neither sent a request: the forms page, opened first, is the only page that ran",
+        claim("and none of the three sent a request: the forms page, opened first, is the only page that ran",
                 () -> assertThat(RAN).containsExactly("GET " + FORMS));
     }
 

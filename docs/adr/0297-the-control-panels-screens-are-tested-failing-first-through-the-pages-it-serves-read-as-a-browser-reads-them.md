@@ -12,7 +12,7 @@
 
 The control panel serves plain HTML forms it writes itself, on the JDK's `HttpServer`, with no script of its own; htmx would be vendored only if a screen later needs a part of a page replaced in place. Its server answers only a request addressed to `127.0.0.1:<port>` or `localhost:<port>`, holding the cookie its start's token is exchanged for by a `303`, and a `POST` only with its own `Origin`, under `Content-Security-Policy: frame-ancestors 'none'; form-action 'self'; base-uri 'none'` (ADR-291).
 
-The destination wants a failing-first test for every decision the panel's screens make. CI runs the unit tests on Linux and on Windows NTFS, and the harness has to run in both and in a container with no display.
+Every decision the panel's screens make is to have a failing-first test. CI runs the unit tests on Linux and on Windows NTFS, and the harness has to run in both and in a container with no display.
 
 Four harnesses were weighed:
 
@@ -48,7 +48,7 @@ The server's checks are never bypassed: a test that wants a refusal writes its r
 
 ### 3. One dependency, at test scope
 
-The pom carries `org.jsoup:jsoup` at test scope, version 1.23.2. jsoup's one compile dependency, re2j, is optional, so it brings no other jar. Neither jar the build packages carries it, and the control panel's jar stays on `java.base` and `jdk.httpserver`.
+The pom carries `org.jsoup:jsoup` at test scope, version 1.23.2. jsoup's one compile dependency, re2j, is optional, and jspecify is provided, so it brings no other jar. Neither jar the build packages carries it, and the control panel's jar stays on `java.base` and `jdk.httpserver`.
 
 ### 4. Every screen test is a unit test
 
@@ -57,7 +57,7 @@ A screen test starts the server on a port the system picks and needs neither Doc
 ### 5. How a screen test is written
 
 - A screen's test class is named for the screen, `<Screen>ScreenTest`, with `@Epic("Operation")` and `@Feature("The control panel")`, as ADR-291's tests are.
-- A form, a control and a link are found by `name`; text a test reads is found by `id`. A test finds nothing by its position on the page, its CSS class or its wording, so a screen's layout and words can change without a test changing.
+- A form and a control are found by `name`, and a page is gone to by its path; text a test reads is found by `id`. A test finds nothing by its position on the page, its CSS class or its wording, so a screen's layout and words can change without a test changing.
 - Each action of `PanelBrowser` is one report step, named in plain words: opening the printed address, going to a path, submitting a form by its name. Each assertion is a `TestSteps.claim`, so a test reads in the report as the actions taken and the claims made, in order.
 - A screen's test is written before the screen, against the path its record names, and fails there, `404` from a server that serves no page at that path, until the screen is built.
 
@@ -67,7 +67,7 @@ If a screen vendors htmx (option B of #554's research), a request htmx makes is 
 
 ### 7. What `PanelBrowserTest` holds
 
-`PanelBrowserTest` starts the server with stub pages and holds §2: the landing on the root without the token, the next page answered on the cookie, a form posted from the panel's origin with every field in the page's order, a corpus root in Polish and Chinese and a backslash whole, a `GET` form's query, a `303` followed by a `GET`, the two failures that send nothing, and the form whose action leaves the panel refused.
+`PanelBrowserTest` starts the server with stub pages and holds §2: the landing on the root without the token, the next page answered on the cookie, a form posted from the panel's origin with every field in the page's order, a corpus root in Polish and Chinese and a backslash whole, a `GET` form's query, a `303` followed by a `GET`, the three failures that send nothing, and the form whose action leaves the panel refused.
 
 ## Consequences
 

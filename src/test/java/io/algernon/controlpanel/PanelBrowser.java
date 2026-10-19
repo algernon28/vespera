@@ -136,7 +136,8 @@ final class PanelBrowser {
                     .header("Content-Type", "application/x-www-form-urlencoded")
                     .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)));
         } else {
-            land(HttpRequest.newBuilder(URI.create(action.toString().split("\\?")[0] + "?" + body)).GET());
+            land(HttpRequest.newBuilder(URI.create(action.getScheme() + "://" + action.getRawAuthority()
+                    + action.getRawPath() + (body.isEmpty() ? "" : "?" + body))).GET());
         }
     }
 
