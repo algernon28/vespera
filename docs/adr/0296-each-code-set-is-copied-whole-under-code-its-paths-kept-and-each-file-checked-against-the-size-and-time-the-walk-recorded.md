@@ -62,7 +62,8 @@
 
 **Below its set's folder, each member keeps its path relative to the set's folder in the archive**, the folder as `code_set` holds it, the whole path for the root's set (`''`), element by element.
 
-- **Each element is made safe by ADR-280 §1.2 and cut by its §3**: a file's name as a copy's name is, with `.part`; a folder's as §3.1 cuts a set's. A folder element left empty is the lowest occurrence id of the members beneath it; a file name left empty is its own occurrence id.
+- **Each element is made safe by ADR-280 §1.2 and cut by its §3**: a file's name as a copy's name is, with `.part`; a folder's as §3.1 cuts a set's. A file name left empty is its own occurrence id.
+- **Every folder element left empty, once made safe, within one drawn folder is one folder, whatever it spelt**, named by the lowest occurrence id of the members beneath any of them: `.../a.txt` of 81, `..../b.txt` of 80 and `. . ./c.txt` of 82 are `80/a.txt`, `80/b.txt` and `80/c.txt`. None of them spells a name, so they are alike as names alike are, and are told apart by no key.
 - **Folder elements that collide by ADR-280 §1.4's keys within one drawn folder are one folder**, spelt as the member with the lowest occurrence id beneath it spells it: `Src/B.java` of 21 and `src/A.java` of 20 are `src/A.java` and `src/B.java`.
 - **File names in one drawn folder collide, and are suffixed, as copies in a cluster folder are** (ADR-280 §1.4 to §1.6), the members taken in ascending occurrence id, `<another file's name>.part` reserved as in §1.5. A drawn folder of a set reserves no page's name: no page is written there.
 - **A file and a folder in one drawn folder that collide: the file takes the suffix**, as a file name colliding with a reserved name does, and the folder keeps its name: a file `lib` of 40 beside `LIB/x.c` is `lib~40`.
@@ -146,6 +147,7 @@ No line names a set, a folder, a path or a file.
 9. **One term**: a code file's copy is a **Copy** (§9).
 10. **The closing line counts the files of code not copied and the dormant names** (§6), the first even at 0 where a set exists.
 11. **A names file refused whole is a warning, not a failure** (§6.2).
+12. **Folder elements left empty in one drawn folder are one folder** (§3.2), however each was spelt: none spells a name, so none is told from another.
 
 ## Consequences
 
@@ -187,6 +189,7 @@ No line names a set, a folder, a path or a file.
 | `…foldersThatCollideAreOneFolderSpeltAsTheLowestMemberBeneathItSpellsIt` | §3.2: `src/A.java` of 20 and `Src/B.java` of 21 in one `src/` |
 | `…fileNamesThatCollideInOneFolderAreSuffixedAsCopiesAre` | §3.2: `Readme.txt` and `README.TXT`, and `notes.txt.part` yielding to `notes.txt` |
 | `…aFileThatCollidesWithAFolderBesideItTakesTheSuffix` | §3.2: a file `lib` of 40 beside `LIB/x.c` is `lib~40` |
+| `…foldersLeftEmptyOnceMadeSafeAreOneFolderNamedByTheLowestMemberBeneathThem` | §3.2: `...`, `....` and `. . .` in one folder are one folder `80`, the lowest member beneath any of them, whatever order the members arrive in |
 | `deliverable.CodeSetsInTheTreeTest.eachSetIsCopiedWholeUnderCodeItsPathsKeptAndSetsSideBySide` | §1, §3: every member byte for byte at `code/<set>/<kept path>`, every role; `Work` and `Work/shop` side by side |
 | `…aFileWhoseSizeOrTimeDiffersFromTheWalksIsChangedAndNotCopied` | §2: one of each `changed`, no copy and no `.part`; a third copied |
 | `…aCodeCopyThatStandsIsKeptWithoutReadingTheArchive` | §2: with the original deleted, a redrawing keeps the copy and says `copied` |
@@ -200,7 +203,9 @@ No line names a set, a folder, a path or a file.
 | `…theCodeCopiesAreSurveyedBeforeTheFirstInNumbersOnly` | §7: told once with sets, members, the walk's bytes and the free bytes; one outcome told for each member |
 | `pipeline.TheClosingLineCountsTheFilesOfCodeNotCopiedTest` | §6.1, §6.2: `0 files`, `1 file` and `2 files of code not copied`; no clause with no set or no tree; `1 name … names` and `2 names … name`, before the clause of what an earlier drawing left |
 | `deliverable.WhatTheTreeReportsNamesNoDocumentTest` | §7: every new method of `DeliverableProgress` takes only primitives and enumerations |
-
-**In the change that builds this**: `corpus`'s reader of §8, held against a ledger holding two runs' sets, in folder order, each set's members a page at a time in ascending occurrence id with the walk's size and time; `pipeline`'s §7 lines held as `TheTreeInHtmlInvocationTest.theCopiesAreToldBeforeAndAfterInCountsOnly` holds the documents', every argument a number; and an invocation whose run has a code set ending its closing line with §6.1's clause.
+| `corpus.TheCodeSetsAreReadForTheTreeTest.theSetsOfARunAreListedInFolderOrderEachWithItsLowestMember` | §8: of a walk holding two stage-1 runs' sets, the run's sets in folder order, the root's first, each with its default name and lowest member, its members written highest first; the other run's set and lower members not among them |
+| `…aSetsMembersAreHandedOverAPageAtATimeWithTheWalksSizeAndTime` | §8, §2: 1,001 members in pages of 1,000 and 1, in ascending occurrence id; each with its path, role, generator, and the walk's size and time, read back equal to the nanosecond, at a whole minute and at a half second; the other run's member of the folder, and its role for a shared member, not among them |
+| `pipeline.TheCodeSetsInTheTreeInvocationTest.theCodeCopiesAreToldBeforeAndAfterInCountsOnly` | §7: through an invocation, the line before (1 set, 2 members, the walk's bytes, the free bytes) and the line after (2 copied, none of the five others, the bytes), every argument a number; `Stage 6b (generation, code copied)` at `1 of 2` and `2 of 2` between them; no line names the set, a member, the archive or the tree |
+| `…theClosingLineCountsTheFilesOfCodeTheTreeDidNotCopy` | §6.1: an invocation whose member's time moved after the walk ends its closing line with *", and 1 file of code not copied."*, the count handed from the generation step to the closing line |
 
 **Not pinned, and why**: a size or a time that changes while the bytes are streamed (§2), which no test can bring about between two reads without a seam the shipped code does not need; a code copy past 259 characters (§3.3), the count being the one ADR-280's test holds; and the time read as the census writes it on a file system coarser than the one the suite runs on.

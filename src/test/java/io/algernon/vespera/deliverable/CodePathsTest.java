@@ -123,6 +123,30 @@ class CodePathsTest {
 
     @Test
     @Story("Each code set is copied whole in its own layout")
+    @DisplayName("Folders of one folder that are each left with no name once made safe are one folder, named by the lowest-numbered file beneath any of them")
+    void foldersLeftEmptyOnceMadeSafeAreOneFolderNamedByTheLowestMemberBeneathThem() {
+        List<ListedCodeFile> members = List.of(
+                member(81, THE_SET, THE_SET + "/.../a.txt"),
+                member(80, THE_SET, THE_SET + "/..../b.txt"),
+                member(82, THE_SET, THE_SET + "/. . ./c.txt"));
+        Map<Long, String> expected = new TreeMap<>(Map.of(
+                80L, "80/b.txt",
+                81L, "80/a.txt",
+                82L, "80/c.txt"));
+
+        claim(
+                "three dots, four dots, and three dots with spaces between them, each left with no name, are one folder named 80, the"
+                        + " lowest-numbered file beneath any of them, though they were spelt differently",
+                () -> assertThat(pathsOf(members)).containsExactlyEntriesOf(expected));
+        List<ListedCodeFile> reversed = new ArrayList<>(members);
+        Collections.reverse(reversed);
+        claim(
+                "and the same paths are given whatever order the files are handed over in",
+                () -> assertThat(pathsOf(reversed)).containsExactlyEntriesOf(expected));
+    }
+
+    @Test
+    @Story("Each code set is copied whole in its own layout")
     @DisplayName("Two files of one folder whose names differ only in case keep the lower-numbered one's name, and a file named as another's unfinished copy yields to it")
     void fileNamesThatCollideInOneFolderAreSuffixedAsCopiesAre() {
         claim(
