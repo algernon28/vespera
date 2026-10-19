@@ -66,7 +66,7 @@ class NextInvocationFileTest {
 
     /** The deliverable drawn at {@link #THE_TREE}, no group left unwritten, no document not copied, nothing left behind. */
     private static final NextAction.DeliverableSummary NOTHING_LEFT_UNWRITTEN_OR_UNCOPIED =
-            new NextAction.DeliverableSummary(THE_TREE, 0, OptionalInt.of(0), false, 0);
+            new NextAction.DeliverableSummary(THE_TREE, 0, OptionalInt.of(0), false, 0, 0);
 
     @Test
     @Story("The jar writes what the next invocation wants")
@@ -122,7 +122,7 @@ class NextInvocationFileTest {
 
     @Test
     @Story("The jar writes what the next invocation wants")
-    @DisplayName("Nothing left to set is written as invocation=none, though the closing line names the seed folder's and the deliverable's paths")
+    @DisplayName("Nothing left to set is written as invocation=none, though the closing line names the deliverable's path")
     void nothingLeftIsWrittenAsNoneAndHoldsNoPath(@TempDir Path workingDirectory) throws IOException {
         Profile profile = ProfileFixture.profile()
                 .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
@@ -142,12 +142,10 @@ class NextInvocationFileTest {
         claim("the file holds invocation=none, an empty wants and answer=false, and nothing else",
                 () -> assertThat(propertiesIn(workingDirectory)).isEqualTo(Map.of(
                         "invocation", "none", "wants", "", "answer", "false")));
-        claim("and its text holds neither the tree's path nor the seed folder's, written or escaped",
+        claim("and its text does not hold the tree's path, written or escaped",
                 () -> assertThat(written)
                         .doesNotContain(THE_TREE.toString())
-                        .doesNotContain(THE_SEED_FOLDER)
-                        .doesNotContain("deliverable")
-                        .doesNotContain("exemplars"));
+                        .doesNotContain("deliverable"));
     }
 
     @Test

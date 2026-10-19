@@ -64,7 +64,7 @@ The `arrangement` is the one this invocation arrived at (ADR-154 §2), never the
 
 An invocation deletes any `next-invocation.properties` in its working directory as it starts, once it holds the working-directory lock and before it opens the database file. A file that cannot be deleted fails the start, as a lock file that cannot be opened does. An invocation refused the lock deletes nothing, since the file is the holder's.
 
-So an invocation that ends without a closing line, refused or failed, with a non-zero exit code (ADR-278 §5, ADR-289), leaves no file, and the file in the working directory is always the last successful invocation's, or none. A file that cannot be written at the end is logged at WARN before the closing line, and the invocation ends as it would have: the closing line stays last (ADR-281) and the control panel finds no file.
+So an invocation that ends without a closing line, refused or failed, with a non-zero exit code (ADR-278 §5, ADR-289), leaves no file, and the file in the working directory is always the last successful invocation's, or none. A file that cannot be written at the end is logged at WARN before the closing line, and the invocation ends as it would have: the closing line stays last (ADR-281) and the control panel finds no file, or one cut short that it cannot read, and offers nothing from it.
 
 ### 4. What the control panel reads, and the one loop it walks
 
@@ -97,7 +97,7 @@ The ticket that writes profile values, label answers and the approval from the c
 | --- | --- |
 | `pipeline.NextActionNamesTheNextInvocationTest` | for each branch of §2, the contents `NextAction` gives beside the line, whole: `invocation`, `wants` in order, `answer` and `arrangement`, and every key in `wants` named by the line in the same order |
 | `pipeline.NextInvocationFileTest` | the file's name and place, its keys and values written in `java.util.Properties` form, `arrangement` only where given, no path though the closing line holds one, a contents that breaks §1's rules refused, a file that cannot be written left as it is with no exception, and deleting where there is none |
-| `pipeline.AnInvocationStartsWithNoNextInvocationFileTest` | taking the working-directory lock deletes an earlier file; a take refused the lock leaves the holder's (§3) |
+| `pipeline.AnInvocationStartsWithNoNextInvocationFileTest` | taking the working-directory lock deletes an earlier file; one that cannot be deleted fails the take; a take refused the lock leaves the holder's (§3) |
 | `pipeline.TheNextInvocationFileIsWrittenWithTheClosingLineTest` | `vespera run` and `vespera label` ending with exit 0 write the file their closing line agrees with; a refused `vespera run` and a refused `vespera label` write none |
 | `pipeline.TheControlPanelReadsTheNextInvocationTheJarWritesTest` | each shape the jar writes is read by the control panel's `NextInvocation` as the same invocation, keys in the same order, answer and arrangement (§4) |
 | `controlpanel.NextInvocationTest` | the control panel's reading of the file: each of the three invocations, `wants` in order, `answer`, `arrangement`, an empty `wants`, a comment and any key order ignored, no file read as none, and each shape §4 calls unreadable refused |

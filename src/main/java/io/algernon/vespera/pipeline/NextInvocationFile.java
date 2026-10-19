@@ -87,7 +87,7 @@ final class NextInvocationFile {
 
     /**
      * Writes {@code contents} over any file there, whole. A file that cannot be written is logged at WARN and left
-     * as it is, so the closing line that follows stays the last line of output (ADR-294 §3).
+     * as it is, whole or cut short, so the closing line that follows stays the last line of output (ADR-294 §3).
      */
     static void write(Path workingDirectory, Contents contents) {
         Properties properties = new Properties();
@@ -98,7 +98,7 @@ final class NextInvocationFile {
         Path file = workingDirectory.resolve(FILE_NAME);
         try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
             properties.store(writer, null);
-        } catch (IOException | RuntimeException cannotBeWritten) {
+        } catch (IOException cannotBeWritten) {
             LOG.warn("Could not write {}, so the control panel finds no next invocation to offer: {}", file,
                     cannotBeWritten.toString());
         }

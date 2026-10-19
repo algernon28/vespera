@@ -289,7 +289,7 @@ class NextActionNamesTheNextInvocationTest {
     @DisplayName("With a deliverable drawn, nothing is left to set, and the tree the line names is not handed on")
     void withADeliverableDrawnNothingIsLeft() {
         NextAction.DeliverableSummary deliverable =
-                new NextAction.DeliverableSummary(THE_TREE, 0, OptionalInt.of(0), false, 0);
+                new NextAction.DeliverableSummary(THE_TREE, 0, OptionalInt.of(0), false, 0, 0);
 
         NextAction.Closing closing = NextAction.closing(everythingApproved(), SIXTY_ANSWERED, QUESTIONS_WRITTEN,
                 THIS_INVOCATIONS_ARRANGEMENT, THE_GENERATION_MODEL, deliverable, APPROVAL_MATCHES_THIS_INVOCATION);

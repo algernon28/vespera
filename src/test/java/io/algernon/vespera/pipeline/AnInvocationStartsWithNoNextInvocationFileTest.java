@@ -11,6 +11,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -67,6 +68,21 @@ class AnInvocationStartsWithNoNextInvocationFileTest {
 
         claim("once the invocation holds the working directory, the earlier invocation's file is gone",
                 () -> assertThat(earlier).doesNotExist());
+    }
+
+    @Test
+    @Story("An invocation starts with no file from the one before")
+    @DisplayName("A file that cannot be deleted stops the invocation from starting")
+    void aFileThatCannotBeDeletedFailsTheStart(@TempDir Path workingDirectory) throws IOException {
+        Path inItsPlace = Files.createDirectory(workingDirectory.resolve(FILE_NAME));
+        Files.writeString(inItsPlace.resolve("kept"), AN_EARLIER_INVOCATIONS_FILE, StandardCharsets.UTF_8);
+
+        Throwable failed = catchThrowable(() -> new WorkingDirectoryLock().onApplicationEvent(prepared(workingDirectory)));
+
+        claim("taking the working directory fails, a folder holding a file standing where the earlier file was",
+                () -> assertThat(failed).isInstanceOf(UncheckedIOException.class));
+        claim("and what stands there is left as it was",
+                () -> assertThat(inItsPlace.resolve("kept")).hasContent(AN_EARLIER_INVOCATIONS_FILE));
     }
 
     @Test
