@@ -145,7 +145,7 @@ class ChildCommandTest {
     }
 
     /** Every string text of every class compiled from {@code src/main} under {@code io.algernon.controlpanel}. */
-    private static List<String> textsOfTheControlPanel() throws IOException, URISyntaxException {
+    static List<String> textsOfTheControlPanel() throws IOException, URISyntaxException {
         Path compiled = Path.of(ChildCommand.class.getProtectionDomain().getCodeSource().getLocation().toURI())
                 .resolve(CONTROL_PANEL_FOLDER);
         List<String> texts = new ArrayList<>();
