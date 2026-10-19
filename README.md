@@ -124,7 +124,7 @@ Everything the tool writes goes in one working directory, never inside your arch
 
 ```
 profile.yaml                     the values you set, and how you arrived at them
-code-set-names.yaml              the names you give your code sets, if you rename any; you write it, Vespera never does
+code-set-names.yaml              the names you give your code sets, if you rename any; you or the control panel write it, the jar never does
 vespera.db                       the ledger: every file seen, every verdict, every measurement
 vespera.lock                     held by the command running now, so a second one is refused
 logs/vespera.log                 what the console shows, with dates; older days roll in beside it

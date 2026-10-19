@@ -2057,6 +2057,15 @@ public final class Adr {
             + "0293-an-operational-record-that-is-not-a-log-or-a-configuration-file-is-left-to-relevance-and-its-name-ending-is-the-operators-to-list.md";
 
     /**
+     * ADR-295 -- the control panel writes profile.yaml one key at a time, the answers of relevance-labels.yaml and
+     * code-set-names.yaml, each whole by a move, only from the form the jar or it writes, holding the working-directory
+     * lock while no invocation it started runs; each value checked as the jar reads it, and the cost said before
+     * saving (amends ADR-177).
+     */
+    public static final String THE_CONTROL_PANEL_WRITES_HOLDING_THE_WORKING_DIRECTORY_LOCK = FILE
+            + "0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md";
+
+    /**
      * ADR-297 -- the control panel's screens are tested failing-first through {@code PanelBrowser}, the JDK's HTTP
      * client with a cookie store and jsoup at test scope, which opens the printed address, follows a {@code 303},
      * and submits a form by its name as a browser sends it, a {@code POST} from the panel's own origin; no browser is
