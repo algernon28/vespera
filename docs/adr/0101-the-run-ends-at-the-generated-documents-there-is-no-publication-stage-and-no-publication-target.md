@@ -1,5 +1,7 @@
 # ADR-101 — The run ends at the generated documents; there is no publication stage and no publication target
 
+> **Partly amended — see [ADR-301](0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md).** The Decision's opening sentence reads: the pipeline's last stage is 6b; what it produces is the deliverable; beside the HTML tree, stage 6b draws a Confluence storage-format rendering of the same tree, as files, for the operator to load; beyond drawing it, nothing in this project renders, uploads or transmits the deliverable anywhere. "Rendering the result into a wiki" stays struck as putting it into one. Seven stages, stage 7 struck, no `publication` module, no `vespera publish`, and everything else in this record stand.
+
 - **Date**: 2026-09-11
 - **Status**: accepted
 - **Supersedes**: [ADR-002](0002-confluence-is-the-publication-target.md) — Confluence is not the publication target, because there is no publication target

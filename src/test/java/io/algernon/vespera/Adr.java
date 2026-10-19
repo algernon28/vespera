@@ -2104,6 +2104,15 @@ public final class Adr {
             + "0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md";
 
     /**
+     * ADR-301 -- stage 6b draws a Confluence storage-format rendering of the tree beside the HTML tree, as files for
+     * the operator to load, and beyond drawing it nothing in this project renders, uploads or transmits the
+     * deliverable; the two renderings carry the same entries and citations (amends ADR-101, ADR-102 and ADR-274, and
+     * partly reopens ADR-002 and ADR-023).
+     */
+    public static final String A_CONFLUENCE_RENDERING_IS_DRAWN_BESIDE_THE_HTML_TREE = FILE
+            + "0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md";
+
+    /**
      * ADR-302 -- the control panel's screens: a launch page and an invocation page of server-written forms, each
      * report of the working directory re-served read-only at {@code /report/<file name>} under {@code sandbox
      * allow-scripts}, and the next invocation's values, the label answers, the code-set names and the profile on pages

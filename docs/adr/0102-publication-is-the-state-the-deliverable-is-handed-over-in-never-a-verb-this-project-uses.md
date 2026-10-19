@@ -1,5 +1,7 @@
 # ADR-102 — Publication is the state the deliverable is handed over in, never a verb this project uses
 
+> **Partly amended — see [ADR-301](0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md).** The artifact entry names the arrangement and the synthesis docs written over it, self-contained and handed over as files: an HTML tree, and beside it a drawn Confluence storage-format rendering of it. Publication stays an adjective and never a verb; nothing in this project is ever said to publish anything, and the rendering is drawn, not uploaded. Everything else in this record stands.
+
 - **Date**: 2026-09-12
 - **Status**: accepted
 - **Amends**: [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md) — none of its substance. It named a correction to `CONTEXT.md` as a consequence and left the wording open; this record settles the wording, and settles it differently from the straight deletion the consequence implies.
