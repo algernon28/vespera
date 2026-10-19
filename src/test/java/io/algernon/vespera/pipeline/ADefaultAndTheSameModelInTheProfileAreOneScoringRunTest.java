@@ -41,8 +41,8 @@ import org.springframework.test.context.ActiveProfiles;
  * <p>Assembled by hand, as {@link TheScoringRunIsMintedFromOneReadingOfTheProfileTest} assembles its holder: a corpus
  * root and a seed folder walked once, and two invocations over that walk, each recording its own content redundancy
  * run and minting the scoring run through {@link StageRuns#embeddingScoring()}, which asks {@link EmbeddingModelGate}
- * for the name. The first reads a profile naming {@link #MODEL} under a blank configured key; the second reads a
- * profile naming no model under a configured key of {@link #MODEL}.
+ * for the name. The first reads a profile naming {@link #EMBEDDING_MODEL} under a blank configured key; the second
+ * reads a profile naming no model under a configured key of {@link #EMBEDDING_MODEL}.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -54,7 +54,7 @@ import org.springframework.test.context.ActiveProfiles;
 class ADefaultAndTheSameModelInTheProfileAreOneScoringRunTest {
 
     /** The one embedding model both invocations score under; the double serving it answers for any name. */
-    private static final String MODEL = "a-scoring-model:0.6b";
+    private static final String EMBEDDING_MODEL = "a-scoring-model:0.6b";
 
     /** What the double serving the model reports for it. */
     private static final ModelArtefact ARTEFACT = new ModelArtefact("sha256:5c0r1ng", "F16");
@@ -90,14 +90,15 @@ class ADefaultAndTheSameModelInTheProfileAreOneScoringRunTest {
                 .boilerplateDocumentFrequencyFloor("1.0", "set by this test, so stage 4's gate is open")
                 .build());
         ProfileStore profileNamingTheModel = new ProfileStore(namedInTheProfile);
-        profileNamingTheModel.save(ProfileFixture.profile().embeddingModel(MODEL, "set by this test").build());
+        profileNamingTheModel.save(
+                ProfileFixture.profile().embeddingModel(EMBEDDING_MODEL, "set by this test").build());
         ProfileStore profileNamingNoModel = new ProfileStore(namedNowhere);
         profileNamingNoModel.save(ProfileFixture.profile().build());
 
         RunId underTheProfilesName = scoringRun(
                 ledger, walk, root, gates, new EmbeddingModelGate(profileNamingTheModel, NO_CONFIGURED_DEFAULT));
         RunId underTheDefault = scoringRun(
-                ledger, walk, root, gates, new EmbeddingModelGate(profileNamingNoModel, MODEL));
+                ledger, walk, root, gates, new EmbeddingModelGate(profileNamingNoModel, EMBEDDING_MODEL));
 
         claim(
                 "both invocations arrive at the one piece of scoring work: the model's name is the same, and"
@@ -108,7 +109,7 @@ class ADefaultAndTheSameModelInTheProfileAreOneScoringRunTest {
                 "SELECT config_consumed FROM run WHERE id = ?", String.class, underTheDefault.value());
         claim(
                 "and the work records the model's name as resolved",
-                () -> assertThat(configConsumed).contains("\"embeddingModel\":\"" + MODEL + "\""));
+                () -> assertThat(configConsumed).contains("\"embeddingModel\":\"" + EMBEDDING_MODEL + "\""));
     }
 
     /**
