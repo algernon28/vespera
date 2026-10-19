@@ -340,6 +340,81 @@ class BrokenOrOutOfScopeTest {
                         .containsEntry(DetectedFormat.PLAIN_TEXT, Map.of(DetectedSubtype.MARKDOWN, 1)));
     }
 
+    @Test
+    @Story("What the first pass decides about each survivor")
+    @DisplayName("A file gone before the code rules read it is not code, is said to be unreadable for them, and the pass carries on")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
+    void aFileTheCodeRulesCannotReadIsNotCode(@TempDir Path root) throws Exception {
+        // Single-byte text, detected as of no known kind, and plain text: both read as text, and both names end
+        // with a listed ending, so each would be code had its bytes still been there to read.
+        Files.write(root.resolve("gone.c"), "/* perchè */\nint f(void);\n".getBytes(StandardCharsets.ISO_8859_1));
+        Files.writeString(root.resolve("gone.java"), "class Gone {}\n");
+        Files.write(root.resolve("after.c"), "/* perchè no */\nint g(void);\n".getBytes(StandardCharsets.ISO_8859_1));
+        Corpus corpus = new Corpus(root);
+        OccurrenceId goneUnrecognised = corpus.occurrence("gone.c");
+        OccurrenceId gonePlainText = corpus.occurrence("gone.java");
+        OccurrenceId after = corpus.occurrence("after.c");
+        RunId run = corpus.run();
+        // The file is removed once its kind is recorded: after detection has read it, before the code rules do.
+        Map<OccurrenceId, Path> removedOnceDetected =
+                Map.of(goneUnrecognised, root.resolve("gone.c"), gonePlainText, root.resolve("gone.java"));
+        DetectedFormats removing = new DetectedFormats(jdbcTemplate) {
+            @Override
+            public void record(OccurrenceId occurrenceId, RunId runId, DetectedFormat format, DetectedSubtype subtype) {
+                super.record(occurrenceId, runId, format, subtype);
+                Path file = removedOnceDetected.get(occurrenceId);
+                if (file != null) {
+                    try {
+                        Files.delete(file);
+                    } catch (IOException e) {
+                        throw new java.io.UncheckedIOException(e);
+                    }
+                }
+            }
+        };
+        RecordedChecks progress = new RecordedChecks();
+
+        FormatMix mix = new BrokenOrOutOfScope(new Ledger(jdbcTemplate), removing, SMALL_LIMITS)
+                .verdictSurvivors(run, root, null, List.of(), List.of(".c", ".java"), progress);
+
+        claim(
+                "the two files were detected as of no known kind and as text, so both were the code rules' to read",
+                () -> {
+                    assertThat(new DetectedFormats(jdbcTemplate).formatFor(goneUnrecognised, run))
+                            .contains(DetectedFormat.UNRECOGNISED);
+                    assertThat(new DetectedFormats(jdbcTemplate).formatFor(gonePlainText, run))
+                            .contains(DetectedFormat.PLAIN_TEXT);
+                });
+        claim(
+                "neither file the code rules could not read carries a verdict, code or any other",
+                () -> {
+                    assertThat(verdictsOf(goneUnrecognised)).isEmpty();
+                    assertThat(verdictsOf(gonePlainText)).isEmpty();
+                });
+        claim(
+                "each is said to be unreadable for the code rules once, and the file read after them is not",
+                () -> assertThat(progress.codeUnreadable).containsExactly(goneUnrecognised, gonePlainText));
+        claim(
+                "the file of no known kind, never read for timestamps, is not said to be unreadable for them",
+                () -> assertThat(progress.unreadable).doesNotContain(goneUnrecognised));
+        claim(
+                "the text file, read for timestamps too, is said to be unreadable for those as well, once",
+                () -> assertThat(progress.unreadable).containsExactly(gonePlainText));
+        claim(
+                "and the pass carries on: the next file is kept as code for its ending, and each is reported as what it came to",
+                () -> {
+                    assertThat(verdictsOf(after)).containsExactly(
+                            "CODE: a file whose name ends with .c, an ending codeNameEndings in profile.yaml lists as code");
+                    assertThat(progress.checked)
+                            .containsExactly(
+                                    Map.entry(goneUnrecognised, new Outcome.Kept()),
+                                    Map.entry(gonePlainText, new Outcome.Kept()),
+                                    Map.entry(after, new Outcome.Code(
+                                            "a file whose name ends with .c, an ending codeNameEndings in profile.yaml lists as code")));
+                    assertThat(mix.code()).isEqualTo(1);
+                });
+    }
+
     /** The verdicts on {@code occurrence}, as kind and reason. */
     private List<String> verdictsOf(OccurrenceId occurrence) {
         return jdbcTemplate.query(
@@ -377,6 +452,7 @@ class BrokenOrOutOfScopeTest {
     private static final class RecordedChecks implements CheckingProgress {
         final List<Map.Entry<OccurrenceId, Outcome>> checked = new ArrayList<>();
         final List<OccurrenceId> unreadable = new ArrayList<>();
+        final List<OccurrenceId> codeUnreadable = new ArrayList<>();
 
         @Override
         public void checked(OccurrenceId occurrence, Outcome outcome) {
@@ -386,6 +462,11 @@ class BrokenOrOutOfScopeTest {
         @Override
         public void timestampsUnreadable(OccurrenceId occurrence, Exception cause) {
             unreadable.add(occurrence);
+        }
+
+        @Override
+        public void codeUnreadable(OccurrenceId occurrence, Exception cause) {
+            codeUnreadable.add(occurrence);
         }
     }
 
