@@ -161,6 +161,7 @@ ADR-149 §6's ten pictures a document shows and ADR-274 §2.5's gibibyte left fr
 - **How large a page a browser opens comfortably**, which no browser was measured for here.
 - **The index growing past any size**: it holds one row for each cluster and is split by nothing here.
 - **The control panel's screen for the key**, which ADR-295's table now carries for the screens.
+- **The Confluence rendering's cluster pages** ([ADR-301](0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md)): whether one is split, and under which value, is map [#604](https://github.com/algernon28/vespera/issues/604)'s to record once [#611](https://github.com/algernon28/vespera/issues/611) has measured the request cap; `clusterPageByteCeiling` splits the HTML tree's pages alone.
 
 ## Tests
 
