@@ -50,6 +50,24 @@ class PackagedJarIT {
     /** The packaged, executable jar the operator runs, at the path README.md names. */
     private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0.0.1-SNAPSHOT.jar");
 
+    /** The control panel's jar, which the same build writes beside it (ADR-285 §2). */
+    private static final Path CONTROL_PANEL_JAR = Path.of("target", "vespera-0.0.1-SNAPSHOT-control-panel.jar");
+
+    /** Where the Boot plugin puts the application's own classes. */
+    private static final String CLASSES = "BOOT-INF/classes/";
+
+    /** The control panel's classes, as a jar names their entries. */
+    private static final String CONTROL_PANEL = "io/algernon/controlpanel/";
+
+    /** A class of the control panel each jar is read for. */
+    private static final String A_CLASS_OF_THE_CONTROL_PANEL = CONTROL_PANEL + "HolderLine.class";
+
+    /** A class of the jar the Spring Boot jar must hold, so that an absence below is a real one. */
+    private static final String A_CLASS_OF_THE_JAR = "io/algernon/vespera/VesperaApplication.class";
+
+    /** What a plain jar carries beside its classes: its manifest and Maven's description of the build. */
+    private static final String META_INF = "META-INF/";
+
     /** Where the Boot plugin puts the jar's dependencies, one nested jar each. */
     private static final String LIBRARIES = "BOOT-INF/lib/";
 
@@ -72,6 +90,54 @@ class PackagedJarIT {
                         + " would start compose.yaml from wherever the jar was launched",
                 () -> assertThat(libraries)
                         .noneMatch(name -> COMPOSE_SUPPORT.stream().anyMatch(name::startsWith)));
+    }
+
+    /**
+     * The control panel is built by the same pom, and the Spring Boot jar the operator runs carries none of it
+     * (ADR-285 §2).
+     */
+    @Test
+    @Issue("562")
+    @Link(name = "ADR-285", url = Adr.THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR, type = "adr")
+    @Story("The control panel is built beside the jar, not into it")
+    @DisplayName("The packaged jar carries the application's classes and none of the control panel's")
+    void theSpringBootJarCarriesNoClassOfTheControlPanel() throws IOException {
+        List<String> entries = entriesOf(EXECUTABLE_JAR);
+
+        claim("the packaged jar carries the application's own classes, so an absence below is a real one",
+                () -> assertThat(entries).contains(CLASSES + A_CLASS_OF_THE_JAR));
+        claim("and no class of the control panel",
+                () -> assertThat(entries).noneMatch(name -> name.startsWith(CLASSES + CONTROL_PANEL)));
+    }
+
+    /**
+     * The control panel's jar holds its classes and nothing else of the build's: no class of the jar, no library and
+     * no Spring (ADR-285 §2).
+     */
+    @Test
+    @Issue("562")
+    @Link(name = "ADR-285", url = Adr.THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR, type = "adr")
+    @Story("The control panel is built beside the jar, not into it")
+    @DisplayName("The control panel's jar carries the control panel's classes and nothing else")
+    void theControlPanelJarCarriesOnlyTheControlPanelsClasses() throws IOException {
+        claim("the control panel's jar exists, since this test reads it and needs verify to have built it",
+                () -> assertThat(Files.exists(CONTROL_PANEL_JAR)).isTrue());
+        List<String> entries = entriesOf(CONTROL_PANEL_JAR);
+
+        claim("it carries the control panel's classes",
+                () -> assertThat(entries).contains(A_CLASS_OF_THE_CONTROL_PANEL));
+        claim("and, beside its manifest and Maven's description of the build, nothing outside the control panel's"
+                        + " package: no class of the application, no Spring and no nested library",
+                () -> assertThat(entries)
+                        .filteredOn(name -> !name.startsWith(META_INF))
+                        .allMatch(name -> CONTROL_PANEL.startsWith(name) || name.startsWith(CONTROL_PANEL)));
+    }
+
+    /** The name of every file and folder the jar holds. */
+    private static List<String> entriesOf(Path jar) throws IOException {
+        try (JarFile file = new JarFile(jar.toFile())) {
+            return file.stream().map(ZipEntry::getName).toList();
+        }
     }
 
     /** The file name of every jar nested under {@code BOOT-INF/lib/}. */
