@@ -6,7 +6,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -20,7 +19,8 @@ import java.util.regex.Pattern;
  * because each ends or begins wherever the cut fell.
  *
  * <p>The name is never read. The pattern is code here: extending it re-mints stage 1 by itself
- * (ADR-058).
+ * (ADR-058). A line is read as ADR-287 §1 reads it, which is {@link #VERSION}: the timestamp is looked for in its
+ * first {@value #CHARACTERS_READ} characters, and a line continuing the entry above it is not counted.
  */
 public final class TimestampedLines {
 
@@ -33,10 +33,16 @@ public final class TimestampedLines {
     /** Fewer non-blank lines than this is not enough to call a share a share. */
     public static final int MINIMUM_NON_BLANK_LINES = 10;
 
-    private static final Pattern TIMESTAMP = Pattern.compile("\\s*[\\[(]?(?:"
+    /** The version of how a line is read (ADR-287 section 10), recorded in stage 1's configuration consumed. */
+    static final String VERSION = "v2";
+
+    /** How many of a line's first characters a timestamp is looked for in (ADR-287 section 1). */
+    static final int CHARACTERS_READ = 64;
+
+    private static final Pattern TIMESTAMP = Pattern.compile("(?:"
             + "\\d{4}[-/.]\\d{2}[-/.]\\d{2}[ T_]?\\d{2}[:.]\\d{2}"
             + "|\\d{2}[-/.]\\d{2}[-/.]\\d{2,4}[ T_]\\d{2}[:.]\\d{2}"
-            + "|\\d{2}:\\d{2}:\\d{2}"
+            + "|\\d{1,2}:\\d{2}:\\d{2}"
             + "|\\d{8}[ T_]?\\d{6}"
             + "|[A-Z][a-z]{2} +\\d{1,2} \\d{2}:\\d{2}:\\d{2}"
             + ")");
@@ -66,40 +72,60 @@ public final class TimestampedLines {
 
     /** Counts {@code file}; the caller decides what a file that cannot be read means. */
     public static Count count(Path file) throws IOException {
-        long size = Files.size(file);
-        List<String> lines = new ArrayList<>();
-        if (size <= WHOLE_FILE_LIMIT_BYTES) {
-            byte[] bytes = Files.readAllBytes(file);
-            lines.addAll(linesOf(bytes, charsetOf(bytes), byteOrderMarkLength(bytes)));
-        } else {
-            byte[] head = new byte[WINDOW_BYTES];
-            byte[] tail = new byte[WINDOW_BYTES];
-            try (RandomAccessFile in = new RandomAccessFile(file.toFile(), "r")) {
-                in.readFully(head);
-                in.seek(size - WINDOW_BYTES);
-                in.readFully(tail);
-            }
-            Charset charset = charsetOf(head);
-            // A UTF-16 or UTF-32 window must begin on a whole character.
-            int unit = charset == StandardCharsets.ISO_8859_1 ? 1 : (charset.name().startsWith("UTF-32") ? 4 : 2);
-            int tailSkip = (int) ((unit - (size - WINDOW_BYTES) % unit) % unit);
-            List<String> headLines = linesOf(head, charset, byteOrderMarkLength(head));
-            List<String> tailLines = linesOf(tail, charset, tailSkip);
-            lines.addAll(headLines.subList(0, Math.max(0, headLines.size() - 1)));
-            lines.addAll(tailLines.subList(Math.min(1, tailLines.size()), tailLines.size()));
-        }
         int nonBlank = 0;
         int timestamped = 0;
-        for (String line : lines) {
-            if (line.isBlank()) {
-                continue;
-            }
-            nonBlank++;
-            if (TIMESTAMP.matcher(line).lookingAt()) {
-                timestamped++;
+        for (List<String> window : windowsOf(file)) {
+            for (String line : window) {
+                if (line.isBlank() || continuesTheEntryAbove(line)) {
+                    continue;
+                }
+                nonBlank++;
+                if (TIMESTAMP
+                        .matcher(line.length() > CHARACTERS_READ ? line.substring(0, CHARACTERS_READ) : line)
+                        .find()) {
+                    timestamped++;
+                }
             }
         }
         return new Count(timestamped, nonBlank);
+    }
+
+    /** Whether a line continues the entry above it: indented, or a stack frame, a chained exception or an elision. */
+    private static boolean continuesTheEntryAbove(String line) {
+        char first = line.charAt(0);
+        return first == ' ' || first == '\t' || first == '\f'
+                || line.startsWith("at ")
+                || line.startsWith("Caused by:")
+                || line.startsWith("...");
+    }
+
+    /**
+     * The lines of {@code file} that are read (ADR-171 section 2, ADR-287 section 1): one list for a file read
+     * whole, and for a larger one the head's lines and then the tail's, each without the line its cut fell in.
+     * The two stay apart so that a caller joining lines never joins across the stretch between them.
+     */
+    static List<List<String>> windowsOf(Path file) throws IOException {
+        long size = Files.size(file);
+        if (size <= WHOLE_FILE_LIMIT_BYTES) {
+            byte[] bytes = Files.readAllBytes(file);
+            return List.of(linesOf(bytes, charsetOf(bytes), byteOrderMarkLength(bytes)));
+        }
+        byte[] head = new byte[WINDOW_BYTES];
+        byte[] tail = new byte[WINDOW_BYTES];
+        try (RandomAccessFile in = new RandomAccessFile(file.toFile(), "r")) {
+            in.readFully(head);
+            in.seek(size - WINDOW_BYTES);
+            in.readFully(tail);
+        }
+        Charset charset = charsetOf(head);
+        // A UTF-16 or UTF-32 window must begin on a whole character.
+        int unit = charset == StandardCharsets.ISO_8859_1 ? 1 : (charset.name().startsWith("UTF-32") ? 4 : 2);
+        int tailSkip = (int) ((unit - (size - WINDOW_BYTES) % unit) % unit);
+        List<String> headLines = linesOf(head, charset, byteOrderMarkLength(head));
+        List<String> tailLines = linesOf(tail, charset, tailSkip);
+        return List.of(
+                headLines.subList(0, Math.max(0, headLines.size() - 1)),
+                tailLines.subList(Math.min(1, tailLines.size()), tailLines.size()));
     }
 
     private static List<String> linesOf(byte[] bytes, Charset charset, int skip) {
@@ -117,7 +143,7 @@ public final class TimestampedLines {
         return 0;
     }
 
-    private static Charset charsetOf(byte[] b) {
+    static Charset charsetOf(byte[] b) {
         if (startsWith(b, 0x00, 0x00, 0xFE, 0xFF)) {
             return Charset.forName("UTF-32BE");
         }

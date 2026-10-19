@@ -460,6 +460,10 @@ class NextAction {
         if (sharedEndings.isPresent()) {
             return sharedEndings;
         }
+        Optional<String> configurationFloor = theConfigurationFloorUnreadable(profile);
+        if (configurationFloor.isPresent()) {
+            return configurationFloor;
+        }
         Optional<String> translationFloor = theTranslationFloorUnreadable(profile);
         if (translationFloor.isPresent()) {
             return translationFloor;
@@ -570,6 +574,20 @@ class NextAction {
                     + " ignored it and extracted under the first attempt. Next: write a whole number of 1"
                     + " or more into " + ExtractionAttempt.KEY + " in " + PROFILE + ", or remove it, and run"
                     + " again.");
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The line for {@code configurationSettingShareFloor} (ADR-287 §7), where it holds something no number can be
+     * read from -- empty otherwise. An unset floor is not reported: it ships unset, and unset means no rule.
+     */
+    private static Optional<String> theConfigurationFloorUnreadable(Profile profile) {
+        if (profile.configurationSettingShareFloor().reading() instanceof NumericValue.Unreadable unreadable) {
+            return Optional.of("Every run value is set, but configurationSettingShareFloor reads "
+                    + quoted(unreadable.text()) + ", which is not a number, so this run ignored it and found no"
+                    + " configuration file. Next: write a share between 0 and 1 into configurationSettingShareFloor"
+                    + " in " + PROFILE + ", and run again.");
         }
         return Optional.empty();
     }
