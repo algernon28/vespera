@@ -3,7 +3,7 @@
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Decided**: by the operator's ruling 3 of map [#604](https://github.com/algernon28/vespera/issues/604), both editions, storage format and the acceptance of Cloud's hosting (§1, §2); §2's sentence, §3 and the scope clause of `CONTEXT.md` (§5) under the operator's delegation of 2026-10-19.
-- **Rests on**: ADR-301 ([#607](https://github.com/algernon28/vespera/issues/607)), by which stage 6b draws a Confluence storage-format rendering beside the HTML tree, and whose §3 leaves the edition to this record: "Confluence is again a target a rendering is drawn for, its storage format being what the rendering is written in, for each edition as #609 settles". This record is what that §3 defers to (§1). Rests on ruling 2 of #604 ([#608](https://github.com/algernon28/vespera/issues/608)), by which Vespera never sends the tree anywhere itself: the operator's own loader does.
+- **Rests on**: ADR-301 ([#607](https://github.com/algernon28/vespera/issues/607)), by which stage 6b draws a Confluence storage-format rendering beside the HTML tree, and whose §3 leaves the edition to this record: "Confluence is again a target a rendering is drawn for, its storage format being what the rendering is written in, for the editions #609 settles". This record is what that §3 defers to (§1). Rests on ruling 2 of #604 ([#608](https://github.com/algernon28/vespera/issues/608)), by which Vespera never sends the tree anywhere itself: the operator's own loader does.
 - **Keeps**: [ADR-195](0195-the-reference-model-and-every-bake-off-candidate-are-served-locally.md) §2 and [ADR-197](0197-a-local-model-answers-the-relevance-questions-and-the-floor-is-a-rule-over-the-labels-so-no-document-reaches-a-hosted-model.md), whole and unchanged: nothing Vespera runs sends a document to a hosted model (§2).
 - **Keeps**: [ADR-274](0274-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md) §5 and §6: no value is added that a stage reads, so no run id moves (§3, §4).
 - **Keeps**: [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md) §1, [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) and [ADR-047](0047-the-pipeline-never-blocks.md): no launch value, no property and no option is added (§3).
@@ -15,7 +15,7 @@ ADR-301 decides: "Beside the HTML tree, stage 6b draws a Confluence storage-form
 
 ### What is known of the two editions
 
-Every fact below comes from the research of [#605](https://github.com/algernon28/vespera/issues/605), §2, which read open-source clients and search summaries but no Atlassian page whole. Each is **[unverified]**, and the prototype of [#611](https://github.com/algernon28/vespera/issues/611) confirms it on a sandbox space before anything is built on it.
+Every fact below comes from the research of [#605](https://github.com/algernon28/vespera/issues/605), [`docs/research/confluence-loading.md`](../research/confluence-loading.md) §2, which read open-source clients and search summaries but no Atlassian page whole. Each is **[unverified]**, and the prototype of [#611](https://github.com/algernon28/vespera/issues/611) confirms it on a sandbox space before anything is built on it.
 
 | Fact | Edition |
 | --- | --- |
@@ -95,4 +95,4 @@ The **Archive** entry gains one clause after "a document is read only by the loc
 
 ## Tests
 
-None. This record adds no code and no value: §1 and §3 are held by the tests of the rendering's build, which draw one Confluence rendering with no edition in it, and §2 and §5 are prose a test would hold only as wording.
+None. This record adds no code and no value. §1 and §3 are to be held by the renderer's tests, which [#620](https://github.com/algernon28/vespera/issues/620) builds: one Confluence rendering, with no edition in it. §2 and §5 are prose a test would hold only as wording.
