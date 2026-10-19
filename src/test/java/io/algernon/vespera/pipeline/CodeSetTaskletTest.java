@@ -639,10 +639,10 @@ class CodeSetTaskletTest {
 
         String html = Files.readString(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
         claim(
-                "the page counts three sets, whose members are four files of code, one build file and one file of a"
-                        + " generated tree",
-                () -> assertThat(html).contains("Code sets: 3, whose members are files of code: 4, build files: 1, and"
-                        + " files of generated reference trees: 1."));
+                "the page counts three sets, whose members are four files of code, one build file, no configuration"
+                        + " file, since no floor on the share of settings is set, and one file of a generated tree",
+                () -> assertThat(html).contains("Code sets: 3, whose members are files of code: 4, build files: 1,"
+                        + " configuration files: 0, and files of generated reference trees: 1."));
         claim(
                 "the count of what was kept as code is still of the four files kept as code for themselves",
                 () -> assertThat(countIn(html, KEPT_AS_CODE)).isEqualTo(4));

@@ -138,42 +138,6 @@ public record Profile(
         LanguagesValue preferredLanguages,
         NumericValue configurationSettingShareFloor) {
 
-    /** A profile of the fifteen keys that came before {@code configurationSettingShareFloor}, which is unset (ADR-287 §7). */
-    public Profile(
-            TextValue seedFolder,
-            NumericValue degenerateOutputConfidenceFloor,
-            NumericValue degenerateOutputWordFloor,
-            NumericValue boilerplateDocumentFrequencyFloor,
-            TextValue embeddingModel,
-            NumericValue relevanceScoreFloor,
-            TextValue arrangementApproved,
-            TextValue generationModel,
-            NumericValue generationContextWindow,
-            NumericValue logTimestampShareFloor,
-            NumericValue extractionAttempt,
-            NameEndingsValue codeNameEndings,
-            NameEndingsValue outOfScopeNameEndings,
-            NumericValue translationSimilarityFloor,
-            LanguagesValue preferredLanguages) {
-        this(
-                seedFolder,
-                degenerateOutputConfidenceFloor,
-                degenerateOutputWordFloor,
-                boilerplateDocumentFrequencyFloor,
-                embeddingModel,
-                relevanceScoreFloor,
-                arrangementApproved,
-                generationModel,
-                generationContextWindow,
-                logTimestampShareFloor,
-                extractionAttempt,
-                codeNameEndings,
-                outOfScopeNameEndings,
-                translationSimilarityFloor,
-                preferredLanguages,
-                null);
-    }
-
     public Profile {
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
         degenerateOutputConfidenceFloor =
