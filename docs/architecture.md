@@ -184,6 +184,8 @@ Modules are **capability-shaped, not stage-shaped** — stage assignment has alr
 
 **Module boundaries.** Capability-shaped, not stage-shaped: stage assignment moved twice during design while the underlying capability did not. A capability module may depend on `ledger` and nothing else horizontal — the two exceptions are `extraction`, which also names `corpus`'s two detection enumerations (ADR-100), and `deliverable`, which also names `synthesis` (ADR-274), each declared in its `@ApplicationModule` and pinned by name in `ModuleBoundariesTest`; `pipeline` is the composition root and depends on all of them.
 
+**The control panel is no module** (ADR-285). Its code is under `io.algernon.controlpanel`, outside `io.algernon.vespera`, so `ApplicationModules` does not see it and the nine stay nine. The same build packages it as a second, plain jar, `vespera-<version>-control-panel.jar`, which the Spring Boot jar does not carry; it names only its own package and the JDK modules `java.base` and `jdk.httpserver`, so no class of the jar, and no class of the jar names it. `TheControlPanelLinksNoClassOfTheJarTest` holds both directions, and `PackagedJarIT` what each jar holds.
+
 ```mermaid
 flowchart TD
     PIPELINE["<b>pipeline</b><br/>batch job definitions<br/>the only module that names a stage"]
