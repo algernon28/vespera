@@ -138,20 +138,24 @@ class RunIdentityGoldenTest {
      * see (ADR-058), the log floor this profile leaves unset, the name endings the profile lists as out
      * of scope, none here (ADR-256 §6), the name endings it lists as code, none here, and the version of
      * the generators' marks built into {@code corpus} (ADR-277 §9), and the versions of the lists of build files and
-     * of the generators' companion files built into it too (ADR-284 §10).
+     * of the generators' companion files built into it too (ADR-284 §10); then the version of how a line is read for a
+     * timestamp, the floor on the share of settings this profile leaves unset, and the versions of how a setting line
+     * is read and of the lists of configuration roots and of interface definitions (ADR-287 §10).
      */
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
-    @DisplayName("Byte-level reduction is identified by the text size ceiling, the rule for text converted in parts, the log floor, the name endings left out, the name endings kept as code, the generators' marks, the list of build files and the generators' companion files, under the corpus code alone")
+    @DisplayName("Byte-level reduction is identified by the text size ceiling, the rule for text converted in parts, the log floor, the name endings left out, the name endings kept as code, the generators' marks, the list of build files, the generators' companion files, how a line is read for a timestamp, the floor on the share of settings, how a setting line is read, and the lists of configuration roots and interface definitions, under the corpus code alone")
     @Issue("370")
     @Issue("371")
     @Issue("558")
     @Issue("572")
+    @Issue("575")
     @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
     @Link(name = "ADR-178", url = Adr.TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS, type = "adr")
     @Link(name = "ADR-256", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
     @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
     @Link(name = "ADR-284", url = Adr.CODE_IS_KEPT_IN_CODE_SETS_NAMED_FOR_THEIR_FOLDER, type = "adr")
+    @Link(name = "ADR-287", url = Adr.LOGS_AND_CONFIGURATION_FILES_ARE_TOLD_BY_THEIR_BYTES, type = "adr")
     void byteLevelReduction() {
         Map<String, Object> run = theRunOf("byte-level-reduction");
 
@@ -163,9 +167,12 @@ class RunIdentityGoldenTest {
                         + " this profile sets none, then the name endings whose files are left out, an empty"
                         + " list because this profile lists none, then the name endings whose files are kept as"
                         + " code, an empty list for the same reason, then the version of the generators' marks,"
-                        + " then the versions of the lists of build files and of the generators' companion files --"
-                        + " so a change to any of them is a new piece of work, and the same walk under the same"
-                        + " eight still names the same one",
+                        + " then the versions of the lists of build files and of the generators' companion files,"
+                        + " then the version of how a line is read for a timestamp, the second, then the floor on"
+                        + " the share of settings, null because this profile sets none, then the versions of how a"
+                        + " setting line is read and of the lists of configuration roots and of interface"
+                        + " definitions -- so a change to any of them is a new piece of work, and the same walk"
+                        + " under the same thirteen still names the same one",
                 () -> assertThat(run.get("config_consumed"))
                         .isEqualTo("{\"textSizeCeilingBytes\":16000000,"
                                 + "\"textParts\":\"v1,over=16000000,upto=64000000,part=8000000\","
@@ -174,7 +181,12 @@ class RunIdentityGoldenTest {
                                 + "\"codeNameEndings\":[],"
                                 + "\"generatorMarks\":\"v1\","
                                 + "\"buildFiles\":\"v1\","
-                                + "\"generatorCompanions\":\"v1\"}"));
+                                + "\"generatorCompanions\":\"v1\","
+                                + "\"timestampedLines\":\"v2\","
+                                + "\"configurationSettingShareFloor\":null,"
+                                + "\"settingLines\":\"v1\","
+                                + "\"configurationRoots\":\"v1\","
+                                + "\"interfaceDefinitions\":\"v1\"}"));
         claim(
                 "and its code version is the corpus module's alone",
                 () -> assertThat(run.get("implementation_version")).isEqualTo("corpus"));

@@ -1985,6 +1985,16 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR = FILE
             + "0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md";
 
+    /**
+     * ADR-287 -- a log is told by a timestamp in each counted line's first 64 characters, continuation lines left
+     * out, and is read in a file of no known kind whose bytes read as text too; a configuration file is told by its
+     * first XML element or by its share of setting lines under the profile's configurationSettingShareFloor, an
+     * interface definition never being one, and a third pass of stage 1 keeps it with its code set as code or leaves
+     * it out of scope outside every set.
+     */
+    public static final String LOGS_AND_CONFIGURATION_FILES_ARE_TOLD_BY_THEIR_BYTES = FILE
+            + "0287-a-log-and-a-configuration-file-are-told-by-their-bytes-whatever-their-detected-format-and-a-configuration-file-is-kept-with-its-code-set-or-is-out-of-scope.md";
+
     private Adr() {
     }
 }
