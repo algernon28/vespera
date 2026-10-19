@@ -122,7 +122,7 @@ class IndexPageTest {
 
     @Test
     @Story("The index lists every cluster under its partition")
-    @DisplayName("With ten clusters in a partition, a group's folder is named with two digits, so the names sort as the groups do")
+    @DisplayName("With ten groups in a partition, a group's folder is named with two digits, so the names sort as the groups do")
     void padsThePageNameToTheWidthOfTheLargestOrder() {
         List<RecordedCluster> arrangement = new ArrayList<>();
         List<ListedSurvivor> survivors = new ArrayList<>();

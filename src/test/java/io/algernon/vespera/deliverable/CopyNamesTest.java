@@ -11,10 +11,12 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -23,8 +25,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The name each copy is given in its cluster folder (ADR-280 §1, §3): its original's own file name, made safe for
- * every operating system and cut to {@value CopyNames#LONGEST_NAME} UTF-16 code units, and, only where it collides
- * with another name in the folder without regard to case, its occurrence id after a tilde before its extension.
+ * every operating system and cut to {@value CopyNames#LONGEST_NAME} UTF-16 code units and to what, with {@code .part}
+ * after it, fits in 255 UTF-8 bytes, and, only where it collides with another name in the folder without regard to
+ * case, its occurrence id after a tilde before its extension.
  *
  * <p>Asked of {@link CopyNames#of} directly: the names are worked out from the cluster's members and the names of the
  * pictures its page shows, reading no file (§2), so no archive is needed to hold them, and a name no file system here
@@ -54,6 +57,21 @@ class CopyNamesTest {
 
     /** A character outside the Basic Multilingual Plane, written as a surrogate pair of two code units. */
     private static final String A_SURROGATE_PAIR = "😀";
+
+    /** The most UTF-8 bytes one name in a folder may hold on ext4, XFS, Btrfs and APFS. */
+    private static final int A_FILE_SYSTEMS_LONGEST_NAME_IN_BYTES = 255;
+
+    /** What a copy is written under, after its name, before it is moved into place. */
+    private static final String THE_PART = ".part";
+
+    /** A character of one UTF-16 code unit that UTF-8 writes in three bytes. */
+    private static final String A_THREE_BYTE_CHARACTER = "文";
+
+    /** An occurrence id of nineteen digits, so its suffix, a tilde and the digits, is twenty units long. */
+    private static final long A_NINETEEN_DIGIT_OCCURRENCE = 1_000_000_000_000_000_000L;
+
+    /** That occurrence's suffix. */
+    private static final String ITS_SUFFIX = "~" + A_NINETEEN_DIGIT_OCCURRENCE;
 
     @Test
     @Story("A document keeps its own name in its group's folder")
@@ -291,6 +309,176 @@ class CopyNamesTest {
                         .containsExactlyInAnyOrderEntriesOf(Map.of(
                                 31L, "x".repeat(96) + ".txt",
                                 32L, "x".repeat(93) + "~32.txt")));
+    }
+
+    @Test
+    @Story("A document's name in the tree opens on every system")
+    @DisplayName("A name the cut leaves empty becomes the document's number, and one it leaves a device name gains an underscore")
+    void aNameIsMadeSafeAgainAfterItIsCut() {
+        long theBlankOne = 71;
+        Map<Long, String> names = namesOf(
+                List.of(
+                        member(theBlankOne, "a/" + " ".repeat(100) + "abc"),
+                        member(72, "b/AUX" + " ".repeat(120) + "z.pdf")),
+                NO_PICTURES);
+
+        claim(
+                "a name of a hundred spaces and three letters is cut to its spaces, which go, so it is left empty"
+                        + " and becomes the document's number; and a device name followed by a hundred and twenty"
+                        + " spaces is cut to the device name and its extension, so it gains a leading underscore:"
+                        + " the rules that make a name safe hold of the name as it is cut",
+                () -> assertThat(names)
+                        .containsExactlyInAnyOrderEntriesOf(Map.of(
+                                theBlankOne, String.valueOf(theBlankOne),
+                                72L, "_AUX.pdf")));
+    }
+
+    @Test
+    @Story("A document's name in the tree opens on every system")
+    @DisplayName("The zero and superscript ports are device names too, and spaces before the first dot do not hide one")
+    void theDeviceNamesIncludeTheZeroAndSuperscriptPortsAndSpacesBeforeTheDotAreIgnored() {
+        Map<String, String> safeNameOf = new LinkedHashMap<>();
+        safeNameOf.put("a/COM0.txt", "_COM0.txt");
+        safeNameOf.put("b/lpt0", "_lpt0");
+        safeNameOf.put("c/COM¹.log", "_COM¹.log");
+        safeNameOf.put("d/com².txt", "_com².txt");
+        safeNameOf.put("e/COM³", "_COM³");
+        safeNameOf.put("f/LPT¹.txt", "_LPT¹.txt");
+        safeNameOf.put("g/Lpt².txt", "_Lpt².txt");
+        safeNameOf.put("h/LPT³.tar.gz", "_LPT³.tar.gz");
+        safeNameOf.put("i/CON .txt", "_CON .txt");
+        safeNameOf.put("j/nul   .tar.gz", "_nul   .tar.gz");
+        safeNameOf.put("k/COM⁴.txt", "COM⁴.txt");
+        safeNameOf.put("l/CON x.txt", "CON x.txt");
+        List<ListedSurvivor> members = new ArrayList<>();
+        Map<Long, String> expected = new TreeMap<>();
+        long occurrence = 80;
+        for (Map.Entry<String, String> name : safeNameOf.entrySet()) {
+            members.add(member(occurrence, name.getKey()));
+            expected.put(occurrence++, name.getValue());
+        }
+
+        Map<Long, String> names = namesOf(members, NO_PICTURES);
+
+        claim(
+                "COM0 and LPT0, and COM and LPT followed by a superscript one, two or three, are device names on"
+                        + " Windows, in any case and with any extension, and gain a leading underscore; spaces at the"
+                        + " end of the part before the first dot are not looked at, so a device name followed by"
+                        + " spaces is one too, the name otherwise kept as written; and a superscript four, or a"
+                        + " letter after the space, makes no device name",
+                () -> assertThat(names).containsExactlyEntriesOf(expected));
+    }
+
+    @Test
+    @Story("A document keeps its own name in its group's folder")
+    @DisplayName("Names that are equal only once upper-cased and composed again collide")
+    void aKeyIsNormalisedAgainAfterItIsUpperCased() {
+        String aDottedCapitalI = "İ";
+        String anIAndACombiningDotAbove = "i̇";
+        String anIotaWithDialytikaAndTonos = "ΐ";
+        String aCapitalIotaWithDialytikaAndACombiningAcute = "Ϊ́";
+        Map<Long, String> names = namesOf(
+                List.of(
+                        member(61, "a/" + aDottedCapitalI + ".txt"),
+                        member(62, "b/" + anIAndACombiningDotAbove + ".txt"),
+                        member(63, "c/" + anIotaWithDialytikaAndTonos + ".txt"),
+                        member(64, "d/" + aCapitalIotaWithDialytikaAndACombiningAcute + ".txt")),
+                NO_PICTURES);
+
+        claim(
+                "a dotted capital I and an i followed by a combining dot above are one letter once upper-cased"
+                        + " and composed again, and so are a small iota with dialytika and tonos and a capital iota"
+                        + " with dialytika followed by a combining acute: each pair collides, the lower-numbered"
+                        + " keeping its name as written and the other taking its number",
+                () -> assertThat(names)
+                        .containsExactlyInAnyOrderEntriesOf(Map.of(
+                                61L, aDottedCapitalI + ".txt",
+                                62L, anIAndACombiningDotAbove + "~62.txt",
+                                63L, anIotaWithDialytikaAndTonos + ".txt",
+                                64L, aCapitalIotaWithDialytikaAndACombiningAcute + "~64.txt")));
+    }
+
+    @Test
+    @Story("A document keeps its own name in its group's folder")
+    @DisplayName("A numbered name whose unfinished copy would be written over another document's copy takes the number again")
+    void aSuffixedNameYieldsWhereItsPartIsANameAlreadyGiven() {
+        Map<Long, String> names = namesOf(
+                List.of(member(1, "a/report.pdf"), member(2, "b/REPORT~5.PDF.part"), member(5, "c/REPORT.PDF")),
+                NO_PICTURES);
+
+        claim(
+                "document 5's REPORT.PDF meets document 1's report.pdf; with its number once, REPORT~5.PDF, its"
+                        + " unfinished copy would be written under document 2's name, REPORT~5.PDF.part, so it takes"
+                        + " its number a second time; documents 1 and 2 keep their names",
+                () -> assertThat(names)
+                        .containsExactlyInAnyOrderEntriesOf(Map.of(
+                                1L, "report.pdf",
+                                2L, "REPORT~5.PDF.part",
+                                5L, "REPORT~5~5.PDF")));
+    }
+
+    @Test
+    @Story("A document's name in the tree opens on every system")
+    @DisplayName("A name of characters written in several bytes is cut so that it and its unfinished copy's ending fit what a file system allows")
+    void aNameIsCutSoItAndItsPartFitInTwoHundredAndFiftyFiveBytes() {
+        String eightyThreeCharacters = A_THREE_BYTE_CHARACTER.repeat(83);
+        Map<Long, String> names = namesOf(
+                List.of(member(6, "a/" + eightyThreeCharacters + ".pdf"), member(7, "b/" + eightyThreeCharacters + ".pdf")),
+                NO_PICTURES);
+
+        claim(
+                "a name of eighty-three characters of three bytes each and .pdf is short of " + A_HUNDRED_UNITS
+                        + " characters but, with .part after it, over " + A_FILE_SYSTEMS_LONGEST_NAME_IN_BYTES
+                        + " bytes, so it is cut a whole character at a time to eighty-two; and its collision, taking"
+                        + " its number, is cut to eighty-one",
+                () -> assertThat(names)
+                        .containsExactlyInAnyOrderEntriesOf(Map.of(
+                                6L, A_THREE_BYTE_CHARACTER.repeat(82) + ".pdf",
+                                7L, A_THREE_BYTE_CHARACTER.repeat(81) + "~7.pdf")));
+        claim(
+                "each name with .part after it holds at most " + A_FILE_SYSTEMS_LONGEST_NAME_IN_BYTES + " bytes in"
+                        + " UTF-8, the most one name may hold on the file systems most machines use",
+                () -> assertThat(names.values())
+                        .allSatisfy(name -> assertThat((name + THE_PART).getBytes(StandardCharsets.UTF_8).length)
+                                .isLessThanOrEqualTo(A_FILE_SYSTEMS_LONGEST_NAME_IN_BYTES)));
+    }
+
+    @Test
+    @Story("A document keeps its own name in its group's folder")
+    @DisplayName("Six documents are enough for repeated numbers to leave none of a name and pass a hundred characters")
+    void repeatedSuffixesCanLeaveNoStemAndPassAHundredUnits() {
+        String theStem = "s".repeat(96);
+        Map<Long, String> names = namesOf(
+                List.of(
+                        member(1, "a/" + theStem + ".pdf"),
+                        member(2, "b/" + theStem.substring(0, 76) + ITS_SUFFIX + ".pdf"),
+                        member(3, "c/" + theStem.substring(0, 56) + ITS_SUFFIX.repeat(2) + ".pdf"),
+                        member(4, "d/" + theStem.substring(0, 36) + ITS_SUFFIX.repeat(3) + ".pdf"),
+                        member(5, "e/" + theStem.substring(0, 16) + ITS_SUFFIX.repeat(4) + ".pdf"),
+                        member(A_NINETEEN_DIGIT_OCCURRENCE, "f/" + theStem.toUpperCase(Locale.ROOT) + ".PDF")),
+                NO_PICTURES);
+        String theLastName = names.get(A_NINETEEN_DIGIT_OCCURRENCE);
+
+        claim(
+                "the last document meets the first; each time it takes its twenty-character number again, its"
+                        + " name is cut by twenty more to stay within " + A_HUNDRED_UNITS + " characters and meets"
+                        + " the name another document keeps, until none of its own name is left and its fifth"
+                        + " number stands with the four before it and its extension",
+                () -> assertThat(theLastName).isEqualTo(ITS_SUFFIX.repeat(5) + ".PDF"));
+        claim(
+                "so that name passes " + A_HUNDRED_UNITS + " characters, and it is the only one: the five others"
+                        + " keep their own names",
+                () -> {
+                    assertThat(theLastName.length()).isGreaterThan(A_HUNDRED_UNITS);
+                    assertThat(names.values()).filteredOn(name -> name.length() > A_HUNDRED_UNITS).hasSize(1);
+                    assertThat(names)
+                            .containsAllEntriesOf(Map.of(
+                                    1L, theStem + ".pdf",
+                                    2L, theStem.substring(0, 76) + ITS_SUFFIX + ".pdf",
+                                    3L, theStem.substring(0, 56) + ITS_SUFFIX.repeat(2) + ".pdf",
+                                    4L, theStem.substring(0, 36) + ITS_SUFFIX.repeat(3) + ".pdf",
+                                    5L, theStem.substring(0, 16) + ITS_SUFFIX.repeat(4) + ".pdf"));
+                });
     }
 
     /** Every member's name in one cluster folder, by its occurrence id. */

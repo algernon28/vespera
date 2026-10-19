@@ -534,7 +534,7 @@ class DeliverableTest {
                 withReason, provenance(THE_SEED_FOLDER_VALUE), arrangement, writing, membersOfBothClusters(),
                 SurvivorPictures.none(), Map.of(ClusterSlot.of(unwritten), why));
 
-        Path page = Path.of(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED, THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED + ".html");
+        Path page = Path.of(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED, THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED, "index.html");
         claim(
                 "the group's own page carries the sentence saying why, in italics, in place of the plain line",
                 () -> assertThat(Files.readString(treeWithReason.resolve(page)))

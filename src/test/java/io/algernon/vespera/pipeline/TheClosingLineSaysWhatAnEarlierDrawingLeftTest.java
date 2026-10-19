@@ -117,8 +117,8 @@ class TheClosingLineSaysWhatAnEarlierDrawingLeftTest {
                         .endsWith(THE_COUNTS + "."));
         claim(
                 "and where this invocation drew no tree, it ends at the groups left unwritten and says nothing of a"
-                        + " drawing it did not make",
-                () -> assertThat(lineFor(OptionalInt.empty(), NO_DOCUMENTS_FOLDER_WAS_LEFT, NO_FOLDER))
+                        + " drawing it did not make, even handed a documents folder and two others as left behind",
+                () -> assertThat(lineFor(OptionalInt.empty(), THE_DOCUMENTS_FOLDER_WAS_LEFT, TWO_FOLDERS))
                         .endsWith(", with " + NO_GROUP_LEFT_UNWRITTEN + " groups left unwritten.")
                         .doesNotContain("earlier"));
     }

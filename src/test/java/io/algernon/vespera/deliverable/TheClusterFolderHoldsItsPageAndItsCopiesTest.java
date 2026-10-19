@@ -75,6 +75,12 @@ class TheClusterFolderHoldsItsPageAndItsCopiesTest {
     /** How long the path of the tree's cluster folder is made in the test of long paths, its separator included. */
     private static final int A_DEEP_FOLDER = 200;
 
+    /**
+     * The listing's columns: the occurrence, its path, its hash, its winning seed, its score, the seed's path, its
+     * cluster, the partition's and the cluster's order, its copy and the copy's outcome.
+     */
+    private static final int EVERY_COLUMN = 11;
+
     /** A copy that stands at a path longer than {@link #WINDOWS_LONGEST_PATH}. */
     private static final long ONE_COPY = 1;
 
@@ -163,6 +169,45 @@ class TheClusterFolderHoldsItsPageAndItsCopiesTest {
                             .hasBinaryContent(bytes("the second minutes"));
                     assertThat(tree.resolve(THE_FOLDER).resolve("MINUTES~13.DOCX"))
                             .hasBinaryContent(bytes("the third minutes"));
+                });
+    }
+
+    @Test
+    @Story("A group's folder holds its page and its documents")
+    @DisplayName("A copy whose name holds a comma is quoted in the listing as a path is, so its row keeps every column")
+    void theCopyColumnIsQuotedLikeThePathColumns(@TempDir Path base) throws IOException {
+        String aNameWithAComma = "reports/b, c.pdf";
+        Path archive = anArchive(base, Map.of(aNameWithAComma, "a report"));
+
+        Path tree = ListedTree.write(
+                base.resolve("work"),
+                archive,
+                List.of(THE_CLUSTER),
+                Map.of(),
+                List.of(aSurvivor(42, aNameWithAComma, "a report", 0)),
+                Map.of());
+        List<String> lines = Files.readAllLines(tree.resolve("documents.csv"), StandardCharsets.UTF_8).stream()
+                .filter(line -> !line.isBlank())
+                .toList();
+        List<List<String>> rows = ListedTree.manifestOf(tree);
+
+        claim(
+                "the listing holds its header and the one document's row, and the row names its copy in the group's"
+                        + " folder between double quotes, as its path is, so the comma in the copy's name is read as"
+                        + " part of it",
+                () -> {
+                    assertThat(lines).hasSize(2);
+                    assertThat(lines.getLast())
+                            .startsWith("42,\"" + aNameWithAComma + "\",")
+                            .endsWith(",\"" + THE_FOLDER + "/b, c.pdf\",copied");
+                });
+        claim(
+                "and read as a CSV the row has the header's " + EVERY_COLUMN + " fields, its copy whole",
+                () -> {
+                    assertThat(rows.getFirst()).hasSize(EVERY_COLUMN);
+                    assertThat(rows.getLast()).hasSize(EVERY_COLUMN);
+                    assertThat(columnByPath(tree, "copy"))
+                            .containsExactlyEntriesOf(Map.of(aNameWithAComma, THE_FOLDER + "/b, c.pdf"));
                 });
     }
 
