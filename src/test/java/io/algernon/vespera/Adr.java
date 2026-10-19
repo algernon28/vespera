@@ -1925,7 +1925,8 @@ public final class Adr {
     public static final String ONE_VESPERA_RUN_PER_CORPUS_ROOT = FILE
             + "0279-one-vespera-run-per-corpus-root-by-a-lock-on-a-file-named-for-its-real-path-outside-every-working-directory.md";
 
-     * ADR-280 -- {@code <partition>/<cluster>/} holds the cluster's page, {@code index.html}, its pictures and a copy
+    /**
+     * ADR-280 --{@code <partition>/<cluster>/} holds the cluster's page, {@code index.html}, its pictures and a copy
      * of each of its survivors, and {@code documents/} is no longer written; a copy keeps its original's file name,
      * made safe for every operating system and cut to 100 code units and to 255 UTF-8 bytes with {@code .part}, the
      * device and empty rules applying again after the cut, and only where two names collide without regard to case,
