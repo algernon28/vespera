@@ -2,7 +2,6 @@
 
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
-- **Decided**: under the operator's delegation of 2026-10-19, on the ground the operator settled on 2026-10-18: a set's folder is the nearest folder holding a build file, else the first folder under the corpus root; the operator renames a set; copies keep their paths below the set's folder, which #573 draws; a set's build files stay with it and its logs are still removed; generated code documentation is code. Two readings of that ground are decided under the delegation: **each module of a multi-module build becomes its own set** (§2), and **the corpus root anchors no set**, so that "the first folder under the corpus root" is the last folder a set can be anchored at (§2).
 - **Amends**: [ADR-277](0277-code-is-recognised-by-a-name-ending-the-profile-lists-or-by-a-documentation-generators-mark-and-stage-1-takes-it-out-of-the-survivors.md) §1, §3 and §8. Code is also a set's build file and a file of a generated tree (§4, §5), a build file is told by its name alone, whatever its bytes, where it marks a set's folder (§1), and stage 1 writes `code` in a second pass too (§6). ADR-277's two rules, its marks, its verdict and its order in the first pass stand.
 - **Answers**: ADR-277, the first item of its *What this does not decide*: how code is grouped by its path, and what a generated tree's pictures and companion files become.
 - **Keeps**: [ADR-057](0057-the-verdict-vocabulary-is-eight-values-a-closed-enum-edited-by-a-pr.md). No kind is added.
@@ -78,14 +77,16 @@ Every member is an occurrence of the set's extent, a member of that one set, wit
 
 - **Left as they were**: an HTML page, which ADR-277's mark rule alone judges, so an unmarked page or a guide in a tree stays a document; text with the `MARKDOWN`, `CSV` or `ASCIIDOC` subtype, which is where documents are; a file whose bytes do not read as text, an `objects.inv` among them; and every class a signature named but `IMAGE`, a PDF or a Word file among them. A font is out of scope already (ADR-252).
 - **The companions' list is built into `corpus`** beside the marks, versioned `v1` (§10), and is changed by a change that carries a record.
-- **A tree is found from the first pass's own findings and never from a reason.** The first pass hands the set pass the generator of each page it kept for a mark; the wording of a reason may change without changing a tree.
+- **A tree is found from the first pass's own findings and never from a reason.** The first pass hands the set pass, for each generator, the folders directly holding a page it kept for that generator's mark: folders, never pages (§6). The wording of a reason may change without changing a tree.
+- **A marked page's generator is read again from its bytes.** For each member as code lying in a folder the first pass handed over for some generator, and whose name ends with no ending `codeNameEndings` lists, the set pass applies ADR-277 §4's test to the page's bytes, as the first pass applied it, and the generator that test names is the one its member row records (§7). A page that test names none for, its bytes having changed since the first pass, is a member as code with no generator. A page the set pass cannot read is a member as code with no generator too, and is logged (§6). Neither changes a tree, which the first pass's folders found.
 
 ### 6. Stage 1 in three passes
 
 **Stage 1 is the first pass of ADR-277 §6, then the set pass, `CodeSets`, then the format-mix page and the measurement it points to, then the hashing.** What the set pass verdicts is never hashed, neither superseding nor superseded.
 
-- **What it holds.** The folders holding a build file, the folders holding a marked page or a companion file of each generator, and the sets: folders, never occurrences. It reads the walk's occurrences, the survivors and the `code` verdicts a page at a time (ADR-220).
-- **Its log line**, for each file it verdicts: `[byte-level-reduction] kept <occurrence> with its code set -> code: <reason>`.
+- **What it holds.** The folders holding a build file, the folders holding a marked page or a companion file of each generator, and the sets: folders, never occurrences. It reads the walk's occurrences, the survivors and the `code` verdicts a page at a time (ADR-220). The first pass's hand-over is folders too (§5), so neither pass holds an occurrence for the other, and no exception to ADR-220 §9 is made: a page's generator is read again from its bytes when its member row is written, and not kept from the first pass.
+- **A file it cannot read**, to see whether its bytes read as text (§4, §5), is left as it was, as the first pass leaves a file it cannot read for the code rules (ADR-277): no verdict, no member, and it still marks its folder or roots its tree, which go by names alone. The pass carries on, and logs `[byte-level-reduction] could not read <occurrence> to see whether it reads as text, so it is left as it was: <cause>`. A marked page it cannot read again (§5) is logged `[byte-level-reduction] could not read <occurrence> to see which generator's mark it carries, so it is kept with none: <cause>`.
+- **Its log line**, for each file it verdicts, the whole line: `[byte-level-reduction] kept <occurrence> with its code set -> code: <reason>`.
 - **An unfinished stage 1 redone** discards the run's rows of `code_set` and `code_set_member` with its verdicts and detected formats, so each set and each member has one row.
 - **For later stages**, `CodeSets.setOf(run, path)` answers which set's folder an occurrence's path lies in under a stage-1 run, the run a later stage names upstream, or none.
 
@@ -94,7 +95,7 @@ Every member is an occurrence of the set's extent, a member of that one set, wit
 Both are owned by `corpus`, additive, and built empty at start-up on a database written before them; `CorpusSchema`'s version does not move (ADR-197 §3).
 
 - `code_set (run_id TEXT NOT NULL REFERENCES run (id), folder TEXT NOT NULL, default_name TEXT NOT NULL, PRIMARY KEY (run_id, folder))`. `folder` is the set's folder relative to the corpus root, spelt as the occurrences' paths spell it, `/`-separated, `''` for the root's set.
-- `code_set_member (occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id), run_id TEXT NOT NULL REFERENCES run (id), folder TEXT NOT NULL, role TEXT NOT NULL, generator TEXT, PRIMARY KEY (occurrence_id, run_id))`. `role` is `code`, `companion` or `build`. `generator` is a companion's generator and the generator of a page kept for its mark, and null for every other member.
+- `code_set_member (occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id), run_id TEXT NOT NULL REFERENCES run (id), folder TEXT NOT NULL, role TEXT NOT NULL, generator TEXT, PRIMARY KEY (occurrence_id, run_id))`. `role` is `code`, `companion` or `build`. `generator` is a companion's generator and the generator of a page kept for its mark, as the set pass reads it again (§5), and null for every other member.
 - **One index**, `code_set_member_by_run_id`, on `code_set_member (run_id)` (ADR-173); `code_set`'s primary key leads with `run_id`, and `code_set_member`'s with `occurrence_id`. It is built with the table, over no row, and sorts nothing.
 - **Both grow by a copy for each stage-1 run**, as `detected_format` does, and nothing removes another run's rows (ADR-229).
 
@@ -132,7 +133,7 @@ Both are owned by `corpus`, additive, and built empty at start-up on a database 
 
 ### 10. What the operator sees, and stage 1's configuration consumed
 
-- **The verdicts and their reasons** (§4, §5), and the log line (§6).
+- **The verdicts and their reasons** (§4, §5), and the log lines (§6).
 - **The format-mix page.** After ADR-277 §7's paragraph counting code, which still counts the files the first pass kept as code, one sentence counts the sets and their members by role: *"Code sets: N, whose members are files of code: C, build files: B, and files of generated reference trees: T."* Its *Kept as code* table gains a row `build file` and a row `file of a tree <generator> generated` for each generator, each with its count. The page names no folder and no set.
 - **The progress page, the tab of runs and the invocation account** count the set pass's verdicts under `code`, as they count every `code` verdict.
 - **`ConfigConsumed`** gains, after `generatorMarks`, `buildFiles` and `generatorCompanions`, the versions of §1's and §5's lists. Where the profile sets none of the keys stage 1 reads, it reads:
@@ -141,7 +142,7 @@ Both are owned by `corpus`, additive, and built empty at start-up on a database 
 
 ### 11. Run ids, and the ADR-216 check
 
-- **`corpus`**: the two lists and their versions, `CodeSets` and its reads and writes, the first pass's hand-over of each marked page's generator, and the two tables.
+- **`corpus`**: the two lists and their versions, `CodeSets` and its reads and writes, the first pass's hand-over of the folders holding each generator's marked pages, the set pass's reading of a page's mark again, and the two tables.
 - **`pipeline`**: `ByteLevelReductionTasklet` (the set pass's call, its log line, its discard, the order of §6 and the configuration consumed) and `FormatMixReport`. No stage's version names `pipeline` (ADR-222).
 - **`deliverable`**: `CodeSetNames`. No stage's version names `deliverable` (ADR-274 §5).
 - **`ledger`**: none.
@@ -184,9 +185,13 @@ Every file is built in the test, and every profile is YAML the test writes. The 
 | `…aSetsExtentStopsAtTheFolderOfASetNestedInIt` | `Work/Makefile` above `Work/shop/pom.xml` gives two sets; a build file in a folder holding no code is the outer set's |
 | `…theCorpusRootAnchorsNoSetAndItsSetHoldsWhatLiesDirectlyThere` | a root `pom.xml` is passed over; the root's set, named for the root, holds the root's files only; the folders below are sets of their own |
 | `…aBuildFileIsToldByItsNameAlone` | `POM.XML`, `makefile`, a `.csproj`, an empty `Makefile` and a binary one mark their folder; `.sln` alone, `.pro`, `BUILD`, `Dockerfile`, `setup.cfg` and `Rakefile` do not |
-| `…aBuildFileInASetIsKeptAsCodeWithIt` | build files of a set are code with §4's reason, members as `build`, never hashed, the log line saying so; a `setup.py` kept for its ending is a member as code and makes its set; one in UTF-16, an empty one and a binary one are left as they were |
+| `…aBuildFileInASetIsKeptAsCodeWithIt` | build files of a set are code with §4's reason, members as `build`, never hashed, the log line saying so, matched whole; a `setup.py` kept for its ending is a member as code and makes its set; one in UTF-16, an empty one and a binary one are left as they were |
 | `…theFilesOfAGeneratedTreeAreKeptAsCodeAndItsDocumentsStayDocuments` | Javadoc's picture, stylesheet, script and `element-list` and Doxygen's graph, `.map`, `.md5` and `doxygen.css` are code with their generator, formats unchanged; a `README.md`, an unmarked page, a PDF and a picture outside the tree stay as they were |
 | `…aLoneMarkedPageRootsNoTree` | a saved Javadoc page beside notes and photos, with no companion, leaves them as they were |
+| `…nestedTreesAndTreesOfTwoGeneratorsAreToldApartByTheirRoots` | Javadoc's nested folders root its tree at the highest, so a picture below Doxygen's root inside it is Doxygen's, the deeper root; where Javadoc's and Doxygen's roots are one folder, its picture is Javadoc's |
+| `…aPageKeptForTheEndingOfItsNameRootsNoTreeAndHasNoGenerator` | with `.html` listed, a marked page is a member as code with no generator, and the companion and picture beside it stay as they were |
+| `…aFileTheSetPassCannotReadIsLeftAsItWasAndThePassCarriesOn` | a build file and a companion gone before the set pass reads them carry no verdict and are no members, still mark their folder and root their tree, are each logged once with §6's line, and the next set's build file is kept |
+| `…aMarkedPageTheSetPassCannotReadAgainIsKeptWithNoGenerator` | a marked page gone after the first pass keeps its verdict and is a member as code with no generator, its tree still found, logged once with §6's line |
 | `…twoIdenticalTreesAreTwoSets` | the same tree under two folders is two sets, each with its companions |
 | `…documentsInsideASetStayDocuments` | a `README.md`, a PDF, a picture and a note inside a set carry no verdict and are no members |
 | `…aLogAnEmptyFileAndAFileOutOfScopeInsideASetKeepTheirVerdicts` | each keeps its one verdict and is no member; a build file left out of scope still marks its folder and is no member |
@@ -199,7 +204,7 @@ Every file is built in the test, and every profile is YAML the test writes. The 
 | `pipeline.RunIdentityGoldenTest.byteLevelReduction` | §10's configuration consumed, word for word |
 | `EveryTableKeyedByARunIsOnRecordTest`, `EveryStatementThatSortsIsRecordedTest` | the two tables and the index of §7 |
 
-No test of this record holds `CodeSets.setOf` (§6) or §8's naming rule: neither has a reader before #573, whose tests hold both with the first caller. A UNC root and a drive root cannot be walked by a test, so their names have none.
+No test holds that the set pass and the first pass's hand-over hold folders and no occurrence (§5, §6): what a class holds does not show in what it writes. No test of this record holds `CodeSets.setOf` (§6) or §8's naming rule: neither has a reader before #573, whose tests hold both with the first caller. A UNC root and a drive root cannot be walked by a test, so their names have none.
 
 ## What this does not decide
 

@@ -33,6 +33,12 @@ public final class BrokenOrOutOfScope {
     /** The version of the documentation generators' marks stage 1 knows (ADR-277 section 4), recorded in its configuration consumed. */
     public static final String GENERATOR_MARKS = Code.MARKS_VERSION;
 
+    /** The version of the list of build files (ADR-284 section 1), recorded in stage 1's configuration consumed. */
+    public static final String BUILD_FILES = BuildFiles.VERSION;
+
+    /** The version of the list of generators' companion files (ADR-284 section 5), recorded likewise. */
+    public static final String GENERATOR_COMPANIONS = GeneratorCompanions.VERSION;
+
     /** How many leading bytes group the unrecognised branch, so one kind arriving in bulk is visible. */
     private static final int LEADING_BYTES_REPORTED = 4;
 
@@ -75,6 +81,22 @@ public final class BrokenOrOutOfScope {
             List<String> nameEndings,
             List<String> codeEndings,
             CheckingProgress progress)
+            throws Exception {
+        return verdictSurvivors(runId, canonicalRoot, logFloor, nameEndings, codeEndings, progress, new MarkedPages());
+    }
+
+    /**
+     * As above, and notes in {@code markedPages} the generator of every page kept as code for its mark, in
+     * memory and never in a verdict's reason (ADR-284 section 5).
+     */
+    public FormatMix verdictSurvivors(
+            RunId runId,
+            Path canonicalRoot,
+            Double logFloor,
+            List<String> nameEndings,
+            List<String> codeEndings,
+            CheckingProgress progress,
+            MarkedPages markedPages)
             throws Exception {
         Map<String, Integer> codeEndingCounts = new TreeMap<>();
         Map<String, Integer> codeGeneratorCounts = new TreeMap<>();
@@ -151,6 +173,7 @@ public final class BrokenOrOutOfScope {
                     codeEndingCounts.merge(recognised.get().ending().get(), 1, Integer::sum);
                 } else {
                     codeByMark++;
+                    markedPages.add(occurrenceId, recognised.get().generator().orElseThrow());
                     codeGeneratorCounts.merge(recognised.get().generator().orElseThrow(), 1, Integer::sum);
                 }
             } else if (leftOut.isPresent()) {

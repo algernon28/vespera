@@ -8,10 +8,16 @@ import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
+import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedFormats;
+import io.algernon.vespera.corpus.DetectedSubtype;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.ledger.VerdictKind;
+import io.algernon.vespera.ledger.Verdicts;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -20,6 +26,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -352,8 +359,17 @@ class CodeSetTaskletTest {
                     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM superseded_by", Integer.class)).isZero();
                 });
         claim(
-                "stage 1's log says of a build file that it is code, and why",
-                () -> assertThat(logged).anyMatch(line -> line.endsWith("-> code: " + BUILD_REASON.formatted("cli"))));
+                "stage 1's log says of a build file, in the whole of its line, that it was kept with its code set as code, and why",
+                () -> assertThat(logged).anyMatch(line -> line.matches(
+                        Pattern.quote("[byte-level-reduction] kept " + occurrenceIdOf("cli/MAKEFILE")
+                                + " with its code set -> code: " + BUILD_REASON.formatted("cli")))));
+        claim(
+                "every line the set pass logs for a file it verdicts has that shape, the occurrence named by its id",
+                () -> assertThat(logged.stream().filter(line -> line.contains(" with its code set ")))
+                        .isNotEmpty()
+                        .allMatch(line -> line.matches(
+                                "\\[byte-level-reduction\\] kept \\d+ with its code set -> code: "
+                                        + "a build file of the code set at [a-z]+")));
         claim(
                 "a build file kept as code for the ending of its own name is a member as code, and makes its folder a set",
                 () -> {
@@ -690,6 +706,193 @@ class CodeSetTaskletTest {
                         .doesNotContain(CODE_SET_NAMES));
     }
 
+    @Test
+    @Story("A generated reference tree is kept whole")
+    @DisplayName("Nested reference trees are rooted at the highest folder; a file in two generators' trees goes to the deeper root, and where both roots are one folder, to the generator listed first")
+    void nestedTreesAndTreesOfTwoGeneratorsAreToldApartByTheirRoots(@TempDir Path temp, @TempDir Path workingDirectory)
+            throws Exception {
+        Path root = namedRoot(temp);
+        // Javadoc's marked page and companion in p/doc, and again two folders below, in p/doc/mid/deep; Doxygen's
+        // between them, in p/doc/mid.
+        write(root, "p/doc/index.html", javadocPage("Overview"));
+        write(root, "p/doc/element-list", "pkg\n");
+        write(root, "p/doc/top.png", png("p/doc/top.png"));
+        write(root, "p/doc/mid/classA.html", doxygenPage());
+        write(root, "p/doc/mid/doxygen.css", "div.memitem { padding: 0; }\n");
+        write(root, "p/doc/mid/graph.png", png("p/doc/mid/graph.png"));
+        write(root, "p/doc/mid/deep/Api.html", javadocPage("Api"));
+        write(root, "p/doc/mid/deep/element-list", "pkg.deep\n");
+        write(root, "p/doc/mid/deep/glass.png", png("p/doc/mid/deep/glass.png"));
+        // Javadoc's and Doxygen's marked pages and companions in one folder, q/html.
+        write(root, "q/html/index.html", javadocPage("Overview"));
+        write(root, "q/html/element-list", "qpkg\n");
+        write(root, "q/html/classB.html", doxygenPage());
+        write(root, "q/html/doxygen.css", "div.memitem { margin: 0; }\n");
+        write(root, "q/html/shared.png", png("q/html/shared.png"));
+
+        stageOne(root, workingDirectory);
+
+        claim(
+                "a picture in the highest of Javadoc's nested folders is a file of Javadoc's tree",
+                () -> assertThat(membershipOf("p/doc/top.png")).containsExactly("companion in 'p' by Javadoc"));
+        claim(
+                "a picture in Doxygen's folder, inside Javadoc's tree, is a file of Doxygen's, whose root is deeper",
+                () -> assertThat(membershipOf("p/doc/mid/graph.png")).containsExactly("companion in 'p' by Doxygen"));
+        claim(
+                "a picture beside Javadoc's lower marked page and companion is still a file of Doxygen's tree: Javadoc's"
+                        + " tree is rooted at the highest of its folders, p/doc, so the deeper root above it is"
+                        + " Doxygen's, p/doc/mid",
+                () -> {
+                    assertThat(membershipOf("p/doc/mid/deep/glass.png")).containsExactly("companion in 'p' by Doxygen");
+                    assertThat(verdictReasonsFor("p/doc/mid/deep/glass.png"))
+                            .containsExactly(TREE_REASON.formatted("Doxygen"));
+                });
+        claim(
+                "where the two generators' trees are rooted at one folder, its picture is a file of Javadoc's tree,"
+                        + " the generator ADR-277 lists first",
+                () -> {
+                    assertThat(membershipOf("q/html/shared.png")).containsExactly("companion in 'q' by Javadoc");
+                    assertThat(verdictReasonsFor("q/html/shared.png")).containsExactly(TREE_REASON.formatted("Javadoc"));
+                });
+    }
+
+    @Test
+    @Story("A generated reference tree is kept whole")
+    @DisplayName("A page kept as code for the ending of its name is recorded with no generator and roots no tree, though it carries a generator's mark")
+    void aPageKeptForTheEndingOfItsNameRootsNoTreeAndHasNoGenerator(@TempDir Path temp, @TempDir Path workingDirectory)
+            throws Exception {
+        Path root = namedRoot(temp);
+        CodeNameEndingsInProfile.write(new ProfileStore(workingDirectory), CODE_ENDINGS + " .html", SET_BY_THIS_TEST);
+        write(root, "saved/Api.html", javadocPage("Api"));
+        write(root, "saved/element-list", "pkg\n");
+        write(root, "saved/logo.png", png("saved/logo.png"));
+
+        stageOneWithItsProfile(root, workingDirectory);
+
+        claim(
+                "the page is a member as code, with no generator: the first pass kept it for its ending, before any mark",
+                () -> assertThat(membershipOf("saved/Api.html")).containsExactly("code in 'saved'"));
+        claim(
+                "so it roots no tree: the companion file and the picture beside it carry no verdict and are no members",
+                () -> {
+                    for (String file : List.of("saved/element-list", "saved/logo.png")) {
+                        assertThat(verdictKindsFor(file)).as(file).isEmpty();
+                        assertThat(membershipOf(file)).as(file).isEmpty();
+                    }
+                });
+    }
+
+    @Test
+    @Story("A code set's build files stay with it")
+    @DisplayName("A build file or a tree's companion the set pass cannot read is left as it was and logged, still marks its folder or roots its tree, and the pass carries on")
+    void aFileTheSetPassCannotReadIsLeftAsItWasAndThePassCarriesOn(@TempDir Path temp, @TempDir Path workingDirectory)
+            throws Exception {
+        Path root = namedRoot(temp);
+        write(root, "gone/Makefile", "all:\n\tcc g.c\n");
+        write(root, "gone/sub/g.c", "int g(void) { return 0; }\n");
+        write(root, "t/doc/index.html", javadocPage("Overview"));
+        write(root, "t/doc/element-list", "pkg\n");
+        write(root, "t/doc/logo.png", png("t/doc/logo.png"));
+        write(root, "ok/Makefile", "all:\n\tcc o.c\n");
+        write(root, "ok/o.c", "int o(void) { return 0; }\n");
+        // Each is removed once its kind is recorded: after detection has read it, before the set pass does.
+        Map<String, Path> removedOnceDetected = Map.of(
+                "gone/Makefile", root.resolve("gone/Makefile"), "t/doc/element-list", root.resolve("t/doc/element-list"));
+        DetectedFormats removing = new DetectedFormats(jdbcTemplate) {
+            @Override
+            public void record(OccurrenceId occurrenceId, RunId runId, DetectedFormat format, DetectedSubtype subtype) {
+                super.record(occurrenceId, runId, format, subtype);
+                Path file = removedOnceDetected.get(pathOf(occurrenceId));
+                if (file != null) {
+                    deleteQuietly(file);
+                }
+            }
+        };
+        CodeNameEndingsInProfile.write(new ProfileStore(workingDirectory), CODE_ENDINGS, SET_BY_THIS_TEST);
+
+        List<String> logged = logging(() -> stageOneWithItsProfile(root, workingDirectory, new Ledger(jdbcTemplate), removing));
+
+        claim(
+                "neither file the set pass could not read carries a verdict, and neither is a member",
+                () -> {
+                    for (String file : removedOnceDetected.keySet()) {
+                        assertThat(verdictKindsFor(file)).as(file).isEmpty();
+                        assertThat(membershipOf(file)).as(file).isEmpty();
+                    }
+                });
+        claim(
+                "the build file still marks its folder, which goes by its name alone, so the code below it is that set's",
+                () -> assertThat(membershipOf("gone/sub/g.c")).containsExactly("code in 'gone'"));
+        claim(
+                "the companion file still roots its tree, so the picture beside it is a file of Javadoc's tree",
+                () -> assertThat(membershipOf("t/doc/logo.png")).containsExactly("companion in 't' by Javadoc"));
+        claim(
+                "each is logged once, in the whole of its line, as left as it was",
+                () -> {
+                    for (String file : removedOnceDetected.keySet()) {
+                        String said = "[byte-level-reduction] could not read " + occurrenceIdOf(file)
+                                + " to see whether it reads as text, so it is left as it was: ";
+                        assertThat(logged.stream().filter(line -> line.startsWith(said) && line.length() > said.length()))
+                                .as(file)
+                                .hasSize(1);
+                    }
+                });
+        claim(
+                "and the pass carries on: the next set's build file is kept as code with it",
+                () -> assertThat(membershipOf("ok/Makefile")).containsExactly("build in 'ok'"));
+    }
+
+    @Test
+    @Story("A generated reference tree is kept whole")
+    @DisplayName("A marked page the set pass cannot read again is a member as code with no generator and logged, and its tree is still found from the first pass's folders")
+    void aMarkedPageTheSetPassCannotReadAgainIsKeptWithNoGenerator(@TempDir Path temp, @TempDir Path workingDirectory)
+            throws Exception {
+        Path root = namedRoot(temp);
+        write(root, "r/doc/index.html", javadocPage("Overview"));
+        write(root, "r/doc/element-list", "pkg\n");
+        write(root, "r/doc/logo.png", png("r/doc/logo.png"));
+        Path page = root.resolve("r/doc/index.html");
+        // The page is removed once the first pass has kept it as code for its mark, before the set pass reads it.
+        Ledger removing = new Ledger(jdbcTemplate) {
+            private final Verdicts verdicts = new Verdicts(jdbcTemplate) {
+                @Override
+                public void verdict(OccurrenceId occurrenceId, RunId runId, VerdictKind kind, String reason) {
+                    super.verdict(occurrenceId, runId, kind, reason);
+                    if (kind == VerdictKind.CODE && "r/doc/index.html".equals(pathOf(occurrenceId))) {
+                        deleteQuietly(page);
+                    }
+                }
+            };
+
+            @Override
+            public Verdicts verdicts() {
+                return verdicts;
+            }
+        };
+        CodeNameEndingsInProfile.write(new ProfileStore(workingDirectory), CODE_ENDINGS, SET_BY_THIS_TEST);
+
+        List<String> logged = logging(() ->
+                stageOneWithItsProfile(root, workingDirectory, removing, new DetectedFormats(jdbcTemplate)));
+
+        claim(
+                "the page keeps the first pass's one code verdict and is a member as code, with no generator",
+                () -> {
+                    assertThat(verdictKindsFor("r/doc/index.html")).containsExactly(CODE);
+                    assertThat(membershipOf("r/doc/index.html")).containsExactly("code in 'r'");
+                });
+        claim(
+                "its tree is still found, from the folders the first pass handed over, so the picture is a file of it",
+                () -> assertThat(membershipOf("r/doc/logo.png")).containsExactly("companion in 'r' by Javadoc"));
+        claim(
+                "the page is logged once, in the whole of its line, as kept with no generator",
+                () -> {
+                    String said = "[byte-level-reduction] could not read " + occurrenceIdOf("r/doc/index.html")
+                            + " to see which generator's mark it carries, so it is kept with none: ";
+                    assertThat(logged.stream().filter(line -> line.startsWith(said) && line.length() > said.length()))
+                            .hasSize(1);
+                });
+    }
+
     /** {@code text} in UTF-16, little-endian, behind its byte-order mark: text that holds bytes of nought. */
     private static byte[] utf16(String text) {
         byte[] body = text.getBytes(StandardCharsets.UTF_16LE);
@@ -711,14 +914,19 @@ class CodeSetTaskletTest {
 
     /** Stage 1 over {@code root}, walked first if it has not been, with the profile already written. */
     private void stageOneWithItsProfile(Path root, Path workingDirectory) throws Exception {
-        Ledger ledger = new Ledger(jdbcTemplate);
+        stageOneWithItsProfile(root, workingDirectory, new Ledger(jdbcTemplate), new DetectedFormats(jdbcTemplate));
+    }
+
+    /** As above, stage 1 writing through {@code ledger} and {@code detectedFormats}. */
+    private void stageOneWithItsProfile(Path root, Path workingDirectory, Ledger ledger, DetectedFormats detectedFormats)
+            throws Exception {
         if (jdbcTemplate.queryForObject("SELECT COUNT(*) FROM walk", Integer.class) == 0) {
             new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource)).walk(root);
         }
         new ByteLevelReductionTasklet(
                         ledger,
                         new ContentIdentity(jdbcTemplate),
-                        new DetectedFormats(jdbcTemplate),
+                        detectedFormats,
                         new ImplementationVersions(),
                         new ProfileStore(workingDirectory),
                         root,
@@ -728,13 +936,24 @@ class CodeSetTaskletTest {
 
     /** Stage 1, with every line it logs kept, in order. */
     private List<String> stageOneLogging(Path root, Path workingDirectory) throws Exception {
+        return logging(() -> stageOne(root, workingDirectory));
+    }
+
+    /** What stage 1 does. */
+    @FunctionalInterface
+    private interface StageOne {
+        void run() throws Exception;
+    }
+
+    /** Every line stage 1 logs while {@code stageOne} runs, in order. */
+    private static List<String> logging(StageOne stageOne) throws Exception {
         ListAppender<ILoggingEvent> logged = new ListAppender<>();
         logged.start();
         ch.qos.logback.classic.Logger stageLogger =
                 (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(ByteLevelReductionTasklet.class);
         stageLogger.addAppender(logged);
         try {
-            stageOne(root, workingDirectory);
+            stageOne.run();
         } finally {
             stageLogger.detachAppender(logged);
             logged.stop();
@@ -761,6 +980,25 @@ class CodeSetTaskletTest {
                 (row, n) -> row.getString("role") + " in '" + row.getString("folder") + "'"
                         + (row.getString("generator") == null ? "" : " by " + row.getString("generator")),
                 path);
+    }
+
+    /** The id of the occurrence at {@code path}, as stage 1's log names it. */
+    private long occurrenceIdOf(String path) {
+        return jdbcTemplate.queryForObject("SELECT id FROM file_occurrence WHERE path = ?", Long.class, path);
+    }
+
+    /** The path of {@code occurrence}. */
+    private String pathOf(OccurrenceId occurrence) {
+        return jdbcTemplate.queryForObject(
+                "SELECT path FROM file_occurrence WHERE id = ?", String.class, occurrence.value());
+    }
+
+    private static void deleteQuietly(Path file) {
+        try {
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private List<String> verdictKindsFor(String path) {
@@ -831,6 +1069,14 @@ class CodeSetTaskletTest {
                 "<!-- Generated by javadoc (17) -->\n<title>" + title + "</title>\n"
                         + "<meta name=\"generator\" content=\"javadoc/ClassWriterImpl\">",
                 "<body class=\"class-declaration-page\"><h1>" + title + "</h1>",
+                "");
+    }
+
+    /** A class's page Doxygen wrote, carrying its mark and a reference page's markup. */
+    private static String doxygenPage() {
+        return page(
+                "<meta name=\"generator\" content=\"Doxygen 1.9.8\"/>",
+                "<div class=\"memitem\"><div class=\"memproto\">void run()</div></div>",
                 "");
     }
 

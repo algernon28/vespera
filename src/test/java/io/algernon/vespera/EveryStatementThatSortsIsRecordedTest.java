@@ -226,7 +226,7 @@ class EveryStatementThatSortsIsRecordedTest {
 
     /**
      * The indexes of {@code schema.sql} that rows 3 to 5 of ADR-218's table list, thirty-one, the one
-     * ADR-236 adds to its class, the two ADR-271 §1 builds with {@code translation_of}, and the one ADR-284 §5
+     * ADR-236 adds to its class, the two ADR-271 §1 builds with {@code translation_of}, and the one ADR-284 §7
      * builds with {@code code_set_member}, each over a table that holds no row when it is built: thirty-five, by
      * name.
      */
@@ -236,7 +236,7 @@ class EveryStatementThatSortsIsRecordedTest {
             "cluster_by_winning_seed_occurrence_id",
             "cluster_fault_by_winning_seed_occurrence_id",
             "code_set_member_by_run_id",
-                        "content_hash_by_run_id",
+            "content_hash_by_run_id",
             "detected_format_by_run_id",
             "document_cluster_by_run_id",
             "document_cluster_by_winning_seed_occurrence_id",
