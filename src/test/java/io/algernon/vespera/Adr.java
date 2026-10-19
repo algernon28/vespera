@@ -1951,6 +1951,15 @@ public final class Adr {
     public static final String THE_GUARD_READS_A_DELIVERABLE_TREE_AS_OUTSIDE_THE_ALLOW_LIST = FILE
             + "0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md";
 
+    /**
+     * ADR-285 -- the control panel's code lives in this build under {@code io.algernon.controlpanel}, outside the
+     * nine modules, and is packaged as a second jar, classifier {@code control-panel}, that the Spring Boot jar does
+     * not carry; it names only its own package, {@code java.base} and {@code jdk.httpserver}, so no class of the jar,
+     * and no class of the jar names it.
+     */
+    public static final String THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR = FILE
+            + "0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md";
+
     private Adr() {
     }
 }
