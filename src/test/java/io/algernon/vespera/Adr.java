@@ -1986,6 +1986,15 @@ public final class Adr {
             + "0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md";
 
     /**
+     * ADR-288 -- the operator starts the control panel with {@code java -jar} on its jar, whose manifest names
+     * {@code io.algernon.controlpanel.ControlPanel} as {@code Main-Class} and the Spring Boot jar's file name as
+     * {@code Vespera-Jar}; the control panel starts that jar, found beside its own, with the {@code java} of the runtime
+     * running it, and refuses with one line where none is there (amends ADR-285 and ADR-278).
+     */
+    public static final String THE_CONTROL_PANEL_STARTS_THE_JAR_BESIDE_ITS_OWN_WITH_THE_JAVA_RUNNING_IT = FILE
+            + "0288-the-operator-starts-the-control-panel-with-java-jar-and-it-starts-the-jar-beside-its-own-with-the-java-running-it.md";
+
+    /**
      * ADR-289 -- a plain tasklet step that fails with an exception logs one closing line naming the step and that
      * it is not recorded as finished, last in the output.
      */
