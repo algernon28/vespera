@@ -1915,6 +1915,14 @@ public final class Adr {
     public static final String ONE_VESPERA_RUN_PER_CORPUS_ROOT = FILE
             + "0279-one-vespera-run-per-corpus-root-by-a-lock-on-a-file-named-for-its-real-path-outside-every-working-directory.md";
 
+    /**
+     * ADR-281 -- {@code com.zaxxer.hikari} and Spring Batch's {@code TaskExecutorJobLauncher} write to the console
+     * only at WARN and to {@code logs/vespera.log} at INFO, so the last line of output that is not blank is the
+     * invocation's closing line.
+     */
+    public static final String THE_CLOSING_LINE_IS_THE_LAST_LINE = FILE
+            + "0281-the-closing-line-is-the-last-line-of-output-and-two-library-loggers-write-to-the-console-only-at-warn.md";
+
     private Adr() {
     }
 }
