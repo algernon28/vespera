@@ -1,5 +1,7 @@
 # ADR-285 — The control panel is a second jar of this build, under a package of its own outside the nine modules, linking no class of the jar
 
+> **Partly amended — see [ADR-288](0288-the-operator-starts-the-control-panel-with-java-jar-and-it-starts-the-jar-beside-its-own-with-the-java-running-it.md).** Of §2 and What this does not decide: the control-panel jar's manifest names `io.algernon.controlpanel.ControlPanel` as `Main-Class` and the Spring Boot jar's file name as `Vespera-Jar`, and the operator starts it with `java -jar`. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-040](0040-modules-are-capability-shaped-not-stage-shaped.md) and [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md): the nine modules stay nine, and the module rule is unchanged, since the control panel's code is outside `io.algernon.vespera` (§1).
