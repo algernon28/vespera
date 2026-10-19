@@ -269,7 +269,7 @@ final class ClusterPage {
                 + utf8("<h2>" + MEMBERSHIP_HEADING + "</h2>\n") + utf8(LIST_CLOSING) + utf8(Html.tail());
         long firstPage = aroundEveryList + utf8("<ol>\n")
                 + utf8(firstPageBody(recorded, doc, why, number -> longestName));
-        long laterPage = aroundEveryList + utf8(listOpening(entryCount - 1));
+        long laterPage = aroundEveryList + utf8("<ol start=\"" + widest + "\">\n");
         List<Integer> firsts = new ArrayList<>();
         firsts.add(0);
         long size = firstPage + entrySizes[0];

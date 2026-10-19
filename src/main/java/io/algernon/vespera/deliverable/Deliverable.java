@@ -446,6 +446,7 @@ public final class Deliverable {
                     }
                     long onePageSize = Files.size(pagePart);
                     Optional<ClusterPage.PageBreaks> breaks = ceiling instanceof ClusterPageCeiling.Bytes limit
+                                    && !members.isEmpty()
                                     && ends.count() >= 2
                                     && onePageSize > limit.bytes()
                             ? ClusterPage.plan(

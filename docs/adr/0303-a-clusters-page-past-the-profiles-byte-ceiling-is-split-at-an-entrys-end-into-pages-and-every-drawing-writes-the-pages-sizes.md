@@ -136,7 +136,7 @@ ADR-149 §6's ten pictures a document shows and ADR-274 §2.5's gibibyte left fr
 
 ## Consequences
 
-- **With the key unset, nothing a reader sees changes**: every page is byte for byte ADR-286's, and `cluster-page-sizes.html` appears beside the other reports.
+- **With the key unset, every cluster page is byte for byte ADR-286's**, the index's links are unchanged and it gains only the key's row (ADR-186, §2), and `cluster-page-sizes.html` appears beside the other reports.
 - **With the key set, a large cluster opens on its first page** and is read a page at a time, every citation still landing on its entry, every entry on its copy.
 - **A cluster past the ceiling is written twice and its pictures asked for a third time**, so a drawing with a ceiling takes longer by about the time those clusters take to write.
 - **Lowering the ceiling, or setting it back to unset, leaves earlier pages in a folder**, counted on the closing line and never deleted.
@@ -171,7 +171,8 @@ ADR-149 §6's ten pictures a document shows and ADR-274 §2.5's gibibyte left fr
 | `…aCeilingAtTheOnePageSizeWritesOnePageAndOneByteLessSplitsIt` | §3: a ceiling equal to the one-page size writes one page byte for byte the unset one; one byte less splits it |
 | `…pagesAreFilledGreedilyAndEachIsWithinTheCeiling` | §3: five entries of near 5,000 bytes, a ceiling of the fixed parts and two and a half entries, give pages of 2, 2 and 1 entries, each within the ceiling |
 | `…anEntryLargerThanTheCeilingHasAPageOfItsOwn` | §3: the one page past the ceiling holds one entry; the others are within it |
-| `…aClusterWithNoListedMemberOrOneEntryIsNeverSplit` | §3: a ceiling of 1 leaves each one page, byte for byte the unset one |
+| `…aClusterWithNoListedMemberOrOneEntryIsNeverSplit` | §3: a ceiling of 1 leaves each one page, byte for byte the unset one, a cluster written over documents it no longer holds among them |
+| `…aLaterPageCountsTheListsHeadingOnce` | §3: a later page's bound counts the list's heading once, so two entries share a later page at a ceiling smaller than the first page's by exactly what the first page alone holds |
 | `…everyEntryIsOnExactlyOnePageInOrderNumberedOnWithItsId` | §5: every `id="document-n"` once across the pages, in order, each page's `<ol start>` its first entry's number and none on the first |
 | `…eachPageCarriesTheTitleTheNavigationAboveAndBelowTheListAndTheWritingOnlyOnTheFirst` | §5: each of three pages whole, built from the unsplit page: the title, both navigation lines, the heading, its entries, the writing and the unwritten sentence on the first page alone |
 | `…theFurtherPagesAreMovedIntoPlaceBeforeTheFirst` | §4: `index-2.html`, `index-3.html`, then `index.html`, and no `.part` left |
@@ -179,7 +180,7 @@ ADR-149 §6's ten pictures a document shows and ADR-274 §2.5's gibibyte left fr
 | `…eachEntryAndEachClusterIsToldOnceWhetherOrNotItIsSplit` | §3: the progress hears every entry once and every cluster once with a ceiling of 1 |
 | `deliverable.ACitationLinksToThePageItsEntryIsOnTest` | §6: `ProseHtml.of` with the page of each number: `#document-1` on this page, `./index-2.html#document-3` on another; the one-argument form unchanged; and on a drawn first page, each citation to its entry's page |
 | `deliverable.TheTreeIsHtmlTest.everyLinkOfASplitClusterLandsOnASiblingPageAndAnIdOnIt` | §6, ADR-286 §5: a tree split at a ceiling of 1, every link a fragment on its page, a file in the tree, or a sibling page with a fragment naming an `id` on it, and each cluster folder its pages and its copies |
-| `deliverable.TheClusterPageSizesReportTest.theReportStatesTheSizesTheMarksAndTheTenLargestInNumbersAlone` | §8: unset; groups, largest, 95th percentile and median by nearest rank, the four marks and the ten largest, read against the pages on disk; no label, title, seed or path on it |
+| `deliverable.TheClusterPageSizesReportTest.theReportStatesTheSizesTheMarksAndTheTenLargestInNumbersAlone` | §8: unset; groups, largest, 95th percentile and median by nearest rank, the four marks and the ten largest, read against the pages on disk; no label, title, seed or path on it, nor the tree's, the working directory's or the run folder's path, nor a path separator in its text |
 | `…aSetCeilingIsStatedWithWhatItSplit` | §8: the ceiling's bytes, groups split, pages written and pages over the ceiling, against the tree |
 | `…anIgnoredCeilingIsStatedAsIgnoredAndNotQuoted` | §8: `ignored`, no table of what was split |
 | `…aTreeWithNoClusterStatesNone` | §8: `0` groups, `none` for the three sizes, no row of the ten largest |

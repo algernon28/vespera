@@ -135,6 +135,7 @@ class TheClusterPageSizesReportTest {
         claim(
                 "the report names no group, title, seed, document or path the tree holds",
                 () -> assertThat(report).doesNotContain(NAMES_OF_THE_FIXTURE));
+        namesNoPathOfTheDrawing(report, base, tree);
         claim(
                 "and it is in place, beside the other reports, with no file left under the name it was written with",
                 () -> assertThat(base.resolve("work").resolve(THE_REPORT + ".part")).doesNotExist());
@@ -175,6 +176,24 @@ class TheClusterPageSizesReportTest {
         claim(
                 "and it still names nothing of the tree",
                 () -> assertThat(report).doesNotContain(NAMES_OF_THE_FIXTURE));
+        namesNoPathOfTheDrawing(report, base.resolve("split"), tree);
+    }
+
+    /**
+     * The claim that {@code report} names no path of its drawing: not the tree, the folders it was drawn under, the
+     * working directory or the run's folder, and no separator of a path in any text outside its tags.
+     */
+    private static void namesNoPathOfTheDrawing(String report, Path base, Path tree) {
+        String text = report.replaceAll("(?s)<[^>]*>", "");
+        claim(
+                "the report names no path of the drawing: neither the tree, the folders it was drawn under, the working"
+                        + " directory nor the run's folder, and its text outside the markup holds no path separator",
+                () -> {
+                    assertThat(report).doesNotContain(
+                            tree.toString(), base.toString(), base.resolve("work").toString(),
+                            tree.getFileName().toString());
+                    assertThat(text).doesNotContain("/", "\\");
+                });
     }
 
     @Test

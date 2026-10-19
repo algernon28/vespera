@@ -276,19 +276,25 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
 
     @Test
     @Story("A group's page is split only past the ceiling")
-    @DisplayName("A group of no listed document, or of one, keeps one page however small the ceiling")
+    @DisplayName("A group of no listed document, or of one, keeps one page however small the ceiling, even where its"
+            + " writing was made from documents it no longer holds")
     void aClusterWithNoListedMemberOrOneEntryIsNeverSplit(@TempDir Path base) throws IOException {
         RecordedCluster one = cluster(THE_SEED, 0, "Fire doors", 1, 1);
         RecordedCluster none = cluster(THE_SEED, 1, "Smoke dampers", 2, 0);
+        // Written over from two documents it no longer holds: two entries saying so, and no listed member.
+        RecordedCluster writtenOverNone = cluster(THE_SEED, 2, "Sprinklers", 3, 0);
+        Map<ClusterSlot, SynthesisDoc> writings =
+                Map.of(slotOf(writtenOverNone), writing("Sprinkler heads", "Heads [1] and valves [2].", 30, 31));
+        List<RecordedCluster> clusters = List.of(one, none, writtenOverNone);
         List<ListedSurvivor> theOne = List.of(DOORS_MEMBERS.getFirst());
         Path unset = ListedTree.writeWithCeiling(
-                base.resolve("unset").resolve("work"), base.resolve("unset").resolve("archive"), List.of(one, none),
-                Map.of(), theOne, Map.of(), SurvivorPictures.none(), UNSET, DeliverableProgress.NONE);
+                base.resolve("unset").resolve("work"), base.resolve("unset").resolve("archive"), clusters,
+                writings, theOne, Map.of(), SurvivorPictures.none(), UNSET, DeliverableProgress.NONE);
         Path split = ListedTree.writeWithCeiling(
-                base.resolve("split").resolve("work"), base.resolve("split").resolve("archive"), List.of(one, none),
-                Map.of(), theOne, Map.of(), SurvivorPictures.none(), ONE_BYTE, DeliverableProgress.NONE);
+                base.resolve("split").resolve("work"), base.resolve("split").resolve("archive"), clusters,
+                writings, theOne, Map.of(), SurvivorPictures.none(), ONE_BYTE, DeliverableProgress.NONE);
 
-        for (String folder : List.of(DOORS_FOLDER, DAMPERS_FOLDER)) {
+        for (String folder : List.of(DOORS_FOLDER, DAMPERS_FOLDER, "1-fire-safety/3-sprinklers")) {
             claim(
                     "with a ceiling of one byte, " + folder + " still holds one page, byte for byte the page with no"
                             + " ceiling: a page with no entry, or one, has no entry's end to split at",
@@ -298,6 +304,50 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
                                 .isEqualTo(read(unset.resolve(folder).resolve("index.html")));
                     });
         }
+    }
+
+    @Test
+    @Story("A group's page is split only past the ceiling")
+    @DisplayName("A later page is counted with the list's heading once, so it holds what fits as the first page does")
+    void aLaterPageCountsTheListsHeadingOnce() {
+        RecordedCluster unwritten = cluster(THE_SEED, 0, "Fire doors", 1, 3);
+        long small = 100;
+        long tooLargeForAnyPage = 1_000_000;
+        // Two small entries after a large one: whether they share the second page decides two pages or three. Two small
+        // entries before a large one: whether they share the first page decides it. Both plans count the same heading,
+        // navigation and tail, so the two smallest ceilings differ by what the first page holds and a later one does not.
+        long laterThreshold = smallestCeilingOfTwoPages(unwritten, new long[] {tooLargeForAnyPage, small, small});
+        long firstThreshold = smallestCeilingOfTwoPages(unwritten, new long[] {small, small, tooLargeForAnyPage});
+        long firstPageOnly = utf8("<ol>\n") + utf8("<p><em>" + Deliverable.NOTHING_WAS_WRITTEN_OVER_IT + "</em></p>\n");
+        long laterPageOnly = utf8("<ol start=\"9\">\n");
+
+        claim(
+                "the smallest ceiling at which two entries share the first page exceeds the one at which they share a"
+                        + " later page by the first page's own list opening and sentence, less a later page's numbered"
+                        + " list opening, and by nothing counted twice",
+                () -> assertThat(firstThreshold - laterThreshold).isEqualTo(firstPageOnly - laterPageOnly));
+    }
+
+    /** The smallest ceiling at which {@code entrySizes} are planned as two pages and not three. */
+    private static long smallestCeilingOfTwoPages(RecordedCluster unwritten, long[] entrySizes) {
+        long low = 1;
+        long high = 999_999;
+        while (low < high) {
+            long middle = (low + high) / 2;
+            int pages = ClusterPage.plan(middle, unwritten, null, null, entrySizes)
+                    .map(ClusterPage.PageBreaks::pages)
+                    .orElse(1);
+            if (pages <= 2) {
+                high = middle;
+            } else {
+                low = middle + 1;
+            }
+        }
+        return low;
+    }
+
+    private static long utf8(String text) {
+        return text.getBytes(StandardCharsets.UTF_8).length;
     }
 
     @Test
