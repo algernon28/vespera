@@ -255,7 +255,7 @@ class AClusterPageIsOneFileWithItsPicturesInlinedTest {
         Path archive = anArchive(base, Map.of("reports/q3.pdf", bytes("the first survivor")));
         Path tree = base.resolve("work").resolve("deliverable").resolve(ListedTree.RUN_ID);
 
-        Throwable thrown = catchThrowable(() -> drawWith(base, archive, THE_WRITING_TITLE, refusingEveryGroupPage()));
+        Throwable thrown = catchThrowable(() -> drawWith(base, archive, THE_WRITING_TITLE, refusingEveryClusterPage()));
 
         claim(
                 "the drawing fails, as it does when the tree's index cannot be moved",
@@ -283,7 +283,7 @@ class AClusterPageIsOneFileWithItsPicturesInlinedTest {
                     assertThat(new String(theEarlierPage, StandardCharsets.UTF_8)).contains(THE_WRITING_TITLE);
                 });
 
-        Throwable thrown = catchThrowable(() -> drawWith(base, archive, ANOTHER_TITLE, refusingEveryGroupPage()));
+        Throwable thrown = catchThrowable(() -> drawWith(base, archive, ANOTHER_TITLE, refusingEveryClusterPage()));
 
         claim(
                 "the redrawing, handed another title, fails at its page's move",
@@ -335,15 +335,19 @@ class AClusterPageIsOneFileWithItsPicturesInlinedTest {
 
     @Test
     @Story("A group's page is one file, its pictures in it")
-    @DisplayName("A PNG or JPEG image file is shown on its entry from its copy, and any other image file is only linked")
+    @DisplayName("A PNG or JPEG image file is shown on its entry from its copy, whatever its name, and any other file is only linked")
     void aPngOrJpegImageIsShownInlineFromItsCopyAndAnyOtherImageIsOnlyLinked(@TempDir Path base) throws IOException {
         byte[] plan = ListedTree.anImage("png", 5, 7);
         byte[] site = ListedTree.anImage("jpg", 6, 2);
         byte[] sketch = ListedTree.anImage("gif", 4, 4);
+        byte[] renamed = ListedTree.anImage("png", 3, 2);
+        byte[] notAPng = bytes("a text file whose name ends in .png");
         Path archive = anArchive(base, Map.of(
                 "scans/plan.png", plan,
                 "photos/site.jpg", site,
-                "drawings/sketch.gif", sketch));
+                "drawings/sketch.gif", sketch,
+                "scans/plan-renamed.dat", renamed,
+                "scans/not-a-png.png", notAPng));
 
         Path tree = ListedTree.write(
                 base.resolve("work"),
@@ -354,7 +358,9 @@ class AClusterPageIsOneFileWithItsPicturesInlinedTest {
                         aSurvivor(20, "scans/plan.png", plan),
                         aSurvivor(21, "photos/site.jpg", site),
                         aSurvivor(22, "drawings/sketch.gif", sketch),
-                        aSurvivor(23, "scans/lost.png", ListedTree.anImage("png", 3, 3))),
+                        aSurvivor(23, "scans/lost.png", ListedTree.anImage("png", 3, 3)),
+                        aSurvivor(24, "scans/plan-renamed.dat", renamed),
+                        aSurvivor(25, "scans/not-a-png.png", notAPng)),
                 Map.of());
         String page = Files.readString(tree.resolve(THE_PAGE), StandardCharsets.UTF_8);
 
@@ -380,14 +386,56 @@ class AClusterPageIsOneFileWithItsPicturesInlinedTest {
                 "and a PNG whose original is gone, so that no copy stands, shows no image either",
                 () -> assertThat(theEntryNaming(page, "scans/lost.png")).doesNotContain("<img"));
         claim(
-                "so the page shows exactly two images, the PNG's and then the JPEG's, each its copy's bytes",
+                "a PNG whose name does not say so is shown all the same, its copy's first bytes being a PNG's:"
+                        + " the bytes decide, not the name",
+                () -> assertThat(theEntryNaming(page, "scans/plan-renamed.dat"))
+                        .contains("<a href=\"./plan-renamed.dat\">scans/plan-renamed.dat</a>\n"
+                                + "<p><img src=\"data:image/png;base64," + base64(renamed) + "\" alt=\"\"></p>\n"
+                                + "</li>\n"));
+        claim(
+                "and a file named as a PNG whose bytes are not one is only linked, and shows no image",
+                () -> assertThat(theEntryNaming(page, "scans/not-a-png.png"))
+                        .contains("<a href=\"./not-a-png.png\">scans/not-a-png.png</a>")
+                        .doesNotContain("<img"));
+        claim(
+                "so the page shows exactly three images, the PNG's, the JPEG's and the renamed PNG's, each its"
+                        + " copy's bytes",
                 () -> assertThat(sourcesOn(page))
                         .containsExactly(
-                                "data:image/png;base64," + base64(plan), "data:image/jpeg;base64," + base64(site)));
+                                "data:image/png;base64," + base64(plan),
+                                "data:image/jpeg;base64," + base64(site),
+                                "data:image/png;base64," + base64(renamed)));
     }
 
-    /** A move that refuses every group page's, as a file system refusing it would, and makes every other. */
-    private static ReplacingMove refusingEveryGroupPage() {
+    /**
+     * ADR-286 §6: a copy that cannot be read is linked only, as a copy of any other kind is. A folder stands at the
+     * copy's place, so opening it or reading its first bytes fails with an {@link IOException} on every platform the
+     * suite runs on; no file permission is relied on, which the suite's user may override.
+     */
+    @Test
+    @Story("A group's page is one file, its pictures in it")
+    @DisplayName("A document whose copy cannot be read shows no image, and its entry is still written")
+    void aCopyThatCannotBeReadShowsNoImageAndFailsNothing(@TempDir Path base) throws IOException {
+        ListedSurvivor unreadable = aSurvivor(30, "scans/unreadable.png", ListedTree.anImage("png", 2, 2));
+        Path aFolderAtTheCopysPlace = Files.createDirectories(base.resolve("unreadable.png"));
+        EntryPictures pictures =
+                ListedArrangement.picturesAmong(List.of(unreadable), SurvivorPictures.none(), DeliverableProgress.NONE);
+        ByteArrayOutputStream page = new ByteArrayOutputStream();
+
+        Throwable thrown = catchThrowable(
+                () -> pictures.writeUnder(page, unreadable, java.util.Optional.of(aFolderAtTheCopysPlace)));
+
+        claim(
+                "nothing is thrown: a copy that cannot be read fails neither its entry nor the drawing",
+                () -> assertThat(thrown).isNull());
+        claim(
+                "and nothing is written under the entry, not even the start of an image, since the copy's first bytes"
+                        + " are read before any tag is begun",
+                () -> assertThat(page.toString(StandardCharsets.UTF_8)).isEmpty());
+    }
+
+    /** A move that refuses every cluster page's, as a file system refusing it would, and makes every other. */
+    private static ReplacingMove refusingEveryClusterPage() {
         return new ReplacingMove(
                 (part, target) -> {
                     if (target.getFileName().toString().equals(Deliverable.INDEX_FILE_NAME)

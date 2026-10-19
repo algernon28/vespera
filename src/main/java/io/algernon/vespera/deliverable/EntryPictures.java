@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -182,10 +181,23 @@ final class EntryPictures {
         }
     }
 
-    /** Shows {@code copy} if its first bytes are a PNG's or a JPEG's signature, and writes nothing if not (ADR-286 §6). */
+    /**
+     * Shows {@code copy} if its first bytes are a PNG's or a JPEG's signature, and writes nothing if not, or if the
+     * copy cannot be opened or its first bytes read (ADR-286 §6); those bytes are read before any tag is begun.
+     */
     private static void writeCopyInline(OutputStream page, Path copy) throws IOException {
-        try (InputStream in = Files.newInputStream(copy)) {
-            byte[] head = in.readNBytes(PNG_SIGNATURE.length);
+        InputStream opened = null;
+        byte[] head;
+        try {
+            opened = Files.newInputStream(copy);
+            head = opened.readNBytes(PNG_SIGNATURE.length);
+        } catch (IOException unreadable) {
+            if (opened != null) {
+                opened.close();
+            }
+            return;
+        }
+        try (InputStream in = opened) {
             String mediaType = mediaTypeOfSignature(head);
             if (mediaType == null) {
                 return;
@@ -201,8 +213,6 @@ final class EntryPictures {
             // An empty alt text: its value is the empty string between these two writes (ADR-286 §6).
             text(page, "\" alt=\"");
             text(page, "\"></p>\n");
-        } catch (NoSuchFileException gone) {
-            // A copy that stood when the entry's outcome was told and is not there now shows no image.
         }
     }
 
