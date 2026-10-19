@@ -111,7 +111,7 @@ A page may send a second `Content-Security-Policy` of its own (#561, and #554's 
 
 The control panel holds text of documents only in memory, while it answers a request, and writes no file holding text of a document or the token. The server's classes write no file, log nothing, print nothing and start no process.
 
-The control panel writes no file in a folder other local users can write, and checks the ownership of any folder it reuses. Where the file of launch values is kept is decided by ADR-292 (#564).
+The control panel writes no file in a folder other local users can write, and checks the ownership of any folder it reuses. Where the file of launch values is kept is decided by [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md) (#564).
 
 ### Known limits
 
@@ -163,4 +163,4 @@ The types this asks for are `ControlPanelServer`, in `io.algernon.controlpanel`:
 - **Which pages exist, and their own `Content-Security-Policy` beyond §7's** (#561).
 - **Starting the server from `ControlPanel.main`, and printing the address of §2** (#561).
 - **How arrangement is shown, its `file:` links included** (#561).
-- **Remembering values between starts, and the file they are kept in** (#564, ADR-292). The port and the token are never remembered.
+- **Remembering values between starts, and the file they are kept in** (#564, [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md)). The port and the token are never remembered.
