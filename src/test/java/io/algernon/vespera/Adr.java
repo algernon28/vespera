@@ -1908,6 +1908,16 @@ public final class Adr {
     public static final String CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK = FILE
             + "0277-code-is-recognised-by-a-name-ending-the-profile-lists-or-by-a-documentation-generators-mark-and-stage-1-takes-it-out-of-the-survivors.md";
 
+    /**
+     * ADR-284 -- code is kept in code sets: below the nearest folder holding a build file of a list built into
+     * corpus, else below the first folder under the corpus root; a set pass of stage 1, before the hashing, keeps a
+     * set's build files and the pictures and companion files of a generated reference tree as code; default names
+     * are the folder's, told apart by the folders above; stage 1 writes code-sets.csv, and code-set-names.csv
+     * renames a set where names are rendered, moving no run (extends ADR-277).
+     */
+    public static final String CODE_IS_KEPT_IN_CODE_SETS_NAMED_FOR_THEIR_FOLDER = FILE
+            + "0284-code-is-kept-in-code-sets-below-the-nearest-folder-holding-a-build-file-and-each-set-is-named-for-its-folder.md";
+
     private Adr() {
     }
 }

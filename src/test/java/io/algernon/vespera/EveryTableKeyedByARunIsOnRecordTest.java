@@ -74,8 +74,8 @@ class EveryTableKeyedByARunIsOnRecordTest {
     private static final Set<String> WRITTEN_OVER_ACROSS_RUNS = Set.of("relevance_label", "relevance_label_provenance");
 
     /**
-     * The twenty-six tables ADR-229 states the growth of, and translation_of, which ADR-271 adds, each with the
-     * module that owns it.
+     * The twenty-six tables ADR-229 states the growth of, translation_of, which ADR-271 adds, and code_set and
+     * code_set_member, which ADR-284 adds, each with the module that owns it.
      */
     private static final Map<String, String> ON_RECORD = new TreeMap<>(Map.ofEntries(
             Map.entry("run_upstream", "ledger"),
@@ -84,6 +84,8 @@ class EveryTableKeyedByARunIsOnRecordTest {
             Map.entry("content_hash", "corpus"),
             Map.entry("superseded_by", "corpus"),
             Map.entry("detected_format", "corpus"),
+            Map.entry("code_set", "corpus"),
+            Map.entry("code_set_member", "corpus"),
             Map.entry("extraction_metric", "extraction"),
             Map.entry("extraction_cache_key", "extraction"),
             Map.entry("confidence_distribution", "extraction"),
@@ -118,7 +120,8 @@ class EveryTableKeyedByARunIsOnRecordTest {
 
     @Test
     @Story("The tables that grow with each piece of work are listed")
-    @DisplayName("The tables that keep rows by piece of work are the twenty-seven on record, each owned by the part of the code on record")
+    @Link(name = "ADR-284", url = Adr.CODE_IS_KEPT_IN_CODE_SETS_NAMED_FOR_THEIR_FOLDER, type = "adr")
+    @DisplayName("The tables that keep rows by piece of work are the twenty-nine on record, each owned by the part of the code on record")
     void theTablesKeyedByARunAreTheOnesOnRecord() throws IOException {
         Map<String, String> keyedByARun = new TreeMap<>();
         Matcher table = OWNED_TABLE.matcher(schema());
@@ -129,7 +132,7 @@ class EveryTableKeyedByARunIsOnRecordTest {
         }
 
         claim(
-                "the tables whose rows name the piece of work they were written under are the twenty-seven the"
+                "the tables whose rows name the piece of work they were written under are the twenty-nine the"
                         + " record lists, with their owners: a table added to them, or taken from them, grows"
                         + " or stops growing with every new piece of work, and the record must say so",
                 () -> assertThat(keyedByARun).isEqualTo(ON_RECORD));
