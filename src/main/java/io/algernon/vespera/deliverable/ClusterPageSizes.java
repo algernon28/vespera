@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -148,7 +149,7 @@ final class ClusterPageSizes {
     }
 
     private static long largerThan(long[] ascending, long mark) {
-        return java.util.Arrays.stream(ascending).filter(size -> size > mark).count();
+        return Arrays.stream(ascending).filter(size -> size > mark).count();
     }
 
     private static String row(String label, String value) {

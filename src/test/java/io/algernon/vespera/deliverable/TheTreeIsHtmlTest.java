@@ -238,7 +238,7 @@ class TheTreeIsHtmlTest {
     @DisplayName("On a tree whose group is split into pages, every link lands on its page, on a file inside the tree, or on another page of its group and an id on it")
     @Issue("571")
     @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
-    void everyLinkOfASplitClusterLandsOnAPageOfItsGroupAndAnIdOnIt(@TempDir Path base) throws IOException {
+    void everyLinkOfASplitClusterLandsOnASiblingPageAndAnIdOnIt(@TempDir Path base) throws IOException {
         byte[] firstDocument = "the first document".getBytes(StandardCharsets.UTF_8);
         byte[] secondDocument = "the second document".getBytes(StandardCharsets.UTF_8);
         byte[] thirdDocument = "the third document".getBytes(StandardCharsets.UTF_8);

@@ -10,6 +10,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -262,7 +263,7 @@ final class ClusterPage {
         String widest = "9".repeat(Integer.toString(entryCount + 1).length());
         String longestName = "index-" + widest + ".html";
         String widestNavigation = "<p class=\"pages\">Page " + widest + " of " + widest + ": "
-                + String.join(", ", java.util.Collections.nCopies(4, "<a href=\"./" + longestName + "\">previous</a>"))
+                + String.join(", ", Collections.nCopies(4, "<a href=\"./" + longestName + "\">previous</a>"))
                 + "</p>\n";
         long aroundEveryList = utf8(opening(recorded, doc)) + 2 * utf8(widestNavigation)
                 + utf8("<h2>" + MEMBERSHIP_HEADING + "</h2>\n") + utf8(LIST_CLOSING) + utf8(Html.tail());

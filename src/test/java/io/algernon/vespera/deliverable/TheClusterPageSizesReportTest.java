@@ -150,12 +150,12 @@ class TheClusterPageSizesReportTest {
         String report = Files.readString(base.resolve("split").resolve("work").resolve(THE_REPORT), StandardCharsets.UTF_8);
         long pagesWritten = everyPageOf(tree).size();
         long pagesLarger = everyPageOf(tree).stream().filter(page -> sizeOf(page) > A_CEILING).count();
-        long largestGroupsPages = drawn.stream().mapToLong(Drawn::pages).max().orElseThrow();
+        long largestClustersPages = drawn.stream().mapToLong(Drawn::pages).max().orElseThrow();
 
         claim(
                 "a ceiling of " + A_CEILING + " bytes splits the largest group alone, into pages none of which is larger"
                         + " than it, every entry being far smaller",
-                () -> assertThat(List.of(drawn.stream().filter(group -> group.pages() > 1).count(), pagesLarger))
+                () -> assertThat(List.of(drawn.stream().filter(cluster -> cluster.pages() > 1).count(), pagesLarger))
                         .containsExactly(1L, 0L));
         claim(
                 "the report states the ceiling, the sizes the groups' pages take written whole, the same as with no"
@@ -169,7 +169,7 @@ class TheClusterPageSizesReportTest {
                         new Row("Pages written", String.valueOf(pagesWritten)),
                         new Row("Pages larger than the ceiling", String.valueOf(pagesLarger))));
         claim(
-                "the largest ranks first with the " + largestGroupsPages + " pages it was written as, and every other of"
+                "the largest ranks first with the " + largestClustersPages + " pages it was written as, and every other of"
                         + " the ten with one",
                 () -> assertThat(rankedRowsOf(report)).containsExactlyElementsOf(theLargest(drawn)));
         claim(
@@ -318,8 +318,8 @@ class TheClusterPageSizesReportTest {
         ranked.sort(Comparator.comparingLong(Drawn::onePageSize).reversed());
         List<List<Long>> rows = new ArrayList<>();
         for (int rank = 1; rank <= Math.min(RANKED, ranked.size()); rank++) {
-            Drawn group = ranked.get(rank - 1);
-            rows.add(List.of((long) rank, group.onePageSize(), group.entries(), group.pages()));
+            Drawn cluster = ranked.get(rank - 1);
+            rows.add(List.of((long) rank, cluster.onePageSize(), cluster.entries(), cluster.pages()));
         }
         return rows;
     }
