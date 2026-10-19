@@ -252,7 +252,7 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
             <plugin>
-                <!-- Two jars from one build (ADR-285): default-jar, which the Boot plugin repackages, leaves the control panel out; a plain jar with classifier control-panel holds only it. -->
+                <!-- Two jars from one build (ADR-285): default-jar, which the Boot plugin repackages, leaves the control panel out; a plain jar with classifier control-panel holds only it, and its manifest names the entry point and the jar beside it (ADR-288). -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <executions>
@@ -275,6 +275,12 @@
                             <includes>
                                 <include>io/algernon/controlpanel/**</include>
                             </includes>
+                            <archive>
+                                <manifestEntries>
+                                    <Main-Class>io.algernon.controlpanel.ControlPanel</Main-Class>
+                                    <Vespera-Jar>${project.build.finalName}.jar</Vespera-Jar>
+                                </manifestEntries>
+                            </archive>
                         </configuration>
                     </execution>
                 </executions>

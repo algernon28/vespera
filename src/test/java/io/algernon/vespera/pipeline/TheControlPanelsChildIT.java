@@ -11,6 +11,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -19,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -43,6 +45,9 @@ import picocli.CommandLine;
  * through {@code VESPERA_WORKING_DIR}, because a child JVM on such a Windows receives its arguments through the ANSI
  * code page and would see each of the two as {@code ?} (ADR-278, What was measured). Where the native encoding is
  * UTF-8 already, as on Linux, the flags change nothing and this holds whatever they are.
+ *
+ * <p>And the control panel, started by the operator's {@code java -jar} on its own jar, finds the packaged jar beside
+ * its own and the {@code java} of the runtime running it, or refuses with one line where no jar is there (ADR-288).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -59,6 +64,22 @@ class TheControlPanelsChildIT {
 
     /** A working directory's name holding a Polish letter and a Chinese one, neither of them in windows-1252. */
     private static final String NAME_OUTSIDE_WINDOWS_1252 = "wd-ł-漢";
+
+    /** The control panel's jar, which the same build writes beside the packaged jar (ADR-285 §2). */
+    private static final Path CONTROL_PANEL_JAR = Path.of("target", "vespera-0.0.1-SNAPSHOT-control-panel.jar");
+
+    /** What the control panel prints, until its first screen, where it finds the jar beside its own (ADR-288 §4). */
+    private static final String WILL_START = "the control panel will start ";
+
+    /** What the control panel's refusal says before the path it looked at, which ends the line (ADR-288 §4). */
+    private static final String NO_JAR_BESIDE_IT =
+            "the control panel looks for the Vespera jar beside its own jar, and found none at ";
+
+    /** Variables a JVM announces on standard error as it starts, which would be lines the control panel did not write. */
+    private static final List<String> JVM_NOTICES = List.of("JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS");
+
+    /** The control panel's exit code where it finds no jar beside its own. */
+    private static final int REFUSED = 1;
 
     /** The whole of what a refused invocation prints: one line. */
     private static final int ONE_LINE = 1;
@@ -116,6 +137,82 @@ class TheControlPanelsChildIT {
                 () -> assertThat(lines.getFirst())
                         .startsWith("another Vespera invocation is already using the working directory")
                         .contains(workingDirectory.toString()));
+    }
+
+    @Test
+    @Issue("567")
+    @Link(name = "ADR-288", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_BESIDE_ITS_OWN_WITH_THE_JAVA_RUNNING_IT, type = "adr")
+    @Story("The operator starts the control panel with java -jar")
+    @DisplayName("Started with java -jar on its own jar, the control panel names the packaged jar beside it and the java that started it, and exits 0")
+    void theControlPanelStartedByJavaJarNamesTheJarBesideItAndItsOwnJava() throws Exception {
+        Path java = javaOfThisRuntime();
+        Printed printed = started(java, CONTROL_PANEL_JAR.toAbsolutePath());
+
+        claim("the control panel ends within " + EXIT_BOUND_SECONDS + " seconds",
+                () -> assertThat(printed.finished()).isTrue());
+        claim("with exit code 0", () -> assertThat(printed.exitCode()).isZero());
+        claim("writing nothing on standard error", () -> assertThat(printed.standardError()).isBlank());
+        claim("and one line on standard output, naming the packaged jar beside its own and the java of the runtime"
+                        + " that started it, both absolute",
+                () -> assertThat(printed.standardOutput().lines().filter(line -> !line.isBlank()).toList())
+                        .containsExactly(WILL_START + EXECUTABLE_JAR.toAbsolutePath() + " with " + java));
+    }
+
+    @Test
+    @Issue("567")
+    @Link(name = "ADR-288", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_BESIDE_ITS_OWN_WITH_THE_JAVA_RUNNING_IT, type = "adr")
+    @Story("The operator starts the control panel with java -jar")
+    @DisplayName("A copy of the control panel's jar alone in a folder refuses with one line naming where it looked for the packaged jar, and exits 1")
+    void theControlPanelWithNoJarBesideItRefusesWithOneLine(@TempDir Path temporary) throws Exception {
+        Path alone = Files.copy(CONTROL_PANEL_JAR, temporary.resolve(CONTROL_PANEL_JAR.getFileName()),
+                StandardCopyOption.COPY_ATTRIBUTES).toAbsolutePath();
+        Printed printed = started(javaOfThisRuntime(), alone);
+
+        claim("the control panel ends within " + EXIT_BOUND_SECONDS + " seconds",
+                () -> assertThat(printed.finished()).isTrue());
+        claim("with exit code 1, a refusal", () -> assertThat(printed.exitCode()).isEqualTo(REFUSED));
+        claim("writing nothing on standard output", () -> assertThat(printed.standardOutput()).isBlank());
+        claim("and one line on standard error, naming the packaged jar's path beside the copy, where it looked",
+                () -> assertThat(printed.standardError().lines().filter(line -> !line.isBlank()).toList())
+                        .containsExactly(NO_JAR_BESIDE_IT + alone.resolveSibling(EXECUTABLE_JAR.getFileName())));
+    }
+
+    /** What a process printed on each stream, whether it ended in time, and its exit code. */
+    private record Printed(boolean finished, int exitCode, String standardOutput, String standardError) {
+    }
+
+    /** {@code java -jar} on the jar, from the folder holding it, each stream read whole as UTF-8. */
+    private static Printed started(Path java, Path jar) throws Exception {
+        ProcessBuilder builder = new ProcessBuilder(java.toString(), "-jar", jar.toString())
+                .directory(jar.getParent().toFile());
+        JVM_NOTICES.forEach(builder.environment()::remove);
+        Process process = builder.start();
+        CompletableFuture<byte[]> output = readWhole(process.getInputStream());
+        CompletableFuture<byte[]> error = readWhole(process.getErrorStream());
+        boolean finished = process.waitFor(EXIT_BOUND_SECONDS, TimeUnit.SECONDS);
+        if (!finished) {
+            process.destroyForcibly();
+            process.waitFor();
+        }
+        return new Printed(finished, process.exitValue(),
+                new String(output.get(EXIT_BOUND_SECONDS, TimeUnit.SECONDS), StandardCharsets.UTF_8),
+                new String(error.get(EXIT_BOUND_SECONDS, TimeUnit.SECONDS), StandardCharsets.UTF_8));
+    }
+
+    private static CompletableFuture<byte[]> readWhole(InputStream stream) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return stream.readAllBytes();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+    }
+
+    /** {@code bin/java} of the runtime running the tests, as the control panel names its own (ADR-288 §3). */
+    private static Path javaOfThisRuntime() {
+        String java = System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java";
+        return Path.of(System.getProperty("java.home"), "bin", java).toAbsolutePath();
     }
 
     /**
