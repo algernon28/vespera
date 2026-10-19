@@ -531,17 +531,24 @@ function readmeSection(heading, name) {
     if (!portsSentence) wrong.push("it names no ports");
     else if (named.join() !== published.join()) wrong.push(`it names ports ${named.join(", ")}; ${COMPOSE} publishes ${published.join(", ")}`);
 
-    // The generation model, against the default Spring AI is configured with; and nothing pulls it.
-    const model = /^\s+model: (\S+)\s*$/m.exec(application);
+    // The generation and embedding models, against the defaults Spring AI is configured with
+    // (ADR-114, ADR-298); each is pulled, and nothing else is.
+    const optionsModel = (kind) => new RegExp(`^\\s+${kind}:\\s*\\n\\s+options:\\s*\\n(?:\\s*#[^\\n]*\\n)*\\s+model: (\\S+)\\s*$`, "m").exec(application);
+    const models = { chat: optionsModel("chat"), embedding: optionsModel("embedding") };
     const pulled = [...section.matchAll(/ollama pull (\S+)$/gm)].map((m) => m[1]).filter((p) => !p.startsWith("<"));
-    const prose = /That is `([^`]+)`, unless you set `generationModel`/.exec(section);
-    if (!model) wrong.push(`could not read the generation model from ${APPLICATION_YAML}`);
-    else {
-      if (!prose) wrong.push("it does not say which model the connecting text is written with");
-      else if (prose[1] !== model[1]) wrong.push(`it says ${prose[1]}; ${APPLICATION_YAML} says ${model[1]}`);
-      if (pulled.length === 0) wrong.push("it pulls no generation model");
-      for (const p of pulled) if (p !== model[1]) wrong.push(`it pulls ${p}; ${APPLICATION_YAML} generates with ${model[1]}`);
+    const proses = {
+      chat: [/That is `([^`]+)`, unless you set `generationModel`/.exec(section), "the connecting text is written with"],
+      embedding: [/That is `([^`]+)`, unless you set `embeddingModel`/.exec(section), "the documents are scored under"],
+    };
+    for (const [kind, m] of Object.entries(models)) {
+      const [prose, what] = proses[kind];
+      if (!m) wrong.push(`could not read the ${kind} model from ${APPLICATION_YAML}`);
+      else if (!prose) wrong.push(`it does not say which model ${what}`);
+      else if (prose[1] !== m[1]) wrong.push(`it says ${prose[1]}; ${APPLICATION_YAML}'s ${kind} model is ${m[1]}`);
+      if (m && !pulled.includes(m[1])) wrong.push(`it does not pull ${m[1]}, the ${kind} model`);
     }
+    const configured = Object.values(models).filter(Boolean).map((m) => m[1]);
+    for (const p of pulled) if (!configured.includes(p)) wrong.push(`it pulls ${p}; ${APPLICATION_YAML} names ${configured.join(" and ")}`);
     if (/pull-model-strategy/.test(application) && /does not fetch them for you/.test(section)) {
       wrong.push(`it says Vespera does not fetch the models, and ${APPLICATION_YAML} configures a pull strategy`);
     }
@@ -554,7 +561,7 @@ function readmeSection(heading, name) {
     else if (home[1] !== namedHome[1]) wrong.push(`it says ${namedHome[1]}; ${APPLICATION_YAML} defaults to ${home[1]}`);
 
     if (wrong.length) fail(NAME, wrong.join("; "));
-    else pass(NAME, `${jar}; ${services.join(", ")} from ${COMPOSE} on ${published.join(", ")}; built from ${context[1]}; ${model[1]}`);
+    else pass(NAME, `${jar}; ${services.join(", ")} from ${COMPOSE} on ${published.join(", ")}; built from ${context[1]}; ${configured.join(", ")}`);
   }
 }
 

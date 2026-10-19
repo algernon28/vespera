@@ -91,7 +91,8 @@ class NextActionTest {
 
     @Test
     @Story("The next action names every value the next invocation needs, so no invocation is spent discovering one")
-    @DisplayName("With nothing set, the line also names the two values invocation 2 needs")
+    @DisplayName("With nothing set, the line also names the value invocation 2 needs, and not the embedding model")
+    @Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
     void withNothingSetTheLineNamesEveryValueTheNextInvocationNeeds() {
         String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
@@ -101,9 +102,9 @@ class NextActionTest {
                         + " the number is read off",
                 () -> assertThat(line).contains("boilerplateDocumentFrequencyFloor"));
         claim(
-                "and the embedding model, which needs no measurement at all -- naming a model is a choice"
-                        + " from outside, available on day one like the seed folder",
-                () -> assertThat(line).contains("embeddingModel"));
+                "and the embedding model is not: the application ships with one, so an operator who names"
+                        + " none is not asked for one, and naming another is an override rather than a stop",
+                () -> assertThat(line).doesNotContain("embeddingModel"));
         claim(
                 "and the relevance threshold is not named, because nothing an operator could read it off"
                         + " exists yet: the labelling report is written by the invocation these values"
@@ -113,14 +114,15 @@ class NextActionTest {
 
     @Test
     @Story("With the run's own values answered, the next act is the operator's own: labelling")
-    @DisplayName("With the three run values set and nothing answered, the next action is to label and ingest")
+    @DisplayName("With the two run values set and nothing answered, the next action is to label and ingest")
+    @Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
     void withTheRunValuesSetTheNextActionIsToLabel() {
         String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
                 "the line says what is set, so an operator who has forgotten what they wrote is not sent"
                         + " back to the file to find out",
-                () -> assertThat(line).contains("seedFolder").contains("embeddingModel"));
+                () -> assertThat(line).contains("seedFolder and boilerplateDocumentFrequencyFloor are set"));
         claim(
                 "and the next action is the label file the invocation just wrote, named so it can be"
                         + " found without reading this page's own report first",
@@ -180,7 +182,8 @@ class NextActionTest {
 
     @Test
     @Story("An operator who took step zero is not told their answer is missing")
-    @DisplayName("With only the seed folder set, the line says so and names the two values still wanted")
+    @DisplayName("With only the seed folder set, the line says so and names the one value still wanted")
+    @Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
     void withOnlyTheSeedFolderSetTheLineCreditsIt() {
         String line = NextAction.line(onlyTheSeedFolderSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
@@ -190,10 +193,11 @@ class NextActionTest {
                         + " anything, and telling them nothing is answered is false",
                 () -> assertThat(line).contains("seedFolder is set"));
         claim(
-                "the two values invocation 2 still wants are named",
+                "the one value invocation 2 still wants is named, and the embedding model is not among them:"
+                        + " the application ships with one",
                 () -> assertThat(line)
                         .contains("boilerplateDocumentFrequencyFloor")
-                        .contains("embeddingModel"));
+                        .doesNotContain("embeddingModel"));
         claim(
                 "the threshold is absent from both halves, not merely from the action: listing it as"
                         + " unset invites an operator to go and set it, which is the fifth invocation"
@@ -255,23 +259,22 @@ class NextActionTest {
 
     @Test
     @Story("A threshold nobody can parse is not a threshold, and the line says so")
-    @DisplayName("A mistyped floor is still reported when another value is unanswered too")
+    @DisplayName("A mistyped floor beside an answered seed folder is reported, and nothing else is asked for")
     @Issue("203")
     @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
-    void aMistypedFloorIsReportedEvenWhenSomethingElseIsUnanswered() {
-        Profile mistypedAndIncomplete = ProfileFixture.profile()
+    @Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
+    void aMistypedFloorIsReportedAndNothingElseIsAskedFor() {
+        Profile mistypedBesideASeedFolder = ProfileFixture.profile()
                 .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
                 .boilerplateDocumentFrequencyFloor(A_MISTYPED_FLOOR, RECORDED_BY_THE_OPERATOR)
                 .build();
 
         String line = NextAction.line(
-                mistypedAndIncomplete, NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+                mistypedBesideASeedFolder, NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
-                "the mistyped value is quoted back even though another key is unanswered: this is the"
-                        + " state where the operator is least likely to notice, because the line has other"
-                        + " things to talk about, and it is the state where the value has already been"
-                        + " ignored once",
+                "the mistyped value is quoted back beside a key that is answered: the line has the seed"
+                        + " folder to credit, and the value it cannot use has already been ignored once",
                 () -> assertThat(line).contains(A_MISTYPED_FLOOR));
         claim(
                 "and the key is not credited as answered anywhere in the sentence -- a line that said it"
@@ -285,9 +288,9 @@ class NextActionTest {
                         + " is how a person concludes the tool is broken rather than their value",
                 () -> assertThat(line).doesNotContain("boilerplateDocumentFrequencyFloor is not"));
         claim(
-                "and the value still unanswered is named too, so one invocation is enough to learn about"
-                        + " both rather than one per mistake",
-                () -> assertThat(line).contains("embeddingModel"));
+                "and no other value is asked for: the embedding model is the only other key the next"
+                        + " invocation reads before scoring, and the application ships with one",
+                () -> assertThat(line).doesNotContain("embeddingModel"));
     }
 
     @Test
@@ -782,7 +785,6 @@ class NextActionTest {
         return ProfileFixture.profile()
                 .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
                 .boilerplateDocumentFrequencyFloor(THE_BOILERPLATE_FLOOR, RECORDED_BY_THE_OPERATOR)
-                .embeddingModel(THE_EMBEDDING_MODEL, RECORDED_BY_THE_OPERATOR)
                 .build();
     }
 

@@ -33,14 +33,14 @@ Getting from a folder of documents to a curated archive takes **five invocations
 | | You set | You run | It does |
 |---|---|---|---|
 | **1** | — | `vespera run <root>` | walks the archive, extracts the text, takes the census. Stops before deduplication, because the boilerplate floor is read off what this invocation just measured |
-| **2** | `boilerplateDocumentFrequencyFloor`, `embeddingModel` | `vespera run` | deduplicates, reads your seed folder, scores every survivor against it, groups them, and writes you sixty documents to judge. **Removes nothing** |
+| **2** | `boilerplateDocumentFrequencyFloor` | `vespera run` | deduplicates, reads your seed folder, scores every survivor against it, groups them, and writes you sixty documents to judge. **Removes nothing** |
 | **3** | sixty answers in `relevance-labels.yaml` | `vespera label` | records your answers. They belong to the documents, not to the run, so they survive everything afterwards |
 | **4** | `relevanceScoreFloor` | `vespera run` | applies your threshold. This is the first invocation that removes anything for being irrelevant |
 | **5** | `arrangementApproved` | `vespera run` | writes the connecting text over the arrangement you approved, and leaves the finished tree of HTML pages, with a copy of every surviving document, in your working directory |
 
 **You will be told which value is missing, every time.** You do not need this table in front of you and you do not need to know which stage you are at — read the last line of the output and it names what to set next.
 
-**Six is what you get if you set one value per invocation.** All three of invocation 2's prerequisites are settable as soon as invocation 1 finishes, so setting them together is what makes the path five rather than six or seven.
+**Six is what you get if you set one value per invocation.** Both of invocation 2's prerequisites, the floor and `seedFolder`, are settable as soon as invocation 1 finishes, so setting them together is what makes the path five rather than six.
 
 ## What you have to decide, and where to read it
 
@@ -50,7 +50,7 @@ Vespera writes reports beside the database. Each one measures something; none of
 |---|---|---|
 | `seedFolder` | your own knowledge of the archive | — |
 | `boilerplateDocumentFrequencyFloor` | how many documents share the same passages | `document-frequency.html` |
-| `embeddingModel` | whichever model you can serve locally | — |
+| `embeddingModel` | whichever model you can serve locally, if you want one other than `bge-m3:latest` | — |
 | `relevanceScoreFloor` | what each possible cut would cost you, in documents | `relevance-labelling.html`, `cluster-sizes.html`, `seed-corpus-comparison.html` |
 | `degenerateOutputConfidenceFloor` | how well the text extraction went | `confidence-distribution.html` |
 | `degenerateOutputWordFloor` | how many words each kind of file held once its text was extracted, and what each floor would remove | `word-count-distribution.html` |
@@ -256,11 +256,11 @@ If a sidecar stops on its own, Docker starts it again, and it does the same afte
 
 **Give Ollama its models.** Ollama serves only the models it has been given, and Vespera does not fetch them for you:
 
-- The embedding model you name in `embeddingModel` has to be there before invocation 2.
+- The embedding model has to be there before invocation 2. That is `bge-m3:latest`, unless you set `embeddingModel`. If Ollama does not serve it, invocation 2 stops at scoring with a line naming it.
 - The model the connecting text is written with has to be there before invocation 5. That is `qwen3:8b`, unless you set `generationModel`.
 
 ```
-docker compose -p vespera exec ollama ollama pull <embeddingModel>
+docker compose -p vespera exec ollama ollama pull bge-m3:latest
 docker compose -p vespera exec ollama ollama pull qwen3:8b
 ```
 

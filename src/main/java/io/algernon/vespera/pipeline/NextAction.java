@@ -633,11 +633,13 @@ class NextAction {
      * The clause naming the model the next invocation will generate under (ADR-114), on the one line
      * where that is about to happen.
      *
-     * <p>It is here because the generation model is the only thing about the next invocation the
-     * operator is never asked to supply: every other value this line names is one they write, and a
-     * default they never chose would otherwise reach them only afterwards, as provenance on a
-     * deliverable already written. Naming it is disclosure before the call is spent, and it is still a
-     * value rather than a stage, which is what ADR-098 asks of everything on this line.
+     * <p>It is here because the generation model is the one default this line names before it is used:
+     * every other value this line names is one the operator writes, and a default they never chose
+     * would otherwise reach them only afterwards, as provenance on a deliverable already written.
+     * Naming it is disclosure before the call is spent, and it is still a value rather than a stage,
+     * which is what ADR-098 asks of everything on this line. The embedding model is never asked for
+     * either (ADR-298 section 5); whether this line names it is left open by ADR-298's "What this
+     * does not decide".
      *
      * <p>Empty where nothing resolved, so a misconfigured default costs this line one clause rather
      * than replacing a successful invocation's last words with a stack trace.
@@ -709,8 +711,7 @@ class NextAction {
                 new RunValue("seedFolder", profile.seedFolder(),
                         "the folder of documents you already know are relevant"),
                 new RunValue("boilerplateDocumentFrequencyFloor", profile.boilerplateDocumentFrequencyFloor(),
-                        "read off document-frequency.html, which stage 3 writes"),
-                new RunValue("embeddingModel", profile.embeddingModel(), "which model turns scoring on"));
+                        "read off document-frequency.html, which stage 3 writes"));
     }
 
     /** The answered keys, named as the profile names them. */
