@@ -7,6 +7,7 @@ import io.algernon.vespera.embedding.RelevanceScoring;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.extraction.ExtractionMetrics;
+import io.algernon.vespera.extraction.WordCountDistribution;
 import io.algernon.vespera.ledger.KeysetPages;
 import io.algernon.vespera.ledger.Occurrences;
 import io.qameta.allure.Epic;
@@ -50,7 +51,8 @@ class TheReadsByKeyTakeTheLedgersPageTest {
                 Occurrences.class,
                 ExtractionMetrics.class,
                 Class.forName("io.algernon.vespera.extraction.ChunkCache"),
-                ConfidenceDistribution.class);
+                ConfidenceDistribution.class,
+                WordCountDistribution.class);
 
         List<String> ownPageSizes = new ArrayList<>();
         for (Class<?> read : readsByKey) {

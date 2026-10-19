@@ -92,9 +92,12 @@ class ProgressPageRunsInvocationTest {
     /** The column of the tab that says whether this invocation arrived at the run, counted from nought. */
     private static final int THIS_INVOCATION = 5;
 
-    /** The nine blocking kinds, as the tab heads its columns, in the vocabulary's order (ADR-271 §1 adds translation-of). */
+    /**
+     * The ten blocking kinds, as the tab heads its columns, in the vocabulary's order (ADR-271 §1 adds translation-of,
+     * ADR-277 §5 code).
+     */
     private static final List<String> BLOCKING = List.of(
-            "broken", "duplicate-of", "superseded-by", "out-of-scope",
+            "broken", "duplicate-of", "superseded-by", "out-of-scope", "code",
             "extraction-failed", "degenerate-output", "redundant-with", "translation-of", "below-threshold");
 
     /**
@@ -171,7 +174,7 @@ class ProgressPageRunsInvocationTest {
         String header = ReportPage.headerRow(headers());
         claim(
                 "its table's header row is the walk, the stage, the run's ordinal, the steps finished, the state, whether"
-                        + " this invocation arrived at it, and the nine kinds",
+                        + " this invocation arrived at it, and the ten kinds",
                 () -> assertThat(made.lastPage()).contains(header));
         List<List<String>> expected = new ArrayList<>();
         for (Run run : made.afterSecond()) {

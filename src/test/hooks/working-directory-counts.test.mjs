@@ -9,6 +9,11 @@
 // the system temp folder: a vespera.db made from src/main/resources/schema.sql, filled with rows whose
 // every text and path column, and some of whose file and folder names, carry MARKER. Nothing here names
 // a path of the operator's. Until the script is built every test fails, saying so.
+//
+// docs/adr/0215 section 7: no agent writes into a .claude folder, so a change to the script is a draft in
+// docs/agents/guard-draft, laid out as .claude is, until the operator installs it and removes the draft in
+// the same change. The script held here is VESPERA_GUARD_DRAFT's when that names a folder that holds one,
+// else the draft's while the draft is there, else this checkout's installed one.
 
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
@@ -26,7 +31,15 @@ const { DatabaseSync } = await import("node:sqlite");
 const fwd = (p) => p.replace(/\\/g, "/");
 const windows = process.platform === "win32";
 const repo = fwd(resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", ".."));
-const SCRIPT = `${repo}/.claude/hooks/working-directory-counts.mjs`;
+
+// The folder each of the guard's files is held from: VESPERA_GUARD_DRAFT's, then the draft's, then the
+// installed .claude, each only where it holds that file. A named draft that is not there stops the run.
+const DRAFT = process.env.VESPERA_GUARD_DRAFT ? fwd(resolve(process.env.VESPERA_GUARD_DRAFT)) : null;
+if (DRAFT && !existsSync(DRAFT)) throw new Error(`VESPERA_GUARD_DRAFT names ${DRAFT}, which is not there`);
+const sources = [DRAFT, `${repo}/docs/agents/guard-draft`, `${repo}/.claude`].filter(Boolean);
+const held = (file) => `${sources.find((folder) => existsSync(`${folder}/${file}`)) ?? `${repo}/.claude`}/${file}`;
+
+const SCRIPT = held("hooks/working-directory-counts.mjs");
 const SCHEMA = readFileSync(`${repo}/src/main/resources/schema.sql`, "utf8");
 const JAVA = `${repo}/src/main/java/io/algernon/vespera`;
 

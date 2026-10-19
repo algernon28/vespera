@@ -72,7 +72,7 @@ class LettersOutsideTheBasicMultilingualPlaneAreAlphanumericTest {
         RunId run = aRun("mathematical-letters");
 
         DegeneracyVerdict verdict =
-                metrics().writeAndJudge(occurrence, run, converted(A_BODY_OF_MATHEMATICAL_LETTERS), null);
+                metrics().writeAndJudge(occurrence, run, converted(A_BODY_OF_MATHEMATICAL_LETTERS), null, null);
 
         claim(
                 "the conversion has usable content: its text is " + FOUR_LETTERS + " letters a person can read",
@@ -93,7 +93,7 @@ class LettersOutsideTheBasicMultilingualPlaneAreAlphanumericTest {
     @DisplayName("A conversion whose only text is two rare ideographs is not judged to have no usable content")
     void aBodyOfIdeographsOfExtensionBIsNotDegenerate() {
         DegeneracyVerdict verdict = metrics()
-                .writeAndJudge(anOccurrence("ideographs.pdf"), aRun("ideographs"), converted(A_BODY_OF_IDEOGRAPHS), null);
+                .writeAndJudge(anOccurrence("ideographs.pdf"), aRun("ideographs"), converted(A_BODY_OF_IDEOGRAPHS), null, null);
 
         claim(
                 "the conversion has usable content: its text is two ideographs, each a letter",

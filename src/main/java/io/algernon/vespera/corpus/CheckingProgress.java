@@ -11,6 +11,9 @@ public interface CheckingProgress {
     /** A text file whose lines could not be read to see whether it is a log, so it is not one. */
     void timestampsUnreadable(OccurrenceId occurrence, Exception cause);
 
+    /** A text file that could not be read to see whether it is code, so it is not. */
+    default void codeUnreadable(OccurrenceId occurrence, Exception cause) {}
+
     /**
      * Called before the {@code broken} verdict is written for a survivor whose size, leading bytes,
      * zip container or PDF trailer the file system would not hand over, with the reason the verdict

@@ -226,7 +226,7 @@ class StageOneHoldsBoundedMemoryTest {
         TextSizeLimits unlimited = new TextSizeLimits(Integer.MAX_VALUE, Long.MAX_VALUE, (file, subtype, size) -> true);
 
         new BrokenOrOutOfScope(counting, new DetectedFormats(jdbcTemplate), unlimited)
-                .verdictSurvivors(corpus.run(), root, null, List.of(), progress);
+                .verdictSurvivors(corpus.run(), root, null, List.of(), List.of(), progress);
 
         claim(
                 "each of the " + SURVIVORS + " survivors was checked, so the pass ran over all of them",

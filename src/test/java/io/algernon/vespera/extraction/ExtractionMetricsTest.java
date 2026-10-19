@@ -60,7 +60,7 @@ class ExtractionMetricsTest {
                 null,
                 "{\"document\":{\"json_content\":{\"texts\":[{\"text\":\"real content here\"}]}}}");
 
-        metrics.writeAndJudge(occurrenceId, runId, response, null);
+        metrics.writeAndJudge(occurrenceId, runId, response, null, null);
 
         Map<String, Object> row = rowFor(occurrenceId, runId);
         claim(
@@ -84,7 +84,7 @@ class ExtractionMetricsTest {
         DoclingResponse response = new DoclingResponse(
                 ConversionStatus.SUCCESS, List.of(), 1.0, null, "{\"document\":{\"json_content\":{\"texts\":[]}}}");
 
-        DegeneracyVerdict verdict = metrics.writeAndJudge(occurrenceId, runId, response, null);
+        DegeneracyVerdict verdict = metrics.writeAndJudge(occurrenceId, runId, response, null, null);
 
         claim("empty extracted text trips tier 1", () -> assertThat(verdict.degenerate()).isTrue());
     }

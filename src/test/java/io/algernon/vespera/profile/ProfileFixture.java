@@ -35,6 +35,7 @@ public final class ProfileFixture {
 
     private TextValue seedFolder = TextValue.unset();
     private NumericValue degenerateOutputConfidenceFloor = NumericValue.unset();
+    private NumericValue degenerateOutputWordFloor = NumericValue.unset();
     private NumericValue boilerplateDocumentFrequencyFloor = NumericValue.unset();
     private TextValue embeddingModel = TextValue.unset();
     private NumericValue relevanceScoreFloor = NumericValue.unset();
@@ -46,6 +47,8 @@ public final class ProfileFixture {
     private NumericValue logTimestampShareFloor = NumericValue.unset();
 
     private NumericValue extractionAttempt = NumericValue.unset();
+
+    private NameEndingsValue codeNameEndings = NameEndingsValue.unset();
 
     private NameEndingsValue outOfScopeNameEndings = NameEndingsValue.unset();
 
@@ -66,6 +69,7 @@ public final class ProfileFixture {
         ProfileFixture fixture = new ProfileFixture();
         fixture.seedFolder = existing.seedFolder();
         fixture.degenerateOutputConfidenceFloor = existing.degenerateOutputConfidenceFloor();
+        fixture.degenerateOutputWordFloor = existing.degenerateOutputWordFloor();
         fixture.boilerplateDocumentFrequencyFloor = existing.boilerplateDocumentFrequencyFloor();
         fixture.embeddingModel = existing.embeddingModel();
         fixture.relevanceScoreFloor = existing.relevanceScoreFloor();
@@ -74,6 +78,7 @@ public final class ProfileFixture {
         fixture.generationContextWindow = existing.generationContextWindow();
         fixture.logTimestampShareFloor = existing.logTimestampShareFloor();
         fixture.extractionAttempt = existing.extractionAttempt();
+        fixture.codeNameEndings = existing.codeNameEndings();
         fixture.outOfScopeNameEndings = existing.outOfScopeNameEndings();
         fixture.translationSimilarityFloor = existing.translationSimilarityFloor();
         fixture.preferredLanguages = existing.preferredLanguages();
@@ -112,6 +117,16 @@ public final class ProfileFixture {
 
     public ProfileFixture degenerateOutputConfidenceFloor(NumericValue value) {
         this.degenerateOutputConfidenceFloor = value == null ? NumericValue.unset() : value;
+        return this;
+    }
+
+    public ProfileFixture degenerateOutputWordFloor(String value, String provenance) {
+        return degenerateOutputWordFloor(aNumber(value, provenance));
+    }
+
+    /** Stage 2's word floor (ADR-282): fewer words than it is {@code degenerate-output}. */
+    public ProfileFixture degenerateOutputWordFloor(NumericValue value) {
+        this.degenerateOutputWordFloor = value == null ? NumericValue.unset() : value;
         return this;
     }
 
@@ -189,6 +204,12 @@ public final class ProfileFixture {
         return this;
     }
 
+    /** Stage 1's list of name endings kept as code (ADR-277 §2), written as one line. */
+    public ProfileFixture codeNameEndings(String value, String provenance) {
+        this.codeNameEndings = new NameEndingsValue(value, provenance, null);
+        return this;
+    }
+
     /** Stage 1's list of name endings left out (ADR-256), written as one line. */
     public ProfileFixture outOfScopeNameEndings(String value, String provenance) {
         this.outOfScopeNameEndings = new NameEndingsValue(value, provenance, null);
@@ -212,6 +233,7 @@ public final class ProfileFixture {
         return new Profile(
                 seedFolder,
                 degenerateOutputConfidenceFloor,
+                degenerateOutputWordFloor,
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
                 relevanceScoreFloor,
@@ -220,6 +242,7 @@ public final class ProfileFixture {
                 generationContextWindow,
                 logTimestampShareFloor,
                 extractionAttempt,
+                codeNameEndings,
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages);

@@ -581,6 +581,7 @@ class OccurrenceJudgeTest {
                     new ExtractionMetrics(jdbcTemplate, new LanguageDetection()),
                     new FailuresInARow(ControlConversion.never()),
                     occurrences.run(),
+                    null,
                     null);
         }
 

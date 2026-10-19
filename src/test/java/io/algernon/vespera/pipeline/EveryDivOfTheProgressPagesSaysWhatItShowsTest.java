@@ -50,6 +50,7 @@ import org.springframework.batch.core.step.StepExecution;
 @Epic("Pipeline")
 @Feature("The progress page")
 @Link(name = "ADR-275", url = Adr.EVERY_DIV_SAYS_ON_HOVER_WHAT_IT_SHOWS_AND_EVERY_STEP_WHAT_IT_DOES, type = "adr")
+@Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
 class EveryDivOfTheProgressPagesSaysWhatItShowsTest {
 
     /** The four tabs of an invocation of the run command. */
@@ -61,7 +62,7 @@ class EveryDivOfTheProgressPagesSaysWhatItShowsTest {
 
     static {
         KINDS_OF_EACH_STEP_THAT_REMOVES.put(
-                StepNames.BYTE_LEVEL_REDUCTION, List.of("broken", "duplicate-of", "superseded-by", "out-of-scope"));
+                StepNames.BYTE_LEVEL_REDUCTION, List.of("broken", "duplicate-of", "superseded-by", "out-of-scope", "code"));
         KINDS_OF_EACH_STEP_THAT_REMOVES.put(StepNames.EXTRACTION, List.of("extraction-failed", "degenerate-output"));
         KINDS_OF_EACH_STEP_THAT_REMOVES.put(StepNames.CONTENT_REDUNDANCY, List.of("redundant-with"));
         KINDS_OF_EACH_STEP_THAT_REMOVES.put(StepNames.TRANSLATION, List.of("translation-of"));

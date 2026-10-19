@@ -11,6 +11,12 @@ import java.util.Map;
  * lists (ADR-256). {@code byTimestampBand} counts the text files
  * of ten or more non-blank lines by their timestamped share, ten percent to a band, the last band being
  * 90% to 100%; {@code fewerThanTenLines} counts the rest.
+ *
+ * <p>{@code code} counts the files kept as code (ADR-277), of which {@code codeByEnding} were kept for the ending of
+ * their name and {@code codeByMark} for a documentation generator's mark. {@code codeEndingCounts} and
+ * {@code codeGeneratorCounts} count them by the listed ending and by the generator named, and
+ * {@code textEndingCounts} counts every file detected as text or as of no known kind, whatever became of it, by the
+ * ending of its name, {@link #NO_ENDING} where it has none.
  */
 public record FormatMix(
         Map<DetectedFormat, Integer> byFormat,
@@ -21,7 +27,16 @@ public record FormatMix(
         int tooLarge,
         int leftOutByName,
         int[] byTimestampBand,
-        int fewerThanTenLines) {
+        int fewerThanTenLines,
+        int code,
+        int codeByEnding,
+        int codeByMark,
+        Map<String, Integer> codeEndingCounts,
+        Map<String, Integer> codeGeneratorCounts,
+        Map<String, Integer> textEndingCounts) {
+
+    /** How a name with no ending is counted among the endings of text (ADR-277 section 7). */
+    public static final String NO_ENDING = "no ending";
 
     /** The timestamp bands, one per tenth of the share. */
     public static final int TIMESTAMP_BANDS = 10;

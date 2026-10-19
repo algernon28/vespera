@@ -75,7 +75,7 @@ class TextOnlyInPageHeadersAndFootersIsDegenerateTest {
         OccurrenceId occurrence = anOccurrence("headers-and-footers.pdf");
         RunId run = aRun("headers-and-footers");
 
-        DegeneracyVerdict verdict = metrics().writeAndJudge(occurrence, run, converted(A_PAGE_HEADER_AND_A_PAGE_FOOTER), null);
+        DegeneracyVerdict verdict = metrics().writeAndJudge(occurrence, run, converted(A_PAGE_HEADER_AND_A_PAGE_FOOTER), null, null);
 
         claim(
                 "the conversion is judged to have no usable content: nothing of it is text that would be cut"
@@ -101,7 +101,7 @@ class TextOnlyInPageHeadersAndFootersIsDegenerateTest {
     @DisplayName("A conversion with a page header and, outside it, punctuation only is judged the same way")
     void aPageHeaderBesideABodyOfPunctuationIsDegenerate() {
         DegeneracyVerdict verdict = metrics()
-                .writeAndJudge(anOccurrence("header-and-rule.pdf"), aRun("header-and-rule"), converted(A_PAGE_HEADER_AND_A_RULE), null);
+                .writeAndJudge(anOccurrence("header-and-rule.pdf"), aRun("header-and-rule"), converted(A_PAGE_HEADER_AND_A_RULE), null, null);
 
         claim(
                 "the body holds no letter and no digit, and the header's do not count for it",
@@ -114,7 +114,7 @@ class TextOnlyInPageHeadersAndFootersIsDegenerateTest {
     @DisplayName("A conversion with a page header and a paragraph is not judged to have no usable content")
     void aPageHeaderBesideAParagraphIsNotDegenerate() {
         DegeneracyVerdict verdict = metrics()
-                .writeAndJudge(anOccurrence("header-and-body.pdf"), aRun("header-and-body"), converted(A_PAGE_HEADER_AND_A_PARAGRAPH), null);
+                .writeAndJudge(anOccurrence("header-and-body.pdf"), aRun("header-and-body"), converted(A_PAGE_HEADER_AND_A_PARAGRAPH), null, null);
 
         claim("the paragraph is text outside the page header", () -> assertThat(verdict.degenerate()).isFalse());
     }
@@ -124,7 +124,7 @@ class TextOnlyInPageHeadersAndFootersIsDegenerateTest {
     @DisplayName("A conversion with no text at all is judged to have no usable content for the reason it always was")
     void noTextAtAllKeepsItsReason() {
         DegeneracyVerdict verdict =
-                metrics().writeAndJudge(anOccurrence("no-text.pdf"), aRun("no-text"), converted(NO_TEXT_AT_ALL), null);
+                metrics().writeAndJudge(anOccurrence("no-text.pdf"), aRun("no-text"), converted(NO_TEXT_AT_ALL), null, null);
 
         claim(
                 "no text anywhere is not text in page headers and footers, and is not said to be",
@@ -147,13 +147,13 @@ class TextOnlyInPageHeadersAndFootersIsDegenerateTest {
                         anOccurrence("low-confidence-headers.pdf"),
                         aRun("low-confidence-headers"),
                         convertedWithLowConfidence(A_PAGE_HEADER_AND_A_PAGE_FOOTER),
-                        A_SET_CONFIDENCE_FLOOR);
+                        A_SET_CONFIDENCE_FLOOR, null);
         DegeneracyVerdict ofABody = metrics()
                 .writeAndJudge(
                         anOccurrence("low-confidence-body.pdf"),
                         aRun("low-confidence-body"),
                         convertedWithLowConfidence(A_PAGE_HEADER_AND_A_PARAGRAPH),
-                        A_SET_CONFIDENCE_FLOOR);
+                        A_SET_CONFIDENCE_FLOOR, null);
 
         claim(
                 "the floor of " + A_SET_CONFIDENCE_FLOOR + " is in force: a conversion with a paragraph and a"

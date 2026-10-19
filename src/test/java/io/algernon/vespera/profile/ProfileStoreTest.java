@@ -163,6 +163,9 @@ class ProfileStoreTest {
             degenerateOutputConfidenceFloor:
               value: "0.51"
               provenance: "read off the confidence distribution"
+            degenerateOutputWordFloor:
+              value: "6"
+              provenance: "read off the word counts"
             boilerplateDocumentFrequencyFloor:
               value: "0.52"
               provenance: "read off the document-frequency table"
@@ -187,6 +190,9 @@ class ProfileStoreTest {
             extractionAttempt:
               value: "3"
               provenance: "the converter was busy twice"
+            codeNameEndings:
+              value: ".C .Java"
+              provenance: "read off the format mix"
             outOfScopeNameEndings:
               value: ".P3A .DGN"
               provenance: "read off the format mix"
@@ -203,6 +209,7 @@ class ProfileStoreTest {
     @DisplayName("A file answering every key loads with every answer on the key that carried it")
     @Issue("197")
     @Link(name = "ADR-119", url = Adr.PROFILE_HAS_ONE_CONSTRUCTOR, type = "adr")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
     void everyAnswerLandsOnTheKeyThatCarriedIt(@TempDir Path workingDirectory) throws IOException {
         Files.writeString(workingDirectory.resolve("profile.yaml"), EVERY_KEY_ANSWERED);
 
@@ -226,6 +233,12 @@ class ProfileStoreTest {
         claim(
                 "the attempt carries its own answer",
                 () -> assertThat(loaded.extractionAttempt().value()).isEqualTo("3"));
+        claim(
+                "and so does the word floor, on its own key and not the confidence floor's beside it",
+                () -> assertThat(loaded.degenerateOutputWordFloor().value()).isEqualTo("6"));
+        claim(
+                "the endings kept as code carry theirs, apart from the endings left out beside them",
+                () -> assertThat(loaded.codeNameEndings().value()).isEqualTo(".C .Java"));
         claim(
                 "and so do the name endings and the key before the last, the similarity floor",
                 () -> assertThat(List.of(

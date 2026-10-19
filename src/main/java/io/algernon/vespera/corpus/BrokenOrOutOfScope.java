@@ -10,8 +10,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 
 /**
  * Stage 1's first pass: every survivor is checked against {@link BrokenCheck}, and the broken and the
@@ -27,6 +29,9 @@ import java.util.Optional;
  * {@link CheckingProgress}.
  */
 public final class BrokenOrOutOfScope {
+
+    /** The version of the documentation generators' marks stage 1 knows (ADR-277 section 4), recorded in its configuration consumed. */
+    public static final String GENERATOR_MARKS = Code.MARKS_VERSION;
 
     /** How many leading bytes group the unrecognised branch, so one kind arriving in bulk is visible. */
     private static final int LEADING_BYTES_REPORTED = 4;
@@ -47,6 +52,8 @@ public final class BrokenOrOutOfScope {
 
         record LeftOut(String reason) implements Outcome {}
 
+        record Code(String reason) implements Outcome {}
+
         record Kept() implements Outcome {}
     }
 
@@ -57,11 +64,24 @@ public final class BrokenOrOutOfScope {
      * the profile's {@code outOfScopeNameEndings} (ADR-256): lower case, each once, empty where the key is unset or unreadable. A file whose
      * bytes matched no signature and whose name ends with one is left out after the kinds {@link OutOfScope}
      * names and before the log and size rules, so it is not read for timestamps and is counted neither as a
-     * log nor as too large.
+     * log nor as too large. {@code codeEndings} are the profile's {@code codeNameEndings} (ADR-277): lower case,
+     * each once, empty where the key is unset or unreadable. Code is verdicted after what is out of scope, an
+     * ending both lists hold being out of scope, and before the log and size rules, so it is not read for timestamps.
      */
     public FormatMix verdictSurvivors(
-            RunId runId, Path canonicalRoot, Double logFloor, List<String> nameEndings, CheckingProgress progress)
+            RunId runId,
+            Path canonicalRoot,
+            Double logFloor,
+            List<String> nameEndings,
+            List<String> codeEndings,
+            CheckingProgress progress)
             throws Exception {
+        Map<String, Integer> codeEndingCounts = new TreeMap<>();
+        Map<String, Integer> codeGeneratorCounts = new TreeMap<>();
+        Map<String, Integer> textEndingCounts = new TreeMap<>();
+        int code = 0;
+        int codeByEnding = 0;
+        int codeByMark = 0;
         Map<DetectedFormat, Integer> byFormat = new LinkedHashMap<>();
         Map<DetectedFormat, Map<DetectedSubtype, Integer>> bySubtype = new LinkedHashMap<>();
         Map<String, Integer> unrecognisedLeadingBytes = new LinkedHashMap<>();
@@ -79,7 +99,11 @@ public final class BrokenOrOutOfScope {
             // fail most (ADR-095).
             detectedFormats.record(occurrenceId, runId, result.format(), result.subtype().orElse(null));
             countInTheMix(byFormat, bySubtype, unrecognisedLeadingBytes, result, canonicalRoot.resolve(facts.path().value()));
+            if (result.format() == DetectedFormat.PLAIN_TEXT || result.format() == DetectedFormat.UNRECOGNISED) {
+                textEndingCounts.merge(endingOf(canonicalRoot.resolve(facts.path().value())), 1, Integer::sum);
+            }
             Optional<String> leftOut = Optional.empty();
+            Optional<Code.Recognised> recognised = Optional.empty();
             boolean isLog = false;
             // Not every text file left out is left out for its size: an email is left out for its kind (ADR-252).
             boolean forItsSize = false;
@@ -92,7 +116,10 @@ public final class BrokenOrOutOfScope {
                             canonicalRoot.resolve(facts.path().value()), result.format(), nameEndings);
                     forItsName = leftOut.isPresent();
                 }
-                if (leftOut.isEmpty() && result.format() == DetectedFormat.PLAIN_TEXT) {
+                if (leftOut.isEmpty()) {
+                    recognised = codeOf(canonicalRoot.resolve(facts.path().value()), result.format(), codeEndings, occurrenceId, progress);
+                }
+                if (leftOut.isEmpty() && recognised.isEmpty() && result.format() == DetectedFormat.PLAIN_TEXT) {
                     Optional<TimestampedLines.Count> count =
                             countTimestamps(canonicalRoot.resolve(facts.path().value()), occurrenceId, progress);
                     if (count.isPresent()) {
@@ -116,6 +143,16 @@ public final class BrokenOrOutOfScope {
             }
             if (result.broken()) {
                 ledger.verdicts().verdict(occurrenceId, runId, VerdictKind.BROKEN, result.reason());
+            } else if (recognised.isPresent()) {
+                ledger.verdicts().verdict(occurrenceId, runId, VerdictKind.CODE, recognised.get().reason());
+                code++;
+                if (recognised.get().ending().isPresent()) {
+                    codeByEnding++;
+                    codeEndingCounts.merge(recognised.get().ending().get(), 1, Integer::sum);
+                } else {
+                    codeByMark++;
+                    codeGeneratorCounts.merge(recognised.get().generator().orElseThrow(), 1, Integer::sum);
+                }
             } else if (leftOut.isPresent()) {
                 ledger.verdicts().verdict(occurrenceId, runId, VerdictKind.OUT_OF_SCOPE, leftOut.get());
                 outOfScope++;
@@ -131,7 +168,9 @@ public final class BrokenOrOutOfScope {
                     occurrenceId,
                     result.broken()
                             ? new Outcome.Broken(result.reason())
-                            : leftOut.<Outcome>map(Outcome.LeftOut::new).orElseGet(Outcome.Kept::new));
+                            : recognised.isPresent()
+                                    ? new Outcome.Code(recognised.get().reason())
+                                    : leftOut.<Outcome>map(Outcome.LeftOut::new).orElseGet(Outcome.Kept::new));
         }
         return new FormatMix(
                 byFormat,
@@ -142,7 +181,34 @@ public final class BrokenOrOutOfScope {
                 tooLarge,
                 leftOutByName,
                 byTimestampBand,
-                fewerThanTenLines);
+                fewerThanTenLines,
+                code,
+                codeByEnding,
+                codeByMark,
+                codeEndingCounts,
+                codeGeneratorCounts,
+                textEndingCounts);
+    }
+
+    /**
+     * Why the text file {@code file} is code, or empty where it is not or cannot be read: a file that cannot be
+     * read is not code, and is said to {@code progress}.
+     */
+    private static Optional<Code.Recognised> codeOf(
+            Path file, DetectedFormat format, List<String> codeEndings, OccurrenceId occurrenceId, CheckingProgress progress) {
+        try {
+            return Code.reasonFor(file, format, codeEndings);
+        } catch (IOException e) {
+            progress.codeUnreadable(occurrenceId, e);
+            return Optional.empty();
+        }
+    }
+
+    /** The ending of a file's name from its last dot, where that dot is not its first character, in lower case. */
+    private static String endingOf(Path file) {
+        String name = file.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(dot).toLowerCase(Locale.ROOT) : FormatMix.NO_ENDING;
     }
 
     /** The count for a text file, or empty, said to {@code progress}, where it cannot be read: not a log, and not a failed step. */
