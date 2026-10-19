@@ -103,6 +103,10 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "ContentCensusTasklet",
             "ConversionDispatch",
             "CorpusRootCheck",
+            // ADR-279: refuses a second vespera run on a corpus root; keys and locks a file, and decides no verdict.
+            "CorpusRootInUseException",
+            "CorpusRootLock",
+            "CorpusRootLockUnavailableException",
             "DegenerateOutputConfidenceFloor",
             "DoclingControlConversion",
             "DoclingDidNotComeBackException",
