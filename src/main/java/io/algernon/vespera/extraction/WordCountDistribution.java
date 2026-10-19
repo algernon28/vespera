@@ -6,6 +6,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -138,7 +139,7 @@ public class WordCountDistribution {
                 }
                 copy.put(format, List.copyOf(perBand));
             });
-            survivorsByFormat = copy;
+            survivorsByFormat = Collections.unmodifiableMap(copy);
         }
 
         /** The formats with a survivor counted, in {@link DetectedFormat}'s declaration order. */

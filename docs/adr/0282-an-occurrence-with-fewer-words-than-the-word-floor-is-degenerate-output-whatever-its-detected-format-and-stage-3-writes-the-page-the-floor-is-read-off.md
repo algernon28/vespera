@@ -90,9 +90,9 @@ It holds:
 
 Each count is written by `ReportPage.numberCell(long)`. The two hovers are fixed words, the same for every distribution (ADR-275 §2). **The page holds counts, a run id and the labels of detected formats; no path, no name and no text of a document.**
 
-### 6. Code is reached only where stage 1 did not recognise it
+### 6. This record adds nothing for code
 
-A file stage 1 recognises as code is given the blocking verdict `code` and is never converted ([#558's resolution](https://github.com/algernon28/vespera/issues/558#issuecomment-6254987118)), so no tier of `degenerate-output` reaches it and a code set keeps its small files. This record adds nothing for code. A code file stage 1 does not recognise, its ending not listed in `codeNameEndings`, is converted as any text is, and tier 3 reaches it.
+Tier 3 reaches every occurrence stage 2 converts, a source file among them: with the floor set, a source file of fewer words than it is `degenerate-output` like any text. Code is exempted where it is recognised before stage 2, not here. [#558's resolution](https://github.com/algernon28/vespera/issues/558#issuecomment-6254987118) gives a file stage 1 recognises as code a blocking verdict of its own, `code`, so that it is never converted and no tier of `degenerate-output` reaches it, and a code set keeps its small files; the record of that decision is its own, and once it holds, a code file it does not recognise is still converted as any text is, and tier 3 still reaches it.
 
 ### 7. Seeds are not reached
 

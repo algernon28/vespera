@@ -71,7 +71,8 @@ class ModuleBoundariesTest {
      * <p>Two entries, the only horizontal capability-to-capability edges in the tree.
      * {@code extraction} names {@code corpus} for the two detection enumerations Docling's pipeline
      * choice is derived from (ADR-100), and, since ADR-226, what a seed the floor stopped is sent as and
-     * which detected formats list their pictures: a wider purpose for the same two types, the declaration
+     * which detected formats list their pictures, and, since ADR-282, how stage 3 splits the word counts:
+     * a wider purpose for the same two types, the declaration
      * unchanged. {@code deliverable} names {@code synthesis} for the records it draws the tree from, the
      * citation pattern and the filename stem (ADR-274 §4). Recorded here as named exceptions rather than
      * by relaxing the assertion, so that a third module widening its declaration still fails this test,

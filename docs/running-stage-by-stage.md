@@ -120,7 +120,7 @@ A walk that has not finished is never used by a later stage. Nothing downstream 
 
 **Where it stops.** It does not stop for a value.
 
-**Resume.** Interrupted, it discards its own rows and does the pass again. Finished, it is skipped, and its three pages are left as they are; `document-frequency.html` names the run it was written for.
+**Resume.** Interrupted, it discards its own rows and does the pass again. Finished, it is skipped, and its three pages are left as they are; `document-frequency.html` and `word-count-distribution.html` each name the run they were written for.
 
 **After this stage the first invocation ends**, because the next stage wants a value read off what this one measured. The last line names it, and the page it is read off.
 

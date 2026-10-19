@@ -27,7 +27,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * The word floor reads {@code extraction_metric.word_count} as stage 2 stores it, and nothing is subtracted from it
- * (ADR-282 section 2): not the vowelless words, which count a year or a word of another alphabet as garbage, and
+ * (ADR-282 section 2): not the vowelless words, among which a year or a word of another alphabet is counted, and
  * not the one-character words. Asked through {@link ExtractionMetrics#writeAndJudge}, the one place stage 2 judges a
  * conversion, so that what is judged is what is stored.
  */
