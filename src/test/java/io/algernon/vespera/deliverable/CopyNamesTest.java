@@ -425,6 +425,33 @@ class CopyNamesTest {
 
     @Test
     @Story("A document keeps its own name in its group's folder")
+    @DisplayName("A capital alpha with an iota subscript and a small one, each followed by a perispomeni, collide, as Windows and a case-insensitive Mac hold them as one file")
+    void anIotaSubscriptMeetsItsLetterWhereverAnotherMarkStandsOnceTheKeyIsDecomposedFirst() {
+        String aCapitalAlphaWithProsgegrammeniAndAPerispomeni = "ᾼ͂";
+        String aSmallAlphaWithYpogegrammeniAndAPerispomeni = "ᾷ";
+        List<ListedSurvivor> members = List.of(
+                member(71, "a/" + aCapitalAlphaWithProsgegrammeniAndAPerispomeni + ".pdf"),
+                member(72, "b/" + aSmallAlphaWithYpogegrammeniAndAPerispomeni + ".pdf"));
+        Map<Long, String> expected = Map.of(
+                71L, aCapitalAlphaWithProsgegrammeniAndAPerispomeni + ".pdf",
+                72L, aSmallAlphaWithYpogegrammeniAndAPerispomeni + "~72.pdf");
+
+        claim(
+                "NTFS upper-cases the small alpha with ypogegrammeni to the capital with prosgegrammeni, and APFS's"
+                        + " case-insensitive form decomposes and folds both names to one; composed first, the iota"
+                        + " subscript would upper-case to a capital iota before the perispomeni in one name and after"
+                        + " it in the other, and both would keep their names. Decomposed first, the subscript stands"
+                        + " after the perispomeni in both: they collide, document 71 keeping its name as written and"
+                        + " document 72 taking its number before the extension",
+                () -> assertThat(namesOf(members, NO_PICTURES)).containsExactlyInAnyOrderEntriesOf(expected));
+        claim(
+                "and the same names are given whatever order the members arrive in",
+                () -> assertThat(namesOf(members.reversed(), NO_PICTURES))
+                        .containsExactlyInAnyOrderEntriesOf(expected));
+    }
+
+    @Test
+    @Story("A document keeps its own name in its group's folder")
     @DisplayName("A numbered name whose unfinished copy would be written over another document's copy takes the number again")
     void aSuffixedNameYieldsWhereItsPartIsANameAlreadyGiven() {
         Map<Long, String> names = namesOf(
