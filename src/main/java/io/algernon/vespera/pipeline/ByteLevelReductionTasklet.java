@@ -3,6 +3,7 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.corpus.BrokenOrOutOfScope;
 import io.algernon.vespera.corpus.CheckingProgress;
 import io.algernon.vespera.corpus.CodeSets;
+import io.algernon.vespera.corpus.ConfigurationFiles;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.ContentIdentityResolution;
 import io.algernon.vespera.corpus.DetectedFormat;
@@ -43,7 +44,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Stage 1: byte-level reduction. Three passes over one run, in order (ADR-284 section 6):
+ * Stage 1: byte-level reduction. Four passes over one run, in order (ADR-284 section 6, ADR-287 section 4):
  *
  * <ol>
  *   <li>Every survivor of census is checked against {@code BrokenCheck}; a mechanically-corrupt
@@ -52,6 +53,8 @@ import tools.jackson.databind.json.JsonMapper;
  *       scope is verdicted {@code out-of-scope} in the same pass (ADR-146), so it is never hashed either.
  *   <li>The set pass, {@code CodeSets}, finds the code sets and keeps their build files and the files of a
  *       generated tree as {@code code} too, before the format-mix page is written and before any hashing.
+ *   <li>The configuration pass, {@code ConfigurationFiles}, keeps a configuration file inside a set with it as
+ *       {@code code} and leaves one outside every set out of scope, where the profile gives a floor (ADR-287).
  *   <li>Every occurrence still surviving (re-read from the ledger, so {@code broken} occurrences are
  *       excluded automatically) is grouped by size, hashed within any group of two or more, and
  *       every content-identity group resolves to one representative — the rest verdicted
@@ -77,7 +80,10 @@ public class ByteLevelReductionTasklet implements Tasklet {
      * does not name {@code profile}, so only this record can move its run id when they change. The endings of
      * {@code codeNameEndings} are recorded the same way (ADR-277 section 9), beside the version of the
      * documentation generators' marks built into {@code corpus}, and after them the versions of the lists of build
-     * files and of generators' companion files (ADR-284 section 10).
+     * files and of generators' companion files (ADR-284 section 10), and after those the version of how a line
+     * is read for a timestamp, the floor on the share of settings, {@code null} where unset or unreadable, and the
+     * versions of how a setting line is read and of the lists of configuration roots and of interface definitions
+     * (ADR-287 section 10).
      */
     record ConfigConsumed(
             long textSizeCeilingBytes,
@@ -87,7 +93,12 @@ public class ByteLevelReductionTasklet implements Tasklet {
             List<String> codeNameEndings,
             String generatorMarks,
             String buildFiles,
-            String generatorCompanions) {}
+            String generatorCompanions,
+            String timestampedLines,
+            Double configurationSettingShareFloor,
+            String settingLines,
+            String configurationRoots,
+            String interfaceDefinitions) {}
 
     /** The page stage 1 leaves beside the database: what its detection found across the corpus (ADR-095). */
     static final String FORMAT_MIX_FILE_NAME = "format-mix.html";
@@ -136,11 +147,12 @@ public class ByteLevelReductionTasklet implements Tasklet {
         var walk = runMint.finishedWalk(canonicalRoot, "stage 1");
         Profile profile = profileStore.load();
         Double logFloor = logFloorOf(profile);
+        Double configurationFloor = floorOf(profile.configurationSettingShareFloor());
         List<String> nameEndings = nameEndingsOf(profile.outOfScopeNameEndings());
         List<String> codeEndings = nameEndingsOf(profile.codeNameEndings());
         RunId runId = runMint.mint(
                 StageModules.BYTE_LEVEL_REDUCTION,
-                configConsumed(logFloor, nameEndings, codeEndings),
+                configConsumed(logFloor, nameEndings, codeEndings, configurationFloor),
                 walk,
                 Optional.empty());
 
@@ -170,7 +182,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
                     },
                     () -> {
                         log.info("Stage 1 (byte-level reduction) starting under run {}", runId.value());
-                        verdictBrokenSurvivors(runId, canonicalRoot, logFloor, nameEndings, codeEndings);
+                        verdictBrokenSurvivors(runId, canonicalRoot, logFloor, nameEndings, codeEndings, configurationFloor);
                         resolveDuplicates(runId, canonicalRoot);
                         log.info("Stage 1 (byte-level reduction) finished under run {}", runId.value());
                         return true;
@@ -191,7 +203,12 @@ public class ByteLevelReductionTasklet implements Tasklet {
      * and the tally; what is written here is the operator's text, the page, and the floor's measurement.
      */
     private void verdictBrokenSurvivors(
-            RunId runId, Path canonicalRoot, Double logFloor, List<String> nameEndings, List<String> codeEndings)
+            RunId runId,
+            Path canonicalRoot,
+            Double logFloor,
+            List<String> nameEndings,
+            List<String> codeEndings,
+            Double configurationFloor)
             throws Exception {
         long survivors = TimedStatement.of(
                 "Stage 1 (byte-level reduction)",
@@ -263,11 +280,35 @@ public class ByteLevelReductionTasklet implements Tasklet {
                         cause.toString());
             }
         });
+        ConfigurationFiles.Tally configuration = detectedFormats
+                .configurationFiles()
+                .pass(ledger, runId, canonicalRoot, configurationFloor, new ConfigurationFiles.Progress() {
+                    @Override
+                    public void kept(OccurrenceId occurrence, String reason) {
+                        log.info("[byte-level-reduction] kept {} with its code set -> code: {}", occurrence.value(), reason);
+                    }
+
+                    @Override
+                    public void leftOut(OccurrenceId occurrence, String reason) {
+                        log.info(
+                                "[byte-level-reduction] checked {} for configuration -> out of scope: {}",
+                                occurrence.value(),
+                                reason);
+                    }
+
+                    @Override
+                    public void unreadable(OccurrenceId occurrence, Exception cause) {
+                        log.warn(
+                                "[byte-level-reduction] could not read {} to see whether it is a configuration file, so it is left as it was: {}",
+                                occurrence.value(),
+                                cause.toString());
+                    }
+                });
         writeFormatMix(new FormatMixReport.Mix(
                 mix.byFormat(),
                 mix.bySubtype(),
                 mix.unrecognisedLeadingBytes(),
-                mix.outOfScope(),
+                mix.outOfScope() + configuration.leftOut(),
                 mix.logs(),
                 mix.tooLarge(),
                 mix.leftOutByName(),
@@ -282,7 +323,9 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 logFloor,
                 nameEndings,
                 codeEndings,
-                codeSets));
+                codeSets,
+                configuration,
+                configurationFloor));
         // The floor's measurement is this page (ADR-171 §3), pointed at the way stage 3 points its own, and
         // so is the name endings' (ADR-256 §7).
         Measurement thePage =
@@ -291,7 +334,8 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 .load()
                 .withLogTimestampShareFloorMeasurement(thePage)
                 .withOutOfScopeNameEndingsMeasurement(thePage)
-                .withCodeNameEndingsMeasurement(thePage));
+                .withCodeNameEndingsMeasurement(thePage)
+                .withConfigurationSettingShareFloorMeasurement(thePage));
     }
 
     /**
@@ -369,9 +413,12 @@ public class ByteLevelReductionTasklet implements Tasklet {
 
     /** An Answered floor is the floor; an unset or unreadable one means no log rule (ADR-171 section 3). */
     private static Double logFloorOf(Profile profile) {
-        return profile.logTimestampShareFloor().reading() instanceof NumericValue.Answered answered
-                ? answered.number()
-                : null;
+        return floorOf(profile.logTimestampShareFloor());
+    }
+
+    /** An Answered floor is the floor; an unset or unreadable one is none (ADR-287 section 7). */
+    private static Double floorOf(NumericValue key) {
+        return key.reading() instanceof NumericValue.Answered answered ? answered.number() : null;
     }
 
     /** The answered endings, canonical; none where the key is unset or unreadable (ADR-256 §5, ADR-277 §2). */
@@ -381,7 +428,8 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 : List.of();
     }
 
-    private static String configConsumed(Double logFloor, List<String> nameEndings, List<String> codeEndings) {
+    private static String configConsumed(
+            Double logFloor, List<String> nameEndings, List<String> codeEndings, Double configurationFloor) {
         return JSON.writeValueAsString(new ConfigConsumed(
                 DoclingClient.TEXT_SIZE_CEILING_BYTES,
                 TextParts.RULE,
@@ -390,7 +438,12 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 codeEndings,
                 BrokenOrOutOfScope.GENERATOR_MARKS,
                 BrokenOrOutOfScope.BUILD_FILES,
-                BrokenOrOutOfScope.GENERATOR_COMPANIONS));
+                BrokenOrOutOfScope.GENERATOR_COMPANIONS,
+                BrokenOrOutOfScope.TIMESTAMPED_LINES,
+                configurationFloor,
+                BrokenOrOutOfScope.SETTING_LINES,
+                BrokenOrOutOfScope.CONFIGURATION_ROOTS,
+                BrokenOrOutOfScope.INTERFACE_DEFINITIONS));
     }
 
     private void writeFormatMix(FormatMixReport.Mix mix) {

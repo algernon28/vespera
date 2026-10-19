@@ -1,6 +1,7 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.corpus.CodeSets;
+import io.algernon.vespera.corpus.ConfigurationFiles;
 import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedSubtype;
 import io.algernon.vespera.corpus.FormatMix;
@@ -41,6 +42,9 @@ final class FormatMixReport {
      * as text or as of no known kind by the ending of its name; and {@code codeEndings} are the canonical endings
      * {@code codeNameEndings} lists, empty where it lists none. {@code codeSets} is what the set pass found
      * (ADR-284 section 10): the page counts the sets and their members by role, and names no folder.
+     * {@code configuration} is what the configuration pass found and {@code configurationFloor} the floor it ran
+     * under, {@code null} where none is set (ADR-287 section 8); {@code outOfScope} already counts the
+     * configuration files left out.
      */
     record Mix(
             Map<DetectedFormat, Integer> byFormat,
@@ -61,7 +65,9 @@ final class FormatMixReport {
             Double logFloor,
             List<String> nameEndings,
             List<String> codeEndings,
-            CodeSets.Tally codeSets) {}
+            CodeSets.Tally codeSets,
+            ConfigurationFiles.Tally configuration,
+            Double configurationFloor) {}
 
     /** How many bands of a tenth the timestamped share is counted in. */
     static final int BANDS = FormatMix.TIMESTAMP_BANDS;
@@ -125,6 +131,8 @@ final class FormatMixReport {
                         + grouped(DoclingClient.TEXT_SIZE_CEILING_BYTES)
                         + " bytes, because the converter cannot finish one in time and such a file is not cut"
                         + " into parts, and so is a log, once logTimestampShareFloor is set in profile.yaml."
+                        + " So is a configuration file that lies in no code set, once"
+                        + " configurationSettingShareFloor is set in profile.yaml."
                         + " Any other text file over "
                         + grouped(DoclingClient.TEXT_SIZE_CEILING_BYTES)
                         + " bytes is converted in parts. Files left out as out of scope,"
@@ -134,8 +142,10 @@ final class FormatMixReport {
                         + mix.logs()
                         + ", text files left out for their size: "
                         + mix.tooLarge()
-                        + ", and files left out for the ending of their name: "
+                        + ", files left out for the ending of their name: "
                         + mix.leftOutByName()
+                        + ", and configuration files: "
+                        + mix.configuration().leftOut()
                         + ". They are still counted in the table below, with everything else."))
                 .append(ReportPage.paragraph(mix.nameEndings().isEmpty()
                         ? "No name endings are listed, so no file was left out for the ending of its name."
@@ -159,6 +169,7 @@ final class FormatMixReport {
                 .append(ReportPage.paragraph("Code sets: " + mix.codeSets().sets()
                         + ", whose members are files of code: " + mix.codeSets().code()
                         + ", build files: " + mix.codeSets().build()
+                        + ", configuration files: " + mix.configuration().keptWithCodeSet()
                         + ", and files of generated reference trees: " + mix.codeSets().companion() + "."))
                 .append(ReportPage.paragraph(mix.codeEndings().isEmpty()
                         ? "No name endings are listed as code. Listing them in codeNameEndings in profile.yaml keeps as"
@@ -221,7 +232,7 @@ final class FormatMixReport {
         }
 
         body.append(ReportPage.heading(2, "Kept as code"));
-        if (mix.code() == 0) {
+        if (mix.code() == 0 && mix.configuration().keptWithCodeSet() == 0) {
             body.append(ReportPage.paragraph("No file was kept as code."));
         } else {
             StringBuilder codeRows = new StringBuilder();
@@ -230,6 +241,8 @@ final class FormatMixReport {
             mix.codeGeneratorCounts().forEach((generator, files) ->
                     codeRows.append(ReportPage.row(ReportPage.textCell(generator), ReportPage.numberCell(files))));
             codeRows.append(ReportPage.row(ReportPage.textCell("build file"), ReportPage.numberCell(mix.codeSets().build())));
+            codeRows.append(ReportPage.row(
+                    ReportPage.textCell("configuration file"), ReportPage.numberCell(mix.configuration().keptWithCodeSet())));
             mix.codeSets().companionsByGenerator().forEach((generator, files) -> codeRows.append(ReportPage.row(
                     ReportPage.textCell("file of a tree " + generator + " generated"), ReportPage.numberCell(files))));
             body.append(ReportPage.table(
@@ -252,9 +265,11 @@ final class FormatMixReport {
                         + " often as code."));
 
         body.append(ReportPage.heading(2, "How much of each text file begins with a timestamp"))
-                .append(ReportPage.paragraph("Each text file not left out for its kind or for the ending of its name, and not kept as code, was read from its start and its end, and the"
-                        + " lines that begin with a date or a time were counted against the lines read that"
-                        + " are not blank. The share is that count in whole percent, rounded down."))
+                .append(ReportPage.paragraph("Each text file, and each file of no known kind whose start and end read as"
+                        + " text, not left out for its kind or for the ending of its name, and not kept as code, was"
+                        + " read from its start and its end, and the lines that begin with a date or a time were"
+                        + " counted against the lines read that are neither blank nor the continuation of the line"
+                        + " above. The share is that count in whole percent, rounded down."))
                 .append(ReportPage.paragraph(mix.logFloor() == null
                         ? "No floor is set, so nothing was left out as a log. Setting logTimestampShareFloor"
                                 + " in profile.yaml turns the rule on."
@@ -270,6 +285,8 @@ final class FormatMixReport {
             bandRows.append(ReportPage.row(ReportPage.textCell(label), ReportPage.numberCell(mix.byTimestampBand()[band])));
         }
         body.append(ReportPage.table(ReportPage.headerRow("Share beginning with a timestamp", "Text files"), bandRows.toString()));
+
+        appendSettings(body, mix);
 
         body.append(ReportPage.heading(2, "What could not be recognised"));
         if (mix.unrecognisedLeadingBytes().isEmpty()) {
@@ -291,13 +308,62 @@ final class FormatMixReport {
 
         body.append(ReportPage.heading(2, "What this page cannot see"))
                 .append(ReportPage.paragraph("A file can be perfectly readable text and still not be a"
-                        + " document: a folder settings file, an editor's leftover backup. Those are"
+                        + " document: an editor's leftover backup. Those are"
                         + " counted as text above, and this page cannot tell them apart from a written"
                         + " note, because nothing inside them says which is which. So a small <em>of no"
                         + " known kind</em> count does not mean an archive is free of clutter. It means"
                         + " the clutter that is left is the kind this measurement does not reach."));
 
         return ReportPage.render("What the files turned out to be", body.toString());
+    }
+
+    /** The section on the share of settings (ADR-287 section 8). */
+    private static void appendSettings(StringBuilder body, Mix mix) {
+        ConfigurationFiles.Tally found = mix.configuration();
+        body.append(ReportPage.heading(2, "How much of each text file is settings"))
+                .append(ReportPage.paragraph("Each text file of no finer kind, and each file of no known kind whose start"
+                        + " and end read as text, still kept after what was kept as code and with the code sets, was"
+                        + " read from its start and its end, and its lines shaped as a setting, a name followed by = or"
+                        + " by a colon and a space, or a [section] heading, were counted against the lines read that"
+                        + " are neither blank nor a comment. A line ending with a backslash is read with the line"
+                        + " after it. The share is that count in whole percent, rounded down."))
+                .append(ReportPage.paragraph(mix.configurationFloor() == null
+                        ? "No floor is set, so no file was found to be a configuration file. Setting"
+                                + " configurationSettingShareFloor in profile.yaml turns the rule on: a configuration"
+                                + " file is then kept with its code set where it lies in one, and left out otherwise."
+                        : "The floor is " + floorText(mix.configurationFloor()) + ": a file of ten lines or more at or"
+                                + " above it, or whose first element is one of those below, is a configuration file."
+                                + " Configuration files: " + found.configurationFiles()
+                                + ", of which kept with their code set: " + found.keptWithCodeSet()
+                                + ", and left out: " + found.leftOut() + "."));
+        StringBuilder shareRows = new StringBuilder();
+        shareRows.append(ReportPage.row(
+                ReportPage.textCell("fewer than ten lines"), ReportPage.numberCell(found.fewerThanTenLines())));
+        for (int band = 0; band < BANDS; band++) {
+            String label = band == 0
+                    ? "under 10%"
+                    : band == BANDS - 1 ? "90% to 100%" : band * 10 + "% to " + (band * 10 + 9) + "%";
+            shareRows.append(ReportPage.row(ReportPage.textCell(label), ReportPage.numberCell(found.byShareBand()[band])));
+        }
+        body.append(ReportPage.table(ReportPage.headerRow("Share of lines that are settings", "Files"), shareRows.toString()));
+        int rootFiles = found.roots().values().stream().mapToInt(Integer::intValue).sum();
+        body.append(ReportPage.paragraph("Files whose first element is a program's configuration, which makes each one a"
+                + " configuration file whatever its share once the floor is set: " + rootFiles + "."));
+        if (rootFiles != 0) {
+            StringBuilder rootRows = new StringBuilder();
+            found.roots().forEach((root, files) ->
+                    rootRows.append(ReportPage.row(ReportPage.textCell(root), ReportPage.numberCell(files))));
+            body.append(ReportPage.table(ReportPage.headerRow("First element", "Files"), rootRows.toString()));
+        }
+        int definitions = found.interfaceDefinitions().values().stream().mapToInt(Integer::intValue).sum();
+        body.append(ReportPage.paragraph(
+                "Interface definitions, kept as documents whatever their share: " + definitions + "."));
+        if (definitions != 0) {
+            StringBuilder definitionRows = new StringBuilder();
+            found.interfaceDefinitions().forEach((definition, files) ->
+                    definitionRows.append(ReportPage.row(ReportPage.textCell(definition), ReportPage.numberCell(files))));
+            body.append(ReportPage.table(ReportPage.headerRow("Interface definition", "Files"), definitionRows.toString()));
+        }
     }
 
     /** A number with {@code ,} as the grouping separator, whatever the locale. */

@@ -39,6 +39,18 @@ public final class BrokenOrOutOfScope {
     /** The version of the list of generators' companion files (ADR-284 section 5), recorded likewise. */
     public static final String GENERATOR_COMPANIONS = GeneratorCompanions.VERSION;
 
+    /** The version of how a line is read for a timestamp (ADR-287 section 1), recorded likewise. */
+    public static final String TIMESTAMPED_LINES = TimestampedLines.VERSION;
+
+    /** The version of how a setting line is read (ADR-287 section 3.4), recorded likewise. */
+    public static final String SETTING_LINES = SettingLines.VERSION;
+
+    /** The version of the list of configuration roots (ADR-287 section 3.3), recorded likewise. */
+    public static final String CONFIGURATION_ROOTS = ConfigurationFiles.ROOTS_VERSION;
+
+    /** The version of the list of interface definitions (ADR-287 section 3.2), recorded likewise. */
+    public static final String INTERFACE_DEFINITIONS = ConfigurationFiles.INTERFACE_DEFINITIONS_VERSION;
+
     /** How many leading bytes group the unrecognised branch, so one kind arriving in bulk is visible. */
     private static final int LEADING_BYTES_REPORTED = 4;
 
@@ -142,7 +154,8 @@ public final class BrokenOrOutOfScope {
                 if (leftOut.isEmpty()) {
                     recognised = codeOf(canonicalRoot.resolve(facts.path().value()), result.format(), codeEndings, occurrenceId, progress);
                 }
-                if (leftOut.isEmpty() && recognised.isEmpty() && result.format() == DetectedFormat.PLAIN_TEXT) {
+                if (leftOut.isEmpty() && recognised.isEmpty()
+                        && readForTimestamps(canonicalRoot.resolve(facts.path().value()), result.format())) {
                     Optional<TimestampedLines.Count> count =
                             countTimestamps(canonicalRoot.resolve(facts.path().value()), occurrenceId, progress);
                     if (count.isPresent()) {
@@ -154,7 +167,7 @@ public final class BrokenOrOutOfScope {
                     }
                     leftOut = count.flatMap(counted -> OutOfScope.logReason(counted, logFloor));
                     isLog = leftOut.isPresent();
-                    if (leftOut.isEmpty()) {
+                    if (leftOut.isEmpty() && result.format() == DetectedFormat.PLAIN_TEXT) {
                         leftOut = OutOfScope.sizeReason(
                                 canonicalRoot.resolve(facts.path().value()), facts.sizeBytes(), result.subtype(), limits);
                         forItsSize = leftOut.isPresent();
@@ -239,6 +252,25 @@ public final class BrokenOrOutOfScope {
         String name = file.getFileName().toString();
         int dot = name.lastIndexOf('.');
         return dot > 0 ? name.substring(dot).toLowerCase(Locale.ROOT) : FormatMix.NO_ENDING;
+    }
+
+    /**
+     * Whether the log rule reads {@code file} (ADR-287 section 2): text of any subtype, and a file of no known kind
+     * whose bytes read as text. A file that cannot be read to see is not read: the code rules, which read the same
+     * two windows of it first, have already said so.
+     */
+    private static boolean readForTimestamps(Path file, DetectedFormat format) {
+        if (format == DetectedFormat.PLAIN_TEXT) {
+            return true;
+        }
+        if (format != DetectedFormat.UNRECOGNISED) {
+            return false;
+        }
+        try {
+            return Code.readsAsText(file);
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     /** The count for a text file, or empty, said to {@code progress}, where it cannot be read: not a log, and not a failed step. */
