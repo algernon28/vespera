@@ -32,6 +32,12 @@ package io.algernon.vespera.profile;
  *     enforce</b> — the score distribution over a corpus is never known before a first stage-2 run
  *     measures it. Once set, a {@code null} score (the {@code .docx}/{@code .txt} case, where
  *     confidence is never computed) never crosses this floor, whatever it is set to.
+ * @param degenerateOutputWordFloor stage 2's tier-3 floor (ADR-282): a whole number of words from 0,
+ *     below which a converted occurrence's {@code word_count} makes it {@code degenerate-output}
+ *     whatever its detected format. A key of its own, as ADR-078 asks of a new measure, since the
+ *     confidence floor is a score and this is a count. Ships unset, per <b>observe before enforce</b>,
+ *     and is not a gate; unset or ignored, nothing is removed for too few words. Its {@link Measurement}
+ *     points at {@code word-count-distribution.html}, and it enters stage 2's run identity where set.
  * @param boilerplateDocumentFrequencyFloor the boilerplate threshold stage 4 applies (ADR-080): a
  *     proportion (0 to 1) of N, the documents measured ({@code shingled_document_count} of the
  *     content census, the {@code similarity.shingle_corpus_size} denominator). A shingle found in at
@@ -113,6 +119,7 @@ package io.algernon.vespera.profile;
 public record Profile(
         TextValue seedFolder,
         NumericValue degenerateOutputConfidenceFloor,
+        NumericValue degenerateOutputWordFloor,
         NumericValue boilerplateDocumentFrequencyFloor,
         TextValue embeddingModel,
         NumericValue relevanceScoreFloor,
@@ -130,6 +137,7 @@ public record Profile(
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
         degenerateOutputConfidenceFloor =
                 degenerateOutputConfidenceFloor == null ? NumericValue.unset() : degenerateOutputConfidenceFloor;
+        degenerateOutputWordFloor = degenerateOutputWordFloor == null ? NumericValue.unset() : degenerateOutputWordFloor;
         boilerplateDocumentFrequencyFloor =
                 boilerplateDocumentFrequencyFloor == null ? NumericValue.unset() : boilerplateDocumentFrequencyFloor;
         embeddingModel = embeddingModel == null ? TextValue.unset() : embeddingModel;
@@ -171,7 +179,7 @@ public record Profile(
 
     /** A profile with every key present and none of them answered — what census drafts. */
     static Profile skeleton() {
-        return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -179,6 +187,7 @@ public record Profile(
         return new Profile(
                 seedFolder.measuredBy(measurement),
                 degenerateOutputConfidenceFloor,
+                degenerateOutputWordFloor,
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
                 relevanceScoreFloor,
@@ -202,6 +211,27 @@ public record Profile(
         return new Profile(
                 seedFolder,
                 degenerateOutputConfidenceFloor.measuredBy(measurement),
+                degenerateOutputWordFloor,
+                boilerplateDocumentFrequencyFloor,
+                embeddingModel,
+                relevanceScoreFloor,
+                arrangementApproved,
+                generationModel,
+                generationContextWindow,
+                logTimestampShareFloor,
+                extractionAttempt,
+                codeNameEndings,
+                outOfScopeNameEndings,
+                translationSimilarityFloor,
+                preferredLanguages);
+    }
+
+    /** The same profile, with stage 3's pointer to {@code word-count-distribution.html} brought up to date (ADR-282). */
+    public Profile withDegenerateOutputWordFloorMeasurement(Measurement measurement) {
+        return new Profile(
+                seedFolder,
+                degenerateOutputConfidenceFloor,
+                degenerateOutputWordFloor.measuredBy(measurement),
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
                 relevanceScoreFloor,
@@ -224,6 +254,7 @@ public record Profile(
         return new Profile(
                 seedFolder,
                 degenerateOutputConfidenceFloor,
+                degenerateOutputWordFloor,
                 boilerplateDocumentFrequencyFloor.measuredBy(measurement),
                 embeddingModel,
                 relevanceScoreFloor,
@@ -251,6 +282,7 @@ public record Profile(
         return new Profile(
                 seedFolder,
                 degenerateOutputConfidenceFloor,
+                degenerateOutputWordFloor,
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
                 relevanceScoreFloor.measuredBy(measurement),
@@ -273,6 +305,7 @@ public record Profile(
         return new Profile(
                 seedFolder,
                 degenerateOutputConfidenceFloor,
+                degenerateOutputWordFloor,
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
                 new NumericValue(value, provenance, relevanceScoreFloor.measurement()),
@@ -292,6 +325,7 @@ public record Profile(
         return new Profile(
                 seedFolder,
                 degenerateOutputConfidenceFloor,
+                degenerateOutputWordFloor,
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
                 relevanceScoreFloor,
@@ -311,6 +345,7 @@ public record Profile(
         return new Profile(
                 seedFolder,
                 degenerateOutputConfidenceFloor,
+                degenerateOutputWordFloor,
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
                 relevanceScoreFloor,
@@ -330,6 +365,7 @@ public record Profile(
         return new Profile(
                 seedFolder,
                 degenerateOutputConfidenceFloor,
+                degenerateOutputWordFloor,
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
                 relevanceScoreFloor,
@@ -349,6 +385,7 @@ public record Profile(
         return new Profile(
                 seedFolder,
                 degenerateOutputConfidenceFloor,
+                degenerateOutputWordFloor,
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
                 relevanceScoreFloor,
@@ -368,6 +405,7 @@ public record Profile(
         return new Profile(
                 seedFolder,
                 degenerateOutputConfidenceFloor,
+                degenerateOutputWordFloor,
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
                 relevanceScoreFloor,

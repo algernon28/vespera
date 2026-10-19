@@ -54,6 +54,13 @@ class SeedScriptedExtractionBeans {
     static final String HEADERS_AND_FOOTERS_ONLY = "page-headers-and-footers-only.txt";
 
     /**
+     * A file whose conversion is one word of body text, "OK", as a one-line note or a picture of a button converts
+     * (ADR-282): a letter, so tier 1 keeps it, and one word, so a word floor of 2 removes it. A {@code .txt} name,
+     * so that nothing is claimed of stage 1 by it; corpus file or seed alike.
+     */
+    static final String ONE_WORD = "one-word.txt";
+
+    /**
      * A corpus file whose conversion is {@link #WORDS_OF_TWO_CHUNKS} words of body text, more than one chunk
      * holds, so the chunker cuts it into two (ADR-231 section 5, a pull and a pull back between two chunks of
      * one document). A {@code .txt} name, so that nothing is claimed of stage 1 by it.
@@ -186,6 +193,10 @@ class SeedScriptedExtractionBeans {
             + "{\"text\":\"Quarterly report 2026\",\"label\":\"page_header\"},"
             + "{\"text\":\"Page 1 of 1\",\"label\":\"page_footer\"}]}}}";
 
+    /** A successful conversion whose one text item is one word of body text. */
+    private static final String WITH_ONE_WORD = "{\"document\":{\"json_content\":{\"texts\":["
+            + "{\"text\":\"OK\",\"label\":\"text\"}]}}}";
+
     /** A successful conversion of {@link #WORDS_OF_TWO_CHUNKS} words of body text, under a title. */
     private static final String WITH_TWO_CHUNKS_OF_TEXT = "{\"document\":{\"json_content\":{\"texts\":["
             + "{\"text\":\"" + STUBBED_TITLE + "\",\"label\":\"title\"},"
@@ -198,6 +209,7 @@ class SeedScriptedExtractionBeans {
                 .answering(HEADERS_AND_FOOTERS_ONLY, response(WITH_A_PAGE_HEADER_AND_A_PAGE_FOOTER_ALONE))
                 .answering(HEADER_ONLY_SEED, response(WITH_A_PAGE_HEADER_ALONE))
                 .answering(TWO_CHUNKS_OF_TEXT, response(WITH_TWO_CHUNKS_OF_TEXT))
+                .answering(ONE_WORD, response(WITH_ONE_WORD))
                 .answering(EMPTY_SEED, response(WITHOUT_TEXT))
                 .answering(REFUSED_CONVERSION, refused())
                 .answering(CONVERTER_FAULT, failing(FailureCategory.INTERNAL, CONVERTER_FAULT_MESSAGE))

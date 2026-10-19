@@ -31,6 +31,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.OptionalLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -166,7 +167,13 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         // ADR-116). Every metric, shingle and verdict a committed chunk wrote is kept, so the progress
         // denominator is what the reader yields this invocation (ADR-093), not the whole survivor set.
         RunId extractionRun = stageRuns.extraction();
-        this.judge = new OccurrenceJudge(extractionMetrics, failuresInARow, extractionRun, confidenceFloor.value());
+        OptionalLong wordFloor = stageRuns.degenerateOutputWordFloor();
+        this.judge = new OccurrenceJudge(
+                extractionMetrics,
+                failuresInARow,
+                extractionRun,
+                confidenceFloor.value(),
+                wordFloor.isPresent() ? wordFloor.getAsLong() : null);
         // One wait to the operator, so one timed span over the whole expression: the count of the survivors
         // still to read, made by the ledger where the run recorded nothing and by going through the survivors
         // a page at a time, asking which of each page were recorded, where it did (ADR-220 section 2). Neither

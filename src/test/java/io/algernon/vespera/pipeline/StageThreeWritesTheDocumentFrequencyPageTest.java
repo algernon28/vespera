@@ -10,6 +10,7 @@ import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractorIdentity;
+import io.algernon.vespera.extraction.WordCountDistribution;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -238,6 +239,8 @@ class StageThreeWritesTheDocumentFrequencyPageTest {
         return new ContentCensusTasklet(
                 new DocumentFrequency(jdbcTemplate, ledger),
                 new ConfidenceDistribution(jdbcTemplate, ledger),
+                new WordCountDistribution(jdbcTemplate, ledger),
+                new DetectedFormats(jdbcTemplate),
                 stageRunsOver(ledger, versions, root),
                 ledger,
                 profileStore,

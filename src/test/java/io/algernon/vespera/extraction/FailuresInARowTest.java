@@ -377,7 +377,7 @@ class FailuresInARowTest {
         ScriptedControl control = new ScriptedControl();
         FailuresInARow rows = new FailuresInARow(control);
         OccurrencesUnderARun occurrences = OccurrencesUnderARun.of(jdbcTemplate, FIVE_DROPPED_TWICE);
-        OccurrenceJudge judge = new OccurrenceJudge(metrics(), rows, occurrences.run(), null);
+        OccurrenceJudge judge = new OccurrenceJudge(metrics(), rows, occurrences.run(), null, null);
         // Out of alphabetical order on purpose, so a list that was sorted, or kept in a set, would differ.
         List<String> inTheOrderTheyCame = List.of(
                 "corpus/e.docx", "corpus/c.pdf", "corpus/a.xls", "corpus/d.txt", "corpus/b.pptx");
@@ -602,7 +602,7 @@ class FailuresInARowTest {
             this.control = new ScriptedControl(controlAnswers);
             this.rows = new FailuresInARow(control);
             this.occurrences = OccurrencesUnderARun.of(jdbcTemplate, size);
-            this.judge = new OccurrenceJudge(metrics(), rows, occurrences.run(), null);
+            this.judge = new OccurrenceJudge(metrics(), rows, occurrences.run(), null, null);
         }
 
         Outcome timeout() {

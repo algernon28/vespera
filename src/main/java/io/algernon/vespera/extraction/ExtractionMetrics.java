@@ -280,18 +280,19 @@ public class ExtractionMetrics {
     }
 
     /**
-     * Records the metrics row for {@code response}, and judges the two-tier {@code degenerate-output}
+     * Records the metrics row for {@code response}, and judges the three-tier {@code degenerate-output}
      * floor against it (ADR-070). Tier 1 is asked of {@link UsableText} first, which reads the text outside
      * page headers and footers (ADR-232); {@code confidenceFloor} is {@code pipeline}'s reading of the
-     * profile's tier-2 key, {@code null} while it ships unset.
+     * profile's tier-2 key, {@code null} while it ships unset; {@code wordFloor} is tier 3's,
+     * likewise {@code null} while unset or ignored (ADR-282).
      */
     public DegeneracyVerdict writeAndJudge(
-            OccurrenceId occurrenceId, RunId runId, DoclingResponse response, Double confidenceFloor) {
+            OccurrenceId occurrenceId, RunId runId, DoclingResponse response, Double confidenceFloor, Long wordFloor) {
         ExtractionMetric metric = computeAndInsert(occurrenceId, runId, response);
         // Tier 1 reads the text outside page headers and footers (ADR-232), before tier 2 is looked at.
         return UsableText.whyUnusable(response.rawResponse())
                 .map(reason -> new DegeneracyVerdict(true, reason))
-                .orElseGet(() -> DegeneracyFloor.evaluate(metric, confidenceFloor));
+                .orElseGet(() -> DegeneracyFloor.evaluate(metric, confidenceFloor, wordFloor));
     }
 
     private ExtractionMetric computeAndInsert(OccurrenceId occurrenceId, RunId runId, DoclingResponse response) {

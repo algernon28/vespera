@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.OptionalLong;
 import org.springframework.batch.core.configuration.annotation.JobScope;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.ObjectProvider;
@@ -76,6 +77,7 @@ class StageRuns {
     private final OllamaClient ollamaClient;
 
     private RunId extraction;
+    private OptionalLong degenerateOutputWordFloor;
     private RunId contentCensus;
     private RunId contentRedundancy;
     private double contentRedundancyFloor;
@@ -137,6 +139,9 @@ class StageRuns {
         if (extraction == null) {
             WalkId walk = runMint.finishedWalk(canonicalRoot, "stage 2");
             RunId byteLevelReductionRunId = upstream(StageModules.BYTE_LEVEL_REDUCTION);
+            // One load serves both keys, so the number that names the run is the number that removes (ADR-117).
+            Profile profile = profileStore.load();
+            DegenerateOutputWordFloor wordFloor = DegenerateOutputWordFloor.of(profile.degenerateOutputWordFloor());
             extraction = runMint.mint(
                     StageModules.EXTRACTION,
                     new ExtractionConfigConsumed(
@@ -144,12 +149,24 @@ class StageRuns {
                             confidenceFloor.value(),
                             // Read here, fresh on every mint (ADR-185 §1), as embeddingScoring() reads
                             // the relevance floor -- never a bean built at start-up.
-                            ExtractionAttempt.of(profileStore.load().extractionAttempt())
-                                    .identityMember()),
+                            ExtractionAttempt.of(profile.extractionAttempt()).identityMember(),
+                            wordFloor.identityMember()),
                     walk,
                     Optional.of(byteLevelReductionRunId));
+            degenerateOutputWordFloor = wordFloor instanceof DegenerateOutputWordFloor.Floor floor
+                    ? OptionalLong.of(floor.words())
+                    : OptionalLong.empty();
         }
         return extraction;
+    }
+
+    /**
+     * The word floor stage 2's run was minted under (ADR-282 section 3), minting the run if it has not been:
+     * empty while the key is unset or ignored.
+     */
+    OptionalLong degenerateOutputWordFloor() {
+        extraction();
+        return degenerateOutputWordFloor;
     }
 
     /** Stage 3's run, minted the first time this is called in this invocation. */
@@ -439,7 +456,8 @@ class StageRuns {
             String extractorIdentity,
             Double degenerateOutputConfidenceFloor,
             // Per component, never per class: the floor must keep serialising as null (ADR-185 §1).
-            @JsonInclude(JsonInclude.Include.NON_NULL) Integer extractionAttempt) {}
+            @JsonInclude(JsonInclude.Include.NON_NULL) Integer extractionAttempt,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Long degenerateOutputWordFloor) {}
 
     /** Stage 3's own {@code ConfigConsumed}, unchanged. */
     private record ContentCensusConfigConsumed(String root, String extractionRunId) {}

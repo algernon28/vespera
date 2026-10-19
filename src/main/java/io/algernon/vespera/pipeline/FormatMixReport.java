@@ -90,6 +90,11 @@ final class FormatMixReport {
         LABELS.put(DetectedFormat.FLOOR_STOPPED, "Nothing could be read");
     }
 
+    /** How {@code format} is named on {@code format-mix.html}, for the pages that name a detected format as it does. */
+    static String labelOf(DetectedFormat format) {
+        return LABELS.get(format);
+    }
+
     private static final Map<DetectedSubtype, String> SUBTYPE_LABELS = new LinkedHashMap<>();
 
     static {

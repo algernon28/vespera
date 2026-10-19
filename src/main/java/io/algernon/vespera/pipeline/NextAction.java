@@ -399,6 +399,10 @@ class NextAction {
         if (confidenceFloor.isPresent()) {
             return confidenceFloor;
         }
+        Optional<String> wordFloor = theWordFloorIgnored(profile);
+        if (wordFloor.isPresent()) {
+            return wordFloor;
+        }
         Optional<String> logFloor = theLogFloorUnreadable(profile);
         if (logFloor.isPresent()) {
             return logFloor;
@@ -459,6 +463,23 @@ class NextAction {
                     + " dot, so this run ignored it and left nothing out for the ending of its name. Next: write"
                     + " the endings into outOfScopeNameEndings in " + PROFILE + ", each beginning with a dot,"
                     + " with no wildcard, and separated by spaces, and run again.");
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The line for {@code degenerateOutputWordFloor} (ADR-282 section 3), where it holds something that is not
+     * a whole number of 0 or more -- empty otherwise. Unset is not reported: it ships unset and removes
+     * nothing. The reading is {@link DegenerateOutputWordFloor}'s, the one stage 2's identity uses.
+     */
+    private static Optional<String> theWordFloorIgnored(Profile profile) {
+        if (DegenerateOutputWordFloor.of(profile.degenerateOutputWordFloor())
+                instanceof DegenerateOutputWordFloor.Ignored ignored) {
+            return Optional.of("Every run value is set, but " + DegenerateOutputWordFloor.KEY + " reads "
+                    + quoted(ignored.text()) + ", which is not a whole number of 0 or more, so this run ignored"
+                    + " it and removed nothing for having too few words. Next: write a whole number of words,"
+                    + " read off " + ContentCensusTasklet.WORD_COUNT_DISTRIBUTION_FILE_NAME + ", into "
+                    + DegenerateOutputWordFloor.KEY + " in " + PROFILE + ", and run again.");
         }
         return Optional.empty();
     }

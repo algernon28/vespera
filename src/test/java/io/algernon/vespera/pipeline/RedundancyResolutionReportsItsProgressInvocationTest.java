@@ -225,14 +225,15 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
         claim(
                 "stage 3 says what it is reading and how long each read took, each line once, in the order it"
                         + " reads: the shingle rows, the extraction metrics, over up to the " + metricRows
-                        + " rows stage 2's run holds, and the shares of the documents, the page"
-                        + " document-frequency.html is written from (ADR-262 §2). It says nothing of reading the"
-                        + " documents stage 2 left: it reads them a page at a time inside the first two reads, and"
-                        + " holds no list of them",
+                        + " rows stage 2's run holds, the word counts, over the same rows (ADR-282 §5), and the"
+                        + " shares of the documents, the page document-frequency.html is written from (ADR-262 §2)."
+                        + " It says nothing of reading the documents stage 2 left: it reads them a page at a time"
+                        + " inside the first three reads, and holds no list of them",
                 () -> assertThat(shingleRowsLineShortened(StatementLines.of(operatorLines(), STAGE_THREE)))
                         .containsExactlyElementsOf(StatementLines.inOrder(
                                 List.of(READING_UP_TO),
                                 StatementLines.countedRead(STAGE_THREE, "the extraction metrics", metricRows),
+                                StatementLines.countedRead(STAGE_THREE, "the word counts", metricRows),
                                 StatementLines.timedRead(STAGE_THREE, "the shares of the documents"))));
         claim(
                 "resolving says what it is reading and how long each read took, each line once, in the order it"

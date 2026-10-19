@@ -114,11 +114,11 @@ class ProfileTest {
     private static final int ONE_CONSTRUCTOR = 1;
 
     /**
-     * How many keys the profile carries today, and therefore how many the one constructor takes: 14 since
-     * ADR-277 §2 added {@code codeNameEndings}. A new key raises this count; it never earns a second
-     * constructor.
+     * How many keys the profile carries today, and therefore how many the one constructor takes: 15 since
+     * ADR-277 §2 added {@code codeNameEndings} and ADR-282 §3 added {@code degenerateOutputWordFloor}. A new
+     * key raises this count; it never earns a second constructor.
      */
-    private static final int EVERY_KEY = 14;
+    private static final int EVERY_KEY = 15;
 
     @Test
     @Story("The profile record has one way in")
