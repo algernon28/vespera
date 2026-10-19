@@ -163,6 +163,9 @@ class ProfileStoreTest {
             degenerateOutputConfidenceFloor:
               value: "0.51"
               provenance: "read off the confidence distribution"
+            degenerateOutputWordFloor:
+              value: "3"
+              provenance: "read off the word counts"
             boilerplateDocumentFrequencyFloor:
               value: "0.52"
               provenance: "read off the document-frequency table"

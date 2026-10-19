@@ -35,6 +35,7 @@ public final class ProfileFixture {
 
     private TextValue seedFolder = TextValue.unset();
     private NumericValue degenerateOutputConfidenceFloor = NumericValue.unset();
+    private NumericValue degenerateOutputWordFloor = NumericValue.unset();
     private NumericValue boilerplateDocumentFrequencyFloor = NumericValue.unset();
     private TextValue embeddingModel = TextValue.unset();
     private NumericValue relevanceScoreFloor = NumericValue.unset();
@@ -66,6 +67,7 @@ public final class ProfileFixture {
         ProfileFixture fixture = new ProfileFixture();
         fixture.seedFolder = existing.seedFolder();
         fixture.degenerateOutputConfidenceFloor = existing.degenerateOutputConfidenceFloor();
+        fixture.degenerateOutputWordFloor = existing.degenerateOutputWordFloor();
         fixture.boilerplateDocumentFrequencyFloor = existing.boilerplateDocumentFrequencyFloor();
         fixture.embeddingModel = existing.embeddingModel();
         fixture.relevanceScoreFloor = existing.relevanceScoreFloor();
@@ -112,6 +114,16 @@ public final class ProfileFixture {
 
     public ProfileFixture degenerateOutputConfidenceFloor(NumericValue value) {
         this.degenerateOutputConfidenceFloor = value == null ? NumericValue.unset() : value;
+        return this;
+    }
+
+    public ProfileFixture degenerateOutputWordFloor(String value, String provenance) {
+        return degenerateOutputWordFloor(aNumber(value, provenance));
+    }
+
+    /** Stage 2's word floor (ADR-282): fewer words than it is {@code degenerate-output}. */
+    public ProfileFixture degenerateOutputWordFloor(NumericValue value) {
+        this.degenerateOutputWordFloor = value == null ? NumericValue.unset() : value;
         return this;
     }
 
@@ -212,6 +224,7 @@ public final class ProfileFixture {
         return new Profile(
                 seedFolder,
                 degenerateOutputConfidenceFloor,
+                degenerateOutputWordFloor,
                 boilerplateDocumentFrequencyFloor,
                 embeddingModel,
                 relevanceScoreFloor,

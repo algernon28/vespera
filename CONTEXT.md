@@ -51,6 +51,10 @@ _Not to be confused with_: SQLite's **write-ahead log**, the file `vespera.db-wa
 A file occurrence carrying no blocking verdict under a given run or any run upstream of it. A question the ledger answers of one run, not a place documents are moved to (ADR-156).
 _Avoid_: shortlist, whitelist, the keep pile
 
+**Recognisable text**:
+What a converted file occurrence holds when it holds usable text, a letter or a digit outside its page headers and footers (ADR-232), and, once the profile's `degenerateOutputWordFloor` is set, at least that many words, a word being whatever stands between two spaces of its whole extracted text, page headers and footers included (ADR-282). A file occurrence with none is `degenerate-output` at stage 2, whatever its detected format, and so is one below the confidence floor. A measure of the text and never of the kind of file: a one-word note and a picture of a one-word button fall under a floor of 2 alike. A seed is held to usable text alone, never to the word floor (ADR-083), so an unusable seed is one with no usable text.
+_Avoid_: unreadable (a profile value nobody can act on, under Operation), textless (ADR-105's word for no letter or digit at all, which is tier 1 alone), meaningful text, real text
+
 **Extraction fault**:
 A file occurrence stage 2 got no answer about: the converter blamed the failure on itself, or ran out of time on several files in a row, so nothing was measured and nothing was decided at the time. A file the converter answered about and could not convert is not one — that is `extraction-failed` at once (ADR-143). Recorded as a row of its own, never a verdict when it is written — and, where the step it happened in went on to complete, resolved into `extraction-failed` at the end of that step, because the sidecar answering for its neighbours is the evidence that the refusal was about this file (ADR-139). Distinct from an unusable seed, which is the same converter response on the side of the system where nothing is ever removed.
 _Avoid_: skip, error, failed document. Also "unreadable" **for this state**: that word names a profile value nobody can act on, under Operation below.

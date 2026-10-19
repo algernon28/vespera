@@ -19,6 +19,7 @@ import io.algernon.vespera.extraction.ExtractionMetrics;
 import io.algernon.vespera.extraction.HybridChunkerBeans;
 import io.algernon.vespera.extraction.LanguageDetection;
 import io.algernon.vespera.extraction.LeadingChunks;
+import io.algernon.vespera.extraction.WordCountDistribution;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.profile.ProfileStore;
@@ -130,6 +131,7 @@ import org.springframework.transaction.annotation.Transactional;
     ConfidenceDistribution.class,
     // Stage 3: content census.
     ContentCensusTasklet.class,
+    WordCountDistribution.class,
     Shingler.class,
     BoilerplateShingles.class,
     DocumentFrequency.class,

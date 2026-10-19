@@ -53,6 +53,7 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `embeddingModel` | whichever model you can serve locally | — |
 | `relevanceScoreFloor` | what each possible cut would cost you, in documents | `relevance-labelling.html`, `cluster-sizes.html`, `seed-corpus-comparison.html` |
 | `degenerateOutputConfidenceFloor` | how well the text extraction went | `confidence-distribution.html` |
+| `degenerateOutputWordFloor` | how many words each kind of file held once its text was extracted, and what each floor would remove | `word-count-distribution.html` |
 | `extractionAttempt` | whether the files the converter did not answer about are worth asking again | `extraction-failures.html` |
 | `arrangementApproved` | whether the groups the tool formed are worth writing over | `arrangement.html` |
 | `generationModel` | whichever model you can serve locally, if you want a different one | — |
@@ -80,9 +81,9 @@ If you moved the working directory, put its `vespera.db` in place of `.vespera/v
 
 The first line names the content census it read: the one whose id you put at the end, or, with no id, of the content censuses that finished, the one whose run was created last. Each line after the first is a row as the page shows it, the share written as Python writes it, `1.0` for `1.00`; the rule for choosing the floor is the same. If the command stops with `TypeError: 'NoneType' object is not subscriptable`, no content census has finished in that database. If it stops with `unable to open database file`, there is no `vespera.db` where it looked, and it has made none: run it from the directory you run `vespera` from, or name the moved `vespera.db`. If it stops with `no such table: run`, the `vespera.db` it opened holds no ledger, as an empty file of that name does: check that it is the working directory's. If it prints the `run` line and nothing else, no run with that id stored any passages.
 
-Eight of these are **optional** and none of them is one of the five stops; all eight are here so that you know they exist.
+Nine of these are **optional** and none of them is one of the five stops; all nine are here so that you know they exist.
 
-`degenerateOutputConfidenceFloor`, left unset, removes nothing for extracting badly. `logTimestampShareFloor`, left unset, removes no logs: set it, as a share between 0 and 1, to leave out as a log every text file of ten lines or more in which at least that share of the lines read begin with a date or a time. `generationModel` and `generationContextWindow`, left unset, write the connecting text with the model and the reading window Vespera ships with — they are the values that already have answers, and setting one only replaces the answer it already had.
+`degenerateOutputConfidenceFloor`, left unset, removes nothing for extracting badly. `degenerateOutputWordFloor`, left unset, removes nothing for having too few words: set it, as a whole number, to remove every file whose extracted text holds fewer words than that, whatever kind of file it is, as holding no recognisable text. A word is anything between two spaces, a year or a word in any alphabet included, counted over all of the text, page headers and footers too. `word-count-distribution.html` shows, for each kind of file, how many of the files kept hold each number of words, and how many of each kind a floor of 2 to 10, 20, 50 or 100 would remove: a one-line note, a shortcut and a picture whose only text is a button's one word go alike. `logTimestampShareFloor`, left unset, removes no logs: set it, as a share between 0 and 1, to leave out as a log every text file of ten lines or more in which at least that share of the lines read begin with a date or a time. `generationModel` and `generationContextWindow`, left unset, write the connecting text with the model and the reading window Vespera ships with — they are the values that already have answers, and setting one only replaces the answer it already had.
 
 `outOfScopeNameEndings`, left unset, leaves nothing out for its name. Some files are not documents and hold nothing that says what they are; `format-mix.html` counts them under *What could not be recognised*, grouped by how they begin. To leave such files out, write the endings of their names into `outOfScopeNameEndings`, each beginning with a dot and separated by spaces, with why in `provenance`, and run again. Case does not matter, and `*` is not a wildcard: list each ending. Only a file the tool could not recognise, or a text file, is left out this way; a PDF or a Word document whose name ends with a listed ending is kept. For example:
 
@@ -131,6 +132,7 @@ format-mix.html                  what kinds of file the archive holds
 extraction-failures.html         the files that could not be read, and why
 extraction-survivors.html        the files that were read and kept
 confidence-distribution.html     how well the text came out
+word-count-distribution.html     how many words each kind of file kept holds
 document-frequency.html          how many documents share each passage
 seed-corpus-comparison.html      how far your exemplars resemble the archive
 translations.html                the documents held in several languages, and how alike they are

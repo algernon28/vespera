@@ -40,7 +40,7 @@ One invocation runs these sixteen steps. The names are the ones the log prints.
 | 0 | `census` | the archive root | the list of files seen |
 | 1 | `byte-level-reduction` | a finished census | `format-mix.html` |
 | 2 | `extraction` | the document converter running | extracted text, `extraction-failures.html` |
-| 3 | `content-census` | stage 2 finished | `document-frequency.html`, `confidence-distribution.html` |
+| 3 | `content-census` | stage 2 finished | `document-frequency.html`, `confidence-distribution.html`, `word-count-distribution.html` |
 | 4a | `redundancy-signature` | `boilerplateDocumentFrequencyFloor` | a signature for each document |
 | 4b | `content-redundancy` | the same | near-duplicates removed |
 | 5a | `seed-extraction` | `seedFolder`, stage 4 done | your exemplars' text |
@@ -97,7 +97,7 @@ A walk that has not finished is never used by a later stage. Nothing downstream 
 
 **What it does.** Sends every surviving file to the document converter and stores the text, with measurements of how well it came out. A file the converter cannot read is marked, skipped and listed in `extraction-failures.html`. A file that converts to no text, or to text only in page headers and footers, is removed as holding nothing to read, and the reason recorded says which. This is the long stage: on a large archive it runs for hours or days.
 
-**Optional values.** `degenerateOutputConfidenceFloor` (left unset, nothing is removed for extracting badly) and `extractionAttempt` (see below).
+**Optional values.** `degenerateOutputConfidenceFloor` (left unset, nothing is removed for extracting badly), `degenerateOutputWordFloor` (left unset, nothing is removed for having too few words; set, a file whose text holds fewer words is removed as holding nothing to read, whatever its kind) and `extractionAttempt` (see below).
 
 **Where it stops.** It does not stop for a value. It stops if the converter is not there, runs a different image from the one Vespera was told, or stays away for more than three minutes. The message says which. Fix the sidecar and run the same command again.
 
@@ -116,11 +116,11 @@ A walk that has not finished is never used by a later stage. Nothing downstream 
 
 **Run:** the same command.
 
-**What it does.** One pass over what extraction stored: how many documents share each passage, and how the conversion quality is spread. It writes `document-frequency.html`, which the boilerplate floor is read off, and `confidence-distribution.html`, and points `profile.yaml` at both. It removes nothing.
+**What it does.** One pass over what extraction stored: how many documents share each passage, how the conversion quality is spread, and how many words each kind of file kept holds. It writes `document-frequency.html`, which the boilerplate floor is read off, `confidence-distribution.html`, and `word-count-distribution.html`, which the word floor is read off, and points `profile.yaml` at all three. It removes nothing.
 
 **Where it stops.** It does not stop for a value.
 
-**Resume.** Interrupted, it discards its own rows and does the pass again. Finished, it is skipped, and its two pages are left as they are; `document-frequency.html` names the run it was written for.
+**Resume.** Interrupted, it discards its own rows and does the pass again. Finished, it is skipped, and its three pages are left as they are; `document-frequency.html` names the run it was written for.
 
 **After this stage the first invocation ends**, because the next stage wants a value read off what this one measured. The last line names it, and the page it is read off.
 
@@ -244,6 +244,7 @@ A stage runs again when something it was computed from changes. What it was comp
 |---|---|---|
 | `logTimestampShareFloor` | stage 1 onward | conversions, vectors, your answers |
 | `degenerateOutputConfidenceFloor` | stage 2 onward | conversions, vectors, your answers |
+| `degenerateOutputWordFloor` | stage 2 onward | conversions, vectors, your answers |
 | `extractionAttempt` | stage 2 onward | conversions already answered, vectors, your answers |
 | `boilerplateDocumentFrequencyFloor` | stage 4 onward | extraction, vectors, your answers |
 | `seedFolder` | stage 5 onward | extraction, stage 4; the answers given for the old folder stay with the old folder |

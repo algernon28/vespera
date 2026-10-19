@@ -1915,6 +1915,16 @@ public final class Adr {
     public static final String ONE_VESPERA_RUN_PER_CORPUS_ROOT = FILE
             + "0279-one-vespera-run-per-corpus-root-by-a-lock-on-a-file-named-for-its-real-path-outside-every-working-directory.md";
 
+    /**
+     * ADR-282 -- a converted occurrence whose stored {@code word_count} is below the profile's {@code
+     * degenerateOutputWordFloor} is {@code degenerate-output}, a third tier after tier 1 and tier 2, one value for
+     * every detected format; the key ships unset, is no gate, and joins stage 2's identity where set; stage 3 writes
+     * {@code word-count-distribution.html}, the survivors' words by detected format and what each candidate floor
+     * would remove (amends ADR-070).
+     */
+    public static final String FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT = FILE
+            + "0282-an-occurrence-with-fewer-words-than-the-word-floor-is-degenerate-output-whatever-its-detected-format-and-stage-3-writes-the-page-the-floor-is-read-off.md";
+
     private Adr() {
     }
 }
