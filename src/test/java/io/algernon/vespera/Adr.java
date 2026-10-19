@@ -1994,6 +1994,13 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_STARTS_THE_JAR_BESIDE_ITS_OWN_WITH_THE_JAVA_RUNNING_IT = FILE
             + "0288-the-operator-starts-the-control-panel-with-java-jar-and-it-starts-the-jar-beside-its-own-with-the-java-running-it.md";
 
+    /**
+     * ADR-290 -- a fixture repository is run without any {@code GIT_*} variable, so a test's git commits into its own
+     * folder and never into a repository the environment names.
+     */
+    public static final String A_FIXTURE_REPOSITORY_IS_RUN_WITHOUT_GITS_LOCATION_VARIABLES = FILE
+            + "0290-a-fixture-repository-is-run-without-gits-location-variables.md";
+
     private Adr() {
     }
 }
