@@ -2112,6 +2112,15 @@ public final class Adr {
     public static final String A_CONFLUENCE_RENDERING_IS_DRAWN_BESIDE_THE_HTML_TREE = FILE
             + "0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md";
 
+    /**
+     * ADR-304 -- Vespera never sends the deliverable tree to Confluence itself: neither the jar nor the control
+     * panel uploads the HTML tree or its Confluence rendering, holds a credential for Confluence or opens a
+     * connection to it, and no command, option, dependency or module is added for a load; the operator loads with
+     * the loader, a program of their own.
+     */
+    public static final String VESPERA_NEVER_SENDS_THE_TREE_TO_CONFLUENCE = FILE
+            + "0304-vespera-never-sends-the-deliverable-tree-to-confluence-itself-and-holds-no-uploader-no-credential-and-no-connection-for-it.md";
+
     private Adr() {
     }
 }
