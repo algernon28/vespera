@@ -44,7 +44,7 @@ _Avoid_: excluded, filtered, unsupported (Docling supports spreadsheets; this to
 _Not to be confused with_: **Code**, which stage 1 also stops in its first pass, under a verdict of its own, and which is not left out for what it is: what the deliverable carries of it is still to be decided (#573). Compiled code stays out of scope (ADR-252).
 
 **Operational record**:
-What a program or a system writes or reads in its running, and not documentation: a log, a configuration file, a data export, a flow file, a lookup-table export. Stage 1 removes a log and a configuration file by their bytes (ADR-171, ADR-287), and no other by a rule of its own: the rest is relevance's to remove, unless the operator lists the ending of its name in `outOfScopeNameEndings` (ADR-293). A JSON or YAML export written one key to a line can read as settings, and is taken for a configuration file where its share reaches `configurationSettingShareFloor`.
+What a program or a system writes or reads in its running, and not documentation: a log, a configuration file, a data export, a flow file, a lookup-table export. Stage 1 tells a log and a configuration file by their bytes once their floors are set (ADR-171, ADR-287), and no other by a rule of its own: the rest is relevance's to remove, unless the operator lists the ending of its name in `outOfScopeNameEndings` (ADR-293). A JSON or YAML export written one key to a line can read as settings, and is taken for a configuration file once `configurationSettingShareFloor` is set and its share reaches it.
 _Avoid_: data file, machine record
 _Not to be confused with_: a decision record in `docs/adr/`.
 
