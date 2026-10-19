@@ -1,5 +1,7 @@
 # ADR-103 — The deliverable is a Markdown tree in the working directory, one tree per run id
 
+> **Partly amended — see [ADR-286](0286-a-clusters-page-is-one-file-written-an-entry-at-a-time-through-its-part-with-its-pictures-and-a-png-or-jpeg-image-inlined.md).** "Self-contained has a test" is replaced by a stricter test: every `src` and `href` of every page is a fragment on that page, a relative path to a file inside the tree, or, on an `<img>`'s `src` only, a PNG or JPEG `data:` URI whose bytes are of the kind it declares; and each cluster folder holds only its page and its copies. Everything else stands.
+
 - **Date**: 2026-09-12
 - **Status**: accepted
 - **Answers**: [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md) — the first of the questions it handed forward to the 6a/6b slice: what 6b writes, and where the output lands. The other, what becomes of the surviving originals, stays open.

@@ -1986,6 +1986,18 @@ public final class Adr {
             + "0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md";
 
     /**
+     * ADR-286 -- a cluster's page is one file: a picture, and an image survivor's copy that is a PNG or a JPEG, are
+     * shown by a base64 {@code data:} URI on an {@code <img>}'s {@code src}, the one scheme a page names, and no
+     * picture file is written; the page is written as UTF-8 to a stream an entry at a time, the bytes counted at each
+     * entry's end, to {@code index.html.part} and moved into place, a copy yielding to that part; the files an earlier
+     * drawing left in a cluster folder are counted on the closing line; every {@code src} and {@code href} stays on its
+     * page or in the tree (amends ADR-274, ADR-280, ADR-276, ADR-149, ADR-150, ADR-242, ADR-223, ADR-220, ADR-103 and
+     * ADR-135).
+     */
+    public static final String A_CLUSTERS_PAGE_IS_ONE_FILE_ITS_PICTURES_INLINED = FILE
+            + "0286-a-clusters-page-is-one-file-written-an-entry-at-a-time-through-its-part-with-its-pictures-and-a-png-or-jpeg-image-inlined.md";
+
+    /**
      * ADR-287 -- a log is told by a timestamp in each counted line's first 64 characters, continuation lines left
      * out, and is read in a file of no known kind whose bytes read as text too; a configuration file is told by its
      * first XML element or by its share of setting lines under the profile's configurationSettingShareFloor, an
