@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  * the same name, whatever order the members arrive in.
  *
  * <p><b>Where repeated suffixes leave no room for any of the original's stem</b>, which ADR-280 leaves open, the stem
- * is empty and the suffixes stand alone; the name may then pass {@value #LONGEST_NAME} units. It still ends: while
+ * is empty and the suffixes stand alone; the name may then pass {@value #LONGEST_NAME} units, and past {@value #LONGEST_NAME_IN_BYTES} bytes with {@code .part}, in which case the file system refuses it and that copy is not copied. It still ends: while
  * any of the stem is left, an attempt may repeat the one before, but once the stem is empty each attempt is strictly
  * longer than the one before, and the names in a folder are finite.
  */
@@ -34,6 +34,9 @@ final class CopyNames {
 
     /** The longest extension kept whole, in code units, the dot before it not counted (ADR-280 §3). */
     private static final int LONGEST_EXTENSION = 16;
+
+    /** The most UTF-8 bytes a copy's name and {@code .part} may hold together (ADR-280 §3). */
+    static final int LONGEST_NAME_IN_BYTES = 255;
 
     private static final String PART = ".part";
 
@@ -117,9 +120,10 @@ final class CopyNames {
         return reserved.contains(key) || THE_PAGE.equals(key) || A_FURTHER_PAGE.matcher(key).matches();
     }
 
-    /** The collision key: normalisation form C, upper-cased without regard to the reader's locale (ADR-280 §1.4). */
+    /** The collision key: normalisation form C, upper-cased without regard to the reader's locale, and composed again (ADR-280 §1.4). */
     static String keyOf(String name) {
-        return Normalizer.normalize(name, Normalizer.Form.NFC).toUpperCase(Locale.ROOT);
+        String composed = Normalizer.normalize(name, Normalizer.Form.NFC).toUpperCase(Locale.ROOT);
+        return Normalizer.normalize(composed, Normalizer.Form.NFC);
     }
 
     /**
@@ -141,9 +145,7 @@ final class CopyNames {
         if (name.isEmpty()) {
             return new Shape(String.valueOf(member.occurrence().value()), "");
         }
-        int firstDot = name.indexOf('.');
-        String beforeTheDot = firstDot < 0 ? name : name.substring(0, firstDot);
-        if (DEVICE_NAMES.contains(beforeTheDot.toUpperCase(Locale.ROOT))) {
+        if (isDevice(name)) {
             return new Shape("_" + cut.body(), cut.extension()).cut(0);
         }
         return cut;
@@ -163,12 +165,21 @@ final class CopyNames {
             end--;
         }
         String trimmed = replaced.substring(0, end);
-        int firstDot = trimmed.indexOf('.');
-        String beforeTheDot = firstDot < 0 ? trimmed : trimmed.substring(0, firstDot);
-        if (DEVICE_NAMES.contains(beforeTheDot.toUpperCase(Locale.ROOT))) {
+        if (isDevice(trimmed)) {
             trimmed = "_" + trimmed;
         }
         return trimmed.isEmpty() ? String.valueOf(member.occurrence().value()) : trimmed;
+    }
+
+    /** Whether the part of {@code name} before its first dot, trailing spaces ignored, is a Windows device name. */
+    private static boolean isDevice(String name) {
+        int firstDot = name.indexOf('.');
+        String beforeTheDot = firstDot < 0 ? name : name.substring(0, firstDot);
+        int end = beforeTheDot.length();
+        while (end > 0 && beforeTheDot.charAt(end - 1) == ' ') {
+            end--;
+        }
+        return DEVICE_NAMES.contains(beforeTheDot.substring(0, end).toUpperCase(Locale.ROOT));
     }
 
     /** Whether Windows refuses {@code c} in a name: a control character or one of nine others (ADR-280 §1.2). */
@@ -181,9 +192,13 @@ final class CopyNames {
 
     private static Set<String> deviceNames() {
         Set<String> names = new HashSet<>(List.of("CON", "PRN", "AUX", "NUL"));
-        for (int digit = 1; digit <= 9; digit++) {
+        for (int digit = 0; digit <= 9; digit++) {
             names.add("COM" + digit);
             names.add("LPT" + digit);
+        }
+        for (char superscript : new char[] {'\u00B9', '\u00B2', '\u00B3'}) {
+            names.add("COM" + superscript);
+            names.add("LPT" + superscript);
         }
         return Set.copyOf(names);
     }
@@ -203,15 +218,24 @@ final class CopyNames {
             return body + extension;
         }
 
+        private static int utf8Length(String text) {
+            return text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        }
+
         /** This name cut so that {@code suffixLength} more units fit within {@value #LONGEST_NAME}. */
         private Shape cut(int suffixLength) {
             int room = Math.max(0, LONGEST_NAME - extension.length() - suffixLength);
-            if (body.length() <= room) {
+            int fixedBytes = utf8Length(extension) + suffixLength + PART.length();
+            if (body.length() <= room && utf8Length(body) + fixedBytes <= LONGEST_NAME_IN_BYTES) {
                 return this;
             }
-            int end = room;
-            if (end > 0 && Character.isHighSurrogate(body.charAt(end - 1)) && Character.isLowSurrogate(body.charAt(end))) {
+            int end = Math.min(room, body.length());
+            if (end > 0 && end < body.length() && Character.isHighSurrogate(body.charAt(end - 1))
+                    && Character.isLowSurrogate(body.charAt(end))) {
                 end--;
+            }
+            while (end > 0 && utf8Length(body.substring(0, end)) + fixedBytes > LONGEST_NAME_IN_BYTES) {
+                end -= Character.isLowSurrogate(body.charAt(end - 1)) && end > 1 ? 2 : 1;
             }
             while (end > 0 && (body.charAt(end - 1) == '.' || body.charAt(end - 1) == ' ')) {
                 end--;
