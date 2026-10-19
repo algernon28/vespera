@@ -65,9 +65,10 @@ ADR-280 §4, ADR-286 §4).
 `index.html` is headed `Deliverable <generation run>` and lists the run, the walk, the corpus root
 (labelled `Archive root`) and every
 profile key with its value, then a paragraph on what the folders and `documents.csv` hold (`IndexPage.open`).
-**Each seed partition is an `<h2>` naming its seed path, over a table of its clusters**: the cluster's label or
-title, its count of documents, and what it was written up as, a cluster with writing linking
-`<seed partition>/<cluster>/index.html` (ADR-274 §1.4, ADR-280 §0). Where the run has code sets, a `Code`
+**Each seed partition is an `<h2>` naming its seed path, over a table of its clusters**: the cluster's label, its count of
+documents, and what it was written up as, the generated title. Only a cluster with writing links its label to
+`<seed partition>/<cluster>/index.html`; one without shows ADR-174's sentence in `<em>` and links nothing
+(`IndexPage.clusterRow`, ADR-274 §1.4, ADR-280 §0). Where the run has code sets, a `Code`
 section follows, one row a set linking `code/<name>/` (ADR-296 §4).
 
 **A seed partition has no page of its own.** It is a heading on the index and a folder on disk, named with its
@@ -99,7 +100,8 @@ sentence in `<em>`; then `The documents in this group` over an `<ol>` numbered a
 - **A copy lies in its cluster's folder** under its original's own name, made safe, cut to 100 UTF-16 code units
   and to 255 UTF-8 bytes with `.part`, and suffixed `~<occurrence id>` before the extension only on a collision
   (ADR-280 §1, §3). A name may hold any character but `< > : " / \ | ? *` and controls, `~` and non-ASCII among
-  them. Each is checked against the key stage 2 recorded before it stands (ADR-274 §2.2).
+  them; it ends in no dot or space, and a Windows device name gets a leading `_` (ADR-280 §1.2, §1.3,
+  `CopyNames`). Each is checked against the key stage 2 recorded before it stands (ADR-274 §2.2).
 - **A copy has no size bound but the drive's gibibyte** (ADR-274 §2.5).
 - **Code sets lie side by side under `code/`**, each member at its kept path, checked by the walk's size and
   time (ADR-296 §2, §3). `code` meets no seed partition's folder, which begins with digits and a `-`
@@ -113,25 +115,30 @@ sentence in `<em>`; then `The documents in this group` over an `<ol>` numbered a
 `relevance_score`, `seed_partition`, `cluster`, `partition_order`, `cluster_order`, `copy` and `copy_outcome`
 (`ManifestCsv.HEADER`). `copy` is `<seed partition>/<cluster>/<copy name>` from the root, and `copy_outcome`
 one of `copied`, `changed`, `gone`, `no-room` and `not-copied` (ADR-274 §2.3, ADR-280 §0). It is quoted by
-RFC 4180, behind ADR-235's single quote where a cell would begin as a formula. `code.csv` lists every code set
-member, its `copy` and its `copy_outcome`, with no `content_hash` (ADR-296 §5). Neither gives a copy's size:
-the page list a loader reads (#604, ruling 5) would have to.
+RFC 4180, behind ADR-235's single quote where a cell would begin as a formula. `code.csv` has nine columns:
+`occurrence_id`, `path`, `code_set`, `role`, `generator`, `size_bytes`, `last_modified`, `copy` and
+`copy_outcome`, with no `content_hash` (`CodeCopies.HEADER`, ADR-296 §2, §5). `code.csv`'s `size_bytes` is the
+walk's size of each code file; `documents.csv` gives no copy's size, which the page list a loader reads would
+have to (#604, ruling 5).
 
 ### 1.6 What a loader meets
 
 | In the tree | Links to | On Confluence (#604, Destination 2) |
 | --- | --- | --- |
-| `index.html` | each cluster's page, each `code/<name>/` | the root page |
+| `index.html` | each cluster's page that has writing, each `code/<name>/` | the root page |
 | a seed partition's `<h2>` and folder | nothing of its own | a parent page, new |
 | a cluster's `index.html` | its copies (`./`), its entries (`#document-n`) | a child page |
 | a picture, inlined | nothing | a file on the cluster's page |
 | a copy | nothing | a file on the cluster's page (ruling 5) |
 | `code/` | nothing | not yet specified (#604, Not yet specified) |
-| `documents.csv`, `code.csv`, the marker | nothing | not loaded; the marker never is (#604, Out of scope) |
+| the marker | nothing | never loaded (#604, Out of scope) |
+| `documents.csv` | nothing | not settled (#618) |
+| `code.csv` | nothing | not yet specified (#604, Not yet specified: code sets) |
 
 **Titles are not unique by construction.** A cluster's page is headed by its generated title or its label, both
 a model's words; two clusters may carry the same. The order prefix keeps folder names apart (ADR-274 §1.2), and
-nothing keeps titles apart. Confluence asks a title unique within a space (§2.5).
+nothing keeps titles apart. Confluence is reported to ask a title unique within a space [both] [unverified]
+(§2.5).
 
 ---
 
@@ -142,7 +149,8 @@ nothing keeps titles apart. Confluence asks a title unique within a space (§2.5
 | Fact | Tag | Source |
 | --- | --- | --- |
 | Data Center sells no new subscriptions from 2026-03-30; existing customers may buy and expand until 2028-03-30; licences expire and sites go read-only on 2029-03-28 | [DC] [unverified] | partner summaries, [Seibert](https://us.seibert.group/blog/end-of-life-atlassian-data-center), [Actonic](https://actonic.de/en/statement-regarding-atlassian-data-center-end-of-life/); Atlassian's [blog](https://www.atlassian.com/blog/development/from-data-center-to-cloud-the-next-chapter-for-marketplace-apps) not read. One secondary source gives 2029-03-30 |
-| Cloud's REST API is v1 (`/wiki/rest/api/…`) and v2 (`/wiki/api/v2/…`); DC's is v1 alone, at `/rest/api/…` | [both] | F1, F3 |
+| Cloud's REST API is v1 (`/wiki/rest/api/…`) and v2 (`/wiki/api/v2/…`) | [Cloud] | F1, F3 |
+| DC's is v1 alone, at `/rest/api/…`: F1's Server class calls no v2, and F3 recommends v1 for *"older Data Center/Server installations"* | [DC] [unverified] | F1, F3 README |
 
 ### 2.2 Authentication
 
@@ -154,7 +162,7 @@ nothing keeps titles apart. Confluence asks a title unique within a space (§2.5
 | A scoped token calls `https://api.atlassian.com/ex/confluence/<cloudId>/`, not the site URL | [Cloud] | F2 `guide-scope-token.rst`, F3 README; [KB](https://support.atlassian.com/confluence/kb/scoped-api-tokens-in-confluence-cloud/) [unverified] |
 | `<cloudId>` is read from `https://<site>.atlassian.net/_edge/tenant_info` | [Cloud] | F2 `guide-scope-token.rst` |
 | Whether `/wiki/` follows `<cloudId>/` is not settled: F2 and F3 configure the base without it | [Cloud] [unverified] | F2, F3 |
-| A scoped token sending pages and files needs, in F2's list, `read:page`, `write:page`, `read:attachment`, `write:attachment`, `delete:attachment`, `read:space`, `read:content-details`, `read:content.property`, `write:content.property`, `read:label`, `write:label`, `write:watcher` and `delete:page`, each `:confluence` | [Cloud] | F2 `guide-scope-token.rst` |
+| A scoped token sending pages and files needs, in F2's list, `read:page`, `write:page`, `read:attachment`, `write:attachment`, `delete:attachment`, `read:space`, `read:content-details`, `read:content.metadata`, `read:content.property`, `write:content.property`, `read:label`, `write:label`, `write:watcher` and `delete:page`, each `:confluence` | [Cloud] | F2 `guide-scope-token.rst` |
 | A Personal Access Token is sent as `Authorization: Bearer <token>`, since Confluence 7.9 | [DC] [unverified] | [7.9 release notes](https://confluence.atlassian.com/display/DOC/Confluence+7.9+Release+Notes); F3 sends Bearer with no user |
 
 ### 2.3 Spaces and pages
@@ -251,8 +259,9 @@ None of them reads HTML as it is: each converts its own source to storage format
 
 ## 3. Options A to D
 
-The map names four routes. **B and D are ruled out** by the operator (#604, rulings 1 and 2), and their rows
-are kept as research only.
+Four routes, each sourced below: A from #604's Destination, B from ruling 2 and #608, C from #604's Out of
+scope, D from #607. **B and D are ruled out** by the operator (#604, rulings 1 and 2), and their rows are kept
+as research only.
 
 - **A. Stage 6b draws a Confluence rendering in storage format beside the HTML tree, with a page list; a loader
   of the operator's own sends it** (#604, Destination 2 and 4).
@@ -267,8 +276,8 @@ are kept as research only.
 | --- | --- | --- | --- | --- |
 | **Touches** | `deliverable` only (#604, Notes; ADR-274 §4, §5); amends ADR-101 and ADR-102 (#607); README gains the loader's contract | `deliverable` and a new client, credentials and a network connection; among them ADR-195 §2, ADR-197 §6, ADR-202 §3, ADR-047, ADR-084, ADR-291 §8, ADR-292 §2 (#608) | nothing of ours | nothing of ours |
 | **Costs** | a second renderer, a page list, a parity test (#604, Destination 3); a loader the operator writes | A's cost, plus a client to keep current with v1 and v2 (§2.3), token handling (§2.2) and pacing (§2.6); no agent can test it against a space | the operator's time per load | the converter, kept by the operator in step with every layout change (#571, #573) |
-| **Cannot carry** | nothing the HTML carries, so far as §2 reads; a copy past the site's file size (§2.4) is skipped by the loader (ruling 5) | as A | nesting: one folder of pages under a new space, so no root, parents or children; copies whose media it does not take (§2.8); updates | as A, but with nothing our side tests |
-| **Risks** | the two renderings drifting; citations reaching the page but not the entry on Cloud (§2.7); title links and title collisions (§1.6, §2.5); the editor rewriting a body (§2.7); the request cap (§2.6) | A's, plus a credential and an egress path in the jar | an `index.html` reported to load empty (#604); every load a new space | breaking silently on a layout change (#607) |
+| **Cannot carry** | code sets, not yet specified (#573); otherwise nothing the HTML carries, so far as §2 reads; a copy past the site's file size (§2.4) is skipped by the loader (ruling 5) | as A | nesting: one folder of pages under a new space, so no root, parents or children; copies whose media it does not take (§2.8); updates | as A, but with nothing our side tests |
+| **Risks** | the two renderings drifting; citations reaching the page but not the entry on Cloud (#604, Risks) [unverified]; title links and title collisions (§1.6, §2.5); the editor rewriting a body (§2.7); the request cap (§2.6) | A's, plus a credential and an egress path in the jar | an `index.html` reported to load empty (#604); every load a new space | breaking silently on a layout change (#607) |
 | **Reopens** | ADR-101, ADR-102, ADR-002, ADR-023; ADR-274 Decided here 1 (#607) | ADR-195, ADR-197, ADR-202, ADR-047, ADR-084, ADR-098, ADR-040, ADR-276, ADR-278, ADR-285, ADR-291, ADR-292, ADR-046 (#608) | none | none |
 
 ---
@@ -283,11 +292,11 @@ Atlassian page read whole; each stays for #611 to measure where it bears on a bu
 | Request cap 5,242,880 bytes by default, raised by `atlassian.rest.request.maxsize` [DC] | as stated; the property is a JVM system property, set on every node with a restart | [DC] [unverified] | §2.6 |
 | No documented body cap [Cloud, unverified] | **corrected**: none documented, but two issues report one of 5,242,880 bytes. #571 still waits on #611 | [Cloud] [unverified] | §2.6 |
 | API tokens last at most 365 days [Cloud] | as stated: 1 to 365 days, chosen at creation | [Cloud] [unverified] | §2.2 |
-| A scoped token calls `https://api.atlassian.com/ex/confluence/<cloudId>/wiki/…`, not the site URL [Cloud] | the base and the cloudId's source confirmed in F2 and F3; **whether `/wiki/` follows is not settled** | [Cloud]; `/wiki/` [unverified] | §2.2 |
+| A scoped token calls `https://api.atlassian.com/ex/confluence/<cloudId>/wiki/…`, not the site URL [Cloud] | the base confirmed in F2 and F3, the cloudId's source (`_edge/tenant_info`) in F2 alone; **whether `/wiki/` follows is not settled** | [Cloud]; `/wiki/` [unverified] | §2.2 |
 | `X-RateLimit-Reset` [Cloud], `Retry-After` [DC] | **widened**: Cloud sends `Retry-After` too, and DC the `X-RateLimit-*` family, since 7.3 | [both] [unverified] | §2.6 |
 | v1 `POST child/attachment` refuses a name that exists | **not confirmed**: no source read gives the answer; the clients read sidestep it by listing first | [both] [unverified] | §2.4 |
 | updates go through `PUT child/attachment` or `POST …/child/attachment/{id}/data` | `/data` confirmed by F1 to F3; **`PUT` is not taken on DC** by F1's account, and unread on Cloud | `/data` [both]; `PUT` [DC] by F1, [Cloud] [unverified] | §2.4 |
-| v2 has no upload endpoint [both] | **retagged**: DC has no v2 at all; on Cloud, as stated | [Cloud] [unverified] | §2.1, §2.4 |
+| v2 has no upload endpoint [both] | **retagged**: on Cloud, as stated; DC is reported to have no v2 at all | [Cloud] [unverified]; DC's half [DC] [unverified] | §2.1, §2.4 |
 | v2 cannot create a page directly under a folder [Cloud, unverified] | as stated, a 500, CONFCLOUD-79677 | [Cloud] [unverified] | §2.3 |
 | DC has no folders [DC] | stated by no source read | [DC] [unverified] | §2.3 |
 | Word import 100 MB a file, bulk 30 files / 50 MB / 10 MB, 5 MB body [Cloud] (#604) | **not found**; one report gives 20 MB | [Cloud] [unverified] | §2.8 |
