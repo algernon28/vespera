@@ -15,7 +15,7 @@
 
 ADR-101 ends the run at stage 6b. ADR-301 §1 amends its Decision so that stage 6b draws, beside the HTML tree, the Confluence rendering: the same tree in Confluence's storage format, as files for the operator's loader, and *"beyond drawing it, nothing in this project renders, uploads or transmits the deliverable anywhere"*. ADR-301 leaves to #608 that Vespera never sends the tree, holds no credentials, opens no connection and adds no command.
 
-With the Confluence rendering drawn, one step remains between the files and a Confluence space: carrying them there. That step could be taken by an uploader in the jar, by one the control panel drives, or by the loader, the operator's own program outside this project.
+With the Confluence rendering drawn, one act remains between the files and a Confluence space: carrying them there. That act could be done by an uploader in the jar, by one the control panel drives, or by the loader, the operator's own program outside this project.
 
 What the code holds today:
 
@@ -44,7 +44,7 @@ An uploader would be the one part of Vespera whose purpose is to move documents 
 
 No Confluence token, personal access token, password, user name or base URL is held in `application.yaml`, `application-local.yaml`, `profile.yaml`, the launch-value file, the child's environment the control panel builds, or any other file the jar or the control panel reads or writes. No property, profile key or launch value names one.
 
-- **ADR-084** keeps *"base URLs and API keys"* in `application.yaml`, as deployment. The services it names there are the operator's local sidecars; it gives no service off the machine a key there, and this record gives none.
+- **ADR-084** keeps *"base URLs and API keys"* in `application.yaml`, as deployment. The services it names there are the operator's local sidecars; it gives no service off the machine a key there, and this record gives none. A sidecar's own key, should one ever be needed, is ADR-084's and not barred here.
 - **ADR-292 §2**: the launch-value file holds *"no token, no password, no text of any document"*.
 - **ADR-291 §8**: the control panel *"writes no file holding text of a document or the token"*; the one secret it holds, its own start's token, lives only in memory.
 
@@ -75,7 +75,7 @@ Nothing in this project can hold an uploader by its tests. No test can reach a r
 
 ### 9. Run ids
 
-This record changes no code under `src/main`, no setting and no module. No run id moves.
+This record changes no code under `src/main`, no property and no module. No run id moves.
 
 ## Alternatives refused
 
@@ -94,9 +94,9 @@ This record changes no code under `src/main`, no setting and no module. No run i
 | Method | What it holds |
 | --- | --- |
 | `NothingShippedReachesConfluenceTest.noShippedFileNamesAConfluenceRestPathOrAtlassiansHost` | no file under `src/main`, the jar's and the control panel's alike, names a Confluence REST path or an Atlassian Cloud host (§1) |
-| `NothingShippedReachesConfluenceTest.theShippedConfigurationHoldsNoCredential` | no YAML file under `src/main/resources`, read as Spring reads it, holds a key ending in a token, a personal access token, a password, a user name, an API key, a secret, credentials or a bearer, nor a key naming Confluence or Atlassian (§3) |
+| `NothingShippedReachesConfluenceTest.theShippedConfigurationHoldsNoCredential` | no YAML file under `src/main/resources`, read as Spring reads it, holds a key for a Confluence or Atlassian site's address, nor a key naming Confluence or Atlassian that ends in a token, a personal access token, a password, a user name, an API key, a secret, credentials or a bearer (§3) |
 | `NothingShippedReachesConfluenceTest.theBuildDeclaresNoAtlassianArtifact` | the pom declares no artifact of `com.atlassian`, however its `groupId` is spaced (§4) |
-| `NothingShippedReachesConfluenceTest.theCommandHasRunAndLabelAndNoOther` | `vespera` declares `run` and `label` as its subcommands and no other, and each command exactly the options it has today, `vespera` none of its own, `run` `--db-dir`, `label` `--auto` and `--db-dir` (§4) |
+| `NothingShippedReachesConfluenceTest.theCommandHasRunAndLabelAndNoOther` | the command tree, read through picocli's own model: `vespera` has `run` and `label` and no other subcommand, neither has a subcommand, and each command has exactly the options it has today beside the standard help ones, `vespera` none, `run` `--db-dir`, `label` `--auto` and `--db-dir` (§4) |
 | `controlpanel.TheControlPanelLinksNoClassOfTheJarTest.theControlPanelNamesOnlyTypesOfItsOwnPackageAndOfTheJdksBaseAndHttpServerModules` | the control panel names no type of `java.net.http` (§4, held under ADR-285 §3) |
 | `controlpanel.ChildCommandTest.onlyRunAndLabelCanBeBuilt` | the control panel starts the jar's `run` and `label` and nothing else (§5, held under ADR-278 §1) |
 
