@@ -1,5 +1,7 @@
 # ADR-264 — The private-paths guard refuses only what reads or writes outside the allow list, and a working directory is open as the place it lies in
 
+> **Partly amended — see [ADR-283](0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md).** §2's working directory open to every tool is open but for a deliverable tree drawn in it, which the guard reads as outside the allow list by its marker.
+
 > **Partly amended — see [ADR-270](0270-every-log-vespera-writes-is-in-the-working-directorys-logs-folder-the-invocation-account-among-them.md).** The Consequence "ADR-198's account no longer has the reason it was put outside every working directory, and stays where it is" no longer holds: the account is written in the working directory's `logs` folder, where `vespera.log` and the files it rolls into are too. The guard's rules stand, and `logs/` is open as the working directory it lies in is.
 
 - **Date**: 2026-10-15
