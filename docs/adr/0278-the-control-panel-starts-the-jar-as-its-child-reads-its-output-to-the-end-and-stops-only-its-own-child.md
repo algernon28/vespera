@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-288](0288-the-operator-starts-the-control-panel-with-java-jar-and-it-starts-the-jar-beside-its-own-with-the-java-running-it.md).** Of §1 and What this does not decide: the `java` that starts the child is `bin/java` of the runtime running the control panel, `java.exe` on Windows, and `<jar>` is the jar named by the control-panel jar's `Vespera-Jar` entry, beside it. The rest of this record stands.
 
+> **Partly amended — see [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md).** Of §1 and What this does not decide: the child's environment holds `CI=1` and, for each launch value not empty, `VESPERA_DELIVERABLE_ROOT`, `VESPERA_DOCLING_IMAGE`, `VESPERA_DOCLING_BASE_URL`, `SPRING_AI_OLLAMA_BASE_URL` and `VESPERA_LABEL_MODEL`; the values are remembered in a file of the user's own under the temp directory. The rest of this record stands.
+
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.
 - **Keeps**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md), whose What this does not decide leaves a program that starts the jar for the operator to a decision of its own: this is that decision for the **control panel**, and this record changes nothing in the packaged jar, its commands or what it starts; ADR-279 adds the corpus-root lock to `run`.

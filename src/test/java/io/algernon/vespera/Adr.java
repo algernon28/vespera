@@ -2001,6 +2001,15 @@ public final class Adr {
     public static final String A_FIXTURE_REPOSITORY_IS_RUN_WITHOUT_GITS_LOCATION_VARIABLES = FILE
             + "0290-a-fixture-repository-is-run-without-gits-location-variables.md";
 
+    /**
+     * ADR-292 -- the control panel remembers seven launch values, keyed by the jar's own properties, and the last seed
+     * folder in one UTF-8 properties file in a folder of the user's own under the temp directory; the corpus root and
+     * the working directory reach the child on its command line, the other five in its environment, an empty one not
+     * at all; Run is refused without the first two, Label without the working directory (amends ADR-278 and ADR-288).
+     */
+    public static final String THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES = FILE
+            + "0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md";
+
     private Adr() {
     }
 }
