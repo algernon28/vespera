@@ -1029,7 +1029,7 @@ function refusalsOf(call) {
     }
     // A deliverable tree is read as outside the allow list, by its text and by where its links lead.
     const top = treeTop(absolute, walked) ?? treeTop(found.real, true);
-    if (top !== null) return lifted ? passOver() : turnedDown(`in the deliverable tree ${top}, which holds copies of the operator's documents and is read as outside the allow list`);
+    if (top !== null) return lifted ? passOver() : turnedDown(`in the deliverable tree ${top.replace(/\\/g, "/")}, which holds copies of the operator's documents and is read as outside the allow list`);
     decided.set(key, false);
     return false;
   }
