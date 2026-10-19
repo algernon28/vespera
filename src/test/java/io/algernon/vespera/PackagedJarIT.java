@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 import org.junit.jupiter.api.DisplayName;
@@ -67,6 +68,15 @@ class PackagedJarIT {
 
     /** What a plain jar carries beside its classes: its manifest and Maven's description of the build. */
     private static final String META_INF = "META-INF/";
+
+    /** The class whose {@code main} the operator's {@code java -jar} on the control panel's jar runs (ADR-288 §1). */
+    private static final String CONTROL_PANELS_MAIN_CLASS = "io.algernon.controlpanel.ControlPanel";
+
+    /** The control panel's manifest entry naming the file name of the jar it starts (ADR-288 §1). */
+    private static final String VESPERA_JAR = "Vespera-Jar";
+
+    /** The Spring Boot jar's own entry point, which a jar it repackages names as its {@code Main-Class}. */
+    private static final String SPRING_BOOTS_JAR_LAUNCHER = "org.springframework.boot.loader.launch.JarLauncher";
 
     /** Where the Boot plugin puts the jar's dependencies, one nested jar each. */
     private static final String LIBRARIES = "BOOT-INF/lib/";
@@ -131,6 +141,39 @@ class PackagedJarIT {
                 () -> assertThat(entries)
                         .filteredOn(name -> !name.startsWith(META_INF))
                         .allMatch(name -> CONTROL_PANEL.startsWith(name) || name.startsWith(CONTROL_PANEL)));
+    }
+
+    /**
+     * The operator starts the control panel by {@code java -jar} on its jar, whose manifest names its entry point and
+     * the file name of the jar it starts beside it (ADR-288 §1); the Spring Boot jar's manifest is left as it was.
+     */
+    @Test
+    @Issue("567")
+    @Link(name = "ADR-288", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_BESIDE_ITS_OWN_WITH_THE_JAVA_RUNNING_IT, type = "adr")
+    @Story("The operator starts the control panel with java -jar")
+    @DisplayName("The control panel's jar names its main class and the file name of the packaged jar beside it")
+    void theControlPanelJarsManifestNamesItsMainClassAndTheJarBesideIt() throws IOException {
+        Attributes controlPanel = mainAttributesOf(CONTROL_PANEL_JAR);
+
+        claim("the control panel's jar names " + CONTROL_PANELS_MAIN_CLASS + " as its main class, so java -jar starts it",
+                () -> assertThat(controlPanel.getValue(Attributes.Name.MAIN_CLASS)).isEqualTo(CONTROL_PANELS_MAIN_CLASS));
+        claim("and names, as " + VESPERA_JAR + ", the file name of the packaged jar the same build writes beside it",
+                () -> assertThat(controlPanel.getValue(VESPERA_JAR)).isEqualTo(EXECUTABLE_JAR.getFileName().toString()));
+
+        Attributes springBoot = mainAttributesOf(EXECUTABLE_JAR);
+
+        claim("the packaged jar's main class is still Spring Boot's own, and it names no jar to start",
+                () -> {
+                    assertThat(springBoot.getValue(Attributes.Name.MAIN_CLASS)).isEqualTo(SPRING_BOOTS_JAR_LAUNCHER);
+                    assertThat(springBoot.getValue(VESPERA_JAR)).isNull();
+                });
+    }
+
+    /** The main section of the jar's manifest. */
+    private static Attributes mainAttributesOf(Path jar) throws IOException {
+        try (JarFile file = new JarFile(jar.toFile())) {
+            return file.getManifest().getMainAttributes();
+        }
     }
 
     /** The name of every file and folder the jar holds. */

@@ -1985,6 +1985,15 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR = FILE
             + "0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md";
 
+    /**
+     * ADR-288 -- the operator starts the control panel with {@code java -jar} on its jar, whose manifest names
+     * {@code io.algernon.controlpanel.ControlPanel} as {@code Main-Class} and the Spring Boot jar's file name as
+     * {@code Vespera-Jar}; the control panel starts that jar, found beside its own, with the {@code java} of the runtime
+     * running it, and refuses with one line where none is there (amends ADR-285 and ADR-278).
+     */
+    public static final String THE_CONTROL_PANEL_STARTS_THE_JAR_BESIDE_ITS_OWN_WITH_THE_JAVA_RUNNING_IT = FILE
+            + "0288-the-operator-starts-the-control-panel-with-java-jar-and-it-starts-the-jar-beside-its-own-with-the-java-running-it.md";
+
     private Adr() {
     }
 }
