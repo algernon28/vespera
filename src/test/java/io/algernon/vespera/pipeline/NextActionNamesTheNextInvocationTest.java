@@ -146,6 +146,24 @@ class NextActionNamesTheNextInvocationTest {
 
     @Test
     @Story("The control panel learns which values the next run wants")
+    @DisplayName("With no embedding model named anywhere, the next run wants no key, the embedding model included: the line above names it")
+    @Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
+    void withNoEmbeddingModelNamedTheNextRunWantsNoKey() {
+        Profile noEmbeddingModel = ProfileFixture.profile()
+                .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
+                .boilerplateDocumentFrequencyFloor(THE_BOILERPLATE_FLOOR, RECORDED_BY_THE_OPERATOR)
+                .build();
+
+        NextAction.Closing closing = NextAction.closing(noEmbeddingModel, NOTHING_ANSWERED, NO_QUESTIONS_YET,
+                NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+
+        claim("scoring being stopped for want of a model, writing no questions, the next command is a run wanting no"
+                        + " key, no answers and no arrangement, so embeddingModel is not among the keys wanted",
+                () -> assertThat(closing.next()).isEqualTo(run()));
+    }
+
+    @Test
+    @Story("The control panel learns which values the next run wants")
     @DisplayName("With the answers recorded, the next run wants the relevance threshold")
     void withTheAnswersRecordedTheNextRunWantsTheThreshold() {
         NextAction.Closing closing = NextAction.closing(theRunValuesSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN,
