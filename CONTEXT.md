@@ -175,7 +175,7 @@ A value the pipeline requires and does not have. Not a pause — supply the valu
 _Avoid_: approval step, pause. Also "checkpoint" **for this concept**: a gate is not a point work resumes from, and the word now names one (see Checkpoint below).
 
 **Archive**:
-The operator's files as they lie on disk, whether or not any walk has observed them: what Vespera is pointed at and curates. The files, never a path. Vespera writes nothing into it: everything an invocation writes goes in a working directory (ADR-054), or at the deliverable root where one is named (ADR-276), and the deliverable holds a verified copy of each survivor it lists, read from the archive and never written there (ADR-274). An archive can hold sensitive documents, so a document is read only by the local models Vespera runs, and no agent reads a document in an archive or writes there, though it may list the names in one (ADR-196, ADR-264).
+The operator's files as they lie on disk, whether or not any walk has observed them: what Vespera is pointed at and curates. The files, never a path. Vespera writes nothing into it: everything an invocation writes goes in a working directory (ADR-054), at the deliverable root where one is named (ADR-276), or, for `vespera run`'s corpus-root lock, in the user's folder of corpus-root locks (ADR-279), and the deliverable holds a verified copy of each survivor it lists, read from the archive and never written there (ADR-274). An archive can hold sensitive documents, so a document is read only by the local models Vespera runs, and no agent reads a document in an archive or writes there, though it may list the names in one (ADR-196, ADR-264).
 _Avoid_: knowledge base (what Vespera makes from an archive, never the archive itself), repository (this project's git checkout), dataset, source folder
 
 **Corpus root**:
@@ -183,7 +183,7 @@ The directory a walk starts from: the one `vespera run <root>` names, or `vesper
 _Avoid_: archive root, archive (the files, where this is the path), input directory, base path
 
 **Working directory**:
-The one directory an invocation writes into, and the deliverable root, when one is named (ADR-276); kept apart from the archive and never derived from the corpus root (ADR-054). It holds `vespera.db`, `vespera.lock`, the `logs` folder with `vespera.log` and the invocation accounts (ADR-270), `profile.yaml`, the pages the stages write for the operator, the label file and, where no deliverable root is named, the deliverable. Named by `vespera.working-dir` or `--db-dir`, and `.vespera` under the directory the command is started from when neither names one. What it holds is derived from the operator's documents and names them, so no agent opens a working directory either, but for the profile and the pages of paths, counts and reasons ADR-261 names, and one is recognised wherever it is by the `vespera.db` or `vespera.lock` in it (ADR-196).
+The one directory an invocation writes into, but for the deliverable root, when one is named (ADR-276), and the corpus-root lock's file, in a folder of the user's (ADR-279); kept apart from the archive and never derived from the corpus root (ADR-054). It holds `vespera.db`, `vespera.lock`, the `logs` folder with `vespera.log` and the invocation accounts (ADR-270), `profile.yaml`, the pages the stages write for the operator, the label file and, where no deliverable root is named, the deliverable. Named by `vespera.working-dir` or `--db-dir`, and `.vespera` under the directory the command is started from when neither names one. What it holds is derived from the operator's documents and names them, so no agent opens a working directory either, but for the profile and the pages of paths, counts and reasons ADR-261 names, and one is recognised wherever it is by the `vespera.db` or `vespera.lock` in it (ADR-196).
 _Avoid_: db dir (the option's spelling, not the term), output directory, data directory, workspace
 _Not to be confused with_: the directory a process or a shell command is started in. That is the **current directory**, as ADR-066 writes it, in every name and record of ours, never the working directory.
 
@@ -225,6 +225,10 @@ _Avoid_: run, session, job
 The operating system's lock on `vespera.lock` in the working directory, taken by an invocation before it opens the database file and held until its process ends, so a second invocation on the same working directory is refused before it reads or writes anything. The process ending releases it, however it ends; the file itself is never deleted, and its existence means nothing (ADR-177).
 _Avoid_: mutex, pidfile
 
+**Corpus-root lock**:
+The operating system's lock `vespera run` takes on a file named for its corpus root, outside the archive and every working directory, held until its process ends, so a second invocation walking the same corpus root is refused whatever working directory it names (ADR-279). The same corpus root is the same directory once its spelling, its case and any junction on the way are resolved; a root inside another is a different one.
+_Avoid_: root mutex, archive lock (nothing is written into the archive)
+
 **Invocation account**:
 The one file an invocation that starts the job writes for a hosted model to read, in the working directory's `logs` folder (ADR-270): each step and how it ended, durations, counts, progress lines, and a failed step's exception types. It is built from typed values and an allow-list, so it names no path, file name, title or document text, and it keeps no exception message (ADR-198).
 _Avoid_: run summary, summary
@@ -232,6 +236,10 @@ _Avoid_: run summary, summary
 **Progress page**:
 The page `vespera run` rewrites in the working directory while it runs, `progress.html`: each step of the job with its state, its counts and its last progress line, the time elapsed and the database's size, read from what the invocation holds in memory and, but for the tab of runs below, never from a query, and ending on a write that says how the invocation ended (ADR-265); drawn as tiles, a timeline of the steps and charts over time, with its table of steps and a table of its samples on two pages beside it, `progress-steps.html` and `progress-samples.html` (ADR-267); and showing, for the stage removing occurrences now or last, its survivors of what entered it and its verdicts by kind with their rates, from counts held in memory (ADR-268); and, since ADR-269, four tabs, `Overview`, `Steps`, `Samples` and `Runs`, each a page with one bar of tabs, the fourth `progress-runs.html`, listing every run the working directory holds, read before the first step and after the last, the only reads of the database the page makes. `vespera label` writes it too, when it starts and when it ends, with the answers it counted; every invocation that writes it names its path on the command's first line and opens it once in the default browser (ADR-266). It names no path, no title and no text of a document, so it can be sent to anyone. Not the invocation account, one file per invocation that starts the job, in the working directory's `logs` folder, for a hosted model: it is opened with its first line when the job starts, carries the progress lines as they come, and gets its step, run, count and failure lines, then `invocation ended`, when the job ends (ADR-198 §8, ADR-270).
 _Avoid_: dashboard, monitor, status page
+
+**Control panel**:
+The program on the operator's machine that starts one invocation at a time as its own child, shows how it goes and how it ended, and stops it by ending its process (ADR-278). It runs the command as shipped (ADR-278), judges nothing, and passes only values the operator typed or confirmed.
+_Avoid_: console (the jar's standard output, ADR-093), launcher (ADR-158; the Docling image's `launcher.py`, ADR-179), GUI, dashboard, front-end, app, UI, wrapper. Also "panel" alone, in a name of ours.
 
 ### Output
 

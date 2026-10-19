@@ -1908,6 +1908,23 @@ public final class Adr {
     public static final String CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK = FILE
             + "0277-code-is-recognised-by-a-name-ending-the-profile-lists-or-by-a-documentation-generators-mark-and-stage-1-takes-it-out-of-the-survivors.md";
 
+    /**
+     * ADR-278 -- the control panel starts the jar as its one child, changing nothing in it, with {@code CI=1} and the
+     * two UTF-8 encoding flags, reads its merged output to the end on one thread and opens no connection to {@code
+     * vespera.db}, finds an invocation it did not start by its holder line, and stops only its own child, descendants
+     * first.
+     */
+    public static final String THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN = FILE
+            + "0278-the-control-panel-starts-the-jar-as-its-child-reads-its-output-to-the-end-and-stops-only-its-own-child.md";
+
+    /**
+     * ADR-279 -- {@code vespera run} holds its corpus root by an operating-system lock on a file named for the
+     * root's real path, in a folder of the user's outside the archive and every working directory, and a second
+     * {@code vespera run} on that root is refused in one line before it writes a progress page.
+     */
+    public static final String ONE_VESPERA_RUN_PER_CORPUS_ROOT = FILE
+            + "0279-one-vespera-run-per-corpus-root-by-a-lock-on-a-file-named-for-its-real-path-outside-every-working-directory.md";
+
     private Adr() {
     }
 }
