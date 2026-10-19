@@ -1915,6 +1915,14 @@ public final class Adr {
     public static final String ONE_VESPERA_RUN_PER_CORPUS_ROOT = FILE
             + "0279-one-vespera-run-per-corpus-root-by-a-lock-on-a-file-named-for-its-real-path-outside-every-working-directory.md";
 
+    /**
+     * ADR-283 -- a folder that directly holds {@code vespera-deliverable.txt} is the top of a deliverable tree, and
+     * the private-paths guard refuses every path at or beneath it as a path outside the allow list; no agent reads or
+     * writes a file in a tree, wherever it lies.
+     */
+    public static final String THE_GUARD_READS_A_DELIVERABLE_TREE_AS_OUTSIDE_THE_ALLOW_LIST = FILE
+            + "0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md";
+
     private Adr() {
     }
 }
