@@ -4,14 +4,14 @@
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone; it asks the sidecars through `java.net.HttpURLConnection`, of `java.base`, and reads their JSON with a reader of its own (§5). Its §4: one class of its own owns the skeleton, styling and escaping of its pages (§10).
 - **Keeps**: [ADR-278](0278-the-control-panel-starts-the-jar-as-its-child-reads-its-output-to-the-end-and-stops-only-its-own-child.md) §1, §3 to §6: the two command lines, one child at a time, the tail in memory, no connection to `vespera.db` (§6), the holder lines read as there, Stop for its own child alone with its one sentence, and §5's four endings (§2). Its refusal of a cost of stopping read from Spring Batch's `Executing step` line: the table of §7 names no running step and reads no line of output.
-- **Keeps**: [ADR-291](0291-the-control-panel-listens-on-127-0-0-1-alone-at-a-port-the-system-picks-and-answers-only-a-browser-holding-its-starts-token-on-its-own-address.md) §1, §2, §4, §5, §7 and §8: every page, report included, is answered only past the checks of `Host`, the cookie and `Origin`, with the four headers of §7; the port and the token are drawn again at each start.
+- **Keeps**: [ADR-291](0291-the-control-panel-listens-on-127-0-0-1-alone-at-a-port-the-system-picks-and-answers-only-a-browser-holding-its-starts-token-on-its-own-address.md) §1, §2, §7 and §8, and §4 and §5 but for what §12 adds: every page, report included, is answered only past the checks of `Host`, the cookie and `Origin`, with the four headers of §7; the port and the token are drawn again at each start.
 - **Keeps**: [ADR-264](0264-the-private-paths-guard-refuses-only-what-reads-or-writes-outside-the-allow-list-and-a-working-directory-is-open-as-the-place-it-lies-in.md) §5: the private-paths guard sees an agent's `java -jar` of the control panel and nothing of what the control panel then starts, reads, writes or serves, so an agent driving it is held by the written rule alone.
 - **Keeps**: [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md): its file is loaded as the control panel starts and stored as Run or Label starts, and its refusals and warning are shown beside Run (§2, §4).
 - **Keeps**: [ADR-294](0294-the-control-panel-learns-what-the-next-invocation-wants-from-a-file-the-jar-writes-with-the-closing-line.md) §4 and [ADR-295](0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md): the next act is read from `next-invocation.properties` after an exit code of 0 and nowhere else, and every save is one of ADR-295's writes, its cost said beside its field before it is saved (§4, §8).
 - **Keeps**: [ADR-297](0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md) §1, §3 to §5: each screen is tested through `PanelBrowser`, finding forms and controls by `name`, pages by path, text by `id` (§9, Tests).
 - **Keeps**: [ADR-179](0179-no-entry-point-starts-the-sidecars-the-docling-sidecar-reports-the-image-it-runs-and-ollamas-models-live-in-a-volume.md) §1 to §3: the control panel starts, stops and pulls nothing; it asks Docling which image it runs and Ollama which models it serves, and only reads the answers (§5).
 - **Keeps**: [ADR-283](0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md) and [ADR-296](0296-each-code-set-is-copied-whole-under-code-its-paths-kept-and-each-file-checked-against-the-size-and-time-the-walk-recorded.md): no file of a deliverable tree is served (§3); the code sets the control panel lists are those `code-set-names.yaml` holds (§8).
-- **Amends**: [ADR-291](0291-the-control-panel-listens-on-127-0-0-1-alone-at-a-port-the-system-picks-and-answers-only-a-browser-holding-its-starts-token-on-its-own-address.md) §6, whose "no request path is ever mapped to a file" gains one exception: each of the fifteen report paths of §3 is mapped to one fixed file name in the working directory, and no part of a request names a file; §3, whose cookie is `SameSite=Strict`: it is `SameSite=Lax`, the rest of its `Set-Cookie` unchanged (§12); and its What this does not decide, whose pages, start from `ControlPanel.main` and arrangement are decided here (§1, §3, §11). It carries a note at its head.
+- **Amends**: [ADR-291](0291-the-control-panel-listens-on-127-0-0-1-alone-at-a-port-the-system-picks-and-answers-only-a-browser-holding-its-starts-token-on-its-own-address.md) §6, whose "no request path is ever mapped to a file" gains one exception: each of the fifteen report paths of §3 is mapped to one fixed file name in the working directory, and no part of a request names a file; §3, whose cookie is `SameSite=Strict`: it is `SameSite=Lax`, the rest of its `Set-Cookie` unchanged (§12); §4, whose checks gain one after `Host`: a `GET` or `HEAD` sent `Sec-Fetch-Site: cross-site` or `same-site` is refused, but under `/report/` (§12); §5, whose second line of defence is `Lax`, which a `POST` another site starts does not carry; and its What this does not decide, whose pages, start from `ControlPanel.main` and arrangement are decided here (§1, §3, §11). It carries a note at its head.
 - **Amends**: [ADR-288](0288-the-operator-starts-the-control-panel-with-java-jar-and-it-starts-the-jar-beside-its-own-with-the-java-running-it.md) §4, whose `ControlPanel.main` writes one line and exits 0 until a first screen exists: it writes that line and the address of ADR-291 §2, and serves until its process ends (§11); and its What this does not decide, whose README text arrives with the screens. It carries a note at its head.
 - **Amends**: [ADR-278](0278-the-control-panel-starts-the-jar-as-its-child-reads-its-output-to-the-end-and-stops-only-its-own-child.md) §2 and its What this does not decide, where the pages sit on the screen (§2, §3); and the second reason of its refusal of a cost of stopping per step, a second copy of the stage-by-stage guide, which §7's table is, condensed from that guide's Resume paragraphs. It carries a note at its head.
 - **Amends**: [ADR-297](0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md) §2, which submits a form with every control as the page wrote it: a form is submitted by pressing one of its submit buttons by name, only that button is sent, and a disabled one cannot be pressed (§9). It carries a note at its head.
@@ -52,7 +52,7 @@ every 2 seconds, and carries no such element once the child has ended or where n
 **`/`, the launch page.** It holds:
 
 - **The form `launch`**, `POST` to `/launch`, with one text control per launch value, each named by its key, in ADR-292 §1's order: `vespera.corpus-root`, `vespera.working-dir`, `vespera.deliverable-root`, `vespera.docling.image`, `vespera.docling.base-url`, `spring.ai.ollama.base-url`, `vespera.label.model`. Each holds the value the control panel holds (below). Its three submit buttons are `run`, `label` and `check`.
-- **The holder lines**: `holder-working-directory` and `holder-corpus-root`, each the holder line of that lock as ADR-278 §4 and ADR-285 §5 read it, and empty where it is held by nobody. While either is held, or the control panel's own child runs, `run` and `label` carry `disabled`, and the page links the progress page (§3).
+- **The holder lines**: `holder-working-directory`, the holder line of `vespera.lock` in the working directory, and `holder-corpus-root`, that of the corpus root's corpus-root lock, its file named by ADR-279 §3's rule in the folder ADR-279 names, the one `VESPERA_CORPUS_ROOT_LOCK_FOLDER` in the control panel's environment, which its child inherits, names where it is not blank, and `<user home>/.vespera-root-locks` otherwise, each as ADR-278 §4 and ADR-285 §5 read it, and empty where it is held by nobody. While either is held, or the control panel's own child runs, `run` and `label` carry `disabled`, and the page links the progress page (§3).
 - **The warnings**, `warnings`, a list beside Run: ADR-292 §5's warning of an empty Docling image, and §5's warnings of the sidecars. Run stays enabled whatever they say.
 - **The outcome**, `outcome`: the one line the last form's post gave, shown on the page its `303` lands on, once.
 - **The seed folder's form**, §4; **the sidecars**, §5; **the free space**, §6; **the reports**, `reports`, a link per report of §3 the working directory holds.
@@ -60,8 +60,18 @@ every 2 seconds, and carries no such element once the child has ended or where n
 
 **The launch values the control panel holds.** As it starts, the control panel loads ADR-292's file and holds its values. Every post of `launch`, whichever button, replaces the values held by the seven posted, and the holder lines, the sidecars and the free space are read again for them. The file is written only as Run or Label starts an invocation, with the values it starts with (ADR-292 §2). Every other page reads the working directory and the corpus root from the values held.
 
-- **`run`**: refused with ADR-292 §5's line where it names one, or, while a holder line is held, with ADR-295 §1's line for a lock that is held, naming the holder line; otherwise the file is stored and `run` started as ADR-278 §1's child, and the post answers `303` to `/invocation`.
+- **`run`**: refused with ADR-292 §5's line where it names one; otherwise, read again as the post arrives, a holder line held, or the control panel's own child running, refuses it with one line of its own (below); otherwise the file is stored and `run` started as ADR-278 §1's child, and the post answers `303` to `/invocation`. A refused post answers `303` to `/` with its line in `outcome`, and starts nothing.
 - **`label`**: the same, with ADR-292 §5's line for Label, starting `label` without `--auto`.
+
+The lines a held lock or a running child gives, `<Run>` being `Run` or `Label` as pressed, and `<holder line>` the line as read:
+
+| Case | Line |
+| --- | --- |
+| `vespera.lock` held | `<Run> is not started: the working directory <folder> is held by another Vespera invocation (<holder line>)` |
+| the corpus-root lock held | `<Run> is not started: the corpus root <folder> is held by another Vespera invocation (<holder line>)` |
+| the control panel's own child runs | `<Run> is not started while the invocation the control panel started runs` |
+
+The control panel's own child is asked about first, then `vespera.lock`, then the corpus-root lock, and the first case that holds gives the line. `label-auto`, `save-then-run` and `save-then-label` (§8) start their child by the same checks and lines.
 - **`check`**: holds the values and answers `303` to `/`.
 
 **`/invocation`, the invocation page.** It shows the control panel's own child, the last one it started:
@@ -180,7 +190,20 @@ The page renders a cluster as a group (ADR-122). For a `label` child, `stop-cost
 **`/next`.** It shows the next act ADR-294 §4 reads after the control panel's own child ended with 0:
 
 - `next-invocation`, with `data-invocation` one of `run`, `label`, `none`, or `unknown` where no child of the control panel's has ended with 0 since it started, or the file is not there or not in ADR-294 §1's shape.
-- Where `wants` is not empty, **the form `next`**, `POST` to `/next`, holding for each key it names, in its order, a control named by the key, its provenance's control named `<key>.provenance`, empty and required, the key's cost in `cost-<key>` (ADR-295 §5), and, beside it, `report-<key>`, a link to the report that informs it: `boilerplateDocumentFrequencyFloor` to `/report/document-frequency.html`, `relevanceScoreFloor` to `/report/relevance-labelling.html`, `arrangementApproved` to `/report/arrangement.html`, and none for any other key. Its submit buttons are `save` and `save-then-run`. A key's control is empty, but for `seedFolder`, filled with the last seed folder, and `arrangementApproved`, filled with the file's `arrangement`, the arrangement to approve, which is how it is approved.
+- Where `wants` is not empty, **the form `next`**, `POST` to `/next`, holding for each key it names, in its order, a control named by the key, its provenance's control named `<key>.provenance`, empty and required, the key's cost in `cost-<key>` (ADR-295 §5), and, beside it, `report-<key>`, a list holding a link to each report the README's table of values names for the key, in that table's order, each opening in a tab of its own (§3):
+
+  | Key | `report-<key>` links |
+  | --- | --- |
+  | `boilerplateDocumentFrequencyFloor` | `/report/document-frequency.html` |
+  | `relevanceScoreFloor` | `/report/relevance-labelling.html`, `/report/cluster-sizes.html`, `/report/seed-corpus-comparison.html` |
+  | `degenerateOutputConfidenceFloor` | `/report/confidence-distribution.html` |
+  | `degenerateOutputWordFloor` | `/report/word-count-distribution.html` |
+  | `extractionAttempt` | `/report/extraction-failures.html` |
+  | `arrangementApproved` | `/report/arrangement.html` |
+  | `logTimestampShareFloor`, `codeNameEndings`, `outOfScopeNameEndings`, `configurationSettingShareFloor` | `/report/format-mix.html` |
+  | `preferredLanguages`, `translationSimilarityFloor` | `/report/translations.html` |
+
+  `seedFolder`, `embeddingModel`, `generationModel` and `generationContextWindow`, which no report informs, and any key the README's table does not name, have no `report-<key>`. A key the README's table gains a report for gains it here in the same change. Its submit buttons are `save` and `save-then-run`. A key's control is empty, but for `seedFolder`, filled with the last seed folder, and `arrangementApproved`, filled with the file's `arrangement`, the arrangement to approve, which is how it is approved.
 - `save` writes the keys in the form's order, each one of ADR-295's writes, and stops at the first refused, its line the outcome. `save-then-run` does the same and, every key written, starts `run` as `launch`'s `run` does, answering `303` to `/invocation`.
 - Where `answer=true`: `labels-link`, a link to `/labels`, and **the form `label-auto`**, `POST` to `/label-auto`, with one submit button `label-auto`, which starts `label --auto` (ADR-278 §1) as `launch`'s `label` starts `label`.
 
@@ -204,7 +227,7 @@ A test finds a form and a control by `name`, a page by its path and a text by `i
 | `/invocation` | `stop`: button `stop`, while the child runs | `child`, `tail`, `last-line`, `progress`, `reports` |
 | `/stop` | `stop-confirmed`: button `stop` | `stop-sentence`, `stop-costs` |
 | `/report/<file name>` | none | none |
-| `/next` | `next`: `<key>`, `<key>.provenance` per key of `wants`; buttons `save`, `save-then-run`. `label-auto`: button `label-auto` | `next-invocation`, `cost-<key>`, `report-<key>`, `labels-link`, `arrangement-file`, `outcome` |
+| `/next` | `next`: `<key>`, `<key>.provenance` per key of `wants`; buttons `save`, `save-then-run`. `label-auto`: button `label-auto` | `next-invocation`, `cost-<key>`, `report-<key>` (a list of links), `labels-link`, `arrangement-file`, `outcome` |
 | `/labels` | `labels`: `path-<i>`, `relevant-<i>`; buttons `save`, `save-then-label` | `outcome` |
 | `/code-sets` | `code-sets`: `folder-<i>`, `name-<i>`, `new-folder`, `new-name`; button `save` | `outcome` |
 | `/profile` | one form per key, named by it: `key`, `value`, `provenance`; button `save` | `cost-<key>`, `current-<key>`, `outcome` |
@@ -220,7 +243,8 @@ In `io.algernon.controlpanel`, linking no class of the jar:
 ```java
 public final class ControlPanelPages {
     /** The pages of §2, §3, §7 and §8, by path, for ControlPanelServer.start. */
-    public static Map<String, HttpHandler> pages(ChildRuntime runtime, Path launchValuesFile, String userName);
+    public static Map<String, HttpHandler> pages(ChildRuntime runtime, Path launchValuesFile,
+            Path corpusRootLockFolder, String userName);
     /** §3's fifteen file names, in its table's order. */
     public static final List<String> REPORTS;
 }
@@ -232,7 +256,7 @@ The pages start the child, write files and read the sidecars; the server's class
 
 ### 11. The start
 
-`ControlPanel.main` finds the child's runtime (ADR-288 §3, §4), writes ADR-288 §4's line, loads ADR-292's file from `LaunchValues.fileIn` under `java.io.tmpdir` for `user.name`, starts `ControlPanelServer` with `ControlPanelPages.pages`, and writes one more line on standard output:
+`ControlPanel.main` finds the child's runtime (ADR-288 §3, §4), writes ADR-288 §4's line, loads ADR-292's file from `LaunchValues.fileIn` under `java.io.tmpdir` for `user.name`, starts `ControlPanelServer` with `ControlPanelPages.pages`, given §2's corpus-root lock folder, and writes one more line on standard output:
 
 ```
 open http://127.0.0.1:<port>/?token=<token> in your browser
@@ -258,6 +282,14 @@ What `Lax` costs: a top-level `GET` that another site starts, a link the operato
 - `Host` is still checked first (ADR-291 §4), so a name rebound to `127.0.0.1` is refused whatever cookie it carries;
 - the port and the token are drawn again at every start, so an address another site could aim at is good for one start only.
 
+**A page opened by another site is refused, but for a report.** Under `Lax`, another site can open `/` or `/stop` in a window of the operator's, the page served with its forms live; a click the other site tricks the operator into, through a window it opens over the control panel's or a double click whose second click lands on a control panel's button (UI redress), would then post from the control panel's own page, with its own `Origin`, past ADR-291 §5. `frame-ancestors 'none'` keeps the page from a frame, and not from a window. So the server refuses a `GET` or `HEAD` whose `Sec-Fetch-Site` header is `cross-site` or `same-site`, on every path but one beginning `/report/`:
+
+- **Where it is checked.** After `Host` (ADR-291 §4, first), and before the token's exchange (ADR-291 §3) and the cookie: a `GET` another site starts is refused though it holds the cookie or the token, and the token is not exchanged on it. Then the cookie, the method (ADR-291 §5), the `Origin` of a `POST`, and the path (ADR-291 §6), as before.
+- **What it refuses.** `cross-site`, and `same-site`, which is what a browser sends from another port of `127.0.0.1` or `localhost`: another local user's server there is the site ADR-291's known limits name, which receives the control panel's cookie and could open its pages. The value is compared without ASCII case.
+- **What it admits.** `same-origin`, the control panel's own pages and their redirects; `none`, the printed address pasted into the address bar, opened from a bookmark or clicked in a terminal; and no `Sec-Fetch-Site` at all, as `PanelBrowser`, `RawHttp` and a browser that sends none send it. A `POST` is not read for it: its `Origin` is checked (ADR-291 §5).
+- **The refusal** is ADR-291 §4's: 403, `Content-Type: text/plain; charset=utf-8`, no `Set-Cookie`, the one line `open the address the control panel printed when it started`, and no page's handler runs.
+- **The reports are not refused by it.** A report's own refresh, its links to its companions and a reload of it are sent `cross-site`, the sandbox giving it an opaque origin (Context); a report holds no form, and its answer is the file read, which changes nothing (§1).
+
 ### 13. What changes
 
 No file under `src/main/java/io/algernon/vespera` changes, so no run id moves, and no dependency or plugin is added.
@@ -278,6 +310,8 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves, a
 - **Run disabled on a sidecar's warning.** The jar's own check stops before it costs a conversion, and the control panel cannot know every default the jar falls back on.
 - **A need for free space computed.** It needs counts from `vespera.db`, to which the control panel opens no connection.
 - **Keeping `SameSite=Strict`.** A report could be opened once and neither refreshed nor followed to its companions: the measured Chromium sends each without the cookie, and the control panel refuses it.
+- **`Lax` with no check of `Sec-Fetch-Site`.** A page another site opens would hold live forms, and a click tricked onto one posts with the control panel's own `Origin`.
+- **Refusing a request with no `Sec-Fetch-Site`.** `PanelBrowser`, `RawHttp` and a browser that sends none would be refused; such a request is no page of another site's that a browser marked as one.
 - **`sandbox allow-scripts allow-same-origin` on the reports.** The report's script would run in the control panel's own origin, able to post a form with its `Origin` and to read every page of the control panel by script; a report is a page the control panel did not write.
 - **The reports served without the cookie.** Any page of another site, or another local user, could read a report, and the reports name paths of the archive and the relevance labelling page carries text of documents (ADR-261).
 - **A cost of stopping read for the running step.** The control panel would read Spring Batch's lines to know it (ADR-278).
@@ -297,6 +331,8 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves, a
 | --- | --- |
 | `controlpanel.PanelBrowserTest.aFormIsSentWithOnlyTheButtonPressedAndADisabledOneCannotBePressed` | `press` sends the button pressed, a `button` of type submit, one of no type and a submit input alike, and no other; `submit` sends none; a disabled or absent button fails the test and sends nothing (§9) |
 | `controlpanel.ControlPanelServerTest.theRightTokenIsExchangedForACookieTheBrowserDropsWhenItCloses` | the token is exchanged for `vespera-control-panel=<token>; Path=/; HttpOnly; SameSite=Lax`, on a first exchange and on one by a browser already holding the cookie (§12) |
+| `controlpanel.ControlPanelServerTest.aPageOpenedFromAnotherSiteIsRefusedButAReportIsNot` | a `GET` sent `Sec-Fetch-Site: cross-site`, `same-site` or `Cross-Site`, holding the cookie, and one holding the token, are answered 403 with ADR-291 §4's line and no `Set-Cookie`, a `HEAD` sent `cross-site` 403, no page's handler run; a `GET` sent `cross-site` to a page at `/report/progress.html` reaches it (§12) |
+| `controlpanel.ControlPanelServerTest.aPageAskedForFromItsOwnPagesTheAddressBarOrWithNoMarkIsServed` | `same-origin`, `none` and no `Sec-Fetch-Site` reach their pages in order, and the token sent `none` is exchanged (§12) |
 
 **The build of the screens owes** these, each written first in the build's change, failing with 404 against a server started with no page, and passing once the screens are built:
 
@@ -306,6 +342,8 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves, a
 | `controlpanel.LaunchScreenTest.theFreeSpaceOfTheWorkingDirectorysAndTheDeliverableRootsDrivesIsShown` | `free-space` names the working directory's drive and the deliverable root's, each with its usable bytes, and `free-space-rules` is there (§6) |
 | `controlpanel.LaunchScreenTest.runIsRefusedWithTheLineOfTheValueItNeeds` | pressing `run` with no corpus root lands on `/` with ADR-292 §5's line in `outcome`, and starts no child (§2) |
 | `controlpanel.LaunchScreenTest.runAndLabelAreDisabledWhileAnotherInvocationHoldsTheWorkingDirectory` | a held `vespera.lock`: its line in `holder-working-directory`, `run` and `label` disabled, `check` not (§2) |
+| `controlpanel.LaunchScreenTest.runAndLabelAreDisabledWhileAnotherInvocationHoldsTheCorpusRoot` | a held corpus-root lock, its file named as the jar's `CorpusRootLock` names it: its line in `holder-corpus-root`, `holder-working-directory` empty, `run` and `label` disabled, `check` not (§2) |
+| `controlpanel.LaunchScreenTest.runPressedOnceTheWorkingDirectoryIsHeldIsRefusedWithALineOfItsOwn` | `vespera.lock` taken after the page was shown: `run` lands on `/` with §2's line naming the working directory and the holder line, and starts no child (§2) |
 | `controlpanel.LaunchScreenTest.theSeedFolderIsAFormOfItsOwnFilledFromTheLastSeedFolderAndSavedIntoTheProfile` | `seed-folder` filled from the last seed folder; `save` writes `seedFolder` and its provenance into `profile.yaml` (§4) |
 | `controlpanel.LaunchScreenTest.aSidecarRunningAnotherImageOrServingNoNamedModelIsWarnedOfAndRunStaysEnabled` | stub sidecars: `another-image` and `missing`, two warnings, `run` enabled; addresses nobody answers: `not-answering` (§5) |
 | `controlpanel.LaunchScreenTest.noGetOfAnyPageWritesAFileOrStartsAChild` | a `GET` of every page and of every path a form posts to, with a form's fields in its query, is answered with a page, leaves every file of the working directory as it was, and starts no child (§1) |
@@ -315,7 +353,8 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves, a
 | `controlpanel.ReportScreenTest.eachReportIsServedAsWrittenInASandboxAtItsOwnPath` | each of the fifteen: 200, the bytes written, `text/html; charset=utf-8`, ADR-291 §7's policy then `sandbox allow-scripts`, `no-store` (§3) |
 | `controlpanel.ReportScreenTest.aReportNotWrittenIsNotFoundWithOneLine` | 404, plain text, §3's line (§3) |
 | `controlpanel.ReportScreenTest.noOtherFileOfTheWorkingDirectoryIsServed` | `index.html`, `vespera.db`, `profile.yaml`, `vespera.lock`, a name without `.html` and paths climbing out, under `/report/`, all present: 404 (§3) |
-| `controlpanel.NextScreenTest.eachWantedValueIsAskedWithItsProvenanceItsCostAndItsReport` | after a child ends with 0 beside a file wanting two keys: `next` holds each key and its provenance in order, `save` and `save-then-run`, each cost, and the floor's report alone (§8) |
+| `controlpanel.NextScreenTest.eachWantedValueIsAskedWithItsProvenanceItsCostAndItsReport` | after a child ends with 0 beside a file wanting two keys: `next` holds each key and its provenance in order, `save` and `save-then-run`, each cost, `report-boilerplateDocumentFrequencyFloor` holding one link, to `/report/document-frequency.html`, and no `report-seedFolder` (§8) |
+| `controlpanel.NextScreenTest.aValueReadOffSeveralReportsIsLinkedToEachInTheGuidesOrder` | `relevanceScoreFloor` wanted: `report-relevanceScoreFloor` holds the labelling report, the cluster sizes and the seed comparison, in that order, each in a tab of its own (§8) |
 | `controlpanel.NextScreenTest.theWantedValuesAreSavedIntoTheProfile` | `save` writes both keys with their provenance (§8) |
 | `controlpanel.NextScreenTest.answersWantedLeadToTheQuestionsAndToLabelAuto` | `answer=true`: `labels-link` to `/labels`, `label-auto`, and no `next` (§8) |
 | `controlpanel.NextScreenTest.theArrangementToApproveIsOfferedByItsName` | `arrangementApproved` filled with the file's `arrangement`, its report linked and `arrangement-file` shown (§3, §8) |
@@ -328,6 +367,8 @@ They start the server through `ScreenServer`, a class of the tests that writes t
 
 - `pipeline.TheControlPanelServesEveryReportTheJarWritesTest`, holding §3's list equal to the report file names of the jar's classes;
 - `pipeline.TheControlPanelsStopCostsNameTheJarsStepsTest`, holding §7's steps equal to the jar's sixteen, in order;
+- a contract test holding the control panel's corpus-root lock file, for a root, the one the jar's `CorpusRootLock` takes in the same folder (§2);
+- a test holding §8's `report-<key>` table equal to the README's table of values, key by key and in order;
 - a test that no page the control panel writes holds a `<script>` element or an attribute whose name begins with `on` (§1);
 - a test of the JSON reader of §5;
 - a test of `ControlPanelServerTest`'s kind holding that the page classes are outside the server's (ADR-291 §8);

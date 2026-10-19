@@ -86,7 +86,10 @@ final class ControlPanelServer implements AutoCloseable {
         executor.shutdownNow();
     }
 
-    /** The checks of ADR-291 §3 to §7, in order, before a page's handler runs. */
+    /**
+     * The checks of ADR-291 §3 to §7, in order, before a page's handler runs, with the one ADR-302 §12 adds after
+     * {@code Host}: a {@code GET} or {@code HEAD} another site opened is refused, but under {@code /report/}.
+     */
     private static final class Gate implements HttpHandler {
 
         private final Map<String, HttpHandler> pages;
@@ -112,6 +115,10 @@ final class ControlPanelServer implements AutoCloseable {
             String method = exchange.getRequestMethod();
             String path = exchange.getRequestURI().getRawPath();
             if (!ownHost(exchange.getRequestHeaders().get("Host"))) {
+                refuse(exchange);
+                return;
+            }
+            if (openedFromAnotherSite(method, path, exchange.getRequestHeaders().get("Sec-Fetch-Site"))) {
                 refuse(exchange);
                 return;
             }
@@ -152,6 +159,22 @@ final class ControlPanelServer implements AutoCloseable {
             }
             String host = hosts.getFirst();
             return host.equals("127.0.0.1:" + port) || host.equalsIgnoreCase("localhost:" + port);
+        }
+
+        /**
+         * Whether a {@code GET} or {@code HEAD}, to a path that does not begin {@code /report/}, was sent
+         * {@code Sec-Fetch-Site: cross-site} or {@code same-site}, compared without case (ADR-302 §12). Any other value,
+         * and no header, is not; a {@code POST} is not read for it, its {@code Origin} is checked instead.
+         */
+        private boolean openedFromAnotherSite(String method, String path, List<String> marks) {
+            if (!method.equals("GET") && !method.equals("HEAD")) {
+                return false;
+            }
+            if (path.startsWith("/report/") || marks == null) {
+                return false;
+            }
+            return marks.stream().anyMatch(mark -> mark.equalsIgnoreCase("cross-site")
+                    || mark.equalsIgnoreCase("same-site"));
         }
 
         private boolean ownOrigin(List<String> origins) {
