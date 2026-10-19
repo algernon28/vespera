@@ -2001,6 +2001,14 @@ public final class Adr {
     public static final String A_FIXTURE_REPOSITORY_IS_RUN_WITHOUT_GITS_LOCATION_VARIABLES = FILE
             + "0290-a-fixture-repository-is-run-without-gits-location-variables.md";
 
+    /**
+     * ADR-291 -- the control panel's server listens on {@code 127.0.0.1} alone at a port the system picks, and answers
+     * only a request addressed to it by that address, holding the cookie its start's token is exchanged for, a
+     * {@code POST} only from its own origin, with four headers on every response and no file served.
+     */
+    public static final String THE_CONTROL_PANEL_ANSWERS_ONLY_A_BROWSER_HOLDING_ITS_STARTS_TOKEN_ON_ITS_OWN_ADDRESS = FILE
+            + "0291-the-control-panel-listens-on-127-0-0-1-alone-at-a-port-the-system-picks-and-answers-only-a-browser-holding-its-starts-token-on-its-own-address.md";
+
     private Adr() {
     }
 }
