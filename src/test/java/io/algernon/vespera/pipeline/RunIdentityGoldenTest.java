@@ -137,12 +137,12 @@ class RunIdentityGoldenTest {
      * ceiling, a constant in {@code extraction} that its {@code corpus}-only implementation version cannot
      * see (ADR-058), the log floor this profile leaves unset, the name endings the profile lists as out
      * of scope, none here (ADR-256 §6), the name endings it lists as code, none here, and the version of
-     * the generators' marks built into {@code corpus} (ADR-277 §9), and the version of the list of build files
-     * built into it too (ADR-284 §10).
+     * the generators' marks built into {@code corpus} (ADR-277 §9), and the versions of the lists of build files and
+     * of the generators' companion files built into it too (ADR-284 §10).
      */
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
-    @DisplayName("Byte-level reduction is identified by the text size ceiling, the rule for text converted in parts, the log floor, the name endings left out, the name endings kept as code, the generators' marks and the list of build files, under the corpus code alone")
+    @DisplayName("Byte-level reduction is identified by the text size ceiling, the rule for text converted in parts, the log floor, the name endings left out, the name endings kept as code, the generators' marks, the list of build files and the generators' companion files, under the corpus code alone")
     @Issue("370")
     @Issue("371")
     @Issue("558")
@@ -163,8 +163,9 @@ class RunIdentityGoldenTest {
                         + " this profile sets none, then the name endings whose files are left out, an empty"
                         + " list because this profile lists none, then the name endings whose files are kept as"
                         + " code, an empty list for the same reason, then the version of the generators' marks,"
-                        + " then the version of the list of build files -- so a change to any of them is a new"
-                        + " piece of work, and the same walk under the same seven still names the same one",
+                        + " then the versions of the lists of build files and of the generators' companion files --"
+                        + " so a change to any of them is a new piece of work, and the same walk under the same"
+                        + " eight still names the same one",
                 () -> assertThat(run.get("config_consumed"))
                         .isEqualTo("{\"textSizeCeilingBytes\":16000000,"
                                 + "\"textParts\":\"v1,over=16000000,upto=64000000,part=8000000\","
@@ -172,7 +173,8 @@ class RunIdentityGoldenTest {
                                 + "\"outOfScopeNameEndings\":[],"
                                 + "\"codeNameEndings\":[],"
                                 + "\"generatorMarks\":\"v1\","
-                                + "\"buildFiles\":\"v1\"}"));
+                                + "\"buildFiles\":\"v1\","
+                                + "\"generatorCompanions\":\"v1\"}"));
         claim(
                 "and its code version is the corpus module's alone",
                 () -> assertThat(run.get("implementation_version")).isEqualTo("corpus"));

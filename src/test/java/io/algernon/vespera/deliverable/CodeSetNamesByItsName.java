@@ -4,36 +4,27 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.SequencedMap;
 
 /**
- * Reaches {@code io.algernon.vespera.deliverable.CodeSetNames} (ADR-284 §8) by its name, so that
- * {@link CodeSetNamesTest} compiles before the class exists and fails, until it does, on a missing class rather
- * than leaving the build unable to compile.
+ * Reaches {@code io.algernon.vespera.deliverable.CodeSetNames} (ADR-284 §9) by its name, so that
+ * {@link CodeSetNamesTest} compiles before the class exists and fails, until it does, on a missing class.
  *
  * <p>The class it expects, public and final, with these public members:
  *
  * <ul>
- *   <li>{@code static final String FILE_NAME = "code-set-names.csv"};
- *   <li>{@code static Applied apply(String csv, SequencedMap<String, String> defaultNameByFolder)}: the file's text
- *       applied to the sets of a run, given by folder in canonical order with their default names;
- *   <li>{@code static Applied read(Path workingDirectory, SequencedMap<String, String> defaultNameByFolder)}: the
- *       same, read from {@code FILE_NAME} in the working directory, an absent file renaming nothing;
- *   <li>{@code static boolean accepts(String name)}: whether a name may be given to a set;
- *   <li>{@code record Applied(SequencedMap<String, String> nameByFolder, List<String> ignoredFolders)}: every set's
- *       effective name, in the order given, and the folder of each row ignored, as the row spells it, in the
- *       file's order.
+ *   <li>{@code static final String FILE_NAME = "code-set-names.yaml"};
+ *   <li>{@code record Entry(String folder, String name)}: one entry of the file, as written;
+ *   <li>{@code static List<Entry> parse(String yaml)}: the entries of the file's text, in its order, none for a
+ *       text holding nothing, or an {@code IllegalArgumentException} naming {@code FILE_NAME} where the file is not
+ *       a list of folders and names;
+ *   <li>{@code static List<Entry> read(Path workingDirectory)}: the same, read from {@code FILE_NAME} in the working
+ *       directory, none where it is absent.
  * </ul>
  */
 final class CodeSetNamesByItsName {
 
     private static final String CLASS_NAME = "io.algernon.vespera.deliverable.CodeSetNames";
-
-    /** What {@code Applied} carries, copied out of it. */
-    record Applied(Map<String, String> nameByFolder, List<String> ignoredFolders) {}
 
     private CodeSetNamesByItsName() {
     }
@@ -46,46 +37,34 @@ final class CodeSetNamesByItsName {
         }
     }
 
-    static Applied apply(String csv, SequencedMap<String, String> defaultNameByFolder) {
-        return copied(invoke("apply", csv, defaultNameByFolder));
+    /** The entries of {@code yaml}, each as {@code folder=name}. */
+    static List<String> parse(String yaml) {
+        return entries(invoke("parse", yaml));
     }
 
-    static Applied read(Path workingDirectory, SequencedMap<String, String> defaultNameByFolder) {
-        return copied(invoke("read", workingDirectory, defaultNameByFolder));
+    /** The entries of the file in {@code workingDirectory}, each as {@code folder=name}. */
+    static List<String> read(Path workingDirectory) {
+        return entries(invoke("read", workingDirectory));
     }
 
-    static boolean accepts(String name) {
-        return (Boolean) invoke("accepts", name);
+    private static List<String> entries(Object entries) {
+        return ((List<?>) entries).stream().map(entry -> {
+            try {
+                return entry.getClass().getMethod("folder").invoke(entry) + "="
+                        + entry.getClass().getMethod("name").invoke(entry);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("an entry of " + CLASS_NAME + " carries no folder or name", e);
+            }
+        }).toList();
     }
 
-    /** {@code folders}, each paired with the name it is given, in order. */
-    static SequencedMap<String, String> defaults(String... folderThenName) {
-        SequencedMap<String, String> defaults = new LinkedHashMap<>();
-        for (int i = 0; i < folderThenName.length; i += 2) {
-            defaults.put(folderThenName[i], folderThenName[i + 1]);
-        }
-        return defaults;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Applied copied(Object applied) {
-        try {
-            Object names = applied.getClass().getMethod("nameByFolder").invoke(applied);
-            Object ignored = applied.getClass().getMethod("ignoredFolders").invoke(applied);
-            return new Applied(new LinkedHashMap<>((Map<String, String>) names), List.copyOf((List<String>) ignored));
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("what " + CLASS_NAME + " applied carries no nameByFolder or ignoredFolders", e);
-        }
-    }
-
-    private static Object invoke(String name, Object... arguments) {
+    private static Object invoke(String name, Object argument) {
         Method method = Arrays.stream(theClass().getMethods())
-                .filter(candidate -> candidate.getName().equals(name) && candidate.getParameterCount() == arguments.length)
+                .filter(candidate -> candidate.getName().equals(name) && candidate.getParameterCount() == 1)
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        CLASS_NAME + " has no public method " + name + " of " + arguments.length + " parameters"));
+                .orElseThrow(() -> new IllegalStateException(CLASS_NAME + " has no public method " + name + " of one parameter"));
         try {
-            return method.invoke(null, arguments);
+            return method.invoke(null, argument);
         } catch (InvocationTargetException e) {
             throw e.getCause() instanceof RuntimeException runtime ? runtime : new IllegalStateException(e.getCause());
         } catch (IllegalAccessException e) {
@@ -97,7 +76,7 @@ final class CodeSetNamesByItsName {
         try {
             return Class.forName(CLASS_NAME);
         } catch (ClassNotFoundException e) {
-            throw new IllegalStateException(CLASS_NAME + " is not built yet (ADR-284 §8)", e);
+            throw new IllegalStateException(CLASS_NAME + " is not built yet (ADR-284 §9)", e);
         }
     }
 }

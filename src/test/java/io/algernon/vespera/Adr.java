@@ -1941,14 +1941,16 @@ public final class Adr {
     public static final String THE_GUARD_READS_A_DELIVERABLE_TREE_AS_OUTSIDE_THE_ALLOW_LIST = FILE
             + "0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md";
 
-     * ADR-284 -- code is kept in code sets: below the nearest folder holding a build file of a list built into
-     * corpus, else below the first folder under the corpus root; a set pass of stage 1, before the hashing, keeps a
-     * set's build files and the pictures and companion files of a generated reference tree as code; default names
-     * are the folder's, told apart by the folders above; stage 1 writes code-sets.csv, and code-set-names.csv
-     * renames a set where names are rendered, moving no run (extends ADR-277).
+    /**
+     * ADR-284 -- code is kept in code sets: each below the nearest folder under the corpus root holding a build file
+     * of a list built into corpus, told by its name alone, else below the first folder under the root, the root's own
+     * files forming the root's set; a set pass of stage 1, before the hashing, keeps a set's build files and the
+     * pictures and companion files of a generated tree as code; two corpus tables record the sets and members; a set's
+     * default name is its folder's, and code-set-names.yaml renames it where names are rendered, moving no run (amends
+     * ADR-277).
      */
     public static final String CODE_IS_KEPT_IN_CODE_SETS_NAMED_FOR_THEIR_FOLDER = FILE
-            + "0284-code-is-kept-in-code-sets-below-the-nearest-folder-holding-a-build-file-and-each-set-is-named-for-its-folder.md";
+            + "0284-code-is-kept-in-code-sets-each-below-the-nearest-folder-under-the-corpus-root-holding-a-build-file.md";
 
     private Adr() {
     }

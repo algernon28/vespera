@@ -12,6 +12,7 @@
 - **Keeps**: [ADR-083](0083-the-seed-set-is-extracted-by-stage-5-and-an-unusable-seed-is-recorded-not-a-gate.md) and ADR-256 §8. Seeds never pass stage 1, so nothing here reaches a seed (§10).
 - **Rests on**: [ADR-061](0061-the-profile-is-yaml-typed-java-records-one-object-per-value.md) and [ADR-120](0120-a-profile-values-type-is-its-keys-and-an-unreadable-value-is-a-third-state-beside-unset.md), for the key; [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and ADR-171 §4, for stage 1's configuration consumed (§9); [ADR-089](0089-a-stages-run-names-the-immediately-preceding-stages-run-upstream-because-verdicts-are-cumulative.md), by which every later stage follows stage 1's run (§12).
 - **Rests on**: [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md) §7. The counting script's change is a draft the operator installs (§13).
+- **Amended by**: [ADR-284](0284-code-is-kept-in-code-sets-each-below-the-nearest-folder-under-the-corpus-root-holding-a-build-file.md) §1, §4, §5 and §6, in §1, §3 and §8: a code set's build files and the files of a generated tree are code too, a build file is told by its name alone where it marks a set's folder, and stage 1 writes `code` in a set pass after the first.
 - **Replaces**: the format-mix page's sentence above its timestamp table, as ADR-256 §7 quotes it (§7). That record is left as written.
 
 ## Context
