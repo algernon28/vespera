@@ -415,6 +415,7 @@ class ByteLevelReductionTaskletTest {
     @Story("What stage 1 does over census's survivors")
     @DisplayName("Compiled code, a font, a certificate, a database and an email are removed as out of scope and counted on the page; a project plan, a note and a file of no known kind are kept")
     @Link(name = "ADR-252", url = Adr.COMPILED_CODE_FONTS_CERTIFICATES_AND_DATABASES_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
     void removesCompiledCodeFontsCertificatesDatabasesAndEmailsAsOutOfScope(
             @TempDir Path root, @TempDir Path workingDirectory) throws Exception {
         Files.write(root.resolve("main.o"), ELF_OBJECT_FILE);
@@ -504,11 +505,11 @@ class ByteLevelReductionTaskletTest {
                         + " is as short: a file left out for its kind is not read for timestamps",
                 () -> assertThat(countIn(html, "<td>fewer than ten lines</td>")).isEqualTo(1));
         claim(
-                "and says so above that table: the text files read for timestamps are those not left out for their"
-                        + " kind or for the ending of their name",
+                "and says so above that table, in ADR-277 §7's words: the text files read for timestamps are those"
+                        + " not left out for their kind or for the ending of their name, and not kept as code",
                 () -> assertThat(html)
-                        .contains("Each text file not left out for its kind or for the ending of its name was read"
-                                + " from its start and its end"));
+                        .contains("Each text file not left out for its kind or for the ending of its name, and not"
+                                + " kept as code, was read from its start and its end"));
         claim(
                 "gives each kind the bytes decide a row of its own",
                 () -> assertThat(List.of(

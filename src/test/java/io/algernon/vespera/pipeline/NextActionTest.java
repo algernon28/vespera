@@ -536,6 +536,66 @@ class NextActionTest {
                 () -> assertThat(line.lines()).hasSize(1));
     }
 
+    /**
+     * ADR-277 §6 says the closing line names a shared ending "where nothing earlier is wanted". The architect gate
+     * accepted the reading that places it straight after {@code codeNameEndings}' own line (§2): after every value
+     * that line follows, and ahead of the lines for {@code translationSimilarityFloor}, {@code preferredLanguages}
+     * and {@code extractionAttempt}. Each of those three is written here in a form no run reads, and the line is
+     * still the shared ending's.
+     */
+    @Test
+    @Story("A list of name endings nothing can be read from changes nothing, and the line says so")
+    @DisplayName("An ending both lists hold is named ahead of an unreadable similarity floor, list of languages or attempt")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
+    void anEndingBothListsHoldIsNamedAheadOfTheValuesAfterIt() {
+        Profile profile = ProfileFixture.profileFrom(theRunValuesSet())
+                .outOfScopeNameEndings(".P3A .INC", RECORDED_BY_THE_OPERATOR)
+                .codeNameEndings(".java .inc", RECORDED_BY_THE_OPERATOR)
+                .translationSimilarityFloor("nought point eight", RECORDED_BY_THE_OPERATOR)
+                .preferredLanguages("italian, english", RECORDED_BY_THE_OPERATOR)
+                .extractionAttempt("two", RECORDED_BY_THE_OPERATOR)
+                .build();
+
+        String line = NextAction.line(
+                profile, SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+
+        claim(
+                "the line is the shared ending's, naming .inc and saying its files were left out of scope",
+                () -> assertThat(line).contains("both list .inc").contains("left its files out of scope"));
+        claim(
+                "and names none of the three values after it, each of which would have had the line had no ending"
+                        + " been shared",
+                () -> assertThat(line)
+                        .doesNotContain("translationSimilarityFloor")
+                        .doesNotContain("preferredLanguages")
+                        .doesNotContain("extractionAttempt"));
+    }
+
+    /**
+     * ADR-277 §6, the other side of the same order: a value whose line comes before {@code codeNameEndings}' is
+     * wanted earlier, so an unreadable log floor has the line and the shared ending waits for the next run.
+     */
+    @Test
+    @Story("A list of name endings nothing can be read from changes nothing, and the line says so")
+    @DisplayName("An unreadable log floor is named ahead of an ending both lists hold")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
+    void anUnreadableLogFloorIsNamedAheadOfAnEndingBothListsHold() {
+        Profile profile = ProfileFixture.profileFrom(theLogFloorMistyped())
+                .outOfScopeNameEndings(".P3A .INC", RECORDED_BY_THE_OPERATOR)
+                .codeNameEndings(".java .inc", RECORDED_BY_THE_OPERATOR)
+                .build();
+
+        String line = NextAction.line(
+                profile, SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+
+        claim(
+                "the line is the log floor's",
+                () -> assertThat(line).contains("logTimestampShareFloor").contains(A_MISTYPED_FLOOR));
+        claim(
+                "and does not name the shared ending",
+                () -> assertThat(line).doesNotContain("both list"));
+    }
+
     @Test
     @Story("The operator is never sent to a file the invocation did not write")
     @DisplayName("With no questions written, the line does not send the operator to the label file")
