@@ -208,6 +208,6 @@ for (const [id, what, tool, input, expected, { cwd, needsLink } = {}] of CASES) 
 
 test("F501: the refusal names the tree and the record", () => {
   const result = startGuard("Read", { file_path: `${CLUSTER}/report.pdf` });
-  assert.match(result.stderr, /in the deliverable tree .*named.*read as outside the allow list/, "the refusal must say the path is in a deliverable tree");
+  assert.ok(result.stderr.includes(`in the deliverable tree ${NAMED}, which`), `the refusal must name the tree's top, ${NAMED}; it wrote: ${result.stderr}`);
   assert.match(result.stderr, /docs\/adr\/0283/, "the refusal must cite the record that closes a tree");
 });

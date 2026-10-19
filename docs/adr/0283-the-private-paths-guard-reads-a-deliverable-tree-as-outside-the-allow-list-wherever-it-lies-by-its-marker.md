@@ -37,7 +37,7 @@ The guard recognised a working directory by `vespera.db` or `vespera.lock` (ADR-
 
 The written rule (§1) is the only protection in each of these, beside what ADR-196 §5 and ADR-215 §8 list:
 
-- **A search that begins above a tree**, a Grep of a working directory or `grep -r` of a folder holding a tree: the guard does not walk down from a search root (ADR-264 §2).
+- **A search, copy, move or removal that names a folder above a tree**, a Grep of a working directory, `grep -r`, `cp -r`, `mv` or `rm -r` of a folder holding a tree: the guard does not walk down from a path it is given (ADR-264 §2).
 - **A tree drawn before ADR-276**, which carries no marker until its next drawing.
 - **A tree whose top lies above the last folder the allow list names**, since no marker is asked above it.
 - **A path a command builds at run time, a wildcard and a rooted POSIX path in a shell command**, which the guard does not read as paths (ADR-196 §5).
@@ -89,7 +89,7 @@ The guard lies in a closed `.claude` folder, so the change is drafted at **`docs
 
 ## Tests
 
-`src/test/hooks/deliverable-tree-guard.test.mjs`, through the wrapper Claude Code calls, against the draft while it is there and against the installed guard once it is gone; its header lays out the fixture. `src/test/hooks/private-paths-guard.test.mjs` holds the draft unchanged, with `VESPERA_GUARD_DRAFT` naming a copy of it outside every `.claude` folder.
+`src/test/hooks/deliverable-tree-guard.test.mjs`, through the wrapper Claude Code calls, against the draft while it is there and against the installed guard once it is gone; its header lays out the fixture. Two parts of §2 have no case: that no marker is asked outside the allow list (Decided here 5), since a lookup the guard makes is not seen through the wrapper, which reports only its exit code; and that an answer other than "not there" closes a folder, since such an answer, a denied lookup, cannot be made for a process that runs as root, as CI's Linux job does, or on NTFS, and F116 holds the nearest case, a marker that is a folder. `src/test/hooks/private-paths-guard.test.mjs` holds the draft unchanged, with `VESPERA_GUARD_DRAFT` naming a copy of it outside every `.claude` folder.
 
 | Cases | What they hold |
 | --- | --- |
