@@ -7,10 +7,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -32,6 +35,9 @@ final class Code {
 
     /** The two windows a file is read in, at its start and at its end (section 3). */
     private static final int WINDOW = TimestampedLines.WINDOW_BYTES;
+
+    /** Each mark, normalised the first time it is looked for and not again for the next file. */
+    private static final Map<String, String> NORMALISED_MARKS = new ConcurrentHashMap<>();
 
     /**
      * Why a file is code, and for which of the two rules: the ending of its name, as the list holds it, or a
@@ -107,8 +113,8 @@ final class Code {
                 byte[] whole = Files.readAllBytes(file);
                 int window = Math.min(whole.length, WINDOW);
                 return new Windows(
-                        java.util.Arrays.copyOfRange(whole, 0, window),
-                        java.util.Arrays.copyOfRange(whole, whole.length - window, whole.length),
+                        Arrays.copyOfRange(whole, 0, window),
+                        Arrays.copyOfRange(whole, whole.length - window, whole.length),
                         holdsText(whole));
             }
             try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ)) {
@@ -126,7 +132,7 @@ final class Code {
                     break;
                 }
             }
-            return java.util.Arrays.copyOf(buffer.array(), buffer.position());
+            return Arrays.copyOf(buffer.array(), buffer.position());
         }
 
         /** No byte from {@code 00} to {@code 1F} but tab, line feed, form feed and carriage return (section 3). */
@@ -166,9 +172,6 @@ final class Code {
         }
         return out.toString();
     }
-
-    /** Each mark, normalised the first time it is looked for and not again for the next file. */
-    private static final java.util.Map<String, String> NORMALISED_MARKS = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** The two windows of a page, normalised; each string or pattern is looked for in each, never across them. */
     private record Page(String first, String last) {
