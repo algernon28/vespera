@@ -29,7 +29,7 @@ You do not need to know the stage to continue. To find out anyway:
 - **The last line of the output** names every value the next invocation wants, or says nothing is left to set.
 - **A gated step logs why**, in a line containing `is gated:`. The first such line of an invocation is where the run stopped being able to go further.
 - **A finished step logs** `was already recorded under run <id>` and does nothing.
-- **`logs/vespera.log`** in the working directory holds the same lines as the console, for every invocation, with dates. Older ones roll into `logs/vespera.<date>.<n>.log` beside it.
+- **`logs/vespera.log`** in the working directory holds every line Vespera and the libraries it uses log, for every invocation, with dates, a few library lines the console leaves out among them. What `vespera label` prints, and a refusal's one line, are on the console only. Older ones roll into `logs/vespera.<date>.<n>.log` beside it.
 
 ## The steps, in the order they run
 
