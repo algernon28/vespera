@@ -2104,6 +2104,24 @@ public final class Adr {
             + "0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md";
 
     /**
+     * ADR-301 -- stage 6b draws a Confluence storage-format rendering of the tree beside the HTML tree, as files for
+     * the operator to load, and beyond drawing it nothing in this project renders, uploads or transmits the
+     * deliverable; the two renderings carry the same entries and citations (amends ADR-101, ADR-102 and ADR-274, and
+     * partly reopens ADR-002 and ADR-023).
+     */
+    public static final String A_CONFLUENCE_RENDERING_IS_DRAWN_BESIDE_THE_HTML_TREE = FILE
+            + "0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md";
+
+    /**
+     * ADR-304 -- Vespera never sends the deliverable tree to Confluence itself: neither the jar nor the control
+     * panel uploads the HTML tree or its Confluence rendering, holds a credential for Confluence or opens a
+     * connection to it, and no command, option, dependency or module is added for a load; the operator loads with
+     * the loader, a program of their own.
+     */
+    public static final String VESPERA_NEVER_SENDS_THE_TREE_TO_CONFLUENCE = FILE
+            + "0304-vespera-never-sends-the-deliverable-tree-to-confluence-itself-and-holds-no-uploader-no-credential-and-no-connection-for-it.md";
+
+    /**
      * ADR-305 -- the Confluence rendering is drawn in storage format, one rendering for Cloud and Data Center alike;
      * loading it into a Cloud site is the operator's act, accepted explicitly, and the Archive's rule, ADR-195 §2
      * and ADR-197 bind Vespera itself; nothing that differs per edition is a value the operator sets, so no run id
