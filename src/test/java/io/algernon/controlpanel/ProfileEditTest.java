@@ -184,7 +184,8 @@ class ProfileEditTest {
     @Test
     @Story("The control panel writes a profile value")
     @DisplayName("Single-quoted and plain values, as the README and a hand edit write them, are read as the jar reads them")
-    void singleQuotedAndPlainScalarsAreReadAsTheJarReadsThem() {
+    void singleQuotedAndPlainScalarsAreReadAsTheJarReadsThem(@TempDir Path temp) throws IOException {
+        Path seeds = Files.createDirectory(temp.resolve("seeds"));
         String byHand = """
                 seedFolder:
                   value: 'D:\\archive\\exemplars'
@@ -215,14 +216,11 @@ class ProfileEditTest {
                         ProfileKey.GENERATION_MODEL, new Stated(null, ""),
                         ProfileKey.EMBEDDING_MODEL, new Stated("~", "nomic-embed-text:v1.5"))));
         claim("and saving the seed folder replaces its single-quoted lines with double-quoted ones, every other byte kept",
-                () -> assertThat(ProfileEdit.rewrite(Optional.of(byHand), ProfileKey.SEED_FOLDER, "/seeds", "moved"))
+                () -> assertThat(ProfileEdit.rewrite(Optional.of(byHand), ProfileKey.SEED_FOLDER, seeds.toString(), "moved"))
                         .isEqualTo(byHand.replace("""
                                   value: 'D:\\archive\\exemplars'
                                   provenance: "the twelve reports I would keep without reading them again"
-                                """, """
-                                  value: "/seeds"
-                                  provenance: "moved"
-                                """)));
+                                """, "  value: \"" + seeds + "\"\n  provenance: \"moved\"\n")));
     }
 
     @Test

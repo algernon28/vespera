@@ -237,7 +237,7 @@ public final class CodeSetRenames {
 }
 ```
 
-`read`, `rewrite` and `render` throw `IllegalArgumentException` with the one line where they refuse. The check of a folder in §1 is the one `LaunchValues.refusalOfFolder` makes, shared and not written twice, with its own line. Which screen calls these, and where a prefill of `arrangementApproved` comes from, are not decided here.
+`read`, `rewrite` and `render` throw `IllegalArgumentException` with the one line where they refuse. The check of a folder in §1 is the one ADR-292 §3 makes of its folder, shared with `LaunchValues` and not written twice, with its own line. Which screen calls these, and where a prefill of `arrangementApproved` comes from, are not decided here.
 
 ### 10. What changes
 
