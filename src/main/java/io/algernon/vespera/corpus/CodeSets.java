@@ -28,7 +28,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
  *
  * <p>What it holds is folders: the folders holding a build file, a marked page or a companion file, and the
  * sets. It reads the walk's occurrences and their verdicts a page at a time and keeps no occurrence between
- * pages (ADR-220); the one hand-over that names occurrences is {@link MarkedPages}, from the first pass.
+ * pages (ADR-220); the first pass's hand-over, {@link MarkedFolders}, is folders too, and a marked page's
+ * generator is read again from its bytes when its member row is written.
  */
 public class CodeSets {
 
@@ -48,6 +49,9 @@ public class CodeSets {
 
         /** A file that could not be read to see whether it reads as text, so it is not touched. */
         default void unreadable(OccurrenceId occurrence, Exception cause) {}
+
+        /** A marked page that could not be read again to see which generator's mark it carries. */
+        default void markUnreadable(OccurrenceId occurrence, Exception cause) {}
     }
 
     /**
@@ -65,9 +69,16 @@ public class CodeSets {
     /**
      * Finds the sets of {@code runId}'s walk, verdicts the build files and tree companions kept with them as
      * {@code code}, and records the sets and members. Only occurrences the first pass left surviving are
-     * touched; {@code markedPages} is the first pass's hand-over.
+     * touched; {@code markedFolders} is the first pass's hand-over, and {@code codeEndings} are the endings
+     * {@code codeNameEndings} lists, lower case.
      */
-    public Tally pass(Ledger ledger, RunId runId, Path canonicalRoot, MarkedPages markedPages, Progress progress) {
+    public Tally pass(
+            Ledger ledger,
+            RunId runId,
+            Path canonicalRoot,
+            MarkedFolders markedFolders,
+            List<String> codeEndings,
+            Progress progress) {
         WalkId walk = ledger.runs().walkOf(runId).orElseThrow(() -> new IllegalStateException(
                 "run " + runId.value() + " is recorded against no walk"));
         Found found = new Found();
@@ -84,12 +95,10 @@ public class CodeSets {
                 }
                 if (code.contains(occurrence.occurrenceId())) {
                     found.codeFolders.add(folder);
-                    markedPages.generatorOf(occurrence.occurrenceId()).ifPresent(generator ->
-                            found.markedFolders.computeIfAbsent(generator, g -> new HashSet<>()).add(folder));
                 }
             }
         });
-        found.findTrees();
+        found.findTrees(markedFolders);
         found.codeFolders.forEach(folder -> found.setFolders.add(found.anchorOf(folder)));
         if (!found.treeRoots.isEmpty()) {
             eachPage(ledger, walk, page -> {
@@ -122,7 +131,7 @@ public class CodeSets {
                     String set = found.extentOf(folderOf(occurrence.path()));
                     if (set != null) {
                         member(occurrence.occurrenceId(), runId, set, CODE,
-                                markedPages.generatorOf(occurrence.occurrenceId()).orElse(null));
+                                markOf(runId, canonicalRoot, occurrence, markedFolders, codeEndings, progress));
                         counts[0]++;
                     }
                 }
@@ -175,6 +184,30 @@ public class CodeSets {
                 return Optional.empty();
             }
             folder = folder.substring(0, folder.lastIndexOf('/'));
+        }
+    }
+
+    /**
+     * The generator whose mark a member as code carries, read again from its bytes (section 5): only for a page
+     * lying in a folder handed over for some generator, whose name ends with no listed ending. None where no
+     * mark is named, and, said to {@code progress}, where the page cannot be read.
+     */
+    private static String markOf(
+            RunId runId,
+            Path canonicalRoot,
+            OccurrenceAtPath occurrence,
+            MarkedFolders markedFolders,
+            List<String> codeEndings,
+            Progress progress) {
+        if (!markedFolders.holds(folderOf(occurrence.path()))
+                || Code.endsWithAny(nameOf(occurrence.path()), codeEndings)) {
+            return null;
+        }
+        try {
+            return Code.markOf(canonicalRoot.resolve(occurrence.path().value())).orElse(null);
+        } catch (IOException e) {
+            progress.markUnreadable(occurrence.occurrenceId(), e);
+            return null;
         }
     }
 
@@ -305,14 +338,13 @@ public class CodeSets {
         final Set<String> buildFolders = new HashSet<>();
         final Set<String> codeFolders = new HashSet<>();
         final Map<String, Set<String>> companionFolders = new HashMap<>();
-        final Map<String, Set<String>> markedFolders = new HashMap<>();
         /** Each generator's tree roots, the highest of the folders holding both a marked page and a companion. */
         final Map<String, Set<String>> treeRoots = new HashMap<>();
         final Set<String> setFolders = new HashSet<>();
 
-        void findTrees() {
-            markedFolders.forEach((generator, marked) -> {
-                Set<String> both = new HashSet<>(marked);
+        void findTrees(MarkedFolders markedFolders) {
+            for (String generator : GeneratorCompanions.generators()) {
+                Set<String> both = new HashSet<>(markedFolders.foldersOf(generator));
                 both.retainAll(companionFolders.getOrDefault(generator, Set.of()));
                 Set<String> roots = new HashSet<>();
                 for (String folder : both) {
@@ -323,7 +355,7 @@ public class CodeSets {
                 if (!roots.isEmpty()) {
                     treeRoots.put(generator, roots);
                 }
-            });
+            }
         }
 
         /** The nearest folder holding a build file from {@code folder} up to the first folder under the root, else that one. */

@@ -9,7 +9,7 @@ import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.FormatMix;
 import io.algernon.vespera.corpus.HashingProgress;
-import io.algernon.vespera.corpus.MarkedPages;
+import io.algernon.vespera.corpus.MarkedFolders;
 import io.algernon.vespera.corpus.TextSizeLimits;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.extraction.DoclingClient;
@@ -201,7 +201,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 () -> ledger.verdicts().survivorCount(runId));
         ProgressPage.entered(survivors);
         StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", survivors);
-        MarkedPages markedPages = new MarkedPages();
+        MarkedFolders markedFolders = new MarkedFolders();
         FormatMix mix = new BrokenOrOutOfScope(ledger, detectedFormats, textSizeLimits())
                 .verdictSurvivors(runId, canonicalRoot, logFloor, nameEndings, codeEndings, new CheckingProgress() {
                     @Override
@@ -240,8 +240,8 @@ public class ByteLevelReductionTasklet implements Tasklet {
                         // (ADR-210 section 2). Otherwise the file is marked broken, as it always was.
                         new CorpusRootCheck(canonicalRoot).requireListable();
                     }
-                }, markedPages);
-        CodeSets.Tally codeSets = detectedFormats.codeSets().pass(ledger, runId, canonicalRoot, markedPages, new CodeSets.Progress() {
+                }, markedFolders);
+        CodeSets.Tally codeSets = detectedFormats.codeSets().pass(ledger, runId, canonicalRoot, markedFolders, codeEndings, new CodeSets.Progress() {
             @Override
             public void kept(OccurrenceId occurrence, String reason) {
                 log.info("[byte-level-reduction] kept {} with its code set -> code: {}", occurrence.value(), reason);
@@ -251,6 +251,14 @@ public class ByteLevelReductionTasklet implements Tasklet {
             public void unreadable(OccurrenceId occurrence, Exception cause) {
                 log.warn(
                         "[byte-level-reduction] could not read {} to see whether it reads as text, so it is left as it was: {}",
+                        occurrence.value(),
+                        cause.toString());
+            }
+
+            @Override
+            public void markUnreadable(OccurrenceId occurrence, Exception cause) {
+                log.warn(
+                        "[byte-level-reduction] could not read {} to see which generator's mark it carries, so it is kept with none: {}",
                         occurrence.value(),
                         cause.toString());
             }

@@ -80,6 +80,21 @@ final class Code {
     }
 
     /**
+     * The generator whose mark {@code file} carries, by section 4's test applied as the first pass applies it:
+     * empty where its bytes do not read as text or no generator is named. Throws where it cannot be read.
+     */
+    static Optional<String> markOf(Path file) throws IOException {
+        Windows windows = Windows.of(file);
+        return windows.readsAsText() ? generatorOf(windows) : Optional.empty();
+    }
+
+    /** Whether {@code name} ends, in any case, with one of {@code endings}. */
+    static boolean endsWithAny(String name, List<String> endings) {
+        String folded = name.toLowerCase(Locale.ROOT);
+        return endings.stream().anyMatch(ending -> folded.endsWith(ending.toLowerCase(Locale.ROOT)));
+    }
+
+    /**
      * Where {@code generator} comes in the order of section 4's tables, the first being 0: what settles a file
      * that lies in two generators' trees whose roots are one folder (ADR-284 section 5).
      */

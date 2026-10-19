@@ -82,12 +82,13 @@ public final class BrokenOrOutOfScope {
             List<String> codeEndings,
             CheckingProgress progress)
             throws Exception {
-        return verdictSurvivors(runId, canonicalRoot, logFloor, nameEndings, codeEndings, progress, new MarkedPages());
+        return verdictSurvivors(runId, canonicalRoot, logFloor, nameEndings, codeEndings, progress, new MarkedFolders());
     }
 
     /**
-     * As above, and notes in {@code markedPages} the generator of every page kept as code for its mark, in
-     * memory and never in a verdict's reason (ADR-284 section 5).
+     * As above, and notes in {@code markedFolders}, for each generator, the folders directly holding a page
+     * kept as code for its mark: folders only, held in memory and never in a verdict's reason (ADR-284
+     * section 5).
      */
     public FormatMix verdictSurvivors(
             RunId runId,
@@ -96,7 +97,7 @@ public final class BrokenOrOutOfScope {
             List<String> nameEndings,
             List<String> codeEndings,
             CheckingProgress progress,
-            MarkedPages markedPages)
+            MarkedFolders markedFolders)
             throws Exception {
         Map<String, Integer> codeEndingCounts = new TreeMap<>();
         Map<String, Integer> codeGeneratorCounts = new TreeMap<>();
@@ -173,7 +174,7 @@ public final class BrokenOrOutOfScope {
                     codeEndingCounts.merge(recognised.get().ending().get(), 1, Integer::sum);
                 } else {
                     codeByMark++;
-                    markedPages.add(occurrenceId, recognised.get().generator().orElseThrow());
+                    markedFolders.add(folderOf(facts.path().value()), recognised.get().generator().orElseThrow());
                     codeGeneratorCounts.merge(recognised.get().generator().orElseThrow(), 1, Integer::sum);
                 }
             } else if (leftOut.isPresent()) {
@@ -225,6 +226,12 @@ public final class BrokenOrOutOfScope {
             progress.codeUnreadable(occurrenceId, e);
             return Optional.empty();
         }
+    }
+
+    /** The folder a path lies directly in, as the path spells it; empty for the corpus root. */
+    private static String folderOf(String path) {
+        int slash = path.lastIndexOf('/');
+        return slash < 0 ? "" : path.substring(0, slash);
     }
 
     /** The ending of a file's name from its last dot, where that dot is not its first character, in lower case. */
