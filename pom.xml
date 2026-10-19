@@ -32,6 +32,7 @@
         <spring-modulith.version>2.1.0</spring-modulith.version>
         <picocli.version>4.7.7</picocli.version>
         <memoryfilesystem.version>2.8.1</memoryfilesystem.version>
+        <jsoup.version>1.23.2</jsoup.version>
         <!-- ADR-073: pinned to Lingua's latest release, 1.2.2 (2022), the record's own note that this line is stable rather than actively developed. -->
         <lingua.version>1.2.2</lingua.version>
         <!--
@@ -164,6 +165,18 @@
             <groupId>org.apache.groovy</groupId>
             <artifactId>groovy</artifactId>
             <version>${groovy.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!--
+          ADR-297: the control panel's screens are tested through PanelBrowser, which parses each page
+          the panel serves as a browser parses HTML and reads a form's fields as a browser sends them.
+          Test scope: the control panel's jar stays on java.base and jdk.httpserver (ADR-285 section 3).
+          Maven brings nothing with it: its compile dependency re2j is optional, jspecify provided.
+        -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>${jsoup.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
