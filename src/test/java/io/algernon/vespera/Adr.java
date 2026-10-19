@@ -2039,6 +2039,15 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES = FILE
             + "0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md";
 
+    /**
+     * ADR-293 -- an operational record that is neither a log nor a configuration file is left to relevance, with no
+     * rule of stage 1's of its own; a JSON or YAML export keyed line by line is read as settings by ADR-287's rule and
+     * is left as that rule leaves it; a flow file or a lookup-table export is left out by the ending of its name where
+     * the operator lists it in outOfScopeNameEndings.
+     */
+    public static final String AN_OPERATIONAL_RECORD_THAT_IS_NOT_A_LOG_OR_A_CONFIGURATION_FILE_IS_LEFT_TO_RELEVANCE = FILE
+            + "0293-an-operational-record-that-is-not-a-log-or-a-configuration-file-is-left-to-relevance-and-its-name-ending-is-the-operators-to-list.md";
+
     private Adr() {
     }
 }
