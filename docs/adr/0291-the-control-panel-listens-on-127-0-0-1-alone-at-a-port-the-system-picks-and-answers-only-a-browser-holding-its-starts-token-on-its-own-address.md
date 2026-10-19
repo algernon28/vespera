@@ -61,7 +61,7 @@ A `GET` of a registered path whose query carries the right `token` parameter is 
 Set-Cookie: vespera-control-panel=<token>; Path=/; HttpOnly; SameSite=Strict
 ```
 
-The cookie carries no `Max-Age` and no `Expires`, so the browser drops it when it closes, and no `Secure`, since the server speaks plain `http` on loopback. `HttpOnly` keeps it from a page's scripts, `SameSite=Strict` from requests another site starts. The page itself is not served on the 303, so the token leaves the address bar at once.
+The cookie carries no `Max-Age` and no `Expires`, so the browser drops it when it closes, and no `Secure`, since the server speaks plain `http` on loopback. `HttpOnly` keeps it from a page's scripts, `SameSite=Strict` from requests another site starts. The exchange is made whether or not the browser already holds the cookie. The page itself is not served on the 303, so the token leaves the address bar at once.
 
 The token is compared in constant time, by `MessageDigest.isEqual`, whether it arrives in the query or in the cookie. It stays valid for the whole start, so a second tab opened on the printed address is let in too.
 
@@ -99,9 +99,11 @@ Every response, refusals and redirects included, carries four headers, with thes
 | Header | Value | Why |
 | --- | --- | --- |
 | `Cache-Control` | `no-store` | the browser's cache keeps no page, so no document text, outside the working directory |
-| `Referrer-Policy` | `no-referrer` | the token, while it is in the address, is sent in no `Referer` |
+| `Referrer-Policy` | `same-origin` | a request to the control panel's own address keeps its real `Origin`, so §5 lets its own forms in, and no `Referer` is sent to another site, so the token, while it is in the address, never leaves the control panel's address |
 | `X-Content-Type-Options` | `nosniff` | a body is read only as the type it is sent as |
 | `Content-Security-Policy` | `frame-ancestors 'none'; form-action 'self'; base-uri 'none'` | no other site frames a page, a form posts only to the control panel, and no page's base is moved |
+
+`no-referrer` is refused: under it a browser sends `Origin: null` on every request whose method is neither `GET` nor `HEAD` (Fetch, *append a request `Origin` header*), so §5 would refuse every form of the control panel's own.
 
 A page may send a second `Content-Security-Policy` of its own (#561, and #554's strict one); a browser enforces both.
 
@@ -109,7 +111,7 @@ A page may send a second `Content-Security-Policy` of its own (#561, and #554's 
 
 The control panel holds text of documents only in memory, while it answers a request, and writes no file holding text of a document or the token. The server's classes write no file, log nothing, print nothing and start no process.
 
-The control panel writes no file in a folder other local users can write, and checks the ownership of any folder it reuses: a shared, sticky temporary folder may be the parent of a folder only its owner can write, and is never the folder a file is written in. The one file it keeps is ADR-292's (#564, being decided): its launch values, at `<java.io.tmpdir>/vespera-control-panel-<user.name>/launch-values.properties`, the folder `0700` and the file `0600` on POSIX; a folder there that the current user does not own, or that its group or other users can write, is neither read nor written, and the values count as missing. That file holds neither the token nor text of a document.
+The control panel writes no file in a folder other local users can write, and checks the ownership of any folder it reuses. Where the file of launch values is kept is decided by ADR-292 (#564).
 
 ### Known limits
 
@@ -147,7 +149,7 @@ The types this asks for are `ControlPanelServer`, in `io.algernon.controlpanel`:
 | `controlpanel.ControlPanelServerTest.theTokenIsDrawnFromSecureRandomAndComparedInConstantTime` | the server's classes call `SecureRandom` and `MessageDigest.isEqual` (§2, §3) |
 | `controlpanel.ControlPanelServerTest.aRequestWithNeitherTheCookieNorTheTokenIsRefusedAndNoPageRuns` | 403, the line, plain text, no `Set-Cookie`, no handler run, with no cookie and with a cookie of another value (§4) |
 | `controlpanel.ControlPanelServerTest.aWrongTokenIsRefusedAndSetsNoCookie` | 403, no `Set-Cookie`, no handler run (§3, §4) |
-| `controlpanel.ControlPanelServerTest.theRightTokenIsExchangedForACookieTheBrowserDropsWhenItCloses` | 303 to the path without the query, the `Set-Cookie` whole, no handler run; then the cookie alone, or among others, gets the page, and the token is exchanged again (§3) |
+| `controlpanel.ControlPanelServerTest.theRightTokenIsExchangedForACookieTheBrowserDropsWhenItCloses` | 303 to the path without the query, the `Set-Cookie` whole, no handler run; then the cookie alone, or among others, gets the page, and the token is exchanged again, and again by a browser already holding the cookie, 303 to `/` with no handler run (§3) |
 | `controlpanel.ControlPanelServerTest.aRequestNotAddressedToTheControlPanelsOwnAddressIsRefusedEvenWithTheCookie` | a foreign `Host`, another port, no port, `[::1]` and no `Host`: 403 with the cookie or the token; `127.0.0.1:<port>` and `localhost:<port>` in either case: the page (§4) |
 | `controlpanel.ControlPanelServerTest.aPostReachesItsPageOnlyFromTheControlPanelsOwnOrigin` | no `Origin`, `null`, another site's, another scheme's and another port's: 403, no handler run; both of the control panel's own: the handler runs (§5) |
 | `controlpanel.ControlPanelServerTest.aMethodOtherThanGetHeadAndPostIsRefusedNamingTheThree` | `PUT`, `DELETE`, `PATCH` and `OPTIONS`: 405 with `Allow: GET, HEAD, POST`, no handler run; `HEAD`: 200 (§5) |

@@ -105,7 +105,7 @@ final class ControlPanelServer implements AutoCloseable {
         public void handle(HttpExchange exchange) throws IOException {
             Headers out = exchange.getResponseHeaders();
             out.set("Cache-Control", "no-store");
-            out.set("Referrer-Policy", "no-referrer");
+            out.set("Referrer-Policy", "same-origin");
             out.set("X-Content-Type-Options", "nosniff");
             out.set("Content-Security-Policy", CONTENT_SECURITY_POLICY);
 
@@ -115,15 +115,15 @@ final class ControlPanelServer implements AutoCloseable {
                 refuse(exchange);
                 return;
             }
+            if (method.equals("GET") && pages.containsKey(path)
+                    && queryHoldsToken(exchange.getRequestURI().getRawQuery())) {
+                out.set("Set-Cookie", COOKIE + "=" + tokenText + "; Path=/; HttpOnly; SameSite=Strict");
+                out.set("Location", path);
+                exchange.sendResponseHeaders(303, -1);
+                exchange.close();
+                return;
+            }
             if (!holdsCookie(exchange.getRequestHeaders().get("Cookie"))) {
-                if (method.equals("GET") && pages.containsKey(path)
-                        && queryHoldsToken(exchange.getRequestURI().getRawQuery())) {
-                    out.set("Set-Cookie", COOKIE + "=" + tokenText + "; Path=/; HttpOnly; SameSite=Strict");
-                    out.set("Location", path);
-                    exchange.sendResponseHeaders(303, -1);
-                    exchange.close();
-                    return;
-                }
                 refuse(exchange);
                 return;
             }

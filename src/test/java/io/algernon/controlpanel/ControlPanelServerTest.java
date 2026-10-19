@@ -258,6 +258,19 @@ class ControlPanelServerTest {
                     assertThat(again.header("Location")).containsExactly(ROOT);
                     assertThat(again.header("Set-Cookie")).hasSize(1);
                 });
+
+        RAN.clear();
+        Response whileHoldingTheCookie = send("GET", "/?token=" + token, own(), cookie());
+
+        claim("and a browser already holding the cookie that opens the address with the token gets the same 303 to the"
+                        + " root, with the cookie set again, and the page is not served on it",
+                () -> {
+                    assertThat(whileHoldingTheCookie.status()).isEqualTo(303);
+                    assertThat(whileHoldingTheCookie.header("Location")).containsExactly(ROOT);
+                    assertThat(whileHoldingTheCookie.header("Set-Cookie")).containsExactly(
+                            ControlPanelServer.COOKIE + "=" + token + "; Path=/; HttpOnly; SameSite=Strict");
+                    assertThat(RAN).isEmpty();
+                });
     }
 
     @Test
@@ -403,7 +416,7 @@ class ControlPanelServerTest {
                 () -> assertThat(responses.values().stream().map(Response::status).toList())
                         .containsExactly(403, 403, 403, 303, 200, 404, 405));
         responses.forEach((which, response) -> claim(
-                which + " carries Cache-Control no-store, Referrer-Policy no-referrer, X-Content-Type-Options"
+                which + " carries Cache-Control no-store, Referrer-Policy same-origin, X-Content-Type-Options"
                         + " nosniff and the server's Content-Security-Policy, each once, with exactly those values",
                 () -> EVERY_RESPONSE.forEach((name, value) ->
                         assertThat(response.header(name)).as(name).containsExactly(value))));
@@ -511,7 +524,7 @@ class ControlPanelServerTest {
     private static Map<String, String> everyResponse() {
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("Cache-Control", "no-store");
-        headers.put("Referrer-Policy", "no-referrer");
+        headers.put("Referrer-Policy", "same-origin");
         headers.put("X-Content-Type-Options", "nosniff");
         headers.put("Content-Security-Policy", "frame-ancestors 'none'; form-action 'self'; base-uri 'none'");
         return headers;
