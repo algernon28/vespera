@@ -28,6 +28,9 @@ final class IndexPage {
     /** The most characters of a slug a name carries, so the longest file of the tree is bounded (ADR-274 §1.2). */
     static final int SLUG_LENGTH = 40;
 
+    /** What the index says for the folder of the set at the corpus root (ADR-296 §4). */
+    private static final String THE_ARCHIVES_TOP = "the archive's top";
+
     private IndexPage() {}
 
     /** One partition's heading and the head of its table of clusters, appended to {@code index}. */
@@ -131,6 +134,41 @@ final class IndexPage {
                 + " not a path beneath that root: it names a seed beneath the seed folder, which is a root of"
                 + " its own. The copy and copy_outcome columns say which documents were copied and, of any"
                 + " that were not, why.</p>\n");
+    }
+
+    /**
+     * The heading, the one sentence and the head of the table of code sets (ADR-296 §4), appended after the last
+     * group's table. Never says <em>group</em> of a code set (ADR-122).
+     */
+    static void codeHeading(Appendable index) throws IOException {
+        index.append("<h2>Code</h2>\n<p>Each code set is copied whole under code/, keeping its folders, and each of its"
+                + " files is checked against the size and modification time recorded when the archive was"
+                + " walked.</p>\n<table>\n<tr><th>Code set</th><th>Folder in the archive</th><th>Files copied</th>"
+                + "<th>Files not copied</th></tr>\n");
+    }
+
+    /**
+     * One code set's row: its drawn folder name linking {@code code/<name>/}, its folder in the archive, and how many of
+     * its files' copies stand and how many do not.
+     */
+    static void codeRow(Appendable index, String drawnName, String folder, long copied, long notCopied)
+            throws IOException {
+        index.append("<tr><td><a href=\"")
+                .append(Html.escape(CodeCopies.DIRECTORY_NAME + "/" + ClusterPage.percentEncoded(drawnName) + "/"))
+                .append("\">")
+                .append(Html.escape(drawnName))
+                .append("</a></td><td>")
+                .append(Html.escape(folder.isEmpty() ? THE_ARCHIVES_TOP : folder))
+                .append("</td><td>")
+                .append(String.valueOf(copied))
+                .append("</td><td>")
+                .append(String.valueOf(notCopied))
+                .append("</td></tr>\n");
+    }
+
+    /** Closes the table {@link #codeHeading} opened. */
+    static void codeEnd(Appendable index) throws IOException {
+        index.append("</table>\n");
     }
 
     /** Everything of the page after its last table. */

@@ -2076,6 +2076,17 @@ public final class Adr {
             + "0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md";
 
     /**
+     * ADR-296 -- every member of every code set is copied to {@code code/<set>/<kept path>}, checked against the size
+     * and last-modified time the walk recorded, before and after the stream, and {@code changed} where either differs;
+     * a set's folder is its typed or default name made safe and cut, then told apart by the copies' two keys; a
+     * member's path below its set's folder is kept, each element made safe; the index gains a section of the sets and
+     * {@code code.csv} a row a member; the closing line counts the files of code not copied and the dormant names
+     * (amends ADR-274, ADR-280, ADR-284 and ADR-220).
+     */
+    public static final String EACH_CODE_SET_IS_COPIED_WHOLE_UNDER_CODE = FILE
+            + "0296-each-code-set-is-copied-whole-under-code-its-paths-kept-and-each-file-checked-against-the-size-and-time-the-walk-recorded.md";
+
+    /**
      * ADR-297 -- the control panel's screens are tested failing-first through {@code PanelBrowser}, the JDK's HTTP
      * client with a cookie store and jsoup at test scope, which opens the printed address, follows a {@code 303},
      * and submits a form by its name as a browser sends it, a {@code POST} from the panel's own origin; no browser is

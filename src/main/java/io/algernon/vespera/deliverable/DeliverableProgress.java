@@ -23,6 +23,11 @@ package io.algernon.vespera.deliverable;
  * when its cluster is reached, and {@link #survivorAlreadyCopied} for each whose copy does; so exactly one of the six
  * is called for each survivor {@link #toCopySurvivors} counted.
  *
+ * <p><b>Of the code</b> (ADR-296 §7), where the run has a code set: {@link #toCopyCodeFiles} is called once, after the
+ * last survivor's copy and before the first code file's, and then exactly one of {@link #codeFileCopied}, {@link
+ * #codeFileAlreadyCopied}, {@link #codeFileChanged}, {@link #codeFileGone}, {@link #codeFileWithNoRoom} and {@link
+ * #codeFileNotCopied} is called for each file it counted.
+ *
  * <p>Every method does nothing by default, and {@link #NONE} overrides none, for a caller with no line to
  * write.
  */
@@ -107,4 +112,41 @@ public interface DeliverableProgress {
      * name.
      */
     default void filesLeftBehind(long files) {}
+
+    /**
+     * Called once, before the first copy of code and after the last copy of a survivor, with how many code sets, how many
+     * of their files, how many bytes the walk recorded for those files and how many bytes the tree's drive has free
+     * (ADR-296 §7). The bytes are the walk's, so the count opens no original. Not called where the run has no code set.
+     */
+    default void toCopyCodeFiles(long sets, long files, long bytes, long usableBytes) {}
+
+    /** Called after a code file's copy was made and checked, with how many bytes it holds. */
+    default void codeFileCopied(long bytes) {}
+
+    /** Called for a code file whose copy already stood, and was kept without reading the archive. */
+    default void codeFileAlreadyCopied() {}
+
+    /** Called for a code file whose size or last-modified time differs from the walk's. */
+    default void codeFileChanged() {}
+
+    /** Called for a code file no longer in the archive. */
+    default void codeFileGone() {}
+
+    /** Called for a code file whose copy would have left the drive with less than the headroom. */
+    default void codeFileWithNoRoom() {}
+
+    /** Called for a code file whose copy failed any other way. */
+    default void codeFileNotCopied() {}
+
+    /**
+     * Called once, where {@code code-set-names.yaml} is refused whole or cannot be read, and the tree is drawn with every
+     * set's default name (ADR-296 §6.2). It names no entry.
+     */
+    default void codeSetNamesRefused() {}
+
+    /**
+     * Called once, where {@code entries} entries of {@code code-set-names.yaml} name a folder holding no code set of the
+     * run, and none where there are none (ADR-296 §6.2).
+     */
+    default void dormantCodeSetNames(long entries) {}
 }
