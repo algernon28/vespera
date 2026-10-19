@@ -11,6 +11,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.jsoup.Connection.KeyVal;
@@ -27,7 +28,8 @@ import org.jsoup.select.Elements;
  * <p>It does what a browser does with a page of server-written forms and no script: it opens the address the panel
  * printed, keeps the cookie the token is exchanged for, follows a {@code 303} with a {@code GET}, and submits a form
  * by its name with the fields jsoup reads from it as a browser would send them, a {@code POST} carrying its page's
- * origin. A form whose action leaves the panel's origin is refused, as the panel's {@code form-action 'self'} has a
+ * origin. Of a form's submit buttons a browser sends only the one pressed (ADR-302 §9): {@link #press} sends that
+ * one, and {@link #submit} none. A form whose action leaves the panel's origin is refused, as the panel's {@code form-action 'self'} has a
  * browser refuse it (ADR-291 §7). Each of these is one report step.
  */
 final class PanelBrowser {
@@ -87,7 +89,31 @@ final class PanelBrowser {
      *                        as a field is, or the form's action leaves the panel's origin
      */
     PanelBrowser submit(String formName, Map<String, String> fields) {
-        Allure.step("submit the form '" + formName + "'", () -> send(form(formName), fields));
+        Allure.step("submit the form '" + formName + "'", () -> send(form(formName), fields, null));
+        return this;
+    }
+
+    /**
+     * Submits the page's one form named {@code formName} as {@link #submit} does, pressing its submit button named
+     * {@code button}: of the form's submit buttons only that one is sent, as a browser sends only the one pressed.
+     *
+     * @throws AssertionError where {@link #submit} would fail, or the form holds no submit button by that name, or
+     *                        holds it disabled, which a browser cannot press
+     */
+    PanelBrowser press(String formName, String button, Map<String, String> fields) {
+        Allure.step("press '" + button + "' of the form '" + formName + "'", () -> {
+            FormElement form = form(formName);
+            Element pressed = submitButtons(form).stream()
+                    .filter(control -> control.attr("name").equals(button))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("the form '" + formName + "' holds no button named '"
+                            + button + "'"));
+            if (pressed.hasAttr("disabled")) {
+                throw new AssertionError("the button '" + button + "' of the form '" + formName
+                        + "' is disabled, and a browser cannot press it");
+            }
+            send(form, fields, pressed);
+        });
         return this;
     }
 
@@ -102,7 +128,18 @@ final class PanelBrowser {
         return (FormElement) named.getFirst();
     }
 
-    private void send(FormElement form, Map<String, String> fields) throws IOException, InterruptedException {
+    /** The form's submit buttons: each {@code button} typed neither {@code button} nor {@code reset}, each submit input. */
+    private static List<Element> submitButtons(FormElement form) {
+        return form.elements().stream()
+                .filter(control -> control.nameIs("button")
+                        ? !List.of("button", "reset").contains(control.attr("type").toLowerCase(Locale.ROOT))
+                        : control.nameIs("input") && control.attr("type").equalsIgnoreCase("submit"))
+                .toList();
+    }
+
+    /** Sends the form with {@code fields} set, and of its submit buttons only {@code pressed}, none where it is null. */
+    private void send(FormElement form, Map<String, String> fields, Element pressed)
+            throws IOException, InterruptedException {
         for (Map.Entry<String, String> field : fields.entrySet()) {
             Elements controls = form.getElementsByAttributeValue("name", field.getKey());
             if (controls.isEmpty()) {
@@ -127,9 +164,32 @@ final class PanelBrowser {
                     + ", which is not the panel's origin " + origin(page.address())
                     + ", and a browser refuses it under form-action 'self'");
         }
-        String body = form.formData().stream()
-                .map(PanelBrowser::encoded)
-                .collect(Collectors.joining("&"));
+        List<Element> unsent = submitButtons(form).stream()
+                .filter(control -> control != pressed && control.hasAttr("name"))
+                .toList();
+        List<String> names = unsent.stream().map(control -> control.attr("name")).toList();
+        unsent.forEach(control -> control.removeAttr("name"));
+        // jsoup reads no button element into a form's data, so the one pressed stands in its place as a hidden field
+        Element standIn = pressed != null && pressed.nameIs("button")
+                ? new Element("input").attr("type", "hidden")
+                        .attr("name", pressed.attr("name")).attr("value", pressed.val())
+                : null;
+        if (standIn != null) {
+            pressed.before(standIn);
+        }
+        String body;
+        try {
+            body = form.formData().stream()
+                    .map(PanelBrowser::encoded)
+                    .collect(Collectors.joining("&"));
+        } finally {
+            if (standIn != null) {
+                standIn.remove();
+            }
+            for (int i = 0; i < unsent.size(); i++) {
+                unsent.get(i).attr("name", names.get(i));
+            }
+        }
         if (form.attr("method").equalsIgnoreCase("post")) {
             land(HttpRequest.newBuilder(action)
                     .header("Origin", origin(page.address()))

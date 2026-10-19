@@ -1,5 +1,7 @@
 # ADR-291 — The control panel listens on 127.0.0.1 alone, at a port the system picks, and answers only a browser holding its start's token, on its own address
 
+> **Partly amended — see [ADR-302](0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md).** Of §6: each of fifteen fixed report paths, `/report/<file name>`, is mapped to that one file name in the working directory, and no part of a request names a file. Of What this does not decide: the pages, the start from `ControlPanel.main` and how arrangement is shown are decided there. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the server is the JDK's `com.sun.net.httpserver.HttpServer`, and the control panel still names only its own package, `java.base` and `jdk.httpserver` (§1, §2).

@@ -2103,6 +2103,15 @@ public final class Adr {
     public static final String THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT = FILE
             + "0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md";
 
+    /**
+     * ADR-302 -- the control panel's screens: a launch page and an invocation page of server-written forms, each
+     * report of the working directory re-served read-only at {@code /report/<file name>} under {@code sandbox
+     * allow-scripts}, and the next invocation's values, the label answers, the code-set names and the profile on pages
+     * of their own; a form is submitted by pressing one of its buttons by name.
+     */
+    public static final String THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS = FILE
+            + "0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md";
+
     private Adr() {
     }
 }
