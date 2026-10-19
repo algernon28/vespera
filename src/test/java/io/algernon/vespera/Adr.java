@@ -1985,6 +1985,13 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR = FILE
             + "0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md";
 
+    /**
+     * ADR-290 -- a fixture repository is run without any {@code GIT_*} variable, so a test's git commits into its own
+     * folder and never into a repository the environment names.
+     */
+    public static final String A_FIXTURE_REPOSITORY_IS_RUN_WITHOUT_GITS_LOCATION_VARIABLES = FILE
+            + "0290-a-fixture-repository-is-run-without-gits-location-variables.md";
+
     private Adr() {
     }
 }
