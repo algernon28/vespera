@@ -7,7 +7,7 @@
 - **Keeps**: [ADR-154](0154-a-stage-reads-the-upstream-run-this-invocation-arrived-at-and-an-approval-opens-only-this-invocations-arrangement.md): `arrangementApproved` opens generation only over the arrangement the invocation arrived at, whose run id it begins (§4, §5).
 - **Keeps**: [ADR-261](0261-an-agent-may-read-and-write-a-working-directorys-profile-and-read-its-pages-of-paths-counts-and-reasons-and-nothing-else-in-it.md) §6's reason, that the jar reads the profile as it starts and writes it back read-modify-write during an invocation, so a write made while one runs can be lost or change what a later step reads (§1).
 - **Keeps**: [ADR-284](0284-code-is-kept-in-code-sets-each-below-the-nearest-folder-under-the-corpus-root-holding-a-build-file.md) §9: `code-set-names.yaml` is a list of `folder` and `name`, read by `CodeSetNames` alone in the jar, written by the control panel as a `.part` file moved into place or by the operator by hand, and never by the jar (§7).
-- **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: every rule here is written again in `java.base` and links no class of the jar; contract tests, whose class path holds both, hold the two to agree (Tests).
+- **Amends**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3, which lets the control panel read no file format of the jar's beyond those it names: it reads and writes three more, `profile.yaml`, `relevance-labels.yaml` and `code-set-names.yaml`, each rule written again in `java.base`, linking no class of the jar, and held to agree with the jar by contract tests whose class path holds both (Tests). It carries a note at its head.
 - **Keeps**: [ADR-278](0278-the-control-panel-starts-the-jar-as-its-child-reads-its-output-to-the-end-and-stops-only-its-own-child.md) §4: finding whether a working directory is in use takes no lock; writing takes one (§1).
 - **Keeps**: [ADR-291](0291-the-control-panel-listens-on-127-0-0-1-alone-at-a-port-the-system-picks-and-answers-only-a-browser-holding-its-starts-token-on-its-own-address.md) §8: the control panel writes no file in a folder other local users can write, checks the ownership of a folder it reuses, and writes no token and no text of a document to a file (§1, §8).
 - **Keeps**: [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md) §2, §3 and §6: a file is written whole to a temporary file in its folder and moved over the target with `ATOMIC_MOVE` and `REPLACE_EXISTING`; a folder is checked as §3 checks the launch values' folder; the last seed folder is offered for the operator to confirm, and writing it into `profile.yaml` is decided here (§3).
@@ -83,7 +83,9 @@ It rewrites a file only where it reads it in the form the jar writes it, or the 
 
 ```
 <file> is not in the form the jar writes it, so the control panel does not change it
-``` Where it rewrites, every byte outside what it changes is kept, line endings included.
+```
+
+Where it rewrites, every byte outside what it changes is kept, line endings included.
 
 A write is one action of the operator's: one profile key (§3), the answers given on one screen of label questions (§6), or the list of code-set names (§7).
 

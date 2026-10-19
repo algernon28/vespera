@@ -220,7 +220,7 @@ class ProfileEditTest {
                         .isEqualTo(byHand.replace("""
                                   value: 'D:\\archive\\exemplars'
                                   provenance: "the twelve reports I would keep without reading them again"
-                                """, "  value: \"" + seeds + "\"\n  provenance: \"moved\"\n")));
+                                """, "  value: \"" + seeds.toString().replace("\\", "\\\\") + "\"\n  provenance: \"moved\"\n")));
     }
 
     @Test

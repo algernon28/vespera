@@ -1,5 +1,7 @@
 # ADR-292 — The control panel remembers its launch values in a file of the user's own under the temp directory, and passes five of them through the child's environment
 
+> **Partly amended — see [ADR-295](0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md).** Of What this does not decide: writing the confirmed seed folder into `profile.yaml` is decided there.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-047](0047-the-pipeline-never-blocks.md), two commands and no new option: the values beyond the corpus root and the working directory reach the child through its environment, not its command line (§4).

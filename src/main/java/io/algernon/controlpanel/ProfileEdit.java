@@ -71,7 +71,7 @@ public final class ProfileEdit {
         if (refusal.isPresent()) {
             throw new IllegalArgumentException(refusal.get());
         }
-        String valueLine = "  value: " + scalarOf(value.strip());
+        String valueLine = "  value: " + scalarOf(value == null ? "" : value.strip());
         String provenanceLine = "  provenance: " + YamlScalars.write(provenance);
         if (current.isEmpty()) {
             return "---\n" + block(key, valueLine, provenanceLine, "\n");

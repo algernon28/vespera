@@ -137,9 +137,9 @@ final class YamlScalars {
             case 'e' -> value.append('\u001B');
             case ' ', '"', '/', '\\' -> value.append(letter);
             case 'N' -> value.append('\u0085');
-            case '_' -> value.append(' ');
-            case 'L' -> value.append(' ');
-            case 'P' -> value.append(' ');
+            case '_' -> value.append('\u00A0');
+            case 'L' -> value.append('\u2028');
+            case 'P' -> value.append('\u2029');
             case 'x' -> {
                 return hexadecimal(text, at, 2, value);
             }
