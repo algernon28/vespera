@@ -117,7 +117,7 @@ final class ControlPanelServer implements AutoCloseable {
             }
             if (method.equals("GET") && pages.containsKey(path)
                     && queryHoldsToken(exchange.getRequestURI().getRawQuery())) {
-                out.set("Set-Cookie", COOKIE + "=" + tokenText + "; Path=/; HttpOnly; SameSite=Strict");
+                out.set("Set-Cookie", COOKIE + "=" + tokenText + "; Path=/; HttpOnly; SameSite=Lax");
                 out.set("Location", path);
                 exchange.sendResponseHeaders(303, -1);
                 exchange.close();
