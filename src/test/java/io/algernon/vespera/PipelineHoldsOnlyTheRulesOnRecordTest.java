@@ -184,6 +184,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "StartUpIndexAnnouncement",
             "StatementProgress",
             "StepFailure",
+            "StepFailureClosingLine",
             "StepNames",
             // ADR-250: the survivor list reads who survived and what was measured, and decides neither.
             "SurvivorListListener",
