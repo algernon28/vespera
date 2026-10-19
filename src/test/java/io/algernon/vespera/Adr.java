@@ -2084,6 +2084,14 @@ public final class Adr {
     public static final String THE_CONTROL_PANELS_SCREENS_ARE_TESTED_THROUGH_THE_PAGES_IT_SERVES = FILE
             + "0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md";
 
+    /**
+     * ADR-298 -- the embedding model ships with a default, {@code bge-m3:latest}, under {@code
+     * spring.ai.ollama.embedding.options.model}; the profile's {@code embeddingModel} overrides it; stage 5 is gated
+     * only where neither names a model; and the scoring run is identified by the name resolved, not by its source.
+     */
+    public static final String THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT = FILE
+            + "0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md";
+
     private Adr() {
     }
 }

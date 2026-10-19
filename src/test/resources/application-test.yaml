@@ -36,3 +36,12 @@ spring:
   batch:
     jdbc:
       initialize-schema: never
+  ai:
+    ollama:
+      embedding:
+        options:
+          # Bound empty so no test context scores under the shipped embedding model (ADR-298 §1).
+          # A test that names no model keeps stage 5 gated, as it was before the default shipped, and
+          # none reaches an Ollama under a name it never chose. ShippedConfigurationTest reads the
+          # shipped file alone and holds the default there; EmbeddingModelGateTest binds one of its own.
+          model: ""

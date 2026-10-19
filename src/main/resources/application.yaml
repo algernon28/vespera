@@ -106,13 +106,20 @@ spring:
     ollama:
       chat:
         options:
-          # Which model stage 6b generates under (ADR-114). Unlike the embedding model -- which is a
-          # profile key with no default, gated, because it keys every vector and every relevance
-          # verdict -- this one keys a run whose output is prose, so it ships with a default and the
-          # profile's generationModel overrides it. Chosen on friction and changeable without a new
-          # ADR (ADR-013's terms): it is not a measured choice and beat nothing, and what stands
-          # behind a corpus is the generator identity recording which weights actually answered.
+          # Which model stage 6b generates under (ADR-114). Like the embedding model's default below,
+          # it is overridden by its profile key (generationModel here, embeddingModel there; ADR-298).
+          # Unlike it -- whose default is changed only by a record (ADR-298), because it keys every
+          # vector and every relevance verdict -- this one keys a run whose output is prose, so it is
+          # not a gate. Chosen on friction and changeable without a new ADR (ADR-013's terms): it is
+          # not a measured choice and beat nothing, and what stands behind a corpus is the generator
+          # identity recording which weights actually answered.
           #
           # It lives here, where Spring AI's own auto-configuration reads it, rather than under a
           # vespera.* key, so the chat model bean and the call name one model instead of two.
           model: qwen3:8b
+      embedding:
+        options:
+          # Which model stage 5 scores under (ADR-298): the profile's embeddingModel overrides it, and
+          # blanking it gates stage 5 where the profile names none. Changed only by a record, because
+          # it keys every vector and every relevance verdict.
+          model: bge-m3:latest

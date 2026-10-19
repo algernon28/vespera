@@ -45,9 +45,9 @@ One invocation runs these sixteen steps. The names are the ones the log prints.
 | 4b | `content-redundancy` | the same | near-duplicates removed |
 | 5a | `seed-extraction` | `seedFolder`, stage 4 done | your exemplars' text |
 | 5b | `seed-corpus-comparison` | exemplars that produced text | `seed-corpus-comparison.html` |
-| 5c | `embedding-scoring` | `embeddingModel`, served by Ollama | a vector for each piece of text |
+| 5c | `embedding-scoring` | the embedding model (`bge-m3:latest` unless `embeddingModel` names another), served by Ollama | a vector for each piece of text |
 | 5 | `translation` | vectors under one embedder; `translationSimilarityFloor` and `preferredLanguages`, or nothing | `translations.html`; once `preferredLanguages` is set, all but one copy of each translation set removed, unless two copies share a language |
-| 5d | `relevance-scoring` | `embeddingModel`, served by Ollama | a score for each document |
+| 5d | `relevance-scoring` | the embedding model (`bge-m3:latest` unless `embeddingModel` names another), served by Ollama | a score for each document |
 | 5e | `relevance-floor` | `relevanceScoreFloor`, or nothing | documents below the floor removed |
 | 5f | `clustering` | scores | the groups, `cluster-sizes.html` |
 | 5 | `relevance-report` | scores | `relevance-labelling.html`, `relevance-labels.yaml` |
@@ -126,7 +126,7 @@ A walk that has not finished is never used by a later stage. Nothing downstream 
 
 ## Stage 4 — content redundancy
 
-**Set first:** `boilerplateDocumentFrequencyFloor` in `profile.yaml`, read off `document-frequency.html` as the README says under the table of values to decide. Set `embeddingModel` in the same edit, and make sure `seedFolder` is there: all three are settable now, and setting them together saves you an invocation each.
+**Set first:** `boilerplateDocumentFrequencyFloor` in `profile.yaml`, read off `document-frequency.html` as the README says under the table of values to decide. Make sure `seedFolder` is there in the same edit: both are settable now, and setting them together saves you an invocation. Set `embeddingModel` only to score under a model other than `bge-m3:latest`.
 
 **Run:** `vespera run <root>`
 
@@ -154,11 +154,11 @@ Stage 5 is eight steps and spans three invocations, with `vespera label` between
 
 ### 5c and 5d — scoring
 
-**Needs:** `embeddingModel` set, and that model pulled into Ollama.
+**Needs:** the embedding model pulled into Ollama: `bge-m3:latest`, unless `embeddingModel` names another.
 
 **What they do.** `embedding-scoring` turns each piece of text into a vector. `relevance-scoring` scores every surviving document against your exemplars.
 
-**Where they stop.** Gated with `no embedding model is named`, or for the same exemplar reasons as above. `embedding-scoring` stops the command if the embedding model was pulled again, and changed, while it was computing vectors: the step is not recorded as finished and nothing is scored. Run the same command again: it embeds again, storing the vectors that are missing under the model as it is now, and scores from those. `relevance-scoring` fails if one of your usable exemplars has no vector under the model this scoring uses; the message gives the exemplar's number in the database, not its path.
+**Where they stop.** Gated with `no embedding model is named` only where the shipped default has been blanked and `embeddingModel` names none, or for the same exemplar reasons as above. A model Ollama does not serve stops the command with a line naming it, before anything is sent. `embedding-scoring` stops the command if the embedding model was pulled again, and changed, while it was computing vectors: the step is not recorded as finished and nothing is scored. Run the same command again: it embeds again, storing the vectors that are missing under the model as it is now, and scores from those. `relevance-scoring` fails if one of your usable exemplars has no vector under the model this scoring uses; the message gives the exemplar's number in the database, not its path.
 
 **Resume.** Vectors are stored by content and by model, not by the run, so vectors already computed are kept across a stop, across a change of floor, and across a new walk of a changed archive. A pull that changes the embedding model is the exception: Vespera treats it as another model, does not use the vectors computed before the pull, and computes every vector again. The earlier vectors stay in the database, and are used again only if Ollama serves the earlier model again. Interrupted, `relevance-scoring` discards its own scores and computes them again from the stored vectors. Ollama has to be running whenever these two steps do work, even when every vector is already stored.
 
