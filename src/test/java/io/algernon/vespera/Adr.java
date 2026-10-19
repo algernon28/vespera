@@ -1992,6 +1992,13 @@ public final class Adr {
     public static final String A_FAILING_STEP_ENDS_ON_ITS_OWN_CLOSING_LINE = FILE
             + "0289-a-plain-tasklet-step-that-fails-with-an-exception-ends-the-output-on-one-closing-line-of-its-own.md";
 
+    /**
+     * ADR-290 -- a fixture repository is run without any {@code GIT_*} variable, so a test's git commits into its own
+     * folder and never into a repository the environment names.
+     */
+    public static final String A_FIXTURE_REPOSITORY_IS_RUN_WITHOUT_GITS_LOCATION_VARIABLES = FILE
+            + "0290-a-fixture-repository-is-run-without-gits-location-variables.md";
+
     private Adr() {
     }
 }
