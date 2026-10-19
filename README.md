@@ -58,6 +58,7 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `generationModel` | whichever model you can serve locally, if you want a different one | — |
 | `generationContextWindow` | how much your own machine can read in one go | — |
 | `logTimestampShareFloor` | how much of each text file begins with a date or a time | `format-mix.html` |
+| `codeNameEndings` | which text files, or files of no known kind whose bytes read as text, are code by the ending of their name, kept apart from the documents | `format-mix.html` |
 | `outOfScopeNameEndings` | which files, of no known kind or text, you know are not documents by the ending of their name | `format-mix.html` |
 | `preferredLanguages` | which language's copy you keep of a document held in several | `translations.html` |
 | `translationSimilarityFloor` | how alike two documents in different languages must be to be taken for one | `translations.html` |
