@@ -94,9 +94,9 @@ This record changes no code under `src/main`, no setting and no module. No run i
 | Method | What it holds |
 | --- | --- |
 | `NothingShippedReachesConfluenceTest.noShippedFileNamesAConfluenceRestPathOrAtlassiansHost` | no file under `src/main`, the jar's and the control panel's alike, names a Confluence REST path or an Atlassian Cloud host (§1) |
-| `NothingShippedReachesConfluenceTest.theShippedConfigurationHoldsNoCredential` | `application.yaml`, read as Spring reads it, holds no key naming a token, a password, an API key or a secret (§3) |
-| `NothingShippedReachesConfluenceTest.theBuildDeclaresNoAtlassianArtifact` | the pom declares no artifact of `com.atlassian` (§4) |
-| `NothingShippedReachesConfluenceTest.theCommandHasRunAndLabelAndNoOther` | `vespera` declares `run` and `label` as its subcommands, in that order, and no other (§4) |
+| `NothingShippedReachesConfluenceTest.theShippedConfigurationHoldsNoCredential` | no YAML file under `src/main/resources`, read as Spring reads it, holds a key ending in a token, a personal access token, a password, a user name, an API key, a secret, credentials or a bearer, nor a key naming Confluence or Atlassian (§3) |
+| `NothingShippedReachesConfluenceTest.theBuildDeclaresNoAtlassianArtifact` | the pom declares no artifact of `com.atlassian`, however its `groupId` is spaced (§4) |
+| `NothingShippedReachesConfluenceTest.theCommandHasRunAndLabelAndNoOther` | `vespera` declares `run` and `label` as its subcommands and no other, and each command exactly the options it has today, `vespera` none of its own, `run` `--db-dir`, `label` `--auto` and `--db-dir` (§4) |
 | `controlpanel.TheControlPanelLinksNoClassOfTheJarTest.theControlPanelNamesOnlyTypesOfItsOwnPackageAndOfTheJdksBaseAndHttpServerModules` | the control panel names no type of `java.net.http` (§4, held under ADR-285 §3) |
 | `controlpanel.ChildCommandTest.onlyRunAndLabelCanBeBuilt` | the control panel starts the jar's `run` and `label` and nothing else (§5, held under ADR-278 §1) |
 
