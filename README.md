@@ -127,6 +127,7 @@ profile.yaml                     the values you set, and how you arrived at them
 code-set-names.yaml              the names you give your code sets, if you rename any; you write it, Vespera never does
 vespera.db                       the ledger: every file seen, every verdict, every measurement
 vespera.lock                     held by the command running now, so a second one is refused
+next-invocation.properties       what the next command wants, written as a command ends on its last line; read by the control panel
 logs/vespera.log                 what the console shows, with dates; older days roll in beside it
 logs/invocation-account-*.txt    one per vespera run: its steps and counts, and no document's name
 progress.html                    what the command running now has done, opened as it starts

@@ -120,13 +120,32 @@ class NextAction {
      */
     String line() {
         Profile profile = profileStore.load();
-        int answersRecorded = answersRecordedAgainst(profile);
+        Closing closing = closingAfterRecordingAnswers(
+                profile, answersRecordedAgainst(profile), questionsWritten(), generationModelName());
+        NextInvocationFile.write(workingDirectory, closing.next());
+        return closing.line();
+    }
+
+    /**
+     * What the closing line says, with what the file beside it holds, for {@code vespera label}: the one decision
+     * {@link #line()} makes, apart from the profile and the ledger it reads.
+     */
+    static Closing closingAfterRecordingAnswers(
+            Profile profile, int answersRecorded, boolean questionsWritten, String generationModel) {
         if (profile.relevanceScoreFloor().isSet() && anEarlierValueWanted(profile, answersRecorded).isEmpty()) {
             return afterRecordingAnswers(profile);
         }
         // No root and no invocation record: there is no arrangement of this invocation's own to match
         // an approval against, so there is nothing for the gate's rule to say yes to (ADR-154 §2).
-        return line(profile, answersRecorded, questionsWritten(), null, generationModelName(), false);
+        return closing(profile, answersRecorded, questionsWritten, null, generationModel, false);
+    }
+
+    /** The closing line and the contents of {@code next-invocation.properties} that one branch gives (ADR-294 §1). */
+    record Closing(String line, NextInvocationFile.Contents next) {}
+
+    private static Closing runWanting(String line, String... keys) {
+        return new Closing(line, new NextInvocationFile.Contents(
+                NextInvocationFile.Invocation.RUN, List.of(keys), false, Optional.empty()));
     }
 
     /**
@@ -136,16 +155,16 @@ class NextAction {
      * gated line above it nor say an approval matches, since it checked none. It says what the next
      * {@code vespera run} will do instead.
      */
-    private static String afterRecordingAnswers(Profile profile) {
+    private static Closing afterRecordingAnswers(Profile profile) {
         if (!profile.arrangementApproved().isSet()) {
-            return "Every value the profile asks for is answered, including relevanceScoreFloor."
+            return runWanting("Every value the profile asks for is answered, including relevanceScoreFloor."
                     + " Next: run vespera run, which arranges the documents and writes "
-                    + ArrangementTasklet.ARRANGEMENT_FILE_NAME + " for you to approve.";
+                    + ArrangementTasklet.ARRANGEMENT_FILE_NAME + " for you to approve.");
         }
-        return "Every value the profile asks for is answered, and arrangementApproved holds "
+        return runWanting("Every value the profile asks for is answered, and arrangementApproved holds "
                 + quoted(profile.arrangementApproved().value()) + ". Next: run vespera run, which checks that"
                 + " value against the arrangement the documents are in then and asks for a new approval if"
-                + " they differ.";
+                + " they differ.");
     }
 
     /**
@@ -167,7 +186,7 @@ class NextAction {
         Optional<RunId> generation = invocationRuns.runOf(StageModules.GENERATION.stage());
         boolean approvalMatchesThisInvocation =
                 arrangementGate.getObject().approvedArrangement(arrangement).isPresent();
-        return line(
+        Closing closing = closing(
                 profile,
                 answersRecordedAgainst(profile),
                 questionsWritten(),
@@ -175,6 +194,8 @@ class NextAction {
                 generationModelName(),
                 deliverableFor(generation, invocationRuns).orElse(null),
                 approvalMatchesThisInvocation);
+        NextInvocationFile.write(workingDirectory, closing.next());
+        return closing.line();
     }
 
     /**
@@ -301,7 +322,19 @@ class NextAction {
             String arrangementToApprove,
             String generationModel,
             boolean approvalMatchesThisInvocation) {
-        return line(
+        return closing(profile, answersRecorded, questionsWritten, arrangementToApprove, generationModel,
+                approvalMatchesThisInvocation).line();
+    }
+
+    /** {@link #line(Profile, int, boolean, String, String, boolean)} with what the file beside it holds. */
+    static Closing closing(
+            Profile profile,
+            int answersRecorded,
+            boolean questionsWritten,
+            String arrangementToApprove,
+            String generationModel,
+            boolean approvalMatchesThisInvocation) {
+        return closing(
                 profile,
                 answersRecorded,
                 questionsWritten,
@@ -347,7 +380,23 @@ class NextAction {
             String generationModel,
             DeliverableSummary deliverable,
             boolean approvalMatchesThisInvocation) {
-        Optional<String> earlier = anEarlierValueWanted(profile, answersRecorded);
+        return closing(profile, answersRecorded, questionsWritten, arrangementToApprove, generationModel,
+                deliverable, approvalMatchesThisInvocation).line();
+    }
+
+    /**
+     * {@link #line(Profile, int, boolean, String, String, DeliverableSummary, boolean)} with what the file beside it
+     * holds (ADR-294 §2): the branch that words the line gives the contents, so the two cannot disagree.
+     */
+    static Closing closing(
+            Profile profile,
+            int answersRecorded,
+            boolean questionsWritten,
+            String arrangementToApprove,
+            String generationModel,
+            DeliverableSummary deliverable,
+            boolean approvalMatchesThisInvocation) {
+        Optional<Closing> earlier = anEarlierValueWanted(profile, answersRecorded);
         if (earlier.isPresent()) {
             return earlier.get();
         }
@@ -356,60 +405,76 @@ class NextAction {
                 // Approval set, and no arrangement this invocation, and approval unset with no
                 // arrangement this invocation are one outcome (ADR-154 §2): in each case no arrangement
                 // has been approved, because none exists yet for this invocation to approve.
-                return "Every value the profile asks for is answered, including relevanceScoreFloor."
+                return runWanting("Every value the profile asks for is answered, including relevanceScoreFloor."
                         + " Nothing was arranged this invocation, so there is nothing to approve yet."
-                        + " Next: fix what the gated line above names, and run again.";
+                        + " Next: fix what the gated line above names, and run again.");
             }
             if (!profile.arrangementApproved().isSet()) {
-                return "Every value the profile asks for is answered, and the documents are"
+                return approvalWanted("Every value the profile asks for is answered, and the documents are"
                         + " arranged. Next: read " + ArrangementTasklet.ARRANGEMENT_FILE_NAME
                         + ", and if that arrangement is the one you want, write " + quoted(arrangementToApprove)
                         + " into arrangementApproved in " + PROFILE + " -- with what you checked in"
-                        + " provenance beside it -- and run again" + writtenWith(generationModel) + ".";
+                        + " provenance beside it -- and run again" + writtenWith(generationModel) + ".",
+                        arrangementToApprove);
             }
             if (!approvalMatchesThisInvocation) {
                 // The approval was set, but names an arrangement this invocation did not arrive at --
                 // an older one of this walk, or a typo (ADR-154 §2). No deliverable is named: no
                 // write-up happened this invocation, and an earlier arrangement's tree is not this
                 // one's.
-                return "Every value the profile asks for is answered, but arrangementApproved holds "
+                return approvalWanted("Every value the profile asks for is answered, but arrangementApproved holds "
                         + quoted(profile.arrangementApproved().value()) + ", which is not the arrangement"
                         + " the documents are in now. Next: read " + ArrangementTasklet.ARRANGEMENT_FILE_NAME
                         + ", and if that arrangement is the one you want, write " + quoted(arrangementToApprove)
                         + " into arrangementApproved in " + PROFILE + " -- with what you checked in"
-                        + " provenance beside it -- and run again" + writtenWith(generationModel) + ".";
+                        + " provenance beside it -- and run again" + writtenWith(generationModel) + ".",
+                        arrangementToApprove);
             }
             if (deliverable == null) {
-                return "Every value the profile asks for is answered, including the arrangement you"
-                        + " approved. Nothing is left to set.";
+                return nothingLeft("Every value the profile asks for is answered, including the arrangement you"
+                        + " approved. Nothing is left to set.");
             }
             String notCopied = deliverable.documentsNotCopied().isEmpty()
                     ? ""
                     : " and " + deliverable.documentsNotCopied().getAsInt() + " "
                             + (deliverable.documentsNotCopied().getAsInt() == 1 ? "document" : "documents")
                             + " not copied";
-            return "Every value the profile asks for is answered, including the arrangement you"
+            return nothingLeft("Every value the profile asks for is answered, including the arrangement you"
                     + " approved. Nothing is left to set. The deliverable is at "
                     + deliverable.tree().resolve(Deliverable.INDEX_FILE_NAME)
                     + ", with " + deliverable.clustersLeftUnwritten() + " "
                     + (deliverable.clustersLeftUnwritten() == 1 ? "group" : "groups") + " left unwritten"
-                    + notCopied + leftBehind(deliverable) + ".";
+                    + notCopied + leftBehind(deliverable) + ".");
         }
         if (!questionsWritten) {
-            return whatIsSet(profile, answersRecorded) + " No questions were written this invocation,"
+            return runWanting(whatIsSet(profile, answersRecorded) + " No questions were written this invocation,"
                     + " so there is nothing to answer yet. Next: fix what the gated line above names,"
-                    + " and run again.";
+                    + " and run again.");
         }
         if (answersRecorded == 0) {
-            return whatIsSet(profile, answersRecorded) + " Next: answer the questions in "
+            return new Closing(whatIsSet(profile, answersRecorded) + " Next: answer the questions in "
                     + RelevanceLabelFile.FILE_NAME + " -- " + RelevanceLabellingReport.FILE_NAME
                     + " says what each one is asking and what your answers are for -- then record them"
-                    + " with vespera label.";
+                    + " with vespera label.",
+                    new NextInvocationFile.Contents(
+                            NextInvocationFile.Invocation.LABEL, List.of(), true, Optional.empty()));
         }
-        return whatIsSet(profile, answersRecorded) + " Next: read a number off "
+        return runWanting(whatIsSet(profile, answersRecorded) + " Next: read a number off "
                 + RelevanceLabellingReport.FILE_NAME + ", which says what each candidate cut would keep"
                 + " and discard, write it into relevanceScoreFloor in " + PROFILE + " with how you"
-                + " arrived at it, and run again.";
+                + " arrived at it, and run again.", "relevanceScoreFloor");
+    }
+
+    /** The line that asks for the approval of {@code arrangement}, with the file naming it (ADR-294 §2). */
+    private static Closing approvalWanted(String line, String arrangement) {
+        return new Closing(line, new NextInvocationFile.Contents(
+                NextInvocationFile.Invocation.RUN, List.of("arrangementApproved"), false, Optional.of(arrangement)));
+    }
+
+    /** The line that says nothing is left to set, with a file that offers no next command (ADR-294 §2). */
+    private static Closing nothingLeft(String line) {
+        return new Closing(line, new NextInvocationFile.Contents(
+                NextInvocationFile.Invocation.NONE, List.of(), false, Optional.empty()));
     }
 
     /**
@@ -418,52 +483,45 @@ class NextAction {
      * both invocations' lines, so {@code vespera label} names such a value exactly as {@code vespera run}
      * does.
      */
-    private static Optional<String> anEarlierValueWanted(Profile profile, int answersRecorded) {
+    private static Optional<Closing> anEarlierValueWanted(Profile profile, int answersRecorded) {
         List<String> stillWanted = runValuesStillWanted(profile);
         if (!stillWanted.isEmpty()) {
-            return Optional.of(whatIsSet(profile, answersRecorded) + " Next: write "
-                    + listed(stillWanted) + " into " + PROFILE + ", and run again.");
+            return Optional.of(runWanting(whatIsSet(profile, answersRecorded) + " Next: write "
+                    + listed(stillWanted) + " into " + PROFILE + ", and run again.",
+                    runValues(profile).stream().filter(value -> !value.isSet()).map(RunValue::key)
+                            .toArray(String[]::new)));
         }
         if (profile.relevanceScoreFloor().reading() instanceof NumericValue.Unreadable unreadable) {
-            return Optional.of("Every run value is set, but relevanceScoreFloor reads " + quoted(unreadable.text())
+            return Optional.of(runWanting("Every run value is set, but relevanceScoreFloor reads "
+                    + quoted(unreadable.text())
                     + ", which is not a number, so this run ignored it and removed nothing. Next: write"
                     + " a score on the scale " + RelevanceLabellingReport.FILE_NAME + " reports into"
-                    + " relevanceScoreFloor in " + PROFILE + ", and run again.");
+                    + " relevanceScoreFloor in " + PROFILE + ", and run again.", "relevanceScoreFloor"));
         }
-        Optional<String> confidenceFloor = theConfidenceFloorUnreadable(profile);
-        if (confidenceFloor.isPresent()) {
-            return confidenceFloor;
-        }
-        Optional<String> wordFloor = theWordFloorIgnored(profile);
-        if (wordFloor.isPresent()) {
-            return wordFloor;
-        }
-        Optional<String> logFloor = theLogFloorUnreadable(profile);
-        if (logFloor.isPresent()) {
-            return logFloor;
-        }
-        Optional<String> nameEndings = theNameEndingsUnreadable(profile);
-        if (nameEndings.isPresent()) {
-            return nameEndings;
-        }
-        Optional<String> codeEndings = theCodeNameEndingsUnreadable(profile);
-        if (codeEndings.isPresent()) {
-            return codeEndings;
-        }
-        Optional<String> sharedEndings = theSharedNameEndings(profile);
-        if (sharedEndings.isPresent()) {
-            return sharedEndings;
-        }
-        Optional<String> configurationFloor = theConfigurationFloorUnreadable(profile);
-        if (configurationFloor.isPresent()) {
-            return configurationFloor;
-        }
-        Optional<String> translationFloor = theTranslationFloorUnreadable(profile);
-        if (translationFloor.isPresent()) {
-            return translationFloor;
-        }
-        Optional<String> languages = thePreferredLanguagesUnreadable(profile);
-        return languages.isPresent() ? languages : theExtractionAttemptIgnored(profile);
+        // The one key each of these names, or the two lists where they share an ending (ADR-294 §2), in the
+        // order the line takes them.
+        Optional<Closing> unreadable = Optional.<Closing>empty()
+                .or(() -> theConfidenceFloorUnreadable(profile)
+                        .map(line -> runWanting(line, "degenerateOutputConfidenceFloor")))
+                .or(() -> theWordFloorIgnored(profile)
+                        .map(line -> runWanting(line, DegenerateOutputWordFloor.KEY)))
+                .or(() -> theLogFloorUnreadable(profile)
+                        .map(line -> runWanting(line, "logTimestampShareFloor")))
+                .or(() -> theNameEndingsUnreadable(profile)
+                        .map(line -> runWanting(line, "outOfScopeNameEndings")))
+                .or(() -> theCodeNameEndingsUnreadable(profile)
+                        .map(line -> runWanting(line, "codeNameEndings")))
+                .or(() -> theSharedNameEndings(profile)
+                        .map(line -> runWanting(line, "outOfScopeNameEndings", "codeNameEndings")))
+                .or(() -> theConfigurationFloorUnreadable(profile)
+                        .map(line -> runWanting(line, "configurationSettingShareFloor")))
+                .or(() -> theTranslationFloorUnreadable(profile)
+                        .map(line -> runWanting(line, "translationSimilarityFloor")))
+                .or(() -> thePreferredLanguagesUnreadable(profile)
+                        .map(line -> runWanting(line, "preferredLanguages")))
+                .or(() -> theExtractionAttemptIgnored(profile)
+                        .map(line -> runWanting(line, ExtractionAttempt.KEY)));
+        return unreadable;
     }
 
     // The line for translationSimilarityFloor (ADR-271 section 8), in the shape of logTimestampShareFloor's:
