@@ -2113,6 +2113,15 @@ public final class Adr {
             + "0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md";
 
     /**
+     * ADR-302 -- the control panel's screens: a launch page and an invocation page of server-written forms, each
+     * report of the working directory re-served read-only at {@code /report/<file name>} under {@code sandbox
+     * allow-scripts}, and the next invocation's values, the label answers, the code-set names and the profile on pages
+     * of their own; a form is submitted by pressing one of its buttons by name.
+     */
+    public static final String THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS = FILE
+            + "0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md";
+
+    /**
      * ADR-304 -- Vespera never sends the deliverable tree to Confluence itself: neither the jar nor the control
      * panel uploads the HTML tree or its Confluence rendering, holds a credential for Confluence or opens a
      * connection to it, and no command, option, dependency or module is added for a load; the operator loads with
