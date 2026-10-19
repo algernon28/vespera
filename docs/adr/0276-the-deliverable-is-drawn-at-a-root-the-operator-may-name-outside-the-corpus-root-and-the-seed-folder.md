@@ -1,5 +1,7 @@
 # ADR-276 — The deliverable is drawn at a root the operator may name, outside the corpus root and the seed folder
 
+> **Partly amended — see [ADR-283](0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md).** The Consequence "An agent meets a named root as the place it lies in" no longer holds under an allowed root: a named root is refused there by its marker, as every tree is.
+
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.
 - **Amends**: [ADR-274](0274-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md), in these places and no others: §1's tree, drawn at `deliverable/<generation run>/`, which is drawn at the deliverable root and gains one file, the marker (§1, §3); §2.5's "the working directory's drive" and the reason it gives, the gibibyte being read on the drive the tree is written to (§4); §2.7's bound of 69 characters on the working directory's path, which for a named root is a bound of 146 on the root's own (§1); §6's "redraws the tree it already had, in place, under the same name", which holds of a named root only where it holds this working directory's tree of the same generation run (§3); and §7's `<absolute path>/index.html`, which is the root's index (§5). Its Decided here 7, a gibibyte left free, stands, read on that drive.

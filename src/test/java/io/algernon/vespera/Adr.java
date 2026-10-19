@@ -1916,6 +1916,22 @@ public final class Adr {
             + "0279-one-vespera-run-per-corpus-root-by-a-lock-on-a-file-named-for-its-real-path-outside-every-working-directory.md";
 
     /**
+     * ADR-281 -- {@code com.zaxxer.hikari} and Spring Batch's {@code TaskExecutorJobLauncher} write to the console
+     * only at WARN and to {@code logs/vespera.log} at INFO, so the last line of output that is not blank is the
+     * invocation's closing line.
+     */
+    public static final String THE_CLOSING_LINE_IS_THE_LAST_LINE = FILE
+            + "0281-the-closing-line-is-the-last-line-of-output-and-two-library-loggers-write-to-the-console-only-at-warn.md";
+
+    /**
+     * ADR-283 -- a folder that directly holds {@code vespera-deliverable.txt} is the top of a deliverable tree, and
+     * the private-paths guard refuses every path at or beneath it as a path outside the allow list; no agent reads or
+     * writes a file in a tree, wherever it lies.
+     */
+    public static final String THE_GUARD_READS_A_DELIVERABLE_TREE_AS_OUTSIDE_THE_ALLOW_LIST = FILE
+            + "0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md";
+
+    /**
      * ADR-285 -- the control panel's code lives in this build under {@code io.algernon.controlpanel}, outside the
      * nine modules, and is packaged as a second jar, classifier {@code control-panel}, that the Spring Boot jar does
      * not carry; it names only its own package, {@code java.base} and {@code jdk.httpserver}, so no class of the jar,

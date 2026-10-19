@@ -61,6 +61,7 @@ jobs:
 
       - run: node --test src/test/hooks/private-paths-guard.test.mjs
       - run: node --test src/test/hooks/working-directory-counts.test.mjs
+      - run: node --test src/test/hooks/deliverable-tree-guard.test.mjs
 
       # verify, not test: the integration test is bound to failsafe and excluded from surefire, so
       # `mvnw test` never reaches it. Docker is already running on this runner.
@@ -107,6 +108,7 @@ jobs:
 
       - run: node --test src/test/hooks/private-paths-guard.test.mjs
       - run: node --test src/test/hooks/working-directory-counts.test.mjs
+      - run: node --test src/test/hooks/deliverable-tree-guard.test.mjs
 
       # test, not verify: the integration test needs Linux containers, which this runner has no way
       # to start. What this job is here for is the tests that only a real NTFS volume is evidence
