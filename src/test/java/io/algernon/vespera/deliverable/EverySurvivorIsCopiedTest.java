@@ -38,8 +38,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Every survivor the tree lists is copied from the archive into {@code documents/}, byte for byte, and kept only where
- * its bytes hash to the key stage 2 recorded for it (ADR-274 §2).
+ * Every survivor the tree lists is copied from the archive into its cluster folder, byte for byte, under its
+ * original's own name (ADR-280), and kept only where its bytes hash to the key stage 2 recorded for it (ADR-274 §2).
  *
  * <p>Each test lays out {@code <base>/archive} as the corpus root and {@code <base>/work} as the working directory,
  * with two survivors of one cluster: occurrence 42, {@code reports/Q3 Report (final).PDF}, and occurrence 43, {@code
@@ -49,6 +49,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The tree the operator is handed")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
+@Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class EverySurvivorIsCopiedTest {
 
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
@@ -62,15 +63,24 @@ class EverySurvivorIsCopiedTest {
 
     private static final byte[] FIRST_BYTES = "the first survivor".getBytes(StandardCharsets.UTF_8);
 
-    /** The first survivor's copy: its occurrence, its stem as a slug, and its extension lower-cased. */
-    private static final String FIRST_COPY = "documents/42-q3-report-final.pdf";
+    /** The folder of the one cluster, from the tree's root: the partition's place and slug, then the cluster's. */
+    private static final String THE_FOLDER = "1-fire-safety/1-fire-doors";
+
+    /** The first survivor's copy: its original's own name, as written, in its cluster's folder. */
+    private static final String FIRST_COPY = THE_FOLDER + "/Q3 Report (final).PDF";
+
+    /** How the page links the first copy: beside it, its spaces and brackets percent-encoded. */
+    private static final String FIRST_LINK = "href=\"./Q3%20Report%20%28final%29.PDF\"";
 
     private static final String SECOND_PATH = "notes/risers.txt";
 
     private static final byte[] SECOND_BYTES =
             "the second survivor, which holds more bytes than the first".getBytes(StandardCharsets.UTF_8);
 
-    private static final String SECOND_COPY = "documents/43-risers.txt";
+    private static final String SECOND_COPY = THE_FOLDER + "/risers.txt";
+
+    /** How the page links the second copy. */
+    private static final String SECOND_LINK = "href=\"./risers.txt\"";
 
     /** The bytes stage 2 read where it read something other than what the archive holds now. */
     private static final byte[] WHAT_STAGE_2_READ = "the first survivor, as it was".getBytes(StandardCharsets.UTF_8);
@@ -83,19 +93,19 @@ class EverySurvivorIsCopiedTest {
     /** What the drive is left with at least after any copy: one gibibyte. */
     private static final long ONE_GIBIBYTE = 1L << 30;
 
-    /** The page both survivors are listed on. */
-    private static final String THE_PAGE = "1-fire-safety/1-fire-doors.html";
+    /** The page both survivors are listed on, in their cluster's folder. */
+    private static final String THE_PAGE = THE_FOLDER + "/index.html";
 
     @Test
     @Story("Every document listed is copied into the tree")
-    @DisplayName("Each document is copied byte for byte under a name of its own, and its entry and its row lead to the copy")
+    @DisplayName("Each document is copied byte for byte into its group's folder under its own name, and its entry and its row lead to the copy")
     void copiesEverySurvivorByteForByteAndLinksToTheCopy(@TempDir Path base) throws IOException {
         Path archive = anArchive(base);
 
         Path tree = writeOver(base, archive, sha256Of(FIRST_BYTES));
 
         claim(
-                "each survivor's copy is under documents/, named by its occurrence and its stem, and holds exactly the"
+                "each survivor's copy is in its group's folder under its original's own name, and holds exactly the"
                         + " bytes of the file in the archive",
                 () -> {
                     assertThat(tree.resolve(FIRST_COPY)).hasBinaryContent(FIRST_BYTES);
@@ -105,14 +115,14 @@ class EverySurvivorIsCopiedTest {
                 "no part of a copy is left beside it",
                 () -> assertThat(filesUnder(tree)).noneMatch(name -> name.endsWith(".part")));
         claim(
-                "the group's page links each entry to its copy, relatively, from the partition's folder",
+                "the group's page links each entry to its copy beside it, the name percent-encoded",
                 () -> assertThat(Files.readString(tree.resolve(THE_PAGE), StandardCharsets.UTF_8))
-                        .contains("href=\"../" + FIRST_COPY + "\"", "href=\"../" + SECOND_COPY + "\""));
+                        .contains(FIRST_LINK, SECOND_LINK));
         claim(
                 "documents.csv keeps its nine columns and ends with the copy and what became of it",
                 () -> assertThat(manifestOf(tree).getFirst()).containsExactlyElementsOf(THE_HEADER));
         claim(
-                "and each row names its copy from the tree's root and says it was copied",
+                "and each row names its copy from the tree's root, in its group's folder, and says it was copied",
                 () -> {
                     assertThat(columnByPath(tree, "copy"))
                             .containsExactly(Map.entry(FIRST_PATH, FIRST_COPY), Map.entry(SECOND_PATH, SECOND_COPY));
@@ -144,7 +154,7 @@ class EverySurvivorIsCopiedTest {
         claim(
                 "its entry links to no copy",
                 () -> assertThat(Files.readString(tree.resolve(THE_PAGE), StandardCharsets.UTF_8))
-                        .doesNotContain("href=\"../" + FIRST_COPY + "\""));
+                        .doesNotContain(FIRST_LINK));
         claim(
                 "and the other document is copied as ever: a bad copy is that document's, not the tree's",
                 () -> assertThat(tree.resolve(SECOND_COPY)).hasBinaryContent(SECOND_BYTES));
@@ -245,8 +255,8 @@ class EverySurvivorIsCopiedTest {
 
     @Test
     @Story("Every file of the tree has a name of bounded length")
-    @DisplayName("A copy is named by its occurrence and at most forty characters of its name, whatever the name holds")
-    void namesEachCopyByItsOccurrenceAndAStemOfFortyCharactersAtMost(@TempDir Path base) throws IOException {
+    @DisplayName("A copy keeps its document's own name, cut to a hundred characters where it is longer, whatever the name holds")
+    void namesEachCopyByItsOriginalsOwnName(@TempDir Path base) throws IOException {
         Path archive = base.resolve("archive");
         String aNameWithNoLetterASlugKeeps = "a/Отчёт.txt";
         try {
@@ -256,13 +266,16 @@ class EverySurvivorIsCopiedTest {
             abort("this file system, under this JVM's encoding of file names, will not create a Cyrillic name: "
                     + e.getMessage());
         }
+        String theFolder = "1-fire-safety/1-four-names";
         Map<String, String> copyOf = new LinkedHashMap<>();
-        copyOf.put(aNameWithNoLetterASlugKeeps, "documents/7.txt");
+        copyOf.put(aNameWithNoLetterASlugKeeps, theFolder + "/Отчёт.txt");
         copyOf.put(
-                "b/An extraordinarily long file name for an inspection report of the doors.docx",
-                "documents/8-an-extraordinarily-long-file-name-for-an.docx");
-        copyOf.put("c/README", "documents/9-readme");
-        copyOf.put("d/archive.tar.gz", "documents/10-archive-tar.gz");
+                "b/An extraordinarily long file name for an inspection report of the doors on every floor of the north"
+                        + " tower.docx",
+                theFolder + "/An extraordinarily long file name for an inspection report of the doors on every floor"
+                        + " of the n.docx");
+        copyOf.put("c/README", theFolder + "/README");
+        copyOf.put("d/archive.tar.gz", theFolder + "/archive.tar.gz");
         List<ListedSurvivor> survivors = new ArrayList<>();
         long occurrence = 7;
         for (String path : copyOf.keySet()) {
@@ -276,8 +289,9 @@ class EverySurvivorIsCopiedTest {
         Path tree = ListedTree.write(base.resolve("work"), archive, List.of(four), Map.of(), survivors, Map.of());
 
         claim(
-                "a name with no letter a slug keeps is its occurrence alone, a long one is cut to forty characters of"
-                        + " slug, one with no extension has none, and only the last extension is kept as one",
+                "each copy is in its group's folder under its original's own name: a Cyrillic name as written, a"
+                        + " name of 110 characters cut to 100 with its extension kept, a name with no extension as it"
+                        + " is, and a name with two extensions as written",
                 () -> assertThat(columnByPath(tree, "copy")).containsExactlyEntriesOf(copyOf));
     }
 
@@ -312,7 +326,7 @@ class EverySurvivorIsCopiedTest {
         claim(
                 "its entry links to no copy and says, in italics, that it could not be copied",
                 () -> assertThat(Files.readString(tree.resolve(THE_PAGE), StandardCharsets.UTF_8))
-                        .doesNotContain("href=\"../" + SECOND_COPY + "\"")
+                        .doesNotContain(SECOND_LINK)
                         .contains("<em>could not be copied</em>"));
         claim(
                 "and the other document is copied as ever",
@@ -335,8 +349,8 @@ class EverySurvivorIsCopiedTest {
                 () -> assertThat(columnByPath(tree, "copy_outcome"))
                         .containsExactly(Map.entry(FIRST_PATH, "no-room"), Map.entry(SECOND_PATH, "no-room")));
         claim(
-                "and no copy stands under documents/",
-                () -> assertThat(filesUnder(tree)).noneMatch(name -> name.startsWith("documents/")));
+                "and no copy stands in the group's folder, which holds its page alone",
+                () -> assertThat(filesUnder(tree.resolve(THE_FOLDER))).containsExactly("index.html"));
     }
 
     /**
@@ -401,12 +415,12 @@ class EverySurvivorIsCopiedTest {
     @DisplayName("A part of a copy a stopped writing left behind is written over, and the copy holds the document's bytes alone")
     void aPartLeftByAStoppedWritingIsWrittenOver(@TempDir Path base) throws IOException {
         Path archive = anArchive(base);
-        Path documents = base.resolve("work").resolve("deliverable").resolve(ListedTree.RUN_ID).resolve("documents");
-        Files.createDirectories(documents);
+        Path theFolder = base.resolve("work").resolve("deliverable").resolve(ListedTree.RUN_ID).resolve(THE_FOLDER);
+        Files.createDirectories(theFolder);
         byte[] whatAStoppedWritingLeft =
                 "a part longer than the document it was a part of, left when the invocation stopped"
                         .getBytes(StandardCharsets.UTF_8);
-        Files.write(documents.resolve("43-risers.txt.part"), whatAStoppedWritingLeft);
+        Files.write(theFolder.resolve("risers.txt.part"), whatAStoppedWritingLeft);
 
         Path tree = writeOver(base, archive, sha256Of(FIRST_BYTES));
 

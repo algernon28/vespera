@@ -53,7 +53,9 @@ import org.junit.jupiter.api.io.TempDir;
  * browser follows them.
  *
  * <p>The archive these fixtures name is not on this machine, so no copy stands and each entry names its
- * document with the reason in italics (ADR-274 §2.6); the pictures are shown under it all the same.
+ * document with the reason in italics (ADR-274 §2.6); the pictures are shown under it all the same. A cluster's page
+ * is {@code index.html} in its cluster folder, and its pictures lie beside it there (ADR-280 §0), so the folder
+ * holds the page and its pictures and nothing else.
  *
  * <p>Most pixels are short byte strings rather than real images. They cannot be decoded, so they have
  * no difference hash, and the rules that need one leave them alone (ADR-150 §3): what those tests claim
@@ -71,6 +73,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-103", url = Adr.THE_DELIVERABLE_IS_A_MARKDOWN_TREE_PER_RUN, type = "adr")
 @Link(name = "ADR-135", url = Adr.A_MEMBERSHIP_ENTRY_LINKS_RELATIVELY_OR_NOT_AT_ALL, type = "adr")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class DeliverablePicturesTest {
 
     /** A run id of the shape the ledger mints: sixty-four hexadecimal characters (ADR-048). */
@@ -91,20 +94,20 @@ class DeliverablePicturesTest {
     /** What stage 6a called the cluster most fixtures arrange. */
     private static final String THE_LABEL = "Fire Suppression Retrofits";
 
-    /** That cluster's page, named from its label. */
-    private static final String THE_CLUSTER_PAGE = "1-fire-suppression-retrofits.html";
+    /** That cluster's folder, named from its label, which holds its page and its pictures. */
+    private static final String THE_CLUSTER_FOLDER = "1-fire-suppression-retrofits";
 
-    /** The directory its pictures go in: the page's own name without its extension. */
-    private static final String THE_PICTURE_DIRECTORY = "1-fire-suppression-retrofits";
+    /** That cluster's page, in its folder. */
+    private static final String THE_CLUSTER_PAGE = THE_CLUSTER_FOLDER + "/index.html";
 
     /** A second cluster's label, for the fixture that spreads documents over two pages. */
     private static final String THE_OTHER_LABEL = "Sprinkler Maintenance";
 
-    /** That second cluster's page. */
-    private static final String THE_OTHER_CLUSTER_PAGE = "2-sprinkler-maintenance.html";
+    /** That second cluster's folder. */
+    private static final String THE_OTHER_CLUSTER_FOLDER = "2-sprinkler-maintenance";
 
-    /** And the directory its pictures would go in. */
-    private static final String THE_OTHER_PICTURE_DIRECTORY = "2-sprinkler-maintenance";
+    /** And its page. */
+    private static final String THE_OTHER_CLUSTER_PAGE = THE_OTHER_CLUSTER_FOLDER + "/index.html";
 
     /** What the model called the cluster, where a fixture wants a written page. */
     private static final String THE_TITLE = "Retrofitting Suppression, 2018 to 2021";
@@ -225,7 +228,7 @@ class DeliverablePicturesTest {
     /** A cluster label that would climb out of the tree and form a link if anything carried it through. */
     private static final String A_HOSTILE_LABEL = "../../[x](y) & `z`";
 
-    /** That label as {@code slug} leaves it, which is what the page and its directory are named from. */
+    /** That label as {@code slug} leaves it, which is what the page's folder is named from. */
     private static final String THE_HOSTILE_LABELS_PAGE_STEM = "1-x-y-z";
 
     /**
@@ -242,8 +245,8 @@ class DeliverablePicturesTest {
     private static final String THAT_CAPTION_AS_ALT_TEXT =
             "Fig. 2 a]b ![x](https://example.com/i.png) &lt;b&gt;bold&lt;/b&gt; &amp;copy; `c` \\ end\n\nsecond line";
 
-    /** Characters a picture's destination may be made of: the page stem, a slash, hex, a dot, an extension. */
-    private static final Pattern A_SAFE_DESTINATION = Pattern.compile("[0-9a-z-]+/[0-9a-f]{16}\\.(png|jpg)");
+    /** Characters a picture's destination may be made of: hex, a dot, an extension. */
+    private static final Pattern A_SAFE_DESTINATION = Pattern.compile("[0-9a-f]{16}\\.(png|jpg)");
 
     /** Every image a page shows, as its destination and its alt text. */
     private static final Pattern AN_IMAGE = Pattern.compile("<img src=\"([^\"]*)\" alt=\"([^\"]*)\">");
@@ -261,18 +264,18 @@ class DeliverablePicturesTest {
                 List.of(aMember(10, "reports/2019/retrofit.docx", A_HIGH_SCORE)),
                 pictures);
         Path page = thePageOf(tree);
-        Path file = thePictureDirectoryOf(tree).resolve(nameOf(diagram, ".png"));
+        Path file = theClusterFolderOf(tree).resolve(nameOf(diagram, ".png"));
 
         claim(
-                "the picture is written as a file in a directory beside the group's page, named after that"
-                        + " page, and the file holds exactly the bytes that were handed in",
+                "the picture is written as a file in the group's folder, beside its page, and the file holds"
+                        + " exactly the bytes that were handed in",
                 () -> assertThat(file).isRegularFile().hasBinaryContent(diagram));
         claim(
                 "and the page shows it as an image directly under the document's own entry, inside that"
                         + " entry's item so the list stays one list, with no alt text because none was given",
                 () -> assertThat(Files.readString(page))
                         .contains("<li id=\"document-1\">\nreports/2019/retrofit.docx " + GONE + "\n"
-                                + "<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + nameOf(diagram, ".png")
+                                + "<p><img src=\"" + nameOf(diagram, ".png")
                                 + "\" alt=\"\"></p>\n</li>\n"));
         claim(
                 "and the image's destination is relative, carries no scheme, and followed from the page's"
@@ -313,12 +316,13 @@ class DeliverablePicturesTest {
         claim(
                 "while the diagram only the first document carries is still written and shown, so leaving"
                         + " out the shared picture costs its neighbour nothing",
-                () -> assertThat(partition.resolve(THE_PICTURE_DIRECTORY).resolve(nameOf(diagram, ".png")))
+                () -> assertThat(partition.resolve(THE_CLUSTER_FOLDER).resolve(nameOf(diagram, ".png")))
                         .hasBinaryContent(diagram));
         claim(
-                "and the second page, whose document carried nothing but the shared letterhead, gets no picture"
-                        + " directory at all",
-                () -> assertThat(partition.resolve(THE_OTHER_PICTURE_DIRECTORY)).doesNotExist());
+                "and the second group's folder, whose document carried nothing but the shared letterhead, holds"
+                        + " its page and no picture",
+                () -> assertThat(allFilesUnder(partition.resolve(THE_OTHER_CLUSTER_FOLDER)))
+                        .containsExactly(partition.resolve(THE_OTHER_CLUSTER_PAGE)));
     }
 
     @Test
@@ -336,8 +340,7 @@ class DeliverablePicturesTest {
                 "an icon repeated three times inside one document is written not even once: the repetition"
                         + " is the evidence it is part of the document's furniture, and keeping the first"
                         + " copy would keep the furniture",
-                () -> assertThat(thePictureDirectoryOf(tree))
-                        .doesNotExist());
+                () -> assertThat(picturesOf(tree)).isEmpty());
         claim(
                 "and the entry carries no image",
                 () -> assertThat(Files.readString(thePageOf(tree))).doesNotContain("<img"));
@@ -389,7 +392,7 @@ class DeliverablePicturesTest {
         claim(
                 "while the chart only the second document carries is still shown",
                 () -> assertThat(destinationsOn(thePageOf(tree)))
-                        .containsExactly(THE_PICTURE_DIRECTORY + "/" + nameOf(chart, ".png")));
+                        .containsExactly(nameOf(chart, ".png")));
     }
 
     @Test
@@ -411,10 +414,10 @@ class DeliverablePicturesTest {
                 pictures);
         String text = Files.readString(thePageOf(tree));
         String layout = "<li id=\"document-1\">\nreports/a.docx " + GONE + "\n"
-                + "<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + nameOf(first, ".png") + "\" alt=\"\"></p>\n"
+                + "<p><img src=\"" + nameOf(first, ".png") + "\" alt=\"\"></p>\n"
                 + "</li>\n"
                 + "<li id=\"document-2\">\nreports/b.docx " + GONE + "\n"
-                + "<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + nameOf(second, ".png") + "\" alt=\"\"></p>\n"
+                + "<p><img src=\"" + nameOf(second, ".png") + "\" alt=\"\"></p>\n"
                 + "</li>\n";
 
         claim(
@@ -473,13 +476,13 @@ class DeliverablePicturesTest {
                 List.of(aMember(10, A_HOSTILE_DOCUMENT_NAME, A_HIGH_SCORE)),
                 pictures);
         Path partition = tree.resolve(THE_PARTITION_DIRECTORY);
-        Path page = partition.resolve(THE_HOSTILE_LABELS_PAGE_STEM + ".html");
+        Path page = partition.resolve(THE_HOSTILE_LABELS_PAGE_STEM).resolve("index.html");
         Path expected = partition.resolve(THE_HOSTILE_LABELS_PAGE_STEM).resolve(nameOf(screenshot, ".png"));
 
         claim(
                 "the picture's file is named from the first " + NAME_LENGTH + " hexadecimal characters of"
-                        + " its own digest and sits in the directory named after the page, whose name the"
-                        + " label only reaches after being reduced to letters, digits and hyphens",
+                        + " its own digest and sits beside the page in the group's folder, whose name the label"
+                        + " only reaches after being reduced to letters, digits and hyphens",
                 () -> assertThat(expected).isRegularFile().hasBinaryContent(screenshot));
         claim(
                 "and it is the only file written anywhere beneath the partition apart from the page, so"
@@ -487,9 +490,9 @@ class DeliverablePicturesTest {
                         + " second file",
                 () -> assertThat(allFilesUnder(partition)).containsExactlyInAnyOrder(page, expected));
         claim(
-                "and the destination the page gives it is made only of the page's stem, a slash, hexadecimal"
-                        + " and an extension -- no character an HTML, URI or filesystem rule treats as"
-                        + " special, so there is nothing to escape and nothing to decode",
+                "and the destination the page gives it is made only of hexadecimal, a dot and an extension --"
+                        + " no character an HTML, URI or filesystem rule treats as special, so there is nothing to"
+                        + " escape and nothing to decode",
                 () -> assertThat(destinationsOn(page)).singleElement().matches(d -> A_SAFE_DESTINATION
                         .matcher(d).matches(), "a destination of the safe shape"));
         claim(
@@ -514,13 +517,13 @@ class DeliverablePicturesTest {
                         + " written through, the tag inside it would end the attribute and the image's tag early,"
                         + " and what follows would be markup of the caption's own",
                 () -> assertThat(text)
-                        .contains("<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + nameOf(chart, ".png")
+                        .contains("<p><img src=\"" + nameOf(chart, ".png")
                                 + "\" alt=\"" + THAT_CAPTION_AS_ALT_TEXT + "\"></p>\n"));
         claim(
                 "and the page shows exactly one image, the one from the tree, with no second image and no"
                         + " remote destination anywhere",
                 () -> assertThat(destinationsOn(thePageOf(tree)))
-                        .containsExactly(THE_PICTURE_DIRECTORY + "/" + nameOf(chart, ".png")));
+                        .containsExactly(nameOf(chart, ".png")));
     }
 
     @Test
@@ -538,7 +541,7 @@ class DeliverablePicturesTest {
         Path page = thePageOf(tree);
         List<String> expected = new ArrayList<>();
         for (int at = 0; at < THE_BUDGET; at++) {
-            expected.add(THE_PICTURE_DIRECTORY + "/" + nameOf(bytes("slide " + at), ".png"));
+            expected.add(nameOf(bytes("slide " + at), ".png"));
         }
 
         claim(
@@ -550,7 +553,7 @@ class DeliverablePicturesTest {
                 () -> assertThat(destinationsOn(page)).containsExactlyElementsOf(expected));
         claim(
                 "and only those " + TEN + " files are written",
-                () -> assertThat(allFilesUnder(thePictureDirectoryOf(tree)))
+                () -> assertThat(picturesOf(tree))
                         .hasSize(TEN));
         claim(
                 "and the entry says, after its pictures, how many more the document has, so the page never"
@@ -604,15 +607,14 @@ class DeliverablePicturesTest {
 
         Path tree = writeOneCluster(
                 workingDirectory, null, List.of(aMember(10, "reports/site.docx", A_HIGH_SCORE)), pictures);
-        Path directory = thePictureDirectoryOf(tree);
 
         claim(
                 "the JPEG is written with a .jpg extension and linked by it",
                 () -> assertThat(destinationsOn(thePageOf(tree)))
-                        .containsExactly(THE_PICTURE_DIRECTORY + "/" + nameOf(photo, ".jpg")));
+                        .containsExactly(nameOf(photo, ".jpg")));
         claim(
                 "and the picture of a kind never measured in the cache is not written under any name",
-                () -> assertThat(allFilesUnder(directory)).containsExactly(directory.resolve(nameOf(photo, ".jpg"))));
+                () -> assertThat(picturesOf(tree)).containsExactly(theClusterFolderOf(tree).resolve(nameOf(photo, ".jpg"))));
         claim(
                 "but it is counted as not shown, so the page does not pass it off as absent",
                 () -> assertThat(Files.readString(thePageOf(tree)))
@@ -663,9 +665,9 @@ class DeliverablePicturesTest {
                 () -> assertThat(Files.readString(withNone.resolve(THE_PARTITION_DIRECTORY).resolve(THE_CLUSTER_PAGE)))
                         .isEqualTo(THE_PAGE_WITH_NO_PICTURES));
         claim(
-                "and no picture directory is created where there is nothing to put in it",
-                () -> assertThat(thePictureDirectoryOf(withNone))
-                        .doesNotExist());
+                "and the group's folder holds the page and no picture, there being nothing to put in it",
+                () -> assertThat(allFilesUnder(theClusterFolderOf(withNone)))
+                        .containsExactly(theClusterFolderOf(withNone).resolve("index.html")));
     }
 
     @Test
@@ -686,7 +688,7 @@ class DeliverablePicturesTest {
                 null,
                 List.of(aMember(10, "reports/v1.pdf", A_HIGH_SCORE), aMember(20, "reports/v2.pdf", A_MIDDLE_SCORE)),
                 pictures);
-        List<String> written = namesOf(allFilesUnder(thePictureDirectoryOf(tree)));
+        List<String> written = namesOf(picturesOf(tree));
 
         claim(
                 "the emblem and its crop from the other document are different bytes, so recurrence of bytes"
@@ -722,7 +724,7 @@ class DeliverablePicturesTest {
                         aMember(20, "reports/b.docx", A_MIDDLE_SCORE),
                         aMember(30, "reports/c.docx", A_LOW_SCORE)),
                 pictures);
-        List<String> written = namesOf(allFilesUnder(thePictureDirectoryOf(tree)));
+        List<String> written = namesOf(picturesOf(tree));
 
         claim(
                 "two pictures of one size whose hashes differ in " + (NEAR_COPY_BITS + 1) + " bits are both"
@@ -755,7 +757,7 @@ class DeliverablePicturesTest {
 
         Path tree = writeOneCluster(
                 workingDirectory, null, List.of(aMember(10, "reports/spec.pdf", A_HIGH_SCORE)), pictures);
-        List<String> written = namesOf(allFilesUnder(thePictureDirectoryOf(tree)));
+        List<String> written = namesOf(picturesOf(tree));
 
         claim(
                 "the two crops of the header are " + SAME_PLACE_BITS_SEEN + " bits apart, too far for a"
@@ -796,7 +798,7 @@ class DeliverablePicturesTest {
 
         Path tree = writeOneCluster(
                 workingDirectory, null, List.of(aMember(10, "reports/report.pdf", A_HIGH_SCORE)), pictures);
-        List<String> written = namesOf(allFilesUnder(thePictureDirectoryOf(tree)));
+        List<String> written = namesOf(picturesOf(tree));
 
         claim(
                 "two charts in the same frame on two pages, " + (SAME_PLACE_BITS + 1) + " bits apart, are both"
@@ -944,9 +946,16 @@ class DeliverablePicturesTest {
                         frame.bottom() + shift)));
     }
 
-    /** The directory beside the group's page that the pictures of {@code tree}'s one page are written to. */
-    private static Path thePictureDirectoryOf(Path tree) {
-        return tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_PICTURE_DIRECTORY);
+    /** The folder of {@code tree}'s one group, which holds its page and the pictures the page shows. */
+    private static Path theClusterFolderOf(Path tree) {
+        return tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_CLUSTER_FOLDER);
+    }
+
+    /** The pictures written for {@code tree}'s one page: every file of its folder but the page itself. */
+    private static List<Path> picturesOf(Path tree) throws IOException {
+        return allFilesUnder(theClusterFolderOf(tree)).stream()
+                .filter(file -> !file.getFileName().toString().equals("index.html"))
+                .toList();
     }
 
     /**

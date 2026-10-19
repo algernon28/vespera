@@ -26,11 +26,11 @@ Eight stages, each defined by the verdicts it writes. Stages never call each oth
 | 4  | Content redundancy (lexical) | `redundant-with`                          | MinHash + LSH banding over shingles (ADR-018), boilerplate-stripped (ADR-038).                        |
 | 5  | Relevance (embeddings)       | `translation-of`, `below-threshold`       | One copy kept of a content held in several languages, found by paths one language folder apart or by mutual nearest mean vectors, before anything is scored (ADR-271); scoring against the seed set (ADR-020), clustering within each seed partition (ADR-027, ADR-045). |
 | 6a | Arrangement                  | *(no verdicts)*                           | Seed-named taxonomy + within-seed clusters (ADR-022), each cluster given a row of its own carrying a derived label, a count and a place in the order (ADR-105, ADR-106, ADR-112). Writes `arrangement.html`, the human gate before 6b (ADR-107). |
-| 6b | Generation                   | *(no verdicts; a fault, not a verdict)*   | One exemplar-first call per cluster, every answer verified before it is believed and a turned-down one recorded as a cluster fault (ADR-108, ADR-111). Citations are exemplar ordinals checked for being in range (ADR-109). Writes the deliverable: a tree of HTML pages with a verified copy of every survivor it lists, one per run id, drawn by `deliverable` at its deliverable root and drawn again by every invocation that reaches it (ADR-103, ADR-112, ADR-274, ADR-276). |
+| 6b | Generation                   | *(no verdicts; a fault, not a verdict)*   | One exemplar-first call per cluster, every answer verified before it is believed and a turned-down one recorded as a cluster fault (ADR-108, ADR-111). Citations are exemplar ordinals checked for being in range (ADR-109). Writes the deliverable: a tree of HTML pages, one per run id, in which each cluster's folder holds its page and a verified copy of each of its survivors under the original's own file name, its occurrence id added before the extension only on a collision, drawn by `deliverable` at its deliverable root and drawn again by every invocation that reaches it (ADR-103, ADR-112, ADR-274, ADR-276, ADR-280). |
 
 Ordering principle: the cheapest filter runs first, so every occurrence removed early is extraction or embedding never paid for (ADR-017).
 
-**The cascade.** Every stage reads and writes only through the ledger; none of them calls another. The chain ends at 6b: what it produces is the deliverable — a tree of HTML pages with a verified copy of every survivor it lists, one tree per run id, in the working directory or at the deliverable root `vespera.deliverable-root` names, which lies outside the corpus root and the seed folder (ADR-103, ADR-274, ADR-276) — and nothing in this project carries it to a destination of any kind (ADR-101).
+**The cascade.** Every stage reads and writes only through the ledger; none of them calls another. The chain ends at 6b: what it produces is the deliverable — a tree of HTML pages with a verified copy of every survivor it lists, in that survivor's cluster folder, one tree per run id, in the working directory or at the deliverable root `vespera.deliverable-root` names, which lies outside the corpus root and the seed folder (ADR-103, ADR-274, ADR-276, ADR-280) — and nothing in this project carries it to a destination of any kind (ADR-101).
 
 ```mermaid
 flowchart TD
@@ -176,7 +176,7 @@ Modules are **capability-shaped, not stage-shaped** — stage assignment has alr
 | `similarity` | Shingles, MinHash/LSH — shingles are computed during stage 2's pass, but the code and the table are `similarity`'s and the call is composed in `pipeline` (ADR-073), since a capability module may not depend on another except where a decision records it |
 | `embedding` | SQLite vector cache, scoring, clustering |
 | `synthesis` | Arrangement (6a), generation (6b) |
-| `deliverable` | The tree 6b writes: its pages, its manifest and its copies (ADR-274); no stage's version names it |
+| `deliverable` | The tree 6b writes: its pages, its manifest and its copies (ADR-274, ADR-280); no stage's version names it |
 | `profile` | Thresholds, provenance, gate inputs |
 | `pipeline` | Batch job definitions; the only module that knows the phrase "stage 4" |
 

@@ -52,7 +52,7 @@ final class UnwrittenPage {
         try (Stream<Path> files = Files.walk(tree)) {
             List<Path> pages = files.filter(Files::isRegularFile)
                     .filter(file -> file.getFileName().toString().endsWith(".html"))
-                    .filter(file -> !file.getFileName().toString().equals(Deliverable.INDEX_FILE_NAME))
+                    .filter(file -> !file.equals(tree.resolve(Deliverable.INDEX_FILE_NAME)))
                     .filter(file -> linesOf(file).contains(heading))
                     .toList();
             if (pages.size() != 1) {

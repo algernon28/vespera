@@ -1,7 +1,6 @@
 package io.algernon.vespera.deliverable;
 
 import io.algernon.vespera.ledger.OccurrenceId;
-import io.algernon.vespera.synthesis.FilenameStem;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.Unwritten;
@@ -111,7 +110,6 @@ final class ClusterPage {
                     page,
                     numbered,
                     file.getParent(),
-                    FilenameStem.of(file.getFileName().toString()),
                     copies,
                     pictures,
                     progress);
@@ -171,19 +169,38 @@ final class ClusterPage {
     }
 
     /**
+     * {@code name}'s UTF-8 bytes, each outside RFC 3986's unreserved set, {@code A}-{@code Z}, {@code a}-{@code z},
+     * {@code 0}-{@code 9}, {@code -}, {@code .}, {@code _} and {@code ~}, as {@code %} and two upper-case hexadecimal
+     * digits (ADR-280 §5).
+     */
+    static String percentEncoded(String name) {
+        StringBuilder encoded = new StringBuilder();
+        for (byte b : name.getBytes(StandardCharsets.UTF_8)) {
+            int unsigned = b & 0xFF;
+            if ((unsigned >= 'A' && unsigned <= 'Z') || (unsigned >= 'a' && unsigned <= 'z')
+                    || (unsigned >= '0' && unsigned <= '9') || unsigned == '-' || unsigned == '.'
+                    || unsigned == '_' || unsigned == '~') {
+                encoded.append((char) unsigned);
+            } else {
+                encoded.append('%').append("0123456789ABCDEF".charAt(unsigned >> 4))
+                        .append("0123456789ABCDEF".charAt(unsigned & 0xF));
+            }
+        }
+        return encoded.toString();
+    }
+
+    /**
      * The cluster's whole membership, numbered as {@link #numbered} ordered it (ADR-104, ADR-109, ADR-133): each
      * entry an {@code <li>} carrying the id a citation in the writing resolves to, and either a link to the document's
      * copy in the tree or, where none stands, the document's own root-relative path with the reason in italics and
      * no link at all (ADR-274 §2.6).
      *
-     * @param pageDirectory the directory this very page sits in
-     * @param pictureDirectoryName the name a picture's own directory is given, beside this page (ADR-149 §3)
+     * @param folder the cluster's folder, which this very page sits in (ADR-280 §0)
      */
     private static void appendMembership(
             StringBuilder page,
             List<Optional<ListedSurvivor>> entries,
-            Path pageDirectory,
-            String pictureDirectoryName,
+            Path folder,
             Copies copies,
             EntryPictures pictures,
             DeliverableProgress progress)
@@ -200,15 +217,15 @@ final class ClusterPage {
             String path = Html.escape(member.path().value());
             CopyOutcome outcome = copies.outcomeOf(member);
             if (outcome == CopyOutcome.COPIED) {
-                page.append("<a href=\"../")
-                        .append(Html.escape(Copies.pathOf(member)))
+                page.append("<a href=\"./")
+                        .append(Html.escape(percentEncoded(copies.nameOf(member))))
                         .append("\">")
                         .append(path)
                         .append("</a>\n");
             } else {
                 page.append(path).append(" <em>").append(Html.escape(outcome.sentence())).append("</em>\n");
             }
-            pictures.appendUnder(page, member, pageDirectory, pictureDirectoryName);
+            pictures.appendUnder(page, member, folder);
             page.append("</li>\n");
             progress.membershipEntryWritten();
         }

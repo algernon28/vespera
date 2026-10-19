@@ -50,8 +50,8 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p><b>The archive is read and never linked to</b> (ADR-274 §2.6). Each fixture places an archive beside the
  * working directory whose every file holds its own root-relative path's bytes, which is what its recorded key is
- * taken from, so each copy is made and stands. An entry links to that copy, by a path relative to the page, and
- * never into the archive.
+ * taken from, so each copy is made and stands. The page is {@code index.html} in its cluster's folder, and an entry
+ * links to its copy beside it, by the copy's name percent-encoded (ADR-280 §5), and never into the archive.
  *
  * <p><b>Some claims here follow a link rather than reading it.</b> ADR-103's test is that a link
  * resolves: the destination is followed from the directory the page sits in, and what it lands on is
@@ -69,6 +69,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-109", url = Adr.A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL, type = "adr")
 @Link(name = "ADR-122", url = Adr.THE_VOCABULARY_BINDS_OUR_NAMES_NOT_RENDERED_PROSE, type = "adr")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class ClusterFileTest {
 
     /** A run id of the shape the ledger mints: sixty-four hexadecimal characters (ADR-048). */
@@ -98,8 +99,8 @@ class ClusterFileTest {
     /** The document most fixtures below place in the archive, by the path the ledger holds for it. */
     private static final String THE_DOCUMENT = "reports/2019/retrofit.pdf";
 
-    /** Where the copy of that document stands in the tree, as occurrence 10. */
-    private static final String THE_DOCUMENTS_COPY = "documents/10-retrofit.pdf";
+    /** Where the copy of that document stands in the tree: under its own name, in its cluster's folder. */
+    private static final String THE_DOCUMENTS_COPY = "1-industrial-safety-standards/1-fire-suppression-retrofits/retrofit.pdf";
 
     /**
      * An archive root no path parser accepts, on either platform: a NUL is refused by the Windows
@@ -117,8 +118,11 @@ class ClusterFileTest {
     /** The one partition directory these fixtures write, named from the seed's stem, slugged. */
     private static final String THE_PARTITION_DIRECTORY = "1-industrial-safety-standards";
 
-    /** The one cluster's page beneath it, named from the derived label and never the generated heading. */
-    private static final String THE_CLUSTER_PAGE = "1-" + THE_LABEL_SLUGGED + ".html";
+    /** The one cluster's folder beneath it, named from the derived label and never the generated heading. */
+    private static final String THE_CLUSTER_FOLDER = "1-" + THE_LABEL_SLUGGED;
+
+    /** The cluster's page, in that folder. */
+    private static final String THE_CLUSTER_PAGE = THE_CLUSTER_FOLDER + "/index.html";
 
     /** The first cluster ordinal these fixtures hand out, which is the identity 6a minted. */
     private static final int FIRST_ORDINAL = 0;
@@ -199,8 +203,8 @@ class ClusterFileTest {
 
     @Test
     @Story("The heading names the group the way the writing did, and the label where it did not")
-    @DisplayName("A group's page opens with the heading the model wrote, and its file is named from the other name")
-    void leadsWithTheGeneratedTitleAndNamesTheFileFromTheLabel(@TempDir Path workingDirectory) throws IOException {
+    @DisplayName("A group's page opens with the heading the model wrote, and its folder is named from the other name")
+    void leadsWithTheGeneratedTitleAndNamesTheFolderFromTheLabel(@TempDir Path workingDirectory) throws IOException {
         Path tree = write(
                 workingDirectory,
                 new SynthesisDoc(THE_TITLE, "The nearest one [1] is the retrofit.", sent(10)),
@@ -214,17 +218,17 @@ class ClusterFileTest {
                         + " burying it under a mechanical name would present the derivation as the title",
                 () -> assertThat(firstHeadingOf(page)).isEqualTo(THE_TITLE));
         claim(
-                "though the file itself is named from the derived label and not from that heading -- \""
-                        + THE_CLUSTER_PAGE + "\" -- because a name depending on generation succeeding would"
-                        + " not exist for a group nothing was written over, and every group keeps its slot",
+                "though the page is index.html in a folder named from the derived label and not from that heading"
+                        + " -- \"" + THE_CLUSTER_PAGE + "\" -- because a name depending on generation succeeding"
+                        + " would not exist for a group nothing was written over, and every group keeps its slot",
                 () -> assertThat(tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_CLUSTER_PAGE))
                         .isRegularFile());
         claim(
-                "and it is the only file the partition holds, so no path anywhere in it followed the"
+                "and that folder is the only thing the partition holds, so no path anywhere in it followed the"
                         + " model's title -- \"" + THE_TITLE_SLUGGED + "\" under any ordinal included --"
                         + " because a path that did would move the moment the model was asked again",
                 () -> assertThat(tree.resolve(THE_PARTITION_DIRECTORY))
-                        .isDirectoryContaining(file -> file.getFileName().toString().equals(THE_CLUSTER_PAGE))
+                        .isDirectoryContaining(file -> file.getFileName().toString().equals(THE_CLUSTER_FOLDER))
                         .isDirectoryNotContaining(
                                 file -> file.getFileName().toString().contains(THE_TITLE_SLUGGED)));
     }
@@ -313,7 +317,7 @@ class ClusterFileTest {
                 "and the link's text is the document's place beneath the archive root the index states, so a"
                         + " reader still learns where it came from",
                 () -> assertThat(Files.readString(page))
-                        .contains("<a href=\"../" + THE_DOCUMENTS_COPY + "\">" + THE_DOCUMENT + "</a>"));
+                        .contains("<a href=\"./retrofit.pdf\">" + THE_DOCUMENT + "</a>"));
     }
 
     @Test
@@ -348,7 +352,7 @@ class ClusterFileTest {
                 () -> assertThat(text)
                         .contains("<li id=\"document-1\">\n" + THE_DOCUMENT + " <em>" + COULD_NOT_BE_COPIED
                                 + "</em>\n</li>")
-                        .doesNotContain("href=\"../"));
+                        .doesNotContain("href=\"./"));
     }
 
     @Test
@@ -524,9 +528,9 @@ class ClusterFileTest {
         String page = pageOf(tree);
 
         claim(
-                "the entry for a name with a space links to its copy, whose name carries no space, and shows the"
-                        + " name as the archive holds it",
-                () -> assertThat(page).contains(entry(THE_FIRST_ENTRY, spaced)));
+                "the entry for a name with a space links to its copy, named as the document is, its space"
+                        + " percent-encoded in the link, and shows the name as the archive holds it",
+                () -> assertThat(page).contains(entry(THE_FIRST_ENTRY, spaced, "./follow-up%20report.pdf")));
         claim(
                 "and a name with a quote is shown with each quote as its entity, so nothing in it can end an"
                         + " attribute or open a tag, whatever became of its copy",
@@ -538,12 +542,16 @@ class ClusterFileTest {
                 "this file system will not create a name with a double quote, as NTFS will not, so there is no copy"
                         + " of one to link to");
         claim(
-                "and where the quoted document is in the archive, its entry links to its copy, whose name carries no"
-                        + " quote, with the name as the link's text",
-                () -> assertThat(page).contains(entry(THE_SECOND_ENTRY, quoted)));
+                "and where the quoted document is in the archive, its entry links to its copy, whose name carries an"
+                        + " underscore where each quote was, with the name as the link's text",
+                () -> assertThat(page)
+                        .contains(entry(THE_SECOND_ENTRY, quoted, "./retrofit%2C%20phase%20_two_.pdf")));
         claim(
                 "and the copy it links to holds the quoted document's bytes",
-                () -> assertThat(tree.resolve(Copies.pathOf(quoted))).hasBinaryContent(bytesOf(A_NAME_WITH_A_QUOTE)));
+                () -> assertThat(tree.resolve(THE_PARTITION_DIRECTORY)
+                                .resolve(THE_CLUSTER_FOLDER)
+                                .resolve("retrofit, phase _two_.pdf"))
+                        .hasBinaryContent(bytesOf(A_NAME_WITH_A_QUOTE)));
     }
 
     /**
@@ -604,9 +612,9 @@ class ClusterFileTest {
     /**
      * Where that same entry leads, which is a different question from what it says (ADR-137, ADR-274 §2.1).
      *
-     * <p>The claim is over the characters the page carries: a copy's name is the occurrence and a slug, so the
-     * route carries no ampersand at all, cannot begin an entity-shaped run, and holds for every name of that
-     * shape rather than for the one this fixture spells.
+     * <p>The claim is over the characters the page carries: a copy's name is percent-encoded in the route, an
+     * ampersand as {@code %26} (ADR-280 §5), so the route carries no ampersand at all, cannot begin an entity-shaped
+     * run, and holds for every name of that shape rather than for the one this fixture spells.
      */
     @Test
     @Story("A claim leads to the document behind it in two clicks")
@@ -719,9 +727,18 @@ class ClusterFileTest {
         return ListedArrangement.writeTo(workingDirectory, provenance(corpusRoot), arrangement, written, members);
     }
 
-    /** One membership entry whose copy stands, as the page writes it: its id, a link to its copy, its path. */
+    /**
+     * One membership entry whose copy stands, as the page writes it: its id, a link to its copy beside the page, its
+     * path. For a member whose file name needs no percent-encoding, so its copy is linked by that name as it is.
+     */
     private static String entry(int number, ListedSurvivor member) {
-        return "<li id=\"document-" + number + "\">\n<a href=\"../" + Copies.pathOf(member) + "\">"
+        String path = member.path().value();
+        return entry(number, member, "./" + path.substring(path.lastIndexOf('/') + 1));
+    }
+
+    /** The same, linking to {@code destination}. */
+    private static String entry(int number, ListedSurvivor member, String destination) {
+        return "<li id=\"document-" + number + "\">\n<a href=\"" + destination + "\">"
                 + Html.escape(member.path().value()) + "</a>\n</li>\n";
     }
 

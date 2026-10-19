@@ -12,15 +12,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 
 /**
  * Writes the tree the operator is actually handed (ADR-103, ADR-104, ADR-109, ADR-111, ADR-112, ADR-274, #186,
  * #187): a directory named for the run that produced it, opened by an HTML index that is mechanical rather than
- * generated, a page per cluster, a manifest and a verified copy of every survivor listed.
+ * generated, a folder per cluster holding its page and a verified copy of each of its survivors, and a manifest.
  *
  * <p><b>Plain values only.</b> This class learns no step, no stage and no {@code Profile} (ADR-110):
  * everything it needs arrives as {@link DeliverableProvenance}, {@link SurvivorPictures} and an {@link
@@ -38,7 +41,7 @@ import java.util.function.LongSupplier;
  * membership out from that record.
  *
  * <p><b>The archive is read and never written</b> (ADR-054, ADR-274 §2.6). Each survivor's original is opened for
- * reading alone and streamed into a copy under {@code documents/}, which stands only where its bytes hash to the key
+ * reading alone and streamed into a copy in its cluster's folder, which stands only where its bytes hash to the key
  * stage 2 recorded ({@link Copies}). Nothing is created, moved, renamed or touched beneath the corpus root.
  *
  * <p><b>Everything a reader of this tree sees says <em>group</em>; everything this class names says
@@ -75,6 +78,9 @@ public final class Deliverable {
      * bound of the tool, as {@link #PICTURES_PER_DOCUMENT} is, and not a judgement about any corpus.
      */
     public static final long COPY_HEADROOM_BYTES = 1L << 30;
+
+    /** A cluster's page, in its cluster's folder (ADR-280 §0). */
+    static final String CLUSTER_PAGE_NAME = "index.html";
 
     /** What a page is called while it is being written beside its target, before it is moved over it. */
     static final String PART_SUFFIX = ".part";
@@ -180,27 +186,34 @@ public final class Deliverable {
         Path tree = root.treeOf(workingDirectory, provenance.runId());
         List<ListedPartition> partitions = source.partitions();
         try {
-            Files.createDirectories(tree.resolve(Copies.DIRECTORY_NAME));
+            Files.createDirectories(tree);
             DeliverableRoot.markTree(tree, workingDirectory, provenance.runId());
             Copies copies = new Copies(tree, provenance.corpusRoot(), moves, usableSpace, progress);
             long[] aboutToCopy = new long[2];
+            Set<String> written = new HashSet<>();
+            // A copy's name follows from its cluster's members and the pictures its page shows, which are known only
+            // when that cluster is reached, and holding every cluster's members until then would break ADR-223 §9. So
+            // the survey cannot tell which copies already stand. ADR-280 §3 amends ADR-274 §2.5: the count before the
+            // first copy is every survivor listed and the bytes their originals hold, and a copy already standing
+            // moves the counter on.
             EntryPictures entryPictures = EntryPictures.among(source, pictures, progress, page -> {
                 for (ListedSurvivor survivor : page) {
-                    if (!copies.stands(survivor)) {
-                        aboutToCopy[0]++;
-                        aboutToCopy[1] += Copies.sizeOf(provenance.corpusRoot(), survivor);
-                    }
+                    aboutToCopy[0]++;
+                    aboutToCopy[1] += Copies.sizeOf(provenance.corpusRoot(), survivor);
                 }
             });
             progress.toCopySurvivors(aboutToCopy[0], aboutToCopy[1], usableSpace.getAsLong());
             Path indexPart =
-                    writeIndexAndClusterPages(tree, provenance, partitions, source, entryPictures, copies, progress);
+                    writeIndexAndClusterPages(
+                            tree, provenance, partitions, source, entryPictures, copies, written, progress);
+            progress.copiesAtALongPath(copies.copiesAtALongPath());
             Path manifestPart = writeManifest(tree, source, copies, progress);
             // Both are whole before either is moved, so a write that fails before the first move leaves the pair
             // the write before left, or none; only the manifest's own move failing leaves the new index beside the
             // old manifest (ADR-223 section 6). The index is still the last of the pages to appear.
             moves.intoPlace(indexPart, tree.resolve(INDEX_FILE_NAME));
             moves.intoPlace(manifestPart, tree.resolve(MANIFEST_FILE_NAME));
+            leftBehindBy(tree, written, progress);
             return tree;
         } catch (IOException e) {
             throw new UncheckedIOException("could not write the deliverable tree at " + tree, e);
@@ -225,6 +238,7 @@ public final class Deliverable {
             ArrangedSurvivors source,
             EntryPictures pictures,
             Copies copies,
+            Set<String> written,
             DeliverableProgress progress)
             throws IOException {
         // The three totals, announced before the loop over partitions. An entry carries a document exactly
@@ -240,25 +254,42 @@ public final class Deliverable {
             for (ListedPartition partition : partitions) {
                 List<RecordedCluster> clusters = source.clustersOf(partition);
                 List<ListedSurvivor> survivors = source.survivorsOf(partition);
-                copies.copyAll(survivors);
                 Map<ClusterSlot, List<ListedSurvivor>> membersByCluster = new HashMap<>();
                 for (ListedSurvivor survivor : survivors) {
                     membersByCluster.computeIfAbsent(survivor.slot(), key -> new ArrayList<>()).add(survivor);
                 }
-                Path partitionDir = tree.resolve(IndexPage.partitionDirectoryName(partition, partitions.size()));
+                String partitionName = IndexPage.partitionDirectoryName(partition, partitions.size());
+                Path partitionDir = tree.resolve(partitionName);
                 Files.createDirectories(partitionDir);
+                written.add(partitionName);
                 int clusterWidth = IndexPage.widthOf(partition.clusterCount());
+                // The partition's pictures are written and its copies made before its pages, so each page states what
+                // stands (ADR-274 §2.2); a cluster's names are worked out from its members and its pictures' names
+                // before its first copy (ADR-280 §2) and let go after it: what stays is a folder for the cluster and a
+                // name for each copy a collision changed (see Copies), and, of the pictures, the few lines of HTML each
+                // entry shows until its page is written.
+                for (RecordedCluster recorded : clusters) {
+                    String clusterName = IndexPage.clusterFolderName(recorded, clusterWidth);
+                    written.add(partitionName + "/" + clusterName);
+                    Path clusterFolder = partitionDir.resolve(clusterName);
+                    Files.createDirectories(clusterFolder);
+                    List<ListedSurvivor> members =
+                            membersByCluster.getOrDefault(ClusterSlot.of(recorded), List.of());
+                    copies.copyAll(clusterFolder, members, pictures.writeFor(members, clusterFolder));
+                }
                 IndexPage.partitionHeading(index, partition);
                 for (RecordedCluster recorded : clusters) {
                     ClusterSlot slot = ClusterSlot.of(recorded);
                     // One read of the cluster's synthesis doc serves its page and its row of the index (ADR-241).
                     Optional<SynthesisDoc> doc = source.writtenOver(slot);
+                    Path clusterFolder = partitionDir.resolve(IndexPage.clusterFolderName(recorded, clusterWidth));
+                    List<ListedSurvivor> members = membersByCluster.getOrDefault(slot, List.of());
                     ClusterPage.write(
-                            partitionDir.resolve(IndexPage.clusterFileName(recorded, clusterWidth)),
+                            clusterFolder.resolve(CLUSTER_PAGE_NAME),
                             recorded,
                             doc.orElse(null),
                             doc.isEmpty() ? source.whyUnwritten(slot).orElse(null) : null,
-                            membersByCluster.getOrDefault(slot, List.of()),
+                            members,
                             copies,
                             pictures,
                             progress);
@@ -266,11 +297,47 @@ public final class Deliverable {
                     IndexPage.clusterRow(index, partition, partitions.size(), recorded, doc);
                 }
                 IndexPage.partitionEnd(index);
+                pictures.forgetPrepared();
                 progress.partitionWritten();
             }
             IndexPage.close(index);
         }
         return indexPart;
+    }
+
+    /**
+     * Lists the tree's top level and each partition folder this drawing wrote, and tells {@code progress} once of the
+     * folders it did not write: {@code documents/}, which an earlier layout wrote, apart from the rest, which are
+     * counted. A file is not counted, and nothing inside a folder this drawing wrote is looked at (ADR-280 §4).
+     */
+    private static void leftBehindBy(Path tree, Set<String> written, DeliverableProgress progress) {
+        boolean documentsFolder = false;
+        long others = 0;
+        try (Stream<Path> top = Files.list(tree)) {
+            for (Path entry : (Iterable<Path>) top::iterator) {
+                String name = entry.getFileName().toString();
+                if (!Files.isDirectory(entry) || written.contains(name)) {
+                    continue;
+                }
+                if (name.equals(Copies.DIRECTORY_NAME)) {
+                    documentsFolder = true;
+                } else {
+                    others++;
+                }
+            }
+            for (String partition : written.stream().filter(name -> name.indexOf('/') < 0).toList()) {
+                try (Stream<Path> inside = Files.list(tree.resolve(partition))) {
+                    for (Path entry : (Iterable<Path>) inside::iterator) {
+                        if (Files.isDirectory(entry) && !written.contains(partition + "/" + entry.getFileName())) {
+                            others++;
+                        }
+                    }
+                }
+            }
+        } catch (IOException | RuntimeException unlisted) {
+            // A tree that cannot be listed is a tree nothing is said of: the listing is a courtesy (ADR-280 §4).
+        }
+        progress.leftBehind(documentsFolder, others);
     }
 
     /** Writes the manifest beside its target, and returns where it is. */

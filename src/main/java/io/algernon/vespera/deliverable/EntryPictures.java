@@ -58,6 +58,8 @@ final class EntryPictures {
 
     private final Set<String> furniture;
 
+    private final Map<Long, String> prepared = new HashMap<>();
+
     private EntryPictures(SurvivorPictures source, Set<String> furniture) {
         this.source = source;
         this.furniture = furniture;
@@ -126,12 +128,37 @@ final class EntryPictures {
      * <p><b>The alt text is the caption under the one escaping rule</b> (ADR-149 §5, ADR-274 §1.3): the
      * converter's own text, escaped like every value the tree did not write, in an attribute.
      *
-     * @param pageDirectory the directory the cluster page sits in
-     * @param pictureDirectoryName the name a picture's own directory is given beside that page (ADR-149
-     *     §3): the page's own name, without {@code .html}
+     * @param folder the cluster's folder, the page's own, into which each picture is written and by whose file name
+     *     alone it is shown (ADR-280 §0)
      */
-    void appendUnder(StringBuilder page, ListedSurvivor member, Path pageDirectory, String pictureDirectoryName)
-            throws IOException {
+    void appendUnder(StringBuilder page, ListedSurvivor member, Path folder) throws IOException {
+        String held = prepared.remove(member.occurrence().value());
+        page.append(held != null ? held : writeAndShow(member, folder).html());
+    }
+
+    /**
+     * Writes the pictures of each of {@code members} into {@code folder} and holds how each is shown, returning the
+     * names written (ADR-280 §1.5): a copy's name yields to a picture's, so the names are wanted before the cluster's
+     * first copy, and a document's pictures are asked of the source once for the page, never again for the entry that
+     * shows them (ADR-149 §9). What is held is each entry's few lines of HTML until {@link #appendUnder} takes it, or
+     * {@link #forgetPrepared} lets it go, and never a picture's pixels.
+     */
+    Set<String> writeFor(List<ListedSurvivor> members, Path folder) throws IOException {
+        Set<String> names = new HashSet<>();
+        for (ListedSurvivor member : members) {
+            Written written = writeAndShow(member, folder);
+            prepared.put(member.occurrence().value(), written.html());
+            names.addAll(written.names());
+        }
+        return names;
+    }
+
+    /** Lets go of every entry {@link #writeFor} held and {@link #appendUnder} did not take. */
+    void forgetPrepared() {
+        prepared.clear();
+    }
+
+    private Written writeAndShow(ListedSurvivor member, Path folder) throws IOException {
         List<NamedPicture> kept = new ArrayList<>();
         for (ListedPicture picture : source.of(member)) {
             String digest = sha256Hex(picture.pixels());
@@ -139,26 +166,25 @@ final class EntryPictures {
                 kept.add(new NamedPicture(picture, digest));
             }
         }
+        StringBuilder page = new StringBuilder();
+        Set<String> names = new HashSet<>();
         if (kept.isEmpty()) {
-            return;
+            return new Written("", names);
         }
         int withinBudget = Math.min(Deliverable.PICTURES_PER_DOCUMENT, kept.size());
-        List<NamedPicture> candidates = kept.subList(0, withinBudget);
         int notShown = kept.size() - withinBudget;
-        Path pictureDirectory = pageDirectory.resolve(pictureDirectoryName);
-        for (NamedPicture candidate : candidates) {
+        for (NamedPicture candidate : kept.subList(0, withinBudget)) {
             Optional<String> extension = fileExtensionFor(candidate.picture().mediaType());
             if (extension.isEmpty()) {
                 notShown++;
                 continue;
             }
-            Files.createDirectories(pictureDirectory);
+            Files.createDirectories(folder);
             String fileName = candidate.digest().substring(0, PICTURE_NAME_LENGTH) + extension.get();
-            Files.write(pictureDirectory.resolve(fileName), candidate.picture().pixels());
+            Files.write(folder.resolve(fileName), candidate.picture().pixels());
+            names.add(fileName);
             page.append("<p><img src=\"")
-                    .append(Html.escape(pictureDirectoryName))
-                    .append('/')
-                    .append(fileName)
+                    .append(Html.escape(fileName))
                     .append("\" alt=\"")
                     .append(Html.escape(candidate.picture().caption()))
                     .append("\"></p>\n");
@@ -170,7 +196,11 @@ final class EntryPictures {
                             + " pictures from this document are not shown.")
                     .append("</em></p>\n");
         }
+        return new Written(page.toString(), names);
     }
+
+    /** What one entry shows of its document's pictures, and the names of the files written for it. */
+    private record Written(String html, Set<String> names) {}
 
     /** A picture the second pass kept, with the one digest taken of its bytes. */
     private record NamedPicture(ListedPicture picture, String digest) {}

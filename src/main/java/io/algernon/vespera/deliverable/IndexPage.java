@@ -71,7 +71,9 @@ final class IndexPage {
         index.append("<tr><td><a href=\"")
                 .append(Html.escape(partitionDirectoryName(partition, partitionCount)))
                 .append('/')
-                .append(Html.escape(clusterFileName(recorded, widthOf(partition.clusterCount()))))
+                .append(Html.escape(clusterFolderName(recorded, widthOf(partition.clusterCount()))))
+                .append('/')
+                .append(Deliverable.CLUSTER_PAGE_NAME)
                 .append("\">")
                 .append(label)
                 .append("</a></td><td>")
@@ -91,11 +93,11 @@ final class IndexPage {
     }
 
     /**
-     * The name of a cluster's page within its partition's directory: its position zero-padded to
-     * {@code clusterWidth} digits, then its label as a slug (ADR-112).
+     * The name of a cluster's folder within its partition's directory, which holds its page and its copies: its
+     * position zero-padded to {@code clusterWidth} digits, then its label as a slug (ADR-112, ADR-280 §0).
      */
-    static String clusterFileName(RecordedCluster recorded, int clusterWidth) {
-        return pad(recorded.cluster().clusterOrder(), clusterWidth) + "-" + slug(recorded.label().value()) + ".html";
+    static String clusterFolderName(RecordedCluster recorded, int clusterWidth) {
+        return pad(recorded.cluster().clusterOrder(), clusterWidth) + "-" + slug(recorded.label().value());
     }
 
     /** How many digits it takes to write {@code count}, which is how wide every position in it is padded. */
@@ -123,9 +125,9 @@ final class IndexPage {
                     .append("</li>\n");
         }
         index.append("</ul>\n<p>The path column of documents.csv names each document beneath the archive root"
-                + " recorded above. The folder documents/ holds a copy of every document listed here, checked"
-                + " against the digest taken when it was converted, and each link on a group's page leads to"
-                + " its copy; the archive root names where they were copied from. The seed_partition column is"
+                + " recorded above. Each group's folder holds its page and a copy of every document listed on"
+                + " it, checked against the digest taken when it was converted, and each link on a group's page"
+                + " leads to its copy; the archive root names where they were copied from. The seed_partition column is"
                 + " not a path beneath that root: it names a seed beneath the seed folder, which is a root of"
                 + " its own. The copy and copy_outcome columns say which documents were copied and, of any"
                 + " that were not, why.</p>\n");

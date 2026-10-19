@@ -78,6 +78,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-104", url = Adr.THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED, type = "adr")
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class DeliverableInvocationTest {
 
     /** The logger every operator-facing line in this application is written through. */
@@ -170,8 +171,12 @@ class DeliverableInvocationTest {
     private static final Pattern A_MEMBERSHIP_DESTINATION =
             Pattern.compile("<li id=\"document-\\d+\">\n<a href=\"([^\"]*)\">");
 
-    /** The folder of the tree the copies lie in (ADR-274 §1). */
-    private static final String THE_COPIES = "documents";
+    /** The folder a tree drawn in the flat layout before ADR-280 put every copy in, at the tree's top. */
+    private static final String AN_EARLIER_LAYOUTS_COPIES = "documents";
+
+    /** What the closing line says of that folder where a drawing finds it left behind (ADR-280 §4). */
+    private static final String THE_DOCUMENTS_FOLDER_CAN_BE_DELETED =
+            "; documents/ holds an earlier layout's copies and can be deleted by hand.";
 
     /** The column of the listing that says what became of each document's copy (ADR-274 §1.4). */
     private static final String THE_COPY_OUTCOME_COLUMN = "copy_outcome";
@@ -807,12 +812,12 @@ class DeliverableInvocationTest {
                 () -> assertThat(page).doesNotContain("file:").doesNotContain(Walk.canonicalRoot(root).toString()));
         claim(
                 "and each entry leads on to the document's copy inside the tree: both destinations are"
-                        + " followed from the directory the page is in, and both land on a copy holding exactly"
-                        + " the bytes of a document of the archive -- the second click of the chain, and the"
-                        + " whole of what this tool owes a reader who doubts a sentence",
+                        + " followed from the directory the page is in, and both land on a copy beside the page, in"
+                        + " the group's folder, holding exactly the bytes of a document of the archive -- the second"
+                        + " click of the chain, and the whole of what this tool owes a reader who doubts a sentence",
                 () -> assertThat(whereTheEntriesLeadFrom(pageFile))
                         .hasSize(TWO_DOCUMENTS)
-                        .allSatisfy(copy -> assertThat(copy.startsWith(theTreeOf(root).resolve(THE_COPIES))).isTrue())
+                        .allSatisfy(copy -> assertThat(copy.getParent()).isEqualTo(pageFile.getParent()))
                         .extracting(DeliverableInvocationTest::contentOf)
                         .containsExactlyInAnyOrder(WHAT_A_CORPUS_DOCUMENT_SAYS, WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS));
     }
@@ -826,16 +831,18 @@ class DeliverableInvocationTest {
 
         cli.run("run", root.toString());
 
+        List<Path> copies = theCopiesOf(root);
         claim(
-                "the tree's copies are exactly the " + TWO_DOCUMENTS + " documents of the archive, byte for"
-                        + " byte, and nothing else in the tree carries a document's text -- not the text pulled"
-                        + " out of one, which would be a third version of every document",
+                "the tree's copies, in the group's folder beside its page, are exactly the " + TWO_DOCUMENTS
+                        + " documents of the archive, byte for byte, and nothing else in the tree carries a"
+                        + " document's text -- not the text pulled out of one, which would be a third version of"
+                        + " every document",
                 () -> {
-                    assertThat(everyFileIn(theTreeOf(root).resolve(THE_COPIES)))
+                    assertThat(copies)
                             .extracting(DeliverableInvocationTest::contentOf)
                             .containsExactlyInAnyOrder(WHAT_A_CORPUS_DOCUMENT_SAYS, WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS);
                     assertThat(everyFileIn(theTreeOf(root)))
-                            .filteredOn(file -> !file.startsWith(theTreeOf(root).resolve(THE_COPIES)))
+                            .filteredOn(file -> !copies.contains(file))
                             .allSatisfy(file -> assertThat(Files.readString(file))
                                     .doesNotContain(WHAT_A_CORPUS_DOCUMENT_SAYS)
                                     .doesNotContain(WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS));
@@ -852,6 +859,50 @@ class DeliverableInvocationTest {
                 () -> assertThat(everyFileIn(root))
                         .extracting(DeliverableInvocationTest::contentOf)
                         .containsExactlyInAnyOrder(WHAT_A_CORPUS_DOCUMENT_SAYS, WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS));
+    }
+
+    /**
+     * ADR-276 §6's rule, paid by ADR-280 §4: a tree drawn in the flat layout, its copies in {@code documents/}, and
+     * drawn again per cluster keeps that folder, since nothing beneath a tree is deleted, and the closing line says it
+     * can be deleted by hand. The flat layout's folder is put in the tree between two invocations of one generation
+     * run, the second redrawing the tree in place (ADR-274 §6).
+     */
+    @Test
+    @Story("The last thing an invocation says is what it produced and what is missing from it")
+    @DisplayName("A tree drawn again in the new layout keeps the old layout's folder of documents, and the closing line says it can be deleted by hand")
+    @Issue("570")
+    @Link(name = "ADR-276", url = Adr.THE_DELIVERABLE_IS_DRAWN_AT_A_ROOT_THE_OPERATOR_MAY_NAME, type = "adr")
+    void aTreeDrawnFlatAndDrawnAgainPerClusterKeepsItsDocumentsFolderAndTheClosingLineSaysSo(
+            @TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedCorpus(root, seeds);
+        cli.run("run", root.toString());
+        Path anEarlierLayoutsCopy = Files.createDirectories(theTreeOf(root).resolve(AN_EARLIER_LAYOUTS_COPIES))
+                .resolve("7-a-corpus-document.txt");
+        Files.writeString(anEarlierLayoutsCopy, WHAT_A_CORPUS_DOCUMENT_SAYS);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the second invocation reports success, under the " + ONE_RUN + " generation it drew the tree for"
+                        + " before, so it drew that tree again in place",
+                () -> {
+                    assertThat(cli.getExitCode()).isZero();
+                    assertThat(generationRuns(root)).hasSize(ONE_RUN);
+                });
+        claim(
+                "the earlier layout's folder of documents and the copy in it are where they were: nothing beneath"
+                        + " the tree is deleted",
+                () -> assertThat(anEarlierLayoutsCopy).hasContent(WHAT_A_CORPUS_DOCUMENT_SAYS));
+        claim(
+                "while both documents' copies stand in the group's folder, beside its page",
+                () -> assertThat(theCopiesOf(root))
+                        .extracting(DeliverableInvocationTest::contentOf)
+                        .containsExactlyInAnyOrder(WHAT_A_CORPUS_DOCUMENT_SAYS, WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS));
+        claim(
+                "and the closing line, after the count of documents not copied, says the folder holds an earlier"
+                        + " layout's copies and can be deleted by hand",
+                () -> assertThat(whatTheClosingLineSaysBesideThePath(root))
+                        .endsWith("and 0 documents not copied" + THE_DOCUMENTS_FOLDER_CAN_BE_DELETED));
     }
 
     @Test
@@ -1072,13 +1123,22 @@ class DeliverableInvocationTest {
     private Path theClusterPageFileOf(Path root) throws IOException {
         List<Path> pages = everyFileIn(theTreeOf(root)).stream()
                 .filter(file -> file.getFileName().toString().endsWith(".html"))
-                .filter(file -> !file.getFileName().toString().equals(Deliverable.INDEX_FILE_NAME))
+                .filter(file -> !file.equals(theIndexFileOf(root)))
                 .toList();
         if (pages.size() != ONE_CLUSTER) {
             throw new IllegalStateException(
                     "this corpus arranges one group and so writes one page, and the tree holds " + pages.size());
         }
         return pages.getFirst();
+    }
+
+    /**
+     * The copies of the tree this corpus's work wrote: every file in its one group's folder but the page, which is
+     * where a copy stands (ADR-280 §0).
+     */
+    private List<Path> theCopiesOf(Path root) throws IOException {
+        Path page = theClusterPageFileOf(root);
+        return everyFileIn(page.getParent()).stream().filter(file -> !file.equals(page)).toList();
     }
 
     /** Where every membership entry on {@code page} leads, each destination followed from the directory the page is in. */

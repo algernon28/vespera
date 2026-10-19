@@ -303,8 +303,12 @@ _Avoid_: retry, regeneration, repairing a synthesis doc (a synthesis doc is writ
 The pipeline's terminal state, and the deliverable: the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges — self-contained and handed over as files. It carries a verified copy of each surviving original it lists, checked against the key stage 2 recorded, so every link lands inside it (ADR-274). The files are written; nothing in this project carries them to a destination. Publication is the state they are handed over in, never an action this system takes. Whether and how it also carries the code stage 1 kept apart, in its code sets (ADR-284), is still to be decided (#573).
 _Avoid_: the wiki, the Confluence output, the export
 
+**Cluster folder**:
+The folder of the deliverable a cluster's page lies in, `<partition>/<cluster>/`, named with the cluster's place in its seed partition and the slug of its cluster label (ADR-112, ADR-280). It holds the page, `index.html`, the pictures the page shows, and the copy of each of the cluster's survivors. A rendering, like the label it is named from: never the cluster's identity.
+_Avoid_: group folder (group is how a cluster renders for a reader, never a name of ours), page folder
+
 **Copy**:
-A survivor's file, byte for byte as stage 2 read it, put in the deliverable's `documents/` under a name made of its occurrence id and its stem, and put there only once its bytes hash to the key stage 2 recorded (ADR-274 §2). Read from the archive, never written there, and recorded nowhere but in the tree. Not the "copy" of a representative occurrence: that is a file occurrence in the archive sharing a content identity with others, and a copy is the deliverable's, made whether or not the survivor has duplicates.
+A survivor's file, byte for byte as stage 2 read it, put in its cluster folder under its original's own file name, made safe for every operating system and cut to 100 code units and, with `.part` after it, to 255 UTF-8 bytes, with its occurrence id added before the extension only where that name collides with another in the folder (ADR-280), and put there only once its bytes hash to the key stage 2 recorded (ADR-274 §2). Its name is worked out from the cluster's members, never by reading the original. Read from the archive, never written there, and recorded nowhere but in the tree. Not the "copy" of a representative occurrence: that is a file occurrence in the archive sharing a content identity with others, and a copy is the deliverable's, made whether or not the survivor has duplicates.
 _Avoid_: duplicate (a file occurrence sharing a content identity), mirror, backup, export, the original (the file in the archive it was made from)
 
 **Copy outcome**:

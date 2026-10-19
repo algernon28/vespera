@@ -49,10 +49,8 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
 @Link(name = "ADR-149", url = Adr.A_SURVIVORS_PICTURES_REACH_ITS_CLUSTER_FILE, type = "adr")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+@Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class EntryPicturesTest {
-
-    /** The directory beside the page that its pictures are written to: the page's name without {@code .html}. */
-    private static final String THE_PICTURE_DIRECTORY = "1-fire-suppression-retrofits";
 
     /** The bytes of a picture only one document carries. */
     private static final byte[] A_DIAGRAM = bytes("a diagram");
@@ -137,29 +135,29 @@ class EntryPicturesTest {
 
     @Test
     @Story("A picture only one document carries is shown under that document")
-    @DisplayName("A picture is written beside the page under its digest's name and shown in its entry")
+    @DisplayName("A picture is written into the page's folder under its digest's name and shown in its entry")
     void writesAPictureAndShowsItUnderTheEntry(@TempDir Path pageDirectory) throws IOException {
         EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST), source(Map.of(FIRST.occurrence(), List.of(png(A_DIAGRAM)))), DeliverableProgress.NONE);
         StringBuilder page = new StringBuilder();
 
-        pictures.appendUnder(page, FIRST, pageDirectory, THE_PICTURE_DIRECTORY);
+        pictures.appendUnder(page, FIRST, pageDirectory);
 
         claim(
-                "the entry gains one paragraph showing the picture with empty alt text from the page's picture"
-                        + " directory under the name the deliverable gave it",
+                "the entry gains one paragraph showing the picture with empty alt text by the name the deliverable"
+                        + " gave it alone, the picture lying beside the page",
                 () -> assertThat(page.toString())
-                        .isEqualTo("<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + THE_DIAGRAMS_FILE
+                        .isEqualTo("<p><img src=\"" + THE_DIAGRAMS_FILE
                                 + "\" alt=\"\"></p>\n"));
         claim(
-                "the file holds the picture's own bytes, beside the page",
-                () -> assertThat(pageDirectory.resolve(THE_PICTURE_DIRECTORY).resolve(THE_DIAGRAMS_FILE))
+                "the file holds the picture's own bytes, in the page's folder",
+                () -> assertThat(pageDirectory.resolve(THE_DIAGRAMS_FILE))
                         .hasBinaryContent(A_DIAGRAM));
     }
 
     @Test
     @Story("A picture that recurs is furniture and is left out")
-    @DisplayName("An entry whose only pictures are furniture gains nothing, and no picture directory is made")
+    @DisplayName("An entry whose only pictures are furniture gains nothing, and no picture is written")
     void leavesFurnitureOut(@TempDir Path pageDirectory) throws IOException {
         EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST, SECOND),
@@ -169,14 +167,14 @@ class EntryPicturesTest {
                 DeliverableProgress.NONE);
         StringBuilder page = new StringBuilder();
 
-        pictures.appendUnder(page, SECOND, pageDirectory, THE_PICTURE_DIRECTORY);
+        pictures.appendUnder(page, SECOND, pageDirectory);
 
         claim(
-                "neither the shared logo nor the header picture is shown, nothing is said about them, and the"
-                        + " picture directory is not created for an entry with nothing to show",
+                "neither the shared logo nor the header picture is shown, nothing is said about them, and nothing"
+                        + " is written into the page's folder for an entry with nothing to show",
                 () -> {
                     assertThat(page.toString()).isEmpty();
-                    assertThat(pageDirectory.resolve(THE_PICTURE_DIRECTORY)).doesNotExist();
+                    assertThat(pageDirectory).isEmptyDirectory();
                 });
     }
 
@@ -190,14 +188,14 @@ class EntryPicturesTest {
                 DeliverableProgress.NONE);
         StringBuilder page = new StringBuilder();
 
-        pictures.appendUnder(page, FIRST, pageDirectory, THE_PICTURE_DIRECTORY);
+        pictures.appendUnder(page, FIRST, pageDirectory);
 
         claim(
                 "the tag and the entity are written as entities, so the caption can neither close the attribute nor"
                         + " add markup, and the brackets, the backtick and the backslash, which mean nothing to HTML,"
                         + " stay as the converter wrote them",
                 () -> assertThat(page.toString())
-                        .isEqualTo("<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + THE_DIAGRAMS_FILE + "\" alt=\""
+                        .isEqualTo("<p><img src=\"" + THE_DIAGRAMS_FILE + "\" alt=\""
                                 + THAT_CAPTION_AS_ALT_TEXT + "\"></p>\n"));
     }
 
@@ -236,13 +234,13 @@ class EntryPicturesTest {
                 DeliverableProgress.NONE);
         StringBuilder page = new StringBuilder();
 
-        pictures.appendUnder(page, FIRST, pageDirectory, THE_PICTURE_DIRECTORY);
+        pictures.appendUnder(page, FIRST, pageDirectory);
 
         claim(
                 "the JPEG is shown from a .jpg file named from its digest, and the GIF, for which no file is"
                         + " written, is counted in the line saying what is not shown",
                 () -> assertThat(page.toString())
-                        .isEqualTo("<p><img src=\"" + THE_PICTURE_DIRECTORY + "/" + nameOf(jpeg, ".jpg")
+                        .isEqualTo("<p><img src=\"" + nameOf(jpeg, ".jpg")
                                 + "\" alt=\"\"></p>\n"
                                 + "<p><em>1 more picture from this document is not shown.</em></p>\n"));
     }
@@ -255,7 +253,8 @@ class EntryPicturesTest {
         EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST), source(Map.of(FIRST.occurrence(), many)), DeliverableProgress.NONE);
         StringBuilder page = new StringBuilder();
-        pictures.appendUnder(page, FIRST, pageDirectory, THE_PICTURE_DIRECTORY);
+        Files.createDirectories(pageDirectory);
+        pictures.appendUnder(page, FIRST, pageDirectory);
         return page.toString();
     }
 

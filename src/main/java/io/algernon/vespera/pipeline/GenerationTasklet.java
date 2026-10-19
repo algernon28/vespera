@@ -535,6 +535,8 @@ class GenerationTasklet implements Tasklet {
                 copies.bytes);
         new InvocationRuns(chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext())
                 .recordDocumentsNotCopied(copies.notStanding());
+        new InvocationRuns(chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext())
+                .recordLeftBehind(copies.documentsFolderLeftBehind, Math.toIntExact(copies.foldersLeftBehind));
         openTheIndex(tree);
         return Optional.of(tree);
     }
@@ -561,6 +563,8 @@ class GenerationTasklet implements Tasklet {
         long noRoom;
         long other;
         long bytes;
+        boolean documentsFolderLeftBehind;
+        long foldersLeftBehind;
 
         /** The survivors whose copy does not stand: every outcome but a copy made or kept. */
         int notStanding() {
@@ -609,6 +613,7 @@ class GenerationTasklet implements Tasklet {
             @Override
             public void survivorAlreadyCopied() {
                 counts.alreadyStanding++;
+                toCopy.itemDone();
             }
 
             @Override
@@ -633,6 +638,23 @@ class GenerationTasklet implements Tasklet {
             public void survivorNotCopied() {
                 counts.other++;
                 toCopy.itemDone();
+            }
+
+            @Override
+            public void copiesAtALongPath(long copies) {
+                if (copies > 0) {
+                    LOG.warn(
+                            "Stage 6b (generation, copies): copies standing at a path longer than 259 characters,"
+                                    + " which some programs on Windows cannot open: {}; name a shorter deliverable"
+                                    + " root in vespera.deliverable-root",
+                            copies);
+                }
+            }
+
+            @Override
+            public void leftBehind(boolean documentsFolder, long otherFolders) {
+                counts.documentsFolderLeftBehind = documentsFolder;
+                counts.foldersLeftBehind = otherFolders;
             }
 
             @Override

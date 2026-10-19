@@ -46,6 +46,12 @@ class TheClosingLineCountsTheCopiesThatDoNotStandTest {
     /** No group of the tree is left unwritten, so the line's end is about the copies alone. */
     private static final int NO_GROUP_LEFT_UNWRITTEN = 0;
 
+    /** No earlier layout's folder of documents was left in the tree, so the line says nothing of one (ADR-280 §4). */
+    private static final boolean NO_DOCUMENTS_FOLDER_LEFT_BEHIND = false;
+
+    /** Nor any other folder an earlier drawing left. */
+    private static final int NO_OTHER_FOLDER_LEFT_BEHIND = 0;
+
     @Test
     @Story("The last thing an invocation says is what it produced and what is missing from it")
     @DisplayName("Where this invocation wrote no tree, the closing line names the index and says nothing of copies")
@@ -89,7 +95,12 @@ class TheClosingLineCountsTheCopiesThatDoNotStandTest {
                 QUESTIONS_WRITTEN,
                 AN_ARRANGEMENT,
                 THE_GENERATION_MODEL,
-                new NextAction.DeliverableSummary(A_TREE, NO_GROUP_LEFT_UNWRITTEN, documentsNotCopied),
+                new NextAction.DeliverableSummary(
+                        A_TREE,
+                        NO_GROUP_LEFT_UNWRITTEN,
+                        documentsNotCopied,
+                        NO_DOCUMENTS_FOLDER_LEFT_BEHIND,
+                        NO_OTHER_FOLDER_LEFT_BEHIND),
                 APPROVAL_MATCHES_THIS_INVOCATION);
     }
 
