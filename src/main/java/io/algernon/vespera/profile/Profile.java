@@ -49,10 +49,12 @@ package io.algernon.vespera.profile;
  *     because a footer in 400 of 500 documents and one in 400 of 400,000 are different phenomena — the
  *     values {@code similarity} itself stores stay counts regardless (ADR-073's "counters, never
  *     ratios").
- * @param embeddingModel gate 3's key (ADR-084, #107): which embedding model turns stage 5's scoring
- *     run on. Ships unset and purely operator-supplied — which model is a profile key, where it is
- *     served is application configuration. No {@code Measurement}-pointer method exists for this key:
- *     naming a model is not something a measurement pass could inform.
+ * @param embeddingModel gate 3's key (ADR-084, ADR-286): which embedding model stage 5 scores under.
+ *     Ships unset, and unset means a default applies — application configuration carries {@code
+ *     bge-m3:latest} and this key overrides it; stage 5 is gated only where neither names a model. The
+ *     third such key, after {@code generationModel} and {@code generationContextWindow}. Nothing is
+ *     written here when the default applies. No {@code Measurement}-pointer method exists for this
+ *     key: naming a model is not something a measurement pass could inform.
  * @param relevanceScoreFloor stage 5's relevance threshold (ADR-088, #110): a score on the scale
  *     ADR-020's function produces, below which a scored survivor is {@code below-threshold}. Ships
  *     unset, per <b>observe before enforce</b>, and an unset floor does not stop the run — stage 5
@@ -75,9 +77,9 @@ package io.algernon.vespera.profile;
  *     <b>The first key whose unset state means neither "no threshold" nor "gate shut" but "a default
  *     applies"</b>: application configuration carries a name, this key overrides it, and an
  *     unanswered key resolves to the configured value rather than ending the invocation. It is
- *     therefore not a gate, unlike {@code embeddingModel} — that model keys every vector and every
- *     relevance verdict, so a corpus scored under a model nobody chose has verdicts nobody can
- *     defend; this one keys a run whose output is prose, which the operator can read and judge
+ *     therefore not a gate, though {@code embeddingModel} now also ships a default (ADR-286) — that
+ *     model keys every vector and every relevance verdict, so its default is changed only by a
+ *     record; this one keys a run whose output is prose, which the operator can read and judge
  *     directly. No {@link Measurement} pointer, for the reason {@code embeddingModel} has none.
  * @param generationContextWindow how much of the model's window one of stage 6b's calls may work in
  *     (ADR-108, #182). The second key whose unset state means "a default applies": code carries a

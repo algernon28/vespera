@@ -9,12 +9,12 @@ import org.springframework.stereotype.Component;
 /**
  * Which model stage 6b generates under (ADR-114, #179).
  *
- * <p><b>Not a gate, and that is the decision this class is.</b> {@link EmbeddingModelGate} ends the
- * invocation when nobody has named a model; this resolves one and carries on. The two differ because
- * an embedding model keys every vector and every relevance verdict — a corpus scored under a model
- * nobody chose has verdicts nobody can defend — while a generation model keys a run whose output is
- * prose, which the operator opens and reads. Gating a choice the operator can check afterwards buys a
- * stop and no information.
+ * <p><b>Not a gate, and that is the decision this class is.</b> Both models now ship a configured
+ * default the profile overrides (ADR-286), but {@link EmbeddingModelGate} ends the invocation, the
+ * job succeeding, where neither names one, because blanking its key can be meant; here a blank
+ * default asks for nothing and stops the run as a misconfiguration. An embedding model keys every
+ * vector and every relevance verdict, so its default is changed only by a record, while a generation
+ * model keys a run whose output is prose, which the operator opens and reads.
  *
  * <p>The default lives where Spring AI's own auto-configuration already reads it, rather than under a
  * {@code vespera.*} key, so the chat model bean and the call name one model instead of two.

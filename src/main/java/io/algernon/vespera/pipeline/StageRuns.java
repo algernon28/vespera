@@ -243,7 +243,8 @@ class StageRuns {
     /**
      * Gate 3's scoring run, minted the first time this is called in this invocation.
      *
-     * @throws IllegalStateException if no embedding model is named — unreachable past {@link
+     * @throws IllegalStateException if neither the profile nor configuration names an embedding model
+     *     (ADR-286) — unreachable past {@link
      *     EmbeddingModelGate}'s own gate, and asserted by no test
      */
     RunId embeddingScoring() {
