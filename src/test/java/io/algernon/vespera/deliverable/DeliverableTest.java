@@ -346,7 +346,7 @@ class DeliverableTest {
                         + " not exist for a group nothing was written over",
                 () -> assertThat(tree.resolve(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED)
                                 .resolve(THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED)
-                                .resolve(Deliverable.INDEX_FILE_NAME))
+                                .resolve(Deliverable.CLUSTER_PAGE_NAME))
                         .isRegularFile());
     }
 
@@ -501,7 +501,7 @@ class DeliverableTest {
                         + " missing file would leave that listing saying something the index does not",
                 () -> assertThat(tree.resolve(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED)
                                 .resolve(THE_ONLY_ONE_PREFIX + THE_LABEL_SLUGGED)
-                                .resolve(Deliverable.INDEX_FILE_NAME))
+                                .resolve(Deliverable.CLUSTER_PAGE_NAME))
                         .isRegularFile());
         claim(
                 "and it keeps its place, in front of the group that was written: a group that sank to the"

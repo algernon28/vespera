@@ -452,6 +452,37 @@ class CopyNamesTest {
 
     @Test
     @Story("A document keeps its own name in its group's folder")
+    @DisplayName("Two names Windows upper-cases to one file collide even where decomposing them orders their marks apart")
+    void twoNamesNtfsHoldsAsOneCollideThoughTheirDecomposedKeysDiffer() {
+        String anAlphaWithYpogegrammeniThenAPerispomeni = "\u03B1\u0345\u0342";
+        String anAlphaWithAnIotaThenAPerispomeni = "\u03B1\u03B9\u0342";
+        List<ListedSurvivor> members = List.of(
+                member(81, "a/" + anAlphaWithYpogegrammeniThenAPerispomeni + ".pdf"),
+                member(82, "b/" + anAlphaWithAnIotaThenAPerispomeni + ".pdf"));
+        Map<Long, String> expected = Map.of(
+                81L, anAlphaWithYpogegrammeniThenAPerispomeni + ".pdf",
+                82L, anAlphaWithAnIotaThenAPerispomeni + "~82.pdf");
+        List<ListedSurvivor> theOtherWayRound = List.of(
+                member(81, "a/" + anAlphaWithAnIotaThenAPerispomeni + ".pdf"),
+                member(82, "b/" + anAlphaWithYpogegrammeniThenAPerispomeni + ".pdf"));
+        Map<Long, String> expectedTheOtherWayRound = Map.of(
+                81L, anAlphaWithAnIotaThenAPerispomeni + ".pdf",
+                82L, anAlphaWithYpogegrammeniThenAPerispomeni + "~82.pdf");
+
+        claim(
+                "NTFS upper-cases each unit, so U+03B1 U+0345 U+0342 and U+03B1 U+03B9 U+0342 both become U+0391"
+                        + " U+0399 U+0342 and are one file there, though normalisation form D moves the subscript"
+                        + " after the perispomeni in the first and the decomposed keys differ: the names collide,"
+                        + " document 81 keeping its name and document 82 taking its number before the extension",
+                () -> assertThat(namesOf(members, NO_PICTURES)).containsExactlyInAnyOrderEntriesOf(expected));
+        claim(
+                "and with the two names the other way round, the lower occurrence still keeps its own",
+                () -> assertThat(namesOf(theOtherWayRound, NO_PICTURES))
+                        .containsExactlyInAnyOrderEntriesOf(expectedTheOtherWayRound));
+    }
+
+    @Test
+    @Story("A document keeps its own name in its group's folder")
     @DisplayName("A numbered name whose unfinished copy would be written over another document's copy takes the number again")
     void aSuffixedNameYieldsWhereItsPartIsANameAlreadyGiven() {
         Map<Long, String> names = namesOf(

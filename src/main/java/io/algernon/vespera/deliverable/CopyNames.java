@@ -64,29 +64,30 @@ final class CopyNames {
         List<Shape> shapes = new ArrayList<>();
         Set<String> reserved = new HashSet<>();
         for (String picture : pictureNames) {
-            reserved.add(keyOf(picture));
+            reserved.addAll(keysOf(picture));
         }
         for (ListedSurvivor member : ascending) {
             Shape shape = shapeOf(member);
             shapes.add(shape);
-            reserved.add(keyOf(shape.name() + PART));
+            reserved.addAll(keysOf(shape.name() + PART));
         }
 
         // Within each set of colliding names, the lowest occurrence id keeps the plain name, unless that name meets
         // a reserved one, in which case none does.
-        Map<String, Integer> firstWithKey = new LinkedHashMap<>();
+        Set<String> seen = new HashSet<>();
         Set<String> given = new HashSet<>();
+        Set<String> givenParts = new HashSet<>();
         boolean[] keepsItsName = new boolean[shapes.size()];
         for (int at = 0; at < shapes.size(); at++) {
-            String key = keyOf(shapes.get(at).name());
-            if (firstWithKey.putIfAbsent(key, at) == null && !isReserved(key, reserved)) {
+            String name = shapes.get(at).name();
+            Set<String> keys = keysOf(name);
+            boolean first = keys.stream().noneMatch(seen::contains);
+            seen.addAll(keys);
+            if (first && keys.stream().noneMatch(key -> isReserved(key, reserved))) {
                 keepsItsName[at] = true;
-                given.add(key);
+                given.addAll(keys);
+                givenParts.addAll(keysOf(name + PART));
             }
-        }
-        Set<String> givenParts = new HashSet<>();
-        for (String key : given) {
-            givenParts.add(keyOf(key + PART));
         }
 
         // The plain names kept count as given before the first suffix is, so each suffixed name meets every one.
@@ -105,17 +106,42 @@ final class CopyNames {
                 attempts++;
                 candidate = original.withSuffixes(suffix, attempts);
             }
-            given.add(keyOf(candidate));
-            givenParts.add(keyOf(candidate + PART));
+            given.addAll(keysOf(candidate));
+            givenParts.addAll(keysOf(candidate + PART));
             inOrder.put(occurrence, candidate);
         }
         return inOrder;
     }
 
     private static boolean isTaken(String name, Set<String> reserved, Set<String> given, Set<String> givenParts) {
-        String key = keyOf(name);
-        return isReserved(key, reserved) || given.contains(key) || givenParts.contains(key)
-                || given.contains(keyOf(name + PART));
+        for (String key : keysOf(name)) {
+            if (isReserved(key, reserved) || given.contains(key) || givenParts.contains(key)) {
+                return true;
+            }
+        }
+        return keysOf(name + PART).stream().anyMatch(given::contains);
+    }
+
+    /**
+     * Both collision keys of a name (ADR-280 §1.4): two names collide where a key of one equals a key of the other.
+     * {@link #keyOf} holds a name as a case-insensitive APFS volume compares it, {@link #unitKeyOf} as NTFS does; a key
+     * of one kind meeting one of the other only over-matches, which costs a suffix and nothing else.
+     */
+    static Set<String> keysOf(String name) {
+        return new HashSet<>(List.of(keyOf(name), unitKeyOf(name)));
+    }
+
+    /**
+     * The per-unit key: each UTF-16 code unit upper-cased on its own and nothing normalised, as NTFS compares names. It
+     * catches two names whose marks normalisation form D orders apart but which upper-case unit by unit to the same
+     * units, such as U+03B1 U+0345 U+0342 and U+03B1 U+03B9 U+0342.
+     */
+    static String unitKeyOf(String name) {
+        char[] units = name.toCharArray();
+        for (int at = 0; at < units.length; at++) {
+            units[at] = Character.toUpperCase(units[at]);
+        }
+        return new String(units);
     }
 
     private static boolean isReserved(String key, Set<String> reserved) {
