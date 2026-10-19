@@ -62,8 +62,8 @@ final class TaskletSteps {
             StepExecutionListener listener) {
         return new StepBuilder(name, jobRepository)
                 .tasklet(tasklet, transactionManager)
-                .listener(listener)
                 .listener(new StepFailureClosingLine())
+                .listener(listener)
                 .build();
     }
 

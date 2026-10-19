@@ -51,9 +51,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Epic("Architecture")
 @Feature("Process exit")
 @Issue("579")
-@Issue("585")
 @Link(name = "ADR-281", url = Adr.THE_CLOSING_LINE_IS_THE_LAST_LINE, type = "adr")
-@Link(name = "ADR-289", url = Adr.A_FAILING_STEP_ENDS_ON_ITS_OWN_CLOSING_LINE, type = "adr")
 @Link(name = "ADR-158", url = Adr.THE_PACKAGED_JAR_STARTS_NO_SIDECAR, type = "adr")
 @Link(name = "ADR-278", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN, type = "adr")
 class TheClosingLineIsTheLastLineIT {
@@ -214,7 +212,9 @@ class TheClosingLineIsTheLastLineIT {
 
     @Test
     @Story("The closing line is the last line")
-    @DisplayName("vespera run whose embedding-scoring step fails prints the line saying so last (#585)")
+    @Issue("585")
+    @Link(name = "ADR-289", url = Adr.A_FAILING_STEP_ENDS_ON_ITS_OWN_CLOSING_LINE, type = "adr")
+    @DisplayName("vespera run whose embedding-scoring step fails prints the line saying so last")
     void aRunWhoseEmbeddingStepFailsPrintsItsClosingLineLast() {
         Printed printed = runWhoseEmbeddingFails;
         String closingLine = "embedding-scoring failed and is not recorded as finished";

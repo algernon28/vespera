@@ -12,7 +12,7 @@ Measured on the packaged jar: embedding scoring failing on a server error from O
 
 ## Decision
 
-`StepFailureClosingLine`, one `StepExecutionListener`, is registered by every builder in `TaskletSteps`: census, stages 1, 3 and 5 to 7. When the step did not complete and recorded an exception, `afterStep` logs at ERROR `Step <name> failed and is not recorded as finished: <cause>. Fix what that names and run the same command again.`, the cause read by `StepFailure.named`. It is the last line (ADR-281 §2).
+`StepFailureClosingLine`, one `StepExecutionListener`, is registered by every builder in `TaskletSteps`: census, stages 1, 3, 4b, 5, 6a and 6b. It is registered before a caller's own listener, as Spring Batch runs `afterStep` in reverse order, so the line stays last. When the step did not complete and recorded an exception, `afterStep` logs at ERROR `Step <name> failed and is not recorded as finished: <cause>. Fix what that names and run the same command again.`, the cause read by `StepFailure.named`. It is the last line (ADR-281 §2).
 
 It says nothing for a step that ended FAILED with no exception, which writes its own line from inside the tasklet (embedding scoring's refusals, generation's stop), nor for stage 1's archive gone, whose line is already there. Extraction, seed extraction and stage 4a keep their own lines, which carry counts.
 
@@ -29,4 +29,5 @@ It says nothing for a step that ended FAILED with no exception, which writes its
 
 | Method | What it holds |
 | --- | --- |
+| `pipeline.StepFailureClosingLineTest` | one line for a step that failed with an exception, naming the step and the cause; none for a completed step, for a step that failed without an exception, or for stage 1's archive gone |
 | `pipeline.TheClosingLineIsTheLastLineIT.aRunWhoseEmbeddingStepFailsPrintsItsClosingLineLast` | the packaged jar, Ollama answering every embed call with 500: exit 1, and the last line that is not blank names `embedding-scoring` as failed and not recorded as finished, ending on its advice |
