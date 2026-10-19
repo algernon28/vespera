@@ -654,7 +654,7 @@ class CodeSetTaskletTest {
                         .contains("<td>file of a tree Javadoc generated</td><td class=\"count\">1</td>"));
         claim(
                 "and it names no folder of a set",
-                () -> assertThat(html).doesNotContain("proj/api").doesNotContain("proj/"));
+                () -> assertThat(html).doesNotContainPattern("\\b(proj|lib)\\b"));
     }
 
     @Test
