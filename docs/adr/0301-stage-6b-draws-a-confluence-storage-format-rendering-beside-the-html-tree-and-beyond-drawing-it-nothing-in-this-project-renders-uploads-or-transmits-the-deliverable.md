@@ -6,7 +6,7 @@
 - **Amends**: [ADR-102](0102-publication-is-the-state-the-deliverable-is-handed-over-in-never-a-verb-this-project-uses.md), its section *"The artifact entry stops answering a question that is open"*: the **Publication-ready artifact** entry names the HTML tree and, beside it, a drawn Confluence storage-format rendering of it (§2). Its Decision stands: publication is an adjective and never a verb, and nothing in this project is ever said to publish anything.
 - **Amends**: [ADR-274](0274-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md), its Decided here 1, whose refusal of Markdown stands and whose reason "two renderings of one tree are two to keep in step" no longer bars a second rendering (§4). Its Keeps of ADR-101 and ADR-102, its §1 for the HTML tree, and its refused alternative *Markdown beside the HTML* stand.
 - **Partly reopens**: [ADR-002](0002-confluence-is-the-publication-target.md), only as far as §3 says: Confluence is again a target a rendering is drawn for, and not a destination this project sends anything to. Everything else ADR-101 superseded of it stays superseded.
-- **Partly reopens**: [ADR-023](0023-surviving-originals-stored-in-confluence-as-attachments.md), only as far as §3 says: the rendering may carry the survivors' copies as files on their cluster's page. Whether and how it does is [#617](https://github.com/algernon28/vespera/issues/617)'s.
+- **Partly reopens**: [ADR-023](0023-surviving-originals-stored-in-confluence-as-attachments.md), only as far as §3 says: the rendering carries the survivors' copies as files on their cluster's page, as ruling 5 of [#604](https://github.com/algernon28/vespera/issues/604) fixes; how it carries them is [#617](https://github.com/algernon28/vespera/issues/617)'s to record.
 - **Keeps**: [ADR-025](0025-stage-7-is-an-adapter-not-a-stage.md) as ADR-101 amended it: the pipeline terminates at a self-contained artifact, and rendering it into a destination of any kind is not this project's concern; drawing a second set of files at the terminus is not that (§1).
 - **Decided**: under the operator's ruling 1 of map [#604](https://github.com/algernon28/vespera/issues/604), of 2026-10-19, that ADR-101's Decision and ADR-102's artifact entry are amended for a drawn Confluence rendering only, partly reopening ADR-002 and ADR-023, and that beyond drawing it Vespera renders, uploads or transmits nothing anywhere itself; and under the operator's delegation for how far each record is amended (§1 to §4).
 - **Rests on**: [`docs/research/confluence-loading.md`](../research/confluence-loading.md) — the research of [#605](https://github.com/algernon28/vespera/issues/605): what storage format is and what the tree is not, §1 and §2.5.
@@ -36,14 +36,14 @@ The rest of ADR-101 stands: seven stages, stage 7 struck and not an adapter, no 
 
 ### 2. ADR-102's artifact entry, as it now reads
 
-The **Publication-ready artifact** names: **the arrangement and the synthesis docs written over it, self-contained and handed over as files — an HTML tree, and beside it a drawn Confluence storage-format rendering of it.** What ADR-274, ADR-280 and ADR-296 add to the entry, the copies and the code, stands.
+The **Publication-ready artifact** names: **the arrangement and the synthesis docs written over it, self-contained and handed over as files — an HTML tree, and beside it a drawn Confluence storage-format rendering of it.** What ADR-274, ADR-284 and ADR-296 add to the entry, the copies and the code, stands.
 
 *Publication* stays an adjective, the state the files are handed over in, and is never a verb with this project as its actor. Nothing in this project is ever said to publish anything. The rendering is drawn, and nothing here uploads it. The entry's _Avoid_ line stands: the artifact is not named after the wiki or after one of its renderings.
 
 ### 3. How far ADR-002 and ADR-023 reopen
 
 - **ADR-002**: Confluence is again a target a rendering is drawn for, its storage format being what the rendering is written in, for the editions [#609](https://github.com/algernon28/vespera/issues/609) settles. It is not a destination this project sends anything to: that the sink is reached is the operator's own loader's doing. Everything else ADR-101 superseded of ADR-002 stays superseded.
-- **ADR-023**: the rendering may carry the survivors' copies as files on their cluster's page, so its argument that the result is self-contained and searchable, rather than links into a directory, returns for the rendering. Whether and how the copies are carried is #617's to record, not this record's.
+- **ADR-023**: the rendering carries the survivors' copies as files on their cluster's page (ruling 5 of #604), so its argument that the result is self-contained and searchable, rather than links into a directory, returns for the rendering. How it carries them is #617's to record, not this record's.
 
 Neither record's banner *"Superseded — see ADR-101"* is removed. Each gains a second banner, *"Partly reopened — see ADR-301"*, stating the reach above. Their verbatim summaries are untouched: a reconstituted record keeps its summary, and the banner is what tells a reader how much of it holds.
 
@@ -80,7 +80,7 @@ This record changes no code, and no test holds it. The parity of the two renderi
 - **That Vespera never sends the tree**, holds no credentials, opens no connection and adds no command: [#608](https://github.com/algernon28/vespera/issues/608).
 - **Which edition is drawn for, and the storage format each takes**: [#609](https://github.com/algernon28/vespera/issues/609).
 - **That the rendering is drawn always, with no setting**, and where it lies: [#612](https://github.com/algernon28/vespera/issues/612).
-- **Whether and how the copies are carried as files on a page**: [#617](https://github.com/algernon28/vespera/issues/617).
+- **How the copies are carried as files on their cluster's page**: [#617](https://github.com/algernon28/vespera/issues/617).
 - **What the root page holds**: [#616](https://github.com/algernon28/vespera/issues/616).
 - **Which space the rendering is loaded into, and how**: [#613](https://github.com/algernon28/vespera/issues/613).
 - **What the operator's loader is handed and may rely on**: [#618](https://github.com/algernon28/vespera/issues/618) and [#619](https://github.com/algernon28/vespera/issues/619).
