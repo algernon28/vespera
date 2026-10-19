@@ -78,30 +78,28 @@ class NextActionNamesTheNextInvocationTest {
 
     @Test
     @Story("The control panel learns which values the next run wants")
-    @DisplayName("With nothing set, the next command is a run wanting the seed folder, the boilerplate floor and the embedding model, in that order")
-    void withNothingSetTheNextRunWantsTheThreeRunValuesInOrder() {
+    @DisplayName("With nothing set, the next command is a run wanting the seed folder and the boilerplate floor, in that order")
+    void withNothingSetTheNextRunWantsTheTwoRunValuesInOrder() {
         NextAction.Closing closing = NextAction.closing(ProfileFixture.profile().build(), NOTHING_ANSWERED,
                 NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
-        claim("the next command is a run wanting seedFolder, boilerplateDocumentFrequencyFloor and embeddingModel,"
-                        + " in that order, with no questions to answer and no arrangement to approve",
-                () -> assertThat(closing.next()).isEqualTo(run(
-                        "seedFolder", "boilerplateDocumentFrequencyFloor", "embeddingModel")));
+        claim("the next command is a run wanting seedFolder and boilerplateDocumentFrequencyFloor, in that order,"
+                        + " with no questions to answer and no arrangement to approve",
+                () -> assertThat(closing.next()).isEqualTo(run("seedFolder", "boilerplateDocumentFrequencyFloor")));
         namedByTheLineInItsOrder(closing);
     }
 
     @Test
     @Story("The control panel learns which values the next run wants")
-    @DisplayName("With the seed folder named first, the next run wants the boilerplate floor and the embedding model")
-    void withTheSeedFolderSetTheNextRunWantsTheOtherTwo() {
+    @DisplayName("With the seed folder named first, the next run wants the boilerplate floor")
+    void withTheSeedFolderSetTheNextRunWantsTheFloor() {
         Profile profile = ProfileFixture.profile().seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR).build();
 
         NextAction.Closing closing = NextAction.closing(profile, NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED,
                 THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
-        claim("the next command is a run wanting boilerplateDocumentFrequencyFloor and embeddingModel, and not the"
-                        + " seed folder already set",
-                () -> assertThat(closing.next()).isEqualTo(run("boilerplateDocumentFrequencyFloor", "embeddingModel")));
+        claim("the next command is a run wanting boilerplateDocumentFrequencyFloor, and not the seed folder already set",
+                () -> assertThat(closing.next()).isEqualTo(run("boilerplateDocumentFrequencyFloor")));
         namedByTheLineInItsOrder(closing);
     }
 

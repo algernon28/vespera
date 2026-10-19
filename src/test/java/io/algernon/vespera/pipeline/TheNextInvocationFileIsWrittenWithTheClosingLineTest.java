@@ -77,7 +77,7 @@ class TheNextInvocationFileIsWrittenWithTheClosingLineTest {
 
     @Test
     @Story("The jar writes what the next invocation wants")
-    @DisplayName("A run with nothing set ends with exit code 0 and writes a run wanting the three run values")
+    @DisplayName("A run with nothing set ends with exit code 0 and writes a run wanting the two run values")
     void aRunWritesTheFileWithItsClosingLine(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
 
@@ -85,11 +85,11 @@ class TheNextInvocationFileIsWrittenWithTheClosingLineTest {
 
         claim("the run ended with exit code 0",
                 () -> assertThat(cli.getExitCode()).isZero());
-        claim("and wrote the file: a run wanting seedFolder, boilerplateDocumentFrequencyFloor and embeddingModel,"
-                        + " in that order, with no answers wanted",
+        claim("and wrote the file: a run wanting seedFolder and boilerplateDocumentFrequencyFloor, in that order,"
+                        + " with no answers wanted",
                 () -> assertThat(propertiesIn(workingDirectory)).isEqualTo(Map.of(
                         "invocation", "run",
-                        "wants", "seedFolder boilerplateDocumentFrequencyFloor embeddingModel",
+                        "wants", "seedFolder boilerplateDocumentFrequencyFloor",
                         "answer", "false")));
     }
 

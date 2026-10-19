@@ -20,9 +20,9 @@ The control panel links no class of the jar (ADR-285 §3), and its whole contrac
 
 The closing line is English for a person. `NextAction` words it in one place so that two invocations print the same sentence, and the wording is free to change: the line has been reworded with every key it learned to name. A program parsing it breaks at a rewording with no error, reading the wrong key or none.
 
-`NextAction` names, of the keys the next `vespera run` stops for, `seedFolder`, `boilerplateDocumentFrequencyFloor` and `embeddingModel`, together and in that order, and otherwise `relevanceScoreFloor` or `arrangementApproved`; and of the keys that are no stop, only the first, in a fixed order, that holds something nothing can be read from: `relevanceScoreFloor`, `degenerateOutputConfidenceFloor`, `degenerateOutputWordFloor`, `logTimestampShareFloor`, `outOfScopeNameEndings`, `codeNameEndings`, the two lists where they share an ending, `configurationSettingShareFloor`, `translationSimilarityFloor`, `preferredLanguages` and `extractionAttempt`. A key that is no stop and is unset is not named. `degenerateOutputWordFloor` (ADR-282) and `configurationSettingShareFloor` (ADR-287) ship unset and are such keys.
+`NextAction` names, of the keys the next `vespera run` stops for, `seedFolder` and `boilerplateDocumentFrequencyFloor`, together and in that order (`embeddingModel` being no stop since ADR-298), and otherwise `relevanceScoreFloor` or `arrangementApproved`; and of the keys that are no stop, only the first, in a fixed order, that holds something nothing can be read from: `relevanceScoreFloor`, `degenerateOutputConfidenceFloor`, `degenerateOutputWordFloor`, `logTimestampShareFloor`, `outOfScopeNameEndings`, `codeNameEndings`, the two lists where they share an ending, `configurationSettingShareFloor`, `translationSimilarityFloor`, `preferredLanguages` and `extractionAttempt`. A key that is no stop and is unset is not named. `degenerateOutputWordFloor` (ADR-282) and `configurationSettingShareFloor` (ADR-287) ship unset and are such keys.
 
-The README walks five invocations: `vespera run`; `vespera run` after `boilerplateDocumentFrequencyFloor` and `embeddingModel`, the seed folder named before the first; `vespera label` after the answers; `vespera run` after `relevanceScoreFloor`; `vespera run` after `arrangementApproved`. ADR-098's title says four.
+The README walks five invocations: `vespera run`; `vespera run` after `boilerplateDocumentFrequencyFloor`, the seed folder named before it; `vespera label` after the answers; `vespera run` after `relevanceScoreFloor`; `vespera run` after `arrangementApproved`. ADR-098's title says four.
 
 ## Decision
 
@@ -47,7 +47,7 @@ The file holds no path, no text of a document and nothing read from one: only `i
 
 | The closing line's next act | `invocation` | `wants` | `answer` | `arrangement` |
 | --- | --- | --- | --- | --- |
-| write the run values still unset or unreadable, of `seedFolder`, `boilerplateDocumentFrequencyFloor`, `embeddingModel` | `run` | those keys, in that order | `false` | — |
+| write the run values still unset or unreadable, of `seedFolder`, `boilerplateDocumentFrequencyFloor` | `run` | those keys, in that order | `false` | — |
 | write a score into an unreadable `relevanceScoreFloor` | `run` | `relevanceScoreFloor` | `false` | — |
 | write a readable value into the one unreadable key it names, of `degenerateOutputConfidenceFloor`, `degenerateOutputWordFloor`, `logTimestampShareFloor`, `outOfScopeNameEndings`, `codeNameEndings`, `configurationSettingShareFloor`, `translationSimilarityFloor`, `preferredLanguages`, `extractionAttempt` | `run` | that key | `false` | — |
 | remove from one of the two lists each ending both hold | `run` | `outOfScopeNameEndings codeNameEndings` | `false` | — |
@@ -72,7 +72,7 @@ The control panel reads `next-invocation.properties` from the child's working di
 
 It walks no fixed list of invocations. It walks one loop: after a child ends with 0, read the file; where there is none, or `invocation=none`, there is no next act to offer; otherwise collect what `wants`, `answer` and `arrangement` name, and offer `invocation` as the next command. Every start is the operator's act (ADR-278), and the closing line says, in words, what a `run` with empty `wants` is waiting on.
 
-On the shipped profile with the seed folder named first, the loop is the README's five: `run`; `run` wanting `boilerplateDocumentFrequencyFloor embeddingModel`; `label` with `answer=true`; `run` wanting `relevanceScoreFloor`; `run` wanting `arrangementApproved` with its `arrangement`; then `none`. `degenerateOutputWordFloor` and `configurationSettingShareFloor` add no step: they ship unset, and appear in `wants` only when they hold something nothing can be read from. A file present but not in §1's shape, an `invocation` that is not one of its three words, an `answer` that is not `true` or `false`, an `arrangement` without `arrangementApproved` in `wants` or the reverse, `answer=true` without `label`, or `none` with keys wanted, is read as unreadable, and the control panel offers nothing from it.
+On the shipped profile with the seed folder named first, the loop is the README's five: `run`; `run` wanting `boilerplateDocumentFrequencyFloor`; `label` with `answer=true`; `run` wanting `relevanceScoreFloor`; `run` wanting `arrangementApproved` with its `arrangement`; then `none`. `degenerateOutputWordFloor` and `configurationSettingShareFloor` add no step: they ship unset, and appear in `wants` only when they hold something nothing can be read from. A file present but not in §1's shape, an `invocation` that is not one of its three words, an `answer` that is not `true` or `false`, an `arrangement` without `arrangementApproved` in `wants` or the reverse, `answer=true` without `label`, or `none` with keys wanted, is read as unreadable, and the control panel offers nothing from it.
 
 ### 5. What the screens ticket takes from this
 

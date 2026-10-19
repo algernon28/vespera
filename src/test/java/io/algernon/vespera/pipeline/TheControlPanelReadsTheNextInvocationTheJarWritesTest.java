@@ -36,8 +36,8 @@ class TheControlPanelReadsTheNextInvocationTheJarWritesTest {
     /** Each shape the jar writes: keys wanted, several in order, answers wanted, an approval, and nothing left. */
     static Stream<Arguments> whatTheJarWrites() {
         return Stream.of(
-                Arguments.of("a run wanting the three run values", new Contents(Invocation.RUN,
-                        List.of("seedFolder", "boilerplateDocumentFrequencyFloor", "embeddingModel"), false,
+                Arguments.of("a run wanting the two run values", new Contents(Invocation.RUN,
+                        List.of("seedFolder", "boilerplateDocumentFrequencyFloor"), false,
                         Optional.empty())),
                 Arguments.of("a run wanting both lists of endings", new Contents(Invocation.RUN,
                         List.of("outOfScopeNameEndings", "codeNameEndings"), false, Optional.empty())),
