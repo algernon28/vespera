@@ -90,6 +90,8 @@ public class WorkingDirectoryLock implements ApplicationListener<ApplicationEnvi
         } catch (IOException e) {
             throw new UncheckedIOException("could not write the holder's line to " + lockFile, e);
         }
+        // The file is the last successful invocation's, and this one has not ended (ADR-294 §3).
+        NextInvocationFile.deleteIn(workingDirectory);
     }
 
     /** Lets go of every lock this JVM holds, for a test to hand the directory back. No-op when none. */

@@ -2057,6 +2057,16 @@ public final class Adr {
             + "0293-an-operational-record-that-is-not-a-log-or-a-configuration-file-is-left-to-relevance-and-its-name-ending-is-the-operators-to-list.md";
 
     /**
+     * ADR-294 -- every invocation ending on the closing line writes {@code next-invocation.properties} in the working
+     * directory from the same branch of {@code NextAction}: the next invocation, the profile keys it wants in the
+     * line's order, whether labels are to be answered and the arrangement to approve, and no path; an invocation
+     * holding the working-directory lock deletes it as it starts, and the control panel reads it after exit 0
+     * (amends ADR-285 §3).
+     */
+    public static final String THE_CONTROL_PANEL_LEARNS_WHAT_THE_NEXT_INVOCATION_WANTS_FROM_A_FILE = FILE
+            + "0294-the-control-panel-learns-what-the-next-invocation-wants-from-a-file-the-jar-writes-with-the-closing-line.md";
+
+    /**
      * ADR-295 -- the control panel writes profile.yaml one key at a time, the answers of relevance-labels.yaml and
      * code-set-names.yaml, each whole by a move, only from the form the jar or it writes, holding the working-directory
      * lock while no invocation it started runs; each value checked as the jar reads it, and the cost said before

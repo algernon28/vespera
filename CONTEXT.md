@@ -268,7 +268,7 @@ The page `vespera run` rewrites in the working directory while it runs, `progres
 _Avoid_: dashboard, monitor, status page
 
 **Control panel**:
-The program on the operator's machine that starts one invocation at a time as its own child, shows how it goes and how it ended, and stops it by ending its process (ADR-278). It runs the command as shipped (ADR-278), judges nothing, and passes only values the operator typed or confirmed.
+The program on the operator's machine that starts one invocation at a time as its own child, shows how it goes and how it ended, and stops it by ending its process (ADR-278). It runs the command as shipped (ADR-278), judges nothing, and passes only values the operator typed or confirmed. What the next invocation wants it reads from `next-invocation.properties`, which the jar writes with the closing line, and never from the line's words (ADR-294).
 _Avoid_: console (the jar's standard output, ADR-093), launcher (ADR-158; the Docling image's `launcher.py`, ADR-179), GUI, dashboard, front-end, app, UI, wrapper. Also "panel" alone, in a name of ours.
 
 **Launch value**:
