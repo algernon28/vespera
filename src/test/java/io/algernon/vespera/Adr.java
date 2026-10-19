@@ -2027,6 +2027,15 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES = FILE
             + "0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md";
 
+    /**
+     * ADR-295 -- the control panel writes profile.yaml one key at a time, the answers of relevance-labels.yaml and
+     * code-set-names.yaml, each whole by a move, only from the form the jar or it writes, holding the working-directory
+     * lock while no invocation it started runs; each value checked as the jar reads it, and the cost said before
+     * saving (amends ADR-177).
+     */
+    public static final String THE_CONTROL_PANEL_WRITES_HOLDING_THE_WORKING_DIRECTORY_LOCK = FILE
+            + "0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md";
+
     private Adr() {
     }
 }
