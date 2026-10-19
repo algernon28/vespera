@@ -2122,6 +2122,16 @@ public final class Adr {
             + "0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md";
 
     /**
+     * ADR-303 -- {@code clusterPageByteCeiling}, a whole number of bytes from 1, shipped unset, splits a cluster's page
+     * whose one-page size is greater into {@code index.html} and {@code index-<k>.html} at entries' ends, filled
+     * greedily, each page within it but one of a single entry, linked first, previous, next and last, the citations
+     * naming the page their entry is on; unset, the page is as before; every drawing writes {@code
+     * cluster-page-sizes.html}, numbers only; no run id moves.
+     */
+    public static final String A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES = FILE
+            + "0303-a-clusters-page-past-the-profiles-byte-ceiling-is-split-at-an-entrys-end-into-pages-and-every-drawing-writes-the-pages-sizes.md";
+
+    /**
      * ADR-304 -- Vespera never sends the deliverable tree to Confluence itself: neither the jar nor the control
      * panel uploads the HTML tree or its Confluence rendering, holds a credential for Confluence or opens a
      * connection to it, and no command, option, dependency or module is added for a load; the operator loads with

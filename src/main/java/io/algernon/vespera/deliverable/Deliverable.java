@@ -4,6 +4,7 @@ import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.synthesis.ClusterSlot;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
+import io.algernon.vespera.synthesis.Unwritten;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
@@ -24,7 +25,8 @@ import java.util.stream.Stream;
 /**
  * Writes the tree the operator is actually handed (ADR-103, ADR-104, ADR-109, ADR-111, ADR-112, ADR-274, #186,
  * #187): a directory named for the run that produced it, opened by an HTML index that is mechanical rather than
- * generated, a folder per cluster holding its page and a verified copy of each of its survivors, and a manifest.
+ * generated, a folder per cluster holding its page, or pages where a ceiling splits it (ADR-303), and a verified copy of each of its
+ * survivors, and a manifest.
  *
  * <p><b>Plain values only.</b> This class learns no step, no stage and no {@code Profile} (ADR-110):
  * everything it needs arrives as {@link DeliverableProvenance}, {@link SurvivorPictures} and an {@link
@@ -56,7 +58,11 @@ import java.util.stream.Stream;
  *
  * <p><b>Each cluster's page is written an entry at a time to {@code index.html.part} in its folder and
  * moved over its place before the next</b> (ADR-286 §2, §3), its pictures inlined and no picture file written; a move
- * that fails fails the drawing before the index and the manifest are moved.
+ * that fails fails the drawing before the index and the manifest are moved. <b>Past the ceiling the page is written
+ * a second time as its pages</b>, the further pages moved into place before the first (ADR-303 §3, §4).
+ *
+ * <p><b>Every drawing writes {@value #CLUSTER_PAGE_SIZES_FILE_NAME} in the working directory</b>, after the index and
+ * the manifest are in place (ADR-303 §8).
  *
  * <p><b>The index and the manifest are written beside their targets and moved into place</b> (ADR-223
  * section 6), each move attempted again where it is refused as access denied or, on Windows or a drive Windows
@@ -87,8 +93,17 @@ public final class Deliverable {
     /** The listing of the members of the code sets, at the root of a tree whose run has one (ADR-296 §5). */
     public static final String CODE_LISTING_FILE_NAME = CodeCopies.LISTING_FILE_NAME;
 
-    /** A cluster's page, in its cluster's folder (ADR-280 §0). */
+    /** The report of the cluster pages' sizes, in the working directory beside the other reports (ADR-303 §8). */
+    public static final String CLUSTER_PAGE_SIZES_FILE_NAME = ClusterPageSizes.FILE_NAME;
+
+    /** A cluster's first page, in its cluster's folder (ADR-280 §0, ADR-303 §4). */
     static final String CLUSTER_PAGE_NAME = "index.html";
+
+    /** What a further page's name opens with, the page's number following (ADR-303 §4). */
+    static final String FURTHER_PAGE_STEM = "index-";
+
+    /** What every page's name ends with. */
+    static final String PAGE_EXTENSION = ".html";
 
     /** What a page is called while it is being written beside its target, before it is moved over it. */
     static final String PART_SUFFIX = ".part";
@@ -158,8 +173,8 @@ public final class Deliverable {
             SurvivorPictures pictures,
             DeliverableProgress progress) {
         return writeTo(
-                workingDirectory, root, provenance, source, ListedCodeSets.NONE, pictures, progress,
-                ReplacingMove.ATOMIC);
+                workingDirectory, root, provenance, source, ListedCodeSets.NONE, pictures, new ClusterPageCeiling.Unset(),
+                progress, ReplacingMove.ATOMIC);
     }
 
     /**
@@ -175,7 +190,25 @@ public final class Deliverable {
             ListedCodeSets code,
             SurvivorPictures pictures,
             DeliverableProgress progress) {
-        return writeTo(workingDirectory, root, provenance, source, code, pictures, progress, ReplacingMove.ATOMIC);
+        return writeTo(
+                workingDirectory, root, provenance, source, code, pictures, new ClusterPageCeiling.Unset(), progress,
+                ReplacingMove.ATOMIC);
+    }
+
+    /**
+     * As above, with the byte ceiling past which a cluster's page is split into pages at an entry's end (ADR-303):
+     * {@link ClusterPageCeiling.Unset} to write the tree this class wrote before it knew about ceilings.
+     */
+    public static Path writeTo(
+            Path workingDirectory,
+            DeliverableRoot root,
+            DeliverableProvenance provenance,
+            ArrangedSurvivors source,
+            ListedCodeSets code,
+            SurvivorPictures pictures,
+            ClusterPageCeiling ceiling,
+            DeliverableProgress progress) {
+        return writeTo(workingDirectory, root, provenance, source, code, pictures, ceiling, progress, ReplacingMove.ATOMIC);
     }
 
     /**
@@ -191,7 +224,9 @@ public final class Deliverable {
             SurvivorPictures pictures,
             DeliverableProgress progress,
             ReplacingMove moves) {
-        return writeTo(workingDirectory, root, provenance, source, ListedCodeSets.NONE, pictures, progress, moves);
+        return writeTo(
+                workingDirectory, root, provenance, source, ListedCodeSets.NONE, pictures, new ClusterPageCeiling.Unset(),
+                progress, moves);
     }
 
     /** As above, with the code sets of the run (ADR-296) and the moves. */
@@ -204,9 +239,25 @@ public final class Deliverable {
             SurvivorPictures pictures,
             DeliverableProgress progress,
             ReplacingMove moves) {
+        return writeTo(
+                workingDirectory, root, provenance, source, code, pictures, new ClusterPageCeiling.Unset(), progress,
+                moves);
+    }
+
+    /** As above, with the ceiling (ADR-303) and the moves. */
+    static Path writeTo(
+            Path workingDirectory,
+            DeliverableRoot root,
+            DeliverableProvenance provenance,
+            ArrangedSurvivors source,
+            ListedCodeSets code,
+            SurvivorPictures pictures,
+            ClusterPageCeiling ceiling,
+            DeliverableProgress progress,
+            ReplacingMove moves) {
         Path tree = root.treeOf(workingDirectory, provenance.runId());
         return writeTo(
-                workingDirectory, root, provenance, source, code, pictures, progress, moves,
+                workingDirectory, root, provenance, source, code, pictures, ceiling, progress, moves,
                 () -> usableBytesAt(tree));
     }
 
@@ -224,8 +275,8 @@ public final class Deliverable {
             ReplacingMove moves,
             LongSupplier usableSpace) {
         return writeTo(
-                workingDirectory, root, provenance, source, ListedCodeSets.NONE, pictures, progress, moves,
-                usableSpace);
+                workingDirectory, root, provenance, source, ListedCodeSets.NONE, pictures, new ClusterPageCeiling.Unset(),
+                progress, moves, usableSpace);
     }
 
     /** As above, with the code sets of the run (ADR-296) and the free space. */
@@ -236,6 +287,23 @@ public final class Deliverable {
             ArrangedSurvivors source,
             ListedCodeSets code,
             SurvivorPictures pictures,
+            DeliverableProgress progress,
+            ReplacingMove moves,
+            LongSupplier usableSpace) {
+        return writeTo(
+                workingDirectory, root, provenance, source, code, pictures, new ClusterPageCeiling.Unset(), progress,
+                moves, usableSpace);
+    }
+
+    /** As above, with the ceiling (ADR-303) and the free space. */
+    static Path writeTo(
+            Path workingDirectory,
+            DeliverableRoot root,
+            DeliverableProvenance provenance,
+            ArrangedSurvivors source,
+            ListedCodeSets code,
+            SurvivorPictures pictures,
+            ClusterPageCeiling ceiling,
             DeliverableProgress progress,
             ReplacingMove moves,
             LongSupplier usableSpace) {
@@ -262,10 +330,11 @@ public final class Deliverable {
             progress.toCopySurvivors(aboutToCopy[0], aboutToCopy[1], usableSpace.getAsLong());
             long[] filesLeft = new long[1];
             Path[] listingPart = new Path[1];
+            ClusterPageSizes sizes = new ClusterPageSizes(ceiling);
             Path indexPart =
                     writeIndexAndClusterPages(
                             tree, provenance, partitions, source, entryPictures, copies, written, filesLeft, moves,
-                            progress,
+                            progress, ceiling, sizes,
                             index -> listingPart[0] = codeCopies.draw(code, namesTypedIn(workingDirectory, progress), index, written));
             progress.copiesAtALongPath(copies.copiesAtALongPath() + codeCopies.copiesAtALongPath());
             Path manifestPart = writeManifest(tree, source, copies, progress);
@@ -277,6 +346,7 @@ public final class Deliverable {
             if (listingPart[0] != null) {
                 moves.intoPlace(listingPart[0], tree.resolve(CODE_LISTING_FILE_NAME));
             }
+            sizes.writeTo(workingDirectory, moves);
             leftBehindBy(tree, written, progress);
             progress.filesLeftBehind(filesLeft[0]);
             return tree;
@@ -320,13 +390,15 @@ public final class Deliverable {
             long[] filesLeft,
             ReplacingMove moves,
             DeliverableProgress progress,
+            ClusterPageCeiling ceiling,
+            ClusterPageSizes sizes,
             TheCode theCode)
             throws IOException {
         // The three totals, announced before the loop over partitions. An entry carries a document exactly
         // where a survivor of its cluster is listed, so the entries with a document are the survivors the
         // arrangement arranges (ADR-192 section 5, ADR-223 section 6).
         progress.toWritePartitions(partitions.size());
-        progress.toWriteClusterFiles(partitions.stream().mapToLong(ListedPartition::clusterCount).sum());
+        progress.toDrawClusters(partitions.stream().mapToLong(ListedPartition::clusterCount).sum());
         progress.toWriteMembershipEntries(source.survivorCount());
 
         Path indexPart = tree.resolve(INDEX_FILE_NAME + PART_SUFFIX);
@@ -364,23 +436,39 @@ public final class Deliverable {
                     Optional<SynthesisDoc> doc = source.writtenOver(slot);
                     Path clusterFolder = partitionDir.resolve(IndexPage.clusterFolderName(recorded, clusterWidth));
                     List<ListedSurvivor> members = membersByCluster.getOrDefault(slot, List.of());
+                    SynthesisDoc writing = doc.orElse(null);
+                    Unwritten why = doc.isEmpty() ? source.whyUnwritten(slot).orElse(null) : null;
                     Path pagePart = clusterFolder.resolve(CLUSTER_PAGE_NAME + PART_SUFFIX);
+                    EntryEnds ends = new EntryEnds(ceiling instanceof ClusterPageCeiling.Bytes);
                     try (OutputStream page = Files.newOutputStream(pagePart)) {
                         ClusterPage.write(
-                                page,
-                                recorded,
-                                doc.orElse(null),
-                                doc.isEmpty() ? source.whyUnwritten(slot).orElse(null) : null,
-                                members,
-                                clusterFolder,
-                                copies,
-                                pictures,
-                                progress,
-                                bytesHandedOn -> {});
+                                page, recorded, writing, why, members, clusterFolder, copies, pictures, progress, ends);
                     }
-                    moves.intoPlace(pagePart, clusterFolder.resolve(CLUSTER_PAGE_NAME));
-                    filesLeft[0] += filesLeftIn(clusterFolder, members, copies);
-                    progress.clusterFileWritten();
+                    long onePageSize = Files.size(pagePart);
+                    Optional<ClusterPage.PageBreaks> breaks = ceiling instanceof ClusterPageCeiling.Bytes limit
+                                    && !members.isEmpty()
+                                    && ends.count() >= 2
+                                    && onePageSize > limit.bytes()
+                            ? ClusterPage.plan(
+                                    limit.bytes(),
+                                    recorded,
+                                    writing,
+                                    why,
+                                    ends.sizes(ClusterPage.bytesBeforeTheFirstEntry(recorded, writing, why)))
+                            : Optional.empty();
+                    int pageCount = breaks.map(ClusterPage.PageBreaks::pages).orElse(1);
+                    int pagesOver = 0;
+                    if (breaks.isEmpty()) {
+                        pagesOver = ceiling instanceof ClusterPageCeiling.Bytes limit && onePageSize > limit.bytes() ? 1 : 0;
+                        moves.intoPlace(pagePart, clusterFolder.resolve(CLUSTER_PAGE_NAME));
+                    } else {
+                        pagesOver = writePages(
+                                clusterFolder, recorded, writing, why, members, breaks.get(), copies, pictures, moves,
+                                ((ClusterPageCeiling.Bytes) ceiling).bytes());
+                    }
+                    sizes.drawn(onePageSize, ends.count(), pageCount, pagesOver);
+                    filesLeft[0] += filesLeftIn(clusterFolder, members, copies, pageCount);
+                    progress.clusterDrawn();
                     IndexPage.clusterRow(index, partition, partitions.size(), recorded, doc);
                 }
                 IndexPage.partitionEnd(index);
@@ -390,6 +478,47 @@ public final class Deliverable {
             IndexPage.close(index);
         }
         return indexPart;
+    }
+
+    /**
+     * Writes the pages of a cluster split at {@code breaks}, each beside its place, and moves the further pages into
+     * place in page order and the first page last, so that a reader reaching it finds the rest (ADR-303 §4); answers how
+     * many of them are larger than {@code ceiling}. The entries are asked of {@code pictures} again and told to nobody:
+     * the page written whole told each once (ADR-303 §3).
+     */
+    private static int writePages(
+            Path clusterFolder,
+            RecordedCluster recorded,
+            SynthesisDoc writing,
+            Unwritten why,
+            List<ListedSurvivor> members,
+            ClusterPage.PageBreaks breaks,
+            Copies copies,
+            EntryPictures pictures,
+            ReplacingMove moves,
+            long ceiling)
+            throws IOException {
+        List<Optional<ListedSurvivor>> numbered = ClusterPage.numbered(writing, members);
+        int over = 0;
+        List<Path> parts = new ArrayList<>();
+        for (int page = 2; page <= breaks.pages(); page++) {
+            parts.add(clusterFolder.resolve(ClusterPage.nameOfPage(page) + PART_SUFFIX));
+        }
+        parts.add(clusterFolder.resolve(CLUSTER_PAGE_NAME + PART_SUFFIX));
+        for (int at = 0; at < parts.size(); at++) {
+            int page = at + 1 < parts.size() ? at + 2 : 1;
+            try (OutputStream out = Files.newOutputStream(parts.get(at))) {
+                ClusterPage.writePage(out, recorded, writing, why, numbered, breaks, page, clusterFolder, copies, pictures);
+            }
+            if (Files.size(parts.get(at)) > ceiling) {
+                over++;
+            }
+        }
+        for (int page = 2; page <= breaks.pages(); page++) {
+            moves.intoPlace(parts.get(page - 2), clusterFolder.resolve(ClusterPage.nameOfPage(page)));
+        }
+        moves.intoPlace(parts.getLast(), clusterFolder.resolve(CLUSTER_PAGE_NAME));
+        return over;
     }
 
     /** What is drawn after the last group's table: the code sets, and the section of the index that lists them. */
@@ -435,13 +564,16 @@ public final class Deliverable {
     }
 
     /**
-     * How many regular files {@code clusterFolder} holds that are neither its {@code index.html} nor a name this
-     * drawing gave one of {@code members} (ADR-286 §4). A folder inside it is not counted, and a folder that cannot be
-     * listed counts none: the count is a courtesy.
+     * How many regular files {@code clusterFolder} holds that are neither one of its {@code pages} pages nor a name this
+     * drawing gave one of {@code members} (ADR-286 §4, ADR-303 §4): a page an earlier drawing wrote past the last of
+     * this one's is counted. A folder inside it is not counted, and a folder that cannot be listed counts none: the
+     * count is a courtesy.
      */
-    private static long filesLeftIn(Path clusterFolder, List<ListedSurvivor> members, Copies copies) {
+    private static long filesLeftIn(Path clusterFolder, List<ListedSurvivor> members, Copies copies, int pages) {
         Set<String> given = new HashSet<>();
-        given.add(CLUSTER_PAGE_NAME);
+        for (int page = 1; page <= pages; page++) {
+            given.add(ClusterPage.nameOfPage(page));
+        }
         for (ListedSurvivor member : members) {
             given.add(copies.nameOf(member));
         }

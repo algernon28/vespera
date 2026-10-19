@@ -114,12 +114,12 @@ class ProfileTest {
     private static final int ONE_CONSTRUCTOR = 1;
 
     /**
-     * How many keys the profile carries today, and therefore how many the one constructor takes: 16 since
-     * ADR-287 §7 added {@code configurationSettingShareFloor}, after ADR-277 §2 added {@code codeNameEndings} and
-     * ADR-282 §3 added {@code degenerateOutputWordFloor}. A new key raises this count; it never earns a second
-     * constructor.
+     * How many keys the profile carries today, and therefore how many the one constructor takes: 17 since
+     * ADR-303 §2 added {@code clusterPageByteCeiling}, after ADR-287 §7 added {@code configurationSettingShareFloor},
+     * ADR-277 §2 {@code codeNameEndings} and ADR-282 §3 {@code degenerateOutputWordFloor}. A new key raises this count;
+     * it never earns a second constructor.
      */
-    private static final int EVERY_KEY = 16;
+    private static final int EVERY_KEY = 17;
 
     @Test
     @Story("The profile record has one way in")
@@ -128,6 +128,7 @@ class ProfileTest {
     @Link(name = "ADR-119", url = Adr.PROFILE_HAS_ONE_CONSTRUCTOR, type = "adr")
     @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
     @Link(name = "ADR-287", url = Adr.LOGS_AND_CONFIGURATION_FILES_ARE_TOLD_BY_THEIR_BYTES, type = "adr")
+    @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
     void theRecordDeclaresASingleConstructor() {
         Constructor<?>[] constructors = Profile.class.getDeclaredConstructors();
 

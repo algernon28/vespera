@@ -401,6 +401,21 @@ class NextAction {
     }
 
     /**
+     * What the line says of a {@code clusterPageByteCeiling} it ignored, to follow every other clause of the sentence
+     * about the tree and precede its last full stop (ADR-303 §2.1): the key, what was written quoted back, and what came
+     * of it; and nothing where the value is unset or read, or this invocation drew no tree.
+     */
+    private static String pageCeilingIgnored(Profile profile, DeliverableSummary deliverable) {
+        if (deliverable.documentsNotCopied().isEmpty()
+                || !(ClusterPageByteCeiling.of(profile.clusterPageByteCeiling())
+                        instanceof ClusterPageByteCeiling.Ignored ignored)) {
+            return "";
+        }
+        return "; " + ClusterPageByteCeiling.KEY + " reads " + quoted(ignored.text())
+                + ", which is not a whole number of bytes of 1 or more, so it was ignored and no group's page was split";
+    }
+
+    /**
      * What the line says of what an earlier drawing left in the tree, to follow the count of documents not copied and
      * precede the line's last full stop (ADR-280 §4, ADR-286 §4): {@code documents/} named, any other folder and any
      * file counted and not named, in one clause, and nothing where nothing was left or this invocation drew no tree.
@@ -502,7 +517,7 @@ class NextAction {
                     + deliverable.tree().resolve(Deliverable.INDEX_FILE_NAME)
                     + ", with " + deliverable.clustersLeftUnwritten() + " "
                     + (deliverable.clustersLeftUnwritten() == 1 ? "group" : "groups") + " left unwritten"
-                    + notCopied + ofCode(deliverable) + leftBehind(deliverable) + ".");
+                    + notCopied + ofCode(deliverable) + leftBehind(deliverable) + pageCeilingIgnored(profile, deliverable) + ".");
         }
         if (!questionsWritten) {
             return runWanting(whatIsSet(profile, answersRecorded) + " No questions were written this invocation,"

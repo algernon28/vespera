@@ -243,6 +243,8 @@ class ProfileEditTest {
                 new Sample(ProfileKey.EXTRACTION_ATTEMPT, "2.0"),
                 new Sample(ProfileKey.GENERATION_CONTEXT_WINDOW, "1282"),
                 new Sample(ProfileKey.GENERATION_CONTEXT_WINDOW, "2147483647"),
+                new Sample(ProfileKey.CLUSTER_PAGE_BYTE_CEILING, "1"),
+                new Sample(ProfileKey.CLUSTER_PAGE_BYTE_CEILING, "9223372036854775807"),
                 new Sample(ProfileKey.OUT_OF_SCOPE_NAME_ENDINGS, ".P3A, .dgn .x.y"),
                 new Sample(ProfileKey.CODE_NAME_ENDINGS, ".java"),
                 new Sample(ProfileKey.PREFERRED_LANGUAGES, "it, EN"));
@@ -271,6 +273,11 @@ class ProfileEditTest {
                 "generationContextWindow is not saved: \"1281\" is not a whole number of tokens from 1282 to 2147483647");
         refused.put(new Sample(ProfileKey.GENERATION_CONTEXT_WINDOW, "4096.5"),
                 "generationContextWindow is not saved: \"4096.5\" is not a whole number of tokens from 1282 to 2147483647");
+        refused.put(new Sample(ProfileKey.CLUSTER_PAGE_BYTE_CEILING, "0"),
+                "clusterPageByteCeiling is not saved: \"0\" is not a whole number of bytes from 1 to 9223372036854775807");
+        refused.put(new Sample(ProfileKey.CLUSTER_PAGE_BYTE_CEILING, "9223372036854775808"),
+                "clusterPageByteCeiling is not saved: \"9223372036854775808\" is not a whole number of bytes from 1 to"
+                        + " 9223372036854775807");
         refused.put(new Sample(ProfileKey.OUT_OF_SCOPE_NAME_ENDINGS, ".P3A *.dgn"),
                 "outOfScopeNameEndings is not saved: \".P3A *.dgn\" is not a list of name endings, each beginning with a dot");
         refused.put(new Sample(ProfileKey.CODE_NAME_ENDINGS, ".."),

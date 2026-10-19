@@ -184,6 +184,9 @@ class ProfileStoreTest {
             generationContextWindow:
               value: "4097"
               provenance: "what this machine serves"
+            clusterPageByteCeiling:
+              value: "4098"
+              provenance: "read off the page sizes"
             logTimestampShareFloor:
               value: "0.54"
               provenance: "read off the format mix"

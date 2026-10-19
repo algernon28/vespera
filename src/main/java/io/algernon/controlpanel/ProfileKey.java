@@ -9,7 +9,7 @@ import java.util.Optional;
  * The control panel's table of profile keys (ADR-295 §5): one constant for each key {@code profile.yaml} holds, in the
  * order the jar's profile holds them, with its type and the earliest run it enters. A key is named as the file spells
  * it and a run as the jar's stage is named, as text, because the control panel links no class of the jar
- * (ADR-285 §3); a contract test holds both to the jar's.
+ * (ADR-285 §3); a contract test holds both to the jar's. {@code clusterPageByteCeiling} alone enters no run (ADR-303 §9).
  */
 public enum ProfileKey {
     SEED_FOLDER("seedFolder", Kind.TEXT, Run.SEED_MEASUREMENT),
@@ -21,6 +21,7 @@ public enum ProfileKey {
     ARRANGEMENT_APPROVED("arrangementApproved", Kind.TEXT, Run.GENERATION),
     GENERATION_MODEL("generationModel", Kind.TEXT, Run.GENERATION),
     GENERATION_CONTEXT_WINDOW("generationContextWindow", Kind.NUMBER, Run.GENERATION),
+    CLUSTER_PAGE_BYTE_CEILING("clusterPageByteCeiling", Kind.NUMBER, null),
     LOG_TIMESTAMP_SHARE_FLOOR("logTimestampShareFloor", Kind.NUMBER, Run.BYTE_LEVEL_REDUCTION),
     EXTRACTION_ATTEMPT("extractionAttempt", Kind.NUMBER, Run.EXTRACTION),
     CODE_NAME_ENDINGS("codeNameEndings", Kind.NAME_ENDINGS, Run.BYTE_LEVEL_REDUCTION),
@@ -73,11 +74,15 @@ public enum ProfileKey {
         return kind;
     }
 
-    public Run earliestRun() {
-        return earliestRun;
+    /** The earliest run the key enters, empty for the one key that enters none (ADR-303 §9). */
+    public Optional<Run> earliestRun() {
+        return Optional.ofNullable(earliestRun);
     }
 
     public Cost cost() {
+        if (earliestRun == null) {
+            return new Cost(List.of(), false, false);
+        }
         List<Run> all = List.of(Run.values());
         List<Run> runs = all.subList(all.indexOf(earliestRun), all.size());
         return new Cost(runs, runs.contains(Run.ARRANGEMENT), this == SEED_FOLDER);

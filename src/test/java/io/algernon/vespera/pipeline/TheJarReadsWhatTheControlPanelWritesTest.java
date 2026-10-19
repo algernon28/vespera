@@ -156,6 +156,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         refused.put(ProfileKey.DEGENERATE_OUTPUT_WORD_FLOOR, List.of("-1", "1.5", "NaN", "2147483648"));
         refused.put(ProfileKey.EXTRACTION_ATTEMPT, List.of("0", "1.5", "Infinity", "2147483648", "two"));
         refused.put(ProfileKey.GENERATION_CONTEXT_WINDOW, List.of("1281", "4096.5", "0", "1e18", "NaN", "big"));
+        refused.put(ProfileKey.CLUSTER_PAGE_BYTE_CEILING, List.of("0", "-1", "1.5", "NaN", "big", "9223372036854775808"));
         refused.put(ProfileKey.OUT_OF_SCOPE_NAME_ENDINGS, List.of(".P3A *.dgn", "dgn", ".."));
         refused.put(ProfileKey.CODE_NAME_ENDINGS, List.of(".java src/"));
         refused.put(ProfileKey.PREFERRED_LANGUAGES, List.of("it, eng", "italian"));
@@ -366,6 +367,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         samples.put(ProfileKey.ARRANGEMENT_APPROVED, List.of("0123456789ab", "fedcba987654"));
         samples.put(ProfileKey.GENERATION_MODEL, List.of("qwen3:14b"));
         samples.put(ProfileKey.GENERATION_CONTEXT_WINDOW, List.of("1282", "8192", "16384.0", "2147483647"));
+        samples.put(ProfileKey.CLUSTER_PAGE_BYTE_CEILING, List.of("1", "300000", "2.0", "9223372036854775807"));
         samples.put(ProfileKey.LOG_TIMESTAMP_SHARE_FLOOR, List.of("0.6"));
         samples.put(ProfileKey.EXTRACTION_ATTEMPT, List.of("1", "2", "3.0", "2147483647"));
         samples.put(ProfileKey.CODE_NAME_ENDINGS, List.of(".java .kt", ".PY,.rs"));
@@ -378,7 +380,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
 
     /**
      * Whether the jar reads {@code loaded} as an answer it acts on, by the rule it applies to {@code key}: the reading
-     * of the value's type, and for the six keys with a rule of their own, that rule.
+     * of the value's type, and for each key with a rule of its own, that rule.
      */
     private static boolean readAsAnAnswerByTheJar(ProfileKey key, ProfileValue loaded, ProfileStore store) {
         return switch (key) {
@@ -398,6 +400,8 @@ class TheJarReadsWhatTheControlPanelWritesTest {
             case EMBEDDING_MODEL, GENERATION_MODEL -> loaded.isSet();
             case DEGENERATE_OUTPUT_WORD_FLOOR ->
                     DegenerateOutputWordFloor.of((NumericValue) loaded) instanceof DegenerateOutputWordFloor.Floor;
+            case CLUSTER_PAGE_BYTE_CEILING ->
+                    ClusterPageByteCeiling.of((NumericValue) loaded) instanceof ClusterPageByteCeiling.Ceiling;
             case EXTRACTION_ATTEMPT -> !(ExtractionAttempt.of((NumericValue) loaded) instanceof ExtractionAttempt.Ignored)
                     && loaded.isSet();
             case GENERATION_CONTEXT_WINDOW -> {

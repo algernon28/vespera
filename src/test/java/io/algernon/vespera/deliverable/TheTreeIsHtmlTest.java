@@ -204,60 +204,8 @@ class TheTreeIsHtmlTest {
                                 new ListedPicture("image/png", ListedTree.anImage("png", 5, 5), false, ""),
                                 new ListedPicture("image/jpeg", ListedTree.anImage("jpg", 7, 3), false, ""))
                         : List.of());
-        List<String> pages = filesUnder(tree).stream().filter(name -> name.endsWith(".html")).toList();
-        Set<String> kindsSeen = new TreeSet<>();
         List<String> imagesNamingAFile = new ArrayList<>();
-
-        for (String name : pages) {
-            Path page = tree.resolve(name);
-            String text = Files.readString(page, StandardCharsets.UTF_8);
-            Matcher tag = A_TAG.matcher(text);
-            while (tag.find()) {
-                String element = tag.group(1);
-                Matcher attribute = A_SOURCE_OR_LINK.matcher(tag.group(2));
-                while (attribute.find()) {
-                    String which = element + " " + attribute.group(1);
-                    String value = attribute.group(2).replace("&amp;", "&");
-                    if (value.startsWith("#")) {
-                        kindsSeen.add("a fragment");
-                        claim(
-                                which + "=\"" + value + "\" on " + name + " names an id on the same page",
-                                () -> assertThat(text).contains("id=\"" + value.substring(1) + "\""));
-                    } else if (value.startsWith("data:")) {
-                        kindsSeen.add("an inlined picture");
-                        Matcher inlined = AN_INLINED_PICTURE.matcher(value);
-                        claim(
-                                "the data source on " + name + " is an image's source, of a PNG or a JPEG, its payload in"
-                                        + " the standard alphabet, padded, with no line break, decoding to bytes"
-                                        + " that begin with the signature of the kind it declares",
-                                () -> {
-                                    assertThat(which).isEqualTo("img src");
-                                    assertThat(inlined.matches()).isTrue();
-                                    byte[] decoded = Base64.getDecoder().decode(inlined.group(2));
-                                    byte[] signature =
-                                            inlined.group(1).equals("image/png") ? PNG_SIGNATURE : JPEG_SIGNATURE;
-                                    assertThat(Arrays.copyOf(decoded, signature.length)).isEqualTo(signature);
-                                });
-                    } else {
-                        kindsSeen.add("a file in the tree");
-                        if (element.equals("img")) {
-                            imagesNamingAFile.add(name + ": " + value);
-                        }
-                        URI destination = URI.create(value);
-                        claim(
-                                which + "=\"" + value + "\" on " + name + " names no scheme, is not rooted, and,"
-                                        + " decoded and followed from the page's own folder, is a file inside the tree",
-                                () -> {
-                                    assertThat(destination.isAbsolute()).isFalse();
-                                    assertThat(destination.getRawPath()).doesNotStartWith("/");
-                                    Path landed = page.getParent().resolve(destination.getPath()).normalize();
-                                    assertThat(landed.startsWith(tree.normalize())).isTrue();
-                                    assertThat(landed).isRegularFile();
-                                });
-                    }
-                }
-            }
-        }
+        Set<String> kindsSeen = everySourceAndLinkOf(tree, imagesNamingAFile);
 
         claim(
                 "every kind of source and link the tree has was met on its pages, so the claims above read each one",
@@ -277,6 +225,83 @@ class TheTreeIsHtmlTest {
                     "the group's folder " + folder + " holds its page and the copies the listing names in it, and"
                             + " nothing else",
                     () -> assertThat(filesUnder(tree.resolve(folder))).containsExactlyInAnyOrderElementsOf(expected));
+        }
+    }
+
+    /**
+     * ADR-303 §6 read through ADR-286 §5's test: a tree whose written group is split at a ceiling of one byte, a page an
+     * entry, over an archive that holds every document. Its first page's citation of the second entry names the second
+     * page and the anchor on it, and every page links the others of its group.
+     */
+    @Test
+    @Story("The tree is a set of web pages")
+    @DisplayName("On a tree whose group is split into pages, every link lands on its page, on a file inside the tree, or on another page of its group and an id on it")
+    @Issue("571")
+    @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
+    void everyLinkOfASplitClusterLandsOnASiblingPageAndAnIdOnIt(@TempDir Path base) throws IOException {
+        byte[] firstDocument = "the first document".getBytes(StandardCharsets.UTF_8);
+        byte[] secondDocument = "the second document".getBytes(StandardCharsets.UTF_8);
+        byte[] thirdDocument = "the third document".getBytes(StandardCharsets.UTF_8);
+        Path archive = base.resolve("archive");
+        Map<String, byte[]> originals = Map.of(
+                "reports/doors a.docx", firstDocument,
+                "reports/doors b.docx", secondDocument,
+                "reports/dampers.pdf", thirdDocument);
+        for (Map.Entry<String, byte[]> original : originals.entrySet()) {
+            Path file = archive.resolve(original.getKey());
+            Files.createDirectories(file.getParent());
+            Files.write(file, original.getValue());
+        }
+        List<ListedSurvivor> survivors = List.of(
+                survivor(10, "reports/doors a.docx", ListedTree.sha256Of(firstDocument), THE_SEED, SEED_PATH, 0, 0.9),
+                survivor(11, "reports/doors b.docx", ListedTree.sha256Of(secondDocument), THE_SEED, SEED_PATH, 0, 0.8),
+                survivor(12, "reports/dampers.pdf", ListedTree.sha256Of(thirdDocument), THE_SEED, SEED_PATH, 1, 0.7));
+        Path tree = ListedTree.writeWithCeiling(
+                base.resolve("work"),
+                archive,
+                List.of(WRITTEN, UNWRITTEN),
+                Map.of(slotOf(WRITTEN), writing("Fire doors and their inspection", PROSE, 10, 11)),
+                survivors,
+                Map.of(slotOf(UNWRITTEN), Unwritten.NO_SENDABLE_DOCUMENT),
+                SurvivorPictures.none(),
+                new ClusterPageCeiling.Bytes(1),
+                DeliverableProgress.NONE);
+        List<String> imagesNamingAFile = new ArrayList<>();
+
+        Set<String> kindsSeen = everySourceAndLinkOf(tree, imagesNamingAFile);
+
+        claim(
+                "the written group has two pages, a page an entry, and the other group, of one document, one",
+                () -> assertThat(filesUnder(tree).stream().filter(name -> name.endsWith(".html")))
+                        .containsExactly(
+                                PARTITION_FOLDER + "/1-fire-doors/index-2.html",
+                                PARTITION_FOLDER + "/1-fire-doors/index.html",
+                                PARTITION_FOLDER + "/2-smoke-dampers/index.html",
+                                "index.html"));
+        claim(
+                "a fragment on its page, a file in the tree and a page of the same group with an id on it were each met,"
+                        + " so the claims above read each kind",
+                () -> assertThat(kindsSeen).containsExactly(
+                        "a file in the tree", "a fragment", "a fragment on another page of its group"));
+        claim(
+                "the first page's citation of the second entry names the second page and that entry's anchor",
+                () -> assertThat(Files.readString(tree.resolve(PARTITION_FOLDER + "/1-fire-doors/index.html"), StandardCharsets.UTF_8))
+                        .contains("<a href=\"./index-2.html#document-2\">[2]</a>"));
+        Map<String, List<String>> copiesByFolder = new TreeMap<>();
+        for (String copy : ListedTree.columnByPath(tree, "copy").values()) {
+            copiesByFolder.computeIfAbsent(copy.substring(0, copy.lastIndexOf('/')), folder -> new ArrayList<>())
+                    .add(copy.substring(copy.lastIndexOf('/') + 1));
+        }
+        Map<String, List<String>> pagesByFolder = Map.of(
+                PARTITION_FOLDER + "/1-fire-doors", List.of("index.html", "index-2.html"),
+                PARTITION_FOLDER + "/2-smoke-dampers", List.of("index.html"));
+        for (Map.Entry<String, List<String>> folder : pagesByFolder.entrySet()) {
+            List<String> expected = new ArrayList<>(copiesByFolder.getOrDefault(folder.getKey(), List.of()));
+            expected.addAll(folder.getValue());
+            claim(
+                    "the group's folder " + folder.getKey() + " holds its pages and the copies the listing names in it,"
+                            + " and nothing else",
+                    () -> assertThat(filesUnder(tree.resolve(folder.getKey()))).containsExactlyInAnyOrderElementsOf(expected));
         }
     }
 
@@ -391,6 +416,81 @@ class TheTreeIsHtmlTest {
                                 "1-building-regulations-approved-document-b/1-annual-inspection-of-every-fire-door-in"
                                         + "/index.html",
                                 "index.html"));
+    }
+
+    /**
+     * Reads every {@code src} and {@code href} of every page of {@code tree} and claims each lands where ADR-286 §5 lets
+     * it, a link with a path and a fragment landing on a page of the same group whose ids hold it (ADR-303 §6); answers
+     * the kinds met, and adds each image naming a file to {@code imagesNamingAFile}.
+     */
+    private static Set<String> everySourceAndLinkOf(Path tree, List<String> imagesNamingAFile) throws IOException {
+        List<String> pages = filesUnder(tree).stream().filter(name -> name.endsWith(".html")).toList();
+        Set<String> kindsSeen = new TreeSet<>();
+
+        for (String name : pages) {
+            Path page = tree.resolve(name);
+            String text = Files.readString(page, StandardCharsets.UTF_8);
+            Matcher tag = A_TAG.matcher(text);
+            while (tag.find()) {
+                String element = tag.group(1);
+                Matcher attribute = A_SOURCE_OR_LINK.matcher(tag.group(2));
+                while (attribute.find()) {
+                    String which = element + " " + attribute.group(1);
+                    String value = attribute.group(2).replace("&amp;", "&");
+                    if (value.startsWith("#")) {
+                        kindsSeen.add("a fragment");
+                        claim(
+                                which + "=\"" + value + "\" on " + name + " names an id on the same page",
+                                () -> assertThat(text).contains("id=\"" + value.substring(1) + "\""));
+                    } else if (value.startsWith("data:")) {
+                        kindsSeen.add("an inlined picture");
+                        Matcher inlined = AN_INLINED_PICTURE.matcher(value);
+                        claim(
+                                "the data source on " + name + " is an image's source, of a PNG or a JPEG, its payload in"
+                                        + " the standard alphabet, padded, with no line break, decoding to bytes"
+                                        + " that begin with the signature of the kind it declares",
+                                () -> {
+                                    assertThat(which).isEqualTo("img src");
+                                    assertThat(inlined.matches()).isTrue();
+                                    byte[] decoded = Base64.getDecoder().decode(inlined.group(2));
+                                    byte[] signature =
+                                            inlined.group(1).equals("image/png") ? PNG_SIGNATURE : JPEG_SIGNATURE;
+                                    assertThat(Arrays.copyOf(decoded, signature.length)).isEqualTo(signature);
+                                });
+                    } else {
+                        kindsSeen.add("a file in the tree");
+                        if (element.equals("img")) {
+                            imagesNamingAFile.add(name + ": " + value);
+                        }
+                        URI destination = URI.create(value);
+                        claim(
+                                which + "=\"" + value + "\" on " + name + " names no scheme, is not rooted, and,"
+                                        + " decoded and followed from the page's own folder, is a file inside the tree",
+                                () -> {
+                                    assertThat(destination.isAbsolute()).isFalse();
+                                    assertThat(destination.getRawPath()).doesNotStartWith("/");
+                                    Path landed = page.getParent().resolve(destination.getPath()).normalize();
+                                    assertThat(landed.startsWith(tree.normalize())).isTrue();
+                                    assertThat(landed).isRegularFile();
+                                });
+                        if (destination.getRawFragment() != null) {
+                            kindsSeen.add("a fragment on another page of its group");
+                            Path landed = page.getParent().resolve(destination.getPath()).normalize();
+                            claim(
+                                    which + "=\"" + value + "\" on " + name + " lands on a page in the same group's"
+                                            + " folder, and its fragment names an id on that page",
+                                    () -> {
+                                        assertThat(landed.getParent()).isEqualTo(page.getParent());
+                                        assertThat(Files.readString(landed, StandardCharsets.UTF_8))
+                                                .contains("id=\"" + destination.getFragment() + "\"");
+                                    });
+                        }
+                    }
+                }
+            }
+        }
+
+        return kindsSeen;
     }
 
     /** The two clusters of one partition, the first written over, the second with no document it could send. */
