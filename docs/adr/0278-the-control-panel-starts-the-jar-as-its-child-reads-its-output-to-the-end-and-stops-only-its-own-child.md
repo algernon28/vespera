@@ -1,5 +1,7 @@
 # ADR-278 — The control panel starts the jar as its child, reads its output to the end, and stops only its own child
 
+> **Partly amended — see [ADR-281](0281-the-closing-line-is-the-last-line-of-output-and-two-library-loggers-write-to-the-console-only-at-warn.md).** Of Context's *What follows the closing line* and §5: the last line of output that is not blank is the command's closing line; Hikari's lines and Spring Batch's job line are on the console only at WARN and stay in `logs/vespera.log`. Of What this does not decide: the closing line as the last line is decided there. The rest of this record stands.
+
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.
 - **Keeps**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md), whose What this does not decide leaves a program that starts the jar for the operator to a decision of its own: this is that decision for the **control panel**, and this record changes nothing in the packaged jar, its commands or what it starts; ADR-279 adds the corpus-root lock to `run`.
