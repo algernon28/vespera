@@ -217,7 +217,7 @@ public class CodeSets {
                 .isEmpty();
     }
 
-    private void member(OccurrenceId occurrence, RunId runId, String folder, String role, String generator) {
+    void member(OccurrenceId occurrence, RunId runId, String folder, String role, String generator) {
         jdbcTemplate.update(
                 "INSERT INTO code_set_member (occurrence_id, run_id, folder, role, generator) VALUES (?, ?, ?, ?, ?)",
                 occurrence.value(),
@@ -270,17 +270,17 @@ public class CodeSets {
         }
     }
 
-    private static List<OccurrenceAtPath> survivorsOf(Ledger ledger, RunId runId, List<OccurrenceAtPath> page) {
+    static List<OccurrenceAtPath> survivorsOf(Ledger ledger, RunId runId, List<OccurrenceAtPath> page) {
         Set<OccurrenceId> surviving = ledger.verdicts().survivingAmong(runId, ids(page));
         return page.stream().filter(occurrence -> surviving.contains(occurrence.occurrenceId())).toList();
     }
 
-    private static List<OccurrenceId> ids(List<OccurrenceAtPath> page) {
+    static List<OccurrenceId> ids(List<OccurrenceAtPath> page) {
         return page.stream().map(OccurrenceAtPath::occurrenceId).toList();
     }
 
     /** Every occurrence of the walk with its path, a page of ledger's size at a time. */
-    private static void eachPage(Ledger ledger, WalkId walk, Consumer<List<OccurrenceAtPath>> page) {
+    static void eachPage(Ledger ledger, WalkId walk, Consumer<List<OccurrenceAtPath>> page) {
         List<OccurrenceId> ids = new ArrayList<>();
         for (OccurrenceId id : ledger.occurrences().occurrencesOf(walk)) {
             ids.add(id);
@@ -308,7 +308,7 @@ public class CodeSets {
     }
 
     /** The folder an occurrence lies directly in, as its path spells it; empty for the corpus root. */
-    private static String folderOf(OccurrencePath path) {
+    static String folderOf(OccurrencePath path) {
         int slash = path.value().lastIndexOf('/');
         return slash < 0 ? "" : path.value().substring(0, slash);
     }

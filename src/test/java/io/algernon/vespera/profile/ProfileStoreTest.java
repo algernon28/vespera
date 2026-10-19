@@ -202,6 +202,9 @@ class ProfileStoreTest {
             preferredLanguages:
               value: "it, en"
               provenance: "the languages the readers read"
+            configurationSettingShareFloor:
+              value: "0.56"
+              provenance: "read off the format mix"
             """;
 
     @Test
@@ -210,6 +213,7 @@ class ProfileStoreTest {
     @Issue("197")
     @Link(name = "ADR-119", url = Adr.PROFILE_HAS_ONE_CONSTRUCTOR, type = "adr")
     @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
+    @Link(name = "ADR-287", url = Adr.LOGS_AND_CONFIGURATION_FILES_ARE_TOLD_BY_THEIR_BYTES, type = "adr")
     void everyAnswerLandsOnTheKeyThatCarriedIt(@TempDir Path workingDirectory) throws IOException {
         Files.writeString(workingDirectory.resolve("profile.yaml"), EVERY_KEY_ANSWERED);
 
@@ -245,8 +249,12 @@ class ProfileStoreTest {
                                 loaded.outOfScopeNameEndings().value(), loaded.translationSimilarityFloor().value()))
                         .containsExactly(".P3A .DGN", "0.55"));
         claim(
-                "including the last key, which is the one a shorter way in could not have filled",
+                "and so does the preferred languages key, the last but one",
                 () -> assertThat(loaded.preferredLanguages().value()).isEqualTo("it, en"));
+        claim(
+                "including the last key, the floor on the share of settings, which is the one a shorter way in could"
+                        + " not have filled",
+                () -> assertThat(loaded.configurationSettingShareFloor().value()).isEqualTo("0.56"));
     }
 
     @Test

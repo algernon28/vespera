@@ -39,6 +39,14 @@ public class DetectedFormats {
     }
 
     /**
+     * The configuration pass of ADR-287, reading and writing the same database and reading the sets
+     * {@link #codeSets()} recorded. A new instance on each call; it holds no state between calls.
+     */
+    public ConfigurationFiles configurationFiles() {
+        return new ConfigurationFiles(codeSets(), this);
+    }
+
+    /**
      * Records what {@code occurrenceId} was found to be under {@code runId}.
      *
      * @param subtype what the format turned out to be more precisely, or {@code null} where the bytes
