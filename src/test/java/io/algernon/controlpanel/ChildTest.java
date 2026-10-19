@@ -263,6 +263,8 @@ class ChildTest {
                 () -> assertThat(ending.exitCode()).isNotZero());
         claim("and is shown as failed or refused, not as stopped, with that code",
                 () -> assertThat(ending.howItEnded()).isEqualTo(HowItEnded.FAILED_OR_REFUSED));
+        claim("with no last line, since the child printed none",
+                () -> assertThat(ending.lastLine()).isEmpty());
     }
 
     private static Optional<Ending> endingOf(Child child) throws InterruptedException {

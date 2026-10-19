@@ -1,6 +1,7 @@
 package io.algernon.controlpanel;
 
 import java.io.PrintStream;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -93,7 +94,8 @@ public final class ChildForTests {
     /** A process builder starting this class in a JVM of its own, on the running class path, in the given mode. */
     public static ProcessBuilder builder(String... args) {
         List<String> command = new ArrayList<>(List.of(
-                ProcessHandle.current().info().command().orElseThrow(),
+                ProcessHandle.current().info().command()
+                        .orElseGet(() -> Path.of(System.getProperty("java.home"), "bin", "java").toString()),
                 "-Dstdout.encoding=UTF-8",
                 "-Dstderr.encoding=UTF-8",
                 "-cp",

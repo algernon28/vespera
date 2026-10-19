@@ -42,6 +42,13 @@ class HowItEndedTest {
     @Story("The control panel says how its child ended")
     @DisplayName("Any other exit code of a child the control panel did not stop is shown as failed or refused")
     void anyOtherExitCodeOfAChildNotStoppedIsFailedOrRefused() {
+        claim("every exit code is shown as one of four: ended, failed or refused, a defect of the control panel, or"
+                        + " stopped",
+                () -> assertThat(HowItEnded.values()).containsExactlyInAnyOrder(
+                        HowItEnded.ENDED,
+                        HowItEnded.FAILED_OR_REFUSED,
+                        HowItEnded.DEFECT_OF_THE_CONTROL_PANEL,
+                        HowItEnded.STOPPED));
         for (int code : OTHER_CODES) {
             claim("exit " + code + ", not stopped, is failed or refused",
                     () -> assertThat(HowItEnded.of(false, code)).isEqualTo(HowItEnded.FAILED_OR_REFUSED));

@@ -40,7 +40,8 @@ import org.junit.jupiter.api.Test;
 class ChildCommandTest {
 
     /** The JVM, as #567 will find it: absolute, and passed as given. */
-    private static final Path JAVA = Path.of(ProcessHandle.current().info().command().orElseThrow());
+    private static final Path JAVA = Path.of(ProcessHandle.current().info().command()
+            .orElseGet(() -> Path.of(System.getProperty("java.home"), "bin", "java").toString()));
 
     /** Relative on purpose, so that each must be made absolute. */
     private static final Path JAR = Path.of("vespera.jar");

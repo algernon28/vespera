@@ -2,13 +2,13 @@
 
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
-- **Decided under**: the operator's delegation of 2026-10-19.
 - **Keeps**: [ADR-040](0040-modules-are-capability-shaped-not-stage-shaped.md) and [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md): the nine modules stay nine, and the module rule is unchanged, since the control panel's code is outside `io.algernon.vespera` (§1).
 - **Keeps**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md): the packaged jar is unchanged and the operator may still run it directly (§2).
 - **Keeps**: [ADR-046](0046-the-pom-carries-what-a-recorded-decision-requires.md) and [ADR-216](0216-nothing-ships-that-no-decision-requires-and-nothing-calls-a-javadoc-states-its-own-contract-and-agents-md-carries-no-history.md): one pom, and this record adds no dependency and no plugin the build does not already carry (§2, §4).
 - **Reads**: [ADR-001](0001-tech-stack-is-a-fixed-constraint.md) as binding the control panel to Java alone (§4).
 - **Applies**: [ADR-130](0130-one-report-page-module-owns-the-skeleton-styling-escaping-and-tables.md)'s rule within the control panel (§4).
-- **Read with**: [ADR-278](0278-the-control-panel-starts-the-jar-as-its-child-reads-its-output-to-the-end-and-stops-only-its-own-child.md), whose Tests section lists the control panel's own tests; this record gives them a home and lands those that need no screen (§5).
+- **Amends**: [ADR-278](0278-the-control-panel-starts-the-jar-as-its-child-reads-its-output-to-the-end-and-stops-only-its-own-child.md)'s What this does not decide, on where the control panel's code lives and how it is built (§1, §2), and its Tests section, whose control-panel tests this record gives a home and lands where they need no screen (§5); and adds to its §4 what a lock file that holds no holder line is, and to its §5 how any other exit code is shown (§5). It carries a note at its head.
+- **Read with**: [ADR-281](0281-the-closing-line-is-the-last-line-of-output-and-two-library-loggers-write-to-the-console-only-at-warn.md): the last line of output that is not blank, shown with how the child ended, is the command's closing line (§5).
 - **Settles** [#562](https://github.com/algernon28/vespera/issues/562).
 
 ## Context
@@ -65,7 +65,7 @@ Of ADR-278's tests, those that need no screen land with this record, as code und
   Stopping loses the work done since the running step's last commit, and the next vespera run continues from there.
   ```
 
-- **How it ended** (ADR-278 §5): **Stopped**, when the control panel's own Stop ended it, whatever its exit code; exit 0 ended; exit 1 failed or refused; exit 2 a defect of the control panel; any other exit code of a child the control panel did not stop, such as one killed by another program, failed or refused, with its code. Every exit code is shown as one of the four. Each with the last line of output that is not blank.
+- **How it ended** (ADR-278 §5): **Stopped**, when the control panel's own Stop ended it, whatever its exit code; exit 0 ended; exit 1 failed or refused; exit 2 a defect of the control panel; any other exit code of a child the control panel did not stop, such as one killed by another program, failed or refused, with its code. Every exit code is shown as one of the four. Each with the last line of output that is not blank, which is the command's closing line (ADR-281), and none for a child that printed none.
 
 The types this asks for are `HolderLine`, `HolderProcess`, `HolderReading`, `ChildCommand`, `Child`, `HowItEnded` and `Ending`, with the members the tests below call. The tests that need a child process start a small test class of their own with the JVM running the tests, never the jar, and run on Linux and on Windows.
 
@@ -123,8 +123,8 @@ Two of ADR-278's tests wait for the screens: Run and Label disabled while a line
 | `controlpanel.ChildTest.aStoppedChildIsShownAsStoppedThoughItExitsAsAFailureDoes` | Stopped, recorded by the control panel, whatever the exit code |
 | `controlpanel.ChildTest.eachExitCodeIsShownWithTheLastLineThatIsNotBlank` | exits 0, 1 and 2, each with its last line that is not blank |
 | `controlpanel.HowItEndedTest.howItEndedFollowsTheExitCodeAndTheControlPanelsOwnStop` | ADR-278 §5's table, row by row |
-| `controlpanel.HowItEndedTest.anyOtherExitCodeOfAChildNotStoppedIsFailedOrRefused` | every other code, the extremes of an int included, failed or refused, or stopped after the control panel's own Stop |
-| `controlpanel.ChildTest.aChildKilledFromOutsideIsShownAsFailedOrRefusedWithItsCode` | a child killed by another program: failed or refused, with its code, not stopped |
+| `controlpanel.HowItEndedTest.anyOtherExitCodeOfAChildNotStoppedIsFailedOrRefused` | the four ways it is shown, and every other code, the extremes of an int included, failed or refused, or stopped after the control panel's own Stop |
+| `controlpanel.ChildTest.aChildKilledFromOutsideIsShownAsFailedOrRefusedWithItsCode` | a child killed by another program: failed or refused, with its code, not stopped, and no last line where it printed none |
 
 ## What this does not decide
 
