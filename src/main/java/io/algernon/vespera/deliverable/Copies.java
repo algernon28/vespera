@@ -20,7 +20,6 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
-import java.util.Set;
 
 /**
  * The verified copy of each survivor the tree lists (ADR-274 §2): a file in its cluster's folder, named by {@link
@@ -106,8 +105,8 @@ final class Copies {
      * other name follows from its survivor alone ({@link CopyNames#plainName}), so the page and the manifest of the
      * same drawing come by it again without holding it.
      */
-    void copyAll(Path clusterFolder, List<ListedSurvivor> members, Set<String> pictureNames) {
-        copyAllAs(clusterFolder, members, CopyNames.of(members, pictureNames));
+    void copyAll(Path clusterFolder, List<ListedSurvivor> members) {
+        copyAllAs(clusterFolder, members, CopyNames.of(members));
     }
 
     /** {@link #copyAll} with the names already worked out; the seam a name {@link CopyNames} would not give is tried by. */

@@ -18,9 +18,10 @@ import java.util.regex.Pattern;
  * to {@value #LONGEST_NAME_IN_BYTES} UTF-8 bytes, and suffixed with {@code ~<occurrence id>} before its extension
  * only where it collides, without regard to case, with another name in the folder or with a name the folder reserves.
  *
- * <p>Every name of one cluster is worked out together, from the members' occurrence ids and file names and the names
- * of the pictures the cluster's page shows, and no file is read (§2): a name worked out again from the same members is
- * the same name, whatever order the members arrive in.
+ * <p>Every name of one cluster is worked out together, from the members' occurrence ids and file names alone, and no
+ * file is read (§2): a name worked out again from the same members is the same name, whatever order the members arrive
+ * in. The names the folder reserves are the page's, {@code index.html} and {@code index-<digits>.html}, and the part
+ * either is written to (ADR-286 §3); no picture's name is, there being no picture file (ADR-286 §4).
  *
  * <p><b>Where repeated suffixes leave no room for any of the original's stem</b>, the stem is empty and the suffixes
  * stand alone; the name may then pass {@value #LONGEST_NAME} units, and past {@value #LONGEST_NAME_IN_BYTES} bytes
@@ -42,7 +43,10 @@ final class CopyNames {
 
     private static final String PART = ".part";
 
-    private static final Pattern A_FURTHER_PAGE = Pattern.compile("INDEX-[0-9]+\\.HTML");
+    /** A further page of a cluster, and the part either kind of page is written to before it is moved (ADR-286 §3). */
+    private static final Pattern A_FURTHER_PAGE = Pattern.compile("INDEX-[0-9]+\\.HTML(\\.PART)?");
+
+    private static final String THE_PAGES_PART = "INDEX.HTML.PART";
 
     private static final String THE_PAGE = "INDEX.HTML";
 
@@ -54,18 +58,14 @@ final class CopyNames {
      * Every member's copy name in one cluster's folder.
      *
      * @param members the cluster's survivors, in any order
-     * @param pictureNames the names of the pictures written into the folder for the cluster's page
      * @return each member's name, in ascending occurrence id
      */
-    static Map<OccurrenceId, String> of(List<ListedSurvivor> members, Set<String> pictureNames) {
+    static Map<OccurrenceId, String> of(List<ListedSurvivor> members) {
         List<ListedSurvivor> ascending = new ArrayList<>(members);
         ascending.sort(Comparator.comparingLong(member -> member.occurrence().value()));
 
         List<Shape> shapes = new ArrayList<>();
         Set<String> reserved = new HashSet<>();
-        for (String picture : pictureNames) {
-            reserved.addAll(keysOf(picture));
-        }
         for (ListedSurvivor member : ascending) {
             Shape shape = shapeOf(member);
             shapes.add(shape);
@@ -145,7 +145,10 @@ final class CopyNames {
     }
 
     private static boolean isReserved(String key, Set<String> reserved) {
-        return reserved.contains(key) || THE_PAGE.equals(key) || A_FURTHER_PAGE.matcher(key).matches();
+        return reserved.contains(key)
+                || THE_PAGE.equals(key)
+                || THE_PAGES_PART.equals(key)
+                || A_FURTHER_PAGE.matcher(key).matches();
     }
 
     /**

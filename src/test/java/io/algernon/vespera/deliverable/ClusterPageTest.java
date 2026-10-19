@@ -19,12 +19,12 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +35,8 @@ import org.junit.jupiter.api.io.TempDir;
  * sentence saying the writing rests on part of the cluster, the citations as links (ADR-109), and the
  * membership list numbered from what the call sent (ADR-133), each entry leading to its copy beside the page or
  * saying why none stands (ADR-274 §1.4, §2.6, ADR-280 §5).
+ *
+ * <p>Each page is written by the stream form of {@code ClusterPage.write} into its file (ADR-286 §2).
  *
  * <p>Every expected page here is the page's body as ADR-274 §1.4 lays it out, inside the skeleton {@link Html}
  * writes for every page of the tree, which {@code TheTreeIsHtmlTest} holds. The page is {@code index.html} in its
@@ -190,7 +192,7 @@ class ClusterPageTest {
     void writesAWrittenPageWhole(@TempDir Path base) throws IOException {
         Path page = aPageIn(base, "1-fire-suppression-retrofits");
 
-        ClusterPage.write(
+        writeInto(
                 page,
                 THE_WRITTEN_CLUSTER,
                 THE_WRITING,
@@ -214,7 +216,7 @@ class ClusterPageTest {
     void writesAnUnwrittenPageWhole(@TempDir Path base) throws IOException {
         Path page = aPageIn(base, "2-sprinkler-maintenance");
 
-        ClusterPage.write(
+        writeInto(
                 page,
                 THE_UNWRITTEN_CLUSTER,
                 null,
@@ -237,7 +239,7 @@ class ClusterPageTest {
     void writesTheReasonInPlaceOfTheWriting(@TempDir Path base) throws IOException {
         Path page = aPageIn(base, "2-sprinkler-maintenance");
 
-        ClusterPage.write(
+        writeInto(
                 page,
                 THE_UNWRITTEN_CLUSTER,
                 null,
@@ -268,7 +270,7 @@ class ClusterPageTest {
 
         Path page = aPageIn(base, "1-fire-suppression-retrofits");
 
-        ClusterPage.write(
+        writeInto(
                 page,
                 THE_WRITTEN_CLUSTER,
                 THE_WRITING,
@@ -282,6 +284,25 @@ class ClusterPageTest {
                 "three of the page's four entries carry a document, and those three are reported, so the count"
                         + " the step announced before it began (ADR-192 §5) is the count it reaches",
                 () -> assertThat(entriesReported.get()).isEqualTo(3));
+    }
+
+    /**
+     * {@code page} written by the stream form of {@link ClusterPage#write}, the copies standing in its folder, and the
+     * bytes it tells at each entry's end not heard (ADR-286 §2): the bytes of the page are what this class claims.
+     */
+    private static void writeInto(
+            Path page,
+            RecordedCluster recorded,
+            SynthesisDoc doc,
+            Unwritten why,
+            List<ListedSurvivor> members,
+            Copies copies,
+            EntryPictures pictures,
+            DeliverableProgress progress)
+            throws IOException {
+        try (OutputStream out = Files.newOutputStream(page)) {
+            ClusterPage.write(out, recorded, doc, why, members, page.getParent(), copies, pictures, progress, bytes -> {});
+        }
     }
 
     /** Where an entry links to the copy whose name is {@code encoded} once percent-encoded: beside the page. */
@@ -314,7 +335,7 @@ class ClusterPageTest {
         }
         Copies copies = new Copies(
                 theTree(base), archive.toString(), ReplacingMove.ATOMIC, () -> Long.MAX_VALUE, DeliverableProgress.NONE);
-        copies.copyAll(page.getParent(), members, Set.of());
+        copies.copyAll(page.getParent(), members);
         return copies;
     }
 

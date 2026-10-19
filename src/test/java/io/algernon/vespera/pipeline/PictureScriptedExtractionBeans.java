@@ -52,14 +52,18 @@ class PictureScriptedExtractionBeans {
     /** The title every response carries, so a cluster is named after a document's own title (ADR-106). */
     static final String STUBBED_TITLE = "A Stubbed Document";
 
+    /** What every PNG begins with, which a page asks of a picture it shows as a PNG (ADR-286 §1). */
+    private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
+
     /**
-     * A picture's pixels. Not a real PNG: the tree compares bytes and writes them through, and never
-     * decodes a picture, so a distinct byte string proves what a valid image would.
+     * A picture's pixels. Not a real PNG, only its signature and then a distinct byte string: the tree compares bytes
+     * and writes them through, and the furniture rule decodes none it cannot, so a distinct byte string proves what a
+     * valid image would.
      */
-    static final byte[] THE_DIAGRAM = "the pixels of a diagram only one document holds".getBytes(StandardCharsets.UTF_8);
+    static final byte[] THE_DIAGRAM = aPngOf("the pixels of a diagram only one document holds");
 
     /** The pixels of the letterhead both corpus documents carry. */
-    static final byte[] THE_LETTERHEAD = "the pixels of a letterhead every document holds".getBytes(StandardCharsets.UTF_8);
+    static final byte[] THE_LETTERHEAD = aPngOf("the pixels of a letterhead every document holds");
 
     /**
      * A standalone image file in the corpus (ADR-150 §4): stage 1 reads its PNG signature as an image,
@@ -68,8 +72,7 @@ class PictureScriptedExtractionBeans {
     static final String THE_SCREENSHOT = "a-screenshot.png";
 
     /** The picture the screenshot's conversion carries: a crop of the image file itself. */
-    static final byte[] THE_SCREENSHOTS_CROP =
-            "the pixels docling cropped out of a standalone image file".getBytes(StandardCharsets.UTF_8);
+    static final byte[] THE_SCREENSHOTS_CROP = aPngOf("the pixels docling cropped out of a standalone image file");
 
     /**
      * A corpus document whose response is shaped as Docling answers for a PDF (ADR-150): every picture
@@ -252,5 +255,13 @@ class PictureScriptedExtractionBeans {
                 return SidecarVersionReport.runningImage(configuredImage);
             }
         };
+    }
+
+    /** The PNG signature followed by {@code text}'s bytes: a picture of the kind it declares, decoding to no image. */
+    private static byte[] aPngOf(String text) {
+        byte[] tail = text.getBytes(StandardCharsets.UTF_8);
+        byte[] whole = java.util.Arrays.copyOf(PNG_SIGNATURE, PNG_SIGNATURE.length + tail.length);
+        System.arraycopy(tail, 0, whole, PNG_SIGNATURE.length, tail.length);
+        return whole;
     }
 }

@@ -9,7 +9,10 @@ import io.algernon.vespera.synthesis.ClusterSlot;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.Unwritten;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -23,6 +26,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
+import javax.imageio.ImageIO;
 
 /**
  * An arrangement, its writing and its survivors held as lists, answering {@link ArrangedSurvivors} from them, and
@@ -164,6 +168,29 @@ final class ListedTree {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 is required of every JVM", e);
         }
+    }
+
+    /**
+     * A real image of {@code format}, {@code png}, {@code jpg} or {@code gif}, {@code width} by {@code height}, written
+     * by the JDK, so its bytes begin with the signature of its kind; its colours differ pixel by pixel.
+     */
+    static byte[] anImage(String format, int width, int height) {
+        BufferedImage image = new BufferedImage(
+                width, height, format.equals("gif") ? BufferedImage.TYPE_BYTE_INDEXED : BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                image.setRGB(x, y, (x * 37 + y * 91) << 8 | (x * 13));
+            }
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            if (!ImageIO.write(image, format, out)) {
+                throw new IllegalStateException("the JDK writes no " + format);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return out.toByteArray();
     }
 
     /** Every regular file beneath {@code directory}, as paths relative to it with {@code /} between their parts. */

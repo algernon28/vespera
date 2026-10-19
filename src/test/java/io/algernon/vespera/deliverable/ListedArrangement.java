@@ -16,7 +16,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -190,7 +189,7 @@ public final class ListedArrangement {
         Map<ClusterSlot, List<ListedSurvivor>> byCluster = new LinkedHashMap<>();
         survivors.forEach(survivor -> byCluster.computeIfAbsent(survivor.slot(), slot -> new ArrayList<>()).add(survivor));
         byCluster.forEach((slot, members) -> copies.copyAll(
-                nowhere.resolve("tree").resolve(slot.winningSeed().value() + "-" + slot.clusterOrdinal()), members, Set.of()));
+                nowhere.resolve("tree").resolve(slot.winningSeed().value() + "-" + slot.clusterOrdinal()), members));
         try {
             ManifestCsv.write(
                     csv,
