@@ -19,7 +19,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.jsoup.nodes.Element;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -33,7 +32,6 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("561")
 @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
-@Disabled(ScreenServer.UNTIL_THE_SCREENS_ARE_BUILT)
 class InvocationScreenTest {
 
     /** The sixteen steps of {@code vespera run}, in the order they run, as the guide to running stage by stage names them. */

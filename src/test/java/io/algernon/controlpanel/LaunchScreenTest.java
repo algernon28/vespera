@@ -22,15 +22,18 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Stream;
 import org.jsoup.nodes.Element;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -43,7 +46,6 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("561")
 @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
-@Disabled(ScreenServer.UNTIL_THE_SCREENS_ARE_BUILT)
 class LaunchScreenTest {
 
     /** The seven launch values' keys, in the order the launch form holds their controls. */
@@ -68,7 +70,7 @@ class LaunchScreenTest {
 
     @Test
     @Story("The operator starts an invocation from the control panel")
-    @DisplayName("The launch form holds the seven values by their names, as last started, with Run, Label and Check, and the free space of the working folder's drive")
+    @DisplayName("The launch form holds the seven values by their names, as last started, with Run, Label and Check")
     void theLaunchFormHoldsTheSevenLaunchValuesByTheirKeysAsLastStarted() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
@@ -91,14 +93,31 @@ class LaunchScreenTest {
                                     deliverableRoot.toString(), IMAGE_NAMED, nobody, nobody, MODEL_NOT_SERVED));
             claim("its buttons are Run, Label and Check, in that order",
                     () -> assertThat(buttonNames(launch)).containsExactly("run", "label", "check"));
-            claim("the free space names the working folder's drive and the deliverable folder's, each with its"
-                            + " usable bytes as a whole number",
+        }
+    }
+
+    @Test
+    @Story("The operator starts an invocation from the control panel")
+    @DisplayName("The free space of the working folder's drive and of the deliverable folder's is shown, each in bytes")
+    void theFreeSpaceOfTheWorkingDirectorysAndTheDeliverableRootsDrivesIsShown() throws IOException {
+        Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
+        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
+        Path deliverableRoot = Files.createDirectories(folder.resolve("deliverables"));
+        LaunchValues values = new LaunchValues(corpusRoot.toString(), workingDirectory.toString(),
+                deliverableRoot.toString(), "", "", "", "", "");
+        try (ScreenServer screens = ScreenServer.start(folder, values)) {
+            Page page = screens.browser().page();
+
+            claim("the free space names the working folder's drive and the deliverable folder's, in that order, each"
+                            + " with its usable bytes as a whole number",
                     () -> assertThat(byId(page, "free-space").select("[data-folder]"))
                             .extracting(item -> item.attr("data-folder"),
                                     item -> item.attr("data-usable-bytes").matches("\\d+"))
                             .containsExactly(
                                     tuple("working-directory", true),
                                     tuple("deliverable-root", true)));
+            claim("beside them, the rules the space needed is read off, as text",
+                    () -> assertThat(byId(page, "free-space-rules").text()).isNotBlank());
         }
     }
 
@@ -218,6 +237,57 @@ class LaunchScreenTest {
         } finally {
             sidecars.stop(0);
         }
+    }
+
+    /**
+     * No {@code GET} of the control panel changes anything (ADR-302 §1): another site's page can open any of its
+     * addresses with the cookie, so a {@code GET} carrying a form's fields in its query neither writes nor starts.
+     */
+    @Test
+    @Story("The operator starts an invocation from the control panel")
+    @DisplayName("Opening any page of the control panel, the paths forms post to among them and with a form's fields in the address, writes nothing and starts nothing")
+    void noGetOfAnyPageWritesAFileOrStartsAChild() throws IOException {
+        Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
+        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
+        Path seedFolder = Files.createDirectories(folder.resolve("seeds"));
+        Files.writeString(workingDirectory.resolve(ProfileEdit.FILE_NAME), "---\n", StandardCharsets.UTF_8);
+        Files.writeString(workingDirectory.resolve(CodeSetRenames.FILE_NAME), "--- []\n", StandardCharsets.UTF_8);
+        ScreenServer.childWill(workingDirectory, "sleep");
+        List<String> asked = List.of("/", "/invocation", "/stop", "/next", "/labels", "/code-sets", "/profile",
+                "/launch", "/launch?run=",
+                "/seed-folder?seedFolder=" + URLEncoder.encode(seedFolder.toString(), StandardCharsets.UTF_8)
+                        + "&provenance=p&save=",
+                "/label-auto?label-auto=", "/stop?stop=", "/next?save-then-run=",
+                "/code-sets?new-folder=app&new-name=app&save=",
+                "/profile?key=extractionAttempt&value=2&provenance=p&save=");
+        Map<Path, byte[]> before = contents(workingDirectory);
+        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
+            PanelBrowser browser = screens.browser();
+            List<Integer> statuses = new ArrayList<>();
+            for (String path : asked) {
+                statuses.add(browser.go(path).page().status());
+            }
+            Page invocation = browser.go("/invocation").page();
+            Map<Path, byte[]> after = contents(workingDirectory);
+
+            claim("each address is answered, after any redirect, with a page",
+                    () -> assertThat(statuses).containsOnly(200).hasSize(asked.size()));
+            claim("the working folder holds the same files, byte for byte, as before",
+                    () -> assertThat(after.keySet()).containsExactlyInAnyOrderElementsOf(before.keySet())
+                            .allSatisfy(file -> assertThat(after.get(file)).isEqualTo(before.get(file))));
+            claim("and no child was started",
+                    () -> assertThat(byId(invocation, "child").attr("data-ending")).isEqualTo("none"));
+        }
+    }
+
+    private static Map<Path, byte[]> contents(Path folder) throws IOException {
+        Map<Path, byte[]> contents = new TreeMap<>();
+        try (Stream<Path> files = Files.list(folder)) {
+            for (Path file : files.toList()) {
+                contents.put(file.getFileName(), Files.readAllBytes(file));
+            }
+        }
+        return contents;
     }
 
     private static int aPortNobodyListensOn() throws IOException {

@@ -222,6 +222,8 @@ class ControlPanelServerTest {
     @Test
     @Story("Only the browser that opened the start's address is answered")
     @DisplayName("The right token is exchanged for a cookie the browser drops when it closes, and the cookie alone then gets the page")
+    @Issue("561")
+    @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
     void theRightTokenIsExchangedForACookieTheBrowserDropsWhenItCloses() throws IOException {
         Response exchanged = send("GET", SECOND + "?token=" + token, own());
         List<String> ranOnTheExchange = List.copyOf(RAN);
@@ -231,11 +233,12 @@ class ControlPanelServerTest {
                     assertThat(exchanged.status()).isEqualTo(303);
                     assertThat(exchanged.header("Location")).containsExactly(SECOND);
                 });
-        claim("with one cookie holding the token for every path, kept from scripts and from requests other sites"
-                        + " start, with no lifetime, so dropped when the browser closes, and not marked secure, since"
+        claim("with one cookie holding the token for every path, kept from scripts, and from what another site posts"
+                        + " or embeds though not from a page it opens, so a sandboxed report's refresh and links carry"
+                        + " it, with no lifetime, so dropped when the browser closes, and not marked secure, since"
                         + " the address is plain http",
                 () -> assertThat(exchanged.header("Set-Cookie")).containsExactly(
-                        ControlPanelServer.COOKIE + "=" + token + "; Path=/; HttpOnly; SameSite=Strict"));
+                        ControlPanelServer.COOKIE + "=" + token + "; Path=/; HttpOnly; SameSite=Lax"));
         claim("and the page is not served on the redirect", () -> assertThat(ranOnTheExchange).isEmpty());
 
         Response withTheCookie = send("GET", SECOND, own(), cookie());
@@ -268,7 +271,7 @@ class ControlPanelServerTest {
                     assertThat(whileHoldingTheCookie.status()).isEqualTo(303);
                     assertThat(whileHoldingTheCookie.header("Location")).containsExactly(ROOT);
                     assertThat(whileHoldingTheCookie.header("Set-Cookie")).containsExactly(
-                            ControlPanelServer.COOKIE + "=" + token + "; Path=/; HttpOnly; SameSite=Strict");
+                            ControlPanelServer.COOKIE + "=" + token + "; Path=/; HttpOnly; SameSite=Lax");
                     assertThat(RAN).isEmpty();
                 });
     }

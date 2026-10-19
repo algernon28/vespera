@@ -21,7 +21,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.jsoup.nodes.Element;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -38,7 +37,6 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("561")
 @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
-@Disabled(ScreenServer.UNTIL_THE_SCREENS_ARE_BUILT)
 class NextScreenTest {
 
     /** The two values the first stop of a run wants, in the order the file names them. */
@@ -71,15 +69,13 @@ class NextScreenTest {
 
     @Test
     @Story("The operator writes the values the next invocation wants")
-    @DisplayName("Each value the next run wants is asked for in order, with its provenance, its cost and the report it is read off, and the profile page leaves it out")
+    @DisplayName("Each value the next run wants is asked for in order, with its provenance, its cost and the report it is read off")
     void eachWantedValueIsAskedWithItsProvenanceItsCostAndItsReport() throws IOException, InterruptedException {
         Path workingDirectory = workingDirectoryWanting(SEED_AND_FLOOR);
         try (ScreenServer screens = ScreenServer.start(folder, values(workingDirectory))) {
-            PanelBrowser browser = afterTheChildEnded(screens);
-            Page page = browser.go("/next").page();
+            Page page = screens.afterARunHasEnded().go("/next").page();
             Element next = form(page, "next");
             Element floorsReport = byId(page, "report-boilerplateDocumentFrequencyFloor");
-            List<String> profileForms = browser.go("/profile").page().document().select("form").eachAttr("name");
 
             claim("the next act is a run",
                     () -> assertThat(byId(page, "next-invocation").attr("data-invocation")).isEqualTo("run"));
@@ -97,10 +93,6 @@ class NextScreenTest {
                     () -> assertThat(List.of(floorsReport.attr("href"), floorsReport.attr("target"),
                                     page.document().select("#report-seedFolder").size()))
                             .containsExactly("/report/document-frequency.html", "_blank", 0));
-            claim("and the profile page holds no form of its own for either value wanted",
-                    () -> assertThat(profileForms)
-                            .doesNotContain("seedFolder", "boilerplateDocumentFrequencyFloor")
-                            .contains("relevanceScoreFloor"));
         }
     }
 
@@ -111,7 +103,7 @@ class NextScreenTest {
         Path workingDirectory = workingDirectoryWanting(SEED_AND_FLOOR);
         Path seedFolder = Files.createDirectories(folder.resolve("seeds"));
         try (ScreenServer screens = ScreenServer.start(folder, values(workingDirectory))) {
-            Page landed = afterTheChildEnded(screens).go("/next").press("next", "save", Map.of(
+            Page landed = screens.afterARunHasEnded().go("/next").press("next", "save", Map.of(
                     "seedFolder", seedFolder.toString(),
                     "seedFolder.provenance", "the operator's exemplars",
                     "boilerplateDocumentFrequencyFloor", "0.35",
@@ -136,7 +128,7 @@ class NextScreenTest {
     void answersWantedLeadToTheQuestionsAndToLabelAuto() throws IOException, InterruptedException {
         Path workingDirectory = workingDirectoryWanting(ANSWERS);
         try (ScreenServer screens = ScreenServer.start(folder, values(workingDirectory))) {
-            Page page = afterTheChildEnded(screens).go("/next").page();
+            Page page = screens.afterARunHasEnded().go("/next").page();
 
             claim("the next act is a label",
                     () -> assertThat(byId(page, "next-invocation").attr("data-invocation")).isEqualTo("label"));
@@ -157,7 +149,7 @@ class NextScreenTest {
     void theArrangementToApproveIsOfferedByItsName() throws IOException, InterruptedException {
         Path workingDirectory = workingDirectoryWanting(APPROVAL);
         try (ScreenServer screens = ScreenServer.start(folder, values(workingDirectory))) {
-            Page page = afterTheChildEnded(screens).go("/next").page();
+            Page page = screens.afterARunHasEnded().go("/next").page();
             Element next = form(page, "next");
 
             claim("the approval is asked for, filled with the name of the arrangement to approve, its provenance empty",
@@ -181,12 +173,5 @@ class NextScreenTest {
 
     private LaunchValues values(Path workingDirectory) throws IOException {
         return ScreenServer.values(Files.createDirectories(folder.resolve("corpus")), workingDirectory);
-    }
-
-    /** Presses Run, and returns the browser once the invocation page shows the child ended. */
-    private static PanelBrowser afterTheChildEnded(ScreenServer screens) throws InterruptedException {
-        PanelBrowser browser = screens.browser().press("launch", "run", Map.of());
-        ScreenServer.whenTheChildHasEnded(browser);
-        return browser;
     }
 }

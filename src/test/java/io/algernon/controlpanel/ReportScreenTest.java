@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -34,7 +33,6 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("561")
 @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
-@Disabled(ScreenServer.UNTIL_THE_SCREENS_ARE_BUILT)
 class ReportScreenTest {
 
     /** The fifteen reports the jar writes in the working directory, in the order the record lists them. */

@@ -21,7 +21,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,7 +35,6 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("561")
 @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
-@Disabled(ScreenServer.UNTIL_THE_SCREENS_ARE_BUILT)
 class ProfileScreenTest {
 
     @TempDir
@@ -73,6 +71,33 @@ class ProfileScreenTest {
                     () -> assertThat(ProfileEdit.read(Files.readString(workingDirectory.resolve(ProfileEdit.FILE_NAME),
                                     StandardCharsets.UTF_8)).get(ProfileKey.EXTRACTION_ATTEMPT))
                             .isEqualTo(new ProfileEdit.Stated("2", "the converter was busy on the first attempt")));
+        }
+    }
+
+    @Test
+    @Story("The operator writes a profile value")
+    @DisplayName("A value the next run wants is asked for on the next act's page, and the profile page holds no form for it")
+    void aKeyTheNextInvocationWantsHasNoFormOfItsOwn() throws IOException, InterruptedException {
+        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
+        Files.writeString(workingDirectory.resolve(NextInvocation.FILE_NAME), """
+                invocation=run
+                wants=seedFolder boilerplateDocumentFrequencyFloor
+                answer=false
+                """, StandardCharsets.UTF_8);
+        ScreenServer.childWill(workingDirectory, "exit 0 the closing line");
+        List<String> wanted = List.of(ProfileKey.SEED_FOLDER.key(),
+                ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR.key());
+        List<String> notWanted = Arrays.stream(ProfileKey.values()).map(ProfileKey::key)
+                .filter(key -> !wanted.contains(key))
+                .toList();
+        try (ScreenServer screens = ScreenServer.start(folder,
+                ScreenServer.values(Files.createDirectories(folder.resolve("corpus")), workingDirectory))) {
+            Page page = screens.afterARunHasEnded().go("/profile").page();
+
+            claim("once the next run wants two values, the profile page holds a form for every other value, in the"
+                            + " profile's order, and none for the two",
+                    () -> assertThat(page.document().select("form").eachAttr("name"))
+                            .containsExactlyElementsOf(notWanted));
         }
     }
 }

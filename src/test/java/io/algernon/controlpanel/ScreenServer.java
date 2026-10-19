@@ -12,7 +12,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.jar.Attributes;
+import java.util.stream.Collectors;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
@@ -25,17 +27,10 @@ import org.jsoup.select.Elements;
  * temp directory, and with a jar beside it whose main class is {@link JarForScreenTests}, started with the java
  * running the tests, so that Run and Label start a child that does what the test says and never Vespera.
  *
- * <p>Closing it closes the server and kills every process the test's JVM started and left running.
+ * <p>Closing it closes the server and kills the processes the test's JVM started since this server was started and
+ * left running, and no other.
  */
 final class ScreenServer implements AutoCloseable {
-
-    /**
-     * Why each screen test class of ADR-302 is disabled: it is written failing first (ADR-297 §5), and fails with 404
-     * until the screens are built. The build of the screens removes {@code @Disabled} from each, and starts the pages
-     * in {@link #pages}, in one change, so that no test is disabled once its screen exists and none is red before.
-     */
-    static final String UNTIL_THE_SCREENS_ARE_BUILT =
-            "written before the screen it tests, which is not built yet: every path answers 404 until it is";
 
     /** How long a test waits for a child to end before it fails. */
     private static final Duration ENDING_BOUND = Duration.ofSeconds(30);
@@ -45,8 +40,12 @@ final class ScreenServer implements AutoCloseable {
 
     private final ControlPanelServer server;
 
-    private ScreenServer(ControlPanelServer server) {
+    /** The processes the test's JVM had started, and still had, when this server was started. */
+    private final Set<Long> runningBefore;
+
+    private ScreenServer(ControlPanelServer server, Set<Long> runningBefore) {
         this.server = server;
+        this.runningBefore = runningBefore;
     }
 
     /**
@@ -62,18 +61,24 @@ final class ScreenServer implements AutoCloseable {
         Path jar = writeTheJar(Files.createDirectories(folder.resolve("bin")).resolve("vespera-for-screen-tests.jar"));
         ChildRuntime runtime = new ChildRuntime(Path.of(System.getProperty("java.home"), "bin",
                 System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java"), jar);
-        return new ScreenServer(ControlPanelServer.start(pages(runtime, launchValuesFile, userName)));
+        Set<Long> runningBefore = ProcessHandle.current().descendants().map(ProcessHandle::pid)
+                .collect(Collectors.toUnmodifiableSet());
+        return new ScreenServer(ControlPanelServer.start(pages(runtime, launchValuesFile, userName)), runningBefore);
     }
 
     /**
      * The screens' pages, by path.
      *
-     * <p>Failing first (ADR-297 §5): until the screens of ADR-302 are built the server is started with none, so every
-     * path answers 404. The build replaces this body with {@code ControlPanelPages.pages(runtime, launchValuesFile,
-     * userName)} (ADR-302 §10).
+     * <p>Failing first (ADR-297 §5): until the screens of ADR-302 are built the server is started with no screen, the
+     * root alone registered and answering 404, so that the token is exchanged for the cookie at the root, as the
+     * server exchanges it only on a path it is started with, and every path then answers 404. The build replaces this
+     * body with {@code ControlPanelPages.pages(runtime, launchValuesFile, userName)} (ADR-302 §10).
      */
     private static Map<String, HttpHandler> pages(ChildRuntime runtime, Path launchValuesFile, String userName) {
-        return Map.of();
+        return Map.of("/", exchange -> {
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+        });
     }
 
     /** Launch values naming only the corpus root and the working directory, every other value empty. */
@@ -143,6 +148,13 @@ final class ScreenServer implements AutoCloseable {
         return page;
     }
 
+    /** A browser that has opened the printed address, pressed Run, and seen the child end on the invocation page. */
+    PanelBrowser afterARunHasEnded() throws InterruptedException {
+        PanelBrowser browser = browser().press("launch", "run", Map.of());
+        whenTheChildHasEnded(browser);
+        return browser;
+    }
+
     /** A browser that has opened the address the control panel printed. */
     PanelBrowser browser() {
         return PanelBrowser.opening(server.firstAddress());
@@ -156,7 +168,9 @@ final class ScreenServer implements AutoCloseable {
     @Override
     public void close() {
         server.close();
-        ProcessHandle.current().descendants().forEach(ProcessHandle::destroyForcibly);
+        ProcessHandle.current().descendants()
+                .filter(process -> !runningBefore.contains(process.pid()))
+                .forEach(ProcessHandle::destroyForcibly);
     }
 
     private static Path writeTheJar(Path jar) throws IOException {
