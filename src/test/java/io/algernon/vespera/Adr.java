@@ -2056,6 +2056,15 @@ public final class Adr {
     public static final String AN_OPERATIONAL_RECORD_THAT_IS_NOT_A_LOG_OR_A_CONFIGURATION_FILE_IS_LEFT_TO_RELEVANCE = FILE
             + "0293-an-operational-record-that-is-not-a-log-or-a-configuration-file-is-left-to-relevance-and-its-name-ending-is-the-operators-to-list.md";
 
+    /**
+     * ADR-297 -- the control panel's screens are tested failing-first through {@code PanelBrowser}, the JDK's HTTP
+     * client with a cookie store and jsoup at test scope, which opens the printed address, follows a {@code 303},
+     * and submits a form by its name as a browser sends it, a {@code POST} from the panel's own origin; no browser is
+     * downloaded, and every such test is a unit test on both CI jobs.
+     */
+    public static final String THE_CONTROL_PANELS_SCREENS_ARE_TESTED_THROUGH_THE_PAGES_IT_SERVES = FILE
+            + "0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md";
+
     private Adr() {
     }
 }
