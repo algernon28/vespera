@@ -6,6 +6,7 @@ import io.algernon.vespera.synthesis.ClusterSlot;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
@@ -22,12 +23,14 @@ import java.util.function.LongSupplier;
 import java.util.Set;
 
 /**
- * The verified copy of each survivor the tree lists (ADR-274 §2): a file in its cluster's folder, named by {@link CopyNames}, made from the original opened for reading and nothing else, and put in place only when its bytes hash
- * to the key stage 2 recorded.
+ * The verified copy of each survivor the tree lists (ADR-274 §2): a file in its cluster's folder, named by {@link
+ * CopyNames}, made from the original opened for reading and nothing else, and put in place only when its bytes hash to
+ * the key stage 2 recorded.
  *
  * <p><b>No copy fails the step, throws, or writes a row</b> (§2.3). What did not stand is held here, by occurrence,
- * for the pages and the manifest of the same drawing; the name each copy stands under is held, as it follows from
- * the survivor and its cluster's members (ADR-280 §2). The next invocation tries every copy that does not stand again.
+ * for the pages and the manifest of the same drawing. Of the names, only each cluster's folder string and the names a
+ * collision changed are held; every other name is recomputed by {@link CopyNames#plainName} (ADR-280 §2). The next
+ * invocation tries every copy that does not stand again.
  *
  * <p><b>A file at a copy's name is trusted</b> (§2.4): only the verified move puts one there, so neither it nor the
  * original is read again. A {@code .part} a stopped invocation left is written over.
@@ -104,7 +107,11 @@ final class Copies {
      * same drawing come by it again without holding it.
      */
     void copyAll(Path clusterFolder, List<ListedSurvivor> members, Set<String> pictureNames) {
-        Map<OccurrenceId, String> names = CopyNames.of(members, pictureNames);
+        copyAllAs(clusterFolder, members, CopyNames.of(members, pictureNames));
+    }
+
+    /** {@link #copyAll} with the names already worked out; the seam a name {@link CopyNames} would not give is tried by. */
+    void copyAllAs(Path clusterFolder, List<ListedSurvivor> members, Map<OccurrenceId, String> names) {
         Path folder = clusterFolder.toAbsolutePath().normalize();
         List<String> parts = new ArrayList<>();
         tree.toAbsolutePath().normalize().relativize(folder).forEach(part -> parts.add(part.toString()));
@@ -126,7 +133,15 @@ final class Copies {
         for (ListedSurvivor survivor : members) {
             Path copy = null;
             try {
-                copy = folder.resolve(names.get(survivor.occurrence()));
+                String name = names.get(survivor.occurrence());
+                if ((name + Deliverable.PART_SUFFIX).getBytes(StandardCharsets.UTF_8).length
+                        > CopyNames.LONGEST_NAME_IN_BYTES) {
+                    // A name that with .part holds more than 255 UTF-8 bytes is not made (ADR-280 §1.6).
+                    notStanding.put(survivor.occurrence().value(), CopyOutcome.NOT_COPIED);
+                    progress.survivorNotCopied();
+                    continue;
+                }
+                copy = folder.resolve(name);
                 if (Files.isRegularFile(copy)) {
                     progress.survivorAlreadyCopied();
                 } else {

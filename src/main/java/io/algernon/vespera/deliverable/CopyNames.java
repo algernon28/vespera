@@ -22,8 +22,10 @@ import java.util.regex.Pattern;
  * of the pictures the cluster's page shows, and no file is read (§2): a name worked out again from the same members is
  * the same name, whatever order the members arrive in.
  *
- * <p><b>Where repeated suffixes leave no room for any of the original's stem</b>, which ADR-280 leaves open, the stem
- * is empty and the suffixes stand alone; the name may then pass {@value #LONGEST_NAME} units, and past {@value #LONGEST_NAME_IN_BYTES} bytes with {@code .part}, in which case the file system refuses it and that copy is not copied. It still ends: while
+ * <p><b>Where repeated suffixes leave no room for any of the original's stem</b>, the stem is empty and the suffixes
+ * stand alone; the name may then pass {@value #LONGEST_NAME} units, and past {@value #LONGEST_NAME_IN_BYTES} bytes
+ * with {@code .part}. A name that with {@code .part} holds more than {@value #LONGEST_NAME_IN_BYTES} UTF-8 bytes is
+ * not made (ADR-280 §1.6), and that copy is not-copied. It still ends: while
  * any of the stem is left, an attempt may repeat the one before, but once the stem is empty each attempt is strictly
  * longer than the one before, and the names in a folder are finite.
  */
@@ -120,10 +122,13 @@ final class CopyNames {
         return reserved.contains(key) || THE_PAGE.equals(key) || A_FURTHER_PAGE.matcher(key).matches();
     }
 
-    /** The collision key: normalisation form C, upper-cased without regard to the reader's locale, and composed again (ADR-280 §1.4). */
+    /**
+     * The collision key (ADR-280 §1.4): normalisation form C, lower-cased and then upper-cased without regard to the
+     * reader's locale so that letters which share a lower case (θ and ϴ, ß and ẞ) share a key, and composed again.
+     */
     static String keyOf(String name) {
-        String composed = Normalizer.normalize(name, Normalizer.Form.NFC).toUpperCase(Locale.ROOT);
-        return Normalizer.normalize(composed, Normalizer.Form.NFC);
+        String folded = Normalizer.normalize(name, Normalizer.Form.NFC).toLowerCase(Locale.ROOT).toUpperCase(Locale.ROOT);
+        return Normalizer.normalize(folded, Normalizer.Form.NFC);
     }
 
     /**

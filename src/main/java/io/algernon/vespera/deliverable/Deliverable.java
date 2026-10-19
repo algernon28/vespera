@@ -193,10 +193,9 @@ public final class Deliverable {
             Set<String> written = new HashSet<>();
             // A copy's name follows from its cluster's members and the pictures its page shows, which are known only
             // when that cluster is reached, and holding every cluster's members until then would break ADR-223 §9. So
-            // the survey cannot tell which copies already stand, and counts every survivor listed: a resumed
-            // drawing's survey says more than will be copied, never less, and each copy that stands is then reported
-            // as already copied. This departs from ADR-274 §2.5, which counts only the copies missing, and is
-            // not licensed by ADR-280.
+            // the survey cannot tell which copies already stand. ADR-280 §3 amends ADR-274 §2.5: the count before the
+            // first copy is every survivor listed and the bytes their originals hold, and a copy already standing
+            // moves the counter on.
             EntryPictures entryPictures = EntryPictures.among(source, pictures, progress, page -> {
                 for (ListedSurvivor survivor : page) {
                     aboutToCopy[0]++;
