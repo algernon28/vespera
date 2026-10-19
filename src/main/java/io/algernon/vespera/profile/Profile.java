@@ -101,6 +101,10 @@ package io.algernon.vespera.profile;
  *     ignores an unreadable number. Ships unset and is not a gate: an unset attempt never ends an
  *     invocation. No {@link Measurement} pointer and no {@code with...Measurement} method: no page's
  *     measurement informs it, and a pointer would make stage 2 write {@code profile.yaml}.
+ * @param codeNameEndings stage 1's second list of file-name endings (ADR-277 §2), read as {@code
+ *     outOfScopeNameEndings} is: a file detected as of no known kind or as text, whose bytes read as text
+ *     and whose name ends with one, is {@code code}. Ships unset; unset or unreadable, nothing is code for
+ *     its name. Its {@link Measurement} points at the format-mix page.
  * @param outOfScopeNameEndings stage 1's list of file-name endings (ADR-256): one line of endings, each
  *     beginning with a dot, matched at the end of a file's name in any case, and read only for a file
  *     detected as of no known kind or as text. Ships unset; unset or unreadable, it leaves nothing out.
@@ -124,6 +128,7 @@ public record Profile(
         NumericValue generationContextWindow,
         NumericValue logTimestampShareFloor,
         NumericValue extractionAttempt,
+        NameEndingsValue codeNameEndings,
         NameEndingsValue outOfScopeNameEndings,
         NumericValue translationSimilarityFloor,
         LanguagesValue preferredLanguages) {
@@ -144,6 +149,7 @@ public record Profile(
         logTimestampShareFloor = logTimestampShareFloor == null ? NumericValue.unset() : logTimestampShareFloor;
         extractionAttempt = extractionAttempt == null ? NumericValue.unset() : extractionAttempt;
         outOfScopeNameEndings = outOfScopeNameEndings == null ? NameEndingsValue.unset() : outOfScopeNameEndings;
+        codeNameEndings = codeNameEndings == null ? NameEndingsValue.unset() : codeNameEndings;
         translationSimilarityFloor =
                 translationSimilarityFloor == null ? NumericValue.unset() : translationSimilarityFloor;
         preferredLanguages = preferredLanguages == null ? LanguagesValue.unset() : preferredLanguages;
@@ -173,7 +179,7 @@ public record Profile(
 
     /** A profile with every key present and none of them answered — what census drafts. */
     static Profile skeleton() {
-        return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -190,6 +196,7 @@ public record Profile(
                 generationContextWindow,
                 logTimestampShareFloor,
                 extractionAttempt,
+                codeNameEndings,
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages);
@@ -213,6 +220,7 @@ public record Profile(
                 generationContextWindow,
                 logTimestampShareFloor,
                 extractionAttempt,
+                codeNameEndings,
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages);
@@ -232,6 +240,7 @@ public record Profile(
                 generationContextWindow,
                 logTimestampShareFloor,
                 extractionAttempt,
+                codeNameEndings,
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages);
@@ -254,6 +263,7 @@ public record Profile(
                 generationContextWindow,
                 logTimestampShareFloor,
                 extractionAttempt,
+                codeNameEndings,
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages);
@@ -281,6 +291,7 @@ public record Profile(
                 generationContextWindow,
                 logTimestampShareFloor,
                 extractionAttempt,
+                codeNameEndings,
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages);
@@ -303,6 +314,7 @@ public record Profile(
                 generationContextWindow,
                 logTimestampShareFloor,
                 extractionAttempt,
+                codeNameEndings,
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages);
@@ -322,6 +334,7 @@ public record Profile(
                 generationContextWindow,
                 logTimestampShareFloor.measuredBy(measurement),
                 extractionAttempt,
+                codeNameEndings,
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages);
@@ -341,6 +354,7 @@ public record Profile(
                 generationContextWindow,
                 logTimestampShareFloor,
                 extractionAttempt,
+                codeNameEndings,
                 outOfScopeNameEndings.measuredBy(measurement),
                 translationSimilarityFloor,
                 preferredLanguages);
@@ -360,6 +374,7 @@ public record Profile(
                 generationContextWindow,
                 logTimestampShareFloor,
                 extractionAttempt,
+                codeNameEndings,
                 outOfScopeNameEndings,
                 translationSimilarityFloor.measuredBy(measurement),
                 preferredLanguages);
@@ -379,8 +394,29 @@ public record Profile(
                 generationContextWindow,
                 logTimestampShareFloor,
                 extractionAttempt,
+                codeNameEndings,
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages.measuredBy(measurement));
+    }
+
+    /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-277 §2). */
+    public Profile withCodeNameEndingsMeasurement(Measurement measurement) {
+        return new Profile(
+                seedFolder,
+                degenerateOutputConfidenceFloor,
+                degenerateOutputWordFloor,
+                boilerplateDocumentFrequencyFloor,
+                embeddingModel,
+                relevanceScoreFloor,
+                arrangementApproved,
+                generationModel,
+                generationContextWindow,
+                logTimestampShareFloor,
+                extractionAttempt,
+                codeNameEndings.measuredBy(measurement),
+                outOfScopeNameEndings,
+                translationSimilarityFloor,
+                preferredLanguages);
     }
 }

@@ -204,7 +204,7 @@ public class Verdicts {
         List<String> kinds = Arrays.stream(VerdictKind.values()).filter(VerdictKind::blocking).map(Enum::name).toList();
         String sql = "SELECT SUM(kind = 'BROKEN' COLLATE NOCASE), SUM(kind = 'DUPLICATE_OF' COLLATE NOCASE),"
                 + " SUM(kind = 'SUPERSEDED_BY' COLLATE NOCASE), SUM(kind = 'OUT_OF_SCOPE' COLLATE NOCASE),"
-                + " SUM(kind = 'EXTRACTION_FAILED' COLLATE NOCASE), SUM(kind = 'DEGENERATE_OUTPUT' COLLATE NOCASE),"
+                + " SUM(kind = 'CODE' COLLATE NOCASE), SUM(kind = 'EXTRACTION_FAILED' COLLATE NOCASE), SUM(kind = 'DEGENERATE_OUTPUT' COLLATE NOCASE),"
                 + " SUM(kind = 'REDUNDANT_WITH' COLLATE NOCASE), SUM(kind = 'TRANSLATION_OF' COLLATE NOCASE),"
                 + " SUM(kind = 'BELOW_THRESHOLD' COLLATE NOCASE)"
                 + " FROM verdict WHERE run_id = ?";

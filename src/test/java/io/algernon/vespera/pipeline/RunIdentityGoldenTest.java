@@ -135,17 +135,20 @@ class RunIdentityGoldenTest {
     /**
      * Stage 1 read no settings until ADR-171, and recorded {@code {}}. It now records the text size
      * ceiling, a constant in {@code extraction} that its {@code corpus}-only implementation version cannot
-     * see (ADR-058), the log floor this profile leaves unset, and the name endings the profile lists as out
-     * of scope, none here (ADR-256 §6).
+     * see (ADR-058), the log floor this profile leaves unset, the name endings the profile lists as out
+     * of scope, none here (ADR-256 §6), the name endings it lists as code, none here, and the version of
+     * the generators' marks built into {@code corpus} (ADR-277 §9).
      */
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
-    @DisplayName("Byte-level reduction is identified by the text size ceiling, the rule for text converted in parts, the log floor and the name endings left out, under the corpus code alone")
+    @DisplayName("Byte-level reduction is identified by the text size ceiling, the rule for text converted in parts, the log floor, the name endings left out, the name endings kept as code and the generators' marks, under the corpus code alone")
     @Issue("370")
     @Issue("371")
+    @Issue("558")
     @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
     @Link(name = "ADR-178", url = Adr.TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS, type = "adr")
     @Link(name = "ADR-256", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
     void byteLevelReduction() {
         Map<String, Object> run = theRunOf("byte-level-reduction");
 
@@ -155,13 +158,17 @@ class RunIdentityGoldenTest {
                         + " largest text cut, 64,000,000 bytes, and the largest part, 8,000,000 bytes -- then the"
                         + " share of timestamped lines that makes a text file a log, recorded as null because"
                         + " this profile sets none, then the name endings whose files are left out, an empty"
-                        + " list because this profile lists none -- so a change to any of them is a new piece of"
-                        + " work, and the same walk under the same four still names the same one",
+                        + " list because this profile lists none, then the name endings whose files are kept as"
+                        + " code, an empty list for the same reason, then the version of the generators' marks"
+                        + " -- so a change to any of them is a new piece of work, and the same walk under the"
+                        + " same six still names the same one",
                 () -> assertThat(run.get("config_consumed"))
                         .isEqualTo("{\"textSizeCeilingBytes\":16000000,"
                                 + "\"textParts\":\"v1,over=16000000,upto=64000000,part=8000000\","
                                 + "\"logTimestampShareFloor\":null,"
-                                + "\"outOfScopeNameEndings\":[]}"));
+                                + "\"outOfScopeNameEndings\":[],"
+                                + "\"codeNameEndings\":[],"
+                                + "\"generatorMarks\":\"v1\"}"));
         claim(
                 "and its code version is the corpus module's alone",
                 () -> assertThat(run.get("implementation_version")).isEqualTo("corpus"));
