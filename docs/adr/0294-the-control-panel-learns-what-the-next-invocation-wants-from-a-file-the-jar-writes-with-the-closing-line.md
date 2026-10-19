@@ -74,9 +74,9 @@ It walks no fixed list of invocations. It walks one loop: after a child ends wit
 
 On the shipped profile with the seed folder named first, the loop is the README's five: `run`; `run` wanting `boilerplateDocumentFrequencyFloor embeddingModel`; `label` with `answer=true`; `run` wanting `relevanceScoreFloor`; `run` wanting `arrangementApproved` with its `arrangement`; then `none`. `degenerateOutputWordFloor` and `configurationSettingShareFloor` add no step: they ship unset, and appear in `wants` only when they hold something nothing can be read from. A file present but not in §1's shape, an `invocation` that is not one of its three words, an `answer` that is not `true` or `false`, an `arrangement` without `arrangementApproved` in `wants` or the reverse, `answer=true` without `label`, or `none` with keys wanted, is read as unreadable, and the control panel offers nothing from it.
 
-### 5. What the profile ticket takes from this
+### 5. What the screens ticket takes from this
 
-The ticket that writes profile values, label answers and the approval from the control panel (#566) reads this file and nothing else to know which. It owes a way to write each key `wants` names, with provenance as the operator states it; a way to answer the questions in `relevance-labels.yaml` where `answer=true`; and, where `arrangement` is present, a way to write it into `arrangementApproved`. How each is shown and written is that ticket's.
+The ticket that gives the control panel its screens (#561) reads this file and nothing else to know which keys, answers and approval to collect, and writes them through ADR-295's rules: each key `wants` names, with provenance as the operator states it; the answers to the questions in `relevance-labels.yaml` where `answer=true`; and, where `arrangement` is present, that name into `arrangementApproved`. How each is written is ADR-295's; how each is shown is that ticket's.
 
 ## Alternatives refused
 
@@ -105,7 +105,7 @@ The ticket that writes profile values, label answers and the approval from the c
 
 ## What this does not decide
 
-- **How the control panel shows the next act, and the screens that collect each key, the answers and the approval** (#561, #566).
+- **How the control panel shows the next act, and the screens that collect each key, the answers and the approval** (#561), and how each is written (ADR-295).
 - **The values the control panel passes when it starts the jar** (#564).
 - **Whether `vespera label --auto` is offered where `answer=true`**: the file says answers are wanted, not who gives them.
 - **The count in ADR-098's title**: four there, five in the README; this record walks whatever `NextAction` computes and moves neither.
