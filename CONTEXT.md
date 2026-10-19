@@ -280,7 +280,7 @@ How a synthesis doc points at a document it was written from: an ordinal into th
 _Avoid_: reference, source, footnote
 
 **Picture**:
-Something visual that Docling found inside a converted document and returned among its `pictures`, with its pixels where the response carries them. It comes along with its document and is shown under that document's membership entry, never judged on its own: survival stays a fact about documents (ADR-149). A standalone image file is not a picture. It is a document whose format is an image, or, inside a generated tree, code (ADR-284).
+Something visual that Docling found inside a converted document and returned among its `pictures`, with its pixels where the response carries them. It comes along with its document and is shown under that document's membership entry, never judged on its own: survival stays a fact about documents (ADR-149). It is shown inline on the page, its bytes written into it, and written into no file of its own (ADR-286). A standalone image file is not a picture. It is a document whose format is an image, or, inside a generated tree, code (ADR-284); where its copy is a PNG or a JPEG, its entry shows that copy inline (ADR-286).
 _Avoid_: image (the word for a standalone image file, and for Markdown's image syntax), figure, illustration, attachment
 
 **Furniture picture**:
@@ -304,7 +304,7 @@ The pipeline's terminal state, and the deliverable: the arrangement, the synthes
 _Avoid_: the wiki, the Confluence output, the export
 
 **Cluster folder**:
-The folder of the deliverable a cluster's page lies in, `<partition>/<cluster>/`, named with the cluster's place in its seed partition and the slug of its cluster label (ADR-112, ADR-280). It holds the page, `index.html`, the pictures the page shows, and the copy of each of the cluster's survivors. A rendering, like the label it is named from: never the cluster's identity.
+The folder of the deliverable a cluster's page lies in, `<partition>/<cluster>/`, named with the cluster's place in its seed partition and the slug of its cluster label (ADR-112, ADR-280). It holds the page, `index.html`, and the copy of each of the cluster's survivors, and nothing else: the pictures the page shows are inlined in it (ADR-286). A rendering, like the label it is named from: never the cluster's identity.
 _Avoid_: group folder (group is how a cluster renders for a reader, never a name of ours), page folder
 
 **Copy**:

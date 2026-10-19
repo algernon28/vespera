@@ -19,7 +19,8 @@ import org.junit.jupiter.api.Test;
 /**
  * The closing line's clause on what an earlier drawing left in the tree (ADR-280 §4, paying ADR-276 §6): an earlier
  * layout's {@code documents/} is named and said to be deletable by hand, any other folder left behind is counted and
- * not named, and with nothing left, or no tree drawn by this invocation, there is no clause.
+ * not named, the files left in a group's folder are counted and not named (ADR-286 §4), and with nothing left, or no
+ * tree drawn by this invocation, there is no clause.
  *
  * <p>Asserted as a pure function of what the line is handed, as {@code TheClosingLineCountsTheCopiesThatDoNotStandTest}
  * asserts the copies' clause. That a drawing over a flat layout hands it over is {@code DeliverableInvocationTest}'s,
@@ -71,6 +72,13 @@ class TheClosingLineSaysWhatAnEarlierDrawingLeftTest {
 
     private static final int NO_FOLDER = 0;
 
+    /** Files an earlier drawing left in a group's folder: none, one, and three. */
+    private static final int NO_FILE = 0;
+
+    private static final int ONE_FILE = 1;
+
+    private static final int THREE_FILES = 3;
+
     @Test
     @Story("The last thing an invocation says is what it produced and what is missing from it")
     @DisplayName("Where an earlier layout's folder of documents was left in the tree, the closing line names it and says it can be deleted by hand")
@@ -78,7 +86,7 @@ class TheClosingLineSaysWhatAnEarlierDrawingLeftTest {
         claim(
                 "after the count of documents not copied, the line names the documents folder, says it holds an"
                         + " earlier layout's copies and that it can be deleted by hand, and ends there",
-                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, THE_DOCUMENTS_FOLDER_WAS_LEFT, NO_FOLDER))
+                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, THE_DOCUMENTS_FOLDER_WAS_LEFT, NO_FOLDER, NO_FILE))
                         .endsWith(THE_COUNTS + "; " + THE_DOCUMENTS_FOLDER + "."));
     }
 
@@ -88,11 +96,11 @@ class TheClosingLineSaysWhatAnEarlierDrawingLeftTest {
     void countsTheOtherFoldersLeftBehindWithoutNamingThem() {
         claim(
                 "one folder is counted in the singular",
-                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, NO_DOCUMENTS_FOLDER_WAS_LEFT, ONE_FOLDER))
+                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, NO_DOCUMENTS_FOLDER_WAS_LEFT, ONE_FOLDER, NO_FILE))
                         .endsWith(THE_COUNTS + "; 1 folder left by an earlier drawing can be deleted by hand."));
         claim(
                 "and two in the plural, a count and no name, a group's folder being named from words a model wrote",
-                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, NO_DOCUMENTS_FOLDER_WAS_LEFT, TWO_FOLDERS))
+                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, NO_DOCUMENTS_FOLDER_WAS_LEFT, TWO_FOLDERS, NO_FILE))
                         .endsWith(THE_COUNTS + "; 2 folders left by an earlier drawing can be deleted by hand."));
     }
 
@@ -102,7 +110,7 @@ class TheClosingLineSaysWhatAnEarlierDrawingLeftTest {
     void namesTheDocumentsFolderAndCountsTheOthersWhereBothWereLeft() {
         claim(
                 "the documents folder first, then the count of the others after a comma and an and, in one clause",
-                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, THE_DOCUMENTS_FOLDER_WAS_LEFT, TWO_FOLDERS))
+                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, THE_DOCUMENTS_FOLDER_WAS_LEFT, TWO_FOLDERS, NO_FILE))
                         .endsWith(THE_COUNTS + "; " + THE_DOCUMENTS_FOLDER
                                 + ", and 2 folders left by an earlier drawing can be deleted by hand."));
     }
@@ -113,18 +121,58 @@ class TheClosingLineSaysWhatAnEarlierDrawingLeftTest {
     void saysNothingOfAnEarlierDrawingWhereNothingWasLeft() {
         claim(
                 "with nothing left behind, the line ends at the count of documents not copied",
-                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, NO_DOCUMENTS_FOLDER_WAS_LEFT, NO_FOLDER))
+                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, NO_DOCUMENTS_FOLDER_WAS_LEFT, NO_FOLDER, NO_FILE))
                         .endsWith(THE_COUNTS + "."));
         claim(
                 "and where this invocation drew no tree, it ends at the groups left unwritten and says nothing of a"
-                        + " drawing it did not make, even handed a documents folder and two others as left behind",
-                () -> assertThat(lineFor(OptionalInt.empty(), THE_DOCUMENTS_FOLDER_WAS_LEFT, TWO_FOLDERS))
+                        + " drawing it did not make, even handed a documents folder, two others and three files as"
+                        + " left behind",
+                () -> assertThat(lineFor(OptionalInt.empty(), THE_DOCUMENTS_FOLDER_WAS_LEFT, TWO_FOLDERS, THREE_FILES))
                         .endsWith(", with " + NO_GROUP_LEFT_UNWRITTEN + " groups left unwritten.")
                         .doesNotContain("earlier"));
     }
 
+    /**
+     * ADR-286 §4: the files an earlier drawing left in a group's folder are counted, never named, a copy's name being an
+     * original's, as the folders are.
+     */
+    @Test
+    @Story("The last thing an invocation says is what it produced and what is missing from it")
+    @DisplayName("Where files an earlier drawing wrote were left in a group's folder, the closing line counts them without naming them")
+    @Issue("560")
+    @Link(name = "ADR-286", url = Adr.A_CLUSTERS_PAGE_IS_ONE_FILE_ITS_PICTURES_INLINED, type = "adr")
+    void countsTheFilesLeftBehindWithoutNamingThem() {
+        claim(
+                "one file is counted in the singular",
+                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, NO_DOCUMENTS_FOLDER_WAS_LEFT, NO_FOLDER, ONE_FILE))
+                        .endsWith(THE_COUNTS + "; 1 file left by an earlier drawing can be deleted by hand."));
+        claim(
+                "and three in the plural, a count and no name",
+                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, NO_DOCUMENTS_FOLDER_WAS_LEFT, NO_FOLDER, THREE_FILES))
+                        .endsWith(THE_COUNTS + "; 3 files left by an earlier drawing can be deleted by hand."));
+    }
+
+    /** ADR-286 §4: the folders and the files are counted in one clause, after the documents folder where it was left. */
+    @Test
+    @Story("The last thing an invocation says is what it produced and what is missing from it")
+    @DisplayName("Where folders and files were both left, the closing line counts them in one clause, after the folder of documents")
+    @Issue("560")
+    @Link(name = "ADR-286", url = Adr.A_CLUSTERS_PAGE_IS_ONE_FILE_ITS_PICTURES_INLINED, type = "adr")
+    void countsTheFoldersAndTheFilesInOneClause() {
+        claim(
+                "the folders, then and, then the files, before one ending saying they can be deleted by hand",
+                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, NO_DOCUMENTS_FOLDER_WAS_LEFT, TWO_FOLDERS, THREE_FILES))
+                        .endsWith(THE_COUNTS + "; 2 folders and 3 files left by an earlier drawing can be deleted by hand."));
+        claim(
+                "and after the documents folder, joined to it by a comma and an and, as the folders alone are",
+                () -> assertThat(lineFor(NO_DOCUMENT_LEFT_UNCOPIED, THE_DOCUMENTS_FOLDER_WAS_LEFT, TWO_FOLDERS, THREE_FILES))
+                        .endsWith(THE_COUNTS + "; " + THE_DOCUMENTS_FOLDER
+                                + ", and 2 folders and 3 files left by an earlier drawing can be deleted by hand."));
+    }
+
     /** The closing line of an invocation at the end of the path, handed what the drawing found left behind. */
-    private static String lineFor(OptionalInt documentsNotCopied, boolean documentsFolderLeftBehind, int foldersLeftBehind) {
+    private static String lineFor(
+            OptionalInt documentsNotCopied, boolean documentsFolderLeftBehind, int foldersLeftBehind, int filesLeftBehind) {
         return NextAction.line(
                 everythingApproved(),
                 SIXTY_ANSWERED,
@@ -132,7 +180,12 @@ class TheClosingLineSaysWhatAnEarlierDrawingLeftTest {
                 AN_ARRANGEMENT,
                 THE_GENERATION_MODEL,
                 new NextAction.DeliverableSummary(
-                        A_TREE, NO_GROUP_LEFT_UNWRITTEN, documentsNotCopied, documentsFolderLeftBehind, foldersLeftBehind),
+                        A_TREE,
+                        NO_GROUP_LEFT_UNWRITTEN,
+                        documentsNotCopied,
+                        documentsFolderLeftBehind,
+                        foldersLeftBehind,
+                        filesLeftBehind),
                 APPROVAL_MATCHES_THIS_INVOCATION);
     }
 

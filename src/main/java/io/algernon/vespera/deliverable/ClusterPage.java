@@ -4,9 +4,10 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.Unwritten;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -14,11 +15,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.LongConsumer;
 
 /**
- * One cluster's page (ADR-103, ADR-104, ADR-109, ADR-133, ADR-174, ADR-274 §1.4, #187): the heading, the writing
- * rendered by {@link ProseHtml} with its citations as links, the disclosure where the writing rests on part of the
- * cluster, and then the cluster's complete membership.
+ * One cluster's page (ADR-103, ADR-104, ADR-109, ADR-133, ADR-174, ADR-274 §1.4, ADR-286, #187): the heading, the
+ * writing rendered by {@link ProseHtml} with its citations as links, the disclosure where the writing rests on part of
+ * the cluster, and then the cluster's complete membership.
+ *
+ * <p><b>The page is UTF-8 handed to a stream an entry at a time and built nowhere whole</b> (ADR-286 §2): after each
+ * entry's {@code </li>} everything written is handed on and the caller is told how many bytes that is.
  *
  * <p>The membership list is numbered from the documents the call was recorded as carrying (ADR-133), so entry
  * {@code n} is the {@code n}th document the model was given and each {@code [n]} of the writing links to it.
@@ -52,10 +57,15 @@ final class ClusterPage {
      */
     static final String ANCHOR_PREFIX = "document-";
 
+    /** The bytes the page's writer holds before it hands them to the stream; an entry's end hands on all of them. */
+    private static final int BUFFER_BYTES = 1 << 16;
+
     private ClusterPage() {}
 
     /**
-     * Writes {@code file}: the heading is the generated title where there is one, and the derived label
+     * Writes the page to {@code out}, which it flushes and does not close, {@code folder} being the cluster's folder
+     * its copies stand in, and tells {@code entryEnds} after each entry how many bytes it has handed to {@code out}
+     * (ADR-286 §2, §7). The heading is the generated title where there is one, and the derived label
      * where there is not (ADR-106), so a cluster nothing was written over is still headed by something a
      * reader can match against the index.
      *
@@ -78,15 +88,19 @@ final class ClusterPage {
      * @param why why nothing was written, or {@code null} where no reason was handed over
      */
     static void write(
-            Path file,
+            OutputStream out,
             RecordedCluster recorded,
             SynthesisDoc doc,
             Unwritten why,
             List<ListedSurvivor> members,
+            Path folder,
             Copies copies,
             EntryPictures pictures,
-            DeliverableProgress progress)
+            DeliverableProgress progress,
+            LongConsumer entryEnds)
             throws IOException {
+        HandedOn handedOn = new HandedOn(out);
+        OutputStream stream = new BufferedOutputStream(handedOn, BUFFER_BYTES);
         String title = doc == null ? recorded.label().value() : doc.title();
         StringBuilder page = new StringBuilder(Html.head(title));
         page.append("<h1>").append(Html.escape(title)).append("</h1>\n");
@@ -106,17 +120,41 @@ final class ClusterPage {
         List<Optional<ListedSurvivor>> numbered = numbered(doc, members);
         if (!numbered.isEmpty()) {
             page.append("<h2>").append(MEMBERSHIP_HEADING).append("</h2>\n<ol>\n");
-            appendMembership(
-                    page,
-                    numbered,
-                    file.getParent(),
-                    copies,
-                    pictures,
-                    progress);
+            stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
+            page.setLength(0);
+            writeMembership(stream, handedOn, numbered, folder, copies, pictures, progress, entryEnds);
             page.append("</ol>\n");
         }
         page.append(Html.tail());
-        Files.writeString(file, page.toString(), StandardCharsets.UTF_8);
+        stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
+        stream.flush();
+    }
+
+    /** Counts the bytes handed to the stream beneath it, which it does not close. */
+    private static final class HandedOn extends OutputStream {
+        private final OutputStream beneath;
+        private long bytes;
+
+        HandedOn(OutputStream beneath) {
+            this.beneath = beneath;
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            beneath.write(b);
+            bytes++;
+        }
+
+        @Override
+        public void write(byte[] buffer, int offset, int length) throws IOException {
+            beneath.write(buffer, offset, length);
+            bytes += length;
+        }
+
+        @Override
+        public void flush() throws IOException {
+            beneath.flush();
+        }
     }
 
     /**
@@ -197,37 +235,52 @@ final class ClusterPage {
      *
      * @param folder the cluster's folder, which this very page sits in (ADR-280 §0)
      */
-    private static void appendMembership(
-            StringBuilder page,
+    private static void writeMembership(
+            OutputStream stream,
+            HandedOn handedOn,
             List<Optional<ListedSurvivor>> entries,
             Path folder,
             Copies copies,
             EntryPictures pictures,
-            DeliverableProgress progress)
+            DeliverableProgress progress,
+            LongConsumer entryEnds)
             throws IOException {
         for (int at = 0; at < entries.size(); at++) {
+            StringBuilder page = new StringBuilder();
             page.append("<li id=\"").append(ANCHOR_PREFIX).append(at + 1).append("\">\n");
             if (entries.get(at).isEmpty()) {
                 page.append("<em>")
                         .append(Html.escape(Deliverable.THE_CLUSTER_NO_LONGER_HOLDS_IT))
                         .append("</em>\n</li>\n");
+                stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
+                endEntry(stream, handedOn, entryEnds);
                 continue;
             }
             ListedSurvivor member = entries.get(at).get();
             String path = Html.escape(member.path().value());
             CopyOutcome outcome = copies.outcomeOf(member);
+            Optional<Path> copy = Optional.empty();
             if (outcome == CopyOutcome.COPIED) {
                 page.append("<a href=\"./")
                         .append(Html.escape(percentEncoded(copies.nameOf(member))))
                         .append("\">")
                         .append(path)
                         .append("</a>\n");
+                copy = Optional.of(folder.resolve(copies.nameOf(member)));
             } else {
                 page.append(path).append(" <em>").append(Html.escape(outcome.sentence())).append("</em>\n");
             }
-            pictures.appendUnder(page, member, folder);
-            page.append("</li>\n");
+            stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
+            pictures.writeUnder(stream, member, copy);
+            stream.write("</li>\n".getBytes(StandardCharsets.UTF_8));
+            endEntry(stream, handedOn, entryEnds);
             progress.membershipEntryWritten();
         }
+    }
+
+    /** Hands on everything written, and then tells how much that is (ADR-286 §2). */
+    private static void endEntry(OutputStream stream, HandedOn handedOn, LongConsumer entryEnds) throws IOException {
+        stream.flush();
+        entryEnds.accept(handedOn.bytes);
     }
 }

@@ -1,5 +1,7 @@
 # ADR-242 — A page moved over its place is moved again a few times where the move is refused as access denied
 
+> **Partly amended — see [ADR-286](0286-a-clusters-page-is-one-file-written-an-entry-at-a-time-through-its-part-with-its-pictures-and-a-png-or-jpeg-image-inlined.md).** Of *What this does not decide*: a cluster's page is written beside its place and moved by `ReplacingMove` as the index is, and no picture file is written.
+
 > **Partly amended — see [ADR-244](0244-the-floors-answers-are-those-under-the-runs-embedder-identity-a-move-refused-as-a-sharing-violation-is-attempted-again-and-a-document-kept-for-another-is-checked-for-no-container.md).** Of §3 and the first item of *What this does not decide*: a move refused with a `FileSystemException` of no subclass, which is how Java gives a sharing or lock violation on Windows, is attempted again as one refused as access denied is, read by its class and never by its reason. A failure Java names by a subclass is still thrown at once. Since [ADR-245](0245-stage-4b-asks-a-page-whether-its-documents-are-kept-a-move-is-attempted-again-for-a-sharing-violation-only-on-windows-and-the-pager-writes-its-own-bound.md), only on Windows; elsewhere such a failure is thrown at once, unless, since [ADR-246](0246-a-move-on-a-drive-windows-serves-is-attempted-again-and-the-survivors-pages-are-the-ledgers.md), the page's place is on a drive Windows serves.
 
 - **Date**: 2026-10-11

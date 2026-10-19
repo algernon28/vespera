@@ -18,7 +18,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,8 +28,8 @@ import org.junit.jupiter.api.Test;
  * after it, fits in 255 UTF-8 bytes, and, only where it collides with another name in the folder without regard to
  * case, its occurrence id after a tilde before its extension.
  *
- * <p>Asked of {@link CopyNames#of} directly: the names are worked out from the cluster's members and the names of the
- * pictures its page shows, reading no file (§2), so no archive is needed to hold them, and a name no file system here
+ * <p>Asked of {@link CopyNames#of} directly: the names are worked out from the cluster's members alone, reading no
+ * file (§2, ADR-286 §4), so no archive is needed to hold them, and a name no file system here
  * would create, a control character or a device name among them, can still be handed over. What a tree does with the
  * names is {@code TheClusterFolderHoldsItsPageAndItsCopiesTest}'s.
  */
@@ -39,9 +38,6 @@ import org.junit.jupiter.api.Test;
 @Issue("570")
 @Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class CopyNamesTest {
-
-    /** A page that shows no picture, so no picture's name is reserved. */
-    private static final Set<String> NO_PICTURES = Set.of();
 
     /** The most UTF-16 code units a copy's whole name may hold, its suffix and its extension included. */
     private static final int A_HUNDRED_UNITS = 100;
@@ -96,7 +92,7 @@ class CopyNamesTest {
         expected.put(12L, "STRASSE~12.txt");
         expected.put(6L, "notes.txt");
 
-        Map<Long, String> names = namesOf(members, NO_PICTURES);
+        Map<Long, String> names = namesOf(members);
 
         claim(
                 "three names one case apart are kept plain by the lowest-numbered document alone, the other two"
@@ -109,37 +105,53 @@ class CopyNamesTest {
         Collections.reverse(reversed);
         claim(
                 "and the same names are given whatever order the documents are handed over in",
-                () -> assertThat(namesOf(reversed, NO_PICTURES)).containsExactlyEntriesOf(expected));
+                () -> assertThat(namesOf(reversed)).containsExactlyEntriesOf(expected));
     }
 
+    /**
+     * ADR-286 §3 and §4: a page is written as its name and {@code .part} before it is moved into place, so a copy yields
+     * to that part as to the page; and no picture file is written, so a name a picture once had is reserved no more.
+     */
     @Test
     @Story("A document keeps its own name in its group's folder")
-    @DisplayName("A document named as the group's page, as a further page, or as one of its pictures takes its number, even the lowest-numbered")
-    void aCopyYieldsToThePagesNamesAndToAPicturesName() {
-        String aPicture = "0123456789abcdef.png";
-        List<ListedSurvivor> members = List.of(
+    @DisplayName("A document named as the group's page, a further page or the unfinished copy of either takes its number, even the lowest-numbered, and one named as a picture keeps its name")
+    @Issue("560")
+    @Link(name = "ADR-286", url = Adr.A_CLUSTERS_PAGE_IS_ONE_FILE_ITS_PICTURES_INLINED, type = "adr")
+    void aCopyYieldsToThePagesNamesAndTheirPartsAndNotToAPicturesName() {
+        List<ListedSurvivor> namedAsPages = List.of(
                 member(2, "a/index.html"),
                 member(7, "b/Index.HTML"),
                 member(3, "c/INDEX-2.HTML"),
                 member(4, "d/index-12.html"),
-                member(5, "e/0123456789ABCDEF.PNG"),
                 member(6, "f/index-.html"));
-        Map<Long, String> expected = new TreeMap<>();
-        expected.put(2L, "index~2.html");
-        expected.put(7L, "Index~7.HTML");
-        expected.put(3L, "INDEX-2~3.HTML");
-        expected.put(4L, "index-12~4.html");
-        expected.put(5L, "0123456789ABCDEF~5.PNG");
-        expected.put(6L, "index-.html");
-
-        Map<Long, String> names = namesOf(members, Set.of(aPicture));
+        List<ListedSurvivor> namedAsPartsOrAPicture = List.of(
+                member(8, "g/index.html.part"),
+                member(9, "h/INDEX-2.HTML.PART"),
+                member(10, "i/index-12.html.part"),
+                member(5, "e/0123456789ABCDEF.PNG"));
+        Map<Long, String> pages = new TreeMap<>();
+        pages.put(2L, "index~2.html");
+        pages.put(3L, "INDEX-2~3.HTML");
+        pages.put(4L, "index-12~4.html");
+        pages.put(6L, "index-.html");
+        pages.put(7L, "Index~7.HTML");
+        Map<Long, String> parts = new TreeMap<>();
+        parts.put(5L, "0123456789ABCDEF.PNG");
+        parts.put(8L, "index.html~8.part");
+        parts.put(9L, "INDEX-2.HTML~9.PART");
+        parts.put(10L, "index-12.html~10.part");
 
         claim(
-                "the group's page is index.html and a further page index- and digits .html, so every document"
-                        + " named as one of them, in any case, takes its number, the lowest-numbered of two such"
-                        + " included; a document named as a picture the page shows takes its number too; and"
-                        + " index- with no digits is no page's name and is kept",
-                () -> assertThat(names).containsExactlyEntriesOf(expected));
+                "the group's page is index.html and a further page index- and digits .html, so every document named"
+                        + " as one of them, in any case, takes its number, the lowest-numbered of two such included,"
+                        + " and index- with no digits is no page's name and is kept",
+                () -> assertThat(namesOf(namedAsPages)).containsExactlyEntriesOf(pages));
+        claim(
+                "each page is written first as its name and .part, so a document named as such a part takes its"
+                        + " number though no document of the group is named as the page itself; and a document named"
+                        + " as sixteen hexadecimal characters and .png, as a picture once was, keeps its own name, no"
+                        + " picture being written beside the page",
+                () -> assertThat(namesOf(namedAsPartsOrAPicture)).containsExactlyEntriesOf(parts));
     }
 
     @Test
@@ -151,8 +163,7 @@ class CopyNamesTest {
                         member(3, "a/notes.txt.part"),
                         member(8, "b/notes.txt"),
                         member(4, "c/minutes.docx"),
-                        member(5, "d/MINUTES.DOCX.PART")),
-                NO_PICTURES);
+                        member(5, "d/MINUTES.DOCX.PART")));
 
         claim(
                 "a copy is written beside its name with .part added before it is moved into place, so a document"
@@ -171,8 +182,7 @@ class CopyNamesTest {
     @DisplayName("A numbered name that still meets another name takes the number again")
     void aSuffixedNameThatStillCollidesTakesTheSuffixAgain() {
         Map<Long, String> names = namesOf(
-                List.of(member(3, "a/plan.pdf"), member(5, "b/PLAN.PDF"), member(9, "c/plan~5.pdf")),
-                NO_PICTURES);
+                List.of(member(3, "a/plan.pdf"), member(5, "b/PLAN.PDF"), member(9, "c/plan~5.pdf")));
 
         claim(
                 "document 9 is called plan~5.pdf and collides with no other name, so it keeps it; document 5's"
@@ -211,7 +221,7 @@ class CopyNamesTest {
         members.add(member(theEmptyOne, "k/. ."));
         expected.put(theEmptyOne, String.valueOf(theEmptyOne));
 
-        Map<Long, String> names = namesOf(members, NO_PICTURES);
+        Map<Long, String> names = namesOf(members);
 
         claim(
                 "each of the nine characters Windows refuses in a name and each control character becomes an"
@@ -227,8 +237,7 @@ class CopyNamesTest {
     @DisplayName("A long name is cut to a hundred characters, its number and its extension included")
     void aNameIsCutToAHundredUnitsWithItsSuffixAndItsExtension() {
         Map<Long, String> names = namesOf(
-                List.of(member(21, "a/" + "r".repeat(120) + ".pdf"), member(22, "b/" + "R".repeat(120) + ".PDF")),
-                NO_PICTURES);
+                List.of(member(21, "a/" + "r".repeat(120) + ".pdf"), member(22, "b/" + "R".repeat(120) + ".PDF")));
 
         claim(
                 "the first keeps its extension and as much of its name as fits in " + A_HUNDRED_UNITS
@@ -253,8 +262,7 @@ class CopyNamesTest {
         Map<Long, String> names = namesOf(
                 List.of(
                         member(41, "a/" + "a".repeat(95) + A_SURROGATE_PAIR + "bbb.txt"),
-                        member(42, "b/" + "c".repeat(94) + " .zzzz.txt")),
-                NO_PICTURES);
+                        member(42, "b/" + "c".repeat(94) + " .zzzz.txt")));
 
         claim(
                 "a cut that would fall between the two halves of a character outside the basic plane falls"
@@ -277,8 +285,7 @@ class CopyNamesTest {
                         member(53, "c/data.abcdefghijklmnop"),
                         member(54, "d/DATA.ABCDEFGHIJKLMNOP"),
                         member(55, "e/README"),
-                        member(56, "f/readme")),
-                NO_PICTURES);
+                        member(56, "f/readme")));
 
         claim(
                 "an extension of twenty characters is no extension, so the number goes at the end of the name;"
@@ -299,8 +306,7 @@ class CopyNamesTest {
     @DisplayName("Two long names that differ only past the cut collide, and the second gives up more of its name for its number")
     void namesAreCutBeforeTheyAreCompared() {
         Map<Long, String> names = namesOf(
-                List.of(member(31, "a/" + "x".repeat(120) + "1.txt"), member(32, "b/" + "x".repeat(120) + "2.txt")),
-                NO_PICTURES);
+                List.of(member(31, "a/" + "x".repeat(120) + "1.txt"), member(32, "b/" + "x".repeat(120) + "2.txt")));
 
         claim(
                 "both names are cut before they are compared, so the two that differed only in their last"
@@ -319,8 +325,7 @@ class CopyNamesTest {
         Map<Long, String> names = namesOf(
                 List.of(
                         member(theBlankOne, "a/" + " ".repeat(100) + "abc"),
-                        member(72, "b/AUX" + " ".repeat(120) + "z.pdf")),
-                NO_PICTURES);
+                        member(72, "b/AUX" + " ".repeat(120) + "z.pdf")));
 
         claim(
                 "a name of a hundred spaces and three letters is cut to its spaces, which go, so it is left empty"
@@ -358,7 +363,7 @@ class CopyNamesTest {
             expected.put(occurrence++, name.getValue());
         }
 
-        Map<Long, String> names = namesOf(members, NO_PICTURES);
+        Map<Long, String> names = namesOf(members);
 
         claim(
                 "COM0 and LPT0, and COM and LPT followed by a superscript one, two or three, are device names on"
@@ -390,8 +395,7 @@ class CopyNamesTest {
                         member(61, "a/" + aDottedCapitalI + ".txt"),
                         member(62, "b/" + anIAndACombiningDotAbove + ".txt"),
                         member(63, "c/" + anIotaWithDialytikaAndTonos + ".txt"),
-                        member(64, "d/" + aCapitalIotaWithDialytikaAndACombiningAcute + ".txt")),
-                NO_PICTURES);
+                        member(64, "d/" + aCapitalIotaWithDialytikaAndACombiningAcute + ".txt")));
 
         claim(
                 "a capital theta symbol and a capital sharp s are kept as they are by upper-casing, though their"
@@ -418,8 +422,7 @@ class CopyNamesTest {
         claim(
                 "and a dotted capital I does not meet a plain i, which case folding keeps apart from it too",
                 () -> assertThat(namesOf(
-                                List.of(member(91, "a/i.txt"), member(92, "b/" + aDottedCapitalI + ".txt")),
-                                NO_PICTURES))
+                                List.of(member(91, "a/i.txt"), member(92, "b/" + aDottedCapitalI + ".txt"))))
                         .containsExactlyInAnyOrderEntriesOf(Map.of(91L, "i.txt", 92L, aDottedCapitalI + ".txt")));
     }
 
@@ -443,10 +446,10 @@ class CopyNamesTest {
                         + " it in the other, and both would keep their names. Decomposed first, the subscript stands"
                         + " after the perispomeni in both: they collide, document 71 keeping its name as written and"
                         + " document 72 taking its number before the extension",
-                () -> assertThat(namesOf(members, NO_PICTURES)).containsExactlyInAnyOrderEntriesOf(expected));
+                () -> assertThat(namesOf(members)).containsExactlyInAnyOrderEntriesOf(expected));
         claim(
                 "and the same names are given whatever order the members arrive in",
-                () -> assertThat(namesOf(members.reversed(), NO_PICTURES))
+                () -> assertThat(namesOf(members.reversed()))
                         .containsExactlyInAnyOrderEntriesOf(expected));
     }
 
@@ -474,10 +477,10 @@ class CopyNamesTest {
                         + " U+0399 U+0342 and are one file there, though normalisation form D moves the subscript"
                         + " after the perispomeni in the first and the decomposed keys differ: the names collide,"
                         + " document 81 keeping its name and document 82 taking its number before the extension",
-                () -> assertThat(namesOf(members, NO_PICTURES)).containsExactlyInAnyOrderEntriesOf(expected));
+                () -> assertThat(namesOf(members)).containsExactlyInAnyOrderEntriesOf(expected));
         claim(
                 "and with the two names the other way round, the lower occurrence still keeps its own",
-                () -> assertThat(namesOf(theOtherWayRound, NO_PICTURES))
+                () -> assertThat(namesOf(theOtherWayRound))
                         .containsExactlyInAnyOrderEntriesOf(expectedTheOtherWayRound));
     }
 
@@ -486,8 +489,7 @@ class CopyNamesTest {
     @DisplayName("A numbered name whose unfinished copy would be written over another document's copy takes the number again")
     void aSuffixedNameYieldsWhereItsPartIsANameAlreadyGiven() {
         Map<Long, String> names = namesOf(
-                List.of(member(1, "a/report.pdf"), member(2, "b/REPORT~5.PDF.part"), member(5, "c/REPORT.PDF")),
-                NO_PICTURES);
+                List.of(member(1, "a/report.pdf"), member(2, "b/REPORT~5.PDF.part"), member(5, "c/REPORT.PDF")));
 
         claim(
                 "document 5's REPORT.PDF meets document 1's report.pdf; with its number once, REPORT~5.PDF, its"
@@ -506,8 +508,7 @@ class CopyNamesTest {
     void aNameIsCutSoItAndItsPartFitInTwoHundredAndFiftyFiveBytes() {
         String eightyThreeCharacters = A_THREE_BYTE_CHARACTER.repeat(83);
         Map<Long, String> names = namesOf(
-                List.of(member(6, "a/" + eightyThreeCharacters + ".pdf"), member(7, "b/" + eightyThreeCharacters + ".pdf")),
-                NO_PICTURES);
+                List.of(member(6, "a/" + eightyThreeCharacters + ".pdf"), member(7, "b/" + eightyThreeCharacters + ".pdf")));
 
         claim(
                 "a name of eighty-three characters of three bytes each and .pdf is short of " + A_HUNDRED_UNITS
@@ -538,8 +539,7 @@ class CopyNamesTest {
                         member(3, "c/" + theStem.substring(0, 56) + ITS_SUFFIX.repeat(2) + ".pdf"),
                         member(4, "d/" + theStem.substring(0, 36) + ITS_SUFFIX.repeat(3) + ".pdf"),
                         member(5, "e/" + theStem.substring(0, 16) + ITS_SUFFIX.repeat(4) + ".pdf"),
-                        member(A_NINETEEN_DIGIT_OCCURRENCE, "f/" + theStem.toUpperCase(Locale.ROOT) + ".PDF")),
-                NO_PICTURES);
+                        member(A_NINETEEN_DIGIT_OCCURRENCE, "f/" + theStem.toUpperCase(Locale.ROOT) + ".PDF")));
         String theLastName = names.get(A_NINETEEN_DIGIT_OCCURRENCE);
 
         claim(
@@ -565,9 +565,9 @@ class CopyNamesTest {
     }
 
     /** Every member's name in one cluster folder, by its occurrence id. */
-    private static Map<Long, String> namesOf(List<ListedSurvivor> members, Set<String> pictureNames) {
+    private static Map<Long, String> namesOf(List<ListedSurvivor> members) {
         Map<Long, String> names = new TreeMap<>();
-        CopyNames.of(members, pictureNames).forEach((occurrence, name) -> names.put(occurrence.value(), name));
+        CopyNames.of(members).forEach((occurrence, name) -> names.put(occurrence.value(), name));
         return names;
     }
 

@@ -536,7 +536,10 @@ class GenerationTasklet implements Tasklet {
         new InvocationRuns(chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext())
                 .recordDocumentsNotCopied(copies.notStanding());
         new InvocationRuns(chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext())
-                .recordLeftBehind(copies.documentsFolderLeftBehind, Math.toIntExact(copies.foldersLeftBehind));
+                .recordLeftBehind(
+                        copies.documentsFolderLeftBehind,
+                        Math.toIntExact(copies.foldersLeftBehind),
+                        Math.toIntExact(copies.filesLeftBehind));
         openTheIndex(tree);
         return Optional.of(tree);
     }
@@ -565,6 +568,7 @@ class GenerationTasklet implements Tasklet {
         long bytes;
         boolean documentsFolderLeftBehind;
         long foldersLeftBehind;
+        long filesLeftBehind;
 
         /** The survivors whose copy does not stand: every outcome but a copy made or kept. */
         int notStanding() {
@@ -655,6 +659,11 @@ class GenerationTasklet implements Tasklet {
             public void leftBehind(boolean documentsFolder, long otherFolders) {
                 counts.documentsFolderLeftBehind = documentsFolder;
                 counts.foldersLeftBehind = otherFolders;
+            }
+
+            @Override
+            public void filesLeftBehind(long files) {
+                counts.filesLeftBehind = files;
             }
 
             @Override

@@ -11,20 +11,21 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The pictures shown under one membership entry (ADR-149, ADR-150), as one class: the first pass over
@@ -37,11 +38,11 @@ import org.junit.jupiter.api.io.TempDir;
  * rather than {@code DeliverablePictures} so that the two test classes are not read as one another's
  * unit test (ADR-213 §1).
  *
- * <p>Until ADR-274 every expected line here was Markdown that {@code Deliverable.appendPictures} wrote at {@code
- * 4b99a03}; the lines are HTML now, a paragraph holding an {@code <img>}, and the file name pinned as a literal is
- * still the one read off a tree that commit wrote. Retired with the Markdown: the indent that kept a picture inside
- * a numbered entry, an entry being an {@code <li>} now, and the folding of a caption onto one line, an attribute
- * keeping its line breaks.
+ * <p>Each expected line is HTML, a paragraph holding an {@code <img>} whose source is the picture's bytes as a base64
+ * {@code data:} URI (ADR-286 §1), written by {@link EntryPictures#writeUnder} to a stream and into no file. The pixels
+ * here begin with the signature of the kind they declare and decode to no image, so they have no difference hash.
+ * Retired with the Markdown: the indent that kept a picture inside a numbered entry, an entry being an {@code <li>}
+ * now, and the folding of a caption onto one line, an attribute keeping its line breaks.
  */
 @Epic("The deliverable")
 @Feature("The pictures a document carries")
@@ -50,19 +51,26 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-149", url = Adr.A_SURVIVORS_PICTURES_REACH_ITS_CLUSTER_FILE, type = "adr")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 @Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
+@Link(name = "ADR-286", url = Adr.A_CLUSTERS_PAGE_IS_ONE_FILE_ITS_PICTURES_INLINED, type = "adr")
 class EntryPicturesTest {
 
-    /** The bytes of a picture only one document carries. */
-    private static final byte[] A_DIAGRAM = bytes("a diagram");
+    /** What every PNG begins with. */
+    private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
 
-    /** That picture's file name as the deliverable wrote it at {@code 4b99a03}: sixteen hex characters of its SHA-256. */
-    private static final String THE_DIAGRAMS_FILE = "622f47263cf0fe5d.png";
+    /** What every JPEG begins with. */
+    private static final byte[] JPEG_SIGNATURE = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
+
+    /** The bytes of a picture only one document carries. */
+    private static final byte[] A_DIAGRAM = png("a diagram");
+
+    /** How the page shows that picture: its bytes, as a base64 PNG source. */
+    private static final String THE_DIAGRAMS_SOURCE = "data:image/png;base64," + Base64.getEncoder().encodeToString(A_DIAGRAM);
 
     /** The bytes of a picture two documents carry, which makes it furniture in both. */
-    private static final byte[] A_SHARED_LOGO = bytes("a shared logo");
+    private static final byte[] A_SHARED_LOGO = png("a shared logo");
 
     /** The bytes of a picture Docling placed in a page header. */
-    private static final byte[] IN_THE_HEADER = bytes("in the header");
+    private static final byte[] IN_THE_HEADER = png("in the header");
 
     /** A caption carrying a link, an image, a tag, an entity, a code span, a backslash and a blank line. */
     private static final String A_HOSTILE_CAPTION =
@@ -122,8 +130,8 @@ class EntryPicturesTest {
         EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST, SECOND),
                 source(Map.of(
-                        FIRST.occurrence(), List.of(png(A_DIAGRAM), png(A_SHARED_LOGO)),
-                        SECOND.occurrence(), List.of(png(A_SHARED_LOGO), furnitureLayer(IN_THE_HEADER)))),
+                        FIRST.occurrence(), List.of(aPng(A_DIAGRAM), aPng(A_SHARED_LOGO)),
+                        SECOND.occurrence(), List.of(aPng(A_SHARED_LOGO), furnitureLayer(IN_THE_HEADER)))),
                 DeliverableProgress.NONE);
 
         claim(
@@ -135,76 +143,63 @@ class EntryPicturesTest {
 
     @Test
     @Story("A picture only one document carries is shown under that document")
-    @DisplayName("A picture is written into the page's folder under its digest's name and shown in its entry")
-    void writesAPictureAndShowsItUnderTheEntry(@TempDir Path pageDirectory) throws IOException {
+    @DisplayName("A picture is shown in its entry by its own bytes, as a base64 source")
+    @Issue("560")
+    void showsAPictureInItsEntryByItsOwnBytes() throws IOException {
         EntryPictures pictures = ListedArrangement.picturesAmong(
-                List.of(FIRST), source(Map.of(FIRST.occurrence(), List.of(png(A_DIAGRAM)))), DeliverableProgress.NONE);
-        StringBuilder page = new StringBuilder();
+                List.of(FIRST), source(Map.of(FIRST.occurrence(), List.of(aPng(A_DIAGRAM)))), DeliverableProgress.NONE);
 
-        pictures.appendUnder(page, FIRST, pageDirectory);
+        String page = writtenUnder(pictures, FIRST);
 
         claim(
-                "the entry gains one paragraph showing the picture with empty alt text by the name the deliverable"
-                        + " gave it alone, the picture lying beside the page",
-                () -> assertThat(page.toString())
-                        .isEqualTo("<p><img src=\"" + THE_DIAGRAMS_FILE
-                                + "\" alt=\"\"></p>\n"));
-        claim(
-                "the file holds the picture's own bytes, in the page's folder",
-                () -> assertThat(pageDirectory.resolve(THE_DIAGRAMS_FILE))
-                        .hasBinaryContent(A_DIAGRAM));
+                "the entry gains one paragraph showing the picture with empty alt text, its source the picture's own"
+                        + " bytes in base64 under the media type they carry",
+                () -> assertThat(page).isEqualTo("<p><img src=\"" + THE_DIAGRAMS_SOURCE + "\" alt=\"\"></p>\n"));
     }
 
     @Test
     @Story("A picture that recurs is furniture and is left out")
-    @DisplayName("An entry whose only pictures are furniture gains nothing, and no picture is written")
-    void leavesFurnitureOut(@TempDir Path pageDirectory) throws IOException {
+    @DisplayName("An entry whose only pictures are furniture gains nothing")
+    void leavesFurnitureOut() throws IOException {
         EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST, SECOND),
                 source(Map.of(
-                        FIRST.occurrence(), List.of(png(A_SHARED_LOGO)),
-                        SECOND.occurrence(), List.of(png(A_SHARED_LOGO), furnitureLayer(IN_THE_HEADER)))),
+                        FIRST.occurrence(), List.of(aPng(A_SHARED_LOGO)),
+                        SECOND.occurrence(), List.of(aPng(A_SHARED_LOGO), furnitureLayer(IN_THE_HEADER)))),
                 DeliverableProgress.NONE);
-        StringBuilder page = new StringBuilder();
 
-        pictures.appendUnder(page, SECOND, pageDirectory);
+        String page = writtenUnder(pictures, SECOND);
 
         claim(
-                "neither the shared logo nor the header picture is shown, nothing is said about them, and nothing"
-                        + " is written into the page's folder for an entry with nothing to show",
-                () -> {
-                    assertThat(page.toString()).isEmpty();
-                    assertThat(pageDirectory).isEmptyDirectory();
-                });
+                "neither the shared logo nor the header picture is shown, and nothing is said about them",
+                () -> assertThat(page).isEmpty());
     }
 
     @Test
     @Story("A picture's alt text is the converter's caption or nothing")
     @DisplayName("A caption becomes alt text with every character markup could be made of escaped")
-    void escapesTheCaptionAsAltText(@TempDir Path pageDirectory) throws IOException {
+    void escapesTheCaptionAsAltText() throws IOException {
         EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST),
                 source(Map.of(FIRST.occurrence(), List.of(new ListedPicture("image/png", A_DIAGRAM, false, A_HOSTILE_CAPTION)))),
                 DeliverableProgress.NONE);
-        StringBuilder page = new StringBuilder();
-
-        pictures.appendUnder(page, FIRST, pageDirectory);
+        String page = writtenUnder(pictures, FIRST);
 
         claim(
                 "the tag and the entity are written as entities, so the caption can neither close the attribute nor"
                         + " add markup, and the brackets, the backtick and the backslash, which mean nothing to HTML,"
                         + " stay as the converter wrote them",
-                () -> assertThat(page.toString())
-                        .isEqualTo("<p><img src=\"" + THE_DIAGRAMS_FILE + "\" alt=\""
+                () -> assertThat(page)
+                        .isEqualTo("<p><img src=\"" + THE_DIAGRAMS_SOURCE + "\" alt=\""
                                 + THAT_CAPTION_AS_ALT_TEXT + "\"></p>\n"));
     }
 
     @Test
     @Story("A document shows at most ten pictures, and says how many more it has")
     @DisplayName("Twelve pictures show the first ten and say two more are not shown; eleven say one, in the singular")
-    void showsTenAndCountsTheRest(@TempDir Path pageDirectory) throws IOException {
-        String twelve = picturesUnder(pageDirectory.resolve("twelve"), 12);
-        String eleven = picturesUnder(pageDirectory.resolve("eleven"), 11);
+    void showsTenAndCountsTheRest() throws IOException {
+        String twelve = picturesUnder(12);
+        String eleven = picturesUnder(11);
 
         claim(
                 "of twelve pictures the first " + Deliverable.PICTURES_PER_DOCUMENT + " are shown and the line after"
@@ -222,47 +217,50 @@ class EntryPicturesTest {
     }
 
     @Test
-    @Story("A picture's file is named from its own bytes")
-    @DisplayName("A JPEG is written as .jpg, and a picture of a kind with no extension is counted rather than written")
-    void writesAJpegAndCountsAnUnwrittenKind(@TempDir Path pageDirectory) throws IOException {
-        byte[] jpeg = bytes("a jpeg");
+    @Story("A picture is shown by its own bytes")
+    @DisplayName("A JPEG is shown as a JPEG, and a picture of any other kind is counted rather than shown")
+    @Issue("560")
+    void showsAJpegAndCountsAnUnshownKind() throws IOException {
+        byte[] jpeg = jpeg("a jpeg");
         EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST),
                 source(Map.of(
                         FIRST.occurrence(),
                         List.of(new ListedPicture("image/gif", bytes("a gif"), false, ""), new ListedPicture("image/jpeg", jpeg, false, "")))),
                 DeliverableProgress.NONE);
-        StringBuilder page = new StringBuilder();
-
-        pictures.appendUnder(page, FIRST, pageDirectory);
+        String page = writtenUnder(pictures, FIRST);
 
         claim(
-                "the JPEG is shown from a .jpg file named from its digest, and the GIF, for which no file is"
-                        + " written, is counted in the line saying what is not shown",
-                () -> assertThat(page.toString())
-                        .isEqualTo("<p><img src=\"" + nameOf(jpeg, ".jpg")
+                "the JPEG is shown by its bytes as a base64 JPEG source, and the GIF, of a kind no page shows, is"
+                        + " counted in the line saying what is not shown",
+                () -> assertThat(page)
+                        .isEqualTo("<p><img src=\"data:image/jpeg;base64," + Base64.getEncoder().encodeToString(jpeg)
                                 + "\" alt=\"\"></p>\n"
                                 + "<p><em>1 more picture from this document is not shown.</em></p>\n"));
     }
 
     /** The lines {@code count} distinct PNG pictures of one document add to its entry. */
-    private static String picturesUnder(Path pageDirectory, int count) throws IOException {
+    private static String picturesUnder(int count) throws IOException {
         List<ListedPicture> many = IntStream.range(0, count)
-                .mapToObj(n -> png(bytes("picture " + n)))
+                .mapToObj(n -> aPng(png("picture " + n)))
                 .toList();
         EntryPictures pictures = ListedArrangement.picturesAmong(
                 List.of(FIRST), source(Map.of(FIRST.occurrence(), many)), DeliverableProgress.NONE);
-        StringBuilder page = new StringBuilder();
-        Files.createDirectories(pageDirectory);
-        pictures.appendUnder(page, FIRST, pageDirectory);
-        return page.toString();
+        return writtenUnder(pictures, FIRST);
+    }
+
+    /** What {@code pictures} write under {@code member}'s entry, its copy standing nowhere, as UTF-8. */
+    private static String writtenUnder(EntryPictures pictures, ListedSurvivor member) throws IOException {
+        ByteArrayOutputStream page = new ByteArrayOutputStream();
+        pictures.writeUnder(page, member, Optional.empty());
+        return page.toString(StandardCharsets.UTF_8);
     }
 
     private static SurvivorPictures source(Map<OccurrenceId, List<ListedPicture>> pictures) {
         return survivor -> pictures.getOrDefault(survivor.occurrence(), List.of());
     }
 
-    private static ListedPicture png(byte[] pixels) {
+    private static ListedPicture aPng(byte[] pixels) {
         return new ListedPicture("image/png", pixels, false, "");
     }
 
@@ -285,9 +283,20 @@ class EntryPicturesTest {
         return text.getBytes(StandardCharsets.UTF_8);
     }
 
-    /** The file name ADR-149 §3 gives a picture: sixteen hex characters of its digest, then the extension. */
-    private static String nameOf(byte[] pixels, String extension) {
-        return sha256Hex(pixels).substring(0, 16) + extension;
+    /** Bytes that begin as a PNG does and then are {@code text}: of the kind they declare, and decoding to no image. */
+    private static byte[] png(String text) {
+        return concat(PNG_SIGNATURE, bytes(text));
+    }
+
+    /** Bytes that begin as a JPEG does and then are {@code text}. */
+    private static byte[] jpeg(String text) {
+        return concat(JPEG_SIGNATURE, bytes(text));
+    }
+
+    private static byte[] concat(byte[] head, byte[] tail) {
+        byte[] whole = Arrays.copyOf(head, head.length + tail.length);
+        System.arraycopy(tail, 0, whole, head.length, tail.length);
+        return whole;
     }
 
     private static String sha256Hex(byte[] pixels) {
