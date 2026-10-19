@@ -12,10 +12,10 @@ package io.algernon.vespera.deliverable;
  * with the loop's total, before the loop's first item, zero included; its completion method is called once
  * after each item. <b>The order is fixed:</b> the survivors asked for their pictures first, the furniture
  * pass; then, once that pass has seen every survivor, the copies about to be made ({@link #toCopySurvivors}); then
- * the partitions, the cluster pages and the membership entries, in that order, all before the loop over partitions,
+ * the partitions, the clusters and the membership entries, in that order, all before the loop over partitions,
  * the last two summed across every partition; then, within the loop, a partition's copies are made before its pages,
- * each entry is reported after its pictures are written, each cluster page after its entries and each partition after
- * its files; and last, after the loop, the rows of the manifest. An entry for a document the cluster no longer
+ * each entry is reported after its pictures are written, each cluster after its entries and its pages, however many,
+ * and each partition after its files; and last, after the loop, the rows of the manifest. An entry for a document the cluster no longer
  * holds reads no picture and is neither in the total nor reported.
  *
  * <p><b>Of the copies</b>, exactly one of {@link #survivorCopied}, {@link #survivorChanged}, {@link #survivorGone},
@@ -74,11 +74,14 @@ public interface DeliverableProgress {
     /** Called after each partition's directory and cluster pages have been written. */
     default void partitionWritten() {}
 
-    /** Called once, before the loop over partitions, with how many cluster pages will be written in all. */
-    default void toWriteClusterFiles(long clusters) {}
+    /**
+     * Called once, before the loop over partitions, with how many clusters will be drawn in all, a cluster being counted
+     * once whatever its pages (ADR-303 §3, §11).
+     */
+    default void toDrawClusters(long clusters) {}
 
-    /** Called after each cluster page has been written. */
-    default void clusterFileWritten() {}
+    /** Called after each cluster has been drawn, all its pages written. */
+    default void clusterDrawn() {}
 
     /** Called once, before the loop over partitions, with how many membership entries with a document there are in all. */
     default void toWriteMembershipEntries(long entries) {}
@@ -107,7 +110,7 @@ public interface DeliverableProgress {
 
     /**
      * Called once, right after {@link #leftBehind}, with how many regular files, summed over the cluster folders this
-     * drawing wrote, are neither a cluster's {@code index.html} nor a name this drawing gave one of that cluster's
+     * drawing wrote, are neither a page of a cluster nor a name this drawing gave one of that cluster's
      * survivors (ADR-286 §4). A folder inside a cluster folder is not counted, and nothing is deleted. A count and no
      * name.
      */

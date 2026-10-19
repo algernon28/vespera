@@ -44,6 +44,8 @@ public final class ProfileFixture {
 
     private NumericValue generationContextWindow = NumericValue.unset();
 
+    private NumericValue clusterPageByteCeiling = NumericValue.unset();
+
     private NumericValue logTimestampShareFloor = NumericValue.unset();
 
     private NumericValue extractionAttempt = NumericValue.unset();
@@ -78,6 +80,7 @@ public final class ProfileFixture {
         fixture.arrangementApproved = existing.arrangementApproved();
         fixture.generationModel = existing.generationModel();
         fixture.generationContextWindow = existing.generationContextWindow();
+        fixture.clusterPageByteCeiling = existing.clusterPageByteCeiling();
         fixture.logTimestampShareFloor = existing.logTimestampShareFloor();
         fixture.extractionAttempt = existing.extractionAttempt();
         fixture.codeNameEndings = existing.codeNameEndings();
@@ -231,6 +234,12 @@ public final class ProfileFixture {
         return this;
     }
 
+    /** The bytes past which a cluster's page is split at an entry's end (ADR-303 §2), a whole number from 1. */
+    public ProfileFixture clusterPageByteCeiling(String value, String provenance) {
+        this.clusterPageByteCeiling = aNumber(value, provenance);
+        return this;
+    }
+
     /** Stage 1's floor on a text file's share of setting lines (ADR-287 §7), on a 0-to-1 scale. */
     public ProfileFixture configurationSettingShareFloor(String value, String provenance) {
         this.configurationSettingShareFloor = aNumber(value, provenance);
@@ -249,6 +258,7 @@ public final class ProfileFixture {
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
+                clusterPageByteCeiling,
                 logTimestampShareFloor,
                 extractionAttempt,
                 codeNameEndings,

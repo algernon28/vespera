@@ -98,6 +98,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "ByteLevelReductionTasklet",
             "CensusTasklet",
             "ClusterSizeReport",
+            // ADR-303: reads the page ceiling the profile holds and hands the tree a plain value; drawing is no stage's output.
+            "ClusterPageByteCeiling",
             "ClusteringTasklet",
             "ConfidenceDistributionReport",
             "ContentCensusTasklet",
@@ -457,6 +459,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "extraction.LeadingChunks",
                             "extraction.PicturePlace",
                             "deliverable.ArrangedSurvivors",
+                            // ADR-303: the page ceiling, read through ClusterPageByteCeiling and handed to the tree.
+                            "deliverable.ClusterPageCeiling",
                             "deliverable.CodeSetNames",
                             "deliverable.Deliverable",
                             "deliverable.DeliverableProgress",
@@ -471,6 +475,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "deliverable.ListedSurvivor",
                             "deliverable.NamedValue",
                             "deliverable.SurvivorPictures",
+                            // ADR-303: the page ceiling's value, handed to ClusterPageByteCeiling's reading.
+                            "profile.NumericValue",
                             "profile.Profile",
                             "profile.ProfileStore",
                             "synthesis.ArrangedCluster",

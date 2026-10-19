@@ -2103,6 +2103,16 @@ public final class Adr {
     public static final String THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT = FILE
             + "0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md";
 
+    /**
+     * ADR-303 -- {@code clusterPageByteCeiling}, a whole number of bytes from 1, shipped unset, splits a cluster's page
+     * whose one-page size is greater into {@code index.html} and {@code index-<k>.html} at entries' ends, filled
+     * greedily, each page within it but one of a single entry, linked first, previous, next and last, the citations
+     * naming the page their entry is on; unset, the page is as before; every drawing writes {@code
+     * cluster-page-sizes.html}, numbers only; no run id moves.
+     */
+    public static final String A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES = FILE
+            + "0303-a-clusters-page-past-the-profiles-byte-ceiling-is-split-at-an-entrys-end-into-pages-and-every-drawing-writes-the-pages-sizes.md";
+
     private Adr() {
     }
 }

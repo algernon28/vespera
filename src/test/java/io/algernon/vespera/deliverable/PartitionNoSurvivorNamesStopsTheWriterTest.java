@@ -141,12 +141,12 @@ class PartitionNoSurvivorNamesStopsTheWriterTest {
             }
 
             @Override
-            public void toWriteClusterFiles(long clusters) {
+            public void toDrawClusters(long clusters) {
                 events.add("to-files " + clusters);
             }
 
             @Override
-            public void clusterFileWritten() {
+            public void clusterDrawn() {
                 events.add("file");
             }
 

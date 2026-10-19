@@ -111,6 +111,54 @@ final class ListedTree {
                 DeliverableProgress.NONE);
     }
 
+    /**
+     * The tree written from these lists over {@code corpusRoot}, each cluster's page split where it is past {@code
+     * ceiling} (ADR-303), each survivor's pictures from {@code pictures}, {@code progress} hearing what the writer tells.
+     */
+    static Path writeWithCeiling(
+            Path workingDirectory,
+            Path corpusRoot,
+            List<RecordedCluster> arrangement,
+            Map<ClusterSlot, SynthesisDoc> written,
+            List<ListedSurvivor> survivors,
+            Map<ClusterSlot, Unwritten> unwritten,
+            SurvivorPictures pictures,
+            ClusterPageCeiling ceiling,
+            DeliverableProgress progress) {
+        return Deliverable.writeTo(
+                workingDirectory,
+                DeliverableRoot.UNNAMED,
+                provenance(corpusRoot),
+                of(arrangement, written, survivors, unwritten),
+                ListedCodeSets.NONE,
+                pictures,
+                ceiling,
+                progress);
+    }
+
+    /** As {@link #writeWithCeiling}, every page put in place by {@code moves}. */
+    static Path writeWithCeiling(
+            Path workingDirectory,
+            Path corpusRoot,
+            List<RecordedCluster> arrangement,
+            Map<ClusterSlot, SynthesisDoc> written,
+            List<ListedSurvivor> survivors,
+            Map<ClusterSlot, Unwritten> unwritten,
+            ClusterPageCeiling ceiling,
+            DeliverableProgress progress,
+            ReplacingMove moves) {
+        return Deliverable.writeTo(
+                workingDirectory,
+                DeliverableRoot.UNNAMED,
+                provenance(corpusRoot),
+                of(arrangement, written, survivors, unwritten),
+                ListedCodeSets.NONE,
+                SurvivorPictures.none(),
+                ceiling,
+                progress,
+                moves);
+    }
+
     /** As {@link #write}, the drive's free bytes answered by {@code usableSpace} each time the writer asks. */
     static Path writeWithFreeSpace(
             Path workingDirectory,

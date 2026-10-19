@@ -79,6 +79,12 @@ class RunIdentityGoldenTest {
     /** The generation model this test names, so the generation text rests on a name this test chose. */
     private static final String GENERATION_MODEL = "a-named-writing-model:8b";
 
+    /**
+     * The page ceiling this fixture sets, from the first invocation on, so every run's text below is pinned with it
+     * set: a value of the profile that enters no run (ADR-303 §13). One byte, the smallest there is.
+     */
+    private static final String A_PAGE_CEILING = "1";
+
     @TempDir
     static Path workingDirectory;
 
@@ -121,6 +127,7 @@ class RunIdentityGoldenTest {
                 .seedFolder(seeds.toString(), "set by this test")
                 .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
+                .clusterPageByteCeiling(A_PAGE_CEILING, "set by this test, to show it enters no run")
                 .build());
         cli.run("run", root.toString());
         String arrangement = ArrangementGate.shortNameOf(new RunId(
@@ -375,6 +382,36 @@ class RunIdentityGoldenTest {
                         + " the stages, which holds nothing that decides what this one writes",
                 () -> assertThat(run.get("implementation_version"))
                         .isEqualTo("synthesis+extraction+embedding"));
+    }
+
+    /**
+     * ADR-303 §13 and §8: the page ceiling, set before the first invocation, enters no run, so every text above is
+     * pinned with it set and no run's settings name it; the drawing reads it all the same, and states it in the report it
+     * writes beside the others.
+     */
+    @Test
+    @Story("A stage's piece of work is identified by exactly what identified it before")
+    @DisplayName("The page ceiling enters no run's settings, and the drawing states it in the report of the pages' sizes")
+    @Issue("571")
+    @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
+    void theCeilingEntersNoRunAndTheDrawingStatesIt() throws IOException {
+        List<String> everyRunsSettings = jdbcTemplate.queryForList(
+                "SELECT r.config_consumed FROM run r JOIN walk w ON w.id = r.walk_id WHERE w.root = ?",
+                String.class,
+                Walk.canonicalRoot(root).toString());
+        Path report = workingDirectory.resolve("cluster-page-sizes.html");
+
+        claim(
+                "every run recorded over this corpus, the generation run among them, records settings that do not name"
+                        + " the page ceiling, though the profile sets it",
+                () -> assertThat(everyRunsSettings)
+                        .isNotEmpty()
+                        .noneMatch(settings -> settings.contains("clusterPageByteCeiling")));
+        claim(
+                "and the drawing read it: the report of the pages' sizes in the working directory states it as "
+                        + A_PAGE_CEILING + " byte",
+                () -> assertThat(Files.readString(report))
+                        .contains("<tr><th>clusterPageByteCeiling</th><td class=\"count\">" + A_PAGE_CEILING + "</td></tr>"));
     }
 
     /**

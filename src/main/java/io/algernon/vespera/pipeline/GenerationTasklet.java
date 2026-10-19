@@ -789,12 +789,12 @@ class GenerationTasklet implements Tasklet {
             }
 
             @Override
-            public void toWriteClusterFiles(long total) {
+            public void toDrawClusters(long total) {
                 files = StageProgress.over("Stage 6b (generation, cluster files written)", total);
             }
 
             @Override
-            public void clusterFileWritten() {
+            public void clusterDrawn() {
                 files.itemDone();
             }
 
@@ -850,8 +850,9 @@ class GenerationTasklet implements Tasklet {
             List<ArrangedPartition> arranged,
             Map<OccurrenceId, Integer> places,
             Map<ClusterSlot, Unwritten> foundThisRun) {
+        Profile profile = profileStore.load();
         DeliverableProvenance provenance = new DeliverableProvenance(
-                generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profileStore.load()));
+                generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profile));
         RunId extractionRun = stageRuns.upstream(StageModules.EXTRACTION);
         long survivorCount = arranged.stream().mapToLong(ArrangedPartition::memberCount).sum();
         StageProgress listed = StageProgress.over("Stage 6b (generation, survivors listed)", survivorCount);
@@ -910,6 +911,7 @@ class GenerationTasklet implements Tasklet {
                 source,
                 codeSetsOf(byteLevelReductionRun),
                 survivorPictures(byteLevelReductionRun),
+                ClusterPageByteCeiling.of(profile.clusterPageByteCeiling()).forTheTree(),
                 treeProgress(copies));
     }
 

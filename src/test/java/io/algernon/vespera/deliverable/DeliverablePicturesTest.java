@@ -43,7 +43,7 @@ import org.junit.jupiter.api.io.TempDir;
  * one kept is shown under its document's membership entry, by its own bytes as a base64 source on its
  * image (ADR-286 §1), what its alt text is, and how many a document may show.
  *
- * <p>Written against the writer with the pictures handed in by hand, as {@code ClusterFileTest} is:
+ * <p>Written against the writer with the pictures handed in by hand, as {@code AClustersPageReadsAsItsGroupTest} is:
  * the pictures a real run hands in come out of the extraction cache through {@code pipeline}, and a
  * stubbed extractor that gives every document the same response gives every document the same
  * pictures, which the furniture rule rightly removes. Nothing here renders a page; the bytes of the
