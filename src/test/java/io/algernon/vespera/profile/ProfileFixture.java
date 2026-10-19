@@ -56,6 +56,8 @@ public final class ProfileFixture {
 
     private LanguagesValue preferredLanguages = LanguagesValue.unset();
 
+    private NumericValue configurationSettingShareFloor = NumericValue.unset();
+
     private ProfileFixture() {
     }
 
@@ -82,6 +84,7 @@ public final class ProfileFixture {
         fixture.outOfScopeNameEndings = existing.outOfScopeNameEndings();
         fixture.translationSimilarityFloor = existing.translationSimilarityFloor();
         fixture.preferredLanguages = existing.preferredLanguages();
+        fixture.configurationSettingShareFloor = existing.configurationSettingShareFloor();
         return fixture;
     }
 
@@ -228,6 +231,12 @@ public final class ProfileFixture {
         return this;
     }
 
+    /** Stage 1's floor on a text file's share of setting lines (ADR-287 §7), on a 0-to-1 scale. */
+    public ProfileFixture configurationSettingShareFloor(String value, String provenance) {
+        this.configurationSettingShareFloor = aNumber(value, provenance);
+        return this;
+    }
+
     /** The profile itself, through the one constructor {@link Profile} has. */
     public Profile build() {
         return new Profile(
@@ -245,6 +254,7 @@ public final class ProfileFixture {
                 codeNameEndings,
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
-                preferredLanguages);
+                preferredLanguages,
+                configurationSettingShareFloor);
     }
 }

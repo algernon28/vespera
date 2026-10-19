@@ -88,11 +88,16 @@ class LanguagesValueTest {
     void theProfileCarriesBothKeysAfterTheNameEndings() {
         List<String> keys = ProfileKeys.everyKey();
 
+        int nameEndings = keys.indexOf("outOfScopeNameEndings");
         claim(
-                "the record's last three keys are outOfScopeNameEndings, then translationSimilarityFloor, then"
-                        + " preferredLanguages, so census drafts both new keys and the index states them",
-                () -> assertThat(keys.subList(Math.max(keys.size() - 3, 0), keys.size()))
-                        .containsExactly("outOfScopeNameEndings", "translationSimilarityFloor", "preferredLanguages"));
+                "the record carries outOfScopeNameEndings, then straight after it translationSimilarityFloor, then"
+                        + " preferredLanguages, so census drafts both keys and the index states them; a key added"
+                        + " later may follow them",
+                () -> {
+                    assertThat(nameEndings).isNotNegative();
+                    assertThat(keys.subList(nameEndings, Math.min(nameEndings + 3, keys.size())))
+                            .containsExactly("outOfScopeNameEndings", "translationSimilarityFloor", "preferredLanguages");
+                });
     }
 
     private static LanguagesValue.Reading readingOf(String written) {
