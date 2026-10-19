@@ -2,6 +2,8 @@
 
 > **Superseded — see ADR-101.** [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md) **supersedes this record**: there is no publication target. The run ends at the documents stage 6b generates.
 
+> **Partly reopened — see [ADR-301](0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md).** Confluence is again a target a rendering is drawn for, in its storage format, and not a destination this project sends anything to: that the sink is reached is the operator's own loader's doing. Everything else ADR-101 superseded here stays superseded.
+
 > **Reconstituted record — the original text of this ADR is lost.**
 > Rebuilt on 2026-08-22 from the decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md), the only surviving record of these decisions. The summary below is transcribed **verbatim** from that digest.
 > There are deliberately no Context, Decision or Consequences sections: that rationale was not recorded in the digest, and inferring it would place invented reasoning under an original date. Where a later decision amends this one, the digest says so inside the summary, and it is transcribed as written.
