@@ -3,9 +3,9 @@ package io.algernon.vespera.extraction;
 import java.util.Locale;
 
 /**
- * The two-tier {@code degenerate-output} floor over an already-computed {@link ExtractionMetric}
+ * The three-tier {@code degenerate-output} floor over an already-computed {@link ExtractionMetric}
  * (ADR-070): a pure judgement, kept apart from {@link ExtractionMetrics} so the rule can be pinned
- * without a database.
+ * without a database. Tier 3, the word floor, is ADR-282's.
  */
 final class DegeneracyFloor {
 
@@ -20,8 +20,10 @@ final class DegeneracyFloor {
      * set (ADR-070's <b>observe before enforce</b>): the mean confidence score below the configured
      * threshold, on Docling's own 0-to-1 scale. A {@code null} mean score — the {@code .docx}/{@code
      * .txt} case, where confidence is never computed — never crosses tier 2, whatever it is set to.
+     * Tier 3, only once {@code wordFloor} is set, judged after both: {@code word_count} below it,
+     * whatever the occurrence's detected format and whether or not it has a mean score (ADR-282).
      */
-    static DegeneracyVerdict evaluate(ExtractionMetric metric, Double confidenceFloor) {
+    static DegeneracyVerdict evaluate(ExtractionMetric metric, Double confidenceFloor, Long wordFloor) {
         if (metric.alphanumericCharCount() == 0) {
             return new DegeneracyVerdict(true, UsableText.NO_ALPHANUMERIC_CONTENT);
         }
@@ -36,6 +38,15 @@ final class DegeneracyFloor {
                                 meanScore,
                                 confidenceFloor));
             }
+        }
+        if (wordFloor != null && metric.wordCount() < wordFloor) {
+            return new DegeneracyVerdict(
+                    true,
+                    String.format(
+                            Locale.ROOT,
+                            "%d word(s), below the configured word floor %d",
+                            metric.wordCount(),
+                            wordFloor));
         }
         return DegeneracyVerdict.notDegenerate();
     }

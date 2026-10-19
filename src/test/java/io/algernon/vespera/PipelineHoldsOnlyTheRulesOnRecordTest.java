@@ -103,7 +103,13 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "ContentCensusTasklet",
             "ConversionDispatch",
             "CorpusRootCheck",
+            // ADR-279: refuses a second vespera run on a corpus root; keys and locks a file, and decides no verdict.
+            "CorpusRootInUseException",
+            "CorpusRootLock",
+            "CorpusRootLockUnavailableException",
             "DegenerateOutputConfidenceFloor",
+            // ADR-282: reads the word floor the profile holds, as ExtractionAttempt reads the attempt; the floor's rule is extraction's.
+            "DegenerateOutputWordFloor",
             "DoclingControlConversion",
             "DoclingDidNotComeBackException",
             "DoclingKeepsDroppingConnectionsException",
@@ -201,7 +207,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "WorkingDirectoryInUseRefusal",
             "WorkingDirectoryLock",
             "WorkingDirectoryOption",
-            "WorkingDirectoryPreparer");
+            "WorkingDirectoryPreparer",
+            // ADR-282: renders extraction's word counts by detected format; the bands and what a floor removes are extraction's.
+            "WordCountDistributionReport");
 
     /**
      * The classes of {@code pipeline} whose compiled form names the verdict vocabulary. Stage 1's and
@@ -253,9 +261,13 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             Map.entry(
                     "ContentCensusTasklet",
                     Set.of(
+                            // ADR-282: the detected formats it hands extraction's word counts, a page at a time.
+                            "corpus.DetectedFormat",
+                            "corpus.DetectedFormats",
                             "extraction.ConfidenceDistribution",
                             "extraction.ExtractionStatement",
                             "extraction.ExtractionStatementProgress",
+                            "extraction.WordCountDistribution",
                             "profile.Measurement",
                             "profile.Profile",
                             "profile.ProfileStore",

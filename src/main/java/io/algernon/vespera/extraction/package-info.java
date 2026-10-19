@@ -14,9 +14,10 @@
  * is, and deriving it from what stage 1 found is knowledge about Docling — which of its pipelines a
  * class of file reaches — rather than knowledge about a stage. The same two enumerations serve two
  * more rules over a detected format: what a seed the floor stopped is sent as, and which formats list
- * their pictures (ADR-226). The purpose widens, not the declaration. It belongs behind this module's
- * client, beside the {@code sentOptions} the extractor identity is built from, so that the two
- * cannot drift. The alternative of a second enumeration here, translated by {@code pipeline}, would
+ * their pictures (ADR-226), and the first splits stage 3's word counts (ADR-282). The purpose widens,
+ * not the declaration. It belongs behind this module's client, beside the {@code sentOptions} the
+ * extractor identity is built from, so that the two cannot drift. The alternative of a second
+ * enumeration here, translated by {@code pipeline}, would
  * buy the unbroken rule with a copy of the vocabulary that has to track the original.
  *
  * <p>The dependency is on two closed enumerations that hold no behaviour and depend on nothing.

@@ -33,6 +33,31 @@
         </encoder>
     </appender>
 
+    <!--
+      #579. The command's closing line is the last line it prints (ADR-158, ADR-278). Two library loggers
+      write after it at INFO: Hikari's pool shutdown while SpringApplication.exit closes the context, and
+      Spring Batch's launcher's line on the job's end, after a failed step's closing line. On the console
+      they are held to WARN; the file keeps them at INFO, as it keeps every line (ADR-270).
+    -->
+    <appender name="CONSOLE_WARN" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="com.zaxxer.hikari" additivity="false">
+        <appender-ref ref="CONSOLE_WARN"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
+    <logger name="org.springframework.batch.core.launch.support.TaskExecutorJobLauncher" additivity="false">
+        <appender-ref ref="CONSOLE_WARN"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>

@@ -1899,6 +1899,32 @@ public final class Adr {
             + "0276-the-deliverable-is-drawn-at-a-root-the-operator-may-name-outside-the-corpus-root-and-the-seed-folder.md";
 
     /**
+     * ADR-277 -- code is a text file, or a file of no known kind whose bytes read as text in its first and last
+     * 64 KB, whose name ends with an ending the profile's codeNameEndings lists, or a reference page carrying the
+     * mark of a documentation generator built into corpus; stage 1 verdicts it code in its first pass, after what
+     * is out of scope and before the log rule, so it is never hashed and no later stage reads it (extends ADR-057,
+     * ADR-146, ADR-256 and ADR-268, answers ADR-252, keeps ADR-094 and ADR-095).
+     */
+    public static final String CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK = FILE
+            + "0277-code-is-recognised-by-a-name-ending-the-profile-lists-or-by-a-documentation-generators-mark-and-stage-1-takes-it-out-of-the-survivors.md";
+
+    /**
+     * ADR-278 -- the control panel starts the jar as its one child, changing nothing in it, with {@code CI=1} and the
+     * two UTF-8 encoding flags, reads its merged output to the end on one thread and opens no connection to {@code
+     * vespera.db}, finds an invocation it did not start by its holder line, and stops only its own child, descendants
+     * first.
+     */
+    public static final String THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN = FILE
+            + "0278-the-control-panel-starts-the-jar-as-its-child-reads-its-output-to-the-end-and-stops-only-its-own-child.md";
+
+    /**
+     * ADR-279 -- {@code vespera run} holds its corpus root by an operating-system lock on a file named for the
+     * root's real path, in a folder of the user's outside the archive and every working directory, and a second
+     * {@code vespera run} on that root is refused in one line before it writes a progress page.
+     */
+    public static final String ONE_VESPERA_RUN_PER_CORPUS_ROOT = FILE
+            + "0279-one-vespera-run-per-corpus-root-by-a-lock-on-a-file-named-for-its-real-path-outside-every-working-directory.md";
+
      * ADR-280 -- {@code <partition>/<cluster>/} holds the cluster's page, {@code index.html}, its pictures and a copy
      * of each of its survivors, and {@code documents/} is no longer written; a copy keeps its original's file name,
      * made safe for every operating system and cut to 100 code units and to 255 UTF-8 bytes with {@code .part}, the
@@ -1911,6 +1937,41 @@ public final class Adr {
      */
     public static final String A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES = FILE
             + "0280-a-clusters-folder-holds-its-page-and-a-copy-of-each-of-its-survivors-under-the-originals-own-name-suffixed-only-on-a-collision.md";
+
+    /**
+     * ADR-281 -- {@code com.zaxxer.hikari} and Spring Batch's {@code TaskExecutorJobLauncher} write to the console
+     * only at WARN and to {@code logs/vespera.log} at INFO, so the last line of output that is not blank is the
+     * invocation's closing line.
+     */
+    public static final String THE_CLOSING_LINE_IS_THE_LAST_LINE = FILE
+            + "0281-the-closing-line-is-the-last-line-of-output-and-two-library-loggers-write-to-the-console-only-at-warn.md";
+
+    /**
+     * ADR-282 -- a converted occurrence whose stored {@code word_count} is below the profile's {@code
+     * degenerateOutputWordFloor} is {@code degenerate-output}, a third tier after tier 1 and tier 2, one value for
+     * every detected format; the key ships unset, is no gate, and joins stage 2's identity where set; stage 3 writes
+     * {@code word-count-distribution.html}, the survivors' words by detected format and what each candidate floor
+     * would remove (amends ADR-070).
+     */
+    public static final String FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT = FILE
+            + "0282-an-occurrence-with-fewer-words-than-the-word-floor-is-degenerate-output-whatever-its-detected-format-and-stage-3-writes-the-page-the-floor-is-read-off.md";
+
+    /**
+     * ADR-283 -- a folder that directly holds {@code vespera-deliverable.txt} is the top of a deliverable tree, and
+     * the private-paths guard refuses every path at or beneath it as a path outside the allow list; no agent reads or
+     * writes a file in a tree, wherever it lies.
+     */
+    public static final String THE_GUARD_READS_A_DELIVERABLE_TREE_AS_OUTSIDE_THE_ALLOW_LIST = FILE
+            + "0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md";
+
+    /**
+     * ADR-285 -- the control panel's code lives in this build under {@code io.algernon.controlpanel}, outside the
+     * nine modules, and is packaged as a second jar, classifier {@code control-panel}, that the Spring Boot jar does
+     * not carry; it names only its own package, {@code java.base} and {@code jdk.httpserver}, so no class of the jar,
+     * and no class of the jar names it.
+     */
+    public static final String THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR = FILE
+            + "0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md";
 
     private Adr() {
     }

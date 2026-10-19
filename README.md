@@ -53,11 +53,13 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `embeddingModel` | whichever model you can serve locally | — |
 | `relevanceScoreFloor` | what each possible cut would cost you, in documents | `relevance-labelling.html`, `cluster-sizes.html`, `seed-corpus-comparison.html` |
 | `degenerateOutputConfidenceFloor` | how well the text extraction went | `confidence-distribution.html` |
+| `degenerateOutputWordFloor` | how many words each kind of file held once its text was extracted, and what each floor would remove | `word-count-distribution.html` |
 | `extractionAttempt` | whether the files the converter did not answer about are worth asking again | `extraction-failures.html` |
 | `arrangementApproved` | whether the groups the tool formed are worth writing over | `arrangement.html` |
 | `generationModel` | whichever model you can serve locally, if you want a different one | — |
 | `generationContextWindow` | how much your own machine can read in one go | — |
 | `logTimestampShareFloor` | how much of each text file begins with a date or a time | `format-mix.html` |
+| `codeNameEndings` | which text files, or files of no known kind whose bytes read as text, are code by the ending of their name, kept apart from the documents | `format-mix.html` |
 | `outOfScopeNameEndings` | which files, of no known kind or text, you know are not documents by the ending of their name | `format-mix.html` |
 | `preferredLanguages` | which language's copy you keep of a document held in several | `translations.html` |
 | `translationSimilarityFloor` | how alike two documents in different languages must be to be taken for one | `translations.html` |
@@ -80,9 +82,9 @@ If you moved the working directory, put its `vespera.db` in place of `.vespera/v
 
 The first line names the content census it read: the one whose id you put at the end, or, with no id, of the content censuses that finished, the one whose run was created last. Each line after the first is a row as the page shows it, the share written as Python writes it, `1.0` for `1.00`; the rule for choosing the floor is the same. If the command stops with `TypeError: 'NoneType' object is not subscriptable`, no content census has finished in that database. If it stops with `unable to open database file`, there is no `vespera.db` where it looked, and it has made none: run it from the directory you run `vespera` from, or name the moved `vespera.db`. If it stops with `no such table: run`, the `vespera.db` it opened holds no ledger, as an empty file of that name does: check that it is the working directory's. If it prints the `run` line and nothing else, no run with that id stored any passages.
 
-Eight of these are **optional** and none of them is one of the five stops; all eight are here so that you know they exist.
+Ten of these are **optional** and none of them is one of the five stops; all ten are here so that you know they exist.
 
-`degenerateOutputConfidenceFloor`, left unset, removes nothing for extracting badly. `logTimestampShareFloor`, left unset, removes no logs: set it, as a share between 0 and 1, to leave out as a log every text file of ten lines or more in which at least that share of the lines read begin with a date or a time. `generationModel` and `generationContextWindow`, left unset, write the connecting text with the model and the reading window Vespera ships with — they are the values that already have answers, and setting one only replaces the answer it already had.
+`degenerateOutputConfidenceFloor`, left unset, removes nothing for extracting badly. `degenerateOutputWordFloor`, left unset, removes nothing for having too few words: set it, as a whole number, to remove every file whose extracted text holds fewer words than that, whatever kind of file it is, as holding no recognisable text. A word is anything between two spaces, a year or a word in any alphabet included, counted over all of the text, page headers and footers too. `word-count-distribution.html` shows, for each kind of file, how many of the files kept hold each number of words, and how many of each kind a floor of 2 to 10, 20, 50 or 100 would remove: a one-line note, a shortcut and a picture whose only text is a button's one word go alike. `logTimestampShareFloor`, left unset, removes no logs: set it, as a share between 0 and 1, to leave out as a log every text file of ten lines or more in which at least that share of the lines read begin with a date or a time. `generationModel` and `generationContextWindow`, left unset, write the connecting text with the model and the reading window Vespera ships with — they are the values that already have answers, and setting one only replaces the answer it already had.
 
 `outOfScopeNameEndings`, left unset, leaves nothing out for its name. Some files are not documents and hold nothing that says what they are; `format-mix.html` counts them under *What could not be recognised*, grouped by how they begin. To leave such files out, write the endings of their names into `outOfScopeNameEndings`, each beginning with a dot and separated by spaces, with why in `provenance`, and run again. Case does not matter, and `*` is not a wildcard: list each ending. Only a file the tool could not recognise, or a text file, is left out this way; a PDF or a Word document whose name ends with a listed ending is kept. For example:
 
@@ -115,7 +117,7 @@ Answer them, then run `vespera label`. At roughly two minutes a document that is
 
 ## Where things live
 
-Everything the tool writes goes in one working directory, never inside your archive, except the deliverable when you name a folder for it (below):
+Everything the tool writes goes in one working directory, never inside your archive, except the deliverable when you name a folder for it, and one small lock file per corpus root in a folder of yours (both below):
 
 ```
 profile.yaml                     the values you set, and how you arrived at them
@@ -131,6 +133,7 @@ format-mix.html                  what kinds of file the archive holds
 extraction-failures.html         the files that could not be read, and why
 extraction-survivors.html        the files that were read and kept
 confidence-distribution.html     how well the text came out
+word-count-distribution.html     how many words each kind of file kept holds
 document-frequency.html          how many documents share each passage
 seed-corpus-comparison.html      how far your exemplars resemble the archive
 translations.html                the documents held in several languages, and how alike they are
@@ -154,6 +157,8 @@ Every `vespera run` and `vespera label` opens `progress.html` in your default br
 Set it with `--db-dir=<path>`, which must be written with the `=`, or with `vespera.working-dir` in configuration. Both commands take `--db-dir=<path>`, so if you moved the working directory, name it on `vespera label` as well as on `vespera run`. A command given a `--db-dir` other than the directory it actually opened refuses and records nothing.
 
 One command at a time uses a working directory. A second command started on it while the first is still running, from a second terminal or from an IDE, refuses at once with one line naming the command that holds it, its process id and when it started, and exits 1; the first carries on. Wait for the first to finish, or stop it, and run the second again. `vespera.lock` stays in the working directory after every command and is harmless: a command that crashed or was killed releases it as its process ends. Do not delete it while a command is running, because that lets a second one start. If a step fails saying the database file is held by another process, something other than Vespera, such as a database browser, has `vespera.db` open; close it and run the same command again.
+
+One `vespera run` at a time walks a corpus root, whatever working directory each names. A second `vespera run` on a root the first is still walking refuses at once with one line naming the root, the command that holds it, its process id, when it started and its working directory, and exits 1, writing no progress page; the first carries on. `vespera label` is not affected. The lock is a file in `.vespera-root-locks` in your home folder, one per root, named by a code made from the root's path rather than the path itself, and the line inside it names the root; name another folder with `vespera.corpus-root-lock-folder`. Like `vespera.lock`, a file there is harmless after a command ends, a command that crashed or was killed releases it, and it must not be deleted while a command is running. If that folder cannot be written, `vespera run` refuses in one line rather than walk unlocked; make it one you can write, or name another.
 
 While a command is running, two more files sit beside `vespera.db`: `vespera.db-wal`, SQLite's write-ahead log, which holds the most recent changes, and `vespera.db-shm`, its index. When the command ends they are folded back into `vespera.db` and deleted, unless something else, such as a database browser, still has the database open. If `vespera.db-wal` is still there when no command is running, something left it behind: a command cut short, or something else that had the database open when the last command ended, even if it has closed since. Close whatever still has the database open, then run one `vespera` command, `vespera run` again for instance, with nothing else open on the database: it opens `vespera.db` as it starts, and when it ends it folds `vespera.db-wal` back into `vespera.db` and deletes both files beside it. `vespera run` also carries on the run, and once it reaches the relevance questions it writes `relevance-labels.yaml` anew: if you are answering them, record your answers with `vespera label` first. To copy the working directory, copy it after the command has ended and `vespera.db-wal` is gone. If `vespera.db-wal` is still there, or you have to copy while a command is running, copy all three files together, or the copy is missing the latest changes. Keep the working directory on a disk attached to the machine that runs Vespera, not on a network share: the database relies on shared memory that only works on a local disk.
 

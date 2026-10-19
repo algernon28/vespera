@@ -62,9 +62,13 @@ class DrainThreadProbe {
 
             @Override
             public DegeneracyVerdict writeAndJudge(
-                    OccurrenceId occurrenceId, RunId runId, DoclingResponse response, Double confidenceFloor) {
+                    OccurrenceId occurrenceId,
+                    RunId runId,
+                    DoclingResponse response,
+                    Double confidenceFloor,
+                    Long wordFloor) {
                 THREADS_THAT_WROTE_A_METRIC.add(Thread.currentThread().getName());
-                return super.writeAndJudge(occurrenceId, runId, response, confidenceFloor);
+                return super.writeAndJudge(occurrenceId, runId, response, confidenceFloor, wordFloor);
             }
         };
     }

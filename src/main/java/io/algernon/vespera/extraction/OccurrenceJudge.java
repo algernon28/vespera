@@ -31,13 +31,19 @@ public final class OccurrenceJudge {
     private final FailuresInARow failuresInARow;
     private final RunId extractionRun;
     private final Double confidenceFloor;
+    private final Long wordFloor;
 
     public OccurrenceJudge(
-            ExtractionMetrics metrics, FailuresInARow failuresInARow, RunId extractionRun, Double confidenceFloor) {
+            ExtractionMetrics metrics,
+            FailuresInARow failuresInARow,
+            RunId extractionRun,
+            Double confidenceFloor,
+            Long wordFloor) {
         this.metrics = metrics;
         this.failuresInARow = failuresInARow;
         this.extractionRun = extractionRun;
         this.confidenceFloor = confidenceFloor;
+        this.wordFloor = wordFloor;
     }
 
     /**
@@ -53,7 +59,7 @@ public final class OccurrenceJudge {
                 endsTheDroppedRow(fromCache);
                 failuresInARow.timeoutRowEnds();
                 DegeneracyVerdict verdict =
-                        metrics.writeAndJudge(occurrence, extractionRun, response, confidenceFloor);
+                        metrics.writeAndJudge(occurrence, extractionRun, response, confidenceFloor, wordFloor);
                 yield new OccurrenceDecision.Converted(
                         verdict.degenerate() ? Optional.of(verdict.reason()) : Optional.empty());
             }

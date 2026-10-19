@@ -1,8 +1,12 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.corpus.DetectedFormat;
+import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.extraction.ConfidenceDistribution;
 import io.algernon.vespera.extraction.ExtractionStatement;
+import io.algernon.vespera.extraction.WordCountDistribution;
 import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Measurement;
 import io.algernon.vespera.profile.Profile;
@@ -16,7 +20,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.OptionalLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +51,10 @@ import org.springframework.stereotype.Component;
  * nothing else horizontal) — {@link ConfidenceDistribution} hands back the same {@code Distribution}
  * value it wrote to its own table, and this class is what renders that value as a file and points the
  * profile at it, the composition only {@code pipeline} may do (ADR-075). The same goes for {@code
- * document-frequency.html}, the page the boilerplate floor is read off (ADR-262), and the floor's pointer to it.
+ * document-frequency.html}, the page the boilerplate floor is read off (ADR-262), and the floor's pointer to it;
+ * and for {@code word-count-distribution.html}, the page the word floor is read off (ADR-282), where the detected
+ * format of each survivor is asked of {@code corpus} here and handed to {@code extraction}, which names no table of
+ * {@code corpus}.
  */
 @Component
 @StepScope
@@ -56,6 +66,9 @@ class ContentCensusTasklet implements Tasklet {
     /** The page the boilerplate floor is read off, its fixed name in the working directory (ADR-262). */
     static final String DOCUMENT_FREQUENCY_FILE_NAME = "document-frequency.html";
 
+    /** The page the word floor is read off, its fixed name in the working directory (ADR-282 section 5). */
+    static final String WORD_COUNT_DISTRIBUTION_FILE_NAME = "word-count-distribution.html";
+
     /** For the seconds the measurement of shingle document frequency took, as its line states them (ADR-191). */
     private static final double NANOS_PER_SECOND = 1_000_000_000.0;
 
@@ -66,6 +79,8 @@ class ContentCensusTasklet implements Tasklet {
 
     private final DocumentFrequency documentFrequency;
     private final ConfidenceDistribution confidenceDistribution;
+    private final WordCountDistribution wordCountDistribution;
+    private final DetectedFormats detectedFormats;
     private final StageRuns stageRuns;
     private final Ledger ledger;
     private final ProfileStore profileStore;
@@ -75,6 +90,8 @@ class ContentCensusTasklet implements Tasklet {
     ContentCensusTasklet(
             DocumentFrequency documentFrequency,
             ConfidenceDistribution confidenceDistribution,
+            WordCountDistribution wordCountDistribution,
+            DetectedFormats detectedFormats,
             StageRuns stageRuns,
             Ledger ledger,
             ProfileStore profileStore,
@@ -82,6 +99,8 @@ class ContentCensusTasklet implements Tasklet {
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.documentFrequency = documentFrequency;
         this.confidenceDistribution = confidenceDistribution;
+        this.wordCountDistribution = wordCountDistribution;
+        this.detectedFormats = detectedFormats;
         this.stageRuns = stageRuns;
         this.ledger = ledger;
         this.profileStore = profileStore;
@@ -136,6 +155,22 @@ class ContentCensusTasklet implements Tasklet {
                     log.info("Stage 3 (content census) measured the confidence distribution");
                     Path reportFile = writeReport(distribution);
 
+                    RunId byteLevelReductionRunId = stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION);
+                    WordCountDistribution.Distribution wordCounts = wordCountDistribution.measure(
+                            extractionRunId,
+                            page -> formatsOf(page, byteLevelReductionRunId),
+                            ReportedStatements.saying()
+                                    .paged(
+                                            ExtractionStatement.EXTRACTION_METRICS,
+                                            STAGE,
+                                            "the word counts",
+                                            "Stage 3 (content census, reading word counts)")
+                                    .build());
+                    log.info("Stage 3 (content census) measured the word counts");
+                    Path wordCountFile = writePage(
+                            WORD_COUNT_DISTRIBUTION_FILE_NAME,
+                            WordCountDistributionReport.render(wordCounts, runId));
+
                     // The read walks the run's rows of shingle_document_frequency, so it states its seconds (ADR-193).
                     log.info("Stage 3 (content census) is reading the shares of the documents");
                     long readStarted = System.nanoTime();
@@ -150,16 +185,31 @@ class ContentCensusTasklet implements Tasklet {
                     Profile profile = profileStore.load();
                     profileStore.save(profile.withDegenerateOutputConfidenceFloorMeasurement(
                                     new Measurement(reportFile.toString(), clock.instant()))
+                            .withDegenerateOutputWordFloorMeasurement(
+                                    new Measurement(wordCountFile.toString(), clock.instant()))
                             .withBoilerplateDocumentFrequencyFloorMeasurement(
                                     new Measurement(frequencyFile.toString(), clock.instant())));
 
                     log.info(
-                            "Stage 3 (content census) finished under run {}; reports written to {} and {}",
+                            "Stage 3 (content census) finished under run {}; reports written to {}, {} and {}",
                             runId.value(),
                             reportFile,
+                            wordCountFile,
                             frequencyFile);
                     return true;
                 });
+    }
+
+    /**
+     * The detected format stage 1 found for each occurrence of {@code page}, asked of {@code corpus} by key. An
+     * occurrence it recorded none for is left out of the map, which {@link WordCountDistribution} refuses.
+     */
+    private Map<OccurrenceId, DetectedFormat> formatsOf(List<OccurrenceId> page, RunId byteLevelReductionRunId) {
+        Map<OccurrenceId, DetectedFormat> formats = new LinkedHashMap<>();
+        for (OccurrenceId occurrence : page) {
+            detectedFormats.formatFor(occurrence, byteLevelReductionRunId).ifPresent(format -> formats.put(occurrence, format));
+        }
+        return formats;
     }
 
     /**

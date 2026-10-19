@@ -35,21 +35,31 @@ The single record of file occurrence identity, verdicts and run identity — the
 _Avoid_: the database, the store, the index
 
 **Verdict**:
-A recorded judgement against one file occurrence by one stage, carrying its reason, under the run that made it. Verdicts accumulate down the cascade: a run's survivors answer to its own verdicts and to those of every run upstream of it. They never replace one another, and none is deleted except by the step that wrote it, under the same run: redoing its own unfinished work (ADR-116), or, for stage 5's relevance floor, deciding again on every invocation what it removes (ADR-118). A verdict under a run the present profile and build no longer arrive at stays recorded and removes nothing, until putting a value back arrives at that run again (ADR-156). Since ADR-228 a pull of the embedding model that changes its digest or weight dtype leaves a scoring run behind in the same way, and that run is arrived at again only if Ollama reports the earlier digest and weight dtype again.
+A recorded judgement against one file occurrence by one stage, carrying its reason, under the run that made it. Verdicts accumulate down the cascade: a run's survivors answer to its own verdicts and to those of every run upstream of it. They never replace one another, and none is deleted except by the step that wrote it, under the same run: redoing its own unfinished work (ADR-116), or, for stage 5's relevance floor, deciding again on every invocation what it removes (ADR-118). A verdict under a run the present profile and build no longer arrive at stays recorded and removes nothing, until putting a value back arrives at that run again (ADR-156). Since ADR-228 a pull of the embedding model that changes its digest or weight dtype leaves a scoring run behind in the same way, and that run is arrived at again only if Ollama reports the earlier digest and weight dtype again. One kind, `code`, takes an occurrence out of the survivors without saying it is unwanted: code is not arranged, and how it is grouped into code sets and what the deliverable carries of it are still to be decided (#572, #573).
 _Avoid_: status, state, flag
 
 **Out of scope**:
 Of a kind of file this tool leaves out whatever it holds: a spreadsheet since ADR-146, a BMP image since ADR-167, and a video since ADR-168. Since ADR-171, also a log. Since ADR-178, a text file over the size Docling converts before the call gives up is converted in parts instead, unless it is HTML, CSV or AsciiDoc, or written in UTF-16 or UTF-32, which stay out of scope over that size; and any text file over the largest size converted in parts is out of scope too. Since ADR-252, also compiled code, a font, a certificate or a detached signature, and a database, each recognised by its signature, and an email: an Outlook message or an internet message, told by its name within what its bytes are. A file with no signature is not out of scope for having none. Since ADR-256, also a file of no known kind, or a text file, whose name ends with one of the endings the profile's `outOfScopeNameEndings` lists: the operator's list, read only where no signature named the file's kind. A verdict of its own, written by stage 1, because it is a judgement about the kind of file and not about anything in it: an out-of-scope file is not broken, not empty and not irrelevant, and saying any of those would be false.
 _Avoid_: excluded, filtered, unsupported (Docling supports spreadsheets; this tool chooses not to read them), skip list (for `outOfScopeNameEndings`)
+_Not to be confused with_: **Code**, which stage 1 also stops in its first pass, under a verdict of its own, and which is not left out for what it is: what the deliverable carries of it is still to be decided (#573). Compiled code stays out of scope (ADR-252).
 
 **Log**:
 A text file with at least ten non-blank lines read, reading its first and last 64 KB, where at least the profile's `logTimestampShareFloor` of those lines begin with a timestamp (ADR-171). Decided from the bytes alone, never from the name: most logs here are not named `.log`, and most files named `.log` are not logs by this measure. An operational record, and out of scope once the floor is set.
 _Avoid_: log file (as a name-based kind), trace, journal
 _Not to be confused with_: SQLite's **write-ahead log**, the file `vespera.db-wal` beside the database (ADR-180). Always written "write-ahead log" in our names and records (ADR-122), never bare.
 
+**Code**:
+Text written to be compiled or interpreted, or a page of reference a code documentation generator wrote from it: a text file, or a file of no known kind whose bytes read as text, whose name ends with an ending the profile's `codeNameEndings` lists; or such a file carrying the mark of a generator stage 1 knows, and, where that generator also renders guides, the markup of its reference pages. A guide is not code, whoever rendered it. A verdict of its own, `code`, written by stage 1, takes it out of the survivors there: it is never converted, compared, scored, translated or arranged. How it is grouped into code sets (#572), and what the deliverable carries of it and how that is checked (#573), are still to be decided. An ending `outOfScopeNameEndings` also lists leaves the file out of scope instead, and an empty file is broken before its name is read.
+_Avoid_: code file, source, source code, program, script, passthrough
+_Not to be confused with_: compiled code, out of scope by its signature (ADR-252); Vespera's own code.
+
 **Survivor**:
 A file occurrence carrying no blocking verdict under a given run or any run upstream of it. A question the ledger answers of one run, not a place documents are moved to (ADR-156).
 _Avoid_: shortlist, whitelist, the keep pile
+
+**Recognisable text**:
+What a converted file occurrence holds when it holds usable text, a letter or a digit outside its page headers and footers (ADR-232), and, once the profile's `degenerateOutputWordFloor` is set, at least that many words, a word being whatever stands between two spaces of its whole extracted text, page headers and footers included (ADR-282). A file occurrence with none is `degenerate-output` at stage 2, whatever its detected format, and so is one below the confidence floor. A measure of the text and never of the kind of file: a one-word note and a picture of a one-word button fall under a floor of 2 alike. A seed is held to usable text alone, never to the word floor (ADR-083), so an unusable seed is one with no usable text.
+_Avoid_: unreadable (a profile value nobody can act on, under Operation), textless (ADR-105's word for no letter or digit at all, which is tier 1 alone), meaningful text, real text
 
 **Extraction fault**:
 A file occurrence stage 2 got no answer about: the converter blamed the failure on itself, or ran out of time on several files in a row, so nothing was measured and nothing was decided at the time. A file the converter answered about and could not convert is not one — that is `extraction-failed` at once (ADR-143). Recorded as a row of its own, never a verdict when it is written — and, where the step it happened in went on to complete, resolved into `extraction-failed` at the end of that step, because the sidecar answering for its neighbours is the evidence that the refusal was about this file (ADR-139). Distinct from an unusable seed, which is the same converter response on the side of the system where nothing is ever removed.
@@ -65,7 +75,7 @@ The list of files stage 2 could not read: the page it writes beside the database
 _Avoid_: error report, failure log, skipped files. The file's own name is the operator's, not a term: nothing in the code is named for it but the constant that holds it.
 
 **Survivor list**:
-The list of files stage 2 converted and did not remove: the page it writes beside the database when it ends, `extraction-survivors.html`, holding every file occurrence that is a survivor of that stage-2 run and carries a metrics row under it, by path, with its page and word counts (ADR-250). The second condition is what keeps a stage that stopped partway from listing the file occurrences it never reached, which are survivors too. It shares no file with the review list, and a file occurrence converted and then removed as `degenerate-output` is on neither.
+The list of files stage 2 converted and did not remove: the page it writes beside the database when it ends, `extraction-survivors.html`, holding every file occurrence that is a survivor of that stage-2 run and carries a metrics row under it, by path, with its page and word counts (ADR-250). The second condition is what keeps a stage that stopped partway from listing the file occurrences it never reached, which are survivors too. It shares no file with the review list, and a file occurrence converted and then removed as `degenerate-output` is on neither, nor is code, which stage 2 never reads.
 _Avoid_: success report, converted files, passed files, the keep pile. The file's own name is the operator's, not a term.
 
 **Redundancy set**:
@@ -169,7 +179,7 @@ A value the pipeline requires and does not have. Not a pause — supply the valu
 _Avoid_: approval step, pause. Also "checkpoint" **for this concept**: a gate is not a point work resumes from, and the word now names one (see Checkpoint below).
 
 **Archive**:
-The operator's files as they lie on disk, whether or not any walk has observed them: what Vespera is pointed at and curates. The files, never a path. Vespera writes nothing into it: everything an invocation writes goes in a working directory (ADR-054), or at the deliverable root where one is named (ADR-276), and the deliverable holds a verified copy of each survivor it lists, read from the archive and never written there (ADR-274). An archive can hold sensitive documents, so a document is read only by the local models Vespera runs, and no agent reads a document in an archive or writes there, though it may list the names in one (ADR-196, ADR-264).
+The operator's files as they lie on disk, whether or not any walk has observed them: what Vespera is pointed at and curates. The files, never a path. Vespera writes nothing into it: everything an invocation writes goes in a working directory (ADR-054), at the deliverable root where one is named (ADR-276), or, for `vespera run`'s corpus-root lock, in the user's folder of corpus-root locks (ADR-279), and the deliverable holds a verified copy of each survivor it lists, read from the archive and never written there (ADR-274). An archive can hold sensitive documents, so a document is read only by the local models Vespera runs, and no agent reads a document in an archive or writes there, though it may list the names in one (ADR-196, ADR-264).
 _Avoid_: knowledge base (what Vespera makes from an archive, never the archive itself), repository (this project's git checkout), dataset, source folder
 
 **Corpus root**:
@@ -177,7 +187,7 @@ The directory a walk starts from: the one `vespera run <root>` names, or `vesper
 _Avoid_: archive root, archive (the files, where this is the path), input directory, base path
 
 **Working directory**:
-The one directory an invocation writes into, and the deliverable root, when one is named (ADR-276); kept apart from the archive and never derived from the corpus root (ADR-054). It holds `vespera.db`, `vespera.lock`, the `logs` folder with `vespera.log` and the invocation accounts (ADR-270), `profile.yaml`, the pages the stages write for the operator, the label file and, where no deliverable root is named, the deliverable. Named by `vespera.working-dir` or `--db-dir`, and `.vespera` under the directory the command is started from when neither names one. What it holds is derived from the operator's documents and names them, so no agent opens a working directory either, but for the profile and the pages of paths, counts and reasons ADR-261 names, and one is recognised wherever it is by the `vespera.db` or `vespera.lock` in it (ADR-196).
+The one directory an invocation writes into, but for the deliverable root, when one is named (ADR-276), and the corpus-root lock's file, in a folder of the user's (ADR-279); kept apart from the archive and never derived from the corpus root (ADR-054). It holds `vespera.db`, `vespera.lock`, the `logs` folder with `vespera.log` and the invocation accounts (ADR-270), `profile.yaml`, the pages the stages write for the operator, the label file and, where no deliverable root is named, the deliverable. Named by `vespera.working-dir` or `--db-dir`, and `.vespera` under the directory the command is started from when neither names one. What it holds is derived from the operator's documents and names them, so no agent opens a working directory either, but for the profile and the pages of paths, counts and reasons ADR-261 names, and one is recognised wherever it is by the `vespera.db` or `vespera.lock` in it (ADR-196).
 _Avoid_: db dir (the option's spelling, not the term), output directory, data directory, workspace
 _Not to be confused with_: the directory a process or a shell command is started in. That is the **current directory**, as ADR-066 writes it, in every name and record of ours, never the working directory.
 
@@ -219,6 +229,10 @@ _Avoid_: run, session, job
 The operating system's lock on `vespera.lock` in the working directory, taken by an invocation before it opens the database file and held until its process ends, so a second invocation on the same working directory is refused before it reads or writes anything. The process ending releases it, however it ends; the file itself is never deleted, and its existence means nothing (ADR-177).
 _Avoid_: mutex, pidfile
 
+**Corpus-root lock**:
+The operating system's lock `vespera run` takes on a file named for its corpus root, outside the archive and every working directory, held until its process ends, so a second invocation walking the same corpus root is refused whatever working directory it names (ADR-279). The same corpus root is the same directory once its spelling, its case and any junction on the way are resolved; a root inside another is a different one.
+_Avoid_: root mutex, archive lock (nothing is written into the archive)
+
 **Invocation account**:
 The one file an invocation that starts the job writes for a hosted model to read, in the working directory's `logs` folder (ADR-270): each step and how it ended, durations, counts, progress lines, and a failed step's exception types. It is built from typed values and an allow-list, so it names no path, file name, title or document text, and it keeps no exception message (ADR-198).
 _Avoid_: run summary, summary
@@ -227,6 +241,10 @@ _Avoid_: run summary, summary
 The page `vespera run` rewrites in the working directory while it runs, `progress.html`: each step of the job with its state, its counts and its last progress line, the time elapsed and the database's size, read from what the invocation holds in memory and, but for the tab of runs below, never from a query, and ending on a write that says how the invocation ended (ADR-265); drawn as tiles, a timeline of the steps and charts over time, with its table of steps and a table of its samples on two pages beside it, `progress-steps.html` and `progress-samples.html` (ADR-267); and showing, for the stage removing occurrences now or last, its survivors of what entered it and its verdicts by kind with their rates, from counts held in memory (ADR-268); and, since ADR-269, four tabs, `Overview`, `Steps`, `Samples` and `Runs`, each a page with one bar of tabs, the fourth `progress-runs.html`, listing every run the working directory holds, read before the first step and after the last, the only reads of the database the page makes. `vespera label` writes it too, when it starts and when it ends, with the answers it counted; every invocation that writes it names its path on the command's first line and opens it once in the default browser (ADR-266). It names no path, no title and no text of a document, so it can be sent to anyone. Not the invocation account, one file per invocation that starts the job, in the working directory's `logs` folder, for a hosted model: it is opened with its first line when the job starts, carries the progress lines as they come, and gets its step, run, count and failure lines, then `invocation ended`, when the job ends (ADR-198 §8, ADR-270).
 _Avoid_: dashboard, monitor, status page
 
+**Control panel**:
+The program on the operator's machine that starts one invocation at a time as its own child, shows how it goes and how it ended, and stops it by ending its process (ADR-278). It runs the command as shipped (ADR-278), judges nothing, and passes only values the operator typed or confirmed.
+_Avoid_: console (the jar's standard output, ADR-093), launcher (ADR-158; the Docling image's `launcher.py`, ADR-179), GUI, dashboard, front-end, app, UI, wrapper. Also "panel" alone, in a name of ours.
+
 ### Output
 
 **Synthesis doc**:
@@ -234,7 +252,7 @@ A generated document that makes a set of survivors coherent by connecting them. 
 _Avoid_: summary, digest, abstract
 
 **Arrangement**:
-The shape stage 6a gives the survivors: seed partitions at the top, clusters beneath them. An order over survivors, never a copy of them — a document is arranged where it belongs, not moved there. Ordered in both senses: the two levels are a structure, and each level is also a sequence, chosen rather than inherited from the filesystem. The sequence is part of what the operator approves at the gate, so nothing downstream re-sorts it.
+The shape stage 6a gives the survivors: seed partitions at the top, clusters beneath them. An order over survivors, never a copy of them — a document is arranged where it belongs, not moved there. Ordered in both senses: the two levels are a structure, and each level is also a sequence, chosen rather than inherited from the filesystem. The sequence is part of what the operator approves at the gate, so nothing downstream re-sorts it. Code is not arranged: it is not a survivor. What the deliverable carries of it instead is still to be decided (#572, #573).
 _Avoid_: page tree, hierarchy, taxonomy (a seed set names one; the arrangement is what that naming produces)
 
 **Cluster label**:
@@ -270,7 +288,7 @@ A re-run of generation that finishes what an earlier one left behind: the cluste
 _Avoid_: retry, regeneration, repairing a synthesis doc (a synthesis doc is written or it is not; nothing edits one)
 
 **Publication-ready artifact**:
-The pipeline's terminal state, and the deliverable: the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges — self-contained and handed over as files. It carries a verified copy of each surviving original it lists, checked against the key stage 2 recorded, so every link lands inside it (ADR-274). The files are written; nothing in this project carries them to a destination. Publication is the state they are handed over in, never an action this system takes.
+The pipeline's terminal state, and the deliverable: the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges — self-contained and handed over as files. It carries a verified copy of each surviving original it lists, checked against the key stage 2 recorded, so every link lands inside it (ADR-274). The files are written; nothing in this project carries them to a destination. Publication is the state they are handed over in, never an action this system takes. Whether and how it also carries the code stage 1 kept apart, in its code sets, is still to be decided (#572, #573).
 _Avoid_: the wiki, the Confluence output, the export
 
 **Cluster folder**:

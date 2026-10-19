@@ -186,7 +186,7 @@ The change lies in `deliverable`, which no stage's version names (ADR-274 §5), 
 - **A program opening a copy past 260 characters** (§3).
 - **A program opening a stemless name past 100 code units** (§1.6).
 - **A file an earlier drawing left inside a folder this drawing wrote** (§4).
-- **How the agent guard recognises a tree** ([#569](https://github.com/algernon28/vespera/issues/569)).
+- **How the agent guard recognises a tree**, which [ADR-283](0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md) decides by the tree's marker and not by any name in it, so that it holds of this layout as of ADR-274's.
 - **A file system that compares names by a fold other than NTFS's or APFS's case-insensitive form's** (§1.4), which may hold as one file two names the key keeps apart.
 - **An NTFS volume that makes 8.3 short names**, as a Windows system drive does by default. It may give a copy with a long name the short name `NAME~n.EXT`, `n` from 1 to 4, which is also the form of a suffixed name (§1.6), and Windows resolves a short name as it does a long one. So where an earlier drawing did not make a suffixed copy, `Files.isRegularFile` at its name can find the other copy under its short name, and that copy is reported as already copied, its link opening the other copy's bytes. The suffix stays `~<occurrence id>`, as #570 settled it (§1.6).
 

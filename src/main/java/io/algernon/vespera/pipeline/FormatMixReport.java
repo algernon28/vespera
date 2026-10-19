@@ -33,6 +33,12 @@ final class FormatMixReport {
      * {@code fewerThanTenLines} counts the rest. {@code leftOutByName} counts the files left out for the ending
      * of their name (ADR-256), and {@code nameEndings} are the canonical endings the profile lists, empty
      * where it lists none. {@code logFloor} is {@code null} where none is set.
+     *
+     * <p>{@code code} counts the files kept as code (ADR-277), {@code codeByEnding} of them for the ending of their
+     * name and {@code codeByMark} for a generator's mark; {@code codeEndingCounts} and {@code codeGeneratorCounts}
+     * count them by the ending listed and by the generator named; {@code textEndingCounts} counts every file detected
+     * as text or as of no known kind by the ending of its name; and {@code codeEndings} are the canonical endings
+     * {@code codeNameEndings} lists, empty where it lists none.
      */
     record Mix(
             Map<DetectedFormat, Integer> byFormat,
@@ -44,8 +50,15 @@ final class FormatMixReport {
             int leftOutByName,
             int[] byTimestampBand,
             int fewerThanTenLines,
+            int code,
+            int codeByEnding,
+            int codeByMark,
+            Map<String, Integer> codeEndingCounts,
+            Map<String, Integer> codeGeneratorCounts,
+            Map<String, Integer> textEndingCounts,
             Double logFloor,
-            List<String> nameEndings) {}
+            List<String> nameEndings,
+            List<String> codeEndings) {}
 
     /** How many bands of a tenth the timestamped share is counted in. */
     static final int BANDS = FormatMix.TIMESTAMP_BANDS;
@@ -72,6 +85,11 @@ final class FormatMixReport {
         LABELS.put(DetectedFormat.PLAIN_TEXT, "Text");
         LABELS.put(DetectedFormat.UNRECOGNISED, "Of no known kind");
         LABELS.put(DetectedFormat.FLOOR_STOPPED, "Nothing could be read");
+    }
+
+    /** How {@code format} is named on {@code format-mix.html}, for the pages that name a detected format as it does. */
+    static String labelOf(DetectedFormat format) {
+        return LABELS.get(format);
     }
 
     private static final Map<DetectedSubtype, String> SUBTYPE_LABELS = new LinkedHashMap<>();
@@ -124,7 +142,34 @@ final class FormatMixReport {
                                 + ReportPage.escape(String.join(", ", mix.nameEndings()))
                                 + ". A file of no known kind, or a text file, whose name ends with one of them, in"
                                 + " any case, is out of scope whatever it holds. A file whose content says what it"
-                                + " is, a PDF for one, is kept whatever its name."));
+                                + " is, a PDF for one, is kept whatever its name."))
+                .append(ReportPage.paragraph("Code is text written to be compiled or interpreted, or a page of reference"
+                        + " that a documentation generator wrote from it. It is kept apart from the documents,"
+                        + " whatever it holds, and is not hashed. "
+                        + "Files kept as code, and not read any further: "
+                        + mix.code()
+                        + ". Of those, kept for the ending of their name: "
+                        + mix.codeByEnding()
+                        + ", and kept for the mark of a documentation generator: "
+                        + mix.codeByMark()
+                        + ". They are still counted in the table below, with everything else."))
+                .append(ReportPage.paragraph(mix.codeEndings().isEmpty()
+                        ? "No name endings are listed as code. Listing them in codeNameEndings in profile.yaml keeps as"
+                                + " code every file of no known kind, and every text file, whose name ends with one and"
+                                + " whose start and end read as text. A page that carries the mark of a documentation"
+                                + " generator is kept as code all the same."
+                        : "codeNameEndings in profile.yaml lists these name endings: "
+                                + ReportPage.escape(String.join(", ", mix.codeEndings()))
+                                + ". A file of no known kind, or a text file, whose name ends with one of them, in any"
+                                + " case, and whose start and end read as text, is kept as code. A file whose content"
+                                + " says what it is, a PDF for one, is kept whatever its name."));
+        List<String> shared = mix.nameEndings().stream().filter(mix.codeEndings()::contains).toList();
+        if (!shared.isEmpty()) {
+            body.append(ReportPage.paragraph("outOfScopeNameEndings and codeNameEndings both list "
+                    + ReportPage.escape(String.join(", ", shared))
+                    + "; a file whose name ends with " + (shared.size() == 1 ? "it" : "one of them")
+                    + " is out of scope, and not code."));
+        }
 
         StringBuilder formatRows = new StringBuilder();
         for (Map.Entry<DetectedFormat, String> label : LABELS.entrySet()) {
@@ -168,8 +213,36 @@ final class FormatMixReport {
                     ReportPage.headerRow("Within", "Named as", "Files"), subtypeRows.toString()));
         }
 
+        body.append(ReportPage.heading(2, "Kept as code"));
+        if (mix.code() == 0) {
+            body.append(ReportPage.paragraph("No file was kept as code."));
+        } else {
+            StringBuilder codeRows = new StringBuilder();
+            mix.codeEndingCounts().forEach((ending, files) ->
+                    codeRows.append(ReportPage.row(ReportPage.textCell(ending), ReportPage.numberCell(files))));
+            mix.codeGeneratorCounts().forEach((generator, files) ->
+                    codeRows.append(ReportPage.row(ReportPage.textCell(generator), ReportPage.numberCell(files))));
+            body.append(ReportPage.table(
+                    ReportPage.headerRow("Name ending listed, or generator whose mark the page carries", "Files"),
+                    codeRows.toString()));
+        }
+
+        body.append(ReportPage.heading(2, "Name endings of text files and files of no known kind"))
+                .append(ReportPage.paragraph("Every file found to be text, or of no known kind, counted by the ending of"
+                        + " its name from its last dot, in lower case, whatever became of it. A name with no dot, or"
+                        + " whose only dot begins it, has no ending."));
+        StringBuilder endingRows = new StringBuilder();
+        mix.textEndingCounts().entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
+                .forEach(entry -> endingRows.append(
+                        ReportPage.row(ReportPage.textCell(entry.getKey()), ReportPage.numberCell(entry.getValue()))));
+        body.append(ReportPage.table(ReportPage.headerRow("Ending", "Files"), endingRows.toString()))
+                .append(ReportPage.paragraph("Never list .html .htm .xhtml .md .txt .tex .rst .adoc in codeNameEndings:"
+                        + " those are where the documents are. Take care with .sql .inc .in, which hold documents as"
+                        + " often as code."));
+
         body.append(ReportPage.heading(2, "How much of each text file begins with a timestamp"))
-                .append(ReportPage.paragraph("Each text file not left out for its kind or for the ending of its name was read from its start and its end, and the"
+                .append(ReportPage.paragraph("Each text file not left out for its kind or for the ending of its name, and not kept as code, was read from its start and its end, and the"
                         + " lines that begin with a date or a time were counted against the lines read that"
                         + " are not blank. The share is that count in whole percent, rounded down."))
                 .append(ReportPage.paragraph(mix.logFloor() == null

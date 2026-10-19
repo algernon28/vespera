@@ -113,14 +113,19 @@ class ProfileTest {
      */
     private static final int ONE_CONSTRUCTOR = 1;
 
-    /** How many keys the profile carries today, and therefore how many the one constructor takes. */
-    private static final int EVERY_KEY = 13;
+    /**
+     * How many keys the profile carries today, and therefore how many the one constructor takes: 15 since
+     * ADR-277 §2 added {@code codeNameEndings} and ADR-282 §3 added {@code degenerateOutputWordFloor}. A new
+     * key raises this count; it never earns a second constructor.
+     */
+    private static final int EVERY_KEY = 15;
 
     @Test
     @Story("The profile record has one way in")
     @DisplayName("The profile record declares a single constructor, taking every key")
     @Issue("197")
     @Link(name = "ADR-119", url = Adr.PROFILE_HAS_ONE_CONSTRUCTOR, type = "adr")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
     void theRecordDeclaresASingleConstructor() {
         Constructor<?>[] constructors = Profile.class.getDeclaredConstructors();
 
