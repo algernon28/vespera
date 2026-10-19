@@ -2057,6 +2057,25 @@ public final class Adr {
             + "0293-an-operational-record-that-is-not-a-log-or-a-configuration-file-is-left-to-relevance-and-its-name-ending-is-the-operators-to-list.md";
 
     /**
+     * ADR-294 -- every invocation ending on the closing line writes {@code next-invocation.properties} in the working
+     * directory from the same branch of {@code NextAction}: the next invocation, the profile keys it wants in the
+     * line's order, whether labels are to be answered and the arrangement to approve, and no path; an invocation
+     * holding the working-directory lock deletes it as it starts, and the control panel reads it after exit 0
+     * (amends ADR-285 §3).
+     */
+    public static final String THE_CONTROL_PANEL_LEARNS_WHAT_THE_NEXT_INVOCATION_WANTS_FROM_A_FILE = FILE
+            + "0294-the-control-panel-learns-what-the-next-invocation-wants-from-a-file-the-jar-writes-with-the-closing-line.md";
+
+    /**
+     * ADR-295 -- the control panel writes profile.yaml one key at a time, the answers of relevance-labels.yaml and
+     * code-set-names.yaml, each whole by a move, only from the form the jar or it writes, holding the working-directory
+     * lock while no invocation it started runs; each value checked as the jar reads it, and the cost said before
+     * saving (amends ADR-177).
+     */
+    public static final String THE_CONTROL_PANEL_WRITES_HOLDING_THE_WORKING_DIRECTORY_LOCK = FILE
+            + "0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md";
+
+    /**
      * ADR-296 -- every member of every code set is copied to {@code code/<set>/<kept path>}, checked against the size
      * and last-modified time the walk recorded, before and after the stream, and {@code changed} where either differs;
      * a set's folder is its typed or default name made safe and cut, then told apart by the copies' two keys; a
@@ -2066,6 +2085,23 @@ public final class Adr {
      */
     public static final String EACH_CODE_SET_IS_COPIED_WHOLE_UNDER_CODE = FILE
             + "0296-each-code-set-is-copied-whole-under-code-its-paths-kept-and-each-file-checked-against-the-size-and-time-the-walk-recorded.md";
+
+    /**
+     * ADR-297 -- the control panel's screens are tested failing-first through {@code PanelBrowser}, the JDK's HTTP
+     * client with a cookie store and jsoup at test scope, which opens the printed address, follows a {@code 303},
+     * and submits a form by its name as a browser sends it, a {@code POST} from the panel's own origin; no browser is
+     * downloaded, and every such test is a unit test on both CI jobs.
+     */
+    public static final String THE_CONTROL_PANELS_SCREENS_ARE_TESTED_THROUGH_THE_PAGES_IT_SERVES = FILE
+            + "0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md";
+
+    /**
+     * ADR-298 -- the embedding model ships with a default, {@code bge-m3:latest}, under {@code
+     * spring.ai.ollama.embedding.options.model}; the profile's {@code embeddingModel} overrides it; stage 5 is gated
+     * only where neither names a model; and the scoring run is identified by the name resolved, not by its source.
+     */
+    public static final String THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT = FILE
+            + "0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md";
 
     private Adr() {
     }

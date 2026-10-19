@@ -138,6 +138,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "LabelIngestion",
             "MisshapenProfileRefusal",
             "NextAction",
+            // ADR-294: writes and deletes what NextAction gives for the control panel, and decides none of it.
+            "NextInvocationFile",
             "NoGenerationModelNamedException",
             "NoUpstreamRunException",
             "OccurrenceReader",

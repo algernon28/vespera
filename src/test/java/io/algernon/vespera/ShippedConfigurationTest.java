@@ -72,6 +72,15 @@ class ShippedConfigurationTest {
     /** Where the generation model's shipped default lives, and where Spring AI itself reads it. */
     private static final String GENERATION_MODEL = "spring.ai.ollama.chat.options.model";
 
+    /** Where the embedding model's shipped default lives, and where Spring AI itself reads it (ADR-298). */
+    private static final String EMBEDDING_MODEL = "spring.ai.ollama.embedding.options.model";
+
+    /**
+     * The embedding model the application ships with (ADR-298 §1). Held exactly, not merely as not blank: a changed
+     * default re-scores every corpus whose profile names no model, so it is changed only by a decision of its own.
+     */
+    private static final String THE_SHIPPED_EMBEDDING_MODEL = "bge-m3:latest";
+
     /** The datasource URL, and the only place the database lock wait is set (ADR-127). */
     private static final String DATASOURCE_URL = "spring.datasource.url";
 
@@ -133,6 +142,23 @@ class ShippedConfigurationTest {
                 () -> assertThat(properties.get(GENERATION_MODEL))
                         .asString()
                         .isNotBlank());
+    }
+
+    @Test
+    @Story("The embedding model ships with a default")
+    @DisplayName("The model documents are scored with is named, and it is " + THE_SHIPPED_EMBEDDING_MODEL)
+    @Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
+    void namesTheEmbeddingModel() throws IOException {
+        Map<Object, Object> properties = shippedProperties();
+
+        claim(
+                "the shipped configuration names " + THE_SHIPPED_EMBEDDING_MODEL + " as the model every document is"
+                        + " scored with unless the profile names another, and names exactly that one: every score,"
+                        + " every group and every relevance judgement of a corpus that names no model rests on it, so"
+                        + " a different name here is a different decision rather than an edit",
+                () -> assertThat(properties.get(EMBEDDING_MODEL))
+                        .asString()
+                        .isEqualTo(THE_SHIPPED_EMBEDDING_MODEL));
     }
 
     /**

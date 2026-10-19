@@ -4,6 +4,8 @@
 
 > **Extended — see [ADR-211](0211-no-class-holds-every-survivor-of-a-run-another-tables-rows-are-read-a-page-of-survivors-at-a-time.md).** The process does one thing more while its environment is prepared, before any connection pool exists. After the working directory is created, its lock taken as this record has it, and its profile's shape checked, a fourth listener that `VesperaApplication.main` registers, `TemporaryFilesInTheWorkingDirectory`, sets SQLite's directory for temporary files to the working directory, once, on a connection of its own to no database. It is registered last, so a start refused for a working directory in use never reaches it and changes nothing of SQLite's; and where SQLite refuses the directory, the start ends there. ADR-211 changes nothing this record decided.
 
+> **Partly amended — see [ADR-295](0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md).** Of §1: the control panel also takes `vespera.lock`, as this record takes it, for the length of one write of `profile.yaml`, `relevance-labels.yaml` or `code-set-names.yaml`, writing the holder line `pid=<pid> started=<date and time> command=control-panel write <file name>`; an invocation started while it holds it is refused by §1's line. The rest of this record stands.
+
 - **Date**: 2026-10-03
 - **Status**: accepted
 - **Settles**: [#364](https://github.com/algernon28/vespera/issues/364).

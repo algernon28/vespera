@@ -1,6 +1,10 @@
 # ADR-285 — The control panel is a second jar of this build, under a package of its own outside the nine modules, linking no class of the jar
 
 > **Partly amended — see [ADR-288](0288-the-operator-starts-the-control-panel-with-java-jar-and-it-starts-the-jar-beside-its-own-with-the-java-running-it.md).** Of §2 and What this does not decide: the control-panel jar's manifest names `io.algernon.controlpanel.ControlPanel` as `Main-Class` and the Spring Boot jar's file name as `Vespera-Jar`, and the operator starts it with `java -jar`. The rest of this record stands.
+>
+> **Partly amended — see [ADR-294](0294-the-control-panel-learns-what-the-next-invocation-wants-from-a-file-the-jar-writes-with-the-closing-line.md).** Of §3: the files that are the control panel's whole contract with the jar also hold `next-invocation.properties`, which every invocation ending on the closing line writes in the working directory and every invocation holding the working-directory lock deletes as it starts; the control panel reads it after an exit code of 0 to learn what the next invocation wants. The rest of this record stands.
+
+> **Partly amended — see [ADR-295](0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md).** Of §3: the control panel also reads and writes three of the jar's file formats, `profile.yaml`, `relevance-labels.yaml` and `code-set-names.yaml`, in `java.base`, held to agree with the jar by contract tests.
 
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
