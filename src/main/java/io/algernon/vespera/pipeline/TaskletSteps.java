@@ -44,6 +44,7 @@ final class TaskletSteps {
             Tasklet tasklet) {
         return new StepBuilder(name, jobRepository)
                 .tasklet(tasklet, transactionManager)
+                .listener(new StepFailureClosingLine())
                 .build();
     }
 
@@ -61,6 +62,7 @@ final class TaskletSteps {
             StepExecutionListener listener) {
         return new StepBuilder(name, jobRepository)
                 .tasklet(tasklet, transactionManager)
+                .listener(new StepFailureClosingLine())
                 .listener(listener)
                 .build();
     }
@@ -81,6 +83,7 @@ final class TaskletSteps {
         return new StepBuilder(name, jobRepository)
                 .tasklet(tasklet, transactionManager)
                 .transactionAttribute(outsideAnyTransaction)
+                .listener(new StepFailureClosingLine())
                 .build();
     }
 

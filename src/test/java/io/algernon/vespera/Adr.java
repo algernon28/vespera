@@ -1995,6 +1995,13 @@ public final class Adr {
             + "0288-the-operator-starts-the-control-panel-with-java-jar-and-it-starts-the-jar-beside-its-own-with-the-java-running-it.md";
 
     /**
+     * ADR-289 -- a plain tasklet step that fails with an exception logs one closing line naming the step and that
+     * it is not recorded as finished, last in the output.
+     */
+    public static final String A_FAILING_STEP_ENDS_ON_ITS_OWN_CLOSING_LINE = FILE
+            + "0289-a-plain-tasklet-step-that-fails-with-an-exception-ends-the-output-on-one-closing-line-of-its-own.md";
+
+    /**
      * ADR-290 -- a fixture repository is run without any {@code GIT_*} variable, so a test's git commits into its own
      * folder and never into a repository the environment names.
      */
