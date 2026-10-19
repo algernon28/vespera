@@ -11,7 +11,7 @@ clients, per edition. §3 compares options A to D. §4 checks the facts the tick
 
 ## Scope and method
 
-**Nothing here is measured.** No Confluence space was reached, and none will be by an agent (#604, ruling 9).
+**Nothing here is measured.** No Confluence space was reached, and none will be by an agent (#604, Notes and ruling 9).
 
 **The tree (§1) is read from the record and the code alone**: ADR-274, ADR-276, ADR-280, ADR-286 and ADR-296,
 and the classes of `io.algernon.vespera.deliverable` at main `8886ca1`. No copy, drawn tree, seed set, archive
@@ -62,7 +62,8 @@ ADR-280 §4, ADR-286 §4).
 
 ### 1.2 The index
 
-`index.html` is headed `Deliverable <generation run>` and lists the run, the walk, the corpus root (labelled `Archive root`) and every
+`index.html` is headed `Deliverable <generation run>` and lists the run, the walk, the corpus root
+(labelled `Archive root`) and every
 profile key with its value, then a paragraph on what the folders and `documents.csv` hold (`IndexPage.open`).
 **Each seed partition is an `<h2>` naming its seed path, over a table of its clusters**: the cluster's label or
 title, its count of documents, and what it was written up as, a cluster with writing linking
@@ -102,7 +103,7 @@ sentence in `<em>`; then `The documents in this group` over an `<ol>` numbered a
 - **A copy has no size bound but the drive's gibibyte** (ADR-274 §2.5).
 - **Code sets lie side by side under `code/`**, each member at its kept path, checked by the walk's size and
   time (ADR-296 §2, §3). `code` meets no seed partition's folder, which begins with digits and a `-`
-  (ADR-296 §3.1); a `confluence/` folder at the root would meet none either.
+  (ADR-296 §3.1); a `confluence/` folder at the root would meet none either, on a reading of ADR-296 §3.1; reserving it is #604's (ADR-284 §8).
 - **Pictures are not files** (ADR-286). On Confluence a picture would have to become a file on its page, so the
   rendering would hold it twice on disk, inlined in the HTML and as a file (#604, Risks).
 
@@ -264,11 +265,11 @@ are kept as research only.
 
 | | A, drawn inside | B, uploader (ruled out) | C, built-in importers | D, outside converter (ruled out) |
 | --- | --- | --- | --- | --- |
-| **Touches** | `deliverable` only (ADR-274 §5); amends ADR-101 and ADR-102 (#607); README gains the loader's contract | `deliverable` and a new client, credentials and a network connection; ADR-195 §2, ADR-197 §6, ADR-202 §3, ADR-047, ADR-084, ADR-291 §8, ADR-292 §2 (#608) | nothing of ours | nothing of ours |
+| **Touches** | `deliverable` only (#604, Notes; ADR-274 §4, §5); amends ADR-101 and ADR-102 (#607); README gains the loader's contract | `deliverable` and a new client, credentials and a network connection; among them ADR-195 §2, ADR-197 §6, ADR-202 §3, ADR-047, ADR-084, ADR-291 §8, ADR-292 §2 (#608) | nothing of ours | nothing of ours |
 | **Costs** | a second renderer, a page list, a parity test (#604, Destination 3); a loader the operator writes | A's cost, plus a client to keep current with v1 and v2 (§2.3), token handling (§2.2) and pacing (§2.6); no agent can test it against a space | the operator's time per load | the converter, kept by the operator in step with every layout change (#571, #573) |
 | **Cannot carry** | nothing the HTML carries, so far as §2 reads; a copy past the site's file size (§2.4) is skipped by the loader (ruling 5) | as A | nesting: one folder of pages under a new space, so no root, parents or children; copies whose media it does not take (§2.8); updates | as A, but with nothing our side tests |
 | **Risks** | the two renderings drifting; citations reaching the page but not the entry on Cloud (§2.7); title links and title collisions (§1.6, §2.5); the editor rewriting a body (§2.7); the request cap (§2.6) | A's, plus a credential and an egress path in the jar | an `index.html` reported to load empty (#604); every load a new space | breaking silently on a layout change (#607) |
-| **Reopens** | ADR-101, ADR-102, ADR-002, ADR-023; ADR-274 Decided here 1 (#607) | ADR-195, ADR-197, ADR-202, ADR-047, ADR-084, ADR-285, ADR-291, ADR-292, ADR-046 (#608) | none | none |
+| **Reopens** | ADR-101, ADR-102, ADR-002, ADR-023; ADR-274 Decided here 1 (#607) | ADR-195, ADR-197, ADR-202, ADR-047, ADR-084, ADR-098, ADR-040, ADR-276, ADR-278, ADR-285, ADR-291, ADR-292, ADR-046 (#608) | none | none |
 
 ---
 
