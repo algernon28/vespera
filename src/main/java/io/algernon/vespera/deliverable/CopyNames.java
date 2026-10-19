@@ -123,11 +123,13 @@ final class CopyNames {
     }
 
     /**
-     * The collision key (ADR-280 §1.4): normalisation form C, lower-cased and then upper-cased without regard to the
-     * reader's locale so that letters which share a lower case (θ and ϴ, ß and ẞ) share a key, and composed again.
+     * The collision key (ADR-280 §1.4): the name in normalisation form D, lower-cased and then upper-cased without
+     * regard to the reader's locale, and composed again. Lower-casing first gives letters which share a lower case (θ
+     * and ϴ, ß and ẞ) one key; decomposing first puts an iota subscript, U+0345, after its letter's other marks
+     * whichever way the name was written.
      */
     static String keyOf(String name) {
-        String folded = Normalizer.normalize(name, Normalizer.Form.NFC).toLowerCase(Locale.ROOT).toUpperCase(Locale.ROOT);
+        String folded = Normalizer.normalize(name, Normalizer.Form.NFD).toLowerCase(Locale.ROOT).toUpperCase(Locale.ROOT);
         return Normalizer.normalize(folded, Normalizer.Form.NFC);
     }
 
