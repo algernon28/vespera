@@ -9,15 +9,12 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileAttribute;
-import java.nio.file.attribute.PosixFileAttributes;
-import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -40,9 +37,6 @@ public record LaunchValues(String corpusRoot, String workingDirectory, String de
     private static final String LAST_SEED_FOLDER = "last-seed-folder";
 
     private static final boolean POSIX = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
-
-    private static final Set<PosixFilePermission> OTHERS_WRITING = Set.of(PosixFilePermission.GROUP_WRITE,
-            PosixFilePermission.OTHERS_WRITE);
 
     public LaunchValues {
         corpusRoot = unblank(corpusRoot);
@@ -74,19 +68,9 @@ public record LaunchValues(String corpusRoot, String workingDirectory, String de
         if (Files.notExists(folder, LinkOption.NOFOLLOW_LINKS)) {
             return Optional.empty();
         }
-        boolean own = Files.isDirectory(folder, LinkOption.NOFOLLOW_LINKS);
-        if (own && POSIX) {
-            try {
-                PosixFileAttributes attributes = Files.readAttributes(folder, PosixFileAttributes.class,
-                        LinkOption.NOFOLLOW_LINKS);
-                own = attributes.owner().getName().equals(userName)
-                        && attributes.permissions().stream().noneMatch(OTHERS_WRITING::contains);
-            } catch (IOException e) {
-                own = false;
-            }
-        }
-        return own ? Optional.empty() : Optional.of("the control panel neither reads nor keeps its launch values in "
-                + folder + ", which is not a folder only this user can write in");
+        return FolderOwnership.isOwn(folder, userName) ? Optional.empty()
+                : Optional.of("the control panel neither reads nor keeps its launch values in " + folder
+                        + ", which is not a folder only this user can write in");
     }
 
     /** Never throws: what cannot be read is every field empty, with at most one line to {@code said} (§3, §5). */

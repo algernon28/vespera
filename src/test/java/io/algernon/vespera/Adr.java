@@ -2066,6 +2066,24 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_LEARNS_WHAT_THE_NEXT_INVOCATION_WANTS_FROM_A_FILE = FILE
             + "0294-the-control-panel-learns-what-the-next-invocation-wants-from-a-file-the-jar-writes-with-the-closing-line.md";
 
+    /**
+     * ADR-295 -- the control panel writes profile.yaml one key at a time, the answers of relevance-labels.yaml and
+     * code-set-names.yaml, each whole by a move, only from the form the jar or it writes, holding the working-directory
+     * lock while no invocation it started runs; each value checked as the jar reads it, and the cost said before
+     * saving (amends ADR-177).
+     */
+    public static final String THE_CONTROL_PANEL_WRITES_HOLDING_THE_WORKING_DIRECTORY_LOCK = FILE
+            + "0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md";
+
+    /**
+     * ADR-297 -- the control panel's screens are tested failing-first through {@code PanelBrowser}, the JDK's HTTP
+     * client with a cookie store and jsoup at test scope, which opens the printed address, follows a {@code 303},
+     * and submits a form by its name as a browser sends it, a {@code POST} from the panel's own origin; no browser is
+     * downloaded, and every such test is a unit test on both CI jobs.
+     */
+    public static final String THE_CONTROL_PANELS_SCREENS_ARE_TESTED_THROUGH_THE_PAGES_IT_SERVES = FILE
+            + "0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md";
+
     private Adr() {
     }
 }

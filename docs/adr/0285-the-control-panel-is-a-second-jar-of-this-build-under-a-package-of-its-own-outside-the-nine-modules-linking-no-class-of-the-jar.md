@@ -4,6 +4,8 @@
 >
 > **Partly amended — see [ADR-294](0294-the-control-panel-learns-what-the-next-invocation-wants-from-a-file-the-jar-writes-with-the-closing-line.md).** Of §3: the files that are the control panel's whole contract with the jar also hold `next-invocation.properties`, which every invocation ending on the closing line writes in the working directory and every invocation holding the working-directory lock deletes as it starts; the control panel reads it after an exit code of 0 to learn what the next invocation wants. The rest of this record stands.
 
+> **Partly amended — see [ADR-295](0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md).** Of §3: the control panel also reads and writes three of the jar's file formats, `profile.yaml`, `relevance-labels.yaml` and `code-set-names.yaml`, in `java.base`, held to agree with the jar by contract tests.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-040](0040-modules-are-capability-shaped-not-stage-shaped.md) and [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md): the nine modules stay nine, and the module rule is unchanged, since the control panel's code is outside `io.algernon.vespera` (§1).
