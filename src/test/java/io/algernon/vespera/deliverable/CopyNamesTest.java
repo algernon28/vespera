@@ -371,14 +371,22 @@ class CopyNamesTest {
 
     @Test
     @Story("A document keeps its own name in its group's folder")
-    @DisplayName("Names that are equal only once upper-cased and composed again collide")
-    void aKeyIsNormalisedAgainAfterItIsUpperCased() {
-        String aDottedCapitalI = "İ";
-        String anIAndACombiningDotAbove = "i̇";
-        String anIotaWithDialytikaAndTonos = "ΐ";
-        String aCapitalIotaWithDialytikaAndACombiningAcute = "Ϊ́";
+    @DisplayName("Names that are equal once lower-cased, upper-cased and composed again collide, a capital that upper-casing leaves alone among them")
+    void aKeyIsLowerCasedThenUpperCasedAndNormalisedAgain() {
+        String aSmallTheta = "\u03b8";
+        String aCapitalThetaSymbol = "\u03f4";
+        String aSharpS = "\u00df";
+        String aCapitalSharpS = "\u1e9e";
+        String aDottedCapitalI = "\u0130";
+        String anIAndACombiningDotAbove = "i\u0307";
+        String anIotaWithDialytikaAndTonos = "\u0390";
+        String aCapitalIotaWithDialytikaAndACombiningAcute = "\u03aa\u0301";
         Map<Long, String> names = namesOf(
                 List.of(
+                        member(65, "e/" + aSmallTheta + ".txt"),
+                        member(66, "f/" + aCapitalThetaSymbol + ".txt"),
+                        member(67, "g/" + aSharpS + ".txt"),
+                        member(68, "h/" + aCapitalSharpS + ".txt"),
                         member(61, "a/" + aDottedCapitalI + ".txt"),
                         member(62, "b/" + anIAndACombiningDotAbove + ".txt"),
                         member(63, "c/" + anIotaWithDialytikaAndTonos + ".txt"),
@@ -386,16 +394,33 @@ class CopyNamesTest {
                 NO_PICTURES);
 
         claim(
-                "a dotted capital I and an i followed by a combining dot above are one letter once upper-cased"
-                        + " and composed again, and so are a small iota with dialytika and tonos and a capital iota"
-                        + " with dialytika followed by a combining acute: each pair collides, the lower-numbered"
-                        + " keeping its name as written and the other taking its number",
+                "a capital theta symbol and a capital sharp s are kept as they are by upper-casing, though their"
+                        + " small letters, a theta and a sharp s, upper-case to a capital theta and to a double S;"
+                        + " lower-cased first, each meets its small letter, as on a file system that folds case,"
+                        + " and the higher-numbered of each pair takes its number",
                 () -> assertThat(names)
-                        .containsExactlyInAnyOrderEntriesOf(Map.of(
+                        .containsAllEntriesOf(Map.of(
+                                65L, aSmallTheta + ".txt",
+                                66L, aCapitalThetaSymbol + "~66.txt",
+                                67L, aSharpS + ".txt",
+                                68L, aCapitalSharpS + "~68.txt")));
+        claim(
+                "a dotted capital I and an i followed by a combining dot above are one letter once lower-cased,"
+                        + " upper-cased and composed again, and so are a small iota with dialytika and tonos and a"
+                        + " capital iota with dialytika followed by a combining acute: each pair collides, the"
+                        + " lower-numbered keeping its name as written and the other taking its number",
+                () -> assertThat(names)
+                        .containsAllEntriesOf(Map.of(
                                 61L, aDottedCapitalI + ".txt",
                                 62L, anIAndACombiningDotAbove + "~62.txt",
                                 63L, anIotaWithDialytikaAndTonos + ".txt",
                                 64L, aCapitalIotaWithDialytikaAndACombiningAcute + "~64.txt")));
+        claim(
+                "and a dotted capital I does not meet a plain i, which case folding keeps apart from it too",
+                () -> assertThat(namesOf(
+                                List.of(member(91, "a/i.txt"), member(92, "b/" + aDottedCapitalI + ".txt")),
+                                NO_PICTURES))
+                        .containsExactlyInAnyOrderEntriesOf(Map.of(91L, "i.txt", 92L, aDottedCapitalI + ".txt")));
     }
 
     @Test

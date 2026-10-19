@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.synthesis.ClusterSlot;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
@@ -39,8 +40,8 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * A cluster's folder in the tree (ADR-280): it holds the cluster's page, {@code index.html}, the pictures the page
  * shows, and the copy of each of the cluster's survivors under its original's own name, and {@code documents/} is no
- * longer written. A copy at its name is trusted unread, the listing names it in its folder, an entry links it by its
- * name percent-encoded, the survey counts the copies past Windows' limit, and the writer reports what an earlier
+ * longer written. A copy at its name is trusted unread, one whose name is too long in bytes is not copied, the
+ * listing names it in its folder, an entry links it by its name percent-encoded, the survey counts the copies past Windows' limit, and the writer reports what an earlier
  * drawing left at the top of the tree and in each partition folder.
  *
  * <p>Each test lays out {@code <base>/archive} as the corpus root and {@code <base>/work} as the working directory,
@@ -83,6 +84,12 @@ class TheClusterFolderHoldsItsPageAndItsCopiesTest {
 
     /** A copy that stands at a path longer than {@link #WINDOWS_LONGEST_PATH}. */
     private static final long ONE_COPY = 1;
+
+    /** The most UTF-8 bytes one name in a folder may hold on ext4, XFS, Btrfs and APFS. */
+    private static final int A_NAMES_LONGEST_IN_BYTES = 255;
+
+    /** What a copy is written under, after its name, before it is moved into place. */
+    private static final String THE_PART = ".part";
 
     @Test
     @Story("A group's folder holds its page and its documents")
@@ -336,6 +343,89 @@ class TheClusterFolderHoldsItsPageAndItsCopiesTest {
                             .hasBinaryContent(bytes("a scan that happens to share the picture's name"));
                     assertThat(page).contains("<a href=\"./" + theNumberedName + "\">" + aScanNamedAsThePicture + "</a>");
                 });
+    }
+
+    @Test
+    @Story("Every file of the tree has a name of bounded length")
+    @DisplayName("A copy whose name, with its unfinished copy's ending, would pass what a file system allows is not copied, and nothing is written for it")
+    void aNameThatWithItsPartPassesTwoHundredAndFiftyFiveBytesIsNotCopied(@TempDir Path base) throws IOException {
+        String oneByteTooLong = "a".repeat(A_NAMES_LONGEST_IN_BYTES - THE_PART.length() - ".pdf".length() + 1) + ".pdf";
+        String justShortEnough = "b".repeat(A_NAMES_LONGEST_IN_BYTES - THE_PART.length() - ".pdf".length()) + ".pdf";
+        try {
+            Files.delete(Files.createFile(base.resolve(justShortEnough + THE_PART)));
+        } catch (IOException | RuntimeException refused) {
+            abort("the temporary folder's file system does not hold a name of " + A_NAMES_LONGEST_IN_BYTES + " bytes");
+        }
+        Path archive = anArchive(base, Map.of("kept/b.pdf", "the one that fits"));
+        Path tree = base.resolve("work").resolve("deliverable");
+        Path folder = tree.resolve(THE_FOLDER);
+        ListedSurvivor theTooLongOne = aSurvivor(42, "gone/a.pdf", "never read", 0);
+        ListedSurvivor theOneThatFits = aSurvivor(43, "kept/b.pdf", "the one that fits", 0);
+        List<String> told = new ArrayList<>();
+        DeliverableProgress hearing = new DeliverableProgress() {
+            @Override
+            public void survivorCopied(long bytes) {
+                told.add("copied");
+            }
+
+            @Override
+            public void survivorAlreadyCopied() {
+                told.add("already copied");
+            }
+
+            @Override
+            public void survivorChanged() {
+                told.add("changed");
+            }
+
+            @Override
+            public void survivorGone() {
+                told.add("gone");
+            }
+
+            @Override
+            public void survivorWithNoRoom() {
+                told.add("no room");
+            }
+
+            @Override
+            public void survivorNotCopied() {
+                told.add("not copied");
+            }
+        };
+        Copies copies = new Copies(tree, archive.toString(), ReplacingMove.ATOMIC, () -> Long.MAX_VALUE, hearing);
+
+        copies.copyAllAs(
+                folder,
+                List.of(theTooLongOne, theOneThatFits),
+                Map.of(theTooLongOne.occurrence(), oneByteTooLong, theOneThatFits.occurrence(), justShortEnough));
+
+        claim(
+                "the precondition: one name holds " + (A_NAMES_LONGEST_IN_BYTES + 1) + " bytes with .part after it"
+                        + " and the other exactly " + A_NAMES_LONGEST_IN_BYTES,
+                () -> {
+                    assertThat((oneByteTooLong + THE_PART).getBytes(StandardCharsets.UTF_8))
+                            .hasSize(A_NAMES_LONGEST_IN_BYTES + 1);
+                    assertThat((justShortEnough + THE_PART).getBytes(StandardCharsets.UTF_8))
+                            .hasSize(A_NAMES_LONGEST_IN_BYTES);
+                    assertThat(CopyNames.LONGEST_NAME_IN_BYTES).isEqualTo(A_NAMES_LONGEST_IN_BYTES);
+                });
+        claim(
+                "the copy whose name is one byte too long is not copied, and is not called gone though its"
+                        + " original is: its name is refused before its original is looked for, whatever the disk"
+                        + " beneath would take",
+                () -> assertThat(copies.outcomeOf(theTooLongOne)).isEqualTo(CopyOutcome.NOT_COPIED));
+        claim(
+                "and the one beside it, whose name fits exactly, is copied with its bytes, and is the only file"
+                        + " in the folder: nothing, not even an unfinished copy, was written for the other",
+                () -> {
+                    assertThat(copies.outcomeOf(theOneThatFits)).isEqualTo(CopyOutcome.COPIED);
+                    assertThat(folder.resolve(justShortEnough)).hasBinaryContent(bytes("the one that fits"));
+                    assertThat(filesUnder(folder)).containsExactly(justShortEnough);
+                });
+        claim(
+                "each outcome is told once: one copy made and one not copied, and no copy gone",
+                () -> assertThat(told).containsExactlyInAnyOrder("not copied", "copied"));
     }
 
     @Test
