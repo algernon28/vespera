@@ -72,11 +72,11 @@ class ShippedConfigurationTest {
     /** Where the generation model's shipped default lives, and where Spring AI itself reads it. */
     private static final String GENERATION_MODEL = "spring.ai.ollama.chat.options.model";
 
-    /** Where the embedding model's shipped default lives, and where Spring AI itself reads it (ADR-286). */
+    /** Where the embedding model's shipped default lives, and where Spring AI itself reads it (ADR-298). */
     private static final String EMBEDDING_MODEL = "spring.ai.ollama.embedding.options.model";
 
     /**
-     * The embedding model the application ships with (ADR-286 §1). Held exactly, not merely as not blank: a changed
+     * The embedding model the application ships with (ADR-298 §1). Held exactly, not merely as not blank: a changed
      * default re-scores every corpus whose profile names no model, so it is changed only by a decision of its own.
      */
     private static final String THE_SHIPPED_EMBEDDING_MODEL = "bge-m3:latest";
@@ -147,7 +147,7 @@ class ShippedConfigurationTest {
     @Test
     @Story("The embedding model ships with a default")
     @DisplayName("The model documents are scored with is named, and it is " + THE_SHIPPED_EMBEDDING_MODEL)
-    @Link(name = "ADR-286", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
+    @Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
     void namesTheEmbeddingModel() throws IOException {
         Map<Object, Object> properties = shippedProperties();
 

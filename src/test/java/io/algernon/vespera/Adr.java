@@ -1986,12 +1986,12 @@ public final class Adr {
             + "0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md";
 
     /**
-     * ADR-286 -- the embedding model ships with a default, {@code bge-m3:latest}, under {@code
+     * ADR-298 -- the embedding model ships with a default, {@code bge-m3:latest}, under {@code
      * spring.ai.ollama.embedding.options.model}; the profile's {@code embeddingModel} overrides it; stage 5 is gated
      * only where neither names a model; and the scoring run is identified by the name resolved, not by its source.
      */
     public static final String THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT = FILE
-            + "0286-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md";
+            + "0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md";
 
     /**
      * ADR-290 -- a fixture repository is run without any {@code GIT_*} variable, so a test's git commits into its own

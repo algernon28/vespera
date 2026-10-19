@@ -614,7 +614,7 @@ class NextAction {
      * would otherwise reach them only afterwards, as provenance on a deliverable already written.
      * Naming it is disclosure before the call is spent, and it is still a value rather than a stage,
      * which is what ADR-098 asks of everything on this line. The embedding model is never asked for
-     * either (ADR-286 section 5); whether this line names it is left open by ADR-286's "What this
+     * either (ADR-298 section 5); whether this line names it is left open by ADR-298's "What this
      * does not decide".
      *
      * <p>Empty where nothing resolved, so a misconfigured default costs this line one clause rather

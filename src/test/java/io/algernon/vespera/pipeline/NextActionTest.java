@@ -92,7 +92,7 @@ class NextActionTest {
     @Test
     @Story("The next action names every value the next invocation needs, so no invocation is spent discovering one")
     @DisplayName("With nothing set, the line also names the value invocation 2 needs, and not the embedding model")
-    @Link(name = "ADR-286", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
+    @Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
     void withNothingSetTheLineNamesEveryValueTheNextInvocationNeeds() {
         String line = NextAction.line(nothingSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
@@ -115,7 +115,7 @@ class NextActionTest {
     @Test
     @Story("With the run's own values answered, the next act is the operator's own: labelling")
     @DisplayName("With the two run values set and nothing answered, the next action is to label and ingest")
-    @Link(name = "ADR-286", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
+    @Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
     void withTheRunValuesSetTheNextActionIsToLabel() {
         String line = NextAction.line(theRunValuesSet(), NOTHING_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
@@ -183,7 +183,7 @@ class NextActionTest {
     @Test
     @Story("An operator who took step zero is not told their answer is missing")
     @DisplayName("With only the seed folder set, the line says so and names the one value still wanted")
-    @Link(name = "ADR-286", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
+    @Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
     void withOnlyTheSeedFolderSetTheLineCreditsIt() {
         String line = NextAction.line(onlyTheSeedFolderSet(), NOTHING_ANSWERED, NO_QUESTIONS_YET, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
@@ -262,7 +262,7 @@ class NextActionTest {
     @DisplayName("A mistyped floor beside an answered seed folder is reported, and nothing else is asked for")
     @Issue("203")
     @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
-    @Link(name = "ADR-286", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
+    @Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
     void aMistypedFloorIsReportedAndNothingElseIsAskedFor() {
         Profile mistypedBesideASeedFolder = ProfileFixture.profile()
                 .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)

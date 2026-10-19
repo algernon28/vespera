@@ -34,7 +34,7 @@ import org.springframework.jdbc.support.JdbcTransactionManager;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * A scoring run is identified by the embedding model's name as resolved, not by where it was named (ADR-286 §3): a
+ * A scoring run is identified by the embedding model's name as resolved, not by where it was named (ADR-298 §3): a
  * profile naming a model and a profile naming none, under a configured default of that same name, arrive at one
  * scoring run.
  *
@@ -49,7 +49,7 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @Epic("Pipeline")
 @Feature("What a piece of work is identified by")
-@Link(name = "ADR-286", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
+@Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
 @Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
 class ADefaultAndTheSameModelInTheProfileAreOneScoringRunTest {
 

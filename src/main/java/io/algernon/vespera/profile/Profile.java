@@ -49,7 +49,7 @@ package io.algernon.vespera.profile;
  *     because a footer in 400 of 500 documents and one in 400 of 400,000 are different phenomena — the
  *     values {@code similarity} itself stores stay counts regardless (ADR-073's "counters, never
  *     ratios").
- * @param embeddingModel gate 3's key (ADR-084, ADR-286): which embedding model stage 5 scores under.
+ * @param embeddingModel gate 3's key (ADR-084, ADR-298): which embedding model stage 5 scores under.
  *     Ships unset, and unset means a default applies — application configuration carries {@code
  *     bge-m3:latest} and this key overrides it; stage 5 is gated only where neither names a model. The
  *     third such key, after {@code generationModel} and {@code generationContextWindow}. Nothing is
@@ -77,7 +77,7 @@ package io.algernon.vespera.profile;
  *     <b>The first key whose unset state means neither "no threshold" nor "gate shut" but "a default
  *     applies"</b>: application configuration carries a name, this key overrides it, and an
  *     unanswered key resolves to the configured value rather than ending the invocation. It is
- *     therefore not a gate, though {@code embeddingModel} now also ships a default (ADR-286) — that
+ *     therefore not a gate, though {@code embeddingModel} now also ships a default (ADR-298) — that
  *     model keys every vector and every relevance verdict, so its default is changed only by a
  *     record; this one keys a run whose output is prose, which the operator can read and judge
  *     directly. No {@link Measurement} pointer, for the reason {@code embeddingModel} has none.

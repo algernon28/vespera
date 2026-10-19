@@ -25,7 +25,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * Gate 3 (ADR-084, #107), narrowed by ADR-286: the embedding model stage 5 scores under is the profile's {@code
+ * Gate 3 (ADR-084, #107), narrowed by ADR-298: the embedding model stage 5 scores under is the profile's {@code
  * embeddingModel} where it is set, and otherwise the name application configuration carries; the gate is shut only
  * where neither names one. The seed and boilerplate-floor gates stage 5's earlier steps check are pinned by {@link
  * SeedGateTest}, not repeated here.
@@ -38,7 +38,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Feature("Embedding")
 @Issue("107")
 @Link(name = "ADR-084", url = Adr.THE_EMBEDDING_MODEL_IS_A_PROFILE_GATE, type = "adr")
-@Link(name = "ADR-286", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
+@Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
 class EmbeddingModelGateTest {
 
     /**

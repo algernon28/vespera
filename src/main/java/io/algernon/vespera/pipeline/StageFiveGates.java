@@ -49,7 +49,7 @@ final class StageFiveGates {
      * seed file that would not open.
      *
      * <p>The model asked about is the one {@link StageRuns#embeddingModelNamed()} answers: the profile's,
-     * else the configured default (ADR-286), until the scoring run is minted, and the name that run was minted under from then on, so a model
+     * else the configured default (ADR-298), until the scoring run is minted, and the name that run was minted under from then on, so a model
      * cleared from the profile part-way through an invocation shuts no step of a run already started
      * (ADR-228 section 2, ADR-117).
      */
@@ -108,7 +108,7 @@ final class StageFiveGates {
 
     /** One gate, and the clause its own line has always said it shuts with. */
     private enum Gate {
-        /** No embedding model named in the profile or in configuration (ADR-084, ADR-286). */
+        /** No embedding model named in the profile or in configuration (ADR-084, ADR-298). */
         EMBEDDING_MODEL("no embedding model is named"),
         /**
          * No seed folder named, stage 4's floor unset, or the seed folder's walk unfinished (ADR-064,

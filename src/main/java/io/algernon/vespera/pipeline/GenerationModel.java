@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
  * Which model stage 6b generates under (ADR-114, #179).
  *
  * <p><b>Not a gate, and that is the decision this class is.</b> Both models now ship a configured
- * default the profile overrides (ADR-286), but {@link EmbeddingModelGate} ends the invocation, the
+ * default the profile overrides (ADR-298), but {@link EmbeddingModelGate} ends the invocation, the
  * job succeeding, where neither names one, because blanking its key can be meant; here a blank
  * default asks for nothing and stops the run as a misconfiguration. An embedding model keys every
  * vector and every relevance verdict, so its default is changed only by a record, while a generation

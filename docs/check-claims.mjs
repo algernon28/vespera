@@ -532,7 +532,7 @@ function readmeSection(heading, name) {
     else if (named.join() !== published.join()) wrong.push(`it names ports ${named.join(", ")}; ${COMPOSE} publishes ${published.join(", ")}`);
 
     // The generation and embedding models, against the defaults Spring AI is configured with
-    // (ADR-114, ADR-286); each is pulled, and nothing else is.
+    // (ADR-114, ADR-298); each is pulled, and nothing else is.
     const optionsModel = (kind) => new RegExp(`^\\s+${kind}:\\s*\\n\\s+options:\\s*\\n(?:\\s*#[^\\n]*\\n)*\\s+model: (\\S+)\\s*$`, "m").exec(application);
     const models = { chat: optionsModel("chat"), embedding: optionsModel("embedding") };
     const pulled = [...section.matchAll(/ollama pull (\S+)$/gm)].map((m) => m[1]).filter((p) => !p.startsWith("<"));

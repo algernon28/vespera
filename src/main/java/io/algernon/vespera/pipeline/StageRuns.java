@@ -244,7 +244,7 @@ class StageRuns {
      * Gate 3's scoring run, minted the first time this is called in this invocation.
      *
      * @throws IllegalStateException if neither the profile nor configuration names an embedding model
-     *     (ADR-286) — unreachable past {@link
+     *     (ADR-298) — unreachable past {@link
      *     EmbeddingModelGate}'s own gate, and asserted by no test
      */
     RunId embeddingScoring() {
@@ -326,7 +326,7 @@ class StageRuns {
 
     /**
      * The embedding model's name a step's gate reads (ADR-084): the profile's, else the configured default
-     * (ADR-286), until the scoring run is minted in this invocation, and the name it was minted under from then on, without minting it. A model cleared
+     * (ADR-298), until the scoring run is minted in this invocation, and the name it was minted under from then on, without minting it. A model cleared
      * or renamed in the profile after the mint is read by the next run, not by the later steps of this one
      * (ADR-228 section 2, ADR-117).
      */

@@ -1,4 +1,4 @@
-# ADR-286 — The embedding model ships with a default in application configuration, `bge-m3:latest`, which the profile overrides, and stage 5 is gated only where neither names one
+# ADR-298 — The embedding model ships with a default in application configuration, `bge-m3:latest`, which the profile overrides, and stage 5 is gated only where neither names one
 
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.

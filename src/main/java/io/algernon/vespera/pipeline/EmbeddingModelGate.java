@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Gate 3 (ADR-084, ADR-286): whether an embedding model is named anywhere. {@code embedding} may
+ * Gate 3 (ADR-084, ADR-298): whether an embedding model is named anywhere. {@code embedding} may
  * depend only on {@code ledger} (ADR-040), so the profile is read here rather than there, the same
  * shape {@link SeedGate} and {@link RedundancyGate} already use for their own keys.
  *
