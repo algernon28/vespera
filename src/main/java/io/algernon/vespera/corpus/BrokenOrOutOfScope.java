@@ -64,18 +64,9 @@ public final class BrokenOrOutOfScope {
      * the profile's {@code outOfScopeNameEndings} (ADR-256): lower case, each once, empty where the key is unset or unreadable. A file whose
      * bytes matched no signature and whose name ends with one is left out after the kinds {@link OutOfScope}
      * names and before the log and size rules, so it is not read for timestamps and is counted neither as a
-     * log nor as too large.
-     */
-    public FormatMix verdictSurvivors(
-            RunId runId, Path canonicalRoot, Double logFloor, List<String> nameEndings, CheckingProgress progress)
-            throws Exception {
-        return verdictSurvivors(runId, canonicalRoot, logFloor, nameEndings, List.of(), progress);
-    }
-
-    /**
-     * As above, and {@code codeEndings} are the profile's {@code codeNameEndings} (ADR-277): lower case, each once,
-     * empty where the key is unset or unreadable. Code is verdicted after what is out of scope, an ending both
-     * lists hold being out of scope, and before the log and size rules, so it is not read for timestamps.
+     * log nor as too large. {@code codeEndings} are the profile's {@code codeNameEndings} (ADR-277): lower case,
+     * each once, empty where the key is unset or unreadable. Code is verdicted after what is out of scope, an
+     * ending both lists hold being out of scope, and before the log and size rules, so it is not read for timestamps.
      */
     public FormatMix verdictSurvivors(
             RunId runId,
@@ -112,7 +103,7 @@ public final class BrokenOrOutOfScope {
                 textEndingCounts.merge(endingOf(canonicalRoot.resolve(facts.path().value())), 1, Integer::sum);
             }
             Optional<String> leftOut = Optional.empty();
-            Optional<Code.Kept> kept = Optional.empty();
+            Optional<Code.Recognised> recognised = Optional.empty();
             boolean isLog = false;
             // Not every text file left out is left out for its size: an email is left out for its kind (ADR-252).
             boolean forItsSize = false;
@@ -126,9 +117,9 @@ public final class BrokenOrOutOfScope {
                     forItsName = leftOut.isPresent();
                 }
                 if (leftOut.isEmpty()) {
-                    kept = codeOf(canonicalRoot.resolve(facts.path().value()), result.format(), codeEndings, occurrenceId, progress);
+                    recognised = codeOf(canonicalRoot.resolve(facts.path().value()), result.format(), codeEndings, occurrenceId, progress);
                 }
-                if (leftOut.isEmpty() && kept.isEmpty() && result.format() == DetectedFormat.PLAIN_TEXT) {
+                if (leftOut.isEmpty() && recognised.isEmpty() && result.format() == DetectedFormat.PLAIN_TEXT) {
                     Optional<TimestampedLines.Count> count =
                             countTimestamps(canonicalRoot.resolve(facts.path().value()), occurrenceId, progress);
                     if (count.isPresent()) {
@@ -152,15 +143,15 @@ public final class BrokenOrOutOfScope {
             }
             if (result.broken()) {
                 ledger.verdicts().verdict(occurrenceId, runId, VerdictKind.BROKEN, result.reason());
-            } else if (kept.isPresent()) {
-                ledger.verdicts().verdict(occurrenceId, runId, VerdictKind.CODE, kept.get().reason());
+            } else if (recognised.isPresent()) {
+                ledger.verdicts().verdict(occurrenceId, runId, VerdictKind.CODE, recognised.get().reason());
                 code++;
-                if (kept.get().ending().isPresent()) {
+                if (recognised.get().ending().isPresent()) {
                     codeByEnding++;
-                    codeEndingCounts.merge(kept.get().ending().get(), 1, Integer::sum);
+                    codeEndingCounts.merge(recognised.get().ending().get(), 1, Integer::sum);
                 } else {
                     codeByMark++;
-                    codeGeneratorCounts.merge(kept.get().generator().orElseThrow(), 1, Integer::sum);
+                    codeGeneratorCounts.merge(recognised.get().generator().orElseThrow(), 1, Integer::sum);
                 }
             } else if (leftOut.isPresent()) {
                 ledger.verdicts().verdict(occurrenceId, runId, VerdictKind.OUT_OF_SCOPE, leftOut.get());
@@ -177,8 +168,8 @@ public final class BrokenOrOutOfScope {
                     occurrenceId,
                     result.broken()
                             ? new Outcome.Broken(result.reason())
-                            : kept.isPresent()
-                                    ? new Outcome.Code(kept.get().reason())
+                            : recognised.isPresent()
+                                    ? new Outcome.Code(recognised.get().reason())
                                     : leftOut.<Outcome>map(Outcome.LeftOut::new).orElseGet(Outcome.Kept::new));
         }
         return new FormatMix(
@@ -201,14 +192,14 @@ public final class BrokenOrOutOfScope {
 
     /**
      * Why the text file {@code file} is code, or empty where it is not or cannot be read: a file that cannot be
-     * read is not code, and is said to {@code progress} as a log that cannot be read is.
+     * read is not code, and is said to {@code progress}.
      */
-    private static Optional<Code.Kept> codeOf(
+    private static Optional<Code.Recognised> codeOf(
             Path file, DetectedFormat format, List<String> codeEndings, OccurrenceId occurrenceId, CheckingProgress progress) {
         try {
             return Code.reasonFor(file, format, codeEndings);
-        } catch (IOException | RuntimeException e) {
-            progress.timestampsUnreadable(occurrenceId, e);
+        } catch (IOException e) {
+            progress.codeUnreadable(occurrenceId, e);
             return Optional.empty();
         }
     }

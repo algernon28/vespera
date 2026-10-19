@@ -1909,6 +1909,38 @@ public final class Adr {
             + "0277-code-is-recognised-by-a-name-ending-the-profile-lists-or-by-a-documentation-generators-mark-and-stage-1-takes-it-out-of-the-survivors.md";
 
     /**
+     * ADR-278 -- the control panel starts the jar as its one child, changing nothing in it, with {@code CI=1} and the
+     * two UTF-8 encoding flags, reads its merged output to the end on one thread and opens no connection to {@code
+     * vespera.db}, finds an invocation it did not start by its holder line, and stops only its own child, descendants
+     * first.
+     */
+    public static final String THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN = FILE
+            + "0278-the-control-panel-starts-the-jar-as-its-child-reads-its-output-to-the-end-and-stops-only-its-own-child.md";
+
+    /**
+     * ADR-279 -- {@code vespera run} holds its corpus root by an operating-system lock on a file named for the
+     * root's real path, in a folder of the user's outside the archive and every working directory, and a second
+     * {@code vespera run} on that root is refused in one line before it writes a progress page.
+     */
+    public static final String ONE_VESPERA_RUN_PER_CORPUS_ROOT = FILE
+            + "0279-one-vespera-run-per-corpus-root-by-a-lock-on-a-file-named-for-its-real-path-outside-every-working-directory.md";
+
+    /**
+     * ADR-281 -- {@code com.zaxxer.hikari} and Spring Batch's {@code TaskExecutorJobLauncher} write to the console
+     * only at WARN and to {@code logs/vespera.log} at INFO, so the last line of output that is not blank is the
+     * invocation's closing line.
+     */
+    public static final String THE_CLOSING_LINE_IS_THE_LAST_LINE = FILE
+            + "0281-the-closing-line-is-the-last-line-of-output-and-two-library-loggers-write-to-the-console-only-at-warn.md";
+
+    /**
+     * ADR-283 -- a folder that directly holds {@code vespera-deliverable.txt} is the top of a deliverable tree, and
+     * the private-paths guard refuses every path at or beneath it as a path outside the allow list; no agent reads or
+     * writes a file in a tree, wherever it lies.
+     */
+    public static final String THE_GUARD_READS_A_DELIVERABLE_TREE_AS_OUTSIDE_THE_ALLOW_LIST = FILE
+            + "0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md";
+
      * ADR-284 -- code is kept in code sets: below the nearest folder holding a build file of a list built into
      * corpus, else below the first folder under the corpus root; a set pass of stage 1, before the hashing, keeps a
      * set's build files and the pictures and companion files of a generated reference tree as code; default names

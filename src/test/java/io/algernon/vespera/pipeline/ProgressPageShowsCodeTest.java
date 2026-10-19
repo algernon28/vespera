@@ -43,6 +43,7 @@ import org.springframework.batch.core.step.StepExecution;
 @Issue("558")
 @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
 @Link(name = "ADR-268", url = Adr.THE_PROGRESS_PAGE_SHOWS_WHAT_IS_REMOVED_AND_DRAWS_TO_THE_DATA_VIZ_METHOD, type = "adr")
+@Link(name = "ADR-275", url = Adr.EVERY_DIV_SAYS_ON_HOVER_WHAT_IT_SHOWS_AND_EVERY_STEP_WHAT_IT_DOES, type = "adr")
 class ProgressPageShowsCodeTest {
 
     private static final String PAGE = "progress.html";
@@ -65,8 +66,11 @@ class ProgressPageShowsCodeTest {
             "broken", "duplicate-of", "superseded-by", "out-of-scope", "code",
             "extraction-failed", "degenerate-output", "redundant-with", "translation-of", "below-threshold");
 
-    /** A tile: its key, label, value and, where it has one, detail (ADR-268 section 5). */
-    private static final Pattern TILE = Pattern.compile("<div class=\"tile\" data-tile=\"([a-z-]+)\">"
+    /**
+     * A tile: its key, its hover text, label, value and, where it has one, detail (ADR-268 section 5, its opening tag
+     * carrying the {@code title} of ADR-275 section 2).
+     */
+    private static final Pattern TILE = Pattern.compile("<div class=\"tile\" data-tile=\"([a-z-]+)\" title=\"([^\"]*)\">"
             + "<span class=\"label\">([^<]*)</span><span class=\"value\">([^<]*)</span>"
             + "(?:<span class=\"detail\">([^<]*)</span>)?</div>");
 
@@ -119,6 +123,17 @@ class ProgressPageShowsCodeTest {
                     assertThat(code[1]).isEqualTo("code (kept)");
                     assertThat(code[2]).isEqualTo("3");
                     assertThat(code[3]).matches(A_KINDS_RATE);
+                });
+        claim(
+                "and the code tile carries a hover text of its own, as every verdict kind's does (ADR-275 section 2):"
+                        + " not blank, shared with no other tile of the page, and holding none of its figures",
+                () -> {
+                    String hover = tile(tiles, "code")[4];
+                    assertThat(hover).isNotBlank();
+                    assertThat(tiles).filteredOn(tile -> !tile[0].equals("code"))
+                            .extracting(tile -> tile[4])
+                            .doesNotContain(hover);
+                    assertThat(hover).doesNotContain("code (kept)").doesNotContain("3");
                 });
         claim(
                 "code is not a survivor: of the ten that entered, the one broken, the two out of scope and the three"
@@ -185,13 +200,15 @@ class ProgressPageShowsCodeTest {
         List<String[]> tiles = new ArrayList<>();
         Matcher tile = TILE.matcher(page);
         while (tile.find()) {
-            tiles.add(new String[] {tile.group(1), tile.group(2), tile.group(3), tile.group(4) == null ? "" : tile.group(4)});
+            tiles.add(new String[] {
+                tile.group(1), tile.group(3), tile.group(4), tile.group(5) == null ? "" : tile.group(5), tile.group(2)
+            });
         }
         return tiles;
     }
 
     private static String[] tile(List<String[]> tiles, String key) {
-        return tiles.stream().filter(tile -> tile[0].equals(key)).findFirst().orElse(new String[] {key, "", "", ""});
+        return tiles.stream().filter(tile -> tile[0].equals(key)).findFirst().orElse(new String[] {key, "", "", "", ""});
     }
 
     private static List<String> all(Pattern pattern, String text) {

@@ -210,7 +210,7 @@ The verdict is a row of `verdict` with a kind and a reason, as every verdict is.
 
 `.claude/hooks/working-directory-counts.mjs` lists the verdict kinds twice, and its `SURVIVORS` statement counts survivors by the blocking ones. Both lists gain `"CODE"` after `"OUT_OF_SCOPE"`, and nothing else in the file changes.
 
-**It lies in a closed `.claude` folder, so the change is a draft the operator installs** (ADR-215 §7). The draft is laid out as `.claude` is, at `%TEMP%\vespera-claude-drafts\adr-277\hooks\working-directory-counts.mjs`. Installing it changes the script's SHA-256 to 0be436a51227c3c29d52a2e71200d07b5bdf2ef71ac70f1943fb4267411265a5, which `COUNTING_SCRIPT_SHA256` in `.claude/hooks/private-paths-guard.mjs` is set to in the same change. Until both are installed, W02 of `src/test/hooks/working-directory-counts.test.mjs` fails once `VerdictKind` holds `CODE`, since it holds the script's lists to the code's.
+**It lies in a closed `.claude` folder, so the change is a draft the operator installs** (ADR-215 §7). The draft is **`docs/agents/guard-draft/hooks/working-directory-counts.mjs`**, laid out as `.claude` is, beside ADR-283's guard draft. Its SHA-256 is 0be436a51227c3c29d52a2e71200d07b5bdf2ef71ac70f1943fb4267411265a5, and `COUNTING_SCRIPT_SHA256` in `docs/agents/guard-draft/hooks/private-paths-guard.mjs` is set to it, so the one draft folder holds both changes. The operator installs them in one change: copy `docs/agents/guard-draft/hooks/*` into `.claude/hooks/`, then delete `docs/agents/guard-draft`. The hook tests take each file from the draft while it holds that file and from `.claude` once it is gone, so W02 of `src/test/hooks/working-directory-counts.test.mjs`, which holds the script's lists to the code's, holds the draft until then. Until the operator installs it, the installed script prints a `CODE` verdict as other and counts code among the survivors.
 
 ## Alternatives rejected
 
@@ -265,7 +265,7 @@ Every file is built in the test, a few bytes or a page of markup in the shape §
 | `pipeline.CodeInvocationTest.codeIsReadByStageOneAloneAndCountedWhereTheOperatorLooks` | through a whole invocation, two identical files kept as code carry one `CODE` verdict each, of byte-level reduction, and no row of `content_hash`, `extraction_metric`, `shingle`, `minhash_signature`, `relevance_score`, `translation_of` or `document_cluster`; the document is measured; neither list of stage 2 names them; the account says `counts verdict kind=CODE count=2`; a seed named `.java` is extracted and carries no verdict; the tab of runs counts two in the code column |
 | `pipeline.RunIdentityGoldenTest.byteLevelReduction` | §9's configuration consumed, word for word |
 | `pipeline.ProgressPageChartsTest`, `pipeline.ProgressPageOutcomesInvocationTest`, `pipeline.ProgressPageRunsInvocationTest` | the ten blocking kinds, `code` after `out-of-scope`, wherever they are listed in order |
-| `src/test/hooks/working-directory-counts.test.mjs` W02 | the counting script's lists hold `CODE`, once §13's draft is installed |
+| `src/test/hooks/working-directory-counts.test.mjs` W02 | the counting script's lists hold `CODE`: §13's draft in `docs/agents/guard-draft` while it is there, the installed script once it is gone |
 
 ## What this does not decide
 

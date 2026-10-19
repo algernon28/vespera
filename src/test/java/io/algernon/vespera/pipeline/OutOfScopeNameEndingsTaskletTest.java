@@ -175,6 +175,7 @@ class OutOfScopeNameEndingsTaskletTest {
     @Test
     @Story("A file of no known kind is left out for the ending of its name")
     @DisplayName("A listed ending never leaves out a PDF, a Word file, an older Office file or a picture; a text file is left out before it is read as a log")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
     void aListedEndingNeverLeavesOutAFileWhoseBytesNameItsKind(@TempDir Path root, @TempDir Path workingDirectory)
             throws Exception {
         ProfileStore profileStore = new ProfileStore(workingDirectory);
@@ -229,9 +230,10 @@ class OutOfScopeNameEndingsTaskletTest {
                         + " nor among the logs",
                 () -> assertThat(countIn(html, "<td>90% to 100%</td>")).isZero());
         claim(
-                "and the page says so above the timestamp table",
+                "and the page says so above the timestamp table, in ADR-277 §7's words, which name code beside the"
+                        + " kind and the ending",
                 () -> assertThat(html).contains("Each text file not left out for its kind or for the ending of its"
-                        + " name was read from its start and its end"));
+                        + " name, and not kept as code, was read from its start and its end"));
     }
 
     @Test

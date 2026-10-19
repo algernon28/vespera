@@ -218,6 +218,14 @@ public class ByteLevelReductionTasklet implements Tasklet {
                     }
 
                     @Override
+                    public void codeUnreadable(OccurrenceId occurrence, Exception cause) {
+                        log.warn(
+                                "[byte-level-reduction] could not read {} to see whether it is code, so it is not: {}",
+                                occurrence.value(),
+                                cause.toString());
+                    }
+
+                    @Override
                     public void couldNotRead(OccurrenceId occurrence, String reason) {
                         // Before the verdict is written: if the archive has gone, nothing is marked for it
                         // (ADR-210 section 2). Otherwise the file is marked broken, as it always was.

@@ -1,5 +1,6 @@
 package io.algernon.vespera;
 
+import io.algernon.vespera.pipeline.CorpusRootLock;
 import io.algernon.vespera.pipeline.MisshapenProfileRefusal;
 import io.algernon.vespera.pipeline.ProfileShapeCheck;
 import io.algernon.vespera.pipeline.TemporaryFilesInTheWorkingDirectory;
@@ -29,6 +30,12 @@ public class VesperaApplication {
                 new WorkingDirectoryLock(),
                 new ProfileShapeCheck(),
                 new TemporaryFilesInTheWorkingDirectory());
+        // The corpus-root lock is a bean only here, so contexts built by Spring's test support take none
+        // (ADR-279 section 7); `run` takes it once it knows its root.
+        application.addInitializers(context -> context.getBeanFactory().registerSingleton(
+                "corpusRootLock",
+                new CorpusRootLock(CorpusRootLock.folderNamedBy(
+                        context.getEnvironment().getProperty(CorpusRootLock.FOLDER_PROPERTY)))));
         ConfigurableApplicationContext context;
         try {
             context = application.run(args);
