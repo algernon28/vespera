@@ -163,6 +163,9 @@ class ProfileStoreTest {
             degenerateOutputConfidenceFloor:
               value: "0.51"
               provenance: "read off the confidence distribution"
+            degenerateOutputWordFloor:
+              value: "6"
+              provenance: "read off the word counts"
             boilerplateDocumentFrequencyFloor:
               value: "0.52"
               provenance: "read off the document-frequency table"
@@ -230,6 +233,9 @@ class ProfileStoreTest {
         claim(
                 "the attempt carries its own answer",
                 () -> assertThat(loaded.extractionAttempt().value()).isEqualTo("3"));
+        claim(
+                "and so does the word floor, on its own key and not the confidence floor's beside it",
+                () -> assertThat(loaded.degenerateOutputWordFloor().value()).isEqualTo("6"));
         claim(
                 "the endings kept as code carry theirs, apart from the endings left out beside them",
                 () -> assertThat(loaded.codeNameEndings().value()).isEqualTo(".C .Java"));

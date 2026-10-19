@@ -402,6 +402,56 @@ class NextActionTest {
     }
 
     /**
+     * ADR-282 section 3: a {@code degenerateOutputWordFloor} that is not a whole number of 0 or more is ignored, as
+     * ADR-120 ignores every unreadable number, so nothing is removed for too few words -- and the closing line says
+     * so, naming the page the number is read off. Text is unreadable to every numeric key; the others are numbers
+     * {@code Double.parseDouble} accepts that number no count of words.
+     */
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"two", "2.5", "-1", "NaN", "Infinity", "2147483648"})
+    @Story("A word floor that is not a whole number changes nothing, and the line says so")
+    @DisplayName("A word floor that is not a whole number of 0 or more is reported, with what was written and the page to read")
+    @Issue("576")
+    @Link(name = "ADR-282", url = Adr.FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT, type = "adr")
+    void aWordFloorThatIsNotAWholeNumberIsReported(String written) {
+        Profile profile = ProfileFixture.profileFrom(theRunValuesSet())
+                .degenerateOutputWordFloor(written, RECORDED_BY_THE_OPERATOR)
+                .build();
+
+        String line = NextAction.line(
+                profile, SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+
+        claim(
+                "the key is named, with the words that say what it should hold, so an operator who meant files of"
+                        + " too few words to be removed learns that none was",
+                () -> assertThat(line).contains("degenerateOutputWordFloor").contains("whole number"));
+        claim(
+                "their own text is quoted back to them",
+                () -> assertThat(line).contains('"' + written + '"'));
+        claim(
+                "the page the number is read off is named",
+                () -> assertThat(line).contains("word-count-distribution.html"));
+        claim(
+                "and it is still one line",
+                () -> assertThat(line.lines()).hasSize(1));
+    }
+
+    @Test
+    @Story("A word floor left unset is no stop")
+    @DisplayName("An unset word floor is not named in the line, which goes on to the next value")
+    @Issue("576")
+    @Link(name = "ADR-282", url = Adr.FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT, type = "adr")
+    void anUnsetWordFloorIsNotNamed() {
+        String line = NextAction.line(
+                theRunValuesSet(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+
+        claim(
+                "observe before enforce: an unset floor removes nothing and is not a value the run stops for, so the"
+                        + " line says nothing of it",
+                () -> assertThat(line).doesNotContain("degenerateOutputWordFloor"));
+    }
+
+    /**
      * ADR-256 §5: a list of name endings holding a piece that is not an ending -- one with no dot before it,
      * nothing but dots, a wildcard, a path separator, or no ending at all -- is unreadable as a whole, ignored,
      * and named in the closing line with its text quoted back. Written as YAML through {@link
