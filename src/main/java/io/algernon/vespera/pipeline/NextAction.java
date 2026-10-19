@@ -574,10 +574,11 @@ class NextAction {
      * The clause naming the model the next invocation will generate under (ADR-114), on the one line
      * where that is about to happen.
      *
-     * <p>It is here because the generation model is the only thing about the next invocation the
-     * operator is never asked to supply: every other value this line names is one they write, and a
-     * default they never chose would otherwise reach them only afterwards, as provenance on a
-     * deliverable already written. Naming it is disclosure before the call is spent, and it is still a
+     * <p>It is here because the generation model is the one default this line names before it is used:
+     * every other value this line names is one the operator writes, and a default they never chose
+     * would otherwise reach them only afterwards, as provenance on a deliverable already written. The
+     * embedding model is never asked for either (ADR-286 section 5); whether this line names it is
+     * left open by ADR-286's "What this does not decide". Naming it is disclosure before the call is spent, and it is still a
      * value rather than a stage, which is what ADR-098 asks of everything on this line.
      *
      * <p>Empty where nothing resolved, so a misconfigured default costs this line one clause rather

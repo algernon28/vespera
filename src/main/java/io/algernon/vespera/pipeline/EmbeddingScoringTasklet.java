@@ -34,10 +34,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Stage 5's third step (ADR-084, #107, slice 2): named alone by an operator naming a model, this is
- * where the corpus is re-chunked from its cached Docling response. Gate 3's own shape is unlike the
- * earlier gates in stage 5 — it sits <em>between</em> the measurement run and the scoring run rather
- * than in front of both, so an invocation against an unset model still walks, extracts the seeds,
+ * Stage 5's third step (ADR-084, #107, slice 2): reached whenever an embedding model resolves, from
+ * the profile or from the configured default (ADR-286 section 1), this is where the corpus is
+ * re-chunked from its cached Docling response. Gate 3's own shape is unlike the earlier gates in
+ * stage 5 — it sits <em>between</em> the measurement run and the scoring run rather than in front of
+ * both, so an invocation where no embedding model is named, profile or configuration (ADR-286
+ * section 2), still walks, extracts the seeds,
  * measures the mismatch and writes that report, ending here having recorded everything it learned
  * (ADR-080's rule, applied a third time).
  *

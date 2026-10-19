@@ -45,9 +45,9 @@ One invocation runs these sixteen steps. The names are the ones the log prints.
 | 4b | `content-redundancy` | the same | near-duplicates removed |
 | 5a | `seed-extraction` | `seedFolder`, stage 4 done | your exemplars' text |
 | 5b | `seed-corpus-comparison` | exemplars that produced text | `seed-corpus-comparison.html` |
-| 5c | `embedding-scoring` | `embeddingModel`, served by Ollama | a vector for each piece of text |
+| 5c | `embedding-scoring` | the embedding model (`bge-m3:latest` unless `embeddingModel` names another), served by Ollama | a vector for each piece of text |
 | 5 | `translation` | vectors under one embedder; `translationSimilarityFloor` and `preferredLanguages`, or nothing | `translations.html`; once `preferredLanguages` is set, all but one copy of each translation set removed, unless two copies share a language |
-| 5d | `relevance-scoring` | `embeddingModel`, served by Ollama | a score for each document |
+| 5d | `relevance-scoring` | the embedding model (`bge-m3:latest` unless `embeddingModel` names another), served by Ollama | a score for each document |
 | 5e | `relevance-floor` | `relevanceScoreFloor`, or nothing | documents below the floor removed |
 | 5f | `clustering` | scores | the groups, `cluster-sizes.html` |
 | 5 | `relevance-report` | scores | `relevance-labelling.html`, `relevance-labels.yaml` |

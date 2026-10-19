@@ -252,7 +252,7 @@ class StageRuns {
             mintEmbeddingScoring(embeddingModelGate
                     .modelName()
                     .orElseThrow(() -> new IllegalStateException(
-                            "the embedding-scoring run must not be minted while embeddingModel is unset")));
+                            "the embedding-scoring run must not be minted while no embedding model is named")));
         }
         return embeddingScoring;
     }
@@ -325,8 +325,8 @@ class StageRuns {
     }
 
     /**
-     * The embedding model's name a step's gate reads (ADR-084): the profile's until the scoring run is minted
-     * in this invocation, and the name it was minted under from then on, without minting it. A model cleared
+     * The embedding model's name a step's gate reads (ADR-084): the profile's, else the configured default
+     * (ADR-286), until the scoring run is minted in this invocation, and the name it was minted under from then on, without minting it. A model cleared
      * or renamed in the profile after the mint is read by the next run, not by the later steps of this one
      * (ADR-228 section 2, ADR-117).
      */

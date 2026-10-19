@@ -106,10 +106,11 @@ spring:
     ollama:
       chat:
         options:
-          # Which model stage 6b generates under (ADR-114). Unlike the embedding model -- whose
-          # default below is changed only by a record (ADR-286), because it keys every vector and
-          # every relevance verdict -- this one keys a run whose output is prose, so it is not a gate
-          # and the profile's generationModel overrides it. Chosen on friction and changeable without
+          # Which model stage 6b generates under (ADR-114). Like the embedding model's default below,
+          # it is overridden by its profile key (generationModel here, embeddingModel there; ADR-286).
+          # Unlike it -- whose default is changed only by a record (ADR-286), because it keys every
+          # vector and every relevance verdict -- this one keys a run whose output is prose, so it is
+          # not a gate and can change without a record. Chosen on friction and changeable without
           # a new ADR (ADR-013's terms): it is not a measured choice and beat nothing, and what stands
           # behind a corpus is the generator identity recording which weights actually answered.
           #
