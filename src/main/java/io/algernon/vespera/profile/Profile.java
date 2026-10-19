@@ -148,40 +148,6 @@ public record Profile(
     }
 
     /**
-     * The profile as it stood before {@code codeNameEndings} (ADR-277): the key it lacks is unset.
-     */
-    public Profile(
-            TextValue seedFolder,
-            NumericValue degenerateOutputConfidenceFloor,
-            NumericValue boilerplateDocumentFrequencyFloor,
-            TextValue embeddingModel,
-            NumericValue relevanceScoreFloor,
-            TextValue arrangementApproved,
-            TextValue generationModel,
-            NumericValue generationContextWindow,
-            NumericValue logTimestampShareFloor,
-            NumericValue extractionAttempt,
-            NameEndingsValue outOfScopeNameEndings,
-            NumericValue translationSimilarityFloor,
-            LanguagesValue preferredLanguages) {
-        this(
-                seedFolder,
-                degenerateOutputConfidenceFloor,
-                boilerplateDocumentFrequencyFloor,
-                embeddingModel,
-                relevanceScoreFloor,
-                arrangementApproved,
-                generationModel,
-                generationContextWindow,
-                logTimestampShareFloor,
-                extractionAttempt,
-                null,
-                outOfScopeNameEndings,
-                translationSimilarityFloor,
-                preferredLanguages);
-    }
-
-    /**
      * Every key of the profile with its value as the operator wrote it (ADR-186, ADR-226 moving ADR-222's
      * rule 7): one entry per record component in declaration order, the component's name being the key as
      * {@code profile.yaml} names it, and {@code ""} where the value is {@code null}, so that no key is
