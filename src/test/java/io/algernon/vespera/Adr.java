@@ -2019,6 +2019,15 @@ public final class Adr {
             + "0290-a-fixture-repository-is-run-without-gits-location-variables.md";
 
     /**
+     * ADR-292 -- the control panel remembers seven launch values, keyed by the jar's own properties, and the last seed
+     * folder in one UTF-8 properties file in a folder of the user's own under the temp directory; the corpus root and
+     * the working directory reach the child on its command line, the other five in its environment, an empty one not
+     * at all; Run is refused without the first two, Label without the working directory (amends ADR-278 and ADR-288).
+     */
+    public static final String THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES = FILE
+            + "0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md";
+
+    /**
      * ADR-293 -- an operational record that is neither a log nor a configuration file is left to relevance, with no
      * rule of stage 1's of its own; a JSON or YAML export keyed line by line is read as settings by ADR-287's rule and
      * is left as that rule leaves it; a flow file or a lookup-table export is left out by the ending of its name where

@@ -2,6 +2,8 @@ package io.algernon.controlpanel;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -14,8 +16,10 @@ public final class ChildCommand {
 
     private final List<String> command;
     private final Path directory;
+    private final Map<String, String> environment;
 
-    private ChildCommand(Path java, Path jar, Path workingDirectory, List<String> arguments) {
+    private ChildCommand(Path java, Path jar, LaunchValues values, Path workingDirectory, List<String> arguments) {
+        this.environment = childEnvironment(values);
         this.directory = workingDirectory.toAbsolutePath();
         List<String> line = new ArrayList<>(List.of(
                 java.toString(), "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8", "-jar",
@@ -25,21 +29,38 @@ public final class ChildCommand {
         this.command = List.copyOf(line);
     }
 
-    public static ChildCommand run(Path java, Path jar, Path corpusRoot, Path workingDirectory) {
-        return new ChildCommand(java, jar, workingDirectory, List.of("run", corpusRoot.toAbsolutePath().toString()));
+    /** @throws IllegalArgumentException with {@link LaunchValues#refusalToRun()}'s line where there is one (ADR-292 §7) */
+    public static ChildCommand run(Path java, Path jar, LaunchValues values) {
+        values.refusalToRun().ifPresent(line -> {
+            throw new IllegalArgumentException(line);
+        });
+        return new ChildCommand(java, jar, values, Path.of(values.workingDirectory()),
+                List.of("run", Path.of(values.corpusRoot()).toAbsolutePath().toString()));
     }
 
-    public static ChildCommand label(Path java, Path jar, boolean auto, Path workingDirectory) {
-        return new ChildCommand(java, jar, workingDirectory, auto ? List.of("label", "--auto") : List.of("label"));
+    /** @throws IllegalArgumentException with {@link LaunchValues#refusalToLabel()}'s line where there is one (ADR-292 §7) */
+    public static ChildCommand label(Path java, Path jar, boolean auto, LaunchValues values) {
+        values.refusalToLabel().ifPresent(line -> {
+            throw new IllegalArgumentException(line);
+        });
+        return new ChildCommand(java, jar, values, Path.of(values.workingDirectory()),
+                auto ? List.of("label", "--auto") : List.of("label"));
     }
 
     public List<String> command() {
         return command;
     }
 
-    /** What is added to the child's environment. */
+    /** What is added to the child's environment: {@code CI=1} and the launch values' five (ADR-292 §4). */
     public Map<String, String> environment() {
-        return Map.of("CI", "1");
+        return environment;
+    }
+
+    private static Map<String, String> childEnvironment(LaunchValues values) {
+        Map<String, String> added = new LinkedHashMap<>();
+        added.put("CI", "1");
+        added.putAll(values.toChildEnvironment());
+        return Collections.unmodifiableMap(added);
     }
 
     public Path directory() {
