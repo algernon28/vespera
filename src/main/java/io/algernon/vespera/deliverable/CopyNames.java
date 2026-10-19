@@ -14,9 +14,9 @@ import java.util.regex.Pattern;
 
 /**
  * The name each survivor's copy is given in its cluster's folder (ADR-280 §1, §3): the original's own file name, made
- * safe on every operating system, cut to {@value #LONGEST_NAME} UTF-16 code units, and suffixed with {@code
- * ~<occurrence id>} before its extension only where it collides, without regard to case, with another name in the
- * folder or with a name the folder reserves.
+ * safe on every operating system, cut to {@value #LONGEST_NAME} UTF-16 code units and, with {@code .part} after it,
+ * to {@value #LONGEST_NAME_IN_BYTES} UTF-8 bytes, and suffixed with {@code ~<occurrence id>} before its extension
+ * only where it collides, without regard to case, with another name in the folder or with a name the folder reserves.
  *
  * <p>Every name of one cluster is worked out together, from the members' occurrence ids and file names and the names
  * of the pictures the cluster's page shows, and no file is read (§2): a name worked out again from the same members is

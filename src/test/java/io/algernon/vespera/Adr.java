@@ -1901,9 +1901,10 @@ public final class Adr {
     /**
      * ADR-280 -- {@code <partition>/<cluster>/} holds the cluster's page, {@code index.html}, its pictures and a copy
      * of each of its survivors, and {@code documents/} is no longer written; a copy keeps its original's file name,
-     * made safe for every operating system and cut to 100 code units, and only where two names collide without regard
-     * to case, or one meets the page's, a picture's or another copy's part, takes its occurrence id after a tilde
-     * before its extension; the names are worked out from the cluster's members before its first copy, so a copy that
+     * made safe for every operating system and cut to 100 code units and to 255 UTF-8 bytes with {@code .part}, the
+     * device and empty rules applying again after the cut, and only where two names collide without regard to case,
+     * or one meets the page's, a picture's or another copy's part, takes its occurrence id after a tilde before its
+     * extension; the names are worked out from the cluster's members before its first copy, so a copy that
      * stands is still trusted unread; the survey counts the copies past 259 characters, and the closing line names a
      * {@code documents/} an earlier drawing left and counts its other folders (amends ADR-274, ADR-276, ADR-112,
      * ADR-149 and ADR-150).
