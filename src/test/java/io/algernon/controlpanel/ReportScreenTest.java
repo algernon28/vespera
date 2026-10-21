@@ -23,8 +23,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The reports of the working directory, each re-served read-only at {@code /report/<file name>} (ADR-302 §3): the
- * fifteen files the jar writes, each answered as written under a second policy, {@code sandbox allow-scripts}, a
- * missing one with one line, and no other file of the working directory at all.
+ * sixteen files the jar writes (ADR-306 §2), each answered as written under a second policy, {@code sandbox
+ * allow-scripts}, a missing one with one line, and no other file of the working directory at all.
  *
  * <p>The requests are written by {@link RawHttp}, holding the cookie as a browser does, so that each header's every
  * value and the body's bytes are read as sent.
@@ -35,12 +35,12 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
 class ReportScreenTest {
 
-    /** The fifteen reports the jar writes in the working directory, in the order the record lists them. */
-    private static final List<String> THE_FIFTEEN_REPORTS = List.of("progress.html", "progress-steps.html",
+    /** The sixteen reports the jar writes in the working directory, in the order the records list them. */
+    private static final List<String> THE_SIXTEEN_REPORTS = List.of("progress.html", "progress-steps.html",
             "progress-samples.html", "progress-runs.html", "format-mix.html", "extraction-failures.html",
             "extraction-survivors.html", "confidence-distribution.html", "document-frequency.html",
             "word-count-distribution.html", "seed-corpus-comparison.html", "translations.html", "cluster-sizes.html",
-            "relevance-labelling.html", "arrangement.html");
+            "relevance-labelling.html", "arrangement.html", "cluster-page-sizes.html");
 
     /** The control panel's own policy on every response. */
     private static final String THE_CONTROL_PANELS_POLICY = "frame-ancestors 'none'; form-action 'self'; base-uri 'none'";
@@ -54,10 +54,11 @@ class ReportScreenTest {
     @Test
     @Story("The operator reads the reports from the control panel")
     @DisplayName("Each report is served as written, at its own path, as HTML, under the control panel's policy and a sandbox")
+    @Link(name = "ADR-306", url = Adr.THE_CONTROL_PANELS_OWN_HOLDER_LINE_IS_HELD_BY_NOBODY, type = "adr")
     void eachReportIsServedAsWrittenInASandboxAtItsOwnPath() throws IOException {
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         Map<String, String> written = new LinkedHashMap<>();
-        for (String report : THE_FIFTEEN_REPORTS) {
+        for (String report : THE_SIXTEEN_REPORTS) {
             String page = "<!doctype html><html><head><meta charset=\"utf-8\"><title>" + report + "</title></head>"
                     + "<body><p>" + report + " łódź 漢字</p><script>document.title += '';</script></body></html>";
             Files.writeString(workingDirectory.resolve(report), page, StandardCharsets.UTF_8);
@@ -66,16 +67,16 @@ class ReportScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder,
                 ScreenServer.values(Files.createDirectories(folder.resolve("corpus")), workingDirectory))) {
             List<List<Object>> answered = new ArrayList<>();
-            for (String report : THE_FIFTEEN_REPORTS) {
+            for (String report : THE_SIXTEEN_REPORTS) {
                 RawHttp.Response response = get(screens, "/report/" + report);
                 answered.add(List.of(report, response.status(), response.header("Content-Type"),
                         response.header("Content-Security-Policy"), response.header("Cache-Control"),
                         response.body().equals(written.get(report))));
             }
 
-            claim("each of the fifteen is answered 200, as HTML in UTF-8, under the control panel's policy and the"
+            claim("each of the sixteen is answered 200, as HTML in UTF-8, under the control panel's policy and the"
                             + " sandbox, kept out of the cache, its body the file's bytes as written",
-                    () -> assertThat(answered).containsExactlyElementsOf(THE_FIFTEEN_REPORTS.stream()
+                    () -> assertThat(answered).containsExactlyElementsOf(THE_SIXTEEN_REPORTS.stream()
                             .map(report -> List.<Object>of(report, 200, List.of("text/html; charset=utf-8"),
                                     List.of(THE_CONTROL_PANELS_POLICY, THE_REPORTS_POLICY), List.of("no-store"), true))
                             .toList()));
@@ -120,7 +121,7 @@ class ReportScreenTest {
                 statuses.add(get(screens, path).status());
             }
 
-            claim("every path that is not one of the fifteen reports is answered 404, though the file it names is in"
+            claim("every path that is not one of the sixteen reports is answered 404, though the file it names is in"
                             + " the working folder",
                     () -> assertThat(statuses).containsOnly(404).hasSize(asked.size()));
         }

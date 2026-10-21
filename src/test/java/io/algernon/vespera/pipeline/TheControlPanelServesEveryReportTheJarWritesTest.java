@@ -9,6 +9,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import io.algernon.controlpanel.ChildRuntime;
 import io.algernon.controlpanel.ControlPanelPages;
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.deliverable.Deliverable;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -26,25 +27,36 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The control panel serves every report the jar writes in the working directory, and no other (ADR-302 §3): its list
- * of fifteen file names, {@link ControlPanelPages#REPORTS}, is the set of report file names the classes of
- * {@code pipeline} hold, and each is a path {@code /report/<name>} of the pages the server is started with.
+ * The control panel serves every report the jar writes in the working directory, and no other (ADR-302 §3, ADR-306
+ * §2): its list of sixteen file names, {@link ControlPanelPages#REPORTS}, is the set of report file names the classes
+ * of {@code pipeline} and {@code deliverable} hold, and each is a path {@code /report/<name>} of the pages the server
+ * is started with.
  *
  * <p>The jar's report file names are read from its compiled classes rather than written out here: every constant
- * {@code String} of a shipped class of {@code pipeline} whose value is a file name ending in {@code .html}. The
- * progress page and its three companions, and each stage's reports, are named so, each by one constant; a report a
- * later stage adds under a constant of its own fails this until the control panel's list has it (ADR-302,
- * Consequences). The deliverable's pages, named in {@code deliverable}, are not reports of the working directory and
- * are not read.
+ * {@code String} of a shipped class of {@code pipeline} or {@code deliverable} whose value is a file name ending in
+ * {@code .html}. The progress page and its three companions, each stage's reports, and the report of the cluster
+ * pages' sizes stage 6b writes beside them (ADR-303 §8), are named so, each by one constant or two of the same value;
+ * a report a later stage adds under a constant of its own fails this until the control panel's list has it (ADR-302,
+ * Consequences). The tree's own page name, {@link Deliverable#INDEX_FILE_NAME}, which the index and every cluster's
+ * first page are written under in the tree and never in the working directory, is no report and is left out.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("561")
 @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
+@Link(name = "ADR-306", url = Adr.THE_CONTROL_PANELS_OWN_HOLDER_LINE_IS_HELD_BY_NOBODY, type = "adr")
 class TheControlPanelServesEveryReportTheJarWritesTest {
 
-    /** How many reports ADR-302's table lists: the progress page, its three companions, and eleven of the stages. */
-    private static final int FIFTEEN = 15;
+    /**
+     * How many reports the control panel serves: the progress page, its three companions, eleven of the stages, and
+     * the report of the cluster pages' sizes.
+     */
+    private static final int SIXTEEN = 16;
+
+    /** The packages whose classes name the reports of the working directory. */
+    private static final List<String> REPORTING_PACKAGES = List.of(
+            TheControlPanelServesEveryReportTheJarWritesTest.class.getPackageName(),
+            Deliverable.class.getPackageName());
 
     /** The path every report is served under, followed by its file name. */
     private static final String REPORT_PATH = "/report/";
@@ -59,7 +71,7 @@ class TheControlPanelServesEveryReportTheJarWritesTest {
     @Story("The operator opens each report from the control panel")
     @DisplayName("Every report the jar writes beside its database is one the control panel lists and serves at its own path, and the control panel lists no other")
     void everyReportTheJarWritesIsListedAndServedByTheControlPanel() {
-        Set<String> written = reportFileNamesOfThePipeline();
+        Set<String> written = reportFileNames();
         Set<String> served = ControlPanelPages.pages(
                         new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")),
                         folder.resolve("launch-values.properties"), folder.resolve("root-locks"),
@@ -68,9 +80,9 @@ class TheControlPanelServesEveryReportTheJarWritesTest {
                 .filter(path -> path.startsWith(REPORT_PATH))
                 .collect(Collectors.toCollection(TreeSet::new));
 
-        claim("the jar's classes name " + FIFTEEN + " reports: the progress page, its three companions, and the"
-                        + " reports of the stages",
-                () -> assertThat(written).hasSize(FIFTEEN));
+        claim("the jar's classes name " + SIXTEEN + " reports: the progress page, its three companions, the reports"
+                        + " of the stages, and the report of the group pages' sizes",
+                () -> assertThat(written).hasSize(SIXTEEN));
         claim("the control panel's list of reports holds each of them once, and no other",
                 () -> assertThat(ControlPanelPages.REPORTS).doesNotHaveDuplicates()
                         .containsExactlyInAnyOrderElementsOf(written));
@@ -80,13 +92,16 @@ class TheControlPanelServesEveryReportTheJarWritesTest {
                         written.stream().map(name -> REPORT_PATH + name).toList()));
     }
 
-    /** Every constant {@code String} of a shipped class of {@code pipeline} that is a file name ending in .html. */
-    private static Set<String> reportFileNamesOfThePipeline() {
+    /**
+     * Every constant {@code String} of a shipped class of {@code pipeline} or {@code deliverable} that is a file name
+     * ending in .html, but the tree's page name.
+     */
+    private static Set<String> reportFileNames() {
         Set<String> names = new TreeSet<>();
         for (JavaClass type : new ClassFileImporter()
                 .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
-                .importPackages(TheControlPanelServesEveryReportTheJarWritesTest.class.getPackageName())) {
-            if (!type.getPackageName().equals(TheControlPanelServesEveryReportTheJarWritesTest.class.getPackageName())) {
+                .importPackages(REPORTING_PACKAGES)) {
+            if (!REPORTING_PACKAGES.contains(type.getPackageName())) {
                 continue;
             }
             for (Field field : declaredFieldsOf(type.getName())) {
@@ -97,7 +112,8 @@ class TheControlPanelServesEveryReportTheJarWritesTest {
                 }
                 try {
                     Object value = field.get(null);
-                    if (value instanceof String name && name.matches(REPORT_FILE_NAME)) {
+                    if (value instanceof String name && name.matches(REPORT_FILE_NAME)
+                            && !name.equals(Deliverable.INDEX_FILE_NAME)) {
                         names.add(name);
                     }
                 } catch (IllegalAccessException e) {

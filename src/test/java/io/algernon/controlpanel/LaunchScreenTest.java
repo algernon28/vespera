@@ -148,7 +148,7 @@ class LaunchScreenTest {
     void runAndLabelAreDisabledWhileAnotherInvocationHoldsTheWorkingDirectory() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        String holderLine = WorkingDirectoryWrite.holderLine(ProcessHandle.current().pid(),
+        String holderLine = WorkingDirectoryWrite.holderLine(anotherLiveProcess(),
                 OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS), "profile.yaml");
         Files.writeString(workingDirectory.resolve(WorkingDirectoryWrite.LOCK_FILE_NAME),
                 holderLine + System.lineSeparator(), StandardCharsets.UTF_8);
@@ -156,7 +156,7 @@ class LaunchScreenTest {
             Page page = screens.browser().page();
             Element launch = form(page, "launch");
 
-            claim("the holder line of the working folder's lock, held by this live process, is shown whole",
+            claim("the holder line of the working folder's lock, held by another live process, is shown whole",
                     () -> assertThat(byId(page, "holder-working-directory").text()).isEqualTo(holderLine));
             claim("Run and Label are disabled and Check is not",
                     () -> assertThat(List.of("run", "label", "check").stream()
@@ -171,7 +171,7 @@ class LaunchScreenTest {
     void runPressedOnceTheWorkingDirectoryIsHeldIsRefusedWithALineOfItsOwn() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        String holderLine = WorkingDirectoryWrite.holderLine(ProcessHandle.current().pid(),
+        String holderLine = WorkingDirectoryWrite.holderLine(anotherLiveProcess(),
                 OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS), "profile.yaml");
         ScreenServer.childWill(workingDirectory, "sleep");
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
@@ -202,7 +202,7 @@ class LaunchScreenTest {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         Path anotherWorkingDirectory = Files.createDirectories(folder.resolve("another"));
-        String holderLine = "pid=" + ProcessHandle.current().pid()
+        String holderLine = "pid=" + anotherLiveProcess()
                 + " started=" + OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS)
                         .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
                 + " command=run " + corpusRoot + " root=" + CorpusRootLock.key(corpusRoot)
@@ -214,7 +214,7 @@ class LaunchScreenTest {
             Page page = screens.browser().page();
             Element launch = form(page, "launch");
 
-            claim("the holder line of the corpus folder's lock, held by this live process, is shown whole, and the"
+            claim("the holder line of the corpus folder's lock, held by another live process, is shown whole, and the"
                             + " working folder's lock is held by nobody",
                     () -> assertThat(List.of(byId(page, "holder-corpus-root").text(),
                                     byId(page, "holder-working-directory").text()))
@@ -341,6 +341,68 @@ class LaunchScreenTest {
             claim("and no child was started",
                     () -> assertThat(byId(invocation, "child").attr("data-ending")).isEqualTo("none"));
         }
+    }
+
+    /**
+     * The control panel's own write leaves its holder line in {@code vespera.lock} (ADR-295 §1), and that line, naming
+     * the control panel's own live process, is held by nobody on its pages and in its start checks (ADR-306 §1): the
+     * control panel holds the lock only inside a write, which ends before the request that made it is answered.
+     */
+    @Test
+    @Story("The operator starts an invocation from the control panel")
+    @DisplayName("After the control panel saves a value, the working folder is shown held by nobody, Run and Label stay enabled, and Save, then Run starts the command")
+    @Link(name = "ADR-306", url = Adr.THE_CONTROL_PANELS_OWN_HOLDER_LINE_IS_HELD_BY_NOBODY, type = "adr")
+    @Issue("629")
+    void aSaveOfTheControlPanelsOwnLeavesTheWorkingDirectoryHeldByNobody() throws IOException, InterruptedException {
+        Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
+        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
+        Files.writeString(workingDirectory.resolve(NextInvocation.FILE_NAME), """
+                invocation=run
+                wants=boilerplateDocumentFrequencyFloor
+                answer=false
+                """, StandardCharsets.UTF_8);
+        ScreenServer.childWill(workingDirectory, "exit 0 the closing line");
+        Map<String, String> floor = Map.of("boilerplateDocumentFrequencyFloor", "0.35",
+                "boilerplateDocumentFrequencyFloor.provenance", "read off the document frequency page");
+        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
+            PanelBrowser browser = screens.afterARunHasEnded().go("/next").press("next", "save", floor);
+            List<String> lock = Files.readAllLines(workingDirectory.resolve(WorkingDirectoryWrite.LOCK_FILE_NAME),
+                    StandardCharsets.UTF_8);
+
+            claim("the save leaves in the working folder's lock a holder line naming the control panel's own process",
+                    () -> assertThat(lock).first()
+                            .satisfies(line -> assertThat(HolderLine.parse(line).map(HolderLine::pid))
+                                    .contains(ProcessHandle.current().pid())));
+
+            Page launchPage = browser.go("/").page();
+            Element launch = form(launchPage, "launch");
+
+            claim("the launch page shows the working folder held by nobody",
+                    () -> assertThat(byId(launchPage, "holder-working-directory").text()).isEmpty());
+            claim("and Run, Label and Check are all enabled",
+                    () -> assertThat(List.of("run", "label", "check").stream()
+                                    .map(button -> launch.select("[name='" + button + "']").hasAttr("disabled")))
+                            .containsExactly(false, false, false));
+
+            Page landed = browser.go("/next").press("next", "save-then-run", floor).page();
+
+            claim("Save, then Run, which saves again before it starts, lands on the invocation page with a command"
+                            + " started",
+                    () -> assertThat(List.of(landed.address().getPath(),
+                                    !byId(landed, "child").attr("data-ending").equals("none")))
+                            .containsExactly("/invocation", true));
+        }
+    }
+
+    /**
+     * A live process other than the control panel's own, started before any line a test writes now: the process that
+     * started the tests' JVM. A holder line naming it is held by ADR-278 §4's rule, and is not the control panel's
+     * own line, which ADR-306 §1 reads as held by nobody.
+     */
+    private static long anotherLiveProcess() {
+        return ProcessHandle.current().parent().filter(ProcessHandle::isAlive)
+                .orElseThrow(() -> new AssertionError("the process that started the tests' JVM is not alive"))
+                .pid();
     }
 
     private static Map<Path, byte[]> contents(Path folder) throws IOException {
