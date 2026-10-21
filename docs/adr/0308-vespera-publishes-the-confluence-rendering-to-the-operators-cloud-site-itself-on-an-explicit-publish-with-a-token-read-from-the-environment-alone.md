@@ -26,6 +26,7 @@ What a Cloud site measured with synthetic pages shows (`docs/research/confluence
 - **A file whose name already stands on a page is refused by a second `POST`**; it is replaced through the file's own update endpoint.
 - **A title is unique within a space.**
 - **No body or file up to 10 MiB was refused.**
+- **A folder takes a page as a parent does**: v2 `POST /pages` with a folder's id as `parentId`, and v1 with it in `ancestors`, each made the page a direct child of the folder, and a page made under that page sits beneath it.
 
 What the code holds: the jar already speaks HTTP to Docling and Ollama through Spring's `RestClient` over the JDK's `HttpClient`; the CLI is `run` and `label`; the control panel starts the jar's two commands as a child, which inherits the operator's environment beside the five variables ADR-292 §4 adds.
 
@@ -50,7 +51,7 @@ The publish opens connections to one host, the host of the configured site, over
 | the parent | the property `vespera.confluence.parent-id`, set by `VESPERA_CONFLUENCE_PARENT_ID`, or `vespera.confluence.parent-title`, set by `VESPERA_CONFLUENCE_PARENT_TITLE` | a shipped YAML file, the profile |
 
 - **The token and email go as HTTP Basic authentication** with a classic API token, to `https://<site>/wiki/…`. A scoped token through `api.atlassian.com` is not decided here.
-- **The parent is a page or a folder** of the named space, set by its id or by its title, one and not both. A title is looked up in that space and must name exactly one page or folder, or the publish refuses; an id must name a page or folder of that space, or it refuses. The publish makes no space and moves nothing it did not make out from under the parent.
+- **The parent is a page or a folder** of the named space, and the root page is created straight under it either way, set by its id or by its title, one and not both. A title is looked up in that space and must name exactly one page or folder, or the publish refuses; an id must name a page or folder of that space, or it refuses. The publish makes no space and moves nothing it did not make out from under the parent.
 - **Each is set for each publish**, by the operator's environment or a property on the command line; none is fixed in code.
 - **A publish missing any of the five refuses before anything is sent**, and names the variable it lacks, never its value.
 - **The site, the space and the parent are never in this repository**: no shipped file holds one, and no test names a real one.
@@ -122,7 +123,6 @@ Built by [#633](https://github.com/algernon28/vespera/issues/633), against a stu
 ## What this does not decide
 
 - **The page list's entries, the stable key and the format**: [#618](https://github.com/algernon28/vespera/issues/618).
-- **How a page reaches a folder parent** where Cloud refuses a page created straight under a folder: [#633](https://github.com/algernon28/vespera/issues/633), on the measured behaviour.
 - **Titles unique within the space**: [#613](https://github.com/algernon28/vespera/issues/613).
 - **Copies a site refuses as too large, and how they are reported**: [#617](https://github.com/algernon28/vespera/issues/617).
 - **Pacing on `429` and `Retry-After`**: #633.
