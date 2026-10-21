@@ -53,6 +53,7 @@ The publish opens connections to one host, the host of the configured site, over
 - **The token and email go as HTTP Basic authentication** with a classic API token, to `https://<site>/wiki/…`. A scoped token through `api.atlassian.com` is not decided here.
 - **The parent is a page or a folder** of the named space, and the root page is created straight under it either way, set by its id or by its title, one and not both. A title is looked up in that space and must name exactly one page or folder, or the publish refuses; an id must name a page or folder of that space, or it refuses. The publish makes no space and moves nothing it did not make out from under the parent.
 - **Each is set for each publish**, by the operator's environment or a property on the command line; none is fixed in code.
+- **A template sets them in a shell**: `confluence-env.ps1` and `confluence-env.sh` ship with the jar, naming the five variables and no value. The operator copies one into the working directory, fills in the site, the space and the parent, and runs it in the shell that will run `vespera publish`; it asks for the token and the email at each run and writes neither anywhere. The copy in the working directory is the operator's file, and nothing Vespera writes holds its values.
 - **A publish missing any of the five refuses before anything is sent**, and names the variable it lacks, never its value.
 - **The site, the space and the parent are never in this repository**: no shipped file holds one, and no test names a real one.
 
