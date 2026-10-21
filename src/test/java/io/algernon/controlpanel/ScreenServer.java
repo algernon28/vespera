@@ -78,21 +78,10 @@ final class ScreenServer implements AutoCloseable {
         return corpusRootLockFolder;
     }
 
-    /**
-     * The screens' pages, by path.
-     *
-     * <p>Failing first (ADR-297 §5): until the screens of ADR-302 are built the server is started with no screen, the
-     * root alone registered and answering 404, so that the token is exchanged for the cookie at the root, as the
-     * server exchanges it only on a path it is started with, and every path then answers 404. The build replaces this
-     * body with {@code ControlPanelPages.pages(runtime, launchValuesFile, corpusRootLockFolder, userName)} (ADR-302
-     * §10).
-     */
+    /** The screens' pages, by path, as {@code ControlPanel.main} starts the server with them (ADR-302 §10). */
     private static Map<String, HttpHandler> pages(ChildRuntime runtime, Path launchValuesFile,
             Path corpusRootLockFolder, String userName) {
-        return Map.of("/", exchange -> {
-            exchange.sendResponseHeaders(404, -1);
-            exchange.close();
-        });
+        return ControlPanelPages.pages(runtime, launchValuesFile, corpusRootLockFolder, userName);
     }
 
     /** Launch values naming only the corpus root and the working directory, every other value empty. */
