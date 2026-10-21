@@ -15,7 +15,8 @@ import java.util.function.Function;
  * child ended, and the line each page is to show once. The pages read and change it only through this class, and the
  * checks that stand before an invocation starts (ADR-302 §2's three lines) are made here, so that Run, Label,
  * {@code save-then-run}, {@code save-then-label} and {@code label-auto} start a child by the same checks. Every write
- * of a working directory's file goes through {@link #write}, one at a time with every start (ADR-295 §1).
+ * of a working directory's file goes through {@link #write}, one at a time with every start (ADR-295 §1). As the
+ * control panel's process ends, {@link #endWithTheControlPanel} ends the child with it (ADR-307 §1).
  *
  * <p>The class holds no connection to {@code vespera.db} (ADR-278 §3) and writes no file but the launch values'
  * (ADR-292 §2), as an invocation starts.
@@ -39,6 +40,9 @@ final class ControlPanelState {
 
     private static final Duration ENDING_BOUND = Duration.ofSeconds(10);
 
+    /** How long the control panel's end waits to see the child it killed, and the child's descendants, end (ADR-307 §1). */
+    static final Duration END_BOUND = Duration.ofSeconds(2);
+
     private final ChildRuntime runtime;
     private final Path launchValuesFile;
     private final Path corpusRootLockFolder;
@@ -51,6 +55,7 @@ final class ControlPanelState {
     private Child child;
     private String childCommand = "";
     private Ending ending;
+    private boolean controlPanelEnds;
 
     ControlPanelState(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder, String userName) {
         this.runtime = runtime;
@@ -175,6 +180,18 @@ final class ControlPanelState {
     }
 
     /**
+     * Kills the child it started, with its descendants, as the control panel's process ends, and waits up to
+     * {@link #END_BOUND} to see them end; no child is started after it (ADR-307 §1). A child that has ended already is
+     * left as it is.
+     */
+    synchronized void endWithTheControlPanel() throws InterruptedException {
+        controlPanelEnds = true;
+        if (child != null && ending().isEmpty()) {
+            child.endWithin(END_BOUND);
+        }
+    }
+
+    /**
      * Starts the invocation as ADR-302 §2 does, or gives the line that refuses it: the launch values' own refusal,
      * then the control panel's own child, {@code vespera.lock}, the corpus-root lock. The file of launch values is
      * stored as it starts (ADR-292 §2); a line it gives is returned in {@code stored}.
@@ -182,6 +199,9 @@ final class ControlPanelState {
      * @return the refusal, empty where the child was started
      */
     synchronized Optional<String> start(Start kind, List<String> stored) {
+        if (controlPanelEnds) {
+            return Optional.of(kind.name + " is not started: the control panel is ending");
+        }
         LaunchValues now = values;
         Optional<String> refusal = kind == Start.RUN ? now.refusalToRun() : now.refusalToLabel();
         if (refusal.isPresent()) {

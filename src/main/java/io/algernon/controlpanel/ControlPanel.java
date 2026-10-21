@@ -10,7 +10,8 @@ import java.util.jar.JarFile;
 /**
  * The control panel's entry point, which the operator starts with {@code java -jar} (ADR-288 §1): it finds the jar
  * beside its own and the java running it, says what it will start and where the operator opens it, and serves until its
- * process ends (ADR-302 §11).
+ * process ends (ADR-302 §11), ending the child it started with it where that end runs the JVM's shutdown hooks
+ * (ADR-307).
  */
 public final class ControlPanel {
 
@@ -29,9 +30,9 @@ public final class ControlPanel {
                     + runtime.java());
             String userName = System.getProperty("user.name");
             Path launchValuesFile = LaunchValues.fileIn(Path.of(System.getProperty("java.io.tmpdir")), userName);
-            ControlPanelServer server = ControlPanelServer.start(ControlPanelPages.pages(runtime, launchValuesFile,
+            ControlPanelServer server = serve(runtime, launchValuesFile,
                     corpusRootLockFolder(System.getenv(CORPUS_ROOT_LOCK_FOLDER_VARIABLE), System.getProperty("user.home")),
-                    userName));
+                    userName);
             System.out.println("open " + server.firstAddress() + " in your browser");
             System.out.flush();
             Thread.currentThread().join();
@@ -39,6 +40,26 @@ public final class ControlPanel {
             System.err.println(refusal.getMessage());
             System.exit(1);
         }
+    }
+
+    /**
+     * Starts the server on the pages of a {@link ControlPanelState} of its own, having first registered a shutdown hook
+     * that ends that state's child with this JVM (ADR-307 §1): it runs as the JVM ends in an orderly way, on
+     * {@code Ctrl+C}, on its terminal or console closed, and on a request of the system to end it; a forced end of the
+     * process runs no hook.
+     */
+    static ControlPanelServer serve(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder,
+            String userName) throws IOException {
+        ControlPanelState state = new ControlPanelState(runtime, launchValuesFile, corpusRootLockFolder, userName);
+        Runtime.getRuntime().addShutdownHook(Thread.ofPlatform().name("the control panel ends its child")
+                .unstarted(() -> {
+                    try {
+                        state.endWithTheControlPanel();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                }));
+        return ControlPanelServer.start(ControlPanelPages.pages(state));
     }
 
     /**

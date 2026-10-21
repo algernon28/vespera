@@ -2158,6 +2158,14 @@ public final class Adr {
     public static final String THE_CONTROL_PANELS_OWN_HOLDER_LINE_IS_HELD_BY_NOBODY = FILE
             + "0306-the-control-panel-reads-a-holder-line-of-its-own-process-as-held-by-nobody-and-serves-the-cluster-page-sizes-as-a-sixteenth-report.md";
 
+    /**
+     * ADR-307 -- the control panel registers a shutdown hook as it starts, which kills the child it started, its
+     * descendants first, as its JVM ends in an orderly way, and waits up to 2 seconds to see them end; a forced end of
+     * its process runs no hook and leaves the child running (amends ADR-302 §11 and ADR-278 §7).
+     */
+    public static final String THE_CHILD_ENDS_WITH_THE_CONTROL_PANEL = FILE
+            + "0307-the-child-the-control-panel-started-ends-with-it-wherever-its-end-runs-the-jvms-shutdown-hooks.md";
+
     private Adr() {
     }
 }

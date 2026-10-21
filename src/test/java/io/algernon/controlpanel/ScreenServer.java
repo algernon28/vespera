@@ -62,18 +62,29 @@ final class ScreenServer implements AutoCloseable {
      */
     static ScreenServer start(Path folder, LaunchValues values) throws IOException {
         String userName = System.getProperty("user.name");
-        Path launchValuesFile = LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp")), userName);
-        values.store(launchValuesFile, userName, line -> {
-            throw new AssertionError("the launch values were not stored: " + line);
-        });
-        Path jar = writeTheJar(Files.createDirectories(folder.resolve("bin")).resolve("vespera-for-screen-tests.jar"));
-        ChildRuntime runtime = new ChildRuntime(Path.of(System.getProperty("java.home"), "bin",
-                System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java"), jar);
+        Path launchValuesFile = storedIn(folder, values, userName);
+        ChildRuntime runtime = runtimeIn(folder);
         Set<Long> runningBefore = ProcessHandle.current().descendants().map(ProcessHandle::pid)
                 .collect(Collectors.toUnmodifiableSet());
         Path corpusRootLockFolder = Files.createDirectories(folder.resolve("root-locks"));
         return new ScreenServer(ControlPanelServer.start(pages(runtime, launchValuesFile, corpusRootLockFolder,
                 userName)), runningBefore, corpusRootLockFolder);
+    }
+
+    /** Writes {@code values} as the last launch values of {@code userName}, under {@code folder}; returns their file. */
+    static Path storedIn(Path folder, LaunchValues values, String userName) throws IOException {
+        Path launchValuesFile = LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp")), userName);
+        values.store(launchValuesFile, userName, line -> {
+            throw new AssertionError("the launch values were not stored: " + line);
+        });
+        return launchValuesFile;
+    }
+
+    /** Writes the jar for the screen tests under {@code folder}; returns it with the java running the tests. */
+    static ChildRuntime runtimeIn(Path folder) throws IOException {
+        Path jar = writeTheJar(Files.createDirectories(folder.resolve("bin")).resolve("vespera-for-screen-tests.jar"));
+        return new ChildRuntime(Path.of(System.getProperty("java.home"), "bin",
+                System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java"), jar);
     }
 
     /** The folder the control panel reads corpus-root locks in, as the jar's {@code CorpusRootLock} would take them. */

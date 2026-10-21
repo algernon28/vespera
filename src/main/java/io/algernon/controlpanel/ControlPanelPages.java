@@ -34,7 +34,11 @@ public final class ControlPanelPages {
      */
     public static Map<String, HttpHandler> pages(ChildRuntime runtime, Path launchValuesFile,
             Path corpusRootLockFolder, String userName) {
-        ControlPanelState state = new ControlPanelState(runtime, launchValuesFile, corpusRootLockFolder, userName);
+        return pages(new ControlPanelState(runtime, launchValuesFile, corpusRootLockFolder, userName));
+    }
+
+    /** The same pages, reading and changing {@code state}, which {@code ControlPanel.serve} ends its child through. */
+    static Map<String, HttpHandler> pages(ControlPanelState state) {
         Map<String, HttpHandler> pages = new HashMap<>();
         NextPages next = new NextPages(state);
         new LaunchPages(state).register(pages);
