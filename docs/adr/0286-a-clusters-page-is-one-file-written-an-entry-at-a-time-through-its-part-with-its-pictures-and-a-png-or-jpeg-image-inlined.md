@@ -1,5 +1,7 @@
 # ADR-286 — A cluster's page is one file, written an entry at a time through its part, with its pictures and a PNG or JPEG image inlined
 
+> **Partly amended — see [ADR-314](0314-the-confluence-rendering-writes-each-picture-its-cluster-page-shows-as-a-file-of-its-own-from-the-same-bytes-the-html-page-inlines.md).** Of §1 and §4, for the Confluence rendering alone: under `confluence/` each picture a cluster's page shows is a file of its own, from the same bytes, and the page names it. The HTML tree's page is unchanged.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Amends**: [ADR-274](0274-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md) §1.1, whose "no `src` or `href` that names a scheme or a host" admits one exception, an `<img>`'s `src` holding a `data:` URI of §1 here; §1's tree, which holds no picture file; and §2.7's bound of 69 characters, which bounds the index and the pages, there being no picture (§4). Every other rule of §1.1, §1.3's escaping and §2's copies stand.
