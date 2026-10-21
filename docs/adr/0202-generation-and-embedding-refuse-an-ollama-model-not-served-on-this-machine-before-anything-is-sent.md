@@ -1,6 +1,6 @@
 # ADR-202 — Generation and embedding refuse an Ollama model not served on this machine, through the labeller's own check, before anything is sent
 
-> **Scope read — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** §3 binds what reads a document; a publish, which reads none and sends the Confluence rendering to the operator's site, is outside it. The rest of this record stands.
+> **Read with [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** §3 keeps the operator's documents from any party but their owner; a publish, which sends the Confluence rendering to the owner's own Confluence tenancy, keeps it. This record stands whole.
 
 - **Date**: 2026-10-05
 - **Status**: accepted

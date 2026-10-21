@@ -4,7 +4,7 @@
 
 > **Partly amended — see [ADR-208](0208-vespera-label-auto-needs-no-corpus-root-and-root-is-no-longer-an-option-of-label.md).** The first bullet of §6 is withdrawn whole: `vespera label --auto` needs no corpus root, and `--root` is no longer an option of `label`, so the heading's `[--root <path>]` goes too and a command line that passes it is refused as a usage error. The requirement the block above says stands stood until that record. Everything else in §6 stands.
 
-> **Scope read — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** §6 binds what reads a document; a publish, which reads none and sends the Confluence rendering to the operator's site, is outside it. The rest of this record stands.
+> **Read with [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** §6 keeps the operator's documents from any party but their owner; a publish, which sends the Confluence rendering to the owner's own Confluence tenancy, keeps it. This record stands whole.
 
 - **Date**: 2026-10-05
 - **Status**: accepted
