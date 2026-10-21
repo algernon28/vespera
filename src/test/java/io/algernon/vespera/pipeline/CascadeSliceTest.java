@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.confluence.Publisher;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
 import io.algernon.vespera.corpus.DetectedFormats;
@@ -103,6 +104,8 @@ import org.springframework.transaction.annotation.Transactional;
     VesperaCommand.class,
     VesperaCommand.Run.class,
     VesperaCommand.Label.class,
+    VesperaCommand.Publish.class,
+    Publisher.class,
     NextAction.class,
     VesperaJobConfiguration.class,
     // The progress page's opener, which records and opens nothing, in place of the system's (ADR-266): no

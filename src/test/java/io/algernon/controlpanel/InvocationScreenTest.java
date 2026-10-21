@@ -125,4 +125,36 @@ class InvocationScreenTest {
                             .containsExactly("", 0));
         }
     }
+
+    @Test
+    @Story("The operator publishes from the control panel")
+    @Issue("633")
+    @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
+    @DisplayName("Publish is offered once a Confluence rendering is drawn, and starts the jar's publish")
+    void publishIsOfferedOnceARenderingIsDrawnAndStartsThePublish() throws IOException, InterruptedException {
+        Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
+        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
+        ScreenServer.childWill(workingDirectory, "exit 0 " + ITS_LAST_LINE);
+        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
+            PanelBrowser browser = screens.browser();
+            Page before = browser.go("/invocation").page();
+            Path confluence = Files.createDirectories(
+                    workingDirectory.resolve("deliverable").resolve("abcdef0123456789").resolve("confluence"));
+            Files.writeString(confluence.resolve("pages.json"), "{}");
+            Page drawn = browser.go("/invocation").page();
+
+            claim("with no rendering drawn, the invocation page offers no Publish",
+                    () -> assertThat(before.document().select("form[name=publish]")).isEmpty());
+            claim("once one is drawn it does, by a form posted to /publish",
+                    () -> assertThat(List.of(ScreenServer.form(drawn, "publish").attr("action"),
+                                    buttonNames(ScreenServer.form(drawn, "publish"))))
+                            .containsExactly("/publish", List.of("publish")));
+
+            Page ended = ScreenServer.whenTheChildHasEnded(browser.press("publish", "publish", Map.of()));
+
+            claim("pressing it starts the jar's publish, shown ended as the child ended",
+                    () -> assertThat(List.of(byId(ended, "child").text(), byId(ended, "child").attr("data-ending")))
+                            .containsExactly("publish: ended", "ended"));
+        }
+    }
 }

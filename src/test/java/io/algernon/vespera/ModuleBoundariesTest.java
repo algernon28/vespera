@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
+import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.List;
@@ -38,18 +39,20 @@ import org.springframework.modulith.core.ApplicationModules;
 @Link(name = "ADR-040", url = Adr.MODULES_ARE_CAPABILITY_SHAPED, type = "adr")
 @Link(name = "ADR-041", url = Adr.LEDGER_OWNS_IDENTITY_AND_VERDICTS, type = "adr")
 @Link(name = "ADR-101", url = Adr.THE_RUN_ENDS_AT_THE_GENERATED_DOCUMENTS, type = "adr")
+@Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
 class ModuleBoundariesTest {
 
     private static final ApplicationModules MODULES = ApplicationModules.of(VesperaApplication.class);
 
     /**
-     * ADR-040's modules, less the one ADR-101 struck, and the one ADR-274 added — nine. Seven are
+     * ADR-040's modules, less the one ADR-101 struck, and the ones ADR-274 and ADR-308 §7 added — ten. Eight are
      * capability modules; {@code ledger} is what they depend on, and {@code pipeline} is the
      * composition root that depends on all of them.
      *
      * <p>{@code publication} is deliberately absent (ADR-101, ADR-110): the run ends at the generated
      * documents, so nothing uploads them and no module exists to. {@code deliverable} draws the tree
-     * those documents are handed over in, and carries it nowhere (ADR-274). This list is an
+     * those documents are handed over in, and carries it nowhere (ADR-274); {@code confluence} sends its
+     * Confluence rendering to the operator's site on {@code vespera publish} alone (ADR-308). This list is an
      * allow-list, so a struck name left in it is invisible until somebody creates the package it
      * permits — which is the one moment it would do harm.
      */
@@ -62,6 +65,7 @@ class ModuleBoundariesTest {
                     "embedding",
                     "synthesis",
                     "deliverable",
+                    "confluence",
                     "profile",
                     "pipeline");
 
@@ -83,7 +87,7 @@ class ModuleBoundariesTest {
             "deliverable", List.of("ledger", "synthesis"));
 
     /**
-     * The capability modules, derived rather than re-listed: the recorded eight less {@code ledger},
+     * The capability modules, derived rather than re-listed: the recorded ten less {@code ledger},
      * which they all depend on, and {@code pipeline}, which is the composition root and may depend on
      * all of them. Deriving it means a ninth module added above cannot be forgotten here.
      */
@@ -215,5 +219,28 @@ class ModuleBoundariesTest {
                 "there is one module that draws the tree, and it declares the ledger and the module whose records it"
                         + " draws, and nothing else",
                 () -> assertThat(declared).containsExactly(List.of("ledger", "synthesis")));
+    }
+
+    /**
+     * The one module that opens a connection to Confluence is a module of its own, declaring {@code ledger} alone, so
+     * a change to it moves no stage's version (ADR-308 §7, §10).
+     */
+    @Test
+    @Story("The boundary rule holds for every module")
+    @DisplayName("The publisher is a module of its own, which declares the ledger alone")
+    @Issue("633")
+    void thePublisherIsAModuleOfItsOwn() {
+        List<List<String>> declared = MODULES.stream()
+                .filter(module -> "confluence".equals(module.getIdentifier().toString()))
+                .map(module -> module.getBasePackage()
+                        .getAnnotation(ApplicationModule.class)
+                        .map(declaration -> List.of(declaration.allowedDependencies()))
+                        .orElse(List.of()))
+                .toList();
+
+        claim(
+                "there is one module that publishes, and it declares the ledger and nothing else: it names no class of"
+                        + " deliverable, reading the page list by its contract",
+                () -> assertThat(declared).containsExactly(List.of("ledger")));
     }
 }

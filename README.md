@@ -150,6 +150,7 @@ relevance-labels.yaml            the sixty questions you answer
 cluster-sizes.html               how the survivors grouped under each exemplar
 cluster-page-sizes.html          how large each group's page is, in bytes, written each time the tree is drawn
 arrangement.html                 the groups, named and in order, for you to approve
+confluence-not-carried.csv       the copies a vespera publish could not send because the site refused them as too large, written only when it refused one
 deliverable/<run>/index.html     what was written, group by group, and what produced it, opened when written
 deliverable/<run>/documents.csv  every surviving document, with its place in the order and its copy
 deliverable/<run>/code.csv       every file of every code set, with its set, its role and its copy
@@ -183,7 +184,10 @@ The database also keeps its temporary files in the working directory, not in the
 ```
 vespera run <root> [--db-dir=<path>]     walk a corpus and take it as far as the next missing value
 vespera label [file] [--db-dir=<path>]   record the answers you wrote into the label file
+vespera publish [--db-dir=<path>]        send the last Confluence rendering drawn to your Confluence Cloud site
 ```
+
+`vespera publish` is the one command that sends anything off the machine, and only the Confluence rendering: it reads the site, the space, the parent, your account's email and an API token from `VESPERA_CONFLUENCE_*` environment variables, the last two from the environment alone, and refuses before sending anything when one is missing, writing `confluence-env.sh` and `confluence-env.ps1` into the working directory for you to fill in and run in your shell.
 
 Every `vespera run` that starts the job writes an invocation account in the working directory's `logs` folder: a file with no document's name or words in it, which a hosted model may read. There is nothing to set for it. `vespera.account-dir` is no longer read: left in your configuration, it is ignored, and the run logs one warning naming the `logs` folder. `vespera.progress-interval`, set in `application-local.yaml` or with `--vespera.progress-interval=<duration>`, is how often `vespera run` rewrites `progress.html`: `5s` unless you set it. No browser is opened where the environment variable `CI` is set, or on Linux with no display.
 
