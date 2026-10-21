@@ -29,6 +29,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -46,6 +47,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Who the control panel's server answers, and what it answers with (ADR-291): it listens on {@code 127.0.0.1} alone at
@@ -533,6 +535,46 @@ class ControlPanelServerTest {
         claim("and none of them names a type that writes a file, logs or starts a process, nor prints on the console,"
                         + " so the token and a page's text stay in memory",
                 () -> assertThat(forbidden).isEmpty());
+    }
+
+    /**
+     * The pages start the child, write files and read the sidecars, and the server's classes do none of these
+     * (ADR-302 §10; ADR-291 §8): every handler the pages are started with is a class of a page's own, nested in none
+     * of the server's, and no class of the server names a class of the control panel that is not the server's, so
+     * what {@link #theServerWritesNoFileLogsNothingPrintsNothingAndStartsNoProcess} reads is not done for it by a page.
+     */
+    @Test
+    @Issue("561")
+    @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
+    @Story("No page is kept by the browser, framed by another site, or leaks its address")
+    @DisplayName("The classes of the pages are outside the server's: no page's handler is the server's, and the server names no class of the pages")
+    void theClassesOfThePagesAreOutsideTheServers(@TempDir Path folder) {
+        Map<String, HttpHandler> pages = ControlPanelPages.pages(
+                new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")),
+                folder.resolve("launch-values.properties"), folder.resolve("root-locks"),
+                System.getProperty("user.name"));
+        Set<String> handlersDeclaredBy = new TreeSet<>();
+        pages.values().forEach(handler -> handlersDeclaredBy.add(handler.getClass().getNestHost().getName()));
+        JavaClasses theServer = theServersClasses();
+        Set<String> named = new TreeSet<>();
+        for (JavaClass type : theServer) {
+            for (Dependency dependency : type.getDirectDependenciesFromSelf()) {
+                JavaClass target = dependency.getTargetClass().getBaseComponentType();
+                if (target.getPackageName().equals(ControlPanelServer.class.getPackageName())
+                        && !theServer.contain(target.getName())) {
+                    named.add(type.getSimpleName() + " names " + target.getSimpleName());
+                }
+            }
+        }
+
+        claim("the pages the server is started with were built, and the import read the server's classes",
+                () -> assertThat(List.of(pages.isEmpty(), theServer.contain(ControlPanelServer.class.getName())))
+                        .containsExactly(false, true));
+        claim("every page's handler is declared by a class of the pages, none by the server or a class nested in it",
+                () -> assertThat(handlersDeclaredBy).isNotEmpty()
+                        .noneMatch(declaredBy -> theServer.contain(declaredBy)));
+        claim("and no class of the server names a class of the control panel that is not the server's own",
+                () -> assertThat(named).isEmpty());
     }
 
     @Test

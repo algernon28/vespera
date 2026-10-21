@@ -14,6 +14,9 @@ import java.util.jar.JarFile;
  */
 public final class ControlPanel {
 
+    /** The variable of the environment that names the folder the corpus-root locks lie in (ADR-302 §2; ADR-279). */
+    static final String CORPUS_ROOT_LOCK_FOLDER_VARIABLE = "VESPERA_CORPUS_ROOT_LOCK_FOLDER";
+
     private ControlPanel() {
     }
 
@@ -27,7 +30,7 @@ public final class ControlPanel {
             String userName = System.getProperty("user.name");
             Path launchValuesFile = LaunchValues.fileIn(Path.of(System.getProperty("java.io.tmpdir")), userName);
             ControlPanelServer server = ControlPanelServer.start(ControlPanelPages.pages(runtime, launchValuesFile,
-                    corpusRootLockFolder(System.getenv("VESPERA_CORPUS_ROOT_LOCK_FOLDER"), System.getProperty("user.home")),
+                    corpusRootLockFolder(System.getenv(CORPUS_ROOT_LOCK_FOLDER_VARIABLE), System.getProperty("user.home")),
                     userName));
             System.out.println("open " + server.firstAddress() + " in your browser");
             System.out.flush();
