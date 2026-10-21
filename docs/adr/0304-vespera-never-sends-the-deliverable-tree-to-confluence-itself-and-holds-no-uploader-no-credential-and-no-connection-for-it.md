@@ -1,5 +1,7 @@
 # ADR-304 — Vespera never sends the deliverable tree to Confluence itself, and holds no uploader, no credential and no connection for it
 
+> **Superseded — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** Vespera publishes the Confluence rendering to the operator's Confluence Cloud site itself, by `vespera publish`, with a token read from the environment alone, to one `https` host and under one parent the operator names. Nothing in this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md)'s Decision as [ADR-301](0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md) §1 amends it, *"beyond drawing it, nothing in this project renders, uploads or transmits the deliverable anywhere"*, and ADR-301 §1's *"Putting those files into a wiki is the operator's own doing, through a loader of their own"*. This record states what that sentence rules out on the side of sending, and rules it out for the Confluence rendering as for the HTML tree (§1).

@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-208](0208-vespera-label-auto-needs-no-corpus-root-and-root-is-no-longer-an-option-of-label.md).** The first bullet of §6 is withdrawn whole: `vespera label --auto` needs no corpus root, and `--root` is no longer an option of `label`, so the heading's `[--root <path>]` goes too and a command line that passes it is refused as a usage error. The requirement the block above says stands stood until that record. Everything else in §6 stands.
 
+> **Scope read — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** §6 binds what reads a document; a publish, which reads none and sends the Confluence rendering to the operator's site, is outside it. The rest of this record stands.
+
 - **Date**: 2026-10-05
 - **Status**: accepted
 - **Amends**: [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md) in two sentences. A label is "a person's answer", and becomes: a person's answer, or a local model's answer that says it is one (§3). "Nothing writes the threshold into the profile" becomes: nothing does, except the rule in §4, run on request, over a key that is unset or that the rule itself wrote last (§4).

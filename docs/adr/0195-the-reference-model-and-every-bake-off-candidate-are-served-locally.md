@@ -1,5 +1,7 @@
 # ADR-195 — The reference model and every bake-off candidate are served locally, never hosted
 
+> **Scope read — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** §2 binds what reads a document; a publish, which reads none and sends the Confluence rendering to the operator's site, is outside it. The rest of this record stands.
+
 - **Date**: 2026-10-05
 - **Status**: accepted
 - **Amends**: [ADR-072](0072-adr-034-is-one-bake-off-the-extraction-engine-has-a-reference-model-not-a-bake-off.md), in three passages:

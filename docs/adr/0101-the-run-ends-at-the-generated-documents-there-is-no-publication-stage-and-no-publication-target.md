@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-301](0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md).** The Decision's opening sentence reads: the pipeline's last stage is 6b; what it produces is the deliverable; beside the HTML tree, stage 6b draws a Confluence storage-format rendering of the same tree, as files, for the operator to load; beyond drawing it, nothing in this project renders, uploads or transmits the deliverable anywhere. "Rendering the result into a wiki" stays struck as putting it into one. Seven stages, stage 7 struck, no `publication` module, no `vespera publish`, and everything else in this record stand.
 
+> **Partly amended — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** Of the Decision as ADR-301 rewrote it: `vespera publish` sends the Confluence rendering, and nothing else, to the operator's Confluence Cloud site; the run still ends at stage 6b, and the publish is not a stage. The rest of this record stands.
+
 - **Date**: 2026-09-11
 - **Status**: accepted
 - **Supersedes**: [ADR-002](0002-confluence-is-the-publication-target.md) — Confluence is not the publication target, because there is no publication target

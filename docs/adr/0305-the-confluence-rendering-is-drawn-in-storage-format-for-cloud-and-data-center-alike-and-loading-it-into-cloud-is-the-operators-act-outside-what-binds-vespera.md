@@ -1,5 +1,7 @@
 # ADR-305 — The Confluence rendering is drawn in storage format for Cloud and Data Center alike, and loading it into Cloud is the operator's act, outside what binds Vespera
 
+> **Partly amended — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** Of §1: the rendering is drawn in storage format for Confluence Cloud alone; nothing is drawn or published for Data Center. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Decided**: by the operator's ruling 3 of map [#604](https://github.com/algernon28/vespera/issues/604), both editions, storage format and the acceptance of Cloud's hosting (§1, §2); §2's sentence, §3 and the scope clause of `CONTEXT.md` (§5) under the operator's delegation of 2026-10-19.
