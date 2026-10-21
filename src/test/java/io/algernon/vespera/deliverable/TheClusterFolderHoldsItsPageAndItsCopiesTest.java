@@ -110,10 +110,12 @@ class TheClusterFolderHoldsItsPageAndItsCopiesTest {
                 Map.of());
 
         claim(
-                "the tree holds the index, the listing and the marker at its top, and the group's folder holds"
-                        + " its page, index.html, and each document's copy under the document's own name, its spaces,"
-                        + " brackets and capitals as written, and nothing else",
-                () -> assertThat(filesUnder(tree))
+                "outside the Confluence rendering under confluence/, the tree holds the index, the listing and the"
+                        + " marker at its top, and the group's folder holds its page, index.html, and each document's"
+                        + " copy under the document's own name, its spaces, brackets and capitals as written, and"
+                        + " nothing else",
+                () -> assertThat(filesUnder(tree).stream()
+                                .filter(name -> !name.startsWith(ConfluencePages.DIRECTORY_NAME + "/")))
                         .containsExactlyInAnyOrder(
                                 "index.html",
                                 "documents.csv",

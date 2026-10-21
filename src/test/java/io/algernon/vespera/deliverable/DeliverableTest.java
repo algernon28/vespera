@@ -932,10 +932,13 @@ class DeliverableTest {
                         .hasSize(TWO_SURVIVORS)
                         .allSatisfy(row -> assertThat(columnsOf(row)[THE_COPY_OUTCOME_COLUMN]).isEqualTo("gone")));
         claim(
-                "and no copy stands in the tree -- it holds " + THE_INDEX_THE_LISTING_ONE_PAGE_AND_THE_MARKER
+                "and no copy stands in the tree -- outside the Confluence rendering under confluence/, which carries"
+                        + " no copy of its own, it holds " + THE_INDEX_THE_LISTING_ONE_PAGE_AND_THE_MARKER
                         + " files, being the index, the listing, the one group's own page and the marker saying what"
                         + " drew the tree, and nothing else",
-                () -> assertThat(everyFileUnder(tree))
+                () -> assertThat(everyFileUnder(tree).stream()
+                                .filter(file -> !tree.relativize(file).startsWith(ConfluencePages.DIRECTORY_NAME))
+                                .toList())
                         .hasSize(THE_INDEX_THE_LISTING_ONE_PAGE_AND_THE_MARKER)
                         .contains(tree.resolve(DeliverableRoot.MARKER_FILE_NAME)));
     }

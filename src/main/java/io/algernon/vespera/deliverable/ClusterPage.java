@@ -44,7 +44,7 @@ final class ClusterPage {
     /**
      * The heading a page opens its membership list with — rendered prose, so it says <em>group</em> (ADR-122).
      */
-    private static final String MEMBERSHIP_HEADING = "The documents in this group";
+    static final String MEMBERSHIP_HEADING = "The documents in this group";
 
     /**
      * How the page says the writing rests on part of its cluster (ADR-108, ADR-133): the count the
@@ -56,7 +56,7 @@ final class ClusterPage {
      * either way, and what a reader can check against the list on this very page, is that the writing
      * was made from the entries this page numbers first.
      */
-    private static final String SUBSET_DISCLOSURE = "Written from the first %d of the %d documents in this group.";
+    static final String SUBSET_DISCLOSURE = "Written from the first %d of the %d documents in this group.";
 
     /**
      * What a citation link points at, and what each membership entry carries as its own id: the page's
@@ -109,7 +109,28 @@ final class ClusterPage {
             DeliverableProgress progress,
             LongConsumer entryEnds)
             throws IOException {
-        emit(out, recorded, doc, why, numbered(doc, members), null, 1, folder, copies, pictures, progress, entryEnds);
+        write(out, recorded, doc, why, members, folder, copies, pictures, progress, entryEnds, ConfluenceEntries.NONE);
+    }
+
+    /**
+     * As above, each entry also written to {@code confluence}, the Confluence rendering's entries, from the same answer of
+     * {@code pictures} (ADR-314 §1).
+     */
+    static void write(
+            OutputStream out,
+            RecordedCluster recorded,
+            SynthesisDoc doc,
+            Unwritten why,
+            List<ListedSurvivor> members,
+            Path folder,
+            Copies copies,
+            EntryPictures pictures,
+            DeliverableProgress progress,
+            LongConsumer entryEnds,
+            ConfluenceEntries confluence)
+            throws IOException {
+        emit(out, recorded, doc, why, numbered(doc, members), null, 1, folder, copies, pictures, progress, entryEnds,
+                confluence);
     }
 
     /**
@@ -131,7 +152,7 @@ final class ClusterPage {
             EntryPictures pictures)
             throws IOException {
         emit(out, recorded, doc, why, numbered, breaks, page, folder, copies, pictures, DeliverableProgress.NONE,
-                bytesHandedOn -> {});
+                bytesHandedOn -> {}, ConfluenceEntries.NONE);
     }
 
     /**
@@ -150,7 +171,8 @@ final class ClusterPage {
             Copies copies,
             EntryPictures pictures,
             DeliverableProgress progress,
-            LongConsumer entryEnds)
+            LongConsumer entryEnds,
+            ConfluenceEntries confluence)
             throws IOException {
         HandedOn handedOn = new HandedOn(out);
         OutputStream stream = new BufferedOutputStream(handedOn, BUFFER_BYTES);
@@ -167,7 +189,8 @@ final class ClusterPage {
             text.append(listOpening(first));
             stream.write(text.toString().getBytes(StandardCharsets.UTF_8));
             text.setLength(0);
-            writeMembership(stream, handedOn, numbered, first, after, folder, copies, pictures, progress, entryEnds);
+            writeMembership(
+                    stream, handedOn, numbered, first, after, folder, copies, pictures, progress, entryEnds, confluence);
             text.append(LIST_CLOSING);
         }
         if (breaks != null) {
@@ -451,9 +474,11 @@ final class ClusterPage {
             Copies copies,
             EntryPictures pictures,
             DeliverableProgress progress,
-            LongConsumer entryEnds)
+            LongConsumer entryEnds,
+            ConfluenceEntries confluence)
             throws IOException {
         for (int at = first; at < after; at++) {
+            confluence.start(at + 1, entries.get(at));
             StringBuilder page = new StringBuilder();
             page.append("<li id=\"").append(ANCHOR_PREFIX).append(at + 1).append("\">\n");
             if (entries.get(at).isEmpty()) {
@@ -462,6 +487,7 @@ final class ClusterPage {
                         .append("</em>\n</li>\n");
                 stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
                 endEntry(stream, handedOn, entryEnds);
+                confluence.end();
                 continue;
             }
             ListedSurvivor member = entries.get(at).get();
@@ -479,9 +505,10 @@ final class ClusterPage {
                 page.append(path).append(" <em>").append(Html.escape(outcome.sentence())).append("</em>\n");
             }
             stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
-            pictures.writeUnder(stream, member, copy);
+            pictures.writeUnder(stream, member, copy, confluence);
             stream.write("</li>\n".getBytes(StandardCharsets.UTF_8));
             endEntry(stream, handedOn, entryEnds);
+            confluence.end();
             progress.membershipEntryWritten();
         }
     }

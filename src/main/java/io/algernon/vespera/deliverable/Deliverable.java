@@ -331,20 +331,24 @@ public final class Deliverable {
             long[] filesLeft = new long[1];
             Path[] listingPart = new Path[1];
             ClusterPageSizes sizes = new ClusterPageSizes(ceiling);
-            Path indexPart =
-                    writeIndexAndClusterPages(
-                            tree, provenance, partitions, source, entryPictures, copies, written, filesLeft, moves,
-                            progress, ceiling, sizes,
-                            index -> listingPart[0] = codeCopies.draw(code, namesTypedIn(workingDirectory, progress), index, written));
-            progress.copiesAtALongPath(copies.copiesAtALongPath() + codeCopies.copiesAtALongPath());
-            Path manifestPart = writeManifest(tree, source, copies, progress);
-            // Both are whole before either is moved, so a write that fails before the first move leaves the pair
-            // the write before left, or none; only the manifest's own move failing leaves the new index beside the
-            // old manifest (ADR-223 section 6). The index is still the last of the pages to appear.
-            moves.intoPlace(indexPart, tree.resolve(INDEX_FILE_NAME));
-            moves.intoPlace(manifestPart, tree.resolve(MANIFEST_FILE_NAME));
-            if (listingPart[0] != null) {
-                moves.intoPlace(listingPart[0], tree.resolve(CODE_LISTING_FILE_NAME));
+            try (ConfluencePages confluence = new ConfluencePages(tree, provenance.runId(), moves, written)) {
+                Path indexPart =
+                        writeIndexAndClusterPages(
+                                tree, provenance, partitions, source, entryPictures, copies, written, filesLeft, moves,
+                                progress, ceiling, sizes, confluence,
+                                index -> listingPart[0] = codeCopies.draw(code, namesTypedIn(workingDirectory, progress), index, written));
+                progress.copiesAtALongPath(copies.copiesAtALongPath() + codeCopies.copiesAtALongPath());
+                Path manifestPart = writeManifest(tree, source, copies, progress);
+                // Both are whole before either is moved, so a write that fails before the first move leaves the pair
+                // the write before left, or none; only the manifest's own move failing leaves the new index beside the
+                // old manifest (ADR-223 section 6). The index is still the last of the pages to appear.
+                moves.intoPlace(indexPart, tree.resolve(INDEX_FILE_NAME));
+                moves.intoPlace(manifestPart, tree.resolve(MANIFEST_FILE_NAME));
+                if (listingPart[0] != null) {
+                    moves.intoPlace(listingPart[0], tree.resolve(CODE_LISTING_FILE_NAME));
+                }
+                // The root page carries documents.csv as it now stands, and the page list comes last (ADR-316 §1).
+                confluence.finish(tree.resolve(MANIFEST_FILE_NAME));
             }
             sizes.writeTo(workingDirectory, moves);
             leftBehindBy(tree, written, progress);
@@ -392,6 +396,7 @@ public final class Deliverable {
             DeliverableProgress progress,
             ClusterPageCeiling ceiling,
             ClusterPageSizes sizes,
+            ConfluencePages confluence,
             TheCode theCode)
             throws IOException {
         // The three totals, announced before the loop over partitions. An entry carries a document exactly
@@ -430,6 +435,7 @@ public final class Deliverable {
                     copies.copyAll(clusterFolder, members);
                 }
                 IndexPage.partitionHeading(index, partition);
+                confluence.partitionStarted(partition, partitions.size());
                 for (RecordedCluster recorded : clusters) {
                     ClusterSlot slot = ClusterSlot.of(recorded);
                     // One read of the cluster's synthesis doc serves its page and its row of the index (ADR-241).
@@ -440,9 +446,11 @@ public final class Deliverable {
                     Unwritten why = doc.isEmpty() ? source.whyUnwritten(slot).orElse(null) : null;
                     Path pagePart = clusterFolder.resolve(CLUSTER_PAGE_NAME + PART_SUFFIX);
                     EntryEnds ends = new EntryEnds(ceiling instanceof ClusterPageCeiling.Bytes);
-                    try (OutputStream page = Files.newOutputStream(pagePart)) {
+                    ConfluenceEntries entries = confluence.entriesOf(partition, recorded, members, clusterFolder, copies);
+                    try (OutputStream page = Files.newOutputStream(pagePart); entries) {
                         ClusterPage.write(
-                                page, recorded, writing, why, members, clusterFolder, copies, pictures, progress, ends);
+                                page, recorded, writing, why, members, clusterFolder, copies, pictures, progress, ends,
+                                entries);
                     }
                     long onePageSize = Files.size(pagePart);
                     Optional<ClusterPage.PageBreaks> breaks = ceiling instanceof ClusterPageCeiling.Bytes limit
@@ -466,12 +474,15 @@ public final class Deliverable {
                                 clusterFolder, recorded, writing, why, members, breaks.get(), copies, pictures, moves,
                                 ((ClusterPageCeiling.Bytes) ceiling).bytes());
                     }
+                    confluence.clusterDrawn(
+                            partition, recorded, doc, why, ClusterPage.numbered(writing, members).size(), breaks, entries);
                     sizes.drawn(onePageSize, ends.count(), pageCount, pagesOver);
                     filesLeft[0] += filesLeftIn(clusterFolder, members, copies, pageCount);
                     progress.clusterDrawn();
                     IndexPage.clusterRow(index, partition, partitions.size(), recorded, doc);
                 }
                 IndexPage.partitionEnd(index);
+                confluence.partitionEnded();
                 progress.partitionWritten();
             }
             theCode.drawn(index);
@@ -532,6 +543,9 @@ public final class Deliverable {
      * Lists the tree's top level and each partition folder this drawing wrote, and tells {@code progress} once of the
      * folders it did not write: {@code documents/}, which an earlier layout wrote, apart from the rest, which are
      * counted. A file is not counted, and nothing inside a folder this drawing wrote is looked at (ADR-280 §4).
+     *
+     * <p>{@code confluence/} is a folder every drawing writes, so it is never counted; inside it, a seed partition's folder
+     * and a cluster's folder in one this drawing wrote there are looked at as the tree's are (ADR-312 §4).
      */
     private static void leftBehindBy(Path tree, Set<String> written, DeliverableProgress progress) {
         boolean documentsFolder = false;
@@ -548,10 +562,16 @@ public final class Deliverable {
                     others++;
                 }
             }
-            for (String partition : written.stream().filter(name -> name.indexOf('/') < 0).toList()) {
-                try (Stream<Path> inside = Files.list(tree.resolve(partition))) {
+            // A partition's folder, and confluence/, are looked into one level; confluence/'s own partition folders one
+            // level more, as the tree's are (ADR-312 §4).
+            String inTheRendering = ConfluencePages.DIRECTORY_NAME + "/";
+            for (String folder : written.stream()
+                    .filter(name -> name.indexOf('/') < 0
+                            || (name.startsWith(inTheRendering) && name.indexOf('/', inTheRendering.length()) < 0))
+                    .toList()) {
+                try (Stream<Path> inside = Files.list(tree.resolve(folder))) {
                     for (Path entry : (Iterable<Path>) inside::iterator) {
-                        if (Files.isDirectory(entry) && !written.contains(partition + "/" + entry.getFileName())) {
+                        if (Files.isDirectory(entry) && !written.contains(folder + "/" + entry.getFileName())) {
                             others++;
                         }
                     }

@@ -2182,6 +2182,29 @@ public final class Adr {
     public static final String A_CONFLUENCE_PAGES_TITLE_ENDS_WITH_ITS_PLACE_AND_ITS_RUNS_MARKER = FILE
             + "0310-a-confluence-pages-title-is-its-text-followed-by-its-place-and-its-generation-runs-marker-cut-to-255-characters-with-the-marker-kept-whole.md";
 
+    /**
+     * ADR-312 -- the Confluence rendering lies under {@code confluence/} at the tree's root, drawn by every drawing; a
+     * folder inside it an earlier drawing left is counted as left behind and kept.
+     */
+    public static final String THE_CONFLUENCE_RENDERING_LIES_UNDER_CONFLUENCE = FILE
+            + "0312-the-confluence-rendering-lies-under-confluence-at-the-trees-root-drawn-by-every-drawing-and-what-an-earlier-drawing-left-in-it-is-counted-and-kept.md";
+
+    /** ADR-313 -- a cluster's Confluence page carries its copies as files, each entry linking its copy by name. */
+    public static final String A_CLUSTERS_CONFLUENCE_PAGE_CARRIES_ITS_COPIES_AS_FILES = FILE
+            + "0313-a-clusters-confluence-page-carries-its-copies-as-files-and-a-copy-the-site-refuses-is-counted-and-listed-by-the-publish.md";
+
+    /** ADR-314 -- each picture a cluster's HTML page shows is a file of its own in the Confluence rendering. */
+    public static final String EACH_PICTURE_IS_A_FILE_OF_ITS_OWN_IN_THE_CONFLUENCE_RENDERING = FILE
+            + "0314-the-confluence-rendering-writes-each-picture-its-cluster-page-shows-as-a-file-of-its-own-from-the-same-bytes-the-html-page-inlines.md";
+
+    /** ADR-315 -- the root page carries the index's groups and documents.csv, and no corpus root or profile value. */
+    public static final String THE_ROOT_PAGE_CARRIES_NEITHER_THE_CORPUS_ROOT_NOR_THE_PROFILE = FILE
+            + "0315-the-root-page-carries-the-indexs-groups-and-counts-and-documents-csv-as-a-file-and-neither-the-corpus-root-nor-the-profiles-values.md";
+
+    /** ADR-316 -- the page list is {@code confluence/pages.json}, each page keyed by its run and place. */
+    public static final String THE_PAGE_LIST_IS_PAGES_JSON = FILE
+            + "0316-the-page-list-is-pages-json-in-confluence-each-page-keyed-by-its-run-and-place-with-its-parent-title-body-files-sizes-and-digests.md";
+
     private Adr() {
     }
 }

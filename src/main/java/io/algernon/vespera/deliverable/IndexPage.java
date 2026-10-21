@@ -177,7 +177,7 @@ final class IndexPage {
     }
 
     /** {@code ordinal}, zero-padded to {@code width} digits (ADR-112). */
-    private static String pad(int ordinal, int width) {
+    static String pad(int ordinal, int width) {
         return String.format("%0" + width + "d", ordinal);
     }
 
