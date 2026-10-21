@@ -11,7 +11,6 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Parameter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -80,8 +79,9 @@ class PublishReadsItsCredentialFromTheEnvironmentTest {
                 () -> assertThat(properties).noneMatch(value -> value.matches("(?i).*(token|user|email).*")));
         claim("the constructor reading them is the one public constructor",
                 () -> assertThat(Publisher.class.getConstructors()).hasSize(1)
-                        .allSatisfy(constructor -> assertThat(constructor.getParameters())
-                                .extracting(Parameter::getType).containsOnly(String.class)));
+                        .allSatisfy(constructor -> assertThat(Arrays.stream(constructor.getParameters())
+                                .map(parameter -> parameter.getType().getName()).distinct().toList())
+                                .containsExactly(String.class.getName())));
     }
 
     @Test
