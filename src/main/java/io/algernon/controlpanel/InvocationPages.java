@@ -38,10 +38,10 @@ final class InvocationPages {
             new String[] {"arrangement", "the arrangement, made again"},
             new String[] {"generation", "the group being written, asked about again; every group written is kept"});
 
-    private final PanelSession session;
+    private final ControlPanelState state;
 
-    InvocationPages(PanelSession session) {
-        this.session = session;
+    InvocationPages(ControlPanelState state) {
+        this.state = state;
     }
 
     void register(Map<String, HttpHandler> pages) {
@@ -51,19 +51,19 @@ final class InvocationPages {
     }
 
     /**
-     * Starts the invocation as {@link PanelSession#start} does and says where to go: {@code /invocation} once it
+     * Starts the invocation as {@link ControlPanelState#start} does and says where to go: {@code /invocation} once it
      * started, with any line storing the launch values gave; {@code refusedAt}, with the refusal as its outcome,
      * where it did not.
      */
-    static String startAndSay(PanelSession session, PanelSession.Start kind, String refusedAt) {
+    static String startAndSay(ControlPanelState state, ControlPanelState.Start kind, String refusedAt) {
         List<String> stored = new ArrayList<>();
-        Optional<String> refusal = session.start(kind, stored);
+        Optional<String> refusal = state.start(kind, stored);
         if (refusal.isPresent()) {
-            session.say(refusedAt, refusal.get());
+            state.say(refusedAt, refusal.get());
             return refusedAt;
         }
         if (!stored.isEmpty()) {
-            session.say("/invocation", String.join("; ", stored));
+            state.say("/invocation", String.join("; ", stored));
         }
         return "/invocation";
     }
@@ -73,12 +73,12 @@ final class InvocationPages {
             Exchanges.methodNotAllowed(exchange, "GET, HEAD");
             return;
         }
-        boolean runs = session.childRuns();
-        Optional<Ending> ending = session.ending();
-        String how = !session.childWasStarted() ? "none" : ending.map(InvocationPages::attribute).orElse("running");
-        StringBuilder body = new StringBuilder(ControlPanelPage.outcome(session.takeOutcome("/invocation")));
-        String words = session.childWasStarted()
-                ? session.childCommand() + ": " + wordsFor(how) + ending.filter(e -> e.exitCode() != 0)
+        boolean runs = state.childRuns();
+        Optional<Ending> ending = state.ending();
+        String how = !state.childWasStarted() ? "none" : ending.map(InvocationPages::attribute).orElse("running");
+        StringBuilder body = new StringBuilder(ControlPanelPage.outcome(state.takeOutcome("/invocation")));
+        String words = state.childWasStarted()
+                ? state.childCommand() + ": " + wordsFor(how) + ending.filter(e -> e.exitCode() != 0)
                         .map(e -> " (exit code " + e.exitCode() + ")").orElse("")
                 : "no invocation was started since the control panel started";
         body.append("<p id=\"child\" data-ending=\"").append(how).append("\">")
@@ -88,25 +88,25 @@ final class InvocationPages {
                     .append(ControlPanelPage.button("stop", "Stop", false)).append("</form>\n");
         }
         body.append("<h2>Output</h2>\n<pre id=\"tail\">")
-                .append(ControlPanelPage.escape(String.join("\n", session.tail()))).append("</pre>\n");
-        String last = ending.flatMap(Ending::lastLine).orElseGet(() -> lastNonBlank(session.tail()));
+                .append(ControlPanelPage.escape(String.join("\n", state.tail()))).append("</pre>\n");
+        String last = ending.flatMap(Ending::lastLine).orElseGet(() -> lastNonBlank(state.tail()));
         body.append(ControlPanelPage.text("p", "last-line", last)).append('\n');
-        if (session.workingDirectory().isPresent()) {
+        if (state.workingDirectory().isPresent()) {
             body.append("<p><a id=\"progress\" href=\"/report/progress.html\" target=\"_blank\" rel=\"noopener\">Progress</a></p>\n");
         }
-        body.append("<h2>Reports</h2>\n").append(LaunchPages.reports(session));
+        body.append("<h2>Reports</h2>\n").append(LaunchPages.reports(state));
         Exchanges.page(exchange, ControlPanelPage.render("Invocation", runs ? REFRESH_SECONDS : 0, body.toString()));
     }
 
     private void stop(HttpExchange exchange) throws IOException {
         if (Exchanges.isRead(exchange)) {
-            if (!session.childRuns()) {
+            if (!state.childRuns()) {
                 Exchanges.redirect(exchange, "/invocation");
                 return;
             }
             StringBuilder body = new StringBuilder();
             body.append(ControlPanelPage.text("p", "stop-sentence", Child.STOP_CONFIRMATION)).append('\n');
-            if (session.childCommand().equals("run")) {
+            if (state.childCommand().equals("run")) {
                 body.append("<h2>What a stop costs at each step</h2>\n<table id=\"stop-costs\">\n");
                 for (String[] row : STOP_COSTS) {
                     body.append("<tr data-step=\"").append(row[0]).append("\"><th>").append(row[0]).append("</th><td>")
@@ -120,7 +120,7 @@ final class InvocationPages {
             return;
         }
         try {
-            session.stop();
+            state.stop();
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
         }
@@ -133,7 +133,7 @@ final class InvocationPages {
             return;
         }
         Exchanges.form(exchange);
-        Exchanges.redirect(exchange, startAndSay(session, PanelSession.Start.LABEL_AUTO, "/next"));
+        Exchanges.redirect(exchange, startAndSay(state, ControlPanelState.Start.LABEL_AUTO, "/next"));
     }
 
     private static String attribute(Ending ending) {

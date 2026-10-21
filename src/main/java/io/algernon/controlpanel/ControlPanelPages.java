@@ -34,14 +34,14 @@ public final class ControlPanelPages {
      */
     public static Map<String, HttpHandler> pages(ChildRuntime runtime, Path launchValuesFile,
             Path corpusRootLockFolder, String userName) {
-        PanelSession session = new PanelSession(runtime, launchValuesFile, corpusRootLockFolder, userName);
+        ControlPanelState state = new ControlPanelState(runtime, launchValuesFile, corpusRootLockFolder, userName);
         Map<String, HttpHandler> pages = new HashMap<>();
-        NextPages next = new NextPages(session);
-        new LaunchPages(session).register(pages);
-        new InvocationPages(session).register(pages);
-        new ReportPages(session).register(pages);
+        NextPages next = new NextPages(state);
+        new LaunchPages(state).register(pages);
+        new InvocationPages(state).register(pages);
+        new ReportPages(state).register(pages);
         next.register(pages);
-        new ValuePages(session, next).register(pages);
+        new ValuePages(state, next).register(pages);
         return pages;
     }
 }

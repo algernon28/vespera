@@ -8,17 +8,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * What the control panel holds between requests (ADR-302 §2): the launch values, the one child it started and how that
  * child ended, and the line each page is to show once. The pages read and change it only through this class, and the
  * checks that stand before an invocation starts (ADR-302 §2's three lines) are made here, so that Run, Label,
- * {@code save-then-run}, {@code save-then-label} and {@code label-auto} start a child by the same checks.
+ * {@code save-then-run}, {@code save-then-label} and {@code label-auto} start a child by the same checks. Every write
+ * of a working directory's file goes through {@link #write}, one at a time with every start (ADR-295 §1).
  *
  * <p>The class holds no connection to {@code vespera.db} (ADR-278 §3) and writes no file but the launch values'
  * (ADR-292 §2), as an invocation starts.
  */
-final class PanelSession {
+final class ControlPanelState {
 
     /** What an invocation starts: {@code run}, {@code label}, or {@code label --auto}. */
     enum Start {
@@ -50,7 +52,7 @@ final class PanelSession {
     private String childCommand = "";
     private Ending ending;
 
-    PanelSession(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder, String userName) {
+    ControlPanelState(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder, String userName) {
         this.runtime = runtime;
         this.launchValuesFile = launchValuesFile;
         this.corpusRootLockFolder = corpusRootLockFolder;
@@ -72,8 +74,14 @@ final class PanelSession {
         return List.copyOf(notes);
     }
 
-    WorkingDirectoryWrite writer() {
-        return writer;
+    /**
+     * Writes {@code fileName} as {@link WorkingDirectoryWrite#write} does, under this object's monitor, which
+     * {@link #start} holds too: no child is started while a write of the control panel's holds the working-directory
+     * lock, which its own holder line does not show as held (ADR-295 §1, ADR-306 §1).
+     */
+    synchronized Optional<String> write(Path workingDirectory, String fileName,
+            Function<Optional<String>, String> change) {
+        return writer.write(workingDirectory, fileName, change);
     }
 
     /** The working directory held, empty where none is named. */

@@ -308,7 +308,7 @@ open http://127.0.0.1:<port>/?token=<token> in your browser
 
 Open that address in your browser on the same machine, by pasting it into the address bar or clicking it in the terminal. It is good for this start only: each start picks another port and another token, and the control panel answers only a browser that came in through the address it printed. If it found no jar beside its own, it prints one line naming where it looked, and exits 1: build both jars with `./mvnw package`, and keep them side by side.
 
-It serves until you end it, with `Ctrl+C` or by closing the terminal it runs in. Ending it does not stop a command it started: that command runs on to its end, and the next start of the control panel shows the working directory as held until it has.
+It serves until you end it, with `Ctrl+C` or by closing the terminal it runs in.
 
 If you moved the corpus-root locks to another folder, the control panel sees that folder only through the environment variable `VESPERA_CORPUS_ROOT_LOCK_FOLDER`, set in the shell you start it from, which the commands it starts inherit. A folder you name with `vespera.corpus-root-lock-folder` in a configuration file or on the command line is one it does not see.
 

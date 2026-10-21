@@ -9,7 +9,7 @@
 - **Keeps**: [ADR-279](0279-one-vespera-run-per-corpus-root-by-a-lock-on-a-file-named-for-its-real-path-outside-every-working-directory.md) and ADR-302 §2's reading of the corpus-root lock, which the control panel never takes: its holder line is read as before, whatever pid it names.
 - **Keeps**: [ADR-303](0303-a-clusters-page-past-the-profiles-byte-ceiling-is-split-at-an-entrys-end-into-pages-and-every-drawing-writes-the-pages-sizes.md) §2 and §9: `clusterPageByteCeiling` is never a gate and never among `wants`, and enters no run; and §8: stage 6b writes `cluster-page-sizes.html` in the working directory at every drawing, numbers only, and `profile.yaml` holds no pointer to it.
 - **Keeps**: ADR-302 §3's rules for every report: a fixed path, the file of that name in the working directory held, `sandbox allow-scripts`, a `404` of one line where the file is not there, and a link opening in a tab of its own.
-- **Rests on**: a reading of `controlpanel.HolderLine`, `HolderReading`, `PanelSession`, `LaunchPages`, `NextPages`, `ValuePages`, `ControlPanelPages` and `WorkingDirectoryWrite`, of `deliverable.Deliverable` and `ClusterPageSizes`, and of the README's table of values. No archive, working directory or tree was opened for this record (ADR-196, ADR-283).
+- **Rests on**: a reading of `controlpanel.HolderLine`, `HolderReading`, `ControlPanelState`, `LaunchPages`, `NextPages`, `ValuePages`, `ControlPanelPages` and `WorkingDirectoryWrite`, of `deliverable.Deliverable` and `ClusterPageSizes`, and of the README's table of values. No archive, working directory or tree was opened for this record (ADR-196, ADR-283).
 
 ## Context
 
@@ -27,7 +27,7 @@
 
 ### 1. A holder line of the control panel's own process is held by nobody
 
-**On the control panel's pages and in its start checks, a holder line of `vespera.lock` whose pid is the control panel's own process is read as held by nobody.** That process holds the working-directory lock only inside one of its own writes, and a write ends before the request that made it is answered, so no page and no start check can find it holding the lock.
+**On the control panel's pages and in its start checks, a holder line of `vespera.lock` whose pid is the control panel's own process is read as held by nobody.** That process holds the working-directory lock only inside one of its own writes, and a write ends before the request that made it is answered, so no page of that request can find it holding the lock. The server answers each request on a thread of its own, so every write is made under the one monitor every start check is made under: a start posted while a write holds the lock waits for the write to end, and no start check finds the control panel's own write holding it (ADR-295 §1).
 
 - **On `/`**, `holder-working-directory` is empty for such a line, and it leaves `run` and `label` enabled and links no progress page. The control panel's own child running, or another line held, disables them as before.
 - **In the start checks of ADR-302 §2**, of `run`, `label`, `label-auto`, `save-then-run` and `save-then-label`, such a line gives no refusal. The order of the checks, the control panel's child first, then `vespera.lock`, then the corpus-root lock, and their lines stand.
@@ -59,7 +59,8 @@ This is the reading the records leave. ADR-302 §8 links a key's reports beside 
 All in `io.algernon.controlpanel`, linking no class of the jar:
 
 - **`ControlPanelPages.REPORTS`** holds sixteen file names, `cluster-page-sizes.html` last, and `pages` maps `/report/cluster-page-sizes.html` with them.
-- **`PanelSession.holders()`** reads a line of `vespera.lock` whose `pid` is `ProcessHandle.current().pid()` as held by nobody; its reading of the corpus-root lock is unchanged. `HolderLine.held()` and `HolderReading` are unchanged.
+- **`ControlPanelState.write`** is the one way the pages write a file of the working directory, `synchronized` on the `ControlPanelState`, as `start` is.
+- **`ControlPanelState.holders()`** reads a line of `vespera.lock` whose `pid` is `ProcessHandle.current().pid()` as held by nobody; its reading of the corpus-root lock is unchanged. `HolderLine.held()` and `HolderReading` are unchanged.
 - **`NextPages.REPORTS_OF_A_KEY`** gains `clusterPageByteCeiling` → `cluster-page-sizes.html`.
 - **`ValuePages`**' form of a key on `/profile` writes `report-<key>` from the same table, in the list `/next` writes.
 
@@ -91,12 +92,13 @@ No file under `src/main/java/io/algernon/vespera` changes, and no dependency or 
 | Method | What it holds |
 | --- | --- |
 | `controlpanel.LaunchScreenTest.aSaveOfTheControlPanelsOwnLeavesTheWorkingDirectoryHeldByNobody` | after a run ends with 0 and `save` on `/next` writes into the working directory, `vespera.lock` holds a line naming the control panel's pid; `/` shows `holder-working-directory` empty and `run` and `label` enabled; `save-then-run` then lands on `/invocation` with a child started (§1) |
+| `controlpanel.ControlPanelStateTest.noChildIsStartedWhileAWriteHoldsTheWorkingDirectoryLock` | a start asked for on a second thread while a write's change waits inside the working-directory lock waits on the `ControlPanelState`, unreturned, until the write ends, and only then starts the child (§1) |
 | `controlpanel.ReportScreenTest.eachReportIsServedAsWrittenInASandboxAtItsOwnPath` | each of the sixteen, `cluster-page-sizes.html` among them, as ADR-302 §3 serves a report (§2) |
 | `controlpanel.ProfileScreenTest.eachKeyIsLinkedToTheReportsItIsReadOffAndThePageSizesToTheirReport` | with no next act read, the form of every `ProfileKey` holds `report-<key>` exactly where the table names reports for it, those links in its order, each in a tab of its own; `report-clusterPageByteCeiling` holds one link, to `/report/cluster-page-sizes.html` (§2, §3) |
 | `controlpanel.TheReportLinksAreTheReadmesTableTest.eachKeysReportLinksAreTheReportsTheReadmesTableNamesForIt` | ADR-302's owed test: §8's table, key by key, equals the README's table of values, each key's reports in the README's order, a key whose row names none having none (§2) |
 | `pipeline.TheControlPanelServesEveryReportTheJarWritesTest.everyReportTheJarWritesIsListedAndServedByTheControlPanel` | the report file names of `pipeline`'s and `deliverable`'s classes, the tree's `index.html` not among them, are sixteen, and the control panel lists and serves each of them and no other (§2) |
 
-**Restated**, each kept and its holder turned to another live process, the process that started the tests' JVM, which started before it and is alive while it runs, so that the line is held by ADR-278 §4's rule:
+**Holding a held working directory or corpus root as a line naming another live process**, the tests' JVM's parent, which started before it and is alive while it runs, so that the line is held by ADR-278 §4's rule:
 
 - `controlpanel.LaunchScreenTest.runAndLabelAreDisabledWhileAnotherInvocationHoldsTheWorkingDirectory`;
 - `controlpanel.LaunchScreenTest.runPressedOnceTheWorkingDirectoryIsHeldIsRefusedWithALineOfItsOwn`;

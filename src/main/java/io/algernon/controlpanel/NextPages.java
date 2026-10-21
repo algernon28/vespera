@@ -47,10 +47,10 @@ final class NextPages {
         return list.append("</ul>\n").toString();
     }
 
-    private final PanelSession session;
+    private final ControlPanelState state;
 
-    NextPages(PanelSession session) {
-        this.session = session;
+    NextPages(ControlPanelState state) {
+        this.state = state;
     }
 
     void register(Map<String, HttpHandler> pages) {
@@ -62,8 +62,8 @@ final class NextPages {
     }
 
     private Read read() {
-        Optional<Path> folder = session.workingDirectory();
-        boolean endedWell = session.ending().map(ending -> ending.exitCode() == 0
+        Optional<Path> folder = state.workingDirectory();
+        boolean endedWell = state.ending().map(ending -> ending.exitCode() == 0
                 && ending.howItEnded() == HowItEnded.ENDED).orElse(false);
         if (folder.isEmpty() || !endedWell) {
             return new Read(Optional.empty(), Optional.empty());
@@ -87,12 +87,12 @@ final class NextPages {
             return;
         }
         Read read = read();
-        StringBuilder body = new StringBuilder(ControlPanelPage.outcome(session.takeOutcome("/next")));
+        StringBuilder body = new StringBuilder(ControlPanelPage.outcome(state.takeOutcome("/next")));
         String invocation = read.next().map(next -> next.invocation().name().toLowerCase(java.util.Locale.ROOT))
                 .orElse("unknown");
         body.append("<p id=\"next-invocation\" data-invocation=\"").append(invocation).append("\">")
                 .append(read.next().isPresent() ? "The next invocation is " + invocation
-                        : read.problem().orElse("The next act is not known: no invocation of the control panel's has ended with 0"))
+                        : ControlPanelPage.escape(read.problem().orElse("The next act is not known: no invocation of the control panel's has ended with 0")))
                 .append("</p>\n");
         if (read.next().isPresent()) {
             NextInvocation next = read.next().get();
@@ -101,7 +101,7 @@ final class NextPages {
                 body.append(form(keys, next));
             }
             if (next.arrangement().isPresent()) {
-                Path file = session.workingDirectory().orElseThrow().toAbsolutePath().resolve("arrangement.html");
+                Path file = state.workingDirectory().orElseThrow().toAbsolutePath().resolve("arrangement.html");
                 body.append("<p>The arrangement's page, whose links open from your file manager: <code id=\"arrangement-file\">")
                         .append(ControlPanelPage.escape(file.toString())).append("</code></p>\n");
             }
@@ -119,7 +119,7 @@ final class NextPages {
         StringBuilder form = new StringBuilder("<form name=\"next\" method=\"post\" action=\"/next\">\n");
         for (ProfileKey key : keys) {
             String name = key.key();
-            String filled = key == ProfileKey.SEED_FOLDER ? session.values().lastSeedFolder()
+            String filled = key == ProfileKey.SEED_FOLDER ? state.values().lastSeedFolder()
                     : key == ProfileKey.ARRANGEMENT_APPROVED ? next.arrangement().orElse("") : "";
             form.append("<fieldset>\n");
             form.append(ControlPanelPage.field(name, name, filled, false));
@@ -135,10 +135,10 @@ final class NextPages {
 
     private void save(HttpExchange exchange) throws IOException {
         Map<String, String> fields = Exchanges.form(exchange);
-        Optional<Path> folder = session.workingDirectory();
+        Optional<Path> folder = state.workingDirectory();
         List<ProfileKey> keys = wanted();
         if (folder.isEmpty() || keys.isEmpty()) {
-            session.say("/next", "there is no value the next invocation wants to save");
+            state.say("/next", "there is no value the next invocation wants to save");
             Exchanges.redirect(exchange, "/next");
             return;
         }
@@ -146,20 +146,20 @@ final class NextPages {
         for (ProfileKey key : keys) {
             String value = fields.getOrDefault(key.key(), "");
             String provenance = fields.getOrDefault(key.key() + ".provenance", "");
-            Optional<String> refusal = session.writer().write(folder.get(), ProfileEdit.FILE_NAME,
+            Optional<String> refusal = state.write(folder.get(), ProfileEdit.FILE_NAME,
                     current -> ProfileEdit.rewrite(current, key, value, provenance));
             if (refusal.isPresent()) {
-                session.say("/next", refusal.get());
+                state.say("/next", refusal.get());
                 Exchanges.redirect(exchange, "/next");
                 return;
             }
             saved.add(key.key());
         }
         if (fields.containsKey("save-then-run")) {
-            Exchanges.redirect(exchange, InvocationPages.startAndSay(session, PanelSession.Start.RUN, "/next"));
+            Exchanges.redirect(exchange, InvocationPages.startAndSay(state, ControlPanelState.Start.RUN, "/next"));
             return;
         }
-        session.say("/next", String.join(", ", saved) + " saved in " + folder.get().resolve(ProfileEdit.FILE_NAME));
+        state.say("/next", String.join(", ", saved) + " saved in " + folder.get().resolve(ProfileEdit.FILE_NAME));
         Exchanges.redirect(exchange, "/next");
     }
 }

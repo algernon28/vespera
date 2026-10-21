@@ -26,10 +26,10 @@ final class LaunchPages {
             + " deliverable's copies need the survivors' bytes plus 1 GiB free on the deliverable's drive. The control"
             + " panel computes no need: the rows and bytes are in vespera.db, to which it opens no connection.";
 
-    private final PanelSession session;
+    private final ControlPanelState state;
 
-    LaunchPages(PanelSession session) {
-        this.session = session;
+    LaunchPages(ControlPanelState state) {
+        this.state = state;
     }
 
     void register(Map<String, HttpHandler> pages) {
@@ -43,19 +43,19 @@ final class LaunchPages {
             Exchanges.methodNotAllowed(exchange, "GET, HEAD");
             return;
         }
-        LaunchValues values = session.values();
-        PanelSession.Holders holders = session.holders();
-        boolean disabled = holders.any() || session.childRuns();
+        LaunchValues values = state.values();
+        ControlPanelState.Holders holders = state.holders();
+        boolean disabled = holders.any() || state.childRuns();
         List<String> models = modelsNamed(values);
         SidecarChecks.Checks checks = SidecarChecks.ask(values.doclingBaseUrl(), values.doclingImage(),
                 values.ollamaBaseUrl(), models);
-        List<String> warnings = new ArrayList<>(session.notes());
+        List<String> warnings = new ArrayList<>(state.notes());
         warnings.addAll(values.warningsToRun());
         warnings.addAll(checks.docling().warnings());
         warnings.addAll(checks.ollama().warnings());
 
         StringBuilder body = new StringBuilder();
-        body.append(ControlPanelPage.outcome(session.takeOutcome("/")));
+        body.append(ControlPanelPage.outcome(state.takeOutcome("/")));
         body.append("<form name=\"launch\" method=\"post\" action=\"/launch\">\n");
         body.append(ControlPanelPage.field("vespera.corpus-root", "Corpus root", values.corpusRoot(), false));
         body.append(ControlPanelPage.field("vespera.working-dir", "Working directory", values.workingDirectory(), false));
@@ -90,7 +90,7 @@ final class LaunchPages {
 
         body.append(seedFolderForm(values));
         body.append(freeSpace(values));
-        body.append("<h2>Reports</h2>\n").append(reports(session));
+        body.append("<h2>Reports</h2>\n").append(reports(state));
         Exchanges.page(exchange, ControlPanelPage.render("Control panel", 0, body.toString()));
     }
 
@@ -144,9 +144,9 @@ final class LaunchPages {
     }
 
     /** The links to the reports the working directory holds, as {@code <ul id="reports">}. */
-    static String reports(PanelSession session) {
+    static String reports(ControlPanelState state) {
         StringBuilder items = new StringBuilder();
-        session.workingDirectory().ifPresent(folder -> {
+        state.workingDirectory().ifPresent(folder -> {
             for (String report : ControlPanelPages.REPORTS) {
                 if (Files.isRegularFile(folder.resolve(report), LinkOption.NOFOLLOW_LINKS)) {
                     items.append("<li>").append(ControlPanelPage.reportLink(report)).append("</li>");
@@ -162,7 +162,7 @@ final class LaunchPages {
         if (!values.labelModel().isEmpty()) {
             models.add(values.labelModel());
         }
-        session.workingDirectory().ifPresent(folder -> {
+        state.workingDirectory().ifPresent(folder -> {
             try {
                 Path file = folder.resolve(ProfileEdit.FILE_NAME);
                 if (Files.isRegularFile(file)) {
@@ -188,18 +188,18 @@ final class LaunchPages {
             return;
         }
         Map<String, String> fields = Exchanges.form(exchange);
-        LaunchValues old = session.values();
-        session.hold(new LaunchValues(posted(fields, "vespera.corpus-root"), posted(fields, "vespera.working-dir"),
+        LaunchValues old = state.values();
+        state.hold(new LaunchValues(posted(fields, "vespera.corpus-root"), posted(fields, "vespera.working-dir"),
                 posted(fields, "vespera.deliverable-root"), posted(fields, "vespera.docling.image"),
                 posted(fields, "vespera.docling.base-url"), posted(fields, "spring.ai.ollama.base-url"),
                 posted(fields, "vespera.label.model"), old.lastSeedFolder()));
-        PanelSession.Start kind = fields.containsKey("run") ? PanelSession.Start.RUN
-                : fields.containsKey("label") ? PanelSession.Start.LABEL : null;
+        ControlPanelState.Start kind = fields.containsKey("run") ? ControlPanelState.Start.RUN
+                : fields.containsKey("label") ? ControlPanelState.Start.LABEL : null;
         if (kind == null) {
             Exchanges.redirect(exchange, "/");
             return;
         }
-        Exchanges.redirect(exchange, InvocationPages.startAndSay(session, kind, "/"));
+        Exchanges.redirect(exchange, InvocationPages.startAndSay(state, kind, "/"));
     }
 
     private void seedFolder(HttpExchange exchange) throws IOException {
@@ -209,18 +209,18 @@ final class LaunchPages {
         }
         Map<String, String> fields = Exchanges.form(exchange);
         String folder = posted(fields, "seedFolder");
-        Optional<Path> workingDirectory = session.workingDirectory();
+        Optional<Path> workingDirectory = state.workingDirectory();
         if (workingDirectory.isEmpty()) {
-            session.say("/", "seedFolder is not saved: the working directory is not named");
+            state.say("/", "seedFolder is not saved: the working directory is not named");
         } else {
-            Optional<String> refusal = session.writer().write(workingDirectory.get(), ProfileEdit.FILE_NAME,
+            Optional<String> refusal = state.write(workingDirectory.get(), ProfileEdit.FILE_NAME,
                     current -> ProfileEdit.rewrite(current, ProfileKey.SEED_FOLDER, folder, fields.getOrDefault("provenance", "")));
             if (refusal.isEmpty()) {
-                LaunchValues held = session.values();
-                session.hold(new LaunchValues(held.corpusRoot(), held.workingDirectory(), held.deliverableRoot(),
+                LaunchValues held = state.values();
+                state.hold(new LaunchValues(held.corpusRoot(), held.workingDirectory(), held.deliverableRoot(),
                         held.doclingImage(), held.doclingBaseUrl(), held.ollamaBaseUrl(), held.labelModel(), folder));
             }
-            session.say("/", refusal.orElse("seedFolder is saved in " + workingDirectory.get().resolve(ProfileEdit.FILE_NAME)));
+            state.say("/", refusal.orElse("seedFolder is saved in " + workingDirectory.get().resolve(ProfileEdit.FILE_NAME)));
         }
         Exchanges.redirect(exchange, "/");
     }

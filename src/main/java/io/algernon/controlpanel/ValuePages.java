@@ -22,11 +22,11 @@ import java.util.Optional;
  */
 final class ValuePages {
 
-    private final PanelSession session;
+    private final ControlPanelState state;
     private final NextPages next;
 
-    ValuePages(PanelSession session, NextPages next) {
-        this.session = session;
+    ValuePages(ControlPanelState state, NextPages next) {
+        this.state = state;
         this.next = next;
     }
 
@@ -37,7 +37,7 @@ final class ValuePages {
     }
 
     private Optional<String> read(String fileName) throws IOException {
-        Optional<Path> folder = session.workingDirectory();
+        Optional<Path> folder = state.workingDirectory();
         if (folder.isEmpty()) {
             return Optional.empty();
         }
@@ -55,12 +55,12 @@ final class ValuePages {
             return;
         }
         StringBuilder body = new StringBuilder();
-        String pending = session.takeOutcome("/labels");
+        String pending = state.takeOutcome("/labels");
         String problem = null;
         List<LabelAnswers.Question> questions = List.of();
         try {
             Optional<String> text = read(LabelAnswers.FILE_NAME);
-            if (session.workingDirectory().isEmpty()) {
+            if (state.workingDirectory().isEmpty()) {
                 problem = NO_WORKING_DIRECTORY;
             } else if (text.isEmpty()) {
                 try {
@@ -101,9 +101,9 @@ final class ValuePages {
 
     private void saveLabels(HttpExchange exchange) throws IOException {
         Map<String, String> fields = Exchanges.form(exchange);
-        Optional<Path> folder = session.workingDirectory();
+        Optional<Path> folder = state.workingDirectory();
         if (folder.isEmpty()) {
-            session.say("/labels", NO_WORKING_DIRECTORY);
+            state.say("/labels", NO_WORKING_DIRECTORY);
             Exchanges.redirect(exchange, "/labels");
             return;
         }
@@ -116,13 +116,13 @@ final class ValuePages {
                 default -> null;
             };
             if (answer == null) {
-                session.say("/labels", "an answer is one of no answer, true and false");
+                state.say("/labels", "an answer is one of no answer, true and false");
                 Exchanges.redirect(exchange, "/labels");
                 return;
             }
             given.put(fields.get("path-" + i), answer);
         }
-        Optional<String> refusal = session.writer().write(folder.get(), LabelAnswers.FILE_NAME, current -> {
+        Optional<String> refusal = state.write(folder.get(), LabelAnswers.FILE_NAME, current -> {
             Map<String, Optional<Boolean>> changed = new LinkedHashMap<>();
             Map<String, Optional<Boolean>> recorded = new LinkedHashMap<>();
             current.ifPresent(text -> LabelAnswers.read(text).forEach(q -> recorded.put(q.path(), q.relevant())));
@@ -134,12 +134,12 @@ final class ValuePages {
             return LabelAnswers.rewrite(current, changed);
         });
         if (refusal.isPresent()) {
-            session.say("/labels", refusal.get());
+            state.say("/labels", refusal.get());
             Exchanges.redirect(exchange, "/labels");
         } else if (fields.containsKey("save-then-label")) {
-            Exchanges.redirect(exchange, InvocationPages.startAndSay(session, PanelSession.Start.LABEL, "/labels"));
+            Exchanges.redirect(exchange, InvocationPages.startAndSay(state, ControlPanelState.Start.LABEL, "/labels"));
         } else {
-            session.say("/labels", "the answers are saved in " + folder.get().resolve(LabelAnswers.FILE_NAME));
+            state.say("/labels", "the answers are saved in " + folder.get().resolve(LabelAnswers.FILE_NAME));
             Exchanges.redirect(exchange, "/labels");
         }
     }
@@ -151,10 +151,10 @@ final class ValuePages {
             saveCodeSets(exchange);
             return;
         }
-        String pending = session.takeOutcome("/code-sets");
+        String pending = state.takeOutcome("/code-sets");
         String problem = null;
         List<CodeSetRenames.Rename> renames = List.of();
-        if (session.workingDirectory().isEmpty()) {
+        if (state.workingDirectory().isEmpty()) {
             problem = NO_WORKING_DIRECTORY;
         } else {
             try {
@@ -185,9 +185,9 @@ final class ValuePages {
 
     private void saveCodeSets(HttpExchange exchange) throws IOException {
         Map<String, String> fields = Exchanges.form(exchange);
-        Optional<Path> folder = session.workingDirectory();
+        Optional<Path> folder = state.workingDirectory();
         if (folder.isEmpty()) {
-            session.say("/code-sets", NO_WORKING_DIRECTORY);
+            state.say("/code-sets", NO_WORKING_DIRECTORY);
             Exchanges.redirect(exchange, "/code-sets");
             return;
         }
@@ -203,11 +203,11 @@ final class ValuePages {
         if (!newFolder.isEmpty() || !newName.isEmpty()) {
             left.add(new CodeSetRenames.Rename(newFolder, newName));
         }
-        Optional<String> refusal = session.writer().write(folder.get(), CodeSetRenames.FILE_NAME, current -> {
+        Optional<String> refusal = state.write(folder.get(), CodeSetRenames.FILE_NAME, current -> {
             CodeSetRenames.read(current);
             return CodeSetRenames.render(left);
         });
-        session.say("/code-sets", refusal.orElse("the names are saved in " + folder.get().resolve(CodeSetRenames.FILE_NAME)));
+        state.say("/code-sets", refusal.orElse("the names are saved in " + folder.get().resolve(CodeSetRenames.FILE_NAME)));
         Exchanges.redirect(exchange, "/code-sets");
     }
 
@@ -218,10 +218,10 @@ final class ValuePages {
             saveProfile(exchange);
             return;
         }
-        String pending = session.takeOutcome("/profile");
+        String pending = state.takeOutcome("/profile");
         String problem = null;
         Map<ProfileKey, ProfileEdit.Stated> stated = Map.of();
-        if (session.workingDirectory().isEmpty()) {
+        if (state.workingDirectory().isEmpty()) {
             problem = NO_WORKING_DIRECTORY;
         } else {
             try {
@@ -254,18 +254,18 @@ final class ValuePages {
 
     private void saveProfile(HttpExchange exchange) throws IOException {
         Map<String, String> fields = Exchanges.form(exchange);
-        Optional<Path> folder = session.workingDirectory();
+        Optional<Path> folder = state.workingDirectory();
         Optional<ProfileKey> key = ProfileKey.named(fields.getOrDefault("key", ""));
         if (folder.isEmpty()) {
-            session.say("/profile", NO_WORKING_DIRECTORY);
+            state.say("/profile", NO_WORKING_DIRECTORY);
         } else if (key.isEmpty()) {
-            session.say("/profile", "the profile has no value named " + fields.getOrDefault("key", ""));
+            state.say("/profile", "the profile has no value named " + fields.getOrDefault("key", ""));
         } else {
             String value = fields.getOrDefault("value", "");
             String provenance = fields.getOrDefault("provenance", "");
-            Optional<String> refusal = session.writer().write(folder.get(), ProfileEdit.FILE_NAME,
+            Optional<String> refusal = state.write(folder.get(), ProfileEdit.FILE_NAME,
                     current -> ProfileEdit.rewrite(current, key.get(), value, provenance));
-            session.say("/profile", refusal.orElse(key.get().key() + " is saved in "
+            state.say("/profile", refusal.orElse(key.get().key() + " is saved in "
                     + folder.get().resolve(ProfileEdit.FILE_NAME)));
         }
         Exchanges.redirect(exchange, "/profile");

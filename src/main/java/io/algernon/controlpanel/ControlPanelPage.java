@@ -75,7 +75,7 @@ final class ControlPanelPage {
         return escaped.toString();
     }
 
-    /** A paragraph carrying {@code id}, holding {@code text} escaped; an empty one where the text is empty. */
+    /** An {@code element} carrying {@code id}, holding {@code text} escaped; an empty one where the text is empty. */
     static String text(String element, String id, String text) {
         return "<" + element + " id=\"" + escape(id) + "\">" + escape(text) + "</" + element + ">";
     }
