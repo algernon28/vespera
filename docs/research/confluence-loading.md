@@ -11,7 +11,7 @@ clients, per edition. §3 compares options A to D. §4 checks the facts the tick
 
 ## Scope and method
 
-**Nothing here is measured.** No Confluence space was reached, and none will be by an agent (#604, Notes and ruling 9).
+**Nothing in §1 to §4 is measured.** No Confluence space was reached by an agent, and none will be (#604, Notes). §5 adds what the operator measured on a Cloud site for #611.
 
 **The tree (§1) is read from the record and the code alone**: ADR-274, ADR-276, ADR-280, ADR-286 and ADR-296,
 and the classes of `io.algernon.vespera.deliverable` at main `8886ca1`. No copy, drawn tree, seed set, archive
@@ -309,3 +309,32 @@ Atlassian page read whole; each stays for #611 to measure where it bears on a bu
 **Left for #611**, beyond its own eight questions: what a `POST` of an existing file name answers, and whether
 Cloud takes `PUT` on files (§2.4); whether the request cap reaches a multipart file (§2.6); whether `/wiki/`
 follows the cloudId (§2.2); whether a title must be unique in a space (§2.5); and CONFCLOUD-66773's number.
+
+---
+
+## 5. Measured on a Cloud site (#611)
+
+The operator ran a probe script on 2026-10-21 against their own Confluence Cloud site, in their personal space,
+with synthetic pages only, all under one parent page and deleted afterwards. The script sent v2
+`POST /wiki/api/v2/pages` with `representation: storage`, v1 `POST /wiki/rest/api/content/{id}/child/attachment`,
+and read each page back as `storage` and `view`. No Data Center site was reached, so every [DC] fact above
+stays as tagged. Each finding below holds for **[Cloud]**, on that one site, on that day; a site admin may set
+caps differently.
+
+| # | Question | Measured |
+| --- | --- | --- |
+| 1 | Citation links | Both `<ac:link ac:anchor="document-1">` alone and with `<ri:page>` naming the same page save as sent and render as `<a href="#document-1">`. The anchor macro renders a `<span id="document-1">`, beside a second id prefixed with the page title. The `view` form puts the target on the page; whether a click in the browser lands on it was not checked. |
+| 2 | Forward page links | A title link to a page not yet created renders as a `createlink`; once the page exists, the same link renders as a link to it, with and without `ri:space-key`. |
+| 3 | File names | `~`, `é`, `日本語` and a space are each kept as sent, and `<ri:attachment ri:filename>` resolves each, percent-encoded in the link. |
+| 3 | Sending a name that exists | v1 `POST …/child/attachment` answers **400**, "Cannot add a new attachment with same file name as an existing attachment". |
+| 4 | Request cap | A page body of 10 MiB is taken, as is a 10 MiB file in a multipart request. **No cap was met at 5 MiB** on either; the ceiling above 10 MiB was not measured. |
+| 5 | Titles | 255 characters are taken; **256 are refused** (400). Every character tried is taken: `: / \ \| ? # % & < > " ' * ~ + [ ] { }`, `é`, `日`. A second page with a title already in the space is **refused** (400, "A page already exists with the same TITLE in this space"). |
+| 6 | Editor and attributes | `class` on a `<p>` survives; `title` on a `<p>` is **dropped**; `title` and `class` on an `<a>` survive, as does a raw `<a href="#document-1">`. The page has no `editor` content property (v1 answers 404), and v2 gives no `subtype`. |
+| 7 | A link to a file never sent | Renders as `<a class="unresolved" href="#">` with the file name as text. |
+| 8 | Entities | `&nbsp;`, `&mdash;` and the five XML entities are taken. **Storage is normalised on save**: `&#160;` is stored as `&nbsp;`, `&#x2014;` as `&mdash;`, `&apos;` as `'`. A body read back is not byte-equal to the body sent. |
+
+**Facts above this measurement settles.** §4's "v1 `POST child/attachment` refuses a name that exists": confirmed
+[Cloud]. "Whether a title must be unique in a space": confirmed [Cloud]. "Title length 255": confirmed [Cloud].
+"Whether the request cap reaches a multipart file": no cap up to 10 MiB [Cloud]. The 5,242,880-byte figure (§2.6)
+did not hold on this site. Left open: whether Cloud takes `PUT` on files, whether `/wiki/` follows the cloudId,
+CONFCLOUD-66773's number, and anything on Data Center.
