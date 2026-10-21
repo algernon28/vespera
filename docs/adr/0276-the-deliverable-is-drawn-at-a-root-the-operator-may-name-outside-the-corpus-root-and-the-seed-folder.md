@@ -8,6 +8,8 @@
 
 > **Partly amended — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** Of §1: the CLI is `run`, `label` and `publish`; the deliverable root stays a property. The rest of this record stands.
 
+> **Partly amended — see [ADR-312](0312-the-confluence-rendering-lies-under-confluence-at-the-trees-root-drawn-by-every-drawing-and-what-an-earlier-drawing-left-in-it-is-counted-and-kept.md).** §1's bound on a named root's path is 135 characters; §6's count of folders left behind counts those in `confluence/`. The rest of this record stands.
+
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.
 - **Amends**: [ADR-274](0274-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md), in these places and no others: §1's tree, drawn at `deliverable/<generation run>/`, which is drawn at the deliverable root and gains one file, the marker (§1, §3); §2.5's "the working directory's drive" and the reason it gives, the gibibyte being read on the drive the tree is written to (§4); §2.7's bound of 69 characters on the working directory's path, which for a named root is a bound of 146 on the root's own (§1); §6's "redraws the tree it already had, in place, under the same name", which holds of a named root only where it holds this working directory's tree of the same generation run (§3); and §7's `<absolute path>/index.html`, which is the root's index (§5). Its Decided here 7, a gibibyte left free, stands, read on that drive.

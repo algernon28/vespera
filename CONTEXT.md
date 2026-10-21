@@ -322,7 +322,7 @@ The pipeline's terminal state, and the deliverable: the arrangement, the synthes
 _Avoid_: the wiki, the Confluence output, the export
 
 **Confluence rendering**:
-The second rendering of the deliverable, which stage 6b draws beside the HTML tree in Confluence's storage format, as files a publish sends to the operator's Confluence Cloud site (ADR-301, ADR-308, [#610](https://github.com/algernon28/vespera/issues/610)). Its pages are the root page, the index's counterpart, a seed partition's page for each seed partition, and a cluster's page for each cluster. Whether a cluster's page carries its copies as files is [#617](https://github.com/algernon28/vespera/issues/617)'s to record, and whether it carries its pictures as files is [#615](https://github.com/algernon28/vespera/issues/615)'s. It is drawn by stage 6b, and sent only by a publish: nothing else in this project sends it. Where it lies, what each page holds and how it is loaded are left to later tickets of map [#604](https://github.com/algernon28/vespera/issues/604).
+The second rendering of the deliverable, which stage 6b draws beside the HTML tree in Confluence's storage format, as files a publish sends to the operator's Confluence Cloud site (ADR-301, ADR-308, [#610](https://github.com/algernon28/vespera/issues/610)). Its pages are the root page, the index's counterpart, a seed partition's page for each seed partition, and a cluster's page for each cluster. A cluster's page carries its copies as files (ADR-313), and whether it carries its pictures as files is [#615](https://github.com/algernon28/vespera/issues/615)'s. It is drawn by stage 6b, and sent only by a publish: nothing else in this project sends it. It lies under `confluence/` at the tree's root (ADR-312); what each page holds is left to later tickets of map [#604](https://github.com/algernon28/vespera/issues/604).
 _Avoid_: Confluence output, Confluence export, export, the wiki, wiki export, space export, upload, Confluence tree, Confluence version
 
 **Publish**:
@@ -330,7 +330,7 @@ The one act by which this project sends anything to a destination: `vespera publ
 _Avoid_: upload, export
 
 **Page list**:
-The file of the Confluence rendering that a publish reads, listing the rendering's pages and the files carried on them ([#610](https://github.com/algernon28/vespera/issues/610)). What each entry holds and its format are [#618](https://github.com/algernon28/vespera/issues/618)'s; where it lies is [#612](https://github.com/algernon28/vespera/issues/612)'s.
+The file of the Confluence rendering that a publish reads, listing the rendering's pages and the files carried on them ([#610](https://github.com/algernon28/vespera/issues/610)). What each entry holds and its format are [#618](https://github.com/algernon28/vespera/issues/618)'s; it lies directly in `confluence/` (ADR-312).
 _Avoid_: manifest (the deliverable's `documents.csv`), index (`index.html`, whose counterpart is the root page), load plan, sitemap, table of contents
 
 **Seed partition's page**:
