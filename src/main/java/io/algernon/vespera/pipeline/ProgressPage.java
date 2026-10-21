@@ -235,7 +235,7 @@ final class ProgressPage implements JobExecutionListener {
             Map.entry("out-of-scope", "Occurrences removed because their format or place is outside what the job reads."),
             Map.entry("code", "Occurrences kept apart as code: text written to be compiled or interpreted, or a reference page a documentation generator wrote, which no later step reads."),
             Map.entry("extraction-failed", "Occurrences removed because the document converter could not turn them into text."),
-            Map.entry("degenerate-output", "Occurrences removed because the converted text is too poor to use."),
+            Map.entry("degenerate-output", "Occurrences removed because the converted text is too poor or too short to use."),
             Map.entry("redundant-with", "Occurrences removed because their text repeats or is contained in another document."),
             Map.entry("translation-of", "Occurrences removed because they are a translation of a document kept in another language."),
             Map.entry("below-threshold", "Occurrences removed because their relevance scores below the threshold."));
