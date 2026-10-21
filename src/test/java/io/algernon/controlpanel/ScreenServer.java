@@ -27,7 +27,7 @@ import org.jsoup.select.Elements;
 /**
  * The control panel's server started with its screens' pages, as {@code ControlPanel.main} starts it (ADR-302 §11),
  * for the screen tests: on a launch values file of the test's own, under a temporary folder in place of the user's
- * temp directory, and with a jar beside it whose main class is {@link JarForScreenTests}, started with the java
+ * temp directory, and with a jar whose main class is {@link JarForScreenTests}, started with the java
  * running the tests, so that Run and Label start a child that does what the test says and never Vespera.
  *
  * <p>Closing it closes the server and kills the processes the test's JVM started since this server was started and
@@ -40,6 +40,9 @@ final class ScreenServer implements AutoCloseable {
 
     /** How long a test waits between two looks at the invocation page. */
     private static final long POLL_MILLIS = 100;
+
+    /** The jar for the screen tests, once written. */
+    private static Path jar;
 
     private final ControlPanelServer server;
 
@@ -63,7 +66,7 @@ final class ScreenServer implements AutoCloseable {
     static ScreenServer start(Path folder, LaunchValues values) throws IOException {
         String userName = System.getProperty("user.name");
         Path launchValuesFile = storedIn(folder, values, userName);
-        ChildRuntime runtime = runtimeIn(folder);
+        ChildRuntime runtime = runtime();
         Set<Long> runningBefore = ProcessHandle.current().descendants().map(ProcessHandle::pid)
                 .collect(Collectors.toUnmodifiableSet());
         Path corpusRootLockFolder = Files.createDirectories(folder.resolve("root-locks"));
@@ -80,11 +83,24 @@ final class ScreenServer implements AutoCloseable {
         return launchValuesFile;
     }
 
-    /** Writes the jar for the screen tests under {@code folder}; returns it with the java running the tests. */
-    static ChildRuntime runtimeIn(Path folder) throws IOException {
-        Path jar = writeTheJar(Files.createDirectories(folder.resolve("bin")).resolve("vespera-for-screen-tests.jar"));
+    /**
+     * The jar for the screen tests with the java running the tests. The jar is written once for the test JVM, in a
+     * folder of its own outside every test's folder: on Windows a jar a child has just run can stay in use for a moment
+     * after the child ends, and a test's folder holding it could not then be deleted.
+     */
+    static ChildRuntime runtime() throws IOException {
         return new ChildRuntime(Path.of(System.getProperty("java.home"), "bin",
-                System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java"), jar);
+                System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java"), theJar());
+    }
+
+    private static synchronized Path theJar() throws IOException {
+        if (jar == null) {
+            Path folder = Files.createTempDirectory("vespera-screen-tests");
+            folder.toFile().deleteOnExit();
+            jar = writeTheJar(folder.resolve("vespera-for-screen-tests.jar"));
+            jar.toFile().deleteOnExit();
+        }
+        return jar;
     }
 
     /** The folder the control panel reads corpus-root locks in, as the jar's {@code CorpusRootLock} would take them. */

@@ -111,7 +111,7 @@ class TheChildEndsWithTheControlPanelTest {
     void noChildIsStartedOnceTheControlPanelIsEnding(@TempDir Path folder) throws Exception {
         Path corpusRoot = Files.createDirectory(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectory(folder.resolve("working"));
-        ControlPanelState state = new ControlPanelState(ScreenServer.runtimeIn(folder),
+        ControlPanelState state = new ControlPanelState(ScreenServer.runtime(),
                 ScreenServer.storedIn(folder, ScreenServer.values(corpusRoot, workingDirectory), USER),
                 Files.createDirectory(folder.resolve("root-locks")), USER);
 

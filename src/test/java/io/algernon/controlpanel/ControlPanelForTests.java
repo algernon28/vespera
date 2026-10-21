@@ -21,7 +21,7 @@ public final class ControlPanelForTests {
     public static void main(String[] args) throws Exception {
         Path folder = Path.of(args[0]);
         String userName = System.getProperty("user.name");
-        ControlPanelServer server = ControlPanel.serve(ScreenServer.runtimeIn(folder),
+        ControlPanelServer server = ControlPanel.serve(ScreenServer.runtime(),
                 ScreenServer.storedIn(folder, ScreenServer.values(Path.of(args[1]), Path.of(args[2])), userName),
                 folder.resolve("root-locks"), userName);
         System.out.println(OPEN + server.firstAddress());
