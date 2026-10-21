@@ -13,6 +13,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.jar.Attributes;
 import java.util.stream.Collectors;
 import java.util.jar.JarEntry;
@@ -28,7 +31,7 @@ import org.jsoup.select.Elements;
  * running the tests, so that Run and Label start a child that does what the test says and never Vespera.
  *
  * <p>Closing it closes the server and kills the processes the test's JVM started since this server was started and
- * left running, and no other.
+ * left running, and no other, and waits for each to end: on Windows a folder a live process uses cannot be deleted.
  */
 final class ScreenServer implements AutoCloseable {
 
@@ -171,9 +174,19 @@ final class ScreenServer implements AutoCloseable {
     @Override
     public void close() {
         server.close();
-        ProcessHandle.current().descendants()
-                .filter(process -> !runningBefore.contains(process.pid()))
-                .forEach(ProcessHandle::destroyForcibly);
+        List<ProcessHandle> started = ProcessHandle.current().descendants()
+                .filter(process -> !runningBefore.contains(process.pid())).toList();
+        started.forEach(ProcessHandle::destroyForcibly);
+        for (ProcessHandle process : started) {
+            try {
+                process.onExit().get(ENDING_BOUND.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            } catch (ExecutionException | TimeoutException e) {
+                throw new IllegalStateException("process " + process.pid() + " did not end once killed", e);
+            }
+        }
     }
 
     private static Path writeTheJar(Path jar) throws IOException {
