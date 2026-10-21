@@ -2166,6 +2166,14 @@ public final class Adr {
     public static final String THE_CHILD_ENDS_WITH_THE_CONTROL_PANEL = FILE
             + "0307-the-child-the-control-panel-started-ends-with-it-wherever-its-end-runs-the-jvms-shutdown-hooks.md";
 
+    /**
+     * ADR-309 -- on a cluster's page in the Confluence rendering each entry opens with an anchor macro named {@code
+     * document-n}, and each citation is an {@code ac:link} to it naming the page its entry is on and no space; no
+     * anchor is derived from a heading, and the named fallback is the number as plain text.
+     */
+    public static final String A_CITATION_ON_A_CONFLUENCE_PAGE_IS_AN_ANCHOR_LINK = FILE
+            + "0309-a-citation-on-a-confluence-page-is-an-anchor-link-naming-the-page-its-entry-is-on-and-where-it-cannot-link-it-is-its-number-as-plain-text.md";
+
     private Adr() {
     }
 }
