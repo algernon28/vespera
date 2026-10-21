@@ -83,9 +83,9 @@ A walk that has not finished is never used by a later stage. Nothing downstream 
 
 **Run:** the same command; it follows census in the same invocation.
 
-**What it does.** Removes what can be judged from bytes alone: broken files, exact duplicates, superseded copies, and the formats Vespera does not convert. It writes `format-mix.html`.
+**What it does.** Removes what can be judged from bytes and names alone: broken files, exact duplicates, superseded copies, and the formats Vespera does not convert. It keeps code apart from the documents, gathered into code sets the deliverable copies whole, so no later stage converts, scores or groups it. It writes `format-mix.html`, which also counts the code it kept and how much of each text file is settings.
 
-**Optional value.** `logTimestampShareFloor`. Left unset, no logs are removed.
+**Optional values.** `logTimestampShareFloor` (left unset, no logs are removed), `codeNameEndings` (left unset, a file is code only by a documentation generator's mark), `configurationSettingShareFloor` (left unset, no file is a configuration file) and `outOfScopeNameEndings` (left unset, nothing is left out for its name). Setting or changing any of them makes stage 1 and every later stage run again.
 
 **Where it stops.** It does not stop for a value.
 
@@ -242,7 +242,7 @@ A stage runs again when something it was computed from changes. What it was comp
 
 | You change | Runs again | Kept |
 |---|---|---|
-| `logTimestampShareFloor` | stage 1 onward | conversions, vectors, your answers |
+| `logTimestampShareFloor`, `outOfScopeNameEndings`, `codeNameEndings`, `configurationSettingShareFloor` | stage 1 onward | conversions, vectors, your answers |
 | `degenerateOutputConfidenceFloor` | stage 2 onward | conversions, vectors, your answers |
 | `degenerateOutputWordFloor` | stage 2 onward | conversions, vectors, your answers |
 | `extractionAttempt` | stage 2 onward | conversions already answered, vectors, your answers |
@@ -253,6 +253,7 @@ A stage runs again when something it was computed from changes. What it was comp
 | `translationSimilarityFloor`, `preferredLanguages` | stage 5 scoring onward, from the stored vectors | extraction, stage 4, vectors, your answers |
 | `arrangementApproved` | generation only | everything before it |
 | `generationModel`, `generationContextWindow` | generation | everything before it |
+| `clusterPageByteCeiling` | no stage: the next invocation that reaches generation draws the tree again | everything |
 
 Three things to know about this table:
 

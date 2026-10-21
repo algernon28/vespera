@@ -37,8 +37,8 @@ final class StepNames {
     /** What each step does, in the operator's words; the table of ADR-275 section 4. */
     private static final Map<String, String> DESCRIPTIONS = Map.ofEntries(
             Map.entry(CENSUS, "walks the archive and records every file it finds, with its size and times"),
-            Map.entry(BYTE_LEVEL_REDUCTION, "removes files that are broken, exact copies, superseded or out of scope, judging their bytes alone"),
-            Map.entry(EXTRACTION, "converts each file to text, removing those that cannot be converted or whose text is too poor to use"),
+            Map.entry(BYTE_LEVEL_REDUCTION, "removes files that are broken, exact copies, superseded or out of scope, and keeps code apart in code sets, judging bytes and names alone"),
+            Map.entry(EXTRACTION, "converts each file to text, removing those that cannot be converted or whose text is too poor or too short to use"),
             Map.entry(CONTENT_CENSUS, "measures the converted text and writes the pages the confidence and boilerplate floors are read off"),
             Map.entry(REDUNDANCY_SIGNATURE, "computes a signature of each document's text, leaving out boilerplate, so that near-copies can be found"),
             Map.entry(CONTENT_REDUNDANCY, "finds documents that repeat or contain another and keeps the fuller of each set"),
@@ -51,7 +51,7 @@ final class StepNames {
             Map.entry(CLUSTERING, "gathers the documents under each seed into groups of documents alike"),
             Map.entry(RELEVANCE_REPORT, "writes the page of documents to judge that the relevance threshold is chosen from"),
             Map.entry(ARRANGEMENT, "names and orders the groups and writes the arrangement page to approve"),
-            Map.entry(GENERATION, "has the local model write over each group and writes the deliverable, with a copy of each document it lists"));
+            Map.entry(GENERATION, "has the local model write over each group and writes the deliverable: a page for each group beside a copy of each document it lists, and each code set copied whole"));
 
     /** What the step does, in the operator's words (ADR-275 section 4); refuses a name this class does not hold. */
     static String description(String step) {
