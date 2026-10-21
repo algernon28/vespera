@@ -2167,6 +2167,14 @@ public final class Adr {
             + "0307-the-child-the-control-panel-started-ends-with-it-wherever-its-end-runs-the-jvms-shutdown-hooks.md";
 
     /**
+     * ADR-308 -- Vespera publishes the Confluence rendering to the operator's Cloud site itself, on an explicit {@code
+     * vespera publish}, with a token read from the environment alone; one {@code https} host, a tenth module {@code
+     * confluence}, republished in place by key and local hash (supersedes ADR-304).
+     */
+    public static final String VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE = FILE
+            + "0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md";
+
+    /**
      * ADR-309 -- on a cluster's page in the Confluence rendering each entry opens with an anchor macro named {@code
      * document-n}, and each citation is an {@code ac:link} to it naming the page its entry is on and no space; no
      * anchor is derived from a heading, and the named fallback is the number as plain text.

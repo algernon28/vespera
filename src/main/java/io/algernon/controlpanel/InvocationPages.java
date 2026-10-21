@@ -9,8 +9,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The invocation page {@code /invocation}, Stop's confirmation {@code /stop}, and {@code /label-auto} (ADR-302 §2,
- * §7): the one child the control panel started, shown as ADR-278 §5 and ADR-285 §5 say it ended, refreshed every
+ * The invocation page {@code /invocation}, Stop's confirmation {@code /stop}, {@code /label-auto} (ADR-302 §2,
+ * §7) and {@code /publish} (ADR-308 §6), offered on the invocation page once a Confluence rendering is drawn: the one child the control panel started, shown as ADR-278 §5 and ADR-285 §5 say it ended, refreshed every
  * {@value #REFRESH_SECONDS} seconds while it runs; Stop asks to be confirmed and stops only that child (ADR-278 §6).
  * A {@code GET} of any of them stops and starts nothing (ADR-302 §1).
  */
@@ -48,6 +48,7 @@ final class InvocationPages {
         pages.put("/invocation", this::invocation);
         pages.put("/stop", this::stop);
         pages.put("/label-auto", this::labelAuto);
+        pages.put("/publish", this::publish);
     }
 
     /**
@@ -86,6 +87,10 @@ final class InvocationPages {
         if (runs) {
             body.append("<form name=\"stop\" method=\"get\" action=\"/stop\">")
                     .append(ControlPanelPage.button("stop", "Stop", false)).append("</form>\n");
+        }
+        if (!runs && state.aRenderingIsDrawn()) {
+            body.append("<form name=\"publish\" method=\"post\" action=\"/publish\">")
+                    .append(ControlPanelPage.button("publish", "Publish", false)).append("</form>\n");
         }
         body.append("<h2>Output</h2>\n<pre id=\"tail\">")
                 .append(ControlPanelPage.escape(String.join("\n", state.tail()))).append("</pre>\n");
@@ -134,6 +139,16 @@ final class InvocationPages {
         }
         Exchanges.form(exchange);
         Exchanges.redirect(exchange, startAndSay(state, ControlPanelState.Start.LABEL_AUTO, "/next"));
+    }
+
+    /** Starts {@code publish} (ADR-308 §6); a {@code GET} starts nothing. */
+    private void publish(HttpExchange exchange) throws IOException {
+        if (Exchanges.isRead(exchange)) {
+            Exchanges.redirect(exchange, "/invocation");
+            return;
+        }
+        Exchanges.form(exchange);
+        Exchanges.redirect(exchange, startAndSay(state, ControlPanelState.Start.PUBLISH, "/invocation"));
     }
 
     private static String attribute(Ending ending) {

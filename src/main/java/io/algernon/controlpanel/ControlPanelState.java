@@ -1,6 +1,7 @@
 package io.algernon.controlpanel;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * What the control panel holds between requests (ADR-302 §2): the launch values, the one child it started and how that
@@ -23,9 +25,9 @@ import java.util.function.Function;
  */
 final class ControlPanelState {
 
-    /** What an invocation starts: {@code run}, {@code label}, or {@code label --auto}. */
+    /** What an invocation starts: {@code run}, {@code label}, {@code label --auto}, or {@code publish} (ADR-308 §6). */
     enum Start {
-        RUN("Run", "run"), LABEL("Label", "label"), LABEL_AUTO("Label", "label --auto");
+        RUN("Run", "run"), LABEL("Label", "label"), LABEL_AUTO("Label", "label --auto"), PUBLISH("Publish", "publish");
 
         private final String name;
         private final String command;
@@ -35,6 +37,11 @@ final class ControlPanelState {
             this.command = command;
         }
     }
+
+    /** The rendering's folder at a tree's root, and its page list, as the jar writes them (ADR-312, ADR-316 §1). */
+    private static final String RENDERING = "confluence";
+
+    private static final String PAGE_LIST = "pages.json";
 
     private static final Duration LOOK = Duration.ofMillis(50);
 
@@ -68,6 +75,33 @@ final class ControlPanelState {
 
     LaunchValues values() {
         return values;
+    }
+
+    /**
+     * Whether a Confluence rendering is drawn where the launch values say the tree lies (ADR-308 §6): a page list
+     * under the deliverable root where one is named, else under a generation run's folder in the working directory's
+     * {@code deliverable/}. Read from the files alone, as the control panel links no class of the jar (ADR-285).
+     */
+    boolean aRenderingIsDrawn() {
+        LaunchValues now = values;
+        try {
+            if (now.deliverableRoot() != null && !now.deliverableRoot().isBlank()) {
+                return Files.isRegularFile(
+                        Path.of(now.deliverableRoot().strip()).resolve(RENDERING).resolve(PAGE_LIST));
+            }
+            if (now.workingDirectory() == null || now.workingDirectory().isBlank()) {
+                return false;
+            }
+            Path trees = Path.of(now.workingDirectory().strip()).resolve("deliverable");
+            if (!Files.isDirectory(trees)) {
+                return false;
+            }
+            try (Stream<Path> runs = Files.list(trees)) {
+                return runs.anyMatch(tree -> Files.isRegularFile(tree.resolve(RENDERING).resolve(PAGE_LIST)));
+            }
+        } catch (IOException | RuntimeException unreadable) {
+            return false;
+        }
     }
 
     void hold(LaunchValues replacement) {
@@ -223,6 +257,7 @@ final class ControlPanelState {
             case RUN -> ChildCommand.run(runtime.java(), runtime.jar(), now);
             case LABEL -> ChildCommand.label(runtime.java(), runtime.jar(), false, now);
             case LABEL_AUTO -> ChildCommand.label(runtime.java(), runtime.jar(), true, now);
+            case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now);
         };
         now.store(launchValuesFile, userName, stored::add);
         try {

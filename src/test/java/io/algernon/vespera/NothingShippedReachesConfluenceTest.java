@@ -35,29 +35,30 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Model.OptionSpec;
 
 /**
- * Neither the jar nor the control panel sends the HTML tree or the Confluence rendering to Confluence, holds a
- * credential for it, or offers a command for a load (ADR-304).
+ * Only the {@code confluence} module reaches Confluence, no shipped file holds a credential for it, and the one command
+ * that sends is {@code publish} (ADR-308 §1, §3, §5, §7).
  *
- * <p>An uploader cannot be written without naming where it sends: a REST path of Confluence's or the host of an
- * Atlassian Cloud site. It cannot be configured without a key for its credential, and it cannot be offered on the
- * command line without a third subcommand. Each of those is read here from the files, with no Docker and no
- * network. The whole production tree is read, so the control panel's classes, which lie outside the nine modules,
- * are read with the jar's. A Confluence rendering drawn as files names neither a REST path nor a host, so ADR-301's
- * renderer does not turn this red. It holds the uploader written plainly; a path or a host built from pieces at run
- * time is beyond a static check.
+ * <p>A call to Confluence cannot be written without naming where it sends: a REST path of Confluence's or the host of
+ * an Atlassian Cloud site. Each of those is read here from the files, with no Docker and no network, and is found under
+ * {@code io/algernon/vespera/confluence/} alone, in its sources and its resources. The whole production tree is read,
+ * so the control panel's classes, which lie outside the ten modules, are read with the jar's. It holds a call written
+ * plainly; a path or a host built from pieces at run time is beyond a static check.
  *
  * <p>That the control panel names no type of the JDK's HTTP client is held by {@code
- * TheControlPanelLinksNoClassOfTheJarTest}, under ADR-285, and that it starts only {@code run} and {@code label} by
- * {@code ChildCommandTest}, under ADR-278.
+ * TheControlPanelLinksNoClassOfTheJarTest}, under ADR-285, and that it starts only {@code run}, {@code label} and
+ * {@code publish} by {@code ChildCommandTest}, under ADR-278 and ADR-308 §6.
  */
 @Epic("Architecture")
 @Feature("Nothing leaves the machine")
-@Issue("608")
-@Link(name = "ADR-304", url = Adr.VESPERA_NEVER_SENDS_THE_TREE_TO_CONFLUENCE, type = "adr")
+@Issue("633")
+@Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
 class NothingShippedReachesConfluenceTest {
 
     /** The production tree: the jar's sources, the control panel's, and every resource either packs. */
     private static final Path SHIPPED_TREE = Path.of("src", "main");
+
+    /** The one module's folder, in the sources and the resources alike, that may name where a call to Confluence goes. */
+    private static final String THE_PUBLISHERS_FOLDER = "io/algernon/vespera/confluence/";
 
     /** The pom at the repository root, which is where Maven runs the tests from. */
     private static final Path POM = Path.of("pom.xml");
@@ -96,12 +97,14 @@ class NothingShippedReachesConfluenceTest {
 
     /**
      * The options of each command of the tree, beside the standard help ones, by their longest names: {@code
-     * vespera} none, {@code run} the working directory, {@code label} the local labeller and the working directory.
+     * vespera} none, {@code run} the working directory, {@code label} the local labeller and the working directory,
+     * {@code publish} the working directory.
      */
     private static final Map<String, Set<String>> THE_OPTIONS = Map.of(
             "vespera", Set.of(),
             "run", Set.of("--db-dir"),
-            "label", Set.of("--auto", "--db-dir"));
+            "label", Set.of("--auto", "--db-dir"),
+            "publish", Set.of("--db-dir"));
 
     /**
      * Builds each command without calling its constructor, whose collaborators are the application's, so that
@@ -120,27 +123,33 @@ class NothingShippedReachesConfluenceTest {
     };
 
     @Test
-    @Story("No class sends the deliverable to Confluence")
-    @DisplayName("No shipped file names a Confluence REST path or an Atlassian Cloud host")
-    void noShippedFileNamesAConfluenceRestPathOrAtlassiansHost() throws IOException {
+    @Story("Only the publisher sends to Confluence")
+    @DisplayName("No shipped file outside the confluence module names a Confluence REST path or an Atlassian Cloud host")
+    void onlyTheConfluenceModuleNamesAConfluenceRestPath() throws IOException {
         List<Path> files = filesUnder(SHIPPED_TREE);
         Set<String> naming = new TreeSet<>();
+        Set<String> namingInThePublisher = new TreeSet<>();
         for (Path file : files) {
             String text = new String(Files.readAllBytes(file), StandardCharsets.ISO_8859_1).toLowerCase(Locale.ROOT);
             if (WHERE_AN_UPLOADER_SENDS.stream().anyMatch(text::contains)) {
-                naming.add(file.toString().replace('\\', '/'));
+                String path = file.toString().replace('\\', '/');
+                (path.contains(THE_PUBLISHERS_FOLDER) ? namingInThePublisher : naming).add(path);
             }
         }
 
         claim(
-                "the production tree was read, the shipped configuration and the control panel's classes among it, so"
-                        + " an empty answer below is not an empty walk",
-                () -> assertThat(files)
-                        .anyMatch(file -> file.endsWith(SHIPPED_CONFIGURATION))
-                        .anyMatch(file -> file.toString().replace('\\', '/').contains("io/algernon/controlpanel/")));
+                "the production tree was read, the shipped configuration and the control panel's classes among it, and"
+                        + " the publisher names Confluence's REST paths, so an empty answer below is not an empty walk",
+                () -> {
+                    assertThat(files)
+                            .anyMatch(file -> file.endsWith(SHIPPED_CONFIGURATION))
+                            .anyMatch(file -> file.toString().replace('\\', '/').contains("io/algernon/controlpanel/"));
+                    assertThat(namingInThePublisher).as("files of the publisher naming one").isNotEmpty();
+                });
         claim(
-                "no file under it names any of the " + WHERE_AN_UPLOADER_SENDS.size() + " things a call to Confluence"
-                        + " names: its REST path, its second API's path on a Cloud site, or the Cloud sites' domain",
+                "no file outside " + THE_PUBLISHERS_FOLDER + " names any of the " + WHERE_AN_UPLOADER_SENDS.size()
+                        + " things a call to Confluence names: its REST path, its second API's path on a Cloud site, or"
+                        + " the Cloud sites' domain",
                 () -> assertThat(naming).as("files naming one").isEmpty());
     }
 
@@ -193,9 +202,9 @@ class NothingShippedReachesConfluenceTest {
     }
 
     @Test
-    @Story("No command loads the deliverable")
-    @DisplayName("The command tree is run and label under vespera, with no other command and no option beyond the ones it has")
-    void theCommandHasRunAndLabelAndNoOther() {
+    @Story("Only the publisher sends to Confluence")
+    @DisplayName("The command tree is run, label and publish under vespera, with no other command and no option beyond the ones it has")
+    void theCommandHasRunLabelAndPublish() {
         CommandSpec vespera = new CommandLine(VesperaCommand.class, WITHOUT_ITS_COLLABORATORS).getCommandSpec();
         Map<String, Set<String>> options = new LinkedHashMap<>();
         Map<String, Set<String>> subcommands = new LinkedHashMap<>();
@@ -206,15 +215,17 @@ class NothingShippedReachesConfluenceTest {
                         + " operator types, its mixins and argument groups included",
                 () -> assertThat(vespera.name()).isEqualTo("vespera"));
         claim(
-                "vespera has run and label, and neither has a subcommand of its own, so no command loads the files the"
-                        + " tree draws anywhere",
+                "vespera has run, label and publish, and none has a subcommand of its own, so publish is the one"
+                        + " command that sends the rendering anywhere",
                 () -> assertThat(subcommands).containsExactlyInAnyOrderEntriesOf(Map.of(
-                        "vespera", Set.of("run", "label"),
+                        "vespera", Set.of("run", "label", "publish"),
                         "run", Set.of(),
-                        "label", Set.of())));
+                        "label", Set.of(),
+                        "publish", Set.of())));
         claim(
                 "each command has exactly the options it has beside the standard help ones: vespera none, run --db-dir,"
-                        + " label --auto and --db-dir, so no option turns a load on",
+                        + " label --auto and --db-dir, publish --db-dir, so no option names a site, a space or a"
+                        + " credential",
                 () -> assertThat(options).containsExactlyInAnyOrderEntriesOf(THE_OPTIONS));
     }
 

@@ -30,8 +30,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The command line the control panel starts the jar with (ADR-278 §1, landed by ADR-285 §5): {@code run} or {@code
- * label} only, after the two encoding flags, every path absolute, {@code CI=1}, and the working directory as the
+ * The command line the control panel starts the jar with (ADR-278 §1, landed by ADR-285 §5): {@code run}, {@code
+ * label} or {@code publish} (ADR-308 §6) only, after the two encoding flags, every path absolute, {@code CI=1}, and the working directory as the
  * child's current directory.
  */
 @Epic("Operation")
@@ -39,6 +39,7 @@ import org.junit.jupiter.api.Test;
 @Issue("562")
 @Link(name = "ADR-285", url = Adr.THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR, type = "adr")
 @Link(name = "ADR-278", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN, type = "adr")
+@Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
 class ChildCommandTest {
 
     /** The JVM, as #567 will find it: absolute, and passed as given. */
@@ -180,8 +181,27 @@ class ChildCommandTest {
 
     @Test
     @Story("The control panel starts the jar as shipped")
-    @DisplayName("Only the run and label command lines can be built")
-    void onlyRunAndLabelCanBeBuilt() {
+    @Issue("633")
+    @DisplayName("Publish is the jar's publish command with the working directory absolute, and adds no Confluence value to the child's environment")
+    void publishIsTheJarsPublishCommandAndAddsNoConfluenceValue() {
+        ChildCommand publish = ChildCommand.publish(JAVA, JAR, EVERY_VALUE);
+
+        claim("the command line ends with publish and --db-dir",
+                () -> assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO).command())
+                        .containsExactlyElementsOf(with("publish", DB_DIR)));
+        claim("and no variable the control panel adds names Confluence: the child inherits the five values from the"
+                        + " operator's environment, and the control panel holds none of them",
+                () -> assertThat(publish.environment().keySet()).noneMatch(name -> name.contains("CONFLUENCE")));
+        claim("a publish with no working directory is not built, the label's refusal given",
+                () -> assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR,
+                                new LaunchValues(CORPUS_ROOT.toString(), "", "", "", "", "", "", "")))
+                        .isInstanceOf(IllegalArgumentException.class));
+    }
+
+    @Test
+    @Story("The control panel starts the jar as shipped")
+    @DisplayName("Only the run, label and publish command lines can be built")
+    void onlyRunLabelAndPublishCanBeBuilt() {
         List<String> factories = Arrays.stream(ChildCommand.class.getMethods())
                 .filter(method -> Modifier.isStatic(method.getModifiers()))
                 .filter(method -> method.getReturnType() == ChildCommand.class)
@@ -191,8 +211,8 @@ class ChildCommandTest {
 
         claim("no command line is built by a public constructor",
                 () -> assertThat(ChildCommand.class.getConstructors()).isEmpty());
-        claim("and the only ways to build one are label and run",
-                () -> assertThat(factories).containsExactly("label", "run"));
+        claim("and the only ways to build one are label, publish and run",
+                () -> assertThat(factories).containsExactly("label", "publish", "run"));
     }
 
     @Test

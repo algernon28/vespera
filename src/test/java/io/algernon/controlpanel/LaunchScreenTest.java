@@ -320,7 +320,7 @@ class LaunchScreenTest {
                 "/launch", "/launch?run=",
                 "/seed-folder?seedFolder=" + URLEncoder.encode(seedFolder.toString(), StandardCharsets.UTF_8)
                         + "&provenance=p&save=",
-                "/label-auto?label-auto=", "/stop?stop=", "/next?save-then-run=",
+                "/label-auto?label-auto=", "/publish?publish=", "/stop?stop=", "/next?save-then-run=",
                 "/code-sets?new-folder=app&new-name=app&save=",
                 "/profile?key=extractionAttempt&value=2&provenance=p&save=");
         Map<Path, byte[]> before = contents(workingDirectory);
