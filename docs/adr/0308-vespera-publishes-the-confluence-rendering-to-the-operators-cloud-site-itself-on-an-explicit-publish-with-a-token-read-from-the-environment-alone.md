@@ -2,7 +2,7 @@
 
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
-- **Supersedes**: [ADR-304](0304-vespera-never-sends-the-deliverable-tree-to-confluence-itself-and-holds-no-uploader-no-credential-and-no-connection-for-it.md), whole. Vespera sends the Confluence rendering to one Confluence Cloud site, under one parent the operator names, when and only when the operator asks it to (§1 to §3).
+- **Supersedes**: [ADR-304](0304-vespera-never-sends-the-deliverable-tree-to-confluence-itself-and-holds-no-uploader-no-credential-and-no-connection-for-it.md), whole. Vespera sends the Confluence rendering to one Confluence Cloud site, under one parent in one space the operator names, when and only when the operator asks it to (§1 to §3).
 - **Amends**: [ADR-301](0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md) §1, whose *"beyond drawing it, nothing in this project renders, uploads or transmits the deliverable anywhere"* gains *"except that `vespera publish` sends the Confluence rendering to the operator's Confluence Cloud site (ADR-308)"*; and ADR-101's Decision as ADR-301 rewrote it, the same clause. The HTML tree is sent nowhere (§1).
 - **Amends**: [ADR-102](0102-publication-is-the-state-the-deliverable-is-handed-over-in-never-a-verb-this-project-uses.md): *publish* becomes a verb of this project for one act alone, sending the Confluence rendering to the operator's site; *publication-ready* keeps its sense, and nothing else is said to publish (§4).
 - **Amends**: [ADR-305](0305-the-confluence-rendering-is-drawn-in-storage-format-for-cloud-and-data-center-alike-and-loading-it-into-cloud-is-the-operators-act-outside-what-binds-vespera.md) §1: the rendering is drawn in storage format for Confluence Cloud; Data Center is no edition it is drawn or published for, and every fact of it stays unverified and unbuilt on (§9).
@@ -46,12 +46,14 @@ The publish opens connections to one host, the host of the configured site, over
 | the API token | the environment variable `VESPERA_CONFLUENCE_TOKEN` alone | a property, a YAML file, the profile, the launch-value file, a log line, the database, a file the publish writes |
 | the account's email | the environment variable `VESPERA_CONFLUENCE_USER` alone | the same |
 | the site's base URL | the property `vespera.confluence.base-url`, set by `VESPERA_CONFLUENCE_BASE_URL` | a shipped YAML file, the profile |
-| the parent's id | the property `vespera.confluence.parent-id`, set by `VESPERA_CONFLUENCE_PARENT_ID` | a shipped YAML file, the profile |
+| the space's key | the property `vespera.confluence.space-key`, set by `VESPERA_CONFLUENCE_SPACE_KEY` | a shipped YAML file, the profile |
+| the parent | the property `vespera.confluence.parent-id`, set by `VESPERA_CONFLUENCE_PARENT_ID`, or `vespera.confluence.parent-title`, set by `VESPERA_CONFLUENCE_PARENT_TITLE` | a shipped YAML file, the profile |
 
 - **The token and email go as HTTP Basic authentication** with a classic API token, to `https://<site>/wiki/…`. A scoped token through `api.atlassian.com` is not decided here.
-- **The parent is a page or a folder** of the space, named by its id and by nothing else, whatever its title; the space is the parent's. The publish makes no space and moves nothing it did not make out from under the parent.
-- **A publish missing any of the four refuses before anything is sent**, and names the variable it lacks, never its value.
-- **The site and the parent are never in this repository**: no shipped file holds either, and no test names a real one.
+- **The parent is a page or a folder** of the named space, set by its id or by its title, one and not both. A title is looked up in that space and must name exactly one page or folder, or the publish refuses; an id must name a page or folder of that space, or it refuses. The publish makes no space and moves nothing it did not make out from under the parent.
+- **Each is set for each publish**, by the operator's environment or a property on the command line; none is fixed in code.
+- **A publish missing any of the five refuses before anything is sent**, and names the variable it lacks, never its value.
+- **The site, the space and the parent are never in this repository**: no shipped file holds one, and no test names a real one.
 
 ### 4. The word *publish*
 
@@ -63,7 +65,7 @@ ADR-102 keeps *publication-ready* as the state the deliverable is handed over in
 
 ### 6. The control panel
 
-The control panel offers a publish on the invocation page once a generation run has drawn a rendering, and starts it as it starts `run` and `label`, as a child with `--db-dir` (ADR-278 §1). The child inherits the four variables of §3 from the operator's environment; the control panel neither asks for nor holds any of them, writes none to the launch-value file (ADR-292 §2), and its seven launch values stay seven. It names no type of `java.net.http` (ADR-285 §3).
+The control panel offers a publish on the invocation page once a generation run has drawn a rendering, and starts it as it starts `run` and `label`, as a child with `--db-dir` (ADR-278 §1). The child inherits the five values of §3 from the operator's environment; the control panel neither asks for nor holds any of them, writes none to the launch-value file (ADR-292 §2), and its seven launch values stay seven. It names no type of `java.net.http` (ADR-285 §3).
 
 ### 7. The module
 

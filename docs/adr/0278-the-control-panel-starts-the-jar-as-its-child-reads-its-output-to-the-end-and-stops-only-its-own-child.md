@@ -12,7 +12,7 @@
 
 > **Partly amended — see [ADR-307](0307-the-child-the-control-panel-started-ends-with-it-wherever-its-end-runs-the-jvms-shutdown-hooks.md).** Of §7: a hard close that runs the JVM's shutdown hooks, `Ctrl+C`, a closed terminal or console window, `SIGTERM`, `SIGHUP`, a logoff or a shutdown, ends the child, killing its descendants first as Stop does; only a forced end of the control panel's process leaves it running. Of the refused *orderly exit of the control panel killing its child*: its cost is accepted for such a hard close. The orderly exit itself stays undecided. The rest of this record stands.
 
-> **Partly amended — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** Of §1: the control panel starts the jar's `publish` as it starts `run` and `label`, and the child inherits the four variables a publish reads from the operator's environment. The rest of this record stands.
+> **Partly amended — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** Of §1: the control panel starts the jar's `publish` as it starts `run` and `label`, and the child inherits the five values a publish reads from the operator's environment. The rest of this record stands.
 
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.
