@@ -298,7 +298,7 @@ How a synthesis doc points at a document it was written from: an ordinal into th
 _Avoid_: reference, source, footnote
 
 **Picture**:
-Something visual that Docling found inside a converted document and returned among its `pictures`, with its pixels where the response carries them. It comes along with its document and is shown under that document's membership entry, never judged on its own: survival stays a fact about documents (ADR-149). In the HTML tree it is shown inline on its cluster's page, its bytes written into it, and written into no file of its own (ADR-286); in the Confluence rendering it keeps its name, and if [#615](https://github.com/algernon28/vespera/issues/615) writes it there into a file of its own, that file is the picture's file. A standalone image file is not a picture. It is a document whose format is an image, or, inside a generated tree, code (ADR-284); where its copy is a PNG or a JPEG, its entry shows that copy inline (ADR-286).
+Something visual that Docling found inside a converted document and returned among its `pictures`, with its pixels where the response carries them. It comes along with its document and is shown under that document's membership entry, never judged on its own: survival stays a fact about documents (ADR-149). In the HTML tree it is shown inline on its cluster's page, its bytes written into it, and written into no file of its own (ADR-286); in the Confluence rendering it keeps its name, and there it is written into a file of its own, the picture's file (ADR-314). A standalone image file is not a picture. It is a document whose format is an image, or, inside a generated tree, code (ADR-284); where its copy is a PNG or a JPEG, its entry shows that copy inline (ADR-286).
 _Avoid_: image (the word for a standalone image file, and for Markdown's image syntax), figure, illustration, attachment (Confluence's word for a file on a page, appearing only in code spans such as `ri:attachment`)
 
 **Furniture picture**:
@@ -322,7 +322,7 @@ The pipeline's terminal state, and the deliverable: the arrangement, the synthes
 _Avoid_: the wiki, the Confluence output, the export
 
 **Confluence rendering**:
-The second rendering of the deliverable, which stage 6b draws beside the HTML tree in Confluence's storage format, as files a publish sends to the operator's Confluence Cloud site (ADR-301, ADR-308, [#610](https://github.com/algernon28/vespera/issues/610)). Its pages are the root page, the index's counterpart, a seed partition's page for each seed partition, and a cluster's page for each cluster. A cluster's page carries its copies as files (ADR-313), and whether it carries its pictures as files is [#615](https://github.com/algernon28/vespera/issues/615)'s. It is drawn by stage 6b, and sent only by a publish: nothing else in this project sends it. It lies under `confluence/` at the tree's root (ADR-312); what each page holds is left to later tickets of map [#604](https://github.com/algernon28/vespera/issues/604).
+The second rendering of the deliverable, which stage 6b draws beside the HTML tree in Confluence's storage format, as files a publish sends to the operator's Confluence Cloud site (ADR-301, ADR-308, [#610](https://github.com/algernon28/vespera/issues/610)). Its pages are the root page, the index's counterpart, a seed partition's page for each seed partition, and a cluster's page for each cluster. A cluster's page carries its copies as files (ADR-313), and each picture it shows as the picture's file (ADR-314). It is drawn by stage 6b, and sent only by a publish: nothing else in this project sends it. It lies under `confluence/` at the tree's root (ADR-312); what each page holds is left to later tickets of map [#604](https://github.com/algernon28/vespera/issues/604).
 _Avoid_: Confluence output, Confluence export, export, the wiki, wiki export, space export, upload, Confluence tree, Confluence version
 
 **Publish**:
@@ -330,7 +330,7 @@ The one act by which this project sends anything to a destination: `vespera publ
 _Avoid_: upload, export
 
 **Page list**:
-The file of the Confluence rendering that a publish reads, listing the rendering's pages and the files carried on them ([#610](https://github.com/algernon28/vespera/issues/610)). What each entry holds and its format are [#618](https://github.com/algernon28/vespera/issues/618)'s; it lies directly in `confluence/` (ADR-312).
+The file of the Confluence rendering that a publish reads, listing the rendering's pages and the files carried on them ([#610](https://github.com/algernon28/vespera/issues/610)). It is `confluence/pages.json`, a JSON list of the pages, parents first, each with its stable key, its parent's, its title, its body and its files, sizes and digests (ADR-312, ADR-316).
 _Avoid_: manifest (the deliverable's `documents.csv`), index (`index.html`, whose counterpart is the root page), load plan, sitemap, table of contents
 
 **Seed partition's page**:
