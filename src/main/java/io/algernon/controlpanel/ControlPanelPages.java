@@ -8,18 +8,18 @@ import java.util.Map;
 
 /**
  * The control panel's pages by path, for {@code ControlPanelServer.start} (ADR-302 §10): the launch page, the
- * invocation page and Stop's confirmation, the fifteen reports, and the next act, the questions, the code sets and the
+ * invocation page and Stop's confirmation, the sixteen reports, and the next act, the questions, the code sets and the
  * profile, with the paths their forms post to. The pages start the child, write files and read the sidecars; the
  * server's classes do none of these (ADR-291 §8). They link no class of the jar (ADR-285 §3).
  */
 public final class ControlPanelPages {
 
-    /** §3's fifteen file names, in its table's order. */
+    /** The sixteen file names of ADR-302 §3 and ADR-306 §2, in that table's order. */
     public static final List<String> REPORTS = List.of("progress.html", "progress-steps.html",
             "progress-samples.html", "progress-runs.html", "format-mix.html", "extraction-failures.html",
             "extraction-survivors.html", "confidence-distribution.html", "document-frequency.html",
             "word-count-distribution.html", "seed-corpus-comparison.html", "translations.html", "cluster-sizes.html",
-            "relevance-labelling.html", "arrangement.html");
+            "relevance-labelling.html", "arrangement.html", "cluster-page-sizes.html");
 
     private ControlPanelPages() {
     }

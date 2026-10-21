@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The fifteen reports re-served read-only (ADR-302 §3): each at one fixed path, {@code /report/} and its file name,
+ * The sixteen reports re-served read-only (ADR-302 §3, ADR-306 §2): each at one fixed path, {@code /report/} and its file name,
  * answering with the file of that name in the working directory held, as written, under a second policy,
  * {@code sandbox allow-scripts}. No part of a request names a file, and a name that is a link is not followed. The
  * handlers change nothing (ADR-302 §1).

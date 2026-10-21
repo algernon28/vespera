@@ -31,7 +31,21 @@ final class NextPages {
             Map.entry("outOfScopeNameEndings", List.of("format-mix.html")),
             Map.entry("configurationSettingShareFloor", List.of("format-mix.html")),
             Map.entry("preferredLanguages", List.of("translations.html")),
-            Map.entry("translationSimilarityFloor", List.of("translations.html")));
+            Map.entry("translationSimilarityFloor", List.of("translations.html")),
+            Map.entry("clusterPageByteCeiling", List.of("cluster-page-sizes.html")));
+
+    /** {@code report-<key>}, the links to the reports §8's table names for the key; empty where it names none. */
+    static String reportsOf(String key) {
+        List<String> reports = REPORTS_OF_A_KEY.get(key);
+        if (reports == null) {
+            return "";
+        }
+        StringBuilder list = new StringBuilder("<ul id=\"report-").append(ControlPanelPage.escape(key)).append("\">");
+        for (String report : reports) {
+            list.append("<li>").append(ControlPanelPage.reportLink(report)).append("</li>");
+        }
+        return list.append("</ul>\n").toString();
+    }
 
     private final PanelSession session;
 
@@ -111,14 +125,7 @@ final class NextPages {
             form.append(ControlPanelPage.field(name, name, filled, false));
             form.append(ControlPanelPage.field(name + ".provenance", name + " provenance", "", true));
             form.append(ControlPanelPage.text("p", "cost-" + name, ControlPanelPage.cost(key))).append('\n');
-            List<String> reports = REPORTS_OF_A_KEY.get(name);
-            if (reports != null) {
-                form.append("<ul id=\"report-").append(ControlPanelPage.escape(name)).append("\">");
-                for (String report : reports) {
-                    form.append("<li>").append(ControlPanelPage.reportLink(report)).append("</li>");
-                }
-                form.append("</ul>\n");
-            }
+            form.append(reportsOf(name));
             form.append("</fieldset>\n");
         }
         form.append(ControlPanelPage.button("save", "Save", false)).append('\n')

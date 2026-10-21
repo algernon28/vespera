@@ -99,10 +99,25 @@ final class PanelSession {
     }
 
     Holders holders() {
-        Optional<String> working = workingDirectory().flatMap(folder -> held(folder.resolve(WorkingDirectoryWrite.LOCK_FILE_NAME)));
+        Optional<String> working = workingDirectory()
+                .flatMap(folder -> heldByAnother(folder.resolve(WorkingDirectoryWrite.LOCK_FILE_NAME)));
         Optional<String> root = values.corpusRoot().isEmpty() ? Optional.empty()
                 : held(CorpusRootLockFile.in(corpusRootLockFolder, Path.of(values.corpusRoot())));
         return new Holders(working, root);
+    }
+
+    /**
+     * The working directory's holder line as {@link #held} reads it, but for one naming the control panel's own
+     * process, held by nobody: the control panel holds the lock only inside a write of its own (ADR-306 §1).
+     */
+    private static Optional<String> heldByAnother(Path lockFile) {
+        try {
+            HolderReading reading = HolderReading.read(lockFile);
+            boolean own = reading.line().map(line -> line.pid() == ProcessHandle.current().pid()).orElse(false);
+            return reading.held() && !own ? reading.text() : Optional.empty();
+        } catch (IOException | RuntimeException unreadable) {
+            return Optional.empty();
+        }
     }
 
     private static Optional<String> held(Path lockFile) {

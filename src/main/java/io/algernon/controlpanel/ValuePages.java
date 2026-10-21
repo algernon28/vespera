@@ -246,6 +246,7 @@ final class ValuePages {
                     .append(ControlPanelPage.field("value", "Value", "", false))
                     .append(ControlPanelPage.field("provenance", "Provenance", "", true))
                     .append(ControlPanelPage.text("p", "cost-" + key.key(), ControlPanelPage.cost(key))).append('\n')
+                    .append(NextPages.reportsOf(key.key()))
                     .append(ControlPanelPage.button("save", "Save", false)).append("\n</form>\n");
         }
         Exchanges.page(exchange, ControlPanelPage.render("Profile", 0, body.toString()));
