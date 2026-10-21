@@ -1,4 +1,4 @@
-# ADR-308 — A citation on a Confluence page is an anchor link naming the page its entry is on, and where it cannot link it is its number as plain text
+# ADR-309 — A citation on a Confluence page is an anchor link naming the page its entry is on, and where it cannot link it is its number as plain text
 
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
