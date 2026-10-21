@@ -167,6 +167,33 @@ class ChildTest {
         }
     }
 
+    /**
+     * As the control panel ends, the child is ended as Stop ends it, its descendants killed first, within a bound
+     * (ADR-307 §1): a kill of the child alone would leave the grandchild running and this test red.
+     */
+    @Test
+    @Issue("629")
+    @Link(name = "ADR-307", url = Adr.THE_CHILD_ENDS_WITH_THE_CONTROL_PANEL, type = "adr")
+    @Story("The control panel ends its own child")
+    @DisplayName("The control panel's end leaves neither the child nor the process the child started, and sees both end within its bound")
+    void theControlPanelsEndLeavesNeitherTheChildNorItsGrandchild() throws Exception {
+        Child child = Child.start(ChildForTests.builder("grandchild"));
+        long grandchild = grandchildOf(child);
+        try {
+            boolean seenToEnd = child.endWithin(ControlPanelState.END_BOUND);
+
+            claim("both are seen to end within the control panel's bound of " + ControlPanelState.END_BOUND.toSeconds()
+                    + " seconds", () -> assertThat(seenToEnd).isTrue());
+            claim("the process the child started is gone",
+                    () -> assertThat(ProcessHandle.of(grandchild).map(ProcessHandle::isAlive)).isNotEqualTo(Optional.of(true)));
+            claim("and so is the child",
+                    () -> assertThat(ProcessHandle.of(child.pid()).map(ProcessHandle::isAlive)).isNotEqualTo(Optional.of(true)));
+        } finally {
+            ProcessHandle.of(grandchild).ifPresent(ProcessHandle::destroyForcibly);
+            ProcessHandle.of(child.pid()).ifPresent(ProcessHandle::destroyForcibly);
+        }
+    }
+
     @Test
     @Story("The control panel stops only its own child")
     @DisplayName("Only the child the control panel started can be stopped, and only that class ends a process")

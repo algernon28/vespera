@@ -2149,6 +2149,23 @@ public final class Adr {
     public static final String THE_CONFLUENCE_RENDERING_IS_DRAWN_FOR_BOTH_EDITIONS = FILE
             + "0305-the-confluence-rendering-is-drawn-in-storage-format-for-cloud-and-data-center-alike-and-loading-it-into-cloud-is-the-operators-act-outside-what-binds-vespera.md";
 
+    /**
+     * ADR-306 -- on the control panel's pages and in its start checks a holder line of {@code vespera.lock} naming
+     * the control panel's own process is held by nobody, the corpus-root lock read as before; {@code
+     * cluster-page-sizes.html} is served as the sixteenth report, linked for {@code clusterPageByteCeiling}, and each
+     * key's form on {@code /profile} holds its {@code report-<key>} links (amends ADR-302).
+     */
+    public static final String THE_CONTROL_PANELS_OWN_HOLDER_LINE_IS_HELD_BY_NOBODY = FILE
+            + "0306-the-control-panel-reads-a-holder-line-of-its-own-process-as-held-by-nobody-and-serves-the-cluster-page-sizes-as-a-sixteenth-report.md";
+
+    /**
+     * ADR-307 -- the control panel registers a shutdown hook as it starts, which kills the child it started, its
+     * descendants first, as its JVM ends in an orderly way, and waits up to 2 seconds to see them end; a forced end of
+     * its process runs no hook and leaves the child running (amends ADR-302 §11 and ADR-278 §7).
+     */
+    public static final String THE_CHILD_ENDS_WITH_THE_CONTROL_PANEL = FILE
+            + "0307-the-child-the-control-panel-started-ends-with-it-wherever-its-end-runs-the-jvms-shutdown-hooks.md";
+
     private Adr() {
     }
 }

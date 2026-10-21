@@ -10,8 +10,10 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -21,9 +23,11 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,7 +51,8 @@ import picocli.CommandLine;
  * UTF-8 already, as on Linux, the flags change nothing and this holds whatever they are.
  *
  * <p>And the control panel, started by the operator's {@code java -jar} on its own jar, finds the packaged jar beside
- * its own and the {@code java} of the runtime running it, or refuses with one line where no jar is there (ADR-288).
+ * its own and the {@code java} of the runtime running it, then the address to open, and serves until it is ended, or
+ * refuses with one line where no jar is there (ADR-288, ADR-302 §11).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -68,7 +73,7 @@ class TheControlPanelsChildIT {
     /** The control panel's jar, which the same build writes beside the packaged jar (ADR-285 §2). */
     private static final Path CONTROL_PANEL_JAR = Path.of("target", "vespera-0.0.1-SNAPSHOT-control-panel.jar");
 
-    /** What the control panel prints, until its first screen, where it finds the jar beside its own (ADR-288 §4). */
+    /** What the control panel's first line begins with, where it finds the jar beside its own (ADR-288 §4). */
     private static final String WILL_START = "the control panel will start ";
 
     /** What the control panel's refusal says before the path it looked at, which ends the line (ADR-288 §4). */
@@ -77,6 +82,13 @@ class TheControlPanelsChildIT {
 
     /** Variables a JVM announces on standard error as it starts, which would be lines the control panel did not write. */
     private static final List<String> JVM_NOTICES = List.of("JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS");
+
+    /** The lines the control panel writes as it starts serving: what it will start, and the address to open. */
+    private static final int TWO_LINES = 2;
+
+    /** The second line: the address of 127.0.0.1, the port the system picked and the start's token (ADR-302 §11). */
+    private static final String OPEN_THE_ADDRESS =
+            "open http://127\\.0\\.0\\.1:[0-9]{1,5}/\\?token=[A-Za-z0-9_-]{43} in your browser";
 
     /** The control panel's exit code where it finds no jar beside its own. */
     private static final int REFUSED = 1;
@@ -142,20 +154,61 @@ class TheControlPanelsChildIT {
     @Test
     @Issue("567")
     @Link(name = "ADR-288", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_BESIDE_ITS_OWN_WITH_THE_JAVA_RUNNING_IT, type = "adr")
+    @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
     @Story("The operator starts the control panel with java -jar")
-    @DisplayName("Started with java -jar on its own jar, the control panel names the packaged jar beside it and the java that started it, and exits 0")
+    @DisplayName("Started with java -jar on its own jar, the control panel names the packaged jar beside it and the java that started it, then the address to open, and serves until it is ended")
     void theControlPanelStartedByJavaJarNamesTheJarBesideItAndItsOwnJava() throws Exception {
         Path java = javaOfThisRuntime();
-        Printed printed = started(java, CONTROL_PANEL_JAR.toAbsolutePath());
+        ProcessBuilder builder = new ProcessBuilder(java.toString(), "-jar", CONTROL_PANEL_JAR.toAbsolutePath().toString())
+                .directory(CONTROL_PANEL_JAR.toAbsolutePath().getParent().toFile());
+        JVM_NOTICES.forEach(builder.environment()::remove);
+        Process process = builder.start();
+        CompletableFuture<byte[]> error = readWhole(process.getErrorStream());
+        List<String> lines;
+        boolean servingAfterTheTwoLines;
+        try {
+            lines = firstLinesNotBlank(process.getInputStream(), TWO_LINES);
+            servingAfterTheTwoLines = process.isAlive();
+        } finally {
+            process.destroyForcibly();
+            process.waitFor(EXIT_BOUND_SECONDS, TimeUnit.SECONDS);
+        }
+        String standardError = new String(error.get(EXIT_BOUND_SECONDS, TimeUnit.SECONDS), StandardCharsets.UTF_8);
 
-        claim("the control panel ends within " + EXIT_BOUND_SECONDS + " seconds",
-                () -> assertThat(printed.finished()).isTrue());
-        claim("with exit code 0", () -> assertThat(printed.exitCode()).isZero());
-        claim("writing nothing on standard error", () -> assertThat(printed.standardError()).isBlank());
-        claim("and one line on standard output, naming the packaged jar beside its own and the java of the runtime"
-                        + " that started it, both absolute",
-                () -> assertThat(printed.standardOutput().lines().filter(line -> !line.isBlank()).toList())
-                        .containsExactly(WILL_START + EXECUTABLE_JAR.toAbsolutePath() + " with " + java));
+        claim("the control panel writes " + TWO_LINES + " lines on standard output within " + EXIT_BOUND_SECONDS
+                        + " seconds: the packaged jar beside its own and the java of the runtime that started it, both"
+                        + " absolute, then the address to open, on 127.0.0.1 at a port and with a token of 43"
+                        + " characters of base64url",
+                () -> assertThat(lines).hasSize(TWO_LINES)
+                        .satisfies(two -> assertThat(two.getFirst())
+                                .isEqualTo(WILL_START + EXECUTABLE_JAR.toAbsolutePath() + " with " + java))
+                        .satisfies(two -> assertThat(two.getLast()).matches(OPEN_THE_ADDRESS)));
+        claim("it is still serving once it has written them, rather than exiting",
+                () -> assertThat(servingAfterTheTwoLines).isTrue());
+        claim("and it wrote nothing on standard error", () -> assertThat(standardError).isBlank());
+    }
+
+    /** The first {@code count} lines of {@code stream} that are not blank, or fewer where it ends or the bound passes. */
+    private static List<String> firstLinesNotBlank(InputStream stream, int count) throws Exception {
+        CompletableFuture<List<String>> read = CompletableFuture.supplyAsync(() -> {
+            List<String> lines = new ArrayList<>();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                String line;
+                while (lines.size() < count && (line = reader.readLine()) != null) {
+                    if (!line.isBlank()) {
+                        lines.add(line);
+                    }
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return lines;
+        });
+        try {
+            return read.get(EXIT_BOUND_SECONDS, TimeUnit.SECONDS);
+        } catch (TimeoutException notInTime) {
+            return List.of();
+        }
     }
 
     @Test
