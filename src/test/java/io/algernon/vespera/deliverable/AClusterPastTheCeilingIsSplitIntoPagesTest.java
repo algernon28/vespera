@@ -424,7 +424,7 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
         List<String> movedIntoTheFolder = new ArrayList<>();
         ReplacingMove recording = new ReplacingMove(
                 (from, to) -> {
-                    if (to.getParent().endsWith(DOORS_FOLDER)) {
+                    if (to.getParent().endsWith(DOORS_FOLDER) && to.getFileName().toString().endsWith(".html")) {
                         movedIntoTheFolder.add(to.getFileName().toString());
                     }
                     Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
