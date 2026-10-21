@@ -80,7 +80,7 @@ flowchart TD
 - **The seed set does triple duty** (ADR-004, ADR-020, ADR-022): it defines relevance, names the top level of the arrangement (one node per seed + `unattributed`), and shapes what sits beneath it. A poorly chosen seed set produces a poorly shaped arrangement, not merely a poorly tuned filter — visible via diagnostics (per-seed admission counts, cluster counts).
 - **Clustering runs within each seed partition**, never corpus-wide (ADR-027, ADR-045) — cheap, embarrassingly parallel, and keeps the "60%-owned-by-one-seed" alarm aligned with a genuine compute problem.
 - **Synthesis, not summarisation** (ADR-021). Stage 5 leaves a heap of survivors; stage 6 makes it organic. 6a names each cluster after its own highest-scoring document and puts the arrangement in an order, judging nothing and removing nothing; 6b generates connective overviews per cluster, gated on a human reading 6a first.
-- **The run ends at 6b** (ADR-101, amending ADR-025). The pipeline runs fully unattended and stops at the generated documents, which are the deliverable. The documents themselves are written and are the terminus. What no part of this project does is turn them into a published thing — a wiki, a space, a site — or upload or transmit them anywhere: an operator who wants a wiki makes one. Where 6b's tree lands was settled by ADR-103 — the working directory, one tree per run id — and what becomes of the surviving originals, which ADR-023 used to answer for a Confluence space, by ADR-104; ADR-274 makes the tree HTML and has it hold a copy of each survivor it lists, checked against the key stage 2 recorded, so that every link lands inside the tree and the archive is only ever read.
+- **The run ends at 6b** (ADR-101, amending ADR-025). The pipeline runs fully unattended and stops at the generated documents, which are the deliverable. The documents themselves are written and are the terminus. Beside the HTML tree 6b draws a Confluence rendering in storage format under `confluence/` (ADR-301, ADR-312); no stage sends either anywhere, and the one act that does is `vespera publish`, which sends the Confluence rendering alone to the operator's own Confluence Cloud site, on the operator's asking (ADR-308). Where 6b's tree lands was settled by ADR-103 — the working directory, one tree per run id — and what becomes of the surviving originals, which ADR-023 used to answer for a Confluence space, by ADR-104; ADR-274 makes the tree HTML and has it hold a copy of each survivor it lists, checked against the key stage 2 recorded, so that every link lands inside the tree and the archive is only ever read.
 - **Generated content is verified two ways** (ADR-026): mechanical citation checking (every cited occurrence id must exist, survive, and be reachable in the tree) plus human review at the consolidation gate. Model-checking model output was explicitly rejected.
 
 **Identity and the ledger.** Two independent lifetimes: a walk owns occurrence rows because they are filesystem observations, a run owns verdict rows because they are derived under a configuration. Content identity is a discovered relation over occurrences, never a collapse of them.
@@ -176,7 +176,8 @@ Modules are **capability-shaped, not stage-shaped** — stage assignment has alr
 | `similarity` | Shingles, MinHash/LSH — shingles are computed during stage 2's pass, but the code and the table are `similarity`'s and the call is composed in `pipeline` (ADR-073), since a capability module may not depend on another except where a decision records it |
 | `embedding` | SQLite vector cache, scoring, clustering |
 | `synthesis` | Arrangement (6a), generation (6b) |
-| `deliverable` | The tree 6b writes: its pages, its manifest and its copies (ADR-274, ADR-280), and the report of its pages' sizes (ADR-303); no stage's version names it |
+| `deliverable` | The tree 6b writes: its pages, its manifest and its copies (ADR-274, ADR-280), the report of its pages' sizes (ADR-303), and its Confluence rendering with the page list (ADR-301, ADR-316); no stage's version names it |
+| `confluence` | The publish: reads the page list and sends the Confluence rendering to the operator's Cloud site (ADR-308); the one module that opens a connection to Confluence, naming no class of `deliverable`; no stage's version names it |
 | `profile` | Thresholds, provenance, gate inputs |
 | `pipeline` | Batch job definitions; the only module that knows the phrase "stage 4" |
 
@@ -184,7 +185,7 @@ Modules are **capability-shaped, not stage-shaped** — stage assignment has alr
 
 **Module boundaries.** Capability-shaped, not stage-shaped: stage assignment moved twice during design while the underlying capability did not. A capability module may depend on `ledger` and nothing else horizontal — the two exceptions are `extraction`, which also names `corpus`'s two detection enumerations (ADR-100), and `deliverable`, which also names `synthesis` (ADR-274), each declared in its `@ApplicationModule` and pinned by name in `ModuleBoundariesTest`; `pipeline` is the composition root and depends on all of them.
 
-**The control panel is no module** (ADR-285). Its code is under `io.algernon.controlpanel`, outside `io.algernon.vespera`, so `ApplicationModules` does not see it and the nine stay nine. The same build packages it as a second, plain jar, `vespera-<version>-control-panel.jar`, which the Spring Boot jar does not carry; it names only its own package and the JDK modules `java.base` and `jdk.httpserver`, so no class of the jar, and no class of the jar names it. `TheControlPanelLinksNoClassOfTheJarTest` holds both directions, and `PackagedJarIT` what each jar holds. The operator starts it with `java -jar` on its jar, whose manifest names `ControlPanel` as its main class and the Spring Boot jar's file name; it starts that jar, beside its own, with the `java` of the runtime running it, and refuses with one line where none is there (ADR-288). It remembers the seven launch values, keyed by the jar's own properties, and the last seed folder, in `launch-values.properties` in a folder of the user's own under the temp directory; the corpus root and the working directory reach the child on its command line, and the deliverable root, the Docling image, Docling's and Ollama's addresses and the label model in its environment, an empty one not at all (ADR-292). Its server listens on `127.0.0.1` alone, at a port the system picks, and answers only a request addressed to that address and holding the cookie its start's token is exchanged for, a `POST` only from its own origin, and only the pages it was started with, every response carrying `Cache-Control: no-store` (ADR-291). It writes three files of a working directory, `profile.yaml` one key at a time, the answers of `relevance-labels.yaml` and `code-set-names.yaml`, each only while no invocation it started runs and holding `vespera.lock` as the jar takes it, each value checked as the jar reads it, and each file written whole from the form the jar or it writes, or refused (ADR-295). Its screens are tested through the pages it serves, by the JDK's HTTP client with a cookie store and jsoup at test scope, which open the printed address and submit a form by its name as a browser sends it, with no browser downloaded (ADR-297). What the next invocation wants it reads from `next-invocation.properties`, which every invocation ending on the closing line writes in the working directory from the same branch of `NextAction` that words the line, and every invocation deletes as it takes the working-directory lock: the next command, the profile keys wanted, whether labels are to be answered and the arrangement to approve, never the line's words (ADR-294).
+**The control panel is no module** (ADR-285). Its code is under `io.algernon.controlpanel`, outside `io.algernon.vespera`, so `ApplicationModules` does not see it and the ten stay ten. The same build packages it as a second, plain jar, `vespera-<version>-control-panel.jar`, which the Spring Boot jar does not carry; it names only its own package and the JDK modules `java.base` and `jdk.httpserver`, so no class of the jar, and no class of the jar names it. `TheControlPanelLinksNoClassOfTheJarTest` holds both directions, and `PackagedJarIT` what each jar holds. The operator starts it with `java -jar` on its jar, whose manifest names `ControlPanel` as its main class and the Spring Boot jar's file name; it starts that jar, beside its own, with the `java` of the runtime running it, and refuses with one line where none is there (ADR-288). It remembers the seven launch values, keyed by the jar's own properties, and the last seed folder, in `launch-values.properties` in a folder of the user's own under the temp directory; the corpus root and the working directory reach the child on its command line, and the deliverable root, the Docling image, Docling's and Ollama's addresses and the label model in its environment, an empty one not at all (ADR-292). Its server listens on `127.0.0.1` alone, at a port the system picks, and answers only a request addressed to that address and holding the cookie its start's token is exchanged for, a `POST` only from its own origin, and only the pages it was started with, every response carrying `Cache-Control: no-store` (ADR-291). It writes three files of a working directory, `profile.yaml` one key at a time, the answers of `relevance-labels.yaml` and `code-set-names.yaml`, each only while no invocation it started runs and holding `vespera.lock` as the jar takes it, each value checked as the jar reads it, and each file written whole from the form the jar or it writes, or refused (ADR-295). Its screens are tested through the pages it serves, by the JDK's HTTP client with a cookie store and jsoup at test scope, which open the printed address and submit a form by its name as a browser sends it, with no browser downloaded (ADR-297). What the next invocation wants it reads from `next-invocation.properties`, which every invocation ending on the closing line writes in the working directory from the same branch of `NextAction` that words the line, and every invocation deletes as it takes the working-directory lock: the next command, the profile keys wanted, whether labels are to be answered and the arrangement to approve, never the line's words (ADR-294).
 
 ```mermaid
 flowchart TD
@@ -198,7 +199,8 @@ flowchart TD
         EMBEDDING["<b>embedding</b><br/>vector cache · scoring · clustering"]
         SYNTHESIS["<b>synthesis</b><br/>arrangement · generation"]
         PROFILE["<b>profile</b><br/>thresholds · provenance · gate inputs"]
-        DELIVERABLE["<b>deliverable</b><br/>the tree's pages · manifest · copies"]
+        DELIVERABLE["<b>deliverable</b><br/>the tree's pages · manifest · copies · Confluence rendering"]
+        CONFLUENCE["<b>confluence</b><br/>the publish to the operator's Cloud site"]
     end
 
     LEDGER["<b>ledger</b><br/>occurrence identity · verdict vocabulary and rows · run identity · the survivors query"]
@@ -210,6 +212,7 @@ flowchart TD
     PIPELINE --> SYNTHESIS
     PIPELINE --> PROFILE
     PIPELINE --> DELIVERABLE
+    PIPELINE --> CONFLUENCE
     PIPELINE --> LEDGER
 
     CORPUS --> LEDGER
@@ -219,6 +222,7 @@ flowchart TD
     SYNTHESIS --> LEDGER
     PROFILE --> LEDGER
     DELIVERABLE --> LEDGER
+    CONFLUENCE --> LEDGER
     DELIVERABLE -. declared exception .-> SYNTHESIS
     EXTRACTION -. declared exception .-> CORPUS
 
@@ -226,7 +230,7 @@ flowchart TD
     classDef cap fill:#eef4ff,stroke:#4a6fa5,color:#12243d
     classDef core fill:#fff4e6,stroke:#b5762a,color:#3d2a12
     class PIPELINE root
-    class CORPUS,EXTRACTION,SIMILARITY,EMBEDDING,SYNTHESIS,PROFILE,DELIVERABLE cap
+    class CORPUS,EXTRACTION,SIMILARITY,EMBEDDING,SYNTHESIS,PROFILE,DELIVERABLE,CONFLUENCE cap
     class LEDGER core
 ```
 

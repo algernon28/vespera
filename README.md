@@ -326,4 +326,38 @@ Each code set is copied whole to `code/<set>/` at the tree's top, its folders be
 
 A group's page opens with the heading written for it, carries the prose with every citation resolved into a link to that document's numbered place in the list below, and then lists the group entire — including the documents the writing never mentioned. Each entry in that list links to its document's copy inside the tree, so a sentence you doubt is two clicks from the document behind it, and the tree can be carried elsewhere and opened with every link still working. Where a group was written from part of its documents, the page says so and names both numbers. Where an answer was turned down, the group keeps its place and its page says plainly that nothing was written over it, rather than leaving a gap you have to notice. Where `clusterPageByteCeiling` is set and a group's page would be larger, the group's folder holds `index.html` and `index-2.html` on, each listing the next of its documents, numbered on from the page before, with links to the first, previous, next and last page above and below the list; the index links the first. A page an earlier drawing wrote past the last one is counted on the last line with the other files left behind, and is not deleted.
 
-Those files are where Vespera stops. It does not turn them into a wiki, a site or a page anywhere, and it does not upload or send them (ADR-101). Your archive is untouched throughout: each document is opened only to be read and copied, and nothing is written there (ADR-274). What you do with any of it is yours.
+Beside the HTML pages the same drawing writes the Confluence rendering under `confluence/`: the same groups, prose, citations, entries and pictures, as page bodies in Confluence's storage format, one `page.xml` for the root page, one for each exemplar and one for each group (`page-<k>.xml` for a group's further pages), each picture a file of its own beside its group's body, and `pages.json` listing every page, its parent, its title, its body and the files it carries with their sizes and digests. Each title ends with the group's place and the first 12 characters of the run's id, as `Payroll (001.002 · 3fa1c9e07b2d)`, so two runs never share a title, and the root page is `Vespera 3fa1c9e07b2d`. Nothing is sent: the rendering waits for `vespera publish`, below.
+
+Those files are where the run stops. No stage sends them anywhere; the one thing that does is `vespera publish`, and only when you run it (ADR-308). Your archive is untouched throughout: each document is opened only to be read and copied, and nothing is written there (ADR-274). What you do with any of it is yours.
+
+## Publishing to Confluence
+
+`vespera publish` sends the Confluence rendering of the last run that drew one to your Confluence Cloud site, as pages under one page or folder you name in one space you can write to, with each group's copies and pictures as files on its page. It sends nothing else: not the HTML pages, not the database, not a log. It reads no document's text and runs no model. It is Cloud only.
+
+**The token.** Make a classic API token for your Atlassian account at *id.atlassian.com → Security → API tokens*. A token lasts at most a year, and your organisation's admin may turn tokens off. Vespera reads it, with your account's email, from the environment and from nowhere else, and writes neither to any file or log.
+
+**The five values**, set in the shell you publish from, for each publish:
+
+| Variable | What it holds |
+| --- | --- |
+| `VESPERA_CONFLUENCE_BASE_URL` | your site's address, `https://<your-site>.atlassian.net` |
+| `VESPERA_CONFLUENCE_SPACE_KEY` | the key of the space the pages go in |
+| `VESPERA_CONFLUENCE_PARENT_ID` or `VESPERA_CONFLUENCE_PARENT_TITLE` | the page or folder they go under, by its id (the number in its address) or by its title; name one, not both |
+| `VESPERA_CONFLUENCE_USER` | your account's email |
+| `VESPERA_CONFLUENCE_TOKEN` | the API token |
+
+A publish missing any of them sends nothing, names what is missing, and writes `confluence-env.sh` and `confluence-env.ps1` into the working directory where they are not there already. Fill in the site, the space and the parent in one, then run it in your shell, `. ./confluence-env.sh` or `. .\confluence-env.ps1`: it asks for the email and the token each time and writes neither down. Then:
+
+```
+vespera publish --db-dir=<path>
+```
+
+An address that is not `https`, or that carries a user, a query or a path past `/wiki`, is refused before anything is sent, and nothing is sent to any other host. A parent named by title must be the one page or folder of the space so titled.
+
+**What it does.** It creates every page that does not stand yet, empty and parents first, so every link between pages finds its page; then it sends each body; then each page's files. Every page carries the label `vespera-<the run's 12 characters>`, so you can find a run's pages by it. Publishing the same rendering again updates it in place: a page whose body has not changed is not sent again, a changed one is sent as its next version, and a file already on its page at the same size and digest is skipped, a changed one replaced. Nothing is deleted: a page of the run that the rendering no longer holds is left as it stands and counted. A page in the space that carries one of the rendering's titles but was not made by a publish stops the publish, and is left as it stands. Where the site asks it to slow down, it waits as long as the site says and sends again.
+
+**What it tells you.** A line for each page, whether it was created, updated or unchanged and how many of its files were sent, then a closing line counting the pages and files. A copy or a picture's file the site refuses as too large is skipped, its entry still naming it: the closing line counts those and their bytes, and `confluence-not-carried.csv` in the working directory lists each by its page, its name and its size; the next publish tries them again. Any other refusal stops the publish with a line saying what the site answered; what was sent stays, and publishing again goes on from there.
+
+**What Confluence does with it**, as measured on a Cloud site: a title holds at most 255 characters and is unique within a space, which is why each carries the run's characters; no page body or file up to 10 MiB was refused; and Confluence rewrites a body as it saves it, so a page read back is never byte for byte the body sent, which is why a publish compares what it sent, never what it reads back.
+
+The control panel offers **Publish** on its invocation page once a rendering is drawn. Its child inherits the five values from the shell the control panel was started in, and the control panel neither asks for nor holds any of them.
