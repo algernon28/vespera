@@ -2174,6 +2174,14 @@ public final class Adr {
     public static final String A_CITATION_ON_A_CONFLUENCE_PAGE_IS_AN_ANCHOR_LINK = FILE
             + "0309-a-citation-on-a-confluence-page-is-an-anchor-link-naming-the-page-its-entry-is-on-and-where-it-cannot-link-it-is-its-number-as-plain-text.md";
 
+    /**
+     * ADR-310 -- a page of the Confluence rendering is titled by its text, then its place in the arrangement and its
+     * generation run's marker, the first 12 hexadecimal characters of the run's id; at most 255 characters, the text
+     * cut and the suffix kept whole.
+     */
+    public static final String A_CONFLUENCE_PAGES_TITLE_ENDS_WITH_ITS_PLACE_AND_ITS_RUNS_MARKER = FILE
+            + "0310-a-confluence-pages-title-is-its-text-followed-by-its-place-and-its-generation-runs-marker-cut-to-255-characters-with-the-marker-kept-whole.md";
+
     private Adr() {
     }
 }
