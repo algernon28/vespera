@@ -42,11 +42,13 @@ import org.springframework.web.client.RestClientException;
  *
  * <p><b>Then</b> the totals are printed, the space and the parent are found, the pages of the run are found by their
  * label and their key, and every page of the list not so found is looked for by its title, by reads alone: a page so
- * titled that no publish made stops the publish before anything is written (ADR-320 §3). <b>Then, a page at a time</b>,
+ * titled that no publish made stops the publish before anything is written (ADR-320 §3). <b>Then, a page at a
+ * time</b>,
  * in the list's order, parents first (ADR-320 §1): the page is found or created empty; its files are sent, a file
  * standing at its size with its digest in its comment skipped; its body is sent where its digest or title changed, with
  * the page's version plus one; its closing line is printed; the next page is taken. A line says as each page starts and
- * after each file (ADR-320 §4). A {@code 409} on a body is answered by reading the page's version again and sending once
+ * after each file (ADR-320 §4). A {@code 409} on a body is answered by reading the page's version again and sending
+ * once
  * more; a second stops the publish, saying which page it stopped at (ADR-320 §5). A copy or a picture's file the site
  * refuses as too large ({@code 413}) is skipped, counted and listed in {@value #NOT_CARRIED_FILE_NAME}; any other
  * refusal stops the publish (ADR-313 §3). Nothing is deleted, and a page of the run whose key the list no longer holds
@@ -120,8 +122,8 @@ public class Publisher {
     public record Outcome(boolean published, String closingLine) {}
 
     /**
-     * Publishes the rendering in {@code confluence}, drawn for {@code generationRun}, telling {@code out} a line per
-     * page it went through; {@value #NOT_CARRIED_FILE_NAME} and any template are written in {@code workingDirectory}.
+     * Publishes the rendering in {@code confluence}, drawn for {@code generationRun}, telling {@code out} the totals,
+     * a line as each page starts, a line per file and the page's closing line (ADR-320 §4); {@value #NOT_CARRIED_FILE_NAME} and any template are written in {@code workingDirectory}.
      */
     public Outcome publish(Path confluence, String generationRun, Path workingDirectory, Consumer<String> out) {
         ConfluenceSite.Read read = ConfluenceSite.of(environment, baseUrl, spaceKey, parentId, parentTitle);
@@ -370,7 +372,8 @@ public class Publisher {
 
         /**
          * The page titled as {@code page} is, where one stands and its property holds the page's key: a page the
-         * label's search did not yet find, labelled when its turn comes (ADR-320 §3). One titled so that holds another key, or none, stops the publish, as a
+         * label's search did not yet find, labelled when its turn comes (ADR-320 §3). One titled so that holds
+         * another key, or none, stops the publish, as a
          * title is unique within the space and the page is not this publish's to take.
          */
         private Standing titled(String spaceId, Page page) throws InterruptedException {
@@ -488,8 +491,9 @@ public class Publisher {
 
         String doneSoFar() {
             return (pageNumber == 0 ? "" : "It stopped at page " + pageNumber + " of " + list.pages().size() + ", "
-                    + pageTitle + ". ") + "It had created " + created + (created == 1 ? " page" : " pages") + ", updated " + updated
-                    + " and sent " + (filesAdded + filesReplaced) + (filesAdded + filesReplaced == 1 ? " file" : " files")
+                    + pageTitle + ". ") + "It had created " + created + (created == 1 ? " page" : " pages")
+                    + ", updated " + updated + " and sent " + (filesAdded + filesReplaced)
+                    + (filesAdded + filesReplaced == 1 ? " file" : " files")
                     + ".";
         }
 
