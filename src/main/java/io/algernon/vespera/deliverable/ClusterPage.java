@@ -94,48 +94,14 @@ final class ClusterPage {
      * <p>Tells {@code progress} of each membership entry that carries a document, and of nothing else:
      * the cluster page itself is reported by the caller.
      *
+     * <p>Each entry is also written to {@code confluence}, the Confluence rendering's entries, from the same answer of
+     * {@code pictures} (ADR-314 §1).
+     *
      * @param doc the writing, or {@code null} where nothing was written over the cluster
      * @param why why nothing was written, or {@code null} where no reason was handed over
-     */
-    static void write(
-            OutputStream out,
-            RecordedCluster recorded,
-            SynthesisDoc doc,
-            Unwritten why,
-            List<ListedSurvivor> members,
-            Path folder,
-            Copies copies,
-            EntryPictures pictures,
-            DeliverableProgress progress,
-            LongConsumer entryEnds)
-            throws IOException {
-        write(out, recorded, doc, why, members, folder, copies, pictures, progress, entryEnds, ConfluenceEntries.NONE);
-    }
-
-    /**
-     * As above, each entry also written to {@code confluence}, the Confluence rendering's entries, from the same answer of
-     * {@code pictures} (ADR-314 §1).
-     */
-    static void write(
-            OutputStream out,
-            RecordedCluster recorded,
-            SynthesisDoc doc,
-            Unwritten why,
-            List<ListedSurvivor> members,
-            Path folder,
-            Copies copies,
-            EntryPictures pictures,
-            DeliverableProgress progress,
-            LongConsumer entryEnds,
-            ConfluenceEntries confluence)
-            throws IOException {
-        write(out, recorded, doc, why, members, folder, copies, pictures, progress, entryEnds, confluence, false);
-    }
-
-    /**
-     * As above, {@code writingFinished} saying whether the generation step's work under the run drawn is recorded
-     * finished or is being recorded by the invocation drawing it, which is what lets the page of a cluster with a
-     * fault on record say it stands without writing (ADR-319 §5.1).
+     * @param writingFinished whether the generation step's work under the run drawn is recorded finished or is being
+     *     recorded by the invocation drawing it, which is what lets the page of a cluster with a fault on record say it
+     *     stands without writing (ADR-319 §5.1)
      */
     static void write(
             OutputStream out,
@@ -159,24 +125,8 @@ final class ClusterPage {
      * Writes page {@code page} of {@code breaks}, which flushes {@code out} and does not close it (ADR-303 §5): the
      * title, the navigation, on the first page the writing or the sentence saying why there is none, the list headed as
      * ever and numbered on from the page before, the navigation again. Tells nobody of an entry: the page written whole
-     * has told each once (ADR-303 §3).
+     * has told each once (ADR-303 §3). {@code writingFinished} is as {@link #write} has it (ADR-319 §5.1).
      */
-    static void writePage(
-            OutputStream out,
-            RecordedCluster recorded,
-            SynthesisDoc doc,
-            Unwritten why,
-            List<Optional<ListedSurvivor>> numbered,
-            PageBreaks breaks,
-            int page,
-            Path folder,
-            Copies copies,
-            EntryPictures pictures)
-            throws IOException {
-        writePage(out, recorded, doc, why, numbered, breaks, page, folder, copies, pictures, false);
-    }
-
-    /** As above, {@code writingFinished} being as {@link #write} has it (ADR-319 §5.1). */
     static void writePage(
             OutputStream out,
             RecordedCluster recorded,
@@ -323,13 +273,8 @@ final class ClusterPage {
      *     same on whichever page the entry lands
      * @return the breaks, or empty where the plan is one page: a cluster of fewer than two entries has no entry's end to
      *     split at
+     * @param writingFinished as {@link #write} has it, since the line it brings is part of the first page (ADR-319 §5.1)
      */
-    static Optional<PageBreaks> plan(
-            long ceiling, RecordedCluster recorded, SynthesisDoc doc, Unwritten why, long[] entrySizes) {
-        return plan(ceiling, recorded, doc, why, entrySizes, false);
-    }
-
-    /** As above, {@code writingFinished} being as {@link #write} has it, since its line is part of the first page (ADR-319 §5.1). */
     static Optional<PageBreaks> plan(
             long ceiling,
             RecordedCluster recorded,

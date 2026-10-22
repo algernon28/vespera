@@ -56,29 +56,11 @@ public interface ArrangedSurvivors {
 
     /**
      * Whether the generation step's work under the run drawn is recorded finished, or is being recorded by the
-     * invocation drawing it (ADR-319 §5.1); false unless the source says so.
+     * invocation drawing it (ADR-319 §5.1).
      */
-    default boolean writingFinished() {
-        return false;
-    }
+    boolean writingFinished();
 
     /** A source whose every answer is the function it was given for it. */
-    static ArrangedSurvivors reading(
-            Supplier<List<ListedPartition>> partitions,
-            LongSupplier survivorCount,
-            Function<ListedPartition, List<RecordedCluster>> clustersOf,
-            Function<ListedPartition, List<ListedSurvivor>> survivorsOf,
-            Function<ClusterSlot, Optional<SynthesisDoc>> writtenOver,
-            Function<ClusterSlot, Optional<Unwritten>> whyUnwritten,
-            Function<Set<ClusterSlot>, Map<ClusterSlot, ArrangedCluster>> placesOf,
-            Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheirPictures,
-            Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheManifest) {
-        return reading(
-                partitions, survivorCount, clustersOf, survivorsOf, writtenOver, whyUnwritten, placesOf,
-                eachPageOfSurvivorsForTheirPictures, eachPageOfSurvivorsForTheManifest, false);
-    }
-
-    /** As above, {@code writingFinished} being what {@link #writingFinished} answers. */
     static ArrangedSurvivors reading(
             Supplier<List<ListedPartition>> partitions,
             LongSupplier survivorCount,

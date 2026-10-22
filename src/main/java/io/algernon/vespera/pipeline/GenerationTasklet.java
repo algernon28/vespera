@@ -103,9 +103,12 @@ import org.springframework.stereotype.Component;
  * <p><b>It writes no verdict.</b> Generation removes nothing: its one way of failing is a fault
  * recorded against a cluster (ADR-111), where a verdict removes a document.
  *
- * <p><b>Completion needs two things, not one</b> (ADR-116), and the rule is {@link ClusterGeneration}'s
- * (ADR-190), which returns how the walk ended and leaves this step to act on it: every sendable cluster carries a
- * {@code synthesis_doc} row, <em>and</em> no {@code cluster_fault} row stands under this run. A
+ * <p><b>Completion needs two things, not one, bar one case</b> (ADR-116), and the walk's rule is {@link
+ * ClusterGeneration}'s (ADR-190), which returns how the walk ended and leaves this step to act on it: every sendable
+ * cluster carries a {@code synthesis_doc} row, <em>and</em> no {@code cluster_fault} row stands under this run. The
+ * one case (ADR-319 §2) is this step's own, decided by {@link RepeatedFaults}: the walk went through every cluster,
+ * found none unsendable, and every fault standing is a repeated fault, a cluster whose answer was turned down the last
+ * two times it was asked; the step then records completion, and those clusters stand without writing. A
  * turned-down cluster carries no {@code synthesis_doc} row, so the next invocation of this run asks
  * about it again, and its fault row is deleted the moment that answer is believed (ADR-111, #185) —
  * which is what makes completion reachable for it at all. An unsendable cluster is reached again too
@@ -334,7 +337,7 @@ class GenerationTasklet implements Tasklet {
                             progress);
 
                     // The step acts on the outcome (ADR-190): the walk, the stop and the completion
-                    // rule (ADR-111, ADR-116) are ClusterGeneration's.
+                    // rule (ADR-111, ADR-116) are ClusterGeneration's, bar the case ADR-319 §2 gives this step.
                     if (outcome instanceof GenerationOutcome.Stopped stopped) {
                         stopTheStep(contribution, chunkContext, stopped.turnedDownInARow(), generation);
                         drawTree(
