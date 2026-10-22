@@ -163,6 +163,10 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "RelevanceReportTasklet",
             "RelevanceScoreFloorValue",
             "RelevanceScoringTasklet",
+            // ADR-319 §4: no question, answer or fault the generation run records is decided outside synthesis (ADR-274
+            // §5); this decides only the step's finished_step row, and the standing line it lets a page carry is
+            // drawing, which keys no run. A change to it moves no run id and reopens no run already finished.
+            "RepeatedFaults",
             "ReportPage",
             "ReportedStatements",
             "ReviewListListener",

@@ -218,7 +218,9 @@ class AClusterPageIsOneFileWithItsPicturesInlinedTest {
                     told.add(bytesSoFar);
                     handedOnWhenTold.add((long) page.size());
                     endedWithAnEntry.add(new String(page.toByteArray(), StandardCharsets.UTF_8).endsWith("</li>\n"));
-                });
+                },
+                ConfluenceEntries.NONE,
+                false);
         String written = page.toString(StandardCharsets.UTF_8);
         List<Long> entryEnds = new ArrayList<>();
         for (int at = written.indexOf("</li>\n"); at >= 0; at = written.indexOf("</li>\n", at + 1)) {

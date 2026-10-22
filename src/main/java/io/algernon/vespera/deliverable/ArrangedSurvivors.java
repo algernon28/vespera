@@ -54,6 +54,12 @@ public interface ArrangedSurvivors {
     /** Hands every survivor to {@code page} once, a page at a time, in occurrence order, for the manifest. */
     void eachPageOfSurvivorsForTheManifest(Consumer<List<ListedSurvivor>> page);
 
+    /**
+     * Whether the generation step's work under the run drawn is recorded finished, or is being recorded by the
+     * invocation drawing it (ADR-319 §5.1).
+     */
+    boolean writingFinished();
+
     /** A source whose every answer is the function it was given for it. */
     static ArrangedSurvivors reading(
             Supplier<List<ListedPartition>> partitions,
@@ -64,8 +70,14 @@ public interface ArrangedSurvivors {
             Function<ClusterSlot, Optional<Unwritten>> whyUnwritten,
             Function<Set<ClusterSlot>, Map<ClusterSlot, ArrangedCluster>> placesOf,
             Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheirPictures,
-            Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheManifest) {
+            Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheManifest,
+            boolean writingFinished) {
         return new ArrangedSurvivors() {
+            @Override
+            public boolean writingFinished() {
+                return writingFinished;
+            }
+
             @Override
             public List<ListedPartition> partitions() {
                 return partitions.get();

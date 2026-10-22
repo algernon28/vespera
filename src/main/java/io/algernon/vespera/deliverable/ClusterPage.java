@@ -94,27 +94,14 @@ final class ClusterPage {
      * <p>Tells {@code progress} of each membership entry that carries a document, and of nothing else:
      * the cluster page itself is reported by the caller.
      *
+     * <p>Each entry is also written to {@code confluence}, the Confluence rendering's entries, from the same answer of
+     * {@code pictures} (ADR-314 §1).
+     *
      * @param doc the writing, or {@code null} where nothing was written over the cluster
      * @param why why nothing was written, or {@code null} where no reason was handed over
-     */
-    static void write(
-            OutputStream out,
-            RecordedCluster recorded,
-            SynthesisDoc doc,
-            Unwritten why,
-            List<ListedSurvivor> members,
-            Path folder,
-            Copies copies,
-            EntryPictures pictures,
-            DeliverableProgress progress,
-            LongConsumer entryEnds)
-            throws IOException {
-        write(out, recorded, doc, why, members, folder, copies, pictures, progress, entryEnds, ConfluenceEntries.NONE);
-    }
-
-    /**
-     * As above, each entry also written to {@code confluence}, the Confluence rendering's entries, from the same answer of
-     * {@code pictures} (ADR-314 §1).
+     * @param writingFinished whether the generation step's work under the run drawn is recorded finished or is being
+     *     recorded by the invocation drawing it, which is what lets the page of a cluster with a fault on record say it
+     *     stands without writing (ADR-319 §5.1)
      */
     static void write(
             OutputStream out,
@@ -127,17 +114,18 @@ final class ClusterPage {
             EntryPictures pictures,
             DeliverableProgress progress,
             LongConsumer entryEnds,
-            ConfluenceEntries confluence)
+            ConfluenceEntries confluence,
+            boolean writingFinished)
             throws IOException {
         emit(out, recorded, doc, why, numbered(doc, members), null, 1, folder, copies, pictures, progress, entryEnds,
-                confluence);
+                confluence, writingFinished);
     }
 
     /**
      * Writes page {@code page} of {@code breaks}, which flushes {@code out} and does not close it (ADR-303 §5): the
      * title, the navigation, on the first page the writing or the sentence saying why there is none, the list headed as
      * ever and numbered on from the page before, the navigation again. Tells nobody of an entry: the page written whole
-     * has told each once (ADR-303 §3).
+     * has told each once (ADR-303 §3). {@code writingFinished} is as {@link #write} has it (ADR-319 §5.1).
      */
     static void writePage(
             OutputStream out,
@@ -149,10 +137,11 @@ final class ClusterPage {
             int page,
             Path folder,
             Copies copies,
-            EntryPictures pictures)
+            EntryPictures pictures,
+            boolean writingFinished)
             throws IOException {
         emit(out, recorded, doc, why, numbered, breaks, page, folder, copies, pictures, DeliverableProgress.NONE,
-                bytesHandedOn -> {}, ConfluenceEntries.NONE);
+                bytesHandedOn -> {}, ConfluenceEntries.NONE, writingFinished);
     }
 
     /**
@@ -172,7 +161,8 @@ final class ClusterPage {
             EntryPictures pictures,
             DeliverableProgress progress,
             LongConsumer entryEnds,
-            ConfluenceEntries confluence)
+            ConfluenceEntries confluence,
+            boolean writingFinished)
             throws IOException {
         HandedOn handedOn = new HandedOn(out);
         OutputStream stream = new BufferedOutputStream(handedOn, BUFFER_BYTES);
@@ -181,7 +171,8 @@ final class ClusterPage {
             text.append(navigation(page, breaks.pages()));
         }
         if (breaks == null || page == 1) {
-            text.append(firstPageBody(recorded, doc, why, breaks == null ? number -> "" : breaks::nameOfPageHolding));
+            text.append(firstPageBody(
+                    recorded, doc, why, writingFinished, breaks == null ? number -> "" : breaks::nameOfPageHolding));
         }
         int first = breaks == null ? 0 : breaks.firstEntryOf(page);
         int after = breaks == null ? numbered.size() : breaks.firstEntryOf(page + 1);
@@ -213,12 +204,18 @@ final class ClusterPage {
      * written (ADR-174). {@code pageOf} is {@link ProseHtml#of}'s.
      */
     private static String firstPageBody(
-            RecordedCluster recorded, SynthesisDoc doc, Unwritten why, IntFunction<String> pageOf) {
+            RecordedCluster recorded,
+            SynthesisDoc doc,
+            Unwritten why,
+            boolean writingFinished,
+            IntFunction<String> pageOf) {
         StringBuilder body = new StringBuilder();
         if (doc == null) {
             body.append("<p><em>")
                     .append(Html.escape(why == null ? Deliverable.NOTHING_WAS_WRITTEN_OVER_IT : UnwrittenSentences.of(why)))
                     .append("</em></p>\n");
+            UnwrittenSentences.standing(why, writingFinished)
+                    .ifPresent(standing -> body.append("<p><em>").append(Html.escape(standing)).append("</em></p>\n"));
         } else {
             body.append("<div class=\"writing\" title=\"").append(Html.escape(WRITING_HOVER)).append("\">\n")
                     .append(ProseHtml.of(doc.prose(), pageOf)).append("\n</div>\n");
@@ -276,9 +273,15 @@ final class ClusterPage {
      *     same on whichever page the entry lands
      * @return the breaks, or empty where the plan is one page: a cluster of fewer than two entries has no entry's end to
      *     split at
+     * @param writingFinished as {@link #write} has it, since the line it brings is part of the first page (ADR-319 §5.1)
      */
     static Optional<PageBreaks> plan(
-            long ceiling, RecordedCluster recorded, SynthesisDoc doc, Unwritten why, long[] entrySizes) {
+            long ceiling,
+            RecordedCluster recorded,
+            SynthesisDoc doc,
+            Unwritten why,
+            long[] entrySizes,
+            boolean writingFinished) {
         int entryCount = entrySizes.length;
         if (entryCount < 2) {
             return Optional.empty();
@@ -291,7 +294,7 @@ final class ClusterPage {
         long aroundEveryList = utf8(opening(recorded, doc)) + 2 * utf8(widestNavigation)
                 + utf8("<h2>" + MEMBERSHIP_HEADING + "</h2>\n") + utf8(LIST_CLOSING) + utf8(Html.tail());
         long firstPage = aroundEveryList + utf8("<ol>\n")
-                + utf8(firstPageBody(recorded, doc, why, number -> longestName));
+                + utf8(firstPageBody(recorded, doc, why, writingFinished, number -> longestName));
         long laterPage = aroundEveryList + utf8("<ol start=\"" + widest + "\">\n");
         List<Integer> firsts = new ArrayList<>();
         firsts.add(0);
@@ -311,8 +314,9 @@ final class ClusterPage {
      * What the page written whole holds before its first entry, in bytes: everything up to and including the list's
      * opening, which {@code entryEnds} does not tell (ADR-303 §3).
      */
-    static long bytesBeforeTheFirstEntry(RecordedCluster recorded, SynthesisDoc doc, Unwritten why) {
-        return utf8(opening(recorded, doc)) + utf8(firstPageBody(recorded, doc, why, number -> ""))
+    static long bytesBeforeTheFirstEntry(
+            RecordedCluster recorded, SynthesisDoc doc, Unwritten why, boolean writingFinished) {
+        return utf8(opening(recorded, doc)) + utf8(firstPageBody(recorded, doc, why, writingFinished, number -> ""))
                 + utf8(listOpening(0));
     }
 

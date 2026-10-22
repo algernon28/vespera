@@ -51,6 +51,9 @@ class InvocationRuns {
 
     private static final String DORMANT_CODE_SET_NAMES = "vespera.deliverable.dormant-code-set-names";
 
+    /** Where the count of clusters standing without writing is handed to the account (ADR-319 §5.2). */
+    private static final String CLUSTERS_STANDING = "vespera.generation.clusters-standing-without-writing";
+
     private final ExecutionContext executionContext;
 
     InvocationRuns(ExecutionContext executionContext) {
@@ -136,6 +139,19 @@ class InvocationRuns {
     /** The count {@link #recordDormantCodeSetNames} recorded; 0 where none was recorded. */
     int dormantCodeSetNames() {
         return executionContext.getInt(DORMANT_CODE_SET_NAMES, 0);
+    }
+
+    /**
+     * Records how many clusters stand without writing in the run whose generation step this invocation ended on
+     * recorded finished, for the account (ADR-319 §5.2). Written at most once, by the generation step.
+     */
+    void recordClustersStanding(int clusters) {
+        executionContext.putInt(CLUSTERS_STANDING, clusters);
+    }
+
+    /** The count {@link #recordClustersStanding} recorded; 0 where none was recorded. */
+    int clustersStanding() {
+        return executionContext.getInt(CLUSTERS_STANDING, 0);
     }
 
     /** The run this invocation minted or continued for {@code stage}, if it has run yet this invocation. */

@@ -136,6 +136,7 @@ class TreeThatFailsPartwayLeavesTheOldIndexAndManifestTest {
                 whole::whyUnwritten,
                 whole::placesOf,
                 whole::eachPageOfSurvivorsForTheirPictures,
-                whole::eachPageOfSurvivorsForTheManifest);
+                whole::eachPageOfSurvivorsForTheManifest,
+                whole.writingFinished());
     }
 }

@@ -31,6 +31,9 @@ final class UnwrittenPage {
 
     static final List<String> EVERY_SENTENCE = UnwrittenSentencesOnRecord.EVERY_SENTENCE;
 
+    /** The line beneath the reason on the page of a cluster that stands without writing (ADR-319 §5.1). */
+    static final String STANDS_WITHOUT_WRITING = UnwrittenSentencesOnRecord.STANDS_WITHOUT_WRITING;
+
     private UnwrittenPage() {}
 
     /** What the page of a cluster carrying a fault row says, by kind (ADR-174 §2). */
@@ -74,6 +77,21 @@ final class UnwrittenPage {
         for (int at = 0; at + 1 < lines.size(); at++) {
             if (lines.get(at).startsWith("<h1>")) {
                 return asRead(lines.get(at + 1));
+            }
+        }
+        return "";
+    }
+
+    /**
+     * What stands on the line beneath the reason on {@code page}, read as {@link #lineUnderTheHeadingOf} reads the
+     * reason: the second line beneath the heading. On the page of a cluster that stands without writing that is ADR-319
+     * §5.1's line; on any other page nothing was written over, it is the heading of the membership list.
+     */
+    static String lineUnderTheReasonOf(Path page) {
+        List<String> lines = linesOf(page);
+        for (int at = 0; at + 2 < lines.size(); at++) {
+            if (lines.get(at).startsWith("<h1>")) {
+                return asRead(lines.get(at + 2));
             }
         }
         return "";

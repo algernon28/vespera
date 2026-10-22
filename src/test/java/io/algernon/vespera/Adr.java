@@ -2225,6 +2225,15 @@ public final class Adr {
     public static final String THE_PUBLISH_READS_THE_EMAIL_AND_THE_FOLDER_BY_THEIR_NEW_NAMES = FILE
             + "0318-the-publish-reads-the-email-from-vespera-confluence-email-and-the-parent-from-vespera-confluence-folder-id-or-folder-title-and-no-earlier-name.md";
 
+    /**
+     * ADR-319 -- a cluster whose answer is turned down the last two times it is asked, by a check on what the answer
+     * wrote, carries a repeated fault; once every fault standing is one and nothing is unsendable, the generation step
+     * records completion and the cluster stands without writing (amends ADR-116, ADR-111 and ADR-190 §1.5; corrects
+     * ADR-162's Consequences).
+     */
+    public static final String A_CLUSTER_TURNED_DOWN_THE_LAST_TWO_TIMES_STANDS_WITHOUT_WRITING = FILE
+            + "0319-a-cluster-whose-answer-is-turned-down-the-last-two-times-it-is-asked-stands-without-writing-and-the-generation-step-finishes-with-it.md";
+
     private Adr() {
     }
 }

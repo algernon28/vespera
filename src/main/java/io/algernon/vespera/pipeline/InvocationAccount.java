@@ -236,6 +236,9 @@ final class InvocationAccount implements JobExecutionListener {
         Long written = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM synthesis_doc WHERE run_id IN (" + runIds + ")", Long.class, args);
         line("counts clusters arranged=" + clusters + " written=" + written);
+        if (runs.clustersStanding() > 0) {
+            line("counts clusters standing-without-writing=" + runs.clustersStanding());
+        }
     }
 
     /**

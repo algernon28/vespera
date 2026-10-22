@@ -103,9 +103,12 @@ import org.springframework.stereotype.Component;
  * <p><b>It writes no verdict.</b> Generation removes nothing: its one way of failing is a fault
  * recorded against a cluster (ADR-111), where a verdict removes a document.
  *
- * <p><b>Completion needs two things, not one</b> (ADR-116), and the rule is {@link ClusterGeneration}'s
- * (ADR-190), which returns how the walk ended and leaves this step to act on it: every sendable cluster carries a
- * {@code synthesis_doc} row, <em>and</em> no {@code cluster_fault} row stands under this run. A
+ * <p><b>Completion needs two things, not one, bar one case</b> (ADR-116), and the walk's rule is {@link
+ * ClusterGeneration}'s (ADR-190), which returns how the walk ended and leaves this step to act on it: every sendable
+ * cluster carries a {@code synthesis_doc} row, <em>and</em> no {@code cluster_fault} row stands under this run. The
+ * one case (ADR-319 §2) is this step's own, decided by {@link RepeatedFaults}: the walk went through every cluster,
+ * found none unsendable, and every fault standing is a repeated fault, a cluster whose answer was turned down the last
+ * two times it was asked; the step then records completion, and those clusters stand without writing. A
  * turned-down cluster carries no {@code synthesis_doc} row, so the next invocation of this run asks
  * about it again, and its fault row is deleted the moment that answer is believed (ADR-111, #185) —
  * which is what makes completion reachable for it at all. An unsendable cluster is reached again too
@@ -268,9 +271,12 @@ class GenerationTasklet implements Tasklet {
                     // A recorded step has no cluster this invocation found unsendable: such a step never finishes.
                     RunId scoring = scoringRunBehind(arrangement);
                     List<ArrangedPartition> partitions = readPartitions(arrangement);
+                    // The step is recorded finished, so every fault standing is a repeated fault (ADR-319 §2), and
+                    // the pages say their groups stand (ADR-319 §5.1).
                     drawTree(
                             chunkContext, generation, walk.get(), byteLevelReductionRun, canonicalRoot,
-                            arrangement, scoring, partitions, placesOf(partitions), Map.of());
+                            arrangement, scoring, partitions, placesOf(partitions), Map.of(), true);
+                    invocationRuns.recordClustersStanding(clusterFaults.countForRun(generation));
                 },
                 () -> {},
                 () -> {
@@ -296,12 +302,15 @@ class GenerationTasklet implements Tasklet {
                     OccurrenceId[] heldFor = new OccurrenceId[1];
                     Map<Integer, List<DocumentCluster>> held = new HashMap<>();
 
-                    GenerationProgress progress = progressLines(documentsOpened);
+                    RepeatedFaults repeatedFaults = new RepeatedFaults(clusterFaults, generation);
+                    GenerationProgress progress = progressLines(documentsOpened, repeatedFaults);
                     GenerationOutcome outcome = clusterGeneration.write(
                             generation,
                             clusters.countForRun(arrangement),
                             walkedClusters,
                             recorded -> {
+                                // The fault standing against the cluster is read before its question is put (ADR-319 §4).
+                                repeatedFaults.asking(recorded);
                                 OccurrenceId seed = recorded.cluster().winningSeed();
                                 if (!seed.equals(heldFor[0])) {
                                     held.clear();
@@ -328,13 +337,32 @@ class GenerationTasklet implements Tasklet {
                             progress);
 
                     // The step acts on the outcome (ADR-190): the walk, the stop and the completion
-                    // rule (ADR-111, ADR-116) are ClusterGeneration's.
+                    // rule (ADR-111, ADR-116) are ClusterGeneration's, bar the case ADR-319 §2 gives this step.
                     if (outcome instanceof GenerationOutcome.Stopped stopped) {
                         stopTheStep(contribution, chunkContext, stopped.turnedDownInARow(), generation);
                         drawTree(
                                 chunkContext, generation, walk.get(), byteLevelReductionRun, canonicalRoot,
-                                arrangement, scoring, partitions, places, outcome.unsendable());
+                                arrangement, scoring, partitions, places, outcome.unsendable(), false);
                         return false;
+                    }
+                    if (outcome instanceof GenerationOutcome.LeftUnfinished unfinished
+                            && repeatedFaults.onlyRepeatedFaultsAreLeft(unfinished)) {
+                        // Nothing unsendable, and every fault standing a repeated fault: the step is recorded finished
+                        // by the caller, and the groups stand without writing (ADR-319 §2).
+                        Optional<Path> drawn = drawTree(
+                                chunkContext, generation, walk.get(), byteLevelReductionRun, canonicalRoot,
+                                arrangement, scoring, partitions, places, outcome.unsendable(), true);
+                        invocationRuns.recordClustersStanding(repeatedFaults.standing());
+                        LOG.info(
+                                "The generation step finished under {}, over the arrangement approved as {}, with {}"
+                                        + " cluster(s) standing without writing because their answers were turned"
+                                        + " down the last two times they were asked: {}{}",
+                                generation.value(),
+                                ArrangementGate.shortNameOf(arrangement),
+                                repeatedFaults.standing(),
+                                repeatedFaults.describe(),
+                                drawn.map(tree -> " -- the deliverable tree is at " + tree).orElse(""));
+                        return true;
                     }
                     if (outcome instanceof GenerationOutcome.LeftUnfinished unfinished) {
                         // The standing count, not this invocation's -- a repair invocation that turned
@@ -351,14 +379,14 @@ class GenerationTasklet implements Tasklet {
                                 generation.value());
                         drawTree(
                                 chunkContext, generation, walk.get(), byteLevelReductionRun, canonicalRoot,
-                                arrangement, scoring, partitions, places, outcome.unsendable());
+                                arrangement, scoring, partitions, places, outcome.unsendable(), false);
                         return false;
                     }
 
                     GenerationOutcome.Finished finished = (GenerationOutcome.Finished) outcome;
                     Optional<Path> drawn = drawTree(
                             chunkContext, generation, walk.get(), byteLevelReductionRun, canonicalRoot,
-                            arrangement, scoring, partitions, places, outcome.unsendable());
+                            arrangement, scoring, partitions, places, outcome.unsendable(), true);
                     if (drawn.isEmpty()) {
                         // The work is done and recorded; the next invocation draws the tree again (ADR-276 §3).
                         return true;
@@ -388,7 +416,7 @@ class GenerationTasklet implements Tasklet {
      * one read, the standing faults, as {@code synthesis} reports them (ADR-193 section 7, ADR-204 section 3):
      * timed, and not reached where the walk stops on five answers turned down in a row.
      */
-    private static GenerationProgress progressLines(StageProgress documentsOpened) {
+    private static GenerationProgress progressLines(StageProgress documentsOpened, RepeatedFaults repeatedFaults) {
         ReportedStatements reads = ReportedStatements.saying()
                 .timed(SynthesisStatement.STANDING_FAULTS, STAGE, "the standing faults")
                 .build();
@@ -469,6 +497,7 @@ class GenerationTasklet implements Tasklet {
 
             @Override
             public void answerTurnedDown(RecordedCluster cluster, ClusterFault fault) {
+                repeatedFaults.turnedDown(cluster, fault);
                 LOG.warn(
                         "cluster {} of partition {} had its answer turned down -- {}: {} --"
                                 + " so no synthesis doc was written for it",
@@ -521,7 +550,8 @@ class GenerationTasklet implements Tasklet {
             RunId scoring,
             List<ArrangedPartition> arranged,
             Map<OccurrenceId, Integer> places,
-            Map<ClusterSlot, Unwritten> foundThisRun) {
+            Map<ClusterSlot, Unwritten> foundThisRun,
+            boolean writingFinished) {
         Optional<String> refusal = deliverableRoot.refusalAtTheDrawing(workingDirectory, generation.value());
         if (refusal.isPresent()) {
             LOG.error("{}", refusal.get());
@@ -531,7 +561,7 @@ class GenerationTasklet implements Tasklet {
         CopyCounts copies = new CopyCounts();
         Path tree = writeDeliverable(
                 copies, generation, walkId, byteLevelReductionRun, canonicalRoot, arrangement, scoring, arranged,
-                places, foundThisRun);
+                places, foundThisRun, writingFinished);
         LOG.info(
                 "Stage 6b (generation, copies): {} copied, {} already standing, {} changed since they were"
                         + " read, {} gone, {} with no room left on the drive, {} not copied for another reason;"
@@ -849,7 +879,8 @@ class GenerationTasklet implements Tasklet {
             RunId scoring,
             List<ArrangedPartition> arranged,
             Map<OccurrenceId, Integer> places,
-            Map<ClusterSlot, Unwritten> foundThisRun) {
+            Map<ClusterSlot, Unwritten> foundThisRun,
+            boolean writingFinished) {
         Profile profile = profileStore.load();
         DeliverableProvenance provenance = new DeliverableProvenance(
                 generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profile));
@@ -903,7 +934,8 @@ class GenerationTasklet implements Tasklet {
                         reads, survivorCount, scoring, extractionRun, page),
                 page -> eachPageOfSurvivors(
                         EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_THE_MANIFEST,
-                        reads, survivorCount, scoring, extractionRun, page));
+                        reads, survivorCount, scoring, extractionRun, page),
+                writingFinished);
         return Deliverable.writeTo(
                 workingDirectory,
                 deliverableRoot,
