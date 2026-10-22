@@ -235,7 +235,7 @@ class GenerationTasklet implements Tasklet {
         if (approved.isEmpty()) {
             LOG.info("the generation step is gated: no arrangement of this corpus has been approved --"
                     + " arrangementApproved is unset, or names an arrangement this invocation did not"
-                    + " arrive at. Nothing was generated.");
+                    + " arrive at, or no arrangement was made to approve automatically. Nothing was generated.");
             ShutGates.in(chunkContext).record(StepNames.GENERATION);
             return RepeatStatus.FINISHED;
         }

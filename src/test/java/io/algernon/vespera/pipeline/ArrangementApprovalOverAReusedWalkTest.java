@@ -43,6 +43,9 @@ import org.springframework.test.context.DynamicPropertySource;
  * gate on the old arrangement while the page and the closing line spoke of the new one. ADR-154 matches
  * the approval against one arrangement only: the one this invocation made or continued.
  *
+ * <p>One test writes {@code auto} instead of a name (ADR-317), and every arrangement is then written up
+ * in the invocation that made it.
+ *
  * <p>Every test here changes the relevance floor between invocations over one unchanged archive,
  * which is the change ADR-117 made re-arrange the documents.
  */
@@ -53,6 +56,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Issue("296")
 @Link(name = "ADR-154", url = Adr.A_STAGE_READS_THE_UPSTREAM_RUN_THIS_INVOCATION_ARRIVED_AT, type = "adr")
 @Link(name = "ADR-107", url = Adr.THE_ARRANGEMENT_GATE_APPROVES_A_NAMED_RUN, type = "adr")
+@Link(name = "ADR-317", url = Adr.AN_APPROVAL_OF_AUTO_OPENS_THE_GATE_ON_EVERY_ARRANGEMENT, type = "adr")
 @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
 class ArrangementApprovalOverAReusedWalkTest {
 
@@ -255,6 +259,43 @@ class ArrangementApprovalOverAReusedWalkTest {
                         .satisfies(generation -> assertThat(upstreamOf(generation)).containsExactly(first)));
     }
 
+    @Test
+    @Story("A standing approval writes over every arrangement without asking")
+    @DisplayName("With the approval set to auto, each arrangement is written up in the invocation that made it")
+    void anApprovalOfAutoWritesUpEachArrangementAsItIsMade(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        everyGateOpenAtTheRelevanceFloor(seeds, THE_FIRST_FLOOR);
+        approveAutomatically();
+        invoke(root);
+        String first = theOnlyArrangementOf(root);
+
+        claim(
+                "the first invocation wrote up the arrangement it made, with no name copied into "
+                        + THE_APPROVAL_KEY,
+                () -> assertThat(generationRunsOf(root))
+                        .singleElement()
+                        .satisfies(generation -> assertThat(upstreamOf(generation)).containsExactly(first)));
+
+        setTheRelevanceFloorTo(THE_SECOND_FLOOR);
+        invoke(root);
+        String rearranged = latestArrangementOf(root);
+
+        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "changing the relevance floor re-arranged the documents",
+                () -> assertThat(arrangementsOf(root)).containsExactly(first, rearranged));
+        claim(
+                "and the new arrangement was written up in the same invocation, without stopping to ask for"
+                        + " it to be approved: there are two write-ups, the second over the new arrangement",
+                () -> assertThat(generationRunsOf(root))
+                        .hasSize(2)
+                        .last()
+                        .satisfies(generation -> assertThat(upstreamOf(generation)).containsExactly(rearranged)));
+        claim(
+                "the closing line says nothing is left to set and names the deliverable",
+                () -> assertThat(theClosingLine()).contains(NOTHING_LEFT).contains(A_DELIVERABLE_NAMED));
+    }
+
     private void invoke(Path root) {
         logged.list.clear();
         cli.run("run", root.toString());
@@ -286,6 +327,14 @@ class ArrangementApprovalOverAReusedWalkTest {
     private void approve(String arrangement) {
         profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .arrangementApproved(shortNameOf(arrangement), "read arrangement.html, set by this test")
+                .generationModel(GENERATION_MODEL, "set by this test")
+                .build());
+    }
+
+    /** Approves every arrangement ahead of time, the way an operator who does not read each one does. */
+    private void approveAutomatically() {
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                .arrangementApproved(ArrangementGate.AUTOMATIC, "every arrangement, unread, set by this test")
                 .generationModel(GENERATION_MODEL, "set by this test")
                 .build());
     }

@@ -162,6 +162,12 @@ class NextAction {
                     + " Next: run vespera run, which arranges the documents and writes "
                     + ArrangementTasklet.ARRANGEMENT_FILE_NAME + " for you to approve.");
         }
+        if (ArrangementGate.isAutomatic(profile.arrangementApproved().value())) {
+            // A standing approval (ADR-317): there is nothing for the next run to check it against.
+            return runWanting("Every value the profile asks for is answered, and arrangementApproved holds "
+                    + quoted(profile.arrangementApproved().value()) + ". Next: run vespera run, which arranges"
+                    + " the documents and writes over whatever arrangement they are in then, unread.");
+        }
         return runWanting("Every value the profile asks for is answered, and arrangementApproved holds "
                 + quoted(profile.arrangementApproved().value()) + ". Next: run vespera run, which checks that"
                 + " value against the arrangement the documents are in then and asks for a new approval if"

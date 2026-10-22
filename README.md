@@ -42,6 +42,8 @@ Getting from a folder of documents to a curated archive takes **five invocations
 
 **Six is what you get if you set one value per invocation.** Both of invocation 2's prerequisites, the floor and `seedFolder`, are settable as soon as invocation 1 finishes, so setting them together is what makes the path five rather than six.
 
+**To stop being asked about each arrangement, write `auto` into `arrangementApproved`.** Every arrangement is then written over in the invocation that makes it, unread, including the new one a changed value makes, so invocation 4 goes on to write the finished tree. `arrangement.html` is still written each time. Put why in `provenance`. Remove the value, or write a name, and the next arrangement is asked for again.
+
 ## What you have to decide, and where to read it
 
 Vespera writes reports beside the database. Each one measures something; none of them chooses for you.

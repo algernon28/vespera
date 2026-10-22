@@ -26,6 +26,11 @@ import org.springframework.stereotype.Component;
  * arrived at, if it arrived at one, which is what keeps this class from minting one behind the
  * arrangement step's own gate (ADR-154, Context §3).
  *
+ * <p><b>Or it holds {@value #AUTOMATIC}, which the operator writes to approve every arrangement unread</b>
+ * (ADR-317). The gate then opens on whatever arrangement this invocation arrived at, so a re-arrangement
+ * no longer stops the invocation. The default is unchanged: an unset key keeps the gate shut, and
+ * nothing but the operator writing the word turns the review off.
+ *
  * <p>{@code synthesis} may depend only on {@code ledger} (ADR-040), so the profile is read here, the
  * shape {@link EmbeddingModelGate}, {@link SeedGate} and {@link RedundancyGate} already use.
  */
@@ -38,6 +43,13 @@ class ArrangementGate {
      * whole id regardless.
      */
     static final int APPROVAL_LENGTH = 12;
+
+    /**
+     * The value that approves whichever arrangement this invocation arrives at (ADR-317). No run id
+     * can begin with it: an id is lowercase hexadecimal, and {@code u}, {@code t} and {@code o} are
+     * not hex digits, so it never reads as a prefix.
+     */
+    static final String AUTOMATIC = "auto";
 
     /**
      * How an arrangement is named wherever a person has to read or type it — on the page, in the
@@ -72,6 +84,9 @@ class ArrangementGate {
      * as {@code Ledger.runsMatching} compared it before this record. Only the set it is compared
      * against shrinks, from every arrangement of the walk to the one this invocation made or continued
      * -- so it can never match two, and there is nothing left to disambiguate.
+     *
+     * <p>An approval of {@value #AUTOMATIC} matches this invocation's arrangement whatever it is
+     * (ADR-317); with no arrangement this invocation, the gate stays shut as for any approval.
      */
     Optional<RunId> approvedArrangement(Optional<RunId> thisInvocationsArrangement) {
         Optional<String> approval = approval();
@@ -79,6 +94,14 @@ class ArrangementGate {
             return Optional.empty();
         }
         RunId arrangement = thisInvocationsArrangement.get();
+        if (isAutomatic(approval.get())) {
+            return Optional.of(arrangement);
+        }
         return arrangement.value().startsWith(approval.get()) ? Optional.of(arrangement) : Optional.empty();
+    }
+
+    /** Whether {@code approval} is {@value #AUTOMATIC}, in any case, so a capitalised word is not taken for a prefix. */
+    static boolean isAutomatic(String approval) {
+        return approval.trim().equalsIgnoreCase(AUTOMATIC);
     }
 }

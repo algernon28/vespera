@@ -364,7 +364,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         samples.put(ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR, List.of("0.8", "1.5"));
         samples.put(ProfileKey.EMBEDDING_MODEL, List.of("nomic-embed-text:v1.5"));
         samples.put(ProfileKey.RELEVANCE_SCORE_FLOOR, List.of("0.579", " 0.6 "));
-        samples.put(ProfileKey.ARRANGEMENT_APPROVED, List.of("0123456789ab", "fedcba987654"));
+        samples.put(ProfileKey.ARRANGEMENT_APPROVED, List.of("0123456789ab", "fedcba987654", "auto"));
         samples.put(ProfileKey.GENERATION_MODEL, List.of("qwen3:14b"));
         samples.put(ProfileKey.GENERATION_CONTEXT_WINDOW, List.of("1282", "8192", "16384.0", "2147483647"));
         samples.put(ProfileKey.CLUSTER_PAGE_BYTE_CEILING, List.of("1", "300000", "2.0", "9223372036854775807"));
