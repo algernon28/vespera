@@ -321,7 +321,8 @@
                   Testcontainers) and are excluded from surefire above, so `./mvnw test` never needs
                   Docker. `./mvnw verify` runs them here, in integration-test, woven the same way as
                   surefire; allure.properties sends both suites to the same results directory,
-                  so one report covers the whole build.
+                  so one report covers the whole build. The publish's tests are *IT tagged `confluence`;
+                  CI runs `verify` with -DexcludedGroups=confluence, so it runs none of them (ADR-320 section 6).
                 -->
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <dependencies>
