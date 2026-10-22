@@ -111,6 +111,54 @@ final class ListedTree {
                 DeliverableProgress.NONE);
     }
 
+    /**
+     * The tree written from these lists over {@code corpusRoot}, each cluster's page split where it is past {@code
+     * ceiling} (ADR-303), each survivor's pictures from {@code pictures}, {@code progress} hearing what the writer tells.
+     */
+    static Path writeWithCeiling(
+            Path workingDirectory,
+            Path corpusRoot,
+            List<RecordedCluster> arrangement,
+            Map<ClusterSlot, SynthesisDoc> written,
+            List<ListedSurvivor> survivors,
+            Map<ClusterSlot, Unwritten> unwritten,
+            SurvivorPictures pictures,
+            ClusterPageCeiling ceiling,
+            DeliverableProgress progress) {
+        return Deliverable.writeTo(
+                workingDirectory,
+                DeliverableRoot.UNNAMED,
+                provenance(corpusRoot),
+                of(arrangement, written, survivors, unwritten),
+                ListedCodeSets.NONE,
+                pictures,
+                ceiling,
+                progress);
+    }
+
+    /** As {@link #writeWithCeiling}, every page put in place by {@code moves}. */
+    static Path writeWithCeiling(
+            Path workingDirectory,
+            Path corpusRoot,
+            List<RecordedCluster> arrangement,
+            Map<ClusterSlot, SynthesisDoc> written,
+            List<ListedSurvivor> survivors,
+            Map<ClusterSlot, Unwritten> unwritten,
+            ClusterPageCeiling ceiling,
+            DeliverableProgress progress,
+            ReplacingMove moves) {
+        return Deliverable.writeTo(
+                workingDirectory,
+                DeliverableRoot.UNNAMED,
+                provenance(corpusRoot),
+                of(arrangement, written, survivors, unwritten),
+                ListedCodeSets.NONE,
+                SurvivorPictures.none(),
+                ceiling,
+                progress,
+                moves);
+    }
+
     /** As {@link #write}, the drive's free bytes answered by {@code usableSpace} each time the writer asks. */
     static Path writeWithFreeSpace(
             Path workingDirectory,
@@ -211,8 +259,16 @@ final class ListedTree {
      * quote read as one, the way a program loading the file splits it.
      */
     static List<List<String>> manifestOf(Path tree) throws IOException {
+        return csvOf(tree.resolve("documents.csv"));
+    }
+
+    /**
+     * The rows of the CSV file {@code file}, header first, each split as {@link #manifestOf} splits {@code
+     * documents.csv}'s: {@code code.csv} is quoted as it is (ADR-296 §5).
+     */
+    static List<List<String>> csvOf(Path file) throws IOException {
         List<List<String>> rows = new ArrayList<>();
-        for (String line : Files.readAllLines(tree.resolve("documents.csv"))) {
+        for (String line : Files.readAllLines(file)) {
             if (!line.isBlank()) {
                 rows.add(cellsOf(line));
             }

@@ -98,6 +98,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "ByteLevelReductionTasklet",
             "CensusTasklet",
             "ClusterSizeReport",
+            // ADR-303: reads the page ceiling the profile holds and hands the tree a plain value; drawing is no stage's output.
+            "ClusterPageByteCeiling",
             "ClusteringTasklet",
             "ConfidenceDistributionReport",
             "ContentCensusTasklet",
@@ -138,6 +140,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "LabelIngestion",
             "MisshapenProfileRefusal",
             "NextAction",
+            // ADR-294: writes and deletes what NextAction gives for the control panel, and decides none of it.
+            "NextInvocationFile",
             "NoGenerationModelNamedException",
             "NoUpstreamRunException",
             "OccurrenceReader",
@@ -437,6 +441,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             Map.entry(
                     "GenerationTasklet",
                     Set.of(
+                            "corpus.CodeSets",
                             "corpus.DetectedFormat",
                             "corpus.DetectedFormats",
                             "corpus.Walk",
@@ -454,16 +459,24 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "extraction.LeadingChunks",
                             "extraction.PicturePlace",
                             "deliverable.ArrangedSurvivors",
+                            // ADR-303: the page ceiling, read through ClusterPageByteCeiling and handed to the tree.
+                            "deliverable.ClusterPageCeiling",
+                            "deliverable.CodeSetNames",
                             "deliverable.Deliverable",
                             "deliverable.DeliverableProgress",
                             "deliverable.DeliverableProvenance",
                             "deliverable.DeliverableRoot",
+                            "deliverable.ListedCodeFile",
+                            "deliverable.ListedCodeSet",
+                            "deliverable.ListedCodeSets",
                             "deliverable.ListedPartition",
                             "deliverable.ListedPicture",
                             "deliverable.ListedPicturePlace",
                             "deliverable.ListedSurvivor",
                             "deliverable.NamedValue",
                             "deliverable.SurvivorPictures",
+                            // ADR-303: the page ceiling's value, handed to ClusterPageByteCeiling's reading.
+                            "profile.NumericValue",
                             "profile.Profile",
                             "profile.ProfileStore",
                             "synthesis.ArrangedCluster",

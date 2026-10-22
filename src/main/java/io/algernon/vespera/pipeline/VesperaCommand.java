@@ -1,10 +1,16 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.confluence.Publisher;
 import io.algernon.vespera.deliverable.DeliverableRoot;
+import io.algernon.vespera.ledger.Ledger;
+import io.algernon.vespera.ledger.Runs;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.TextValue;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
@@ -27,8 +33,8 @@ import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
 /**
- * The command surface (ADR-047, ADR-054, narrowed by ADR-101): {@code vespera run <root>} and
- * {@code vespera label}.
+ * The command surface (ADR-047, ADR-054, narrowed by ADR-101, widened by ADR-308 §5): {@code vespera run <root>},
+ * {@code vespera label} and {@code vespera publish}.
  *
  * <p>One command per act, because they are not the same act. A run is unattended and never blocks
  * (ADR-047), and it now runs the cascade to its end (ADR-101). Label ingestion is the deliberate
@@ -48,16 +54,18 @@ import picocli.CommandLine.Spec;
 @Command(
         name = "vespera",
         mixinStandardHelpOptions = true,
-        subcommands = {VesperaCommand.Run.class, VesperaCommand.Label.class},
+        subcommands = {VesperaCommand.Run.class, VesperaCommand.Label.class, VesperaCommand.Publish.class},
         description = "Curates a local archive into a publication-ready knowledge base.")
 public class VesperaCommand implements Callable<Integer> {
 
     private final Run run;
     private final Label label;
+    private final Publish publish;
 
-    public VesperaCommand(Run run, Label label) {
+    public VesperaCommand(Run run, Label label, Publish publish) {
         this.run = run;
         this.label = label;
+        this.publish = publish;
     }
 
     /** The model {@link #commandLine()} built, subcommands and all, injected by picocli on parsing. */
@@ -96,6 +104,7 @@ public class VesperaCommand implements Callable<Integer> {
     CommandLine commandLine() {
         run.forgetPreviousInvocation();
         label.forgetPreviousInvocation();
+        publish.forgetPreviousInvocation();
         return new CommandLine(this, new CommandLine.IFactory() {
             @Override
             public <K> K create(Class<K> type) throws Exception {
@@ -104,6 +113,9 @@ public class VesperaCommand implements Callable<Integer> {
                 }
                 if (type.isInstance(label)) {
                     return type.cast(label);
+                }
+                if (type.isInstance(publish)) {
+                    return type.cast(publish);
                 }
                 return CommandLine.defaultFactory().create(type);
             }
@@ -420,6 +432,88 @@ public class VesperaCommand implements Callable<Integer> {
             System.out.println(outcome.message());
             System.out.println(nextAction.line());
             return CommandLine.ExitCode.OK;
+        }
+    }
+
+    /**
+     * Sends the Confluence rendering of the generation run this working directory last drew to the operator's
+     * Confluence Cloud site (ADR-308 §5): a separate command because it is a separate act, the one that sends anything
+     * off the machine, and the operator's alone to ask for.
+     *
+     * <p>The generation run is found through the ledger: the last one minted whose generation step is recorded as
+     * finished and whose tree holds a page list. Where the tree lies is the deliverable root {@code run} draws it at
+     * (ADR-276). It mints no run and opens no archive file; what it sends and how is {@link Publisher}'s.
+     */
+    @Component
+    @Command(name = "publish", description = "Sends the Confluence rendering of the last generation run to the"
+            + " operator's Confluence Cloud site, as the VESPERA_CONFLUENCE_* variables name it.")
+    public static class Publish implements Callable<Integer> {
+
+        private final Ledger ledger;
+        private final Publisher publisher;
+        private final Path workingDirectoryInUse;
+        private final DeliverableRoot deliverableRoot;
+
+        /** The same option {@code run} and {@code label} take (ADR-054, #310). */
+        @Mixin
+        private WorkingDirectoryOption databaseDirectory = new WorkingDirectoryOption();
+
+        Publish(
+                Ledger ledger,
+                Publisher publisher,
+                @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse,
+                @Value("${" + Run.DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot) {
+            this.ledger = ledger;
+            this.publisher = publisher;
+            this.workingDirectoryInUse = workingDirectoryInUse;
+            this.deliverableRoot = DeliverableRoot.of(deliverableRoot);
+        }
+
+        /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
+        void forgetPreviousInvocation() {
+            databaseDirectory = new WorkingDirectoryOption();
+        }
+
+        @Override
+        public Integer call() {
+            String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
+            if (misnamedDatabaseDirectory != null) {
+                System.err.println(misnamedDatabaseDirectory);
+                return CommandLine.ExitCode.SOFTWARE;
+            }
+            Optional<String> generation = lastDrawn();
+            if (generation.isEmpty()) {
+                System.err.println("vespera publish sent nothing: no Confluence rendering is drawn in this working"
+                        + " directory. Run vespera run to the deliverable, and publish again.");
+                return CommandLine.ExitCode.SOFTWARE;
+            }
+            Path confluence = renderingOf(generation.get());
+            Publisher.Outcome outcome =
+                    publisher.publish(confluence, generation.get(), workingDirectoryInUse, System.out::println);
+            if (!outcome.published()) {
+                System.err.println(outcome.closingLine());
+                return CommandLine.ExitCode.SOFTWARE;
+            }
+            System.out.println(outcome.closingLine());
+            return CommandLine.ExitCode.OK;
+        }
+
+        /** The last generation run minted whose generation step finished and whose tree holds a page list. */
+        private Optional<String> lastDrawn() {
+            Map<String, Set<String>> finished = ledger.runs().finishedSteps();
+            List<Runs.Listed> runs = ledger.runs().listed();
+            for (Runs.Listed listed : runs.reversed()) {
+                if (StageModules.GENERATION.stage().equals(listed.stage())
+                        && finished.getOrDefault(listed.id(), Set.of()).contains(StepNames.GENERATION)
+                        && Files.isRegularFile(renderingOf(listed.id()).resolve(Publisher.PAGE_LIST_FILE_NAME))) {
+                    return Optional.of(listed.id());
+                }
+            }
+            return Optional.empty();
+        }
+
+        private Path renderingOf(String generationRun) {
+            return deliverableRoot.treeOf(workingDirectoryInUse, generationRun).resolve(Publisher.RENDERING_FOLDER);
         }
     }
 }

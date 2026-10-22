@@ -52,7 +52,7 @@ One invocation runs these sixteen steps. The names are the ones the log prints.
 | 5f | `clustering` | scores | the groups, `cluster-sizes.html` |
 | 5 | `relevance-report` | scores | `relevance-labelling.html`, `relevance-labels.yaml` |
 | 6a | `arrangement` | groups | `arrangement.html` |
-| 6b | `generation` | `arrangementApproved`, the generation model served by Ollama | `deliverable/<run>/`, or the folder `vespera.deliverable-root` names |
+| 6b | `generation` | `arrangementApproved`, the generation model served by Ollama | `deliverable/<run>/`, or the folder `vespera.deliverable-root` names, its Confluence rendering under `confluence/`, and `cluster-page-sizes.html` |
 
 `vespera label` is a second command, not a step. It runs between two invocations of `vespera run` and is described under [stage 5](#stage-5--relevance).
 
@@ -83,9 +83,9 @@ A walk that has not finished is never used by a later stage. Nothing downstream 
 
 **Run:** the same command; it follows census in the same invocation.
 
-**What it does.** Removes what can be judged from bytes alone: broken files, exact duplicates, superseded copies, and the formats Vespera does not convert. It writes `format-mix.html`.
+**What it does.** Removes what can be judged from bytes and names alone: broken files, exact duplicates, superseded copies, and the formats Vespera does not convert. It keeps code apart from the documents, gathered into code sets the deliverable copies whole, so no later stage converts, scores or groups it. It writes `format-mix.html`, which also counts the code it kept and how much of each text file is settings.
 
-**Optional value.** `logTimestampShareFloor`. Left unset, no logs are removed.
+**Optional values.** `logTimestampShareFloor` (left unset, no logs are removed), `codeNameEndings` (left unset, a file is code only by a documentation generator's mark), `configurationSettingShareFloor` (left unset, no file is a configuration file) and `outOfScopeNameEndings` (left unset, nothing is left out for its name). Setting or changing any of them makes stage 1 and every later stage run again.
 
 **Where it stops.** It does not stop for a value.
 
@@ -226,7 +226,7 @@ Read a number off `relevance-labelling.html`, write it into `relevanceScoreFloor
 
 **Run:** `vespera run <root>`
 
-**What it does.** Asks the model once for each group, checks every answer before believing it, and writes the tree of HTML pages under `deliverable/<run>/`, with a folder for each group holding its page and a checked copy of each of its documents under the document's own file name, made safe to open on Windows and cut to 100 UTF-16 code units, an emoji or another character outside Unicode's Basic Multilingual Plane counting as two, and cut further where the name with `.part` after it, as a copy is called while it is being made, would pass 255 bytes in UTF-8. Where two documents of one group would share a name, case aside, and whichever way an accented letter is written, the one with the lowest `occurrence_id` keeps it and each of the others takes `~` and its `occurrence_id` before its extension; one named as the page, as one of its pictures or as another's copy with `.part` after it takes that suffix whatever its `occurrence_id`. A copy whose original changed or went since it was converted, that the drive had no room for, whose name this computer will not take, or whose name, with every suffix it took, would still pass 255 bytes with `.part`, is not copied, and its entry says why. Before the first copy a line counts every document listed and the bytes they hold, and a copy already standing moves the count of documents copied on. After the last copy, where any copy stands at an absolute path longer than 259 characters, which some programs on Windows cannot open, a warning line of its own says how many and names none: name a folder with a shorter path in `vespera.deliverable-root`. With none, there is no such line. Where `vespera.deliverable-root` (`VESPERA_DELIVERABLE_ROOT`) names a folder, the tree is drawn in that folder instead, `index.html` at its top, as README's "Where things live" describes. An answer that is turned down leaves its group in place with a note that nothing was written over it.
+**What it does.** Asks the model once for each group, checks every answer before believing it, and writes the tree of HTML pages under `deliverable/<run>/`, with a folder for each group holding its page and a checked copy of each of its documents under the document's own file name, made safe to open on Windows and cut to 100 UTF-16 code units, an emoji or another character outside Unicode's Basic Multilingual Plane counting as two, and cut further where the name with `.part` after it, as a copy is called while it is being made, would pass 255 bytes in UTF-8. Where two documents of one group would share a name, case aside, and whichever way an accented letter is written, the one with the lowest `occurrence_id` keeps it and each of the others takes `~` and its `occurrence_id` before its extension; one named as the page, as one of its pictures or as another's copy with `.part` after it takes that suffix whatever its `occurrence_id`. A copy whose original changed or went since it was converted, that the drive had no room for, whose name this computer will not take, or whose name, with every suffix it took, would still pass 255 bytes with `.part`, is not copied, and its entry says why. Before the first copy a line counts every document listed and the bytes they hold, and a copy already standing moves the count of documents copied on. After the last copy, where any copy stands at an absolute path longer than 259 characters, which some programs on Windows cannot open, a warning line of its own says how many and names none: name a folder with a shorter path in `vespera.deliverable-root`. With none, there is no such line. Where `vespera.deliverable-root` (`VESPERA_DELIVERABLE_ROOT`) names a folder, the tree is drawn in that folder instead, `index.html` at its top, as README's "Where things live" describes. An answer that is turned down leaves its group in place with a note that nothing was written over it. Each time it draws the tree it writes `cluster-page-sizes.html` beside the other reports: how large each group's page is written whole, in bytes, in numbers only. Where `clusterPageByteCeiling` is set, a group whose page would be larger has it split at the end of a document's entry into `index.html` and `index-2.html` on, as the README's section on it says. The same drawing writes the Confluence rendering under `confluence/`, a storage-format body for the root page, each exemplar and each group, the pictures' files and `pages.json`; it is sent nowhere until you run `vespera publish`, as the README's "Publishing to Confluence" says.
 
 **Where it stops.** Gated when no arrangement is approved, or the approval names another arrangement. It also stops if the model keeps failing, and, with what it wrote kept, when the folder named for the tree holds another run's tree: name a new, empty folder and run again.
 
@@ -242,7 +242,7 @@ A stage runs again when something it was computed from changes. What it was comp
 
 | You change | Runs again | Kept |
 |---|---|---|
-| `logTimestampShareFloor` | stage 1 onward | conversions, vectors, your answers |
+| `logTimestampShareFloor`, `outOfScopeNameEndings`, `codeNameEndings`, `configurationSettingShareFloor` | stage 1 onward | conversions, vectors, your answers |
 | `degenerateOutputConfidenceFloor` | stage 2 onward | conversions, vectors, your answers |
 | `degenerateOutputWordFloor` | stage 2 onward | conversions, vectors, your answers |
 | `extractionAttempt` | stage 2 onward | conversions already answered, vectors, your answers |
@@ -253,6 +253,7 @@ A stage runs again when something it was computed from changes. What it was comp
 | `translationSimilarityFloor`, `preferredLanguages` | stage 5 scoring onward, from the stored vectors | extraction, stage 4, vectors, your answers |
 | `arrangementApproved` | generation only | everything before it |
 | `generationModel`, `generationContextWindow` | generation | everything before it |
+| `clusterPageByteCeiling` | no stage: the next invocation that reaches generation draws the tree again | everything |
 
 Three things to know about this table:
 

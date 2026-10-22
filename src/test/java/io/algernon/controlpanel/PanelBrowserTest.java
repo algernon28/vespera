@@ -72,6 +72,13 @@ class PanelBrowserTest {
             <form name="twice" method="post" action="/echo"></form>
             <form name="twice" method="post" action="/echo"></form>
             <form name="elsewhere" method="post" action="http://192.0.2.1/x"><input name="corpus" value=""></form>
+            <form name="buttons" method="post" action="/echo">
+              <input type="hidden" name="kind" value="run">
+              <button type="submit" name="run" value="go">Run</button>
+              <button name="label">Label</button>
+              <input type="submit" name="check" value="Check">
+              <button type="submit" name="held" value="go" disabled>Held</button>
+            </form>
             </body></html>
             """;
 
@@ -202,6 +209,46 @@ class PanelBrowserTest {
                                 + origin + ", and a browser refuses it under form-action 'self'"));
         claim("and the browser stays on the page it was on",
                 () -> assertThat(browser.page().address().toString()).isEqualTo(origin + FORMS));
+    }
+
+    /**
+     * A browser sends, of a form's submit buttons, only the one pressed, and cannot press one that is disabled
+     * (ADR-302 §9).
+     */
+    @Test
+    @Story("The control panel's screens are tested as a browser uses them")
+    @DisplayName("A form is sent with only the button pressed, with none when submitted, and a disabled or absent button cannot be pressed")
+    @Issue("561")
+    @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
+    void aFormIsSentWithOnlyTheButtonPressedAndADisabledOneCannotBePressed() {
+        List<String> pressedRun = fields(PanelBrowser.opening(server.firstAddress())
+                .press("buttons", "run", Map.of()).page());
+        List<String> pressedLabel = fields(PanelBrowser.opening(server.firstAddress())
+                .press("buttons", "label", Map.of()).page());
+        List<String> pressedCheck = fields(PanelBrowser.opening(server.firstAddress())
+                .press("buttons", "check", Map.of()).page());
+        List<String> submitted = fields(PanelBrowser.opening(server.firstAddress())
+                .submit("buttons", Map.of()).page());
+
+        claim("pressing a button sends the form's hidden field and that button's name and value, and none of the"
+                        + " other buttons: a button of type submit, one of no type, and a submit input",
+                () -> assertThat(List.of(pressedRun, pressedLabel, pressedCheck)).containsExactly(
+                        List.of("kind=run", "run=go"), List.of("kind=run", "label="), List.of("kind=run", "check=Check")));
+        claim("submitting the form without pressing a button sends no button at all",
+                () -> assertThat(submitted).containsExactly("kind=run"));
+
+        RAN.clear();
+        PanelBrowser browser = PanelBrowser.opening(server.firstAddress());
+        claim("pressing a disabled button fails, naming it and its form",
+                () -> assertThatThrownBy(() -> browser.press("buttons", "held", Map.of()))
+                        .isInstanceOf(AssertionError.class)
+                        .hasMessage("the button 'held' of the form 'buttons' is disabled, and a browser cannot press it"));
+        claim("pressing a button the form does not hold fails, naming it and its form",
+                () -> assertThatThrownBy(() -> browser.press("buttons", "stop", Map.of()))
+                        .isInstanceOf(AssertionError.class)
+                        .hasMessage("the form 'buttons' holds no button named 'stop'"));
+        claim("and neither sent a request: the forms page, opened first, is the only page that ran",
+                () -> assertThat(RAN).containsExactly("GET " + FORMS));
     }
 
     private static String text(Page page, String id) {

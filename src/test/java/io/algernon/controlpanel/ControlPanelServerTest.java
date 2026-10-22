@@ -29,6 +29,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -46,6 +47,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Who the control panel's server answers, and what it answers with (ADR-291): it listens on {@code 127.0.0.1} alone at
@@ -53,9 +55,10 @@ import org.junit.jupiter.api.Test;
  * own address and that holds the cookie, a {@code POST} only from its own origin, only the pages it was started with,
  * and puts four headers on every response.
  *
- * <p>One server, started with two pages that record each request their handler runs, serves every test but the three
- * that start servers of their own. Requests are written by hand on a socket ({@link RawHttp}), so that each test sets
- * the exact {@code Host}, {@code Origin} and {@code Cookie} lines, or leaves one out.
+ * <p>One server, started with three pages that record each request their handler runs, the third at a report's path
+ * (ADR-302 §12), serves every test but the three that start servers of their own. Requests are written by hand on a
+ * socket ({@link RawHttp}), so that each test sets the exact {@code Host}, {@code Origin}, {@code Cookie} and
+ * {@code Sec-Fetch-Site} lines, or leaves one out.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -68,6 +71,9 @@ class ControlPanelServerTest {
 
     /** A second page, so that the redirect is seen to keep the path it came to. */
     private static final String SECOND = "/second";
+
+    /** A page at a report's path, which a page another site opens is not refused at. */
+    private static final String REPORT = "/report/progress.html";
 
     /** What a page of the test answers, followed by its path. */
     private static final String PAGE = "the page at ";
@@ -108,7 +114,8 @@ class ControlPanelServerTest {
 
     @BeforeAll
     static void startTheServer() throws IOException {
-        server = ControlPanelServer.start(Map.of(ROOT, recording(ROOT), SECOND, recording(SECOND)));
+        server = ControlPanelServer.start(Map.of(ROOT, recording(ROOT), SECOND, recording(SECOND),
+                REPORT, recording(REPORT)));
         port = server.address().getPort();
         token = server.token();
     }
@@ -222,6 +229,8 @@ class ControlPanelServerTest {
     @Test
     @Story("Only the browser that opened the start's address is answered")
     @DisplayName("The right token is exchanged for a cookie the browser drops when it closes, and the cookie alone then gets the page")
+    @Issue("561")
+    @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
     void theRightTokenIsExchangedForACookieTheBrowserDropsWhenItCloses() throws IOException {
         Response exchanged = send("GET", SECOND + "?token=" + token, own());
         List<String> ranOnTheExchange = List.copyOf(RAN);
@@ -231,11 +240,12 @@ class ControlPanelServerTest {
                     assertThat(exchanged.status()).isEqualTo(303);
                     assertThat(exchanged.header("Location")).containsExactly(SECOND);
                 });
-        claim("with one cookie holding the token for every path, kept from scripts and from requests other sites"
-                        + " start, with no lifetime, so dropped when the browser closes, and not marked secure, since"
+        claim("with one cookie holding the token for every path, kept from scripts, and from what another site posts"
+                        + " or embeds though not from a page it opens, so a sandboxed report's refresh and links carry"
+                        + " it, with no lifetime, so dropped when the browser closes, and not marked secure, since"
                         + " the address is plain http",
                 () -> assertThat(exchanged.header("Set-Cookie")).containsExactly(
-                        ControlPanelServer.COOKIE + "=" + token + "; Path=/; HttpOnly; SameSite=Strict"));
+                        ControlPanelServer.COOKIE + "=" + token + "; Path=/; HttpOnly; SameSite=Lax"));
         claim("and the page is not served on the redirect", () -> assertThat(ranOnTheExchange).isEmpty());
 
         Response withTheCookie = send("GET", SECOND, own(), cookie());
@@ -268,7 +278,7 @@ class ControlPanelServerTest {
                     assertThat(whileHoldingTheCookie.status()).isEqualTo(303);
                     assertThat(whileHoldingTheCookie.header("Location")).containsExactly(ROOT);
                     assertThat(whileHoldingTheCookie.header("Set-Cookie")).containsExactly(
-                            ControlPanelServer.COOKIE + "=" + token + "; Path=/; HttpOnly; SameSite=Strict");
+                            ControlPanelServer.COOKIE + "=" + token + "; Path=/; HttpOnly; SameSite=Lax");
                     assertThat(RAN).isEmpty();
                 });
     }
@@ -377,6 +387,82 @@ class ControlPanelServerTest {
                 });
     }
 
+    /**
+     * A page another site opens, in a window of the operator's, would hold live forms a tricked click posts from the
+     * control panel's own origin, so a {@code GET} or {@code HEAD} a browser marks as another site's is refused,
+     * before the token's exchange, but at a report's path (ADR-302 §12).
+     */
+    @Test
+    @Story("A form is taken only from the control panel's own pages")
+    @DisplayName("A page opened from another site, or from another port of this machine, is refused though it holds the cookie or the token, and a report is not")
+    @Issue("561")
+    @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
+    void aPageOpenedFromAnotherSiteIsRefusedButAReportIsNot() throws IOException {
+        Response crossSite = send("GET", ROOT, own(), cookie(), "Sec-Fetch-Site: cross-site");
+        Response sameSite = send("GET", ROOT, own(), cookie(), "Sec-Fetch-Site: same-site");
+        Response inCapitals = send("GET", SECOND, own(), cookie(), "Sec-Fetch-Site: Cross-Site");
+        Response head = send("HEAD", ROOT, own(), cookie(), "Sec-Fetch-Site: cross-site");
+        Response withTheToken = send("GET", ROOT + "?token=" + token, own(), "Sec-Fetch-Site: cross-site");
+        List<String> ranOnTheRefused = List.copyOf(RAN);
+
+        for (Response refused : List.of(crossSite, sameSite, inCapitals, withTheToken)) {
+            claim("a GET marked cross-site, or same-site as from another port of this machine, whatever its case, is"
+                            + " answered 403 with the one line, as plain text, and sets no cookie, though it holds the"
+                            + " cookie or the token",
+                    () -> {
+                        assertThat(refused.status()).isEqualTo(403);
+                        assertThat(refused.body()).isEqualTo(ControlPanelServer.REFUSAL);
+                        assertThat(refused.header("Content-Type")).containsExactly(REFUSAL_TYPE);
+                        assertThat(refused.header("Set-Cookie")).isEmpty();
+                    });
+        }
+        claim("a HEAD marked cross-site is answered 403 too",
+                () -> assertThat(head.status()).isEqualTo(403));
+        claim("and no page's handler ran", () -> assertThat(ranOnTheRefused).isEmpty());
+
+        RAN.clear();
+        Response report = send("GET", REPORT, own(), cookie(), "Sec-Fetch-Site: cross-site");
+
+        claim("a GET marked cross-site at a report's path, as a sandboxed report's own refresh and links are sent, is"
+                        + " answered by its page",
+                () -> {
+                    assertThat(report.status()).isEqualTo(200);
+                    assertThat(RAN).containsExactly("GET " + REPORT);
+                });
+    }
+
+    /**
+     * What a browser marks as the control panel's own, or as typed by the operator, and a request with no mark at all,
+     * are answered as before (ADR-302 §12).
+     */
+    @Test
+    @Story("Only the browser that opened the start's address is answered")
+    @DisplayName("A page asked for from the control panel's own pages, from the address bar, or with no mark of where it came from, is served")
+    @Issue("561")
+    @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
+    void aPageAskedForFromItsOwnPagesTheAddressBarOrWithNoMarkIsServed() throws IOException {
+        Response sameOrigin = send("GET", ROOT, own(), cookie(), "Sec-Fetch-Site: same-origin");
+        Response typed = send("GET", SECOND, own(), cookie(), "Sec-Fetch-Site: none");
+        Response unmarked = send("GET", ROOT, own(), cookie());
+
+        claim("marked same-origin, marked none as the address bar sends it, or not marked, each is answered by its page,"
+                        + " in the order sent",
+                () -> {
+                    assertThat(List.of(sameOrigin.status(), typed.status(), unmarked.status()))
+                            .containsExactly(200, 200, 200);
+                    assertThat(RAN).containsExactly("GET " + ROOT, "GET " + SECOND, "GET " + ROOT);
+                });
+
+        Response exchanged = send("GET", ROOT + "?token=" + token, own(), "Sec-Fetch-Site: none");
+
+        claim("and the printed address, opened from the address bar or a terminal, still exchanges the token for the"
+                        + " cookie",
+                () -> {
+                    assertThat(exchanged.status()).isEqualTo(303);
+                    assertThat(exchanged.header("Set-Cookie")).hasSize(1);
+                });
+    }
+
     @Test
     @Story("Nothing is served but the control panel's own pages")
     @DisplayName("A path no page is started with is not found, and no file is served, whatever dots or encoding it holds")
@@ -449,6 +535,46 @@ class ControlPanelServerTest {
         claim("and none of them names a type that writes a file, logs or starts a process, nor prints on the console,"
                         + " so the token and a page's text stay in memory",
                 () -> assertThat(forbidden).isEmpty());
+    }
+
+    /**
+     * The pages start the child, write files and read the sidecars, and the server's classes do none of these
+     * (ADR-302 §10; ADR-291 §8): every handler the pages are started with is a class of a page's own, nested in none
+     * of the server's, and no class of the server names a class of the control panel that is not the server's, so
+     * what {@link #theServerWritesNoFileLogsNothingPrintsNothingAndStartsNoProcess} reads is not done for it by a page.
+     */
+    @Test
+    @Issue("561")
+    @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
+    @Story("No page is kept by the browser, framed by another site, or leaks its address")
+    @DisplayName("The classes of the pages are outside the server's: no page's handler is the server's, and the server names no class of the pages")
+    void theClassesOfThePagesAreOutsideTheServers(@TempDir Path folder) {
+        Map<String, HttpHandler> pages = ControlPanelPages.pages(
+                new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")),
+                folder.resolve("launch-values.properties"), folder.resolve("root-locks"),
+                System.getProperty("user.name"));
+        Set<String> handlersDeclaredBy = new TreeSet<>();
+        pages.values().forEach(handler -> handlersDeclaredBy.add(handler.getClass().getNestHost().getName()));
+        JavaClasses theServer = theServersClasses();
+        Set<String> named = new TreeSet<>();
+        for (JavaClass type : theServer) {
+            for (Dependency dependency : type.getDirectDependenciesFromSelf()) {
+                JavaClass target = dependency.getTargetClass().getBaseComponentType();
+                if (target.getPackageName().equals(ControlPanelServer.class.getPackageName())
+                        && !theServer.contain(target.getName())) {
+                    named.add(type.getSimpleName() + " names " + target.getSimpleName());
+                }
+            }
+        }
+
+        claim("the pages the server is started with were built, and the import read the server's classes",
+                () -> assertThat(List.of(pages.isEmpty(), theServer.contain(ControlPanelServer.class.getName())))
+                        .containsExactly(false, true));
+        claim("every page's handler is declared by a class of the pages, none by the server or a class nested in it",
+                () -> assertThat(handlersDeclaredBy).isNotEmpty()
+                        .noneMatch(declaredBy -> theServer.contain(declaredBy)));
+        claim("and no class of the server names a class of the control panel that is not the server's own",
+                () -> assertThat(named).isEmpty());
     }
 
     @Test

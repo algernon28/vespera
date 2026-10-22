@@ -91,6 +91,10 @@ package io.algernon.vespera.profile;
  *     itself. Changing it changes what was read, so it joins the generation run's identity and a
  *     different window is a different run. No {@link Measurement} pointer: what informs it is the
  *     machine, not a pass over the corpus.
+ * @param clusterPageByteCeiling the bytes a cluster's page may take before stage 6b splits it into pages at an entry's
+ *     end (ADR-303 §2): a whole number from 1 to {@link Long#MAX_VALUE}. Ships unset, and unset means one page for
+ *     each cluster. Not a gate, and in no stage's run identity: splitting a page is drawing. No {@link Measurement}
+ *     pointer: {@code cluster-page-sizes.html} informs it, and a pointer would make 6b write {@code profile.yaml}.
  * @param logTimestampShareFloor stage 1's log rule (ADR-171): a share on a 0-to-1 scale, the
  *     timestamped share of the non-blank lines read from a text file's start and end, at or above which
  *     the file is a log and is {@code out-of-scope}. Ships unset, per <b>observe before enforce</b>:
@@ -132,6 +136,7 @@ public record Profile(
         TextValue arrangementApproved,
         TextValue generationModel,
         NumericValue generationContextWindow,
+        NumericValue clusterPageByteCeiling,
         NumericValue logTimestampShareFloor,
         NumericValue extractionAttempt,
         NameEndingsValue codeNameEndings,
@@ -153,6 +158,7 @@ public record Profile(
         generationModel = generationModel == null ? TextValue.unset() : generationModel;
         generationContextWindow =
                 generationContextWindow == null ? NumericValue.unset() : generationContextWindow;
+        clusterPageByteCeiling = clusterPageByteCeiling == null ? NumericValue.unset() : clusterPageByteCeiling;
         logTimestampShareFloor = logTimestampShareFloor == null ? NumericValue.unset() : logTimestampShareFloor;
         extractionAttempt = extractionAttempt == null ? NumericValue.unset() : extractionAttempt;
         outOfScopeNameEndings = outOfScopeNameEndings == null ? NameEndingsValue.unset() : outOfScopeNameEndings;
@@ -188,7 +194,8 @@ public record Profile(
 
     /** A profile with every key present and none of them answered — what census drafts. */
     static Profile skeleton() {
-        return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        return new Profile(
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -203,6 +210,7 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
+                clusterPageByteCeiling,
                 logTimestampShareFloor,
                 extractionAttempt,
                 codeNameEndings,
@@ -228,6 +236,7 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
+                clusterPageByteCeiling,
                 logTimestampShareFloor,
                 extractionAttempt,
                 codeNameEndings,
@@ -249,6 +258,7 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
+                clusterPageByteCeiling,
                 logTimestampShareFloor,
                 extractionAttempt,
                 codeNameEndings,
@@ -273,6 +283,7 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
+                clusterPageByteCeiling,
                 logTimestampShareFloor,
                 extractionAttempt,
                 codeNameEndings,
@@ -302,6 +313,7 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
+                clusterPageByteCeiling,
                 logTimestampShareFloor,
                 extractionAttempt,
                 codeNameEndings,
@@ -326,6 +338,7 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
+                clusterPageByteCeiling,
                 logTimestampShareFloor,
                 extractionAttempt,
                 codeNameEndings,
@@ -347,6 +360,7 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
+                clusterPageByteCeiling,
                 logTimestampShareFloor.measuredBy(measurement),
                 extractionAttempt,
                 codeNameEndings,
@@ -368,6 +382,7 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
+                clusterPageByteCeiling,
                 logTimestampShareFloor,
                 extractionAttempt,
                 codeNameEndings,
@@ -389,6 +404,7 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
+                clusterPageByteCeiling,
                 logTimestampShareFloor,
                 extractionAttempt,
                 codeNameEndings,
@@ -410,6 +426,7 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
+                clusterPageByteCeiling,
                 logTimestampShareFloor,
                 extractionAttempt,
                 codeNameEndings,
@@ -431,6 +448,7 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
+                clusterPageByteCeiling,
                 logTimestampShareFloor,
                 extractionAttempt,
                 codeNameEndings.measuredBy(measurement),
@@ -452,6 +470,7 @@ public record Profile(
                 arrangementApproved,
                 generationModel,
                 generationContextWindow,
+                clusterPageByteCeiling,
                 logTimestampShareFloor,
                 extractionAttempt,
                 codeNameEndings,

@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.corpus.CodeSets;
 import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.DocumentCluster;
@@ -25,9 +26,13 @@ import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.deliverable.ArrangedSurvivors;
 import io.algernon.vespera.deliverable.Deliverable;
+import io.algernon.vespera.deliverable.CodeSetNames;
 import io.algernon.vespera.deliverable.DeliverableProgress;
 import io.algernon.vespera.deliverable.DeliverableProvenance;
 import io.algernon.vespera.deliverable.DeliverableRoot;
+import io.algernon.vespera.deliverable.ListedCodeFile;
+import io.algernon.vespera.deliverable.ListedCodeSet;
+import io.algernon.vespera.deliverable.ListedCodeSets;
 import io.algernon.vespera.deliverable.ListedPartition;
 import io.algernon.vespera.deliverable.ListedPicture;
 import io.algernon.vespera.deliverable.ListedPicturePlace;
@@ -540,6 +545,12 @@ class GenerationTasklet implements Tasklet {
                         copies.documentsFolderLeftBehind,
                         Math.toIntExact(copies.foldersLeftBehind),
                         Math.toIntExact(copies.filesLeftBehind));
+        InvocationRuns handedOver = new InvocationRuns(
+                chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext());
+        handedOver.recordDormantCodeSetNames(Math.toIntExact(copies.dormantCodeSetNames));
+        if (copies.codeFiles > 0) {
+            handedOver.recordCodeFilesNotCopied(copies.codeFilesNotStanding());
+        }
         openTheIndex(tree);
         return Optional.of(tree);
     }
@@ -569,6 +580,25 @@ class GenerationTasklet implements Tasklet {
         boolean documentsFolderLeftBehind;
         long foldersLeftBehind;
         long filesLeftBehind;
+        long codeFiles;
+        long codeCopied;
+        long codeAlreadyStanding;
+        long codeChanged;
+        long codeGone;
+        long codeNoRoom;
+        long codeOther;
+        long codeBytes;
+        long dormantCodeSetNames;
+
+        /** The files of code whose copy does not stand: every outcome but a copy made or kept (ADR-296 §6.1). */
+        int codeFilesNotStanding() {
+            return Math.toIntExact(codeChanged + codeGone + codeNoRoom + codeOther);
+        }
+
+        /** The files of code told so far, whatever became of them. */
+        long codeFilesTold() {
+            return codeCopied + codeAlreadyStanding + codeChanged + codeGone + codeNoRoom + codeOther;
+        }
 
         /** The survivors whose copy does not stand: every outcome but a copy made or kept. */
         int notStanding() {
@@ -585,6 +615,7 @@ class GenerationTasklet implements Tasklet {
             private StageProgress files;
             private StageProgress entries;
             private StageProgress manifest;
+            private StageProgress codeCopied;
 
             @Override
             public void toListPictures(long survivors) {
@@ -645,6 +676,87 @@ class GenerationTasklet implements Tasklet {
             }
 
             @Override
+            public void toCopyCodeFiles(long sets, long files, long bytes, long usableBytes) {
+                counts.codeFiles = files;
+                LOG.info(
+                        "Stage 6b (generation, code copies): about to copy {} code set(s), {} file(s) holding {} bytes"
+                                + " recorded when the archive was walked; the drive has {} bytes free",
+                        sets,
+                        files,
+                        bytes,
+                        usableBytes);
+                codeCopied = StageProgress.over("Stage 6b (generation, code copied)", files);
+            }
+
+            @Override
+            public void codeFileCopied(long bytes) {
+                counts.codeCopied++;
+                counts.codeBytes += bytes;
+                codeFileTold();
+            }
+
+            @Override
+            public void codeFileAlreadyCopied() {
+                counts.codeAlreadyStanding++;
+                codeFileTold();
+            }
+
+            @Override
+            public void codeFileChanged() {
+                counts.codeChanged++;
+                codeFileTold();
+            }
+
+            @Override
+            public void codeFileGone() {
+                counts.codeGone++;
+                codeFileTold();
+            }
+
+            @Override
+            public void codeFileWithNoRoom() {
+                counts.codeNoRoom++;
+                codeFileTold();
+            }
+
+            @Override
+            public void codeFileNotCopied() {
+                counts.codeOther++;
+                codeFileTold();
+            }
+
+            /** Moves the counter on, and once the last file is told says how the copies came to be (ADR-296 §7). */
+            private void codeFileTold() {
+                codeCopied.itemDone();
+                if (counts.codeFilesTold() == counts.codeFiles) {
+                    LOG.info(
+                            "Stage 6b (generation, code copies): {} copied, {} already standing, {} changed since the"
+                                    + " archive was walked, {} gone, {} with no room left on the drive, {} not copied"
+                                    + " for another reason; {} bytes copied",
+                            counts.codeCopied,
+                            counts.codeAlreadyStanding,
+                            counts.codeChanged,
+                            counts.codeGone,
+                            counts.codeNoRoom,
+                            counts.codeOther,
+                            counts.codeBytes);
+                }
+            }
+
+            @Override
+            public void codeSetNamesRefused() {
+                LOG.warn(
+                        "{} was refused whole or could not be read, so none of its names is applied and every code"
+                                + " set is drawn with its default name",
+                        CodeSetNames.FILE_NAME);
+            }
+
+            @Override
+            public void dormantCodeSetNames(long entries) {
+                counts.dormantCodeSetNames = entries;
+            }
+
+            @Override
             public void copiesAtALongPath(long copies) {
                 if (copies > 0) {
                     LOG.warn(
@@ -677,12 +789,12 @@ class GenerationTasklet implements Tasklet {
             }
 
             @Override
-            public void toWriteClusterFiles(long total) {
+            public void toDrawClusters(long total) {
                 files = StageProgress.over("Stage 6b (generation, cluster files written)", total);
             }
 
             @Override
-            public void clusterFileWritten() {
+            public void clusterDrawn() {
                 files.itemDone();
             }
 
@@ -738,8 +850,9 @@ class GenerationTasklet implements Tasklet {
             List<ArrangedPartition> arranged,
             Map<OccurrenceId, Integer> places,
             Map<ClusterSlot, Unwritten> foundThisRun) {
+        Profile profile = profileStore.load();
         DeliverableProvenance provenance = new DeliverableProvenance(
-                generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profileStore.load()));
+                generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profile));
         RunId extractionRun = stageRuns.upstream(StageModules.EXTRACTION);
         long survivorCount = arranged.stream().mapToLong(ArrangedPartition::memberCount).sum();
         StageProgress listed = StageProgress.over("Stage 6b (generation, survivors listed)", survivorCount);
@@ -796,8 +909,36 @@ class GenerationTasklet implements Tasklet {
                 deliverableRoot,
                 provenance,
                 source,
+                codeSetsOf(byteLevelReductionRun),
                 survivorPictures(byteLevelReductionRun),
+                ClusterPageByteCeiling.of(profile.clusterPageByteCeiling()).forTheTree(),
                 treeProgress(copies));
+    }
+
+    /**
+     * The code sets of the stage-1 run upstream of the generation run, read from {@code corpus} and handed on as
+     * values of {@code deliverable}'s own, which may not name it: the sets when asked for them, and one set's members
+     * a page at a time when it is reached (ADR-296 §8, ADR-220).
+     */
+    private ListedCodeSets codeSetsOf(RunId stageOneRun) {
+        CodeSets reader = detectedFormats.codeSets();
+        return ListedCodeSets.reading(
+                () -> reader.setsOf(stageOneRun).stream()
+                        .map(set -> new ListedCodeSet(set.folder(), set.defaultName(), set.lowestMember()))
+                        .toList(),
+                set -> {
+                    List<ListedCodeFile> members = new ArrayList<>();
+                    reader.eachPageOfMembers(ledger, stageOneRun, set.folder(), page -> page.forEach(member ->
+                            members.add(new ListedCodeFile(
+                                    member.occurrence(),
+                                    member.path(),
+                                    member.folder(),
+                                    member.role(),
+                                    member.generator(),
+                                    member.recordedSizeBytes(),
+                                    member.recordedLastModified()))));
+                    return members;
+                });
     }
 
     /** Every survivor of the arrangement a page at a time, the read reported under {@code statement}. */

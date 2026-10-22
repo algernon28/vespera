@@ -2057,6 +2057,16 @@ public final class Adr {
             + "0293-an-operational-record-that-is-not-a-log-or-a-configuration-file-is-left-to-relevance-and-its-name-ending-is-the-operators-to-list.md";
 
     /**
+     * ADR-294 -- every invocation ending on the closing line writes {@code next-invocation.properties} in the working
+     * directory from the same branch of {@code NextAction}: the next invocation, the profile keys it wants in the
+     * line's order, whether labels are to be answered and the arrangement to approve, and no path; an invocation
+     * holding the working-directory lock deletes it as it starts, and the control panel reads it after exit 0
+     * (amends ADR-285 §3).
+     */
+    public static final String THE_CONTROL_PANEL_LEARNS_WHAT_THE_NEXT_INVOCATION_WANTS_FROM_A_FILE = FILE
+            + "0294-the-control-panel-learns-what-the-next-invocation-wants-from-a-file-the-jar-writes-with-the-closing-line.md";
+
+    /**
      * ADR-295 -- the control panel writes profile.yaml one key at a time, the answers of relevance-labels.yaml and
      * code-set-names.yaml, each whole by a move, only from the form the jar or it writes, holding the working-directory
      * lock while no invocation it started runs; each value checked as the jar reads it, and the cost said before
@@ -2064,6 +2074,17 @@ public final class Adr {
      */
     public static final String THE_CONTROL_PANEL_WRITES_HOLDING_THE_WORKING_DIRECTORY_LOCK = FILE
             + "0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md";
+
+    /**
+     * ADR-296 -- every member of every code set is copied to {@code code/<set>/<kept path>}, checked against the size
+     * and last-modified time the walk recorded, before and after the stream, and {@code changed} where either differs;
+     * a set's folder is its typed or default name made safe and cut, then told apart by the copies' two keys; a
+     * member's path below its set's folder is kept, each element made safe; the index gains a section of the sets and
+     * {@code code.csv} a row a member; the closing line counts the files of code not copied and the dormant names
+     * (amends ADR-274, ADR-280, ADR-284 and ADR-220).
+     */
+    public static final String EACH_CODE_SET_IS_COPIED_WHOLE_UNDER_CODE = FILE
+            + "0296-each-code-set-is-copied-whole-under-code-its-paths-kept-and-each-file-checked-against-the-size-and-time-the-walk-recorded.md";
 
     /**
      * ADR-297 -- the control panel's screens are tested failing-first through {@code PanelBrowser}, the JDK's HTTP
@@ -2081,6 +2102,116 @@ public final class Adr {
      */
     public static final String THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT = FILE
             + "0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md";
+
+    /**
+     * ADR-301 -- stage 6b draws a Confluence storage-format rendering of the tree beside the HTML tree, as files for
+     * the operator to load, and beyond drawing it nothing in this project renders, uploads or transmits the
+     * deliverable; the two renderings carry the same entries and citations (amends ADR-101, ADR-102 and ADR-274, and
+     * partly reopens ADR-002 and ADR-023).
+     */
+    public static final String A_CONFLUENCE_RENDERING_IS_DRAWN_BESIDE_THE_HTML_TREE = FILE
+            + "0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md";
+
+    /**
+     * ADR-302 -- the control panel's screens: a launch page and an invocation page of server-written forms, each
+     * report of the working directory re-served read-only at {@code /report/<file name>} under {@code sandbox
+     * allow-scripts}, and the next invocation's values, the label answers, the code-set names and the profile on pages
+     * of their own; a form is submitted by pressing one of its buttons by name.
+     */
+    public static final String THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS = FILE
+            + "0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md";
+
+    /**
+     * ADR-303 -- {@code clusterPageByteCeiling}, a whole number of bytes from 1, shipped unset, splits a cluster's page
+     * whose one-page size is greater into {@code index.html} and {@code index-<k>.html} at entries' ends, filled
+     * greedily, each page within it but one of a single entry, linked first, previous, next and last, the citations
+     * naming the page their entry is on; unset, the page is as before; every drawing writes {@code
+     * cluster-page-sizes.html}, numbers only; no run id moves.
+     */
+    public static final String A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES = FILE
+            + "0303-a-clusters-page-past-the-profiles-byte-ceiling-is-split-at-an-entrys-end-into-pages-and-every-drawing-writes-the-pages-sizes.md";
+
+    /**
+     * ADR-304 -- Vespera never sends the deliverable tree to Confluence itself: neither the jar nor the control
+     * panel uploads the HTML tree or its Confluence rendering, holds a credential for Confluence or opens a
+     * connection to it, and no command, option, dependency or module is added for a load; the operator loads with
+     * the loader, a program of their own.
+     */
+    public static final String VESPERA_NEVER_SENDS_THE_TREE_TO_CONFLUENCE = FILE
+            + "0304-vespera-never-sends-the-deliverable-tree-to-confluence-itself-and-holds-no-uploader-no-credential-and-no-connection-for-it.md";
+
+    /**
+     * ADR-305 -- the Confluence rendering is drawn in storage format, one rendering for Cloud and Data Center alike;
+     * loading it into a Cloud site is the operator's act, accepted explicitly, and the Archive's rule, ADR-195 §2
+     * and ADR-197 bind Vespera itself; nothing that differs per edition is a value the operator sets, so no run id
+     * moves.
+     */
+    public static final String THE_CONFLUENCE_RENDERING_IS_DRAWN_FOR_BOTH_EDITIONS = FILE
+            + "0305-the-confluence-rendering-is-drawn-in-storage-format-for-cloud-and-data-center-alike-and-loading-it-into-cloud-is-the-operators-act-outside-what-binds-vespera.md";
+
+    /**
+     * ADR-306 -- on the control panel's pages and in its start checks a holder line of {@code vespera.lock} naming
+     * the control panel's own process is held by nobody, the corpus-root lock read as before; {@code
+     * cluster-page-sizes.html} is served as the sixteenth report, linked for {@code clusterPageByteCeiling}, and each
+     * key's form on {@code /profile} holds its {@code report-<key>} links (amends ADR-302).
+     */
+    public static final String THE_CONTROL_PANELS_OWN_HOLDER_LINE_IS_HELD_BY_NOBODY = FILE
+            + "0306-the-control-panel-reads-a-holder-line-of-its-own-process-as-held-by-nobody-and-serves-the-cluster-page-sizes-as-a-sixteenth-report.md";
+
+    /**
+     * ADR-307 -- the control panel registers a shutdown hook as it starts, which kills the child it started, its
+     * descendants first, as its JVM ends in an orderly way, and waits up to 2 seconds to see them end; a forced end of
+     * its process runs no hook and leaves the child running (amends ADR-302 §11 and ADR-278 §7).
+     */
+    public static final String THE_CHILD_ENDS_WITH_THE_CONTROL_PANEL = FILE
+            + "0307-the-child-the-control-panel-started-ends-with-it-wherever-its-end-runs-the-jvms-shutdown-hooks.md";
+
+    /**
+     * ADR-308 -- Vespera publishes the Confluence rendering to the operator's Cloud site itself, on an explicit {@code
+     * vespera publish}, with a token read from the environment alone; one {@code https} host, a tenth module {@code
+     * confluence}, republished in place by key and local hash (supersedes ADR-304).
+     */
+    public static final String VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE = FILE
+            + "0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md";
+
+    /**
+     * ADR-309 -- on a cluster's page in the Confluence rendering each entry opens with an anchor macro named {@code
+     * document-n}, and each citation is an {@code ac:link} to it naming the page its entry is on and no space; no
+     * anchor is derived from a heading, and the named fallback is the number as plain text.
+     */
+    public static final String A_CITATION_ON_A_CONFLUENCE_PAGE_IS_AN_ANCHOR_LINK = FILE
+            + "0309-a-citation-on-a-confluence-page-is-an-anchor-link-naming-the-page-its-entry-is-on-and-where-it-cannot-link-it-is-its-number-as-plain-text.md";
+
+    /**
+     * ADR-310 -- a page of the Confluence rendering is titled by its text, then its place in the arrangement and its
+     * generation run's marker, the first 12 hexadecimal characters of the run's id; at most 255 characters, the text
+     * cut and the suffix kept whole.
+     */
+    public static final String A_CONFLUENCE_PAGES_TITLE_ENDS_WITH_ITS_PLACE_AND_ITS_RUNS_MARKER = FILE
+            + "0310-a-confluence-pages-title-is-its-text-followed-by-its-place-and-its-generation-runs-marker-cut-to-255-characters-with-the-marker-kept-whole.md";
+
+    /**
+     * ADR-312 -- the Confluence rendering lies under {@code confluence/} at the tree's root, drawn by every drawing; a
+     * folder inside it an earlier drawing left is counted as left behind and kept.
+     */
+    public static final String THE_CONFLUENCE_RENDERING_LIES_UNDER_CONFLUENCE = FILE
+            + "0312-the-confluence-rendering-lies-under-confluence-at-the-trees-root-drawn-by-every-drawing-and-what-an-earlier-drawing-left-in-it-is-counted-and-kept.md";
+
+    /** ADR-313 -- a cluster's Confluence page carries its copies as files, each entry linking its copy by name. */
+    public static final String A_CLUSTERS_CONFLUENCE_PAGE_CARRIES_ITS_COPIES_AS_FILES = FILE
+            + "0313-a-clusters-confluence-page-carries-its-copies-as-files-and-a-copy-the-site-refuses-is-counted-and-listed-by-the-publish.md";
+
+    /** ADR-314 -- each picture a cluster's HTML page shows is a file of its own in the Confluence rendering. */
+    public static final String EACH_PICTURE_IS_A_FILE_OF_ITS_OWN_IN_THE_CONFLUENCE_RENDERING = FILE
+            + "0314-the-confluence-rendering-writes-each-picture-its-cluster-page-shows-as-a-file-of-its-own-from-the-same-bytes-the-html-page-inlines.md";
+
+    /** ADR-315 -- the root page carries the index's groups and documents.csv, and no corpus root or profile value. */
+    public static final String THE_ROOT_PAGE_CARRIES_NEITHER_THE_CORPUS_ROOT_NOR_THE_PROFILE = FILE
+            + "0315-the-root-page-carries-the-indexs-groups-and-counts-and-documents-csv-as-a-file-and-neither-the-corpus-root-nor-the-profiles-values.md";
+
+    /** ADR-316 -- the page list is {@code confluence/pages.json}, each page keyed by its run and place. */
+    public static final String THE_PAGE_LIST_IS_PAGES_JSON = FILE
+            + "0316-the-page-list-is-pages-json-in-confluence-each-page-keyed-by-its-run-and-place-with-its-parent-title-body-files-sizes-and-digests.md";
 
     private Adr() {
     }

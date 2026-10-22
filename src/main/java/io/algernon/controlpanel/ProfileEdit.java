@@ -2,6 +2,7 @@ package io.algernon.controlpanel;
 
 import io.algernon.controlpanel.YamlLines.Line;
 import io.algernon.controlpanel.YamlLines.NotInFormException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -136,6 +137,8 @@ public final class ProfileEdit {
             case GENERATION_CONTEXT_WINDOW -> isWhole(value, SMALLEST_WINDOW) ? Optional.empty()
                     : Optional.of(quoted + " is not a whole number of tokens from " + SMALLEST_WINDOW + " to "
                             + LARGEST_WHOLE);
+            case CLUSTER_PAGE_BYTE_CEILING -> isWholeBytes(value) ? Optional.empty()
+                    : Optional.of(quoted + " is not a whole number of bytes from 1 to " + Long.MAX_VALUE);
             case CODE_NAME_ENDINGS, OUT_OF_SCOPE_NAME_ENDINGS -> areNameEndings(value) ? Optional.empty()
                     : Optional.of(quoted + " is not a list of name endings, each beginning with a dot");
             case PREFERRED_LANGUAGES -> areLanguages(value) ? Optional.empty()
@@ -166,6 +169,17 @@ public final class ProfileEdit {
     private static boolean isWhole(String value, long smallest) {
         return number(value).filter(number -> number % 1 == 0 && number >= smallest && number <= LARGEST_WHOLE)
                 .isPresent();
+    }
+
+    /** Whether the text, read exactly as the jar reads it (ADR-303 §2), is a whole number from 1 to {@link Long#MAX_VALUE}. */
+    private static boolean isWholeBytes(String value) {
+        try {
+            BigDecimal number = new BigDecimal(value);
+            return number.signum() > 0 && number.stripTrailingZeros().scale() <= 0
+                    && number.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) <= 0;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     private static boolean areNameEndings(String value) {

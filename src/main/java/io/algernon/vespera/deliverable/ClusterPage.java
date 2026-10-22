@@ -10,11 +10,13 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
 
 /**
@@ -27,6 +29,11 @@ import java.util.function.LongConsumer;
  *
  * <p>The membership list is numbered from the documents the call was recorded as carrying (ADR-133), so entry
  * {@code n} is the {@code n}th document the model was given and each {@code [n]} of the writing links to it.
+ *
+ * <p><b>A page past the profile's ceiling is written as several</b> (ADR-303): {@link #write} writes the page whole,
+ * which is also the measurement the split is planned from ({@link #plan}), and {@link #writePage} writes one page of the
+ * plan, the first with the writing and the others with the list alone. An entry is written the same on whichever page
+ * it lands.
  */
 final class ClusterPage {
 
@@ -37,7 +44,7 @@ final class ClusterPage {
     /**
      * The heading a page opens its membership list with — rendered prose, so it says <em>group</em> (ADR-122).
      */
-    private static final String MEMBERSHIP_HEADING = "The documents in this group";
+    static final String MEMBERSHIP_HEADING = "The documents in this group";
 
     /**
      * How the page says the writing rests on part of its cluster (ADR-108, ADR-133): the count the
@@ -49,13 +56,16 @@ final class ClusterPage {
      * either way, and what a reader can check against the list on this very page, is that the writing
      * was made from the entries this page numbers first.
      */
-    private static final String SUBSET_DISCLOSURE = "Written from the first %d of the %d documents in this group.";
+    static final String SUBSET_DISCLOSURE = "Written from the first %d of the %d documents in this group.";
 
     /**
      * What a citation link points at, and what each membership entry carries as its own id: the page's
      * inside-the-page naming for membership entry {@code n} (ADR-109).
      */
     static final String ANCHOR_PREFIX = "document-";
+
+    /** What ends a list, whether the page is whole or one of several. */
+    private static final String LIST_CLOSING = "</ol>\n";
 
     /** The bytes the page's writer holds before it hands them to the stream; an entry's end hands on all of them. */
     private static final int BUFFER_BYTES = 1 << 16;
@@ -99,35 +109,253 @@ final class ClusterPage {
             DeliverableProgress progress,
             LongConsumer entryEnds)
             throws IOException {
+        write(out, recorded, doc, why, members, folder, copies, pictures, progress, entryEnds, ConfluenceEntries.NONE);
+    }
+
+    /**
+     * As above, each entry also written to {@code confluence}, the Confluence rendering's entries, from the same answer of
+     * {@code pictures} (ADR-314 §1).
+     */
+    static void write(
+            OutputStream out,
+            RecordedCluster recorded,
+            SynthesisDoc doc,
+            Unwritten why,
+            List<ListedSurvivor> members,
+            Path folder,
+            Copies copies,
+            EntryPictures pictures,
+            DeliverableProgress progress,
+            LongConsumer entryEnds,
+            ConfluenceEntries confluence)
+            throws IOException {
+        emit(out, recorded, doc, why, numbered(doc, members), null, 1, folder, copies, pictures, progress, entryEnds,
+                confluence);
+    }
+
+    /**
+     * Writes page {@code page} of {@code breaks}, which flushes {@code out} and does not close it (ADR-303 §5): the
+     * title, the navigation, on the first page the writing or the sentence saying why there is none, the list headed as
+     * ever and numbered on from the page before, the navigation again. Tells nobody of an entry: the page written whole
+     * has told each once (ADR-303 §3).
+     */
+    static void writePage(
+            OutputStream out,
+            RecordedCluster recorded,
+            SynthesisDoc doc,
+            Unwritten why,
+            List<Optional<ListedSurvivor>> numbered,
+            PageBreaks breaks,
+            int page,
+            Path folder,
+            Copies copies,
+            EntryPictures pictures)
+            throws IOException {
+        emit(out, recorded, doc, why, numbered, breaks, page, folder, copies, pictures, DeliverableProgress.NONE,
+                bytesHandedOn -> {}, ConfluenceEntries.NONE);
+    }
+
+    /**
+     * The page whole where {@code breaks} is {@code null}, else page {@code page} of it. The two differ only in what
+     * stands around the list (ADR-303 §5): a whole page is the title, the writing, the list and the tail.
+     */
+    private static void emit(
+            OutputStream out,
+            RecordedCluster recorded,
+            SynthesisDoc doc,
+            Unwritten why,
+            List<Optional<ListedSurvivor>> numbered,
+            PageBreaks breaks,
+            int page,
+            Path folder,
+            Copies copies,
+            EntryPictures pictures,
+            DeliverableProgress progress,
+            LongConsumer entryEnds,
+            ConfluenceEntries confluence)
+            throws IOException {
         HandedOn handedOn = new HandedOn(out);
         OutputStream stream = new BufferedOutputStream(handedOn, BUFFER_BYTES);
+        StringBuilder text = new StringBuilder(opening(recorded, doc));
+        if (breaks != null) {
+            text.append(navigation(page, breaks.pages()));
+        }
+        if (breaks == null || page == 1) {
+            text.append(firstPageBody(recorded, doc, why, breaks == null ? number -> "" : breaks::nameOfPageHolding));
+        }
+        int first = breaks == null ? 0 : breaks.firstEntryOf(page);
+        int after = breaks == null ? numbered.size() : breaks.firstEntryOf(page + 1);
+        if (!numbered.isEmpty()) {
+            text.append(listOpening(first));
+            stream.write(text.toString().getBytes(StandardCharsets.UTF_8));
+            text.setLength(0);
+            writeMembership(
+                    stream, handedOn, numbered, first, after, folder, copies, pictures, progress, entryEnds, confluence);
+            text.append(LIST_CLOSING);
+        }
+        if (breaks != null) {
+            text.append(navigation(page, breaks.pages()));
+        }
+        text.append(Html.tail());
+        stream.write(text.toString().getBytes(StandardCharsets.UTF_8));
+        stream.flush();
+    }
+
+    /** The head and the {@code <h1>}, the title being the generated one or the derived label where nothing was written. */
+    private static String opening(RecordedCluster recorded, SynthesisDoc doc) {
         String title = doc == null ? recorded.label().value() : doc.title();
-        StringBuilder page = new StringBuilder(Html.head(title));
-        page.append("<h1>").append(Html.escape(title)).append("</h1>\n");
+        return Html.head(title) + "<h1>" + Html.escape(title) + "</h1>\n";
+    }
+
+    /**
+     * What stands on a page whole, or on the first of several, between the {@code <h1>} and the list's heading: the
+     * writing and, where it rests on part of the cluster, the disclosure, or the sentence saying why nothing was
+     * written (ADR-174). {@code pageOf} is {@link ProseHtml#of}'s.
+     */
+    private static String firstPageBody(
+            RecordedCluster recorded, SynthesisDoc doc, Unwritten why, IntFunction<String> pageOf) {
+        StringBuilder body = new StringBuilder();
         if (doc == null) {
-            page.append("<p><em>")
+            body.append("<p><em>")
                     .append(Html.escape(why == null ? Deliverable.NOTHING_WAS_WRITTEN_OVER_IT : UnwrittenSentences.of(why)))
                     .append("</em></p>\n");
         } else {
-            page.append("<div class=\"writing\" title=\"").append(Html.escape(WRITING_HOVER)).append("\">\n").append(ProseHtml.of(doc.prose())).append("\n</div>\n");
+            body.append("<div class=\"writing\" title=\"").append(Html.escape(WRITING_HOVER)).append("\">\n")
+                    .append(ProseHtml.of(doc.prose(), pageOf)).append("\n</div>\n");
             int documentCount = recorded.cluster().documentCount();
             if (doc.documentsSent() < documentCount) {
-                page.append("<p>")
+                body.append("<p>")
                         .append(Html.escape(SUBSET_DISCLOSURE.formatted(doc.documentsSent(), documentCount)))
                         .append("</p>\n");
             }
         }
-        List<Optional<ListedSurvivor>> numbered = numbered(doc, members);
-        if (!numbered.isEmpty()) {
-            page.append("<h2>").append(MEMBERSHIP_HEADING).append("</h2>\n<ol>\n");
-            stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
-            page.setLength(0);
-            writeMembership(stream, handedOn, numbered, folder, copies, pictures, progress, entryEnds);
-            page.append("</ol>\n");
+        return body.toString();
+    }
+
+    /** The heading and opening of the list, numbered on from the entry at {@code first}, counted from 0 (ADR-303 §5). */
+    private static String listOpening(int first) {
+        return "<h2>" + MEMBERSHIP_HEADING + "</h2>\n" + (first == 0 ? "<ol>\n" : "<ol start=\"" + (first + 1) + "\">\n");
+    }
+
+    /** The name of page {@code page}, counted from 1: {@code index.html} and then {@code index-<page>.html} (ADR-303 §4). */
+    static String nameOfPage(int page) {
+        return page == 1 ? Deliverable.CLUSTER_PAGE_NAME : Deliverable.FURTHER_PAGE_STEM + page + Deliverable.PAGE_EXTENSION;
+    }
+
+    /**
+     * The line that names page {@code page} of {@code pages} and links the others (ADR-303 §5): the first, the
+     * previous, the next and the last, each left out where it would point at the page itself or at no page.
+     */
+    private static String navigation(int page, int pages) {
+        List<String> links = new ArrayList<>();
+        if (page > 1) {
+            links.add(link(1, "first"));
+            links.add(link(page - 1, "previous"));
         }
-        page.append(Html.tail());
-        stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
-        stream.flush();
+        if (page < pages) {
+            links.add(link(page + 1, "next"));
+            links.add(link(pages, "last"));
+        }
+        return "<p class=\"pages\">Page " + page + " of " + pages + ": " + String.join(", ", links) + "</p>\n";
+    }
+
+    private static String link(int page, String word) {
+        return "<a href=\"./" + nameOfPage(page) + "\">" + word + "</a>";
+    }
+
+    /**
+     * Where a page whole of {@code entryCount} entries is split, given the exact size of each entry as the page written
+     * whole told it (ADR-303 §3): greedily, in membership order, so that a page takes the next entry while it stays
+     * within {@code ceiling} and each page holds at least one, a page holding one entry alone being allowed to pass it.
+     *
+     * <p><b>What depends on the plan is counted at an upper bound</b>, so that no page comes out larger than planned: a
+     * page number, and the number of pages, at the digits of {@code entryCount + 1}; and every citation of the writing
+     * as if it carried the longest page name.
+     *
+     * @param entrySizes the bytes of each entry, from its {@code <li>} to the line break after its close, which are the
+     *     same on whichever page the entry lands
+     * @return the breaks, or empty where the plan is one page: a cluster of fewer than two entries has no entry's end to
+     *     split at
+     */
+    static Optional<PageBreaks> plan(
+            long ceiling, RecordedCluster recorded, SynthesisDoc doc, Unwritten why, long[] entrySizes) {
+        int entryCount = entrySizes.length;
+        if (entryCount < 2) {
+            return Optional.empty();
+        }
+        String widest = "9".repeat(Integer.toString(entryCount + 1).length());
+        String longestName = "index-" + widest + ".html";
+        String widestNavigation = "<p class=\"pages\">Page " + widest + " of " + widest + ": "
+                + String.join(", ", Collections.nCopies(4, "<a href=\"./" + longestName + "\">previous</a>"))
+                + "</p>\n";
+        long aroundEveryList = utf8(opening(recorded, doc)) + 2 * utf8(widestNavigation)
+                + utf8("<h2>" + MEMBERSHIP_HEADING + "</h2>\n") + utf8(LIST_CLOSING) + utf8(Html.tail());
+        long firstPage = aroundEveryList + utf8("<ol>\n")
+                + utf8(firstPageBody(recorded, doc, why, number -> longestName));
+        long laterPage = aroundEveryList + utf8("<ol start=\"" + widest + "\">\n");
+        List<Integer> firsts = new ArrayList<>();
+        firsts.add(0);
+        long size = firstPage + entrySizes[0];
+        for (int at = 1; at < entryCount; at++) {
+            if (size + entrySizes[at] <= ceiling) {
+                size += entrySizes[at];
+            } else {
+                firsts.add(at);
+                size = laterPage + entrySizes[at];
+            }
+        }
+        return firsts.size() < 2 ? Optional.empty() : Optional.of(new PageBreaks(firsts, entryCount));
+    }
+
+    /**
+     * What the page written whole holds before its first entry, in bytes: everything up to and including the list's
+     * opening, which {@code entryEnds} does not tell (ADR-303 §3).
+     */
+    static long bytesBeforeTheFirstEntry(RecordedCluster recorded, SynthesisDoc doc, Unwritten why) {
+        return utf8(opening(recorded, doc)) + utf8(firstPageBody(recorded, doc, why, number -> ""))
+                + utf8(listOpening(0));
+    }
+
+    private static long utf8(String text) {
+        return text.getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    /**
+     * Where a cluster's entries fall on its pages (ADR-303 §3): the first entry of each page, counted from 0, and the
+     * number of entries.
+     */
+    static final class PageBreaks {
+        private final List<Integer> firsts;
+        private final int entries;
+
+        PageBreaks(List<Integer> firsts, int entries) {
+            this.firsts = List.copyOf(firsts);
+            this.entries = entries;
+        }
+
+        int pages() {
+            return firsts.size();
+        }
+
+        /** The entry, counted from 0, that page {@code page} opens with; the entry count for the page after the last. */
+        int firstEntryOf(int page) {
+            return page > firsts.size() ? entries : firsts.get(page - 1);
+        }
+
+        /**
+         * The name of the page holding entry {@code number}, counted from 1, and the empty text where that is the first
+         * page, which a citation on it links by its anchor alone, or where no entry has the number (ADR-303 §6).
+         */
+        String nameOfPageHolding(int number) {
+            if (number < 1 || number > entries) {
+                return "";
+            }
+            int page = 1;
+            while (page < firsts.size() && firsts.get(page) < number) {
+                page++;
+            }
+            return page == 1 ? "" : nameOfPage(page);
+        }
     }
 
     /** Counts the bytes handed to the stream beneath it, which it does not close. */
@@ -233,19 +461,24 @@ final class ClusterPage {
      * copy in the tree or, where none stands, the document's own root-relative path with the reason in italics and
      * no link at all (ADR-274 §2.6).
      *
+     * @param first the entry the page opens with, counted from 0, and {@code after} the entry past its last
      * @param folder the cluster's folder, which this very page sits in (ADR-280 §0)
      */
     private static void writeMembership(
             OutputStream stream,
             HandedOn handedOn,
             List<Optional<ListedSurvivor>> entries,
+            int first,
+            int after,
             Path folder,
             Copies copies,
             EntryPictures pictures,
             DeliverableProgress progress,
-            LongConsumer entryEnds)
+            LongConsumer entryEnds,
+            ConfluenceEntries confluence)
             throws IOException {
-        for (int at = 0; at < entries.size(); at++) {
+        for (int at = first; at < after; at++) {
+            confluence.start(at + 1, entries.get(at));
             StringBuilder page = new StringBuilder();
             page.append("<li id=\"").append(ANCHOR_PREFIX).append(at + 1).append("\">\n");
             if (entries.get(at).isEmpty()) {
@@ -254,6 +487,7 @@ final class ClusterPage {
                         .append("</em>\n</li>\n");
                 stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
                 endEntry(stream, handedOn, entryEnds);
+                confluence.end();
                 continue;
             }
             ListedSurvivor member = entries.get(at).get();
@@ -271,9 +505,10 @@ final class ClusterPage {
                 page.append(path).append(" <em>").append(Html.escape(outcome.sentence())).append("</em>\n");
             }
             stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
-            pictures.writeUnder(stream, member, copy);
+            pictures.writeUnder(stream, member, copy, confluence);
             stream.write("</li>\n".getBytes(StandardCharsets.UTF_8));
             endEntry(stream, handedOn, entryEnds);
+            confluence.end();
             progress.membershipEntryWritten();
         }
     }

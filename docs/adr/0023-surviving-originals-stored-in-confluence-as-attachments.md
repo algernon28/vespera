@@ -2,6 +2,10 @@
 
 > **Superseded — see ADR-101.** [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md) **supersedes this record**: nothing is stored in Confluence. What becomes of the surviving originals is an open question the stage 6a/6b slice has to settle.
 
+> **Partly reopened — see [ADR-301](0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md).** The rendering drawn for Confluence carries the survivors' copies as files on their cluster's page, so the argument that the result is self-contained and searchable returns for that rendering; how it carries them is decided elsewhere. Everything else ADR-101 superseded here stays superseded.
+
+> **Partly reopened — see [ADR-313](0313-a-clusters-confluence-page-carries-its-copies-as-files-and-a-copy-the-site-refuses-is-counted-and-listed-by-the-publish.md).** A cluster's Confluence page carries its copies as files, so the published pages are self-contained and indexed by Confluence search; a copy the site refuses as too large is skipped, counted and listed by the publish.
+
 > **Reconstituted record — the original text of this ADR is lost.**
 > Rebuilt on 2026-08-22 from the decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md), the only surviving record of these decisions. The summary below is transcribed **verbatim** from that digest.
 > There are deliberately no Context, Decision or Consequences sections: that rationale was not recorded in the digest, and inferring it would place invented reasoning under an original date. Where a later decision amends this one, the digest says so inside the summary, and it is transcribed as written.

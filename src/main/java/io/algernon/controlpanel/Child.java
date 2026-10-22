@@ -10,12 +10,16 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The one process the control panel started (ADR-278 §3, §5, §6; ADR-285 §5): its standard error merged into its
  * standard output, read to the end by one thread into a tail of the last {@value #TAIL_LINES} lines kept in memory
- * only; stopped by killing its descendants first and then it; and said to have ended as {@link HowItEnded} decides.
+ * only; stopped by killing its descendants first and then it, by Stop or as the control panel ends (ADR-307); and said
+ * to have ended as {@link HowItEnded} decides.
  * It is built only by starting a process builder, and it is the only class that ends a process.
  */
 public final class Child {
@@ -58,23 +62,54 @@ public final class Child {
     /** Kills the descendants, then the child, and returns once all are gone; records that this was a Stop. */
     public void stop() throws InterruptedException {
         stoppedByItsOwnStop.set(true);
-        List<ProcessHandle> descendants = process.descendants().toList();
-        descendants.forEach(ProcessHandle::destroyForcibly);
-        process.destroyForcibly();
+        List<ProcessHandle> descendants = kill();
         process.waitFor();
         for (ProcessHandle descendant : descendants) {
             try {
                 descendant.onExit().get();
-            } catch (java.util.concurrent.ExecutionException e) {
+            } catch (ExecutionException e) {
                 throw new IllegalStateException(e);
             }
         }
     }
 
+    /**
+     * Kills the descendants, then the child, as {@link #stop} does but not as a Stop, and waits for all of them to end
+     * within the bound (ADR-307 §1): the kills are made before any wait, so the bound decides only how long this waits
+     * to see them end.
+     *
+     * @return whether every one of them was seen to end within the bound
+     */
+    public boolean endWithin(Duration bound) throws InterruptedException {
+        long deadline = System.nanoTime() + bound.toNanos();
+        List<ProcessHandle> descendants = kill();
+        if (!process.waitFor(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS)) {
+            return false;
+        }
+        for (ProcessHandle descendant : descendants) {
+            try {
+                descendant.onExit().get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+            } catch (TimeoutException notInTime) {
+                return false;
+            } catch (ExecutionException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        return true;
+    }
+
+    /** Kills the descendants the child has now, then the child, waiting for none of them; returns the descendants. */
+    private List<ProcessHandle> kill() {
+        List<ProcessHandle> descendants = process.descendants().toList();
+        descendants.forEach(ProcessHandle::destroyForcibly);
+        process.destroyForcibly();
+        return descendants;
+    }
+
     /** Empty when the child has not ended, with its output read to the end, within the bound. */
     public Optional<Ending> waitForEnding(Duration bound) throws InterruptedException {
         long deadline = System.nanoTime() + bound.toNanos();
-        if (!process.waitFor(bound.toNanos(), java.util.concurrent.TimeUnit.NANOSECONDS)) {
+        if (!process.waitFor(bound.toNanos(), TimeUnit.NANOSECONDS)) {
             return Optional.empty();
         }
         reader.join(Math.max(1, Duration.ofNanos(deadline - System.nanoTime()).toMillis()));

@@ -1,5 +1,7 @@
 # ADR-202 — Generation and embedding refuse an Ollama model not served on this machine, through the labeller's own check, before anything is sent
 
+> **Read with [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** §3 keeps the operator's documents from any party but their owner; a publish, which sends the Confluence rendering to the owner's own Confluence tenancy, keeps it. This record stands whole.
+
 - **Date**: 2026-10-05
 - **Status**: accepted
 - **Extends**: [ADR-197](0197-a-local-model-answers-the-relevance-questions-and-the-floor-is-a-rule-over-the-labels-so-no-document-reaches-a-hosted-model.md) §6. Two of the labeller's refusals, a tag that ends in `cloud` and a model `/api/show` reports as remote, become one check that every call Vespera makes to Ollama passes: the labeller's, stage 5's embedding scoring and stage 6b's generation (§1). The labeller's third refusal, an endpoint that is not this machine, stays its own (§5). ADR-197 left the generation and embedding half to [#431](https://github.com/algernon28/vespera/issues/431); this is that half. No decision of ADR-197 changes: the labeller refuses what it refused, in the same words, and still reads `/api/show` through `OllamaClient`. Only the order of two of its refusals changes, for one combination (§4).

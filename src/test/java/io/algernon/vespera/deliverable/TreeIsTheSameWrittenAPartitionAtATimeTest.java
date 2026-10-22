@@ -57,7 +57,7 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
     private static final int TWO_SURVIVORS_IN_A_PAGE = 2;
 
     /** The files of the tree: the index, the listing, a page for each of the six groups and the marker. */
-    private static final int NINE_FILES = 9;
+    private static final int TWENTY_FILES = 20;
 
     /**
      * The marker at the top of every tree, naming the working directory that drew it (ADR-276 §3): the two writings
@@ -102,11 +102,12 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
         Map<String, String> expected = filesOf(whole);
 
         claim(
-                "the tree holds the same " + NINE_FILES + " files and nothing else: the index, the listing, a page"
-                        + " for each of the six groups under its exemplar's directory and the marker, with no file left"
-                        + " half written beside any of them",
+                "the tree holds the same " + TWENTY_FILES + " files and nothing else: the index, the listing, a page"
+                        + " for each of the six groups under its exemplar's directory and the marker, and under"
+                        + " confluence/ the root page, the page list and a page for each of the three seed partitions"
+                        + " and the six groups, with no file left half written beside any of them",
                 () -> {
-                    assertThat(expected).hasSize(NINE_FILES).containsKey(MARKER);
+                    assertThat(expected).hasSize(TWENTY_FILES).containsKey(MARKER);
                     assertThat(written.keySet()).containsExactlyElementsOf(expected.keySet());
                 });
         for (Map.Entry<String, String> file : expected.entrySet()) {

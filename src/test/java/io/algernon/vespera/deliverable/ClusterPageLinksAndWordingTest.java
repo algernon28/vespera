@@ -70,7 +70,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-122", url = Adr.THE_VOCABULARY_BINDS_OUR_NAMES_NOT_RENDERED_PROSE, type = "adr")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 @Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
-class ClusterFileTest {
+class ClusterPageLinksAndWordingTest {
 
     /** A run id of the shape the ledger mints: sixty-four hexadecimal characters (ADR-048). */
     private static final String RUN_ID = "a".repeat(48) + "0123456789abcdef";

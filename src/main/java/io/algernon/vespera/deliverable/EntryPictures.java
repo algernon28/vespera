@@ -144,48 +144,74 @@ final class EntryPictures {
      * @param copy the survivor's copy in its cluster's folder where one stands, otherwise empty
      */
     void writeUnder(OutputStream page, ListedSurvivor member, Optional<Path> copy) throws IOException {
-        if (copy.isPresent()) {
-            writeCopyInline(page, copy.get());
+        writeUnder(page, member, copy, ConfluenceEntries.NONE);
+    }
+
+    /**
+     * As {@link #writeUnder(OutputStream, ListedSurvivor, Optional)}, and the same entry's pictures handed to {@code
+     * also}, the Confluence rendering's (ADR-314 §1): the same pictures from the same bytes, in the same order, with the
+     * same count of those not shown, from the one answer the source gives here, so no document is asked a third time.
+     */
+    void writeUnder(OutputStream page, ListedSurvivor member, Optional<Path> copy, ConfluenceEntries also)
+            throws IOException {
+        if (copy.isPresent() && writeCopyInline(page, copy.get())) {
+            also.copyShown();
         }
-        List<NamedPicture> kept = new ArrayList<>();
-        for (ListedPicture picture : source.of(member)) {
-            String digest = sha256Hex(picture.pixels());
-            if (!furniture.contains(digest)) {
-                kept.add(new NamedPicture(picture, digest));
-            }
-        }
-        if (kept.isEmpty()) {
-            return;
-        }
-        int withinBudget = Math.min(Deliverable.PICTURES_PER_DOCUMENT, kept.size());
-        int notShown = kept.size() - withinBudget;
-        for (NamedPicture candidate : kept.subList(0, withinBudget)) {
-            byte[] pixels = candidate.picture().pixels();
-            Optional<String> mediaType = declaredAndCarried(candidate.picture().mediaType(), pixels);
-            if (mediaType.isEmpty()) {
-                notShown++;
-                continue;
-            }
-            startImage(page, mediaType.get());
-            encodeInto(page, pixels);
+        Shown shown = shownOf(member);
+        for (NamedPicture candidate : shown.pictures()) {
+            startImage(page, candidate.mediaType());
+            encodeInto(page, candidate.picture().pixels());
             text(page, "\" alt=\"" + Html.escape(candidate.picture().caption()) + "\"></p>\n");
+            also.picture(candidate.digest(), candidate.mediaType().equals(PNG_MEDIA_TYPE), candidate.picture());
         }
-        if (notShown > 0) {
-            text(
-                    page,
-                    "<p><em>" + notShown
-                            + (notShown == 1
-                                    ? " more picture from this document is not shown."
-                                    : " more pictures from this document are not shown.")
-                            + "</em></p>\n");
+        if (shown.notShown() > 0) {
+            text(page, notShownLine(shown.notShown()));
+            also.notShown(shown.notShown());
         }
     }
 
     /**
-     * Shows {@code copy} if its first bytes are a PNG's or a JPEG's signature, and writes nothing if not, or if the
-     * copy cannot be opened or its first bytes read (ADR-286 §6); those bytes are read before any tag is begun.
+     * The pictures an entry shows and how many it does not (ADR-149 §6, ADR-286 §1): the first {@link
+     * Deliverable#PICTURES_PER_DOCUMENT} that pass the furniture rule, less those whose bytes do not carry the
+     * signature of the type they declare, which are counted with the ones past the budget. The source is asked here.
      */
-    private static void writeCopyInline(OutputStream page, Path copy) throws IOException {
+    private Shown shownOf(ListedSurvivor member) {
+        List<NamedPicture> kept = new ArrayList<>();
+        for (ListedPicture picture : source.of(member)) {
+            String digest = sha256Hex(picture.pixels());
+            if (!furniture.contains(digest)) {
+                kept.add(new NamedPicture(picture, digest, null));
+            }
+        }
+        int withinBudget = Math.min(Deliverable.PICTURES_PER_DOCUMENT, kept.size());
+        int notShown = kept.size() - withinBudget;
+        List<NamedPicture> shown = new ArrayList<>();
+        for (NamedPicture candidate : kept.subList(0, withinBudget)) {
+            Optional<String> mediaType = declaredAndCarried(candidate.picture().mediaType(), candidate.picture().pixels());
+            if (mediaType.isEmpty()) {
+                notShown++;
+            } else {
+                shown.add(new NamedPicture(candidate.picture(), candidate.digest(), mediaType.get()));
+            }
+        }
+        return new Shown(List.copyOf(shown), notShown);
+    }
+
+    /** The line saying how many of a document's pictures are not shown, {@code notShown} being one or more. */
+    static String notShownLine(int notShown) {
+        return "<p><em>" + notShown
+                + (notShown == 1
+                        ? " more picture from this document is not shown."
+                        : " more pictures from this document are not shown.")
+                + "</em></p>\n";
+    }
+
+    /**
+     * Shows {@code copy} if its first bytes are a PNG's or a JPEG's signature, and writes nothing if not, or if the
+     * copy cannot be opened or its first bytes read (ADR-286 §6); those bytes are read before any tag is begun. Answers
+     * whether it was shown.
+     */
+    private static boolean writeCopyInline(OutputStream page, Path copy) throws IOException {
         InputStream opened = null;
         byte[] head;
         try {
@@ -195,12 +221,12 @@ final class EntryPictures {
             if (opened != null) {
                 opened.close();
             }
-            return;
+            return false;
         }
         try (InputStream in = opened) {
             String mediaType = mediaTypeOfSignature(head);
             if (mediaType == null) {
-                return;
+                return false;
             }
             startImage(page, mediaType);
             try (OutputStream encoder = Base64.getEncoder().wrap(new NonClosing(page))) {
@@ -213,6 +239,7 @@ final class EntryPictures {
             // An empty alt text: its value is the empty string between these two writes (ADR-286 §6).
             text(page, "\" alt=\"");
             text(page, "\"></p>\n");
+            return true;
         }
     }
 
@@ -272,8 +299,14 @@ final class EntryPictures {
         }
     }
 
-    /** A picture the second pass kept, with the one digest taken of its bytes. */
-    private record NamedPicture(ListedPicture picture, String digest) {}
+    /**
+     * A picture the second pass kept, with the one digest taken of its bytes and, once its signature is checked, the
+     * media type it is shown under.
+     */
+    private record NamedPicture(ListedPicture picture, String digest, String mediaType) {}
+
+    /** The pictures an entry shows, and how many it does not. */
+    private record Shown(List<NamedPicture> pictures, int notShown) {}
 
     /**
      * One picture of one survivor, as the same-place rule needs to know about it (ADR-150 §3(d)): its digest,

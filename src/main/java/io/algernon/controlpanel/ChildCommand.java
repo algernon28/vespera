@@ -9,8 +9,9 @@ import java.util.Map;
 
 /**
  * The command line, environment and current directory of the child the control panel starts (ADR-278 §1, ADR-285 §5):
- * only the jar's {@code run} and {@code label} commands, after both encoding flags, with absolute paths and
- * {@code CI=1}.
+ * only the jar's {@code run}, {@code label} and {@code publish} commands (ADR-308 §6), after both encoding flags, with
+ * absolute paths and {@code CI=1}. A publish's child inherits the five values it reads from the operator's environment,
+ * as every child inherits it; the control panel adds none of them.
  */
 public final class ChildCommand {
 
@@ -45,6 +46,14 @@ public final class ChildCommand {
         });
         return new ChildCommand(java, jar, values, Path.of(values.workingDirectory()),
                 auto ? List.of("label", "--auto") : List.of("label"));
+    }
+
+    /** @throws IllegalArgumentException with {@link LaunchValues#refusalToLabel()}'s line where there is one: a publish, as a label, needs the working directory alone */
+    public static ChildCommand publish(Path java, Path jar, LaunchValues values) {
+        values.refusalToLabel().ifPresent(line -> {
+            throw new IllegalArgumentException(line);
+        });
+        return new ChildCommand(java, jar, values, Path.of(values.workingDirectory()), List.of("publish"));
     }
 
     public List<String> command() {
