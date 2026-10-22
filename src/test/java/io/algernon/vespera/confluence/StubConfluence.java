@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Constructor;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -24,6 +25,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import tools.jackson.databind.JsonNode;
@@ -60,6 +62,23 @@ final class StubConfluence implements AutoCloseable {
     static final String USER = "operator@example.org";
 
     static final String TOKEN = "TOKEN-a1b2c3d4e5-not-a-real-one";
+
+    /** The environment variable the account's email is read from (ADR-318 §1). */
+    static final String EMAIL_VARIABLE = "VESPERA_CONFLUENCE_EMAIL";
+
+    /** The environment variables the parent is read from, by its id and by its title (ADR-318 §1). */
+    static final String FOLDER_ID_VARIABLE = "VESPERA_CONFLUENCE_FOLDER_ID";
+
+    static final String FOLDER_TITLE_VARIABLE = "VESPERA_CONFLUENCE_FOLDER_TITLE";
+
+    /** The properties those two set, which the publisher's constructor names (ADR-318 §1). */
+    static final String FOLDER_ID_PROPERTY = "vespera.confluence.folder-id";
+
+    static final String FOLDER_TITLE_PROPERTY = "vespera.confluence.folder-title";
+
+    /** The names ADR-308 gave the email and the parent, which nothing reads (ADR-318 §2). */
+    static final List<String> EARLIER_VARIABLES =
+            List.of("VESPERA_CONFLUENCE_USER", "VESPERA_CONFLUENCE_PARENT_ID", "VESPERA_CONFLUENCE_PARENT_TITLE");
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -162,7 +181,18 @@ final class StubConfluence implements AutoCloseable {
 
     /** The environment holding the account's email and token, and nothing else. */
     static Function<String, String> theAccount() {
-        return Map.of(ConfluenceSite.USER_VARIABLE, USER, ConfluenceSite.TOKEN_VARIABLE, TOKEN)::get;
+        return Map.of(EMAIL_VARIABLE, USER, ConfluenceSite.TOKEN_VARIABLE, TOKEN)::get;
+    }
+
+    /** The placeholders of the application's publisher's {@code @Value} parameters, in the constructor's order. */
+    static List<String> thePublishersPlaceholders() {
+        return Arrays.stream(Publisher.class.getConstructors())
+                .map(Constructor::getParameters)
+                .flatMap(Arrays::stream)
+                .map(parameter -> parameter.getAnnotation(Value.class))
+                .filter(value -> value != null)
+                .map(Value::value)
+                .toList();
     }
 
     /** Every request the stub was sent, in order. */

@@ -1,5 +1,7 @@
 # ADR-308 — Vespera publishes the Confluence rendering to the operator's Cloud site itself, on an explicit publish, with a token read from the environment alone
 
+> **Partly superseded — see [ADR-318](0318-the-publish-reads-the-email-from-vespera-confluence-email-and-the-parent-from-vespera-confluence-folder-id-or-folder-title-and-no-earlier-name.md).** §3's account's email is read from `VESPERA_CONFLUENCE_EMAIL`, and the parent from `vespera.confluence.folder-id`, set by `VESPERA_CONFLUENCE_FOLDER_ID`, or `vespera.confluence.folder-title`, set by `VESPERA_CONFLUENCE_FOLDER_TITLE`; `VESPERA_CONFLUENCE_USER`, `VESPERA_CONFLUENCE_PARENT_ID`, `VESPERA_CONFLUENCE_PARENT_TITLE` and the two `parent` properties are read nowhere. The rest of §3 stands.
+
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
 - **Supersedes**: [ADR-304](0304-vespera-never-sends-the-deliverable-tree-to-confluence-itself-and-holds-no-uploader-no-credential-and-no-connection-for-it.md), whole. Vespera sends the Confluence rendering to one Confluence Cloud site, under one parent in one space the operator names, when and only when the operator asks it to (§1 to §3).

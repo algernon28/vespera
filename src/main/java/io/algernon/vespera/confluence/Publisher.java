@@ -87,8 +87,8 @@ public class Publisher {
     public Publisher(
             @Value("${" + ConfluenceSite.BASE_URL_PROPERTY + ":}") String baseUrl,
             @Value("${" + ConfluenceSite.SPACE_KEY_PROPERTY + ":}") String spaceKey,
-            @Value("${" + ConfluenceSite.PARENT_ID_PROPERTY + ":}") String parentId,
-            @Value("${" + ConfluenceSite.PARENT_TITLE_PROPERTY + ":}") String parentTitle) {
+            @Value("${" + ConfluenceSite.FOLDER_ID_PROPERTY + ":}") String parentId,
+            @Value("${" + ConfluenceSite.FOLDER_TITLE_PROPERTY + ":}") String parentTitle) {
         this(System::getenv, new JdkClientHttpRequestFactory(), Thread::sleep, Clock.systemUTC(), baseUrl, spaceKey,
                 parentId, parentTitle);
     }
@@ -312,7 +312,7 @@ public class Publisher {
                 throw new TheSiteRefusedThePublishException((titled.isEmpty() ? "no page or folder" : titled.size()
                         + " pages or folders") + " of the space " + site.spaceKey() + " is titled "
                         + site.parentTitle() + ", and the parent must be exactly one; name it by"
-                        + " VESPERA_CONFLUENCE_PARENT_ID");
+                        + " VESPERA_CONFLUENCE_FOLDER_ID");
             }
             return titled.getFirst();
         }

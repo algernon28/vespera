@@ -2217,6 +2217,14 @@ public final class Adr {
     public static final String AN_APPROVAL_OF_AUTO_OPENS_THE_GATE_ON_EVERY_ARRANGEMENT = FILE
             + "0317-arrangementapproved-may-hold-auto-a-standing-approval-the-operator-writes-that-opens-the-gate-on-every-arrangement-this-invocation-arrives-at.md";
 
+    /**
+     * ADR-318 -- the publish reads the account's email from {@code VESPERA_CONFLUENCE_EMAIL} and the parent from {@code
+     * VESPERA_CONFLUENCE_FOLDER_ID} or {@code VESPERA_CONFLUENCE_FOLDER_TITLE}, and the names ADR-308 gave them from
+     * nowhere (supersedes ADR-308 §3 in those names alone).
+     */
+    public static final String THE_PUBLISH_READS_THE_EMAIL_AND_THE_FOLDER_BY_THEIR_NEW_NAMES = FILE
+            + "0318-the-publish-reads-the-email-from-vespera-confluence-email-and-the-parent-from-vespera-confluence-folder-id-or-folder-title-and-no-earlier-name.md";
+
     private Adr() {
     }
 }
