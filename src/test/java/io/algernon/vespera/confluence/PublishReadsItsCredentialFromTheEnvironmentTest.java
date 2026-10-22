@@ -10,7 +10,6 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,17 +22,18 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.beans.factory.annotation.Value;
 
 /**
  * The account's email and token are read from the environment alone, go as HTTP Basic authentication, and appear in no
  * line the publish prints and no file it writes; a value missing is named, never its value, and refused before
- * anything is sent (ADR-308 §3). Against a stub; no test reaches a real site.
+ * anything is sent (ADR-308 §3), the email and the parent by the names ADR-318 gives them. Against a stub; no test
+ * reaches a real site.
  */
 @Epic("Operation")
 @Feature("The publish")
 @Issue("633")
 @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
+@Link(name = "ADR-318", url = Adr.THE_PUBLISH_READS_THE_EMAIL_AND_THE_FOLDER_BY_THEIR_NEW_NAMES, type = "adr")
 class PublishReadsItsCredentialFromTheEnvironmentTest {
 
     @TempDir
@@ -61,22 +61,16 @@ class PublishReadsItsCredentialFromTheEnvironmentTest {
     @Story("The token is the operator's environment's alone")
     @DisplayName("No Spring property names the token or the email: the publisher's configured values are the site, the space and the parent")
     void noPropertyNamesTheTokenOrTheEmail() {
-        List<String> properties = Arrays.stream(Publisher.class.getConstructors())
-                .map(Constructor::getParameters)
-                .flatMap(Stream::of)
-                .map(parameter -> parameter.getAnnotation(Value.class))
-                .filter(value -> value != null)
-                .map(Value::value)
-                .toList();
+        List<String> properties = StubConfluence.thePublishersPlaceholders();
 
         claim("the application's publisher reads four properties, the site's address, the space's key and the parent"
-                        + " by its id or its title, and no other",
+                        + " by its folder id or its folder title, and no other",
                 () -> assertThat(properties).containsExactly(
                         "${" + ConfluenceSite.BASE_URL_PROPERTY + ":}", "${" + ConfluenceSite.SPACE_KEY_PROPERTY + ":}",
-                        "${" + ConfluenceSite.PARENT_ID_PROPERTY + ":}",
-                        "${" + ConfluenceSite.PARENT_TITLE_PROPERTY + ":}"));
-        claim("and none of them names a token, a user or an email",
-                () -> assertThat(properties).noneMatch(value -> value.matches("(?i).*(token|user|email).*")));
+                        "${" + StubConfluence.FOLDER_ID_PROPERTY + ":}",
+                        "${" + StubConfluence.FOLDER_TITLE_PROPERTY + ":}"));
+        claim("and none of them names a token, a user, an email or a parent",
+                () -> assertThat(properties).noneMatch(value -> value.matches("(?i).*(token|user|email|parent).*")));
         claim("the constructor reading them is the one public constructor",
                 () -> assertThat(Publisher.class.getConstructors()).hasSize(1)
                         .allSatisfy(constructor -> assertThat(Arrays.stream(constructor.getParameters())
@@ -92,7 +86,7 @@ class PublishReadsItsCredentialFromTheEnvironmentTest {
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         try (StubConfluence site = StubConfluence.start()) {
             Publisher.Outcome noToken = site.publisher(
-                            Map.of(ConfluenceSite.USER_VARIABLE, StubConfluence.USER)::get,
+                            Map.of(StubConfluence.EMAIL_VARIABLE, StubConfluence.USER)::get,
                             StubConfluence.BASE_URL, StubConfluence.PARENT_ID, "", new ArrayList<>())
                     .publish(rendering.confluence(), Rendering.RUN, workingDirectory, line -> {});
             Publisher.Outcome noEmail = site.publisher(
@@ -106,17 +100,18 @@ class PublishReadsItsCredentialFromTheEnvironmentTest {
                             .containsExactly(false, true));
             claim("with no email it is refused, naming the email's variable and not the token's value",
                     () -> assertThat(List.of(noEmail.published(),
-                                    noEmail.closingLine().contains(ConfluenceSite.USER_VARIABLE),
+                                    noEmail.closingLine().contains(StubConfluence.EMAIL_VARIABLE),
                                     noEmail.closingLine().contains(StubConfluence.TOKEN)))
                             .containsExactly(false, true, false));
             claim("nothing was sent either time", () -> assertThat(site.sent()).isEmpty());
-            claim("and the two templates were written in the working directory, naming each of the five variables and"
-                            + " holding no value of them",
+            claim("and the two templates were written in the working directory, naming each of the five variables by"
+                            + " its current name, no name the email or the parent was read from before, and no value",
                     () -> assertThat(Publisher.TEMPLATES).allSatisfy(template -> {
                         String text = Files.readString(workingDirectory.resolve(template), StandardCharsets.UTF_8);
                         assertThat(text).contains("VESPERA_CONFLUENCE_BASE_URL", "VESPERA_CONFLUENCE_SPACE_KEY",
-                                "VESPERA_CONFLUENCE_PARENT_ID", "VESPERA_CONFLUENCE_PARENT_TITLE",
-                                ConfluenceSite.USER_VARIABLE, ConfluenceSite.TOKEN_VARIABLE);
+                                StubConfluence.FOLDER_ID_VARIABLE, StubConfluence.FOLDER_TITLE_VARIABLE,
+                                StubConfluence.EMAIL_VARIABLE, ConfluenceSite.TOKEN_VARIABLE);
+                        assertThat(text).doesNotContain(StubConfluence.EARLIER_VARIABLES.toArray(String[]::new));
                         assertThat(text).doesNotContain(StubConfluence.USER, StubConfluence.TOKEN,
                                 StubConfluence.SITE_HOST);
                     }));

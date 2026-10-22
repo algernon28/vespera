@@ -360,9 +360,11 @@ Those files are where the run stops. No stage sends them anywhere; the one thing
 | --- | --- |
 | `VESPERA_CONFLUENCE_BASE_URL` | your site's address, `https://<your-site>.atlassian.net` |
 | `VESPERA_CONFLUENCE_SPACE_KEY` | the key of the space the pages go in |
-| `VESPERA_CONFLUENCE_PARENT_ID` or `VESPERA_CONFLUENCE_PARENT_TITLE` | the page or folder they go under, by its id (the number in its address) or by its title; name one, not both |
-| `VESPERA_CONFLUENCE_USER` | your account's email |
+| `VESPERA_CONFLUENCE_FOLDER_ID` or `VESPERA_CONFLUENCE_FOLDER_TITLE` | the page or folder they go under, by its id (the number in its address) or by its title; name one, not both |
+| `VESPERA_CONFLUENCE_EMAIL` | your account's email |
 | `VESPERA_CONFLUENCE_TOKEN` | the API token |
+
+`VESPERA_CONFLUENCE_USER`, `VESPERA_CONFLUENCE_PARENT_ID` and `VESPERA_CONFLUENCE_PARENT_TITLE` are no longer read: set the names above instead. A `confluence-env.sh` or `confluence-env.ps1` already in your working directory that sets the old names is not written over; edit it, or delete it and the next publish missing a value writes it afresh.
 
 A publish missing any of them sends nothing, names what is missing, and writes `confluence-env.sh` and `confluence-env.ps1` into the working directory where they are not there already. Fill in the site, the space and the parent in one, then run it in your shell, `. ./confluence-env.sh` or `. .\confluence-env.ps1`: it asks for the email and the token each time and writes neither down. Then:
 
