@@ -158,12 +158,13 @@ public final class ListedArrangement {
         List<ListedPartition> partitions = source.partitions();
         StringBuilder index = new StringBuilder();
         try {
-            IndexPage.open(index, provenance);
+            IndexPage.open(index, provenance, DeliverableLanguage.ENGLISH);
             for (ListedPartition partition : partitions) {
-                IndexPage.partitionHeading(index, partition);
+                IndexPage.partitionHeading(index, partition, DeliverableLanguage.ENGLISH);
                 for (RecordedCluster recorded : source.clustersOf(partition)) {
                     IndexPage.clusterRow(
-                            index, partition, partitions.size(), recorded, source.writtenOver(ClusterSlot.of(recorded)));
+                            index, partition, partitions.size(), recorded, source.writtenOver(ClusterSlot.of(recorded)),
+                            DeliverableLanguage.ENGLISH);
                 }
                 IndexPage.partitionEnd(index);
             }

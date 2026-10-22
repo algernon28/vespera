@@ -106,7 +106,7 @@ class PromptRefusedAsPastTheWindowTest {
     void aPromptTheRunnerRefusesAsPastTheWindowFaultsTheCluster() {
         Throwable thrown = catchThrowable(() -> new ClusterSynthesis(refusing(BAD_REQUEST, quotedUnderError(
                         THE_RUNNERS_OWN_REFUSAL)))
-                .docFor(aCluster(), MODEL_NAME, THE_WINDOW));
+                .docFor(aCluster(), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH));
 
         claim(
                 "the refusal turns the group down, rather than escaping as the framework's own error: the"
@@ -133,7 +133,7 @@ class PromptRefusedAsPastTheWindowTest {
     void aPromptOllamaRefusesAsPastTheWindowFaultsTheCluster() {
         Throwable thrown = catchThrowable(() -> new ClusterSynthesis(refusing(BAD_REQUEST, "{\"error\":\""
                         + OLLAMAS_OWN_REFUSAL + "\"}"))
-                .docFor(aCluster(), MODEL_NAME, THE_WINDOW));
+                .docFor(aCluster(), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH));
 
         claim(
                 "the refusal turns the group down under the same reason: the engine words the same limit"
@@ -151,7 +151,7 @@ class PromptRefusedAsPastTheWindowTest {
     void aRefusalBecauseTheModelWasNeverPulledStillReachesTheStep() {
         Throwable thrown = catchThrowable(() -> new ClusterSynthesis(
                         refusing(NOT_FOUND, "{\"error\":\"" + A_MODEL_NEVER_PULLED + "\"}"))
-                .docFor(aCluster(), MODEL_NAME, THE_WINDOW));
+                .docFor(aCluster(), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH));
 
         claim(
                 "the refusal reaches the step unchanged: a model the engine does not have would refuse"
@@ -169,7 +169,7 @@ class PromptRefusedAsPastTheWindowTest {
         Throwable thrown = catchThrowable(() -> new ClusterSynthesis(
                         refusing(BAD_REQUEST, "{\"error\":\"" + A_MODEL_THAT_CANNOT_CHAT.replace("\"", "\\\"")
                                 + "\"}"))
-                .docFor(aCluster(), MODEL_NAME, THE_WINDOW));
+                .docFor(aCluster(), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH));
 
         claim(
                 "the refusal reaches the step unchanged, though it arrives with the same status as a"
@@ -185,7 +185,7 @@ class PromptRefusedAsPastTheWindowTest {
     void aQuestionCountedAsFittingThenRefusedOnLengthWhenAnsweredFaultsTheCluster() {
         Throwable thrown = catchThrowable(() -> new ClusterSynthesis(
                         countingAsFittingThenRefusingTheAnswer(BAD_REQUEST, quotedUnderError(THE_RUNNERS_OWN_REFUSAL)))
-                .docFor(aCluster(), MODEL_NAME, THE_WINDOW));
+                .docFor(aCluster(), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH));
 
         claim(
                 "the refusal turns the group down, rather than escaping as the framework's own error: the"
@@ -209,7 +209,7 @@ class PromptRefusedAsPastTheWindowTest {
     void aQuestionCountedAsFittingThenRefusedForAnotherReasonWhenAnsweredReachesTheStep() {
         Throwable thrown = catchThrowable(() -> new ClusterSynthesis(countingAsFittingThenRefusingTheAnswer(
                         NOT_FOUND, "{\"error\":\"" + A_MODEL_NEVER_PULLED + "\"}"))
-                .docFor(aCluster(), MODEL_NAME, THE_WINDOW));
+                .docFor(aCluster(), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH));
 
         claim(
                 "the refusal reaches the step unchanged when it comes on the answer rather than the count:"

@@ -12,6 +12,7 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.Unwritten;
@@ -334,7 +335,7 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
         long high = 999_999;
         while (low < high) {
             long middle = (low + high) / 2;
-            int pages = ClusterPage.plan(middle, unwritten, null, null, entrySizes, false)
+            int pages = ClusterPage.plan(middle, unwritten, null, null, entrySizes, false, DeliverableLanguage.ENGLISH)
                     .map(ClusterPage.PageBreaks::pages)
                     .orElse(1);
             if (pages <= 2) {

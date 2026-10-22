@@ -496,6 +496,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "synthesis.ClusterMaterial",
                             "synthesis.ClusterSlot",
                             "synthesis.Clusters",
+                            // ADR-321: the deliverable's language, read through LanguageOfTheDeliverable and handed to
+                            // the writing and to the tree as a plain value.
+                            "synthesis.DeliverableLanguage",
                             "synthesis.GenerationOutcome",
                             "synthesis.GenerationProgress",
                             "synthesis.OpeningChunk",

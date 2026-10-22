@@ -143,7 +143,7 @@ class CountedBeforeItIsAnsweredTest {
         CountingEngine engine = new CountingEngine(Overflow.CUTS);
 
         SynthesisDoc doc = new ClusterSynthesis(engine)
-                .docFor(aClusterOf(EIGHT_DOCUMENTS, WORDS_IN_A_RECORD_DOCUMENT, A_RECORD_WORD), MODEL_NAME, THE_WINDOW);
+                .docFor(aClusterOf(EIGHT_DOCUMENTS, WORDS_IN_A_RECORD_DOCUMENT, A_RECORD_WORD), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "the group is written from the " + FOUR_FIT + " documents closest to its seed, in that order:"
@@ -167,7 +167,7 @@ class CountedBeforeItIsAnsweredTest {
         CountingEngine engine = new CountingEngine(Overflow.CUTS);
 
         new ClusterSynthesis(engine)
-                .docFor(aClusterOf(EIGHT_DOCUMENTS, WORDS_IN_A_RECORD_DOCUMENT, A_RECORD_WORD), MODEL_NAME, THE_WINDOW);
+                .docFor(aClusterOf(EIGHT_DOCUMENTS, WORDS_IN_A_RECORD_DOCUMENT, A_RECORD_WORD), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "the whole proposal, cut by the engine, was counted at " + THE_CEILING + " -- the window less"
@@ -184,7 +184,7 @@ class CountedBeforeItIsAnsweredTest {
         CountingEngine engine = new CountingEngine(Overflow.REFUSES);
 
         SynthesisDoc doc = new ClusterSynthesis(engine)
-                .docFor(aClusterOf(EIGHT_DOCUMENTS, WORDS_IN_A_RECORD_DOCUMENT, A_RECORD_WORD), MODEL_NAME, THE_WINDOW);
+                .docFor(aClusterOf(EIGHT_DOCUMENTS, WORDS_IN_A_RECORD_DOCUMENT, A_RECORD_WORD), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "an engine that refuses a question too long for the window, rather than cutting it, gets the"
@@ -201,7 +201,7 @@ class CountedBeforeItIsAnsweredTest {
         CountingEngine engine = new CountingEngine(Overflow.CUTS);
 
         SynthesisDoc doc = new ClusterSynthesis(engine)
-                .docFor(aClusterOf(TWO_DOCUMENTS, WORDS_IN_A_PROSE_DOCUMENT, A_PROSE_WORD), MODEL_NAME, THE_WINDOW);
+                .docFor(aClusterOf(TWO_DOCUMENTS, WORDS_IN_A_PROSE_DOCUMENT, A_PROSE_WORD), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "both documents are sent, " + TWO_DOCUMENTS + " of them: nothing is dropped from a group the"
@@ -228,7 +228,7 @@ class CountedBeforeItIsAnsweredTest {
         CountingEngine engine = new CountingEngine(Overflow.CUTS);
 
         new ClusterSynthesis(engine)
-                .docFor(aClusterOf(FOURTEEN_DOCUMENTS, WORDS_IN_A_RECORD_DOCUMENT, A_RECORD_WORD), MODEL_NAME, THE_WINDOW);
+                .docFor(aClusterOf(FOURTEEN_DOCUMENTS, WORDS_IN_A_RECORD_DOCUMENT, A_RECORD_WORD), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "a proposal of " + FOURTEEN_DOCUMENTS + " documents is counted at most " + AT_MOST_FIVE_COUNTS
@@ -248,7 +248,7 @@ class CountedBeforeItIsAnsweredTest {
                 .forEach(ordinal -> documents.add(aDocument(ordinal, WORDS_IN_A_PROSE_DOCUMENT, A_PROSE_WORD)));
 
         SynthesisDoc doc = new ClusterSynthesis(engine)
-                .docFor(new ClusterCall(LABEL, SEED_PATH, documents), MODEL_NAME, THE_WINDOW);
+                .docFor(new ClusterCall(LABEL, SEED_PATH, documents), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "the group is written from the " + THREE_DOCUMENTS + " short documents after the log, which"
@@ -265,7 +265,7 @@ class CountedBeforeItIsAnsweredTest {
         CountingEngine engine = new CountingEngine(Overflow.CUTS);
 
         Throwable thrown = catchThrowable(() -> new ClusterSynthesis(engine)
-                .docFor(aClusterOf(TWO_DOCUMENTS, WORDS_IN_A_LOG_DOCUMENT, A_LOG_WORD), MODEL_NAME, THE_WINDOW));
+                .docFor(aClusterOf(TWO_DOCUMENTS, WORDS_IN_A_LOG_DOCUMENT, A_LOG_WORD), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH));
 
         claim(
                 "the group is turned down for a question that could not reach the model whole: every one of"
@@ -290,7 +290,7 @@ class CountedBeforeItIsAnsweredTest {
         CountingEngine engine = new CountingEngine(Overflow.REPORTS_NO_COUNT);
 
         SynthesisDoc doc = new ClusterSynthesis(engine)
-                .docFor(aClusterOf(TWO_DOCUMENTS, WORDS_IN_A_PROSE_DOCUMENT, A_PROSE_WORD), MODEL_NAME, THE_WINDOW);
+                .docFor(aClusterOf(TWO_DOCUMENTS, WORDS_IN_A_PROSE_DOCUMENT, A_PROSE_WORD), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "both documents proposed are sent after " + ONE_CALL + " count: a count nobody reported says"
@@ -307,7 +307,7 @@ class CountedBeforeItIsAnsweredTest {
     @DisplayName("An answer counted at the window's last token is turned down, however its count came about")
     void turnsDownAnAnswerCountedAtTheWindowLessOne() {
         Throwable thrown = catchThrowable(() -> new ClusterSynthesis(answeredHavingRead(THE_CEILING))
-                .docFor(aClusterOf(TWO_DOCUMENTS, WORDS_IN_A_PROSE_DOCUMENT, A_PROSE_WORD), MODEL_NAME, THE_WINDOW));
+                .docFor(aClusterOf(TWO_DOCUMENTS, WORDS_IN_A_PROSE_DOCUMENT, A_PROSE_WORD), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH));
 
         claim(
                 "an answer reporting a question of " + THE_CEILING + " tokens in a window of " + THE_WINDOW
@@ -322,7 +322,7 @@ class CountedBeforeItIsAnsweredTest {
     @DisplayName("An answer counted two tokens short of the window is believed")
     void believesAnAnswerCountedTwoShortOfTheWindow() {
         SynthesisDoc doc = new ClusterSynthesis(answeredHavingRead(THE_CEILING - 1))
-                .docFor(aClusterOf(TWO_DOCUMENTS, WORDS_IN_A_PROSE_DOCUMENT, A_PROSE_WORD), MODEL_NAME, THE_WINDOW);
+                .docFor(aClusterOf(TWO_DOCUMENTS, WORDS_IN_A_PROSE_DOCUMENT, A_PROSE_WORD), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "an answer reporting " + (THE_CEILING - 1) + " tokens of question is believed: the question"

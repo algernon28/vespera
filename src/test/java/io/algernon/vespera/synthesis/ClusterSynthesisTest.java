@@ -292,7 +292,7 @@ class ClusterSynthesisTest {
     void returnsTheTitleTheTextAndHowManyDocumentsItWasWrittenFrom() {
         ClusterSynthesis synthesis = new ClusterSynthesis(new ScriptedChatModel());
 
-        SynthesisDoc doc = synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW);
+        SynthesisDoc doc = synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "the writing carries the heading the model gave it, rather than the name the group already"
@@ -322,7 +322,7 @@ class ClusterSynthesisTest {
     void sendsTheWholeClusterAtOnceInScoreOrderUnderTheNumbersToCiteThemBy() {
         ScriptedChatModel model = new ScriptedChatModel();
 
-        new ClusterSynthesis(model).docFor(aClusterOfThreeOfferedOutOfOrder(), MODEL_NAME, THE_SHIPPED_WINDOW);
+        new ClusterSynthesis(model).docFor(aClusterOfThreeOfferedOutOfOrder(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "all " + THREE_DOCUMENTS + " documents went in " + ONE_CALL + " call: asking once per"
@@ -353,7 +353,7 @@ class ClusterSynthesisTest {
     void saysHowMuchItMayReadAndWhatShapeTheAnswerTakes() {
         ScriptedChatModel model = new ScriptedChatModel();
 
-        new ClusterSynthesis(model).docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW);
+        new ClusterSynthesis(model).docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "the call names the model it was told to use, rather than leaving the machine to pick one:"
@@ -380,7 +380,7 @@ class ClusterSynthesisTest {
         ScriptedChatModel model = new ScriptedChatModel();
 
         SynthesisDoc doc = new ClusterSynthesis(model)
-                .docFor(aClusterOfThreeLongDocuments(), MODEL_NAME, A_SMALL_WINDOW);
+                .docFor(aClusterOfThreeLongDocuments(), MODEL_NAME, A_SMALL_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "the two closest documents went and the third did not: reading room is finite, and what a"
@@ -414,7 +414,7 @@ class ClusterSynthesisTest {
                                         aDocumentOf(HALF_THE_ROOM, CLOSEST_HEADING, CLOSEST_SCORE),
                                         aDocumentOf(HALF_THE_ROOM, MIDDLE_HEADING, MIDDLE_SCORE))),
                         MODEL_NAME,
-                        A_SMALL_WINDOW);
+                        A_SMALL_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "both documents went: together they come to exactly the " + ROOM_FOR + " words there is"
@@ -444,7 +444,7 @@ class ClusterSynthesisTest {
                                         aDocumentOf(HALF_THE_ROOM, MIDDLE_HEADING, MIDDLE_SCORE),
                                         aDocumentOf(HALF_THE_ROOM, FURTHEST_HEADING, FURTHEST_SCORE))),
                         MODEL_NAME,
-                        A_SMALL_WINDOW);
+                        A_SMALL_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "the outsized document was left out even though it is the closest one to the seed: it does"
@@ -490,7 +490,7 @@ class ClusterSynthesisTest {
                                                 FURTHEST_HEADING,
                                                 FURTHEST_SCORE))),
                         MODEL_NAME,
-                        A_SMALL_WINDOW);
+                        A_SMALL_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "the closest document went, filling " + FILLS_MOST_OF_THE_ROOM + " of the " + ROOM_FOR
@@ -534,7 +534,7 @@ class ClusterSynthesisTest {
                         + " quietly turning into a question about no documents: whoever owns the reading"
                         + " budget is the only place that can know the fill came out empty, and a rule"
                         + " enforced only by everyone who calls in is a habit rather than a rule",
-                () -> assertThatThrownBy(() -> synthesis.docFor(nothingFits, MODEL_NAME, A_SMALL_WINDOW))
+                () -> assertThatThrownBy(() -> synthesis.docFor(nothingFits, MODEL_NAME, A_SMALL_WINDOW, DeliverableLanguage.ENGLISH))
                         .isInstanceOf(IllegalStateException.class));
         claim(
                 "and the model was asked nothing at all -- " + NOTHING_WAS_ASKED + " calls: a piece of"
@@ -558,7 +558,7 @@ class ClusterSynthesisTest {
                         + " one, and a failure that is not a turned-down answer takes every one of them"
                         + " with it",
                 () -> assertThatThrownBy(
-                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW))
+                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH))
                         .isInstanceOf(ClusterFaultException.class));
         claim(
                 "and the reason kept says what came back could not be read into the shape that was asked"
@@ -582,7 +582,7 @@ class ClusterSynthesisTest {
                         + " it reads a character of it, and what it raises for nothing is not the kind of"
                         + " failure the catch around it is written for",
                 () -> assertThatThrownBy(
-                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW))
+                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH))
                         .isInstanceOf(ClusterFaultException.class));
         claim(
                 "and the reason kept is \"" + CAME_BACK_EMPTY + "\", which says the answer was empty"
@@ -659,7 +659,7 @@ class ClusterSynthesisTest {
     void believesAnAnswerThatReportsNoReadingCountsAtAll() {
         ClusterSynthesis synthesis = new ClusterSynthesis(new ScriptedChatModel());
 
-        SynthesisDoc doc = synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW);
+        SynthesisDoc doc = synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "a call whose answer reports no counts of its own is believed rather than failing on the"
@@ -687,7 +687,7 @@ class ClusterSynthesisTest {
                         + " with it -- so one answer missing its writing would cost not its own group but"
                         + " the record of every group turned down before it",
                 () -> assertThatThrownBy(
-                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW))
+                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH))
                         .isInstanceOf(ClusterFaultException.class));
         claim(
                 "and the reason kept is \"" + NO_WRITING_AT_ALL + "\", recorded as an answer that could"
@@ -779,7 +779,7 @@ class ClusterSynthesisTest {
                         + " used to take the whole piece of work down -- and with it the reasons kept"
                         + " for every group turned down before this one",
                 () -> assertThatThrownBy(
-                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW))
+                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH))
                         .isInstanceOf(ClusterFaultException.class));
         claim(
                 "and the reason kept is \"" + NO_TITLE_AT_ALL + "\", recorded as an answer that could"
@@ -926,7 +926,7 @@ class ClusterSynthesisTest {
     private static ClusterFault faultFrom(ChatResponse response) {
         try {
             new ClusterSynthesis(alwaysAnswering(response))
-                    .docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW);
+                    .docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH);
             return null;
         } catch (ClusterFaultException turnedDown) {
             return turnedDown.fault();
