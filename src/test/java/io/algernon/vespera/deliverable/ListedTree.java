@@ -59,7 +59,7 @@ final class ListedTree {
 
     /**
      * The source over these lists, every survivor in one page, {@code writingFinished} saying whether the generation
-     * step's work is recorded finished (ADR-319 §5.1) and {@code language} the deliverable's language (ADR-322).
+     * step's work is recorded finished (ADR-319 §5.1) and {@code language} the deliverable's language (ADR-321).
      */
     static ArrangedSurvivors of(
             List<RecordedCluster> arrangement,

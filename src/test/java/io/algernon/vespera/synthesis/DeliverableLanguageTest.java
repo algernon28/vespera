@@ -14,12 +14,12 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The two languages a deliverable can be in, how each is written in the profile, and which one an unanswered key
- * means (ADR-322 §1). {@code synthesis} holds them, as it holds the default window, so that what reads the profile
+ * means (ADR-321 §1). {@code synthesis} holds them, as it holds the default window, so that what reads the profile
  * holds no rule.
  */
 @Epic("Synthesis")
 @Feature("Writing over the groups")
-@Link(name = "ADR-322", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
+@Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
 class DeliverableLanguageTest {
 
     /** Ways of writing Italian the record reads as Italian: the code in any case, blanks around it ignored. */

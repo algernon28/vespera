@@ -1,6 +1,6 @@
 # ADR-174 — A page nothing was written over says why, in words for a reader
 
-> **Partly amended — see [ADR-322](0322-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md).** Each of §2's seven sentences, and the plain line of §3, has an Italian rendering that record fixes, drawn where the deliverable's language is Italian; it keeps §5's rule in Italian and says *gruppo*. The English sentences stand word for word.
+> **Partly amended — see [ADR-321](0321-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md).** Each of §2's seven sentences, and the plain line of §3, has an Italian rendering that record fixes, drawn where the deliverable's language is Italian; it keeps §5's rule in Italian and says *gruppo*. The English sentences stand word for word.
 
 - **Date**: 2026-10-02
 - **Status**: accepted

@@ -22,7 +22,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
 
 /**
- * What the question says after the documents about the answer it imposes and the language it is written in (ADR-322
+ * What the question says after the documents about the answer it imposes and the language it is written in (ADR-321
  * §2, §3): the answer's two fields, in the order the schema names them; that the writing ends with its last sentence;
  * and the deliverable's language, by its English name, the instruction staying English.
  *
@@ -36,7 +36,7 @@ import org.springframework.ai.ollama.api.OllamaChatOptions;
  */
 @Epic("Synthesis")
 @Feature("Writing over the groups")
-@Link(name = "ADR-322", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
+@Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
 @Link(name = "ADR-161", url = Adr.THE_INSTRUCTION_FOLLOWS_THE_DOCUMENTS_AND_NAMES_A_LENGTH, type = "adr")
 @Link(name = "ADR-162", url = Adr.WRITING_ENDING_WITH_THE_ANSWERS_CLOSING_BRACE_IS_TURNED_DOWN, type = "adr")
 class TheQuestionNamesTheAnswersFieldsAndLanguageTest {
@@ -58,7 +58,7 @@ class TheQuestionNamesTheAnswersFieldsAndLanguageTest {
 
     /**
      * The tokens kept back for everything in the question that is not a document, written out rather than read off the
-     * code it checks: a number taken from the thing under test would agree with it whatever it changed to (ADR-322 §3
+     * code it checks: a number taken from the thing under test would agree with it whatever it changed to (ADR-321 §3
      * keeps it at 256).
      */
     private static final int THE_INSTRUCTION_RESERVE = 256;

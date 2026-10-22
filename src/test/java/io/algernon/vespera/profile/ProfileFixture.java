@@ -249,7 +249,7 @@ public final class ProfileFixture {
         return this;
     }
 
-    /** The language the deliverable is written and drawn in (ADR-322), {@code en} or {@code it}. */
+    /** The language the deliverable is written and drawn in (ADR-321), {@code en} or {@code it}. */
     public ProfileFixture deliverableLanguage(String value, String provenance) {
         this.deliverableLanguage = someText(value, provenance);
         return this;

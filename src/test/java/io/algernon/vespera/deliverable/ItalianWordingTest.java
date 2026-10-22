@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The Italian of an Italian deliverable's fixed words, held to the record word for word and to the rules every English
- * sentence keeps (ADR-322 §4, §5): the eight sentences of ADR-174 and ADR-319, a copy's outcome, the line on pictures not
+ * sentence keeps (ADR-321 §4, §5): the eight sentences of ADR-174 and ADR-319, a copy's outcome, the line on pictures not
  * shown, the index's code sets and a split cluster's Confluence title. The pages these land on are held by {@link
  * AnItalianTreeIsDrawnInItalianTest}.
  *
@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
  */
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
-@Link(name = "ADR-322", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
+@Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
 @Link(name = "ADR-174", url = Adr.A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY, type = "adr")
 @Link(name = "ADR-319", url = Adr.A_CLUSTER_TURNED_DOWN_THE_LAST_TWO_TIMES_STANDS_WITHOUT_WRITING, type = "adr")
 class ItalianWordingTest {

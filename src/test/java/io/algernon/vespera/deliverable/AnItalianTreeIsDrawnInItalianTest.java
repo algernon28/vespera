@@ -35,7 +35,7 @@ import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * A tree whose deliverable language is Italian, drawn whole, and what every page of it says (ADR-322 §4, §5): the HTML
+ * A tree whose deliverable language is Italian, drawn whole, and what every page of it says (ADR-321 §4, §5): the HTML
  * cluster pages and index, and the Confluence rendering's root page, seed partition's page, cluster pages and titles.
  * The writing itself is the model's and is handed in here as it would be written; what is held is every word Vespera
  * writes around it. Every fixture is synthetic: an archive written here, a run id of the ledger's shape.
@@ -49,7 +49,7 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
-@Link(name = "ADR-322", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
+@Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
 @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
 @Link(name = "ADR-310", url = Adr.A_CONFLUENCE_PAGES_TITLE_ENDS_WITH_ITS_PLACE_AND_ITS_RUNS_MARKER, type = "adr")
 @Link(name = "ADR-315", url = Adr.THE_ROOT_PAGE_CARRIES_NEITHER_THE_CORPUS_ROOT_NOR_THE_PROFILE, type = "adr")
@@ -95,7 +95,7 @@ class AnItalianTreeIsDrawnInItalianTest {
     private static final String THE_KEY = "deliverableLanguage";
 
     /**
-     * Words every English page of the tree carries and no Italian one may: each fixed English phrase of ADR-322 §4's
+     * Words every English page of the tree carries and no Italian one may: each fixed English phrase of ADR-321 §4's
      * table, as far as it is told apart from a path or a value, and the navigation's four words as links.
      */
     private static final List<String> ENGLISH_FIXED_WORDS = List.of(

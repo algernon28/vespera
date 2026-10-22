@@ -1,6 +1,6 @@
 # ADR-161 — The instruction follows the documents and names a length the reply allowance holds
 
-> **Partly amended — see [ADR-322](0322-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md).** §1's instruction ends with one sentence more, after the citation sentence: the answer is one JSON object of two fields, `title` and `prose`, the writing ending with its last sentence, both written in the deliverable's language. Its two rules, its 400 words and §3's allowance stand; the Consequences' *"still inside `INSTRUCTION_RESERVE`'s 256 tokens"* holds of the text after the documents alone.
+> **Partly amended — see [ADR-321](0321-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md).** §1's instruction ends with one sentence more, after the citation sentence: the answer is one JSON object of two fields, `title` and `prose`, the writing ending with its last sentence, both written in the deliverable's language. Its two rules, its 400 words and §3's allowance stand; the Consequences' *"still inside `INSTRUCTION_RESERVE`'s 256 tokens"* holds of the text after the documents alone.
 
 - **Date**: 2026-09-26
 - **Status**: accepted

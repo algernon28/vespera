@@ -4,7 +4,7 @@ import io.algernon.vespera.synthesis.ClusterFaultKind;
 import java.util.List;
 
 /**
- * Every fixed word an Italian deliverable's pages carry (ADR-322 §4, §5), copied out of the record and not out of the
+ * Every fixed word an Italian deliverable's pages carry (ADR-321 §4, §5), copied out of the record and not out of the
  * code, so the code is held to the record and not the other way round, as {@link UnwrittenSentencesOnRecord} holds the
  * English of ADR-174 and ADR-319.
  *

@@ -2235,12 +2235,12 @@ public final class Adr {
             + "0319-a-cluster-whose-answer-is-turned-down-the-last-two-times-it-is-asked-stands-without-writing-and-the-generation-step-finishes-with-it.md";
 
     /**
-     * ADR-322 -- the deliverable is written and drawn in the language the profile's {@code deliverableLanguage} names,
+     * ADR-321 -- the deliverable is written and drawn in the language the profile's {@code deliverableLanguage} names,
      * English unless it names Italian, and the question names the answer's two fields and where its writing ends
      * (amends ADR-161 §1, ADR-174 §2, ADR-274 §1.4, ADR-310 §2, ADR-315 §2 and ADR-319 §5.1).
      */
     public static final String THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES = FILE
-            + "0322-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md";
+            + "0321-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md";
 
     private Adr() {
     }

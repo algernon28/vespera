@@ -25,7 +25,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * Where the deliverable's language comes from (ADR-322 §1): the profile's {@code deliverableLanguage}, English where it
+ * Where the deliverable's language comes from (ADR-321 §1): the profile's {@code deliverableLanguage}, English where it
  * names none, and a stop where it names one the deliverable cannot be drawn in.
  *
  * <p>The sibling of {@link GenerationContextWindowTest}: not a gate, so an unanswered key resolves to a value and the
@@ -38,7 +38,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Import({LanguageOfTheDeliverable.class, ProfileStore.class})
 @Epic("Synthesis")
 @Feature("Generation")
-@Link(name = "ADR-322", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
+@Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
 class LanguageOfTheDeliverableTest {
 
     /** The key as the profile spells it, which a refusal names. */

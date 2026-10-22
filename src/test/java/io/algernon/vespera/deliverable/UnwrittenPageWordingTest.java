@@ -48,7 +48,7 @@ class UnwrittenPageWordingTest {
 
     private static final List<String> EVERY_SENTENCE = UnwrittenSentencesOnRecord.EVERY_SENTENCE;
 
-    /** The deliverable's language whose sentences ADR-174 and ADR-319 fix word for word; Italian's are ADR-322's. */
+    /** The deliverable's language whose sentences ADR-174 and ADR-319 fix word for word; Italian's are ADR-321's. */
     private static final DeliverableLanguage ENGLISH = DeliverableLanguage.ENGLISH;
 
     @Test

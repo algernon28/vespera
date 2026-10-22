@@ -138,7 +138,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "InvocationRuns",
             "LabelFileReader",
             "LabelIngestion",
-            // ADR-322: reads the deliverable's language the profile holds and hands synthesis and the tree a plain value;
+            // ADR-321: reads the deliverable's language the profile holds and hands synthesis and the tree a plain value;
             // the two languages, the default and what each says are synthesis's and deliverable's.
             "LanguageOfTheDeliverable",
             "MisshapenProfileRefusal",

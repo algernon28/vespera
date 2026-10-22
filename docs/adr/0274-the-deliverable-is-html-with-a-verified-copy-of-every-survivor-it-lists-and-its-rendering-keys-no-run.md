@@ -12,7 +12,7 @@
 
 > **Partly amended — see [ADR-312](0312-the-confluence-rendering-lies-under-confluence-at-the-trees-root-drawn-by-every-drawing-and-what-an-earlier-drawing-left-in-it-is-counted-and-kept.md).** §1's tree gains `confluence/`, the Confluence rendering, at its root; §2.7's bound on the working directory's path is 58 characters. The rest of this record stands.
 
-> **Partly amended — see [ADR-322](0322-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md).** §1.4's `<html lang="en">` names the deliverable's language, `it` where the profile's `deliverableLanguage` names Italian, and every fixed word of the tree is drawn in that language. The rest of this record stands.
+> **Partly amended — see [ADR-321](0321-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md).** §1.4's `<html lang="en">` names the deliverable's language, `it` where the profile's `deliverableLanguage` names Italian, and every fixed word of the tree is drawn in that language. The rest of this record stands.
 
 - **Date**: 2026-10-17
 - **Status**: accepted on 2026-10-17.

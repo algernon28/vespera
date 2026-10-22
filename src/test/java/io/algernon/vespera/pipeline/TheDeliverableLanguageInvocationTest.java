@@ -30,7 +30,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * The deliverable's language end to end (ADR-322 §1, §2, §4, §6): the profile's {@code deliverableLanguage} reaches
+ * The deliverable's language end to end (ADR-321 §1, §2, §4, §6): the profile's {@code deliverableLanguage} reaches
  * the question every cluster is asked, the generation run's identity, and every page the run draws; changing it is a
  * generation run of its own; and a language the deliverable cannot be drawn in stops before anything is asked.
  *
@@ -42,7 +42,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Import(SeedScriptedExtractionBeans.class)
 @Epic("Synthesis")
 @Feature("Writing over the groups")
-@Link(name = "ADR-322", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
+@Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
 class TheDeliverableLanguageInvocationTest {
 
     /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
@@ -57,7 +57,7 @@ class TheDeliverableLanguageInvocationTest {
     /** A language code the deliverable has no fixed words for. */
     private static final String A_LANGUAGE_IT_CANNOT_BE_DRAWN_IN = "fr";
 
-    /** What the question asks the answer to be written in, by the language's English name (ADR-322 §3). */
+    /** What the question asks the answer to be written in, by the language's English name (ADR-321 §3). */
     private static final String WRITE_BOTH_IN_ITALIAN = "Write both in Italian.";
 
     private static final String WRITE_BOTH_IN_ENGLISH = "Write both in English.";

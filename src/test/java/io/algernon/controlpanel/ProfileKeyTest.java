@@ -60,7 +60,7 @@ class ProfileKeyTest {
             new Row("translationSimilarityFloor", Kind.NUMBER, Run.EMBEDDING_SCORING),
             new Row("preferredLanguages", Kind.LANGUAGES, Run.EMBEDDING_SCORING),
             new Row("configurationSettingShareFloor", Kind.NUMBER, Run.BYTE_LEVEL_REDUCTION),
-            // ADR-322: the deliverable's language enters the generation run alone, so the approval stays open.
+            // ADR-321: the deliverable's language enters the generation run alone, so the approval stays open.
             new Row("deliverableLanguage", Kind.TEXT, Run.GENERATION));
 
     @Test

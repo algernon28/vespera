@@ -1,6 +1,6 @@
 # ADR-315 — The root page carries the index's groups and counts and `documents.csv` as a file, and neither the corpus root nor the profile's values
 
-> **Partly amended — see [ADR-322](0322-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md).** Where the deliverable's language is Italian, §2's heading reads *Base di conoscenza* and its one sentence *"La pagina di ogni gruppo porta una copia verificata di ogni documento che elenca. documents.csv elenca ogni documento di questa esecuzione."*, and the table of groups is headed in Italian. The rest of this record stands.
+> **Partly amended — see [ADR-321](0321-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md).** Where the deliverable's language is Italian, §2's heading reads *Base di conoscenza* and its one sentence *"La pagina di ogni gruppo porta una copia verificata di ogni documento che elenca. documents.csv elenca ogni documento di questa esecuzione."*, and the table of groups is headed in Italian. The rest of this record stands.
 
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
