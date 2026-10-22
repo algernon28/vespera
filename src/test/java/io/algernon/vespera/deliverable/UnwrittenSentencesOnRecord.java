@@ -48,6 +48,16 @@ public final class UnwrittenSentencesOnRecord {
             + " stopped before it reached this group. Running the same command again carries the writing"
             + " on.";
 
+    /**
+     * The line beneath the reason on the page of a cluster carrying a repeated fault, in a run whose generation step
+     * is recorded finished (ADR-319 §5.1): not an eighth case, since the reason above it is still one of the three
+     * kinds that judge what an answer wrote, but a second line saying the cluster stands. Not among {@link
+     * #EVERY_SENTENCE}, which holds ADR-174's seven cases.
+     */
+    public static final String STANDS_WITHOUT_WRITING = "Its answer was turned down each time it was"
+            + " asked, so this group stands without writing; running the same command again asks nothing more about"
+            + " it.";
+
     /** Every sentence ADR-174 fixes, in the order its table states them. */
     public static final List<String> EVERY_SENTENCE = List.of(
             DOCUMENTS_CAME_TO_MORE_THAN_THE_ROOM,

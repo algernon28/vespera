@@ -120,6 +120,38 @@ class UnwrittenPageWordingTest {
                         .doesNotContainIgnoringCase(OUR_OWN_WORD)));
     }
 
+    /**
+     * The line ADR-319 §5.1 puts beneath the reason on the page of a cluster that stands without writing, held to the
+     * rules every one of ADR-174's sentences is held to here, word for word the same rules, since it lands on the same
+     * page in the same italics.
+     */
+    @Test
+    @Story("A group whose answer keeps being turned down stands without writing, and its page says so")
+    @DisplayName("The line saying a group stands without writing keeps every rule the reasons keep")
+    @Link(name = "ADR-319", url = Adr.A_CLUSTER_TURNED_DOWN_THE_LAST_TWO_TIMES_STANDS_WITHOUT_WRITING, type = "adr")
+    void theStandingLineKeepsTheRulesEverySentenceKeeps() {
+        String standing = UnwrittenSentencesOnRecord.STANDS_WITHOUT_WRITING;
+        claim(
+                "it is none of the seven reasons, so a reader meeting it beneath one is told something the reason"
+                        + " did not say",
+                () -> assertThat(EVERY_SENTENCE).doesNotContain(standing));
+        claim(
+                "it says none of permanent, never or always: a run of other settings asks the group afresh, so"
+                        + " what it says is true of this run and no more",
+                () -> assertThat(standing.toLowerCase(Locale.ROOT)).doesNotContain(WORDS_A_RE_RUN_CAN_MAKE_FALSE));
+        claim(
+                "it says group and not the word the code uses, and carries no name the code gives a reason",
+                () -> assertThat(standing)
+                        .contains("group")
+                        .doesNotContainIgnoringCase(OUR_OWN_WORD)
+                        .doesNotContain(Arrays.stream(ClusterFaultKind.values()).map(Enum::name).toList()));
+        claim(
+                "and it is one plain line ending in a full stop, with nothing markup could be made of",
+                () -> assertThat(standing)
+                        .endsWith(".")
+                        .doesNotContain("\n", "*", "[", "]", "(", ")", "<", ">", "`", "|", "&", "\\", "_"));
+    }
+
     @Test
     @Story("A page with nothing written on it says why, in words a reader of the tree can follow")
     @DisplayName("Every sentence is one plain line of text, which the page shows in italics")

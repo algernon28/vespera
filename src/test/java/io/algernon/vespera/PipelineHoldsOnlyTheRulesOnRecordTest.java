@@ -163,6 +163,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "RelevanceReportTasklet",
             "RelevanceScoreFloorValue",
             "RelevanceScoringTasklet",
+            // ADR-319 §4: decides whether the generation step works again under its run, as a gate or TaskletSteps
+            // does; every row the run records is still decided by synthesis's rules.
+            "RepeatedFaults",
             "ReportPage",
             "ReportedStatements",
             "ReviewListListener",

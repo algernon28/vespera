@@ -158,7 +158,7 @@ _Renders as_: **group**, and only in prose written for a reader outside this pro
 **Unwritten cluster**:
 A cluster that ends an invocation with no synthesis doc: it carries a fault row of one of the four kinds, nothing of it could be sent (ADR-121), or the step stopped before reaching it (ADR-111). Its page says which, and the index says only that nothing was written (ADR-174).
 _Avoid_: failed cluster, empty cluster
-_Renders as_: the one sentence ADR-174 gives its case, in italics under the group's heading, and nowhere else.
+_Renders as_: the one sentence ADR-174 gives its case, in italics under the group's heading, with the line ADR-319 gives a repeated fault beneath it where the run's generation step is finished, and nowhere else.
 
 ### Measurement
 
@@ -309,12 +309,17 @@ _Avoid_: logo, decoration, chrome, boilerplate (boilerplate is text, measured co
 A cluster stage 6b could not write a synthesis doc for: the call came back, and what came back did not survive checking. What came back includes the serving engine's count of the question and its refusal of it, not only an answer — so a cluster none of whose documents the engine counts inside the room — the window less what is kept for the answer — faults, having been asked about (ADR-166). Recorded against the cluster, never against its documents — nothing is wrong with them, and nothing is removed. The deliverable keeps the hole, headed by the cluster's label.
 _Avoid_: error, failure, skipped cluster, verdict (a verdict is about a document, and it removes one)
 
+**Repeated fault**:
+A cluster fault recorded where a fault already stood against the cluster under its generation run when it was asked again, both answers turned down by a check on what the answer wrote: it ran out of room, did not come back in the shape asked for, or cited outside what it was given (ADR-319). A question longer than the room is never one, since the same question is the same length each time. Once every fault standing under the run is one, and nothing was found unsendable, the generation step is recorded finished and each such cluster stands without writing: no later invocation of that run asks it again.
+_Avoid_: persistent fault (persistence is the database's word), permanent fault (a generation run of other settings asks the cluster afresh), stuck cluster
+_Renders as_: the line ADR-319 gives it, beneath the sentence ADR-174 gives its kind.
+
 **Counting call**:
 The call stage 6b makes before it asks for a cluster's writing: the same question, asking for one token of answer, sent so the serving engine says how long it counts the question to be, or refuses it as too long. Its answer is never read. What the writing call then carries is the longest run of the closest documents the engine counted inside the room: the window, less what is kept for the answer (ADR-166). Not a measurement — it renders nothing and leaves no row — and not a retry: it comes before any answer exists.
 _Avoid_: probe, dry run, tokenize call, measuring call (a measurement is a verdict-free pass over the corpus)
 
 **Repair pass**:
-A re-run of generation that finishes what an earlier one left behind: the clusters it never reached, and the clusters it could not write. It asks the same question again and is never shown what went wrong before, so nothing is corrected — only completed, and each pass is smaller than the one before it.
+A re-run of generation that finishes what an earlier one left behind: the clusters it never reached, and the clusters it could not write. It asks the same question again and is never shown what went wrong before, so nothing is corrected — only completed, and each pass is smaller than the one before it. A pass that leaves only repeated faults standing, and nothing unsendable, is the last under its run (ADR-319).
 _Avoid_: retry, regeneration, repairing a synthesis doc (a synthesis doc is written or it is not; nothing edits one)
 
 **Publication-ready artifact**:

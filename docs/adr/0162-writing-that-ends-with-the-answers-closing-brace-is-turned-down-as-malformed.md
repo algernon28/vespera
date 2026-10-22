@@ -1,5 +1,7 @@
 # ADR-162 — Writing that ends with the answer's closing brace is turned down as malformed
 
+> **Partly amended — see [ADR-319](0319-a-cluster-whose-answer-is-turned-down-the-last-two-times-it-is-asked-stands-without-writing-and-the-generation-step-finishes-with-it.md).** Two statements of the Consequences no longer hold: under the shipped wording and model, 8 of 54 first answers of one generation run were turned down for the brace, about 15% rather than about 7%; and one cluster drew it four times out of four, so a cluster can keep drawing it. Such a cluster stands without writing once its answer is turned down the last two times it is asked. The decision stands.
+
 - **Date**: 2026-09-26
 - **Status**: accepted
 - **Extends**: [ADR-108](0108-6b-sends-one-exemplar-first-call-per-cluster-and-verifies-every-response.md)'s schema check. An answer can read back into `ANSWER_SCHEMA` and still carry, inside its writing, the brace that closes the JSON object. That is a malformed answer, recorded as `SCHEMA_VIOLATION` with a detail of its own.
