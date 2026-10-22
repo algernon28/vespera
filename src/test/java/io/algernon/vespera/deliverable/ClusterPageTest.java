@@ -301,7 +301,9 @@ class ClusterPageTest {
             DeliverableProgress progress)
             throws IOException {
         try (OutputStream out = Files.newOutputStream(page)) {
-            ClusterPage.write(out, recorded, doc, why, members, page.getParent(), copies, pictures, progress, bytes -> {});
+            ClusterPage.write(
+                    out, recorded, doc, why, members, page.getParent(), copies, pictures, progress, bytes -> {},
+                    ConfluenceEntries.NONE, false);
         }
     }
 

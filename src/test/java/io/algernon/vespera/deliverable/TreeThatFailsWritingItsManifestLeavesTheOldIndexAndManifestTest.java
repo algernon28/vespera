@@ -142,6 +142,7 @@ class TreeThatFailsWritingItsManifestLeavesTheOldIndexAndManifestTest {
                         }
                         page.accept(survivors);
                     });
-                });
+                },
+                whole.writingFinished());
     }
 }

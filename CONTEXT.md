@@ -310,7 +310,7 @@ A cluster stage 6b could not write a synthesis doc for: the call came back, and 
 _Avoid_: error, failure, skipped cluster, verdict (a verdict is about a document, and it removes one)
 
 **Repeated fault**:
-A cluster fault recorded where a fault already stood against the cluster under its generation run when it was asked again, both answers turned down by a check on what the answer wrote: it ran out of room, did not come back in the shape asked for, or cited outside what it was given (ADR-319). A question longer than the room is never one, since the same question is the same length each time. Once every fault standing under the run is one, and nothing was found unsendable, the generation step is recorded finished and each such cluster stands without writing: no later invocation of that run asks it again.
+A cluster fault recorded where a fault already stood against the cluster under its generation run when it was asked again, both answers turned down by a check on what the answer wrote: it ran out of room, did not come back in the shape asked for, or cited outside what it was given (ADR-319). A question longer than the room is never one, since the same question is the same length each time. Once the walk has gone through every cluster, not stopping on five turned-down answers in a row, found nothing unsendable, and every fault standing under the run is one, the generation step is recorded finished and each such cluster stands without writing: no later invocation of that run asks it again.
 _Avoid_: persistent fault (persistence is the database's word), permanent fault (a generation run of other settings asks the cluster afresh), stuck cluster
 _Renders as_: the line ADR-319 gives it, beneath the sentence ADR-174 gives its kind.
 
@@ -319,7 +319,7 @@ The call stage 6b makes before it asks for a cluster's writing: the same questio
 _Avoid_: probe, dry run, tokenize call, measuring call (a measurement is a verdict-free pass over the corpus)
 
 **Repair pass**:
-A re-run of generation that finishes what an earlier one left behind: the clusters it never reached, and the clusters it could not write. It asks the same question again and is never shown what went wrong before, so nothing is corrected — only completed, and each pass is smaller than the one before it. A pass that leaves only repeated faults standing, and nothing unsendable, is the last under its run (ADR-319).
+A re-run of generation that finishes what an earlier one left behind: the clusters it never reached, and the clusters it could not write. It asks the same question again and is never shown what went wrong before, so nothing is corrected — only completed, and each pass is smaller than the one before it. A pass that goes through every cluster and leaves only repeated faults standing, and nothing unsendable, is the last under its run (ADR-319).
 _Avoid_: retry, regeneration, repairing a synthesis doc (a synthesis doc is written or it is not; nothing edits one)
 
 **Publication-ready artifact**:

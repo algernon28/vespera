@@ -79,7 +79,8 @@ final class ListedTree {
                     return places;
                 },
                 everySurvivorInOnePage,
-                everySurvivorInOnePage);
+                everySurvivorInOnePage,
+                false);
     }
 
     /** The tree written from these lists over {@code corpusRoot}, with no pictures and no progress heard. */

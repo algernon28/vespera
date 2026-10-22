@@ -397,6 +397,40 @@ class RepeatedFaultInvocationTest {
 
     @Test
     @Story("Only an answer turned down for what it wrote can leave a group standing")
+    @DisplayName("A group whose question was too long for the window, then whose answer came back in the wrong shape, does not stand, and the work stays open")
+    void aQuestionLongerThanTheRoomThenAWordingFaultLeavesTheWorkUnfinished(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedCorpus(root, seeds);
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), anOrdinaryAnswer().havingRead(A_COUNT_PAST_THE_WINDOW));
+        cli.run("run", root.toString());
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), anAnswerEndingWithAStrayBrace());
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the group was asked once on each of the two invocations, and the reason kept is the second's, an"
+                        + " answer ending with a closing brace that belongs to nothing",
+                () -> {
+                    assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(A_QUESTION_ON_EACH_OF_TWO_INVOCATIONS);
+                    assertThat(reasonsKept(root)).singleElement().satisfies(kept -> {
+                        assertThat(kept.fault().kind()).isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION);
+                        assertThat(kept.fault().detail()).isEqualTo(THE_STRAY_BRACE_DETAIL);
+                    });
+                });
+        claim(
+                "and the work is not recorded as done: the reason standing when the second question was put was the"
+                        + " question's length, not anything an answer wrote, so only one of the two answers in a row was"
+                        + " turned down for what it wrote, and the group is asked again",
+                () -> assertThat(theWorkIsRecordedAsFinished(root)).isFalse());
+        claim(
+                "so the page says why and nothing more, the membership list following the reason",
+                () -> assertThat(UnwrittenPage.lineUnderTheReasonOf(UnwrittenPage.pageHeadedBy(theLatestTree(root),
+                                theOnlyCluster())))
+                        .isEqualTo(THE_MEMBERSHIP_HEADING));
+    }
+
+    @Test
+    @Story("Only an answer turned down for what it wrote can leave a group standing")
     @DisplayName("A group nothing could be sent for keeps the work open beside a group turned down twice")
     @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
     void aClusterNothingCouldBeSentForKeepsTheWorkUnfinishedBesideARepeatedFault(

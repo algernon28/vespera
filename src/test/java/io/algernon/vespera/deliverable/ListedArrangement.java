@@ -89,7 +89,8 @@ public final class ListedArrangement {
                     return places;
                 },
                 everySurvivorAPageAtATime,
-                everySurvivorAPageAtATime);
+                everySurvivorAPageAtATime,
+                false);
     }
 
     /** The tree written from these lists, with no pictures, no reasons and no progress heard. */

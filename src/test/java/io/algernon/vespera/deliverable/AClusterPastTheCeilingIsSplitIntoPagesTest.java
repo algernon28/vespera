@@ -334,7 +334,7 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
         long high = 999_999;
         while (low < high) {
             long middle = (low + high) / 2;
-            int pages = ClusterPage.plan(middle, unwritten, null, null, entrySizes)
+            int pages = ClusterPage.plan(middle, unwritten, null, null, entrySizes, false)
                     .map(ClusterPage.PageBreaks::pages)
                     .orElse(1);
             if (pages <= 2) {
