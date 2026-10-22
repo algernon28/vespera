@@ -2234,6 +2234,14 @@ public final class Adr {
     public static final String A_CLUSTER_TURNED_DOWN_THE_LAST_TWO_TIMES_STANDS_WITHOUT_WRITING = FILE
             + "0319-a-cluster-whose-answer-is-turned-down-the-last-two-times-it-is-asked-stands-without-writing-and-the-generation-step-finishes-with-it.md";
 
+    /**
+     * ADR-320 -- a publish sends each page whole, its files before its body, before it creates the next, and says how
+     * far it has got: totals first, a line as each page starts and for each file, and the page it stopped at
+     * (supersedes ADR-308 §8's and ADR-316 §4's order).
+     */
+    public static final String A_PUBLISH_SENDS_EACH_PAGE_WHOLE_AND_SAYS_HOW_FAR_IT_HAS_GOT = FILE
+            + "0320-a-publish-sends-each-page-whole-its-files-before-its-body-before-it-creates-the-next-and-says-how-far-it-has-got.md";
+
     private Adr() {
     }
 }

@@ -46,11 +46,28 @@ final class Rendering {
     private final Path tree;
     private final Map<String, String> bodies = new LinkedHashMap<>();
 
+    /**
+     * Each body names its page's files by {@code ri:attachment}, and the root page and the seed partition's page link
+     * to the page after them by title, as stage 6b draws them (ADR-313 §1, ADR-314, ADR-315, ADR-309): so a body sent
+     * before its files, or a link to a page not yet created, is there for a test to see.
+     */
     private Rendering(Path tree) {
         this.tree = tree;
-        bodies.put(ROOT, "<p>The groups.</p>");
-        bodies.put(PARTITION, "<p>The seed partition.</p>");
-        bodies.put(CLUSTER, "<p>What the group holds.</p>");
+        bodies.put(ROOT, "<p>The groups.</p>\n<h2>" + pageLink(PARTITION_TITLE, "Seeds") + "</h2>\n<p>"
+                + fileLink(LISTING) + "</p>");
+        bodies.put(PARTITION, "<p>The seed partition.</p>\n<p>" + pageLink(CLUSTER_TITLE, "Payroll and leave") + "</p>");
+        bodies.put(CLUSTER, "<p>What the group holds.</p>\n<p>" + fileLink(COPY) + "</p>\n<p><ac:image ac:alt=\"a"
+                + " chart\"><ri:attachment ri:filename=\"" + PICTURE + "\" /></ac:image></p>");
+    }
+
+    private static String pageLink(String title, String text) {
+        return "<ac:link><ri:page ri:content-title=\"" + title + "\" /><ac:link-body>" + text
+                + "</ac:link-body></ac:link>";
+    }
+
+    private static String fileLink(String name) {
+        return "<ac:link><ri:attachment ri:filename=\"" + name + "\" /><ac:link-body>" + name
+                + "</ac:link-body></ac:link>";
     }
 
     /** Draws the rendering in {@code tree}, and gives it. */

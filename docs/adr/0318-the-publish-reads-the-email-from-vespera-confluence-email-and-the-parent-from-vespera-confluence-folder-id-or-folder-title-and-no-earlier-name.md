@@ -57,12 +57,14 @@ No stage reads a value of the publish, and no stage's version names `confluence`
 
 ## Tests
 
+The classes below were renamed `*IT` by ADR-320 §6, and are run by a `verify` run locally, not by CI.
+
 | Method | What it holds |
 | --- | --- |
-| `confluence.PublishReadsItsValuesByTheirNamesTest.anEnvironmentHoldingOnlyTheEarlierEmailVariableIsRefusedNamingTheNewOne` | the email is read from `VESPERA_CONFLUENCE_EMAIL` and not from `VESPERA_CONFLUENCE_USER`; the refusal names the new variable and no earlier one, and nothing is sent (§1, §2, §3) |
-| `confluence.PublishReadsItsValuesByTheirNamesTest.theParentIsReadFromTheFolderVariablesAndNotFromTheEarlierOnes` | through Spring's reading of the environment, the publisher's properties take the parent from `VESPERA_CONFLUENCE_FOLDER_ID` and `VESPERA_CONFLUENCE_FOLDER_TITLE`, and nothing from `VESPERA_CONFLUENCE_PARENT_ID` or `VESPERA_CONFLUENCE_PARENT_TITLE` (§1, §2) |
-| `confluence.PublishReadsItsValuesByTheirNamesTest.aParentNamedByNeitherIsRefusedNamingTheFolderVariables` | a parent named by neither is refused naming both new variables and no earlier one (§3) |
-| `confluence.PublishReadsItsValuesByTheirNamesTest.aParentNamedByBothIsRefusedNamingTheFolderVariables` | a parent named by both is refused naming both new variables and no earlier one (§3) |
-| `confluence.PublishReadsItsValuesByTheirNamesTest.aTitleNamingNoPageOrFolderIsRefusedPointingAtTheFolderId` | a title naming no page or folder stops the publish pointing at `VESPERA_CONFLUENCE_FOLDER_ID` and no earlier name (§3) |
-| `confluence.PublishReadsItsCredentialFromTheEnvironmentTest.noPropertyNamesTheTokenOrTheEmail` | the publisher reads `vespera.confluence.folder-id` and `vespera.confluence.folder-title` beside the site's and the space's properties, and no `parent` property (§1, §2) |
-| `confluence.PublishReadsItsCredentialFromTheEnvironmentTest.aMissingValueIsNamedAndRefusedBeforeSending` | a missing email is named `VESPERA_CONFLUENCE_EMAIL`, and the two templates name the five variables by their new names and no earlier one (§1, §3) |
+| `confluence.PublishReadsItsValuesByTheirNamesIT.anEnvironmentHoldingOnlyTheEarlierEmailVariableIsRefusedNamingTheNewOne` | the email is read from `VESPERA_CONFLUENCE_EMAIL` and not from `VESPERA_CONFLUENCE_USER`; the refusal names the new variable and no earlier one, and nothing is sent (§1, §2, §3) |
+| `confluence.PublishReadsItsValuesByTheirNamesIT.theParentIsReadFromTheFolderVariablesAndNotFromTheEarlierOnes` | through Spring's reading of the environment, the publisher's properties take the parent from `VESPERA_CONFLUENCE_FOLDER_ID` and `VESPERA_CONFLUENCE_FOLDER_TITLE`, and nothing from `VESPERA_CONFLUENCE_PARENT_ID` or `VESPERA_CONFLUENCE_PARENT_TITLE` (§1, §2) |
+| `confluence.PublishReadsItsValuesByTheirNamesIT.aParentNamedByNeitherIsRefusedNamingTheFolderVariables` | a parent named by neither is refused naming both new variables and no earlier one (§3) |
+| `confluence.PublishReadsItsValuesByTheirNamesIT.aParentNamedByBothIsRefusedNamingTheFolderVariables` | a parent named by both is refused naming both new variables and no earlier one (§3) |
+| `confluence.PublishReadsItsValuesByTheirNamesIT.aTitleNamingNoPageOrFolderIsRefusedPointingAtTheFolderId` | a title naming no page or folder stops the publish pointing at `VESPERA_CONFLUENCE_FOLDER_ID` and no earlier name (§3) |
+| `confluence.PublishReadsItsCredentialFromTheEnvironmentIT.noPropertyNamesTheTokenOrTheEmail` | the publisher reads `vespera.confluence.folder-id` and `vespera.confluence.folder-title` beside the site's and the space's properties, and no `parent` property (§1, §2) |
+| `confluence.PublishReadsItsCredentialFromTheEnvironmentIT.aMissingValueIsNamedAndRefusedBeforeSending` | a missing email is named `VESPERA_CONFLUENCE_EMAIL`, and the two templates name the five variables by their new names and no earlier one (§1, §3) |
