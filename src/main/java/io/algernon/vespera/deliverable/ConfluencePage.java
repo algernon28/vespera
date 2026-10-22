@@ -48,7 +48,8 @@ final class ConfluencePage {
             ConfluenceEntries entries,
             ClusterPage.PageBreaks breaks,
             int page,
-            IntFunction<String> titleOf)
+            IntFunction<String> titleOf,
+            boolean writingFinished)
             throws IOException {
         OutputStream stream = new BufferedOutputStream(out, 1 << 16);
         int pages = breaks == null ? 1 : breaks.pages();
@@ -59,7 +60,7 @@ final class ConfluencePage {
             text.append(navigation(page, pages, titleOf));
         }
         if (page == 1) {
-            text.append(firstPageBody(recorded, doc, why, number -> {
+            text.append(firstPageBody(recorded, doc, why, writingFinished, number -> {
                 int holding = breaks == null || number < 1 || number > entryCount ? page : pageHolding(breaks, number);
                 return titleOf.apply(holding);
             }));
@@ -99,12 +100,19 @@ final class ConfluencePage {
     }
 
     /** The writing and its disclosure, or the sentence saying why nothing was written (ADR-174), as the HTML page has them. */
-    private static String firstPageBody(RecordedCluster recorded, SynthesisDoc doc, Unwritten why, IntFunction<String> titleOf) {
+    private static String firstPageBody(
+            RecordedCluster recorded,
+            SynthesisDoc doc,
+            Unwritten why,
+            boolean writingFinished,
+            IntFunction<String> titleOf) {
         StringBuilder body = new StringBuilder();
         if (doc == null) {
             body.append("<p><em>")
                     .append(Html.escape(why == null ? Deliverable.NOTHING_WAS_WRITTEN_OVER_IT : UnwrittenSentences.of(why)))
                     .append("</em></p>\n");
+            UnwrittenSentences.standing(why, writingFinished)
+                    .ifPresent(standing -> body.append("<p><em>").append(Html.escape(standing)).append("</em></p>\n"));
             return body.toString();
         }
         String writing = ProseStorage.of(doc.prose(), titleOf);

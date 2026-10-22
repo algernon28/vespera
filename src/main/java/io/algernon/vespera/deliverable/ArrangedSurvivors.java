@@ -54,6 +54,14 @@ public interface ArrangedSurvivors {
     /** Hands every survivor to {@code page} once, a page at a time, in occurrence order, for the manifest. */
     void eachPageOfSurvivorsForTheManifest(Consumer<List<ListedSurvivor>> page);
 
+    /**
+     * Whether the generation step's work under the run drawn is recorded finished, or is being recorded by the
+     * invocation drawing it (ADR-319 §5.1); false unless the source says so.
+     */
+    default boolean writingFinished() {
+        return false;
+    }
+
     /** A source whose every answer is the function it was given for it. */
     static ArrangedSurvivors reading(
             Supplier<List<ListedPartition>> partitions,
@@ -65,7 +73,29 @@ public interface ArrangedSurvivors {
             Function<Set<ClusterSlot>, Map<ClusterSlot, ArrangedCluster>> placesOf,
             Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheirPictures,
             Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheManifest) {
+        return reading(
+                partitions, survivorCount, clustersOf, survivorsOf, writtenOver, whyUnwritten, placesOf,
+                eachPageOfSurvivorsForTheirPictures, eachPageOfSurvivorsForTheManifest, false);
+    }
+
+    /** As above, {@code writingFinished} being what {@link #writingFinished} answers. */
+    static ArrangedSurvivors reading(
+            Supplier<List<ListedPartition>> partitions,
+            LongSupplier survivorCount,
+            Function<ListedPartition, List<RecordedCluster>> clustersOf,
+            Function<ListedPartition, List<ListedSurvivor>> survivorsOf,
+            Function<ClusterSlot, Optional<SynthesisDoc>> writtenOver,
+            Function<ClusterSlot, Optional<Unwritten>> whyUnwritten,
+            Function<Set<ClusterSlot>, Map<ClusterSlot, ArrangedCluster>> placesOf,
+            Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheirPictures,
+            Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheManifest,
+            boolean writingFinished) {
         return new ArrangedSurvivors() {
+            @Override
+            public boolean writingFinished() {
+                return writingFinished;
+            }
+
             @Override
             public List<ListedPartition> partitions() {
                 return partitions.get();

@@ -143,7 +143,8 @@ final class ConfluencePages implements AutoCloseable {
             Unwritten why,
             int entryCount,
             Optional<ClusterPage.PageBreaks> breaks,
-            ConfluenceEntries entries)
+            ConfluenceEntries entries,
+            boolean writingFinished)
             throws IOException {
         entries.close();
         int clusterWidth = IndexPage.widthOf(partition.clusterCount());
@@ -161,7 +162,7 @@ final class ConfluencePages implements AutoCloseable {
             try (OutputStream out = Files.newOutputStream(part)) {
                 files = ConfluencePage.write(
                         out, recorded, doc.orElse(null), why, entryCount, entries, breaks.orElse(null), page,
-                        k -> ConfluenceTitles.cluster(text, place, k, marker));
+                        k -> ConfluenceTitles.cluster(text, place, k, marker), writingFinished);
             }
             String digest = sha256Of(part);
             moves.intoPlace(part, folder.resolve(body));
