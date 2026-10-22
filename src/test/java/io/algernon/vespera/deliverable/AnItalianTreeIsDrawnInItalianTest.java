@@ -140,6 +140,22 @@ class AnItalianTreeIsDrawnInItalianTest {
                         .startsWith("<!DOCTYPE html>\n<html lang=\"" + ItalianWordingOnRecord.LANG + "\">")));
     }
 
+    /** ADR-321 §4: the page sizes are the operator's report, beside the database and outside the tree. */
+    @Test
+    @Story("An Italian deliverable's pages say in Italian what Vespera writes on them")
+    @DisplayName("The report of the groups' page sizes the same drawing writes for the operator stays in English")
+    void theOperatorsReportOfPageSizesStaysEnglish(@TempDir Path base) throws IOException {
+        draw(base);
+        String report = textOf(base.resolve("work").resolve(Deliverable.CLUSTER_PAGE_SIZES_FILE_NAME));
+
+        claim(
+                "the report beside the database opens as an English page with its English heading: it is written for"
+                        + " the operator, who sets the ceiling, and not for the readers of the tree",
+                () -> assertThat(report)
+                        .startsWith("<!DOCTYPE html>\n<html lang=\"en\">")
+                        .contains("<h1>Group page sizes</h1>"));
+    }
+
     @Test
     @Story("An Italian deliverable's pages say in Italian what Vespera writes on them")
     @DisplayName("A written group's first page heads its list, says what its writing rests on and links its other pages in Italian")

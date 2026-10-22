@@ -63,6 +63,9 @@ class TheQuestionNamesTheAnswersFieldsAndLanguageTest {
      */
     private static final int THE_INSTRUCTION_RESERVE = 256;
 
+    /** The last words the record has the question say, the language's English name in place of {@code %s}. */
+    private static final String THE_LAST_WORDS = "Write both in %s.";
+
     /** What the record says of where the writing ends. */
     private static final String WHERE_THE_WRITING_ENDS = "ends with its last sentence";
 
@@ -89,6 +92,22 @@ class TheQuestionNamesTheAnswersFieldsAndLanguageTest {
                         + " leaves the model to write in whichever its documents draw it to",
                 () -> assertThat(english).contains(DeliverableLanguage.ENGLISH.englishName())
                         .doesNotContain(DeliverableLanguage.ITALIAN.englishName()));
+    }
+
+    /** ADR-321 §2: the language is named as the last words the question says, where the model reads it last. */
+    @Test
+    @Story("The question asks for the writing in the deliverable's language")
+    @DisplayName("The question ends by asking for the heading and the writing in the deliverable's language")
+    void endsByNamingTheLanguage() {
+        claim(
+                "the last words of a question for an Italian deliverable ask for both in Italian, nothing after them but"
+                        + " blank space",
+                () -> assertThat(asked(DeliverableLanguage.ITALIAN).getContents().strip())
+                        .endsWith(THE_LAST_WORDS.formatted(DeliverableLanguage.ITALIAN.englishName())));
+        claim(
+                "and of a question for an English one, in English",
+                () -> assertThat(asked(DeliverableLanguage.ENGLISH).getContents().strip())
+                        .endsWith(THE_LAST_WORDS.formatted(DeliverableLanguage.ENGLISH.englishName())));
     }
 
     @Test
