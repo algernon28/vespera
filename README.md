@@ -288,6 +288,14 @@ java -jar target/vespera-0.0.1-SNAPSHOT.jar
 
 So `vespera run <root>` is `java -jar target/vespera-0.0.1-SNAPSHOT.jar run <root>`, and `vespera label` is `java -jar target/vespera-0.0.1-SNAPSHOT.jar label`. Unless you set it as "Where things live" describes, the working directory is `.vespera` under the directory you run the command from.
 
+**Or build and run in one command, headless.** The `headless` profile builds the jar, skipping the tests, and runs one command of it with the Java that runs Maven, from the root of this repository. Name the command and its arguments in `vespera.args`, quoted as one value; given none, the jar runs with no arguments:
+
+```
+./mvnw -Pheadless "-Dvespera.args=run <root>"
+```
+
+On Windows it is `.\mvnw.cmd -Pheadless "-Dvespera.args=run D:\corpus"`, the quotes kept.
+
 **Stop the sidecars when you are finished:**
 
 ```
@@ -305,6 +313,14 @@ The control panel runs the same commands from your browser, one at a time, and s
 ```
 java -jar target/vespera-0.0.1-SNAPSHOT-control-panel.jar
 ```
+
+Or build both jars and start the control panel in one command, with the `gui` profile, which skips the tests and starts it with the Java that runs Maven. The control panel starts the headless jar for each command it runs, as above; `-Pheadless` stays the way to run a command without it:
+
+```
+./mvnw -Pgui
+```
+
+On Windows it is `.\mvnw.cmd -Pgui`. `Ctrl+C` ends Maven, the control panel and the invocation it started.
 
 It prints two lines: the jar it will start and the Java it starts it with, then the address to open:
 

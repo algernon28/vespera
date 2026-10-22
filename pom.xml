@@ -481,4 +481,71 @@
         </plugins>
     </build>
 
+    <!--
+      Launch shortcuts: each profile builds both jars, skipping the tests, and then starts one of
+      them with the java running Maven, from the root of the repository, until it ends.
+      `./mvnw -Pheadless -Dvespera.args="run <root>"` runs one command of the Vespera jar, no
+      control panel; `./mvnw -Pgui` starts the control panel, which starts that same jar for each
+      command it runs. Neither starts the sidecars.
+    -->
+    <profiles>
+        <profile>
+            <id>headless</id>
+            <properties>
+                <skipTests>true</skipTests>
+                <vespera.args/>
+            </properties>
+            <build>
+                <defaultGoal>package</defaultGoal>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>launch-headless</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${java.home}/bin/java</executable>
+                                    <commandlineArgs>-jar "${project.build.directory}/${project.build.finalName}.jar" ${vespera.args}</commandlineArgs>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>gui</id>
+            <properties>
+                <skipTests>true</skipTests>
+            </properties>
+            <build>
+                <defaultGoal>package</defaultGoal>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>launch-gui</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${java.home}/bin/java</executable>
+                                    <commandlineArgs>-jar "${project.build.directory}/${project.build.finalName}-control-panel.jar"</commandlineArgs>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
 </project>
