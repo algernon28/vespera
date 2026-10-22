@@ -10,10 +10,10 @@
 
 $env:VESPERA_CONFLUENCE_BASE_URL = ''      # https://<your-site>
 $env:VESPERA_CONFLUENCE_SPACE_KEY = ''     # the key of the space the pages go to
-$env:VESPERA_CONFLUENCE_PARENT_ID = ''     # the id of the page or folder they go under, or:
-$env:VESPERA_CONFLUENCE_PARENT_TITLE = ''  # its title
+$env:VESPERA_CONFLUENCE_FOLDER_ID = ''     # the id of the page or folder they go under, or:
+$env:VESPERA_CONFLUENCE_FOLDER_TITLE = ''  # its title
 
-$env:VESPERA_CONFLUENCE_USER = Read-Host 'Confluence account email'
+$env:VESPERA_CONFLUENCE_EMAIL = Read-Host 'Confluence account email'
 $secure = Read-Host 'Confluence API token' -AsSecureString
 $env:VESPERA_CONFLUENCE_TOKEN = [System.Net.NetworkCredential]::new('', $secure).Password
 Remove-Variable secure

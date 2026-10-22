@@ -15,7 +15,7 @@ import java.util.function.Function;
  * its id or its title, and the account's email and API token.
  *
  * <p><b>The token and the email are read from the environment alone</b>, by {@link #TOKEN_VARIABLE} and {@link
- * #USER_VARIABLE}; the other three are properties, which Spring also sets from the environment. Nothing here writes
+ * #EMAIL_VARIABLE}; the other three are properties, which Spring also sets from the environment. Nothing here writes
  * either anywhere, and {@link #toString()} names neither: the token leaves this class only as the {@code
  * Authorization} header's value.
  */
@@ -24,8 +24,8 @@ final class ConfluenceSite {
     /** The environment variable the API token is read from, and nothing else (ADR-308 §3). */
     static final String TOKEN_VARIABLE = "VESPERA_CONFLUENCE_TOKEN";
 
-    /** The environment variable the account's email is read from, and nothing else (ADR-308 §3). */
-    static final String USER_VARIABLE = "VESPERA_CONFLUENCE_USER";
+    /** The environment variable the account's email is read from, and nothing else (ADR-308 §3, renamed by ADR-318). */
+    static final String EMAIL_VARIABLE = "VESPERA_CONFLUENCE_EMAIL";
 
     /** The property naming the site's address, set by {@code VESPERA_CONFLUENCE_BASE_URL}. */
     static final String BASE_URL_PROPERTY = "vespera.confluence.base-url";
@@ -33,11 +33,11 @@ final class ConfluenceSite {
     /** The property naming the space's key, set by {@code VESPERA_CONFLUENCE_SPACE_KEY}. */
     static final String SPACE_KEY_PROPERTY = "vespera.confluence.space-key";
 
-    /** The property naming the parent by its id, set by {@code VESPERA_CONFLUENCE_PARENT_ID}. */
-    static final String PARENT_ID_PROPERTY = "vespera.confluence.parent-id";
+    /** The property naming the parent by its id, set by {@code VESPERA_CONFLUENCE_FOLDER_ID} (ADR-318). */
+    static final String FOLDER_ID_PROPERTY = "vespera.confluence.folder-id";
 
-    /** The property naming the parent by its title, set by {@code VESPERA_CONFLUENCE_PARENT_TITLE}. */
-    static final String PARENT_TITLE_PROPERTY = "vespera.confluence.parent-title";
+    /** The property naming the parent by its title, set by {@code VESPERA_CONFLUENCE_FOLDER_TITLE} (ADR-318). */
+    static final String FOLDER_TITLE_PROPERTY = "vespera.confluence.folder-title";
 
     private final URI site;
     private final String spaceKey;
@@ -72,7 +72,7 @@ final class ConfluenceSite {
             String parentId,
             String parentTitle) {
         String token = blankToNull(environment.apply(TOKEN_VARIABLE));
-        String user = blankToNull(environment.apply(USER_VARIABLE));
+        String user = blankToNull(environment.apply(EMAIL_VARIABLE));
         List<String> missing = new ArrayList<>();
         if (blankToNull(baseUrl) == null) {
             missing.add("VESPERA_CONFLUENCE_BASE_URL");
@@ -81,10 +81,10 @@ final class ConfluenceSite {
             missing.add("VESPERA_CONFLUENCE_SPACE_KEY");
         }
         if (blankToNull(parentId) == null && blankToNull(parentTitle) == null) {
-            missing.add("VESPERA_CONFLUENCE_PARENT_ID or VESPERA_CONFLUENCE_PARENT_TITLE");
+            missing.add("VESPERA_CONFLUENCE_FOLDER_ID or VESPERA_CONFLUENCE_FOLDER_TITLE");
         }
         if (user == null) {
-            missing.add(USER_VARIABLE);
+            missing.add(EMAIL_VARIABLE);
         }
         if (token == null) {
             missing.add(TOKEN_VARIABLE);
@@ -97,7 +97,7 @@ final class ConfluenceSite {
         }
         if (blankToNull(parentId) != null && blankToNull(parentTitle) != null) {
             return new Read.Refused("vespera publish sent nothing: the parent is named both by"
-                    + " VESPERA_CONFLUENCE_PARENT_ID and by VESPERA_CONFLUENCE_PARENT_TITLE. Name it by one.");
+                    + " VESPERA_CONFLUENCE_FOLDER_ID and by VESPERA_CONFLUENCE_FOLDER_TITLE. Name it by one.");
         }
         Optional<URI> site = siteOf(baseUrl.strip());
         if (site.isEmpty()) {
