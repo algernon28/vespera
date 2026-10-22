@@ -1,6 +1,7 @@
 package io.algernon.vespera.deliverable;
 
 import io.algernon.vespera.ledger.ReplacingMove;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.FilenameStem;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
@@ -68,6 +69,7 @@ final class ConfluencePages implements AutoCloseable {
     private final String runId;
     private final String marker;
     private final ReplacingMove moves;
+    private final DeliverableLanguage language;
     private final Set<String> written;
     private final Writer root;
     private final Writer rest;
@@ -83,18 +85,21 @@ final class ConfluencePages implements AutoCloseable {
      * Opens the rendering in {@code tree}, writing the root page's opening, and adds every folder it writes to {@code
      * written}, by its path from the tree's root, so ADR-280 §4's count reads them as drawn (ADR-312 §4).
      */
-    ConfluencePages(Path tree, String runId, ReplacingMove moves, Set<String> written) throws IOException {
+    ConfluencePages(Path tree, String runId, ReplacingMove moves, Set<String> written, DeliverableLanguage language)
+            throws IOException {
         this.directory = tree.resolve(DIRECTORY_NAME);
         this.runId = runId;
         this.marker = ConfluenceTitles.markerOf(runId);
         this.moves = moves;
+        this.language = language;
         this.written = written;
         Files.createDirectories(directory);
         written.add(DIRECTORY_NAME);
         this.root = Files.newBufferedWriter(directory.resolve(BODY_NAME + Deliverable.PART_SUFFIX), StandardCharsets.UTF_8);
         this.rest = Files.newBufferedWriter(directory.resolve(REST_OF_THE_LIST), StandardCharsets.UTF_8);
-        root.append("<h1>Deliverable ").append(Html.escape(runId)).append("</h1>\n<p>")
-                .append(Html.escape(THE_ROOT_PAGES_SENTENCE)).append("</p>\n");
+        root.append("<h1>").append(FixedWords.theDeliverable(language)).append(Html.escape(runId))
+                .append("</h1>\n<p>")
+                .append(Html.escape(FixedWords.rootSentence(language))).append("</p>\n");
     }
 
     /** An {@code ac:link} to the page titled {@code title}, reading {@code text}, which it escapes (ADR-309). */
@@ -129,7 +134,7 @@ final class ConfluencePages implements AutoCloseable {
         Path folder = directory.resolve(folderPath);
         Files.createDirectories(folder);
         written.add(DIRECTORY_NAME + "/" + folderPath);
-        return new ConfluenceEntries(folder, folderPath, clusterFolder, copies, members, moves);
+        return new ConfluenceEntries(folder, folderPath, clusterFolder, copies, members, moves, language);
     }
 
     /**
@@ -162,26 +167,26 @@ final class ConfluencePages implements AutoCloseable {
             try (OutputStream out = Files.newOutputStream(part)) {
                 files = ConfluencePage.write(
                         out, recorded, doc.orElse(null), why, entryCount, entries, breaks.orElse(null), page,
-                        k -> ConfluenceTitles.cluster(text, place, k, marker), writingFinished);
+                        k -> ConfluenceTitles.cluster(text, place, k, marker, language), writingFinished, language);
             }
             String digest = sha256Of(part);
             moves.intoPlace(part, folder.resolve(body));
             clusterPages.add(new ListedPage(
                     page == 1 ? firstKey : firstKey + "." + page,
                     page == 1 ? partitionKey : firstKey,
-                    ConfluenceTitles.cluster(text, place, page, marker),
+                    ConfluenceTitles.cluster(text, place, page, marker, language),
                     folderPath + "/" + body,
                     digest,
                     files));
         }
         Files.delete(entries.file());
         partitionRows.append("<tr><td>")
-                .append(link(ConfluenceTitles.cluster(text, place, 1, marker), recorded.label().value()))
+                .append(link(ConfluenceTitles.cluster(text, place, 1, marker, language), recorded.label().value()))
                 .append("</td><td>")
                 .append(recorded.cluster().documentCount())
                 .append("</td><td>")
                 .append(doc.isEmpty()
-                        ? "<em>" + Html.escape(Deliverable.NOTHING_WAS_WRITTEN_OVER_IT) + "</em>"
+                        ? "<em>" + Html.escape(FixedWords.nothingWasWrittenOverIt(language)) + "</em>"
                         : Html.escape(doc.get().title()))
                 .append("</td></tr>\n");
     }
@@ -191,8 +196,8 @@ final class ConfluencePages implements AutoCloseable {
      * then lists the seed partition's page and its clusters' pages, parents first (ADR-316 §2).
      */
     void partitionEnded() throws IOException {
-        String table = "<table><tbody>\n<tr><th>Group</th><th>Documents</th><th>Written up as</th></tr>\n"
-                + partitionRows + "</tbody></table>\n";
+        String table = "<table><tbody>\n" + FixedWords.groupTableHeadRow(language) + partitionRows
+                + "</tbody></table>\n";
         Path part = directory.resolve(partitionFolder).resolve(BODY_NAME + Deliverable.PART_SUFFIX);
         Files.writeString(part, table, StandardCharsets.UTF_8);
         String digest = sha256Of(part);
