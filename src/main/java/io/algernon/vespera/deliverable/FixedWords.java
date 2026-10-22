@@ -9,10 +9,14 @@ import java.util.List;
  * (ADR-321 §4): the English as its record fixes it, where the constant lives with the class that first held it, and
  * the Italian as ADR-321 §4's table gives it.
  *
- * <p>Every method is an exhaustive {@code switch} over the language, so a third language is a compile error here
- * until its table is written (ADR-321 §1). The words of the unwritten sentences and of a copy's outcome are held
- * by {@link UnwrittenSentences} and {@link CopyOutcome}, and the pictures' by {@link EntryPictures}; each says
- * <em>group</em> and <em>gruppo</em> where the code says cluster (ADR-122).
+ * <p>Each word is an exhaustive {@code switch} over the language, so a third language is a compile error here
+ * until its table is written (ADR-321 §1); {@code longestNavigationWord} and {@code groupTableHeadRow} derive from
+ * those words. The English of the navigation ({@code pageOf}, first, previous, next, last), of the index's lines
+ * (run, walk, archive root), of its code sets (heading, sentence, heads, the archive's top) and of the page in a
+ * title lives here; the rest of the English stays with the constants of the class that first held it. The words
+ * of the unwritten sentences and of a copy's outcome are held by {@link UnwrittenSentences} and {@link
+ * CopyOutcome}, and the pictures' by {@link EntryPictures}; each says <em>group</em> and <em>gruppo</em> where the
+ * code says cluster (ADR-122).
  */
 final class FixedWords {
 

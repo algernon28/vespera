@@ -3,7 +3,6 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.TextValue;
 import io.algernon.vespera.synthesis.DeliverableLanguage;
-import org.springframework.stereotype.Component;
 
 /**
  * The language the deliverable is written and drawn in (ADR-321 §1).
@@ -16,7 +15,6 @@ import org.springframework.stereotype.Component;
  * <p>It holds no rule in ADR-222's sense: which codes there are, their English names and the default are {@code
  * synthesis}'s, and this class only reads the key and hands the language over as a plain value.
  */
-@Component
 class LanguageOfTheDeliverable {
 
     /** The key as it is written in the profile, named once so the refusal and the read cannot disagree. */

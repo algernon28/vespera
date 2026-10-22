@@ -104,10 +104,11 @@ public class ClusterSynthesis {
      * How much of the window is kept back for everything in the call that is not a document: the
      * instructions, the cluster's name, the seed path, the ordinals.
      *
-     * <p>256 against instruction text of well under a hundred words, for the reason {@link
-     * #TOKENS_PER_WORD} leans high: what it insures against is the two unfixed pieces — a long
-     * derived label and a long path — since running out here now costs the cluster an extra round of
-     * counting (ADR-166 §2) rather than the silently truncated prompt it used to.
+     * <p>256 tokens hold the 91 words the question says after the last document's opening (ADR-321 §3), at {@link
+     * #TOKENS_PER_WORD} each, for the reason that ratio leans high: what the reserve insures against is the two
+     * unfixed pieces — a long derived label and a long path. Since ADR-166 it is the estimate a proposal is first
+     * filled to and not a guard: the engine counts the question, so running out here costs the cluster an extra
+     * round of counting (ADR-166 §2) rather than the silently truncated prompt it used to.
      */
     static final int INSTRUCTION_RESERVE = 256;
 

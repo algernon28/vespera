@@ -124,8 +124,8 @@ public class ClusterGeneration {
             progress.clusterGoneThrough();
         }
         // Without an unsendable cluster and a fault row standing, the walk is Finished (ADR-116); otherwise
-        // LeftUnfinished is returned and the step decides whether the standing faults, all repeated, still
-        // let it record completion (ADR-319 §4).
+        // LeftUnfinished is returned and the step decides whether every standing fault is a repeated one,
+        // which lets it record completion (ADR-319 §4).
         progress.statementStarting(SynthesisStatement.STANDING_FAULTS, OptionalLong.empty());
         int standingFaults = clusterFaults.countForRun(generation);
         progress.statementEnded(SynthesisStatement.STANDING_FAULTS);
