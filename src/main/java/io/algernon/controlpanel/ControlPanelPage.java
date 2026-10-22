@@ -116,7 +116,8 @@ final class ControlPanelPage {
         StringBuilder words = new StringBuilder("Saving " + key.key() + " makes the next invocation mint again the runs of "
                 + runs + ".");
         if (cost.approvalCloses()) {
-            words.append(" An arrangement approved no longer matches the one the invocation arrives at, and is asked for again.");
+            words.append(" An arrangement approved by name no longer matches the one the invocation arrives at, and is asked for"
+                    + " again, unless arrangementApproved holds auto.");
         }
         if (cost.labelsRefused()) {
             words.append(" The label file names the old seed set, so vespera label refuses it.");

@@ -44,6 +44,9 @@ public final class ProfileEdit {
 
     private static final Pattern ARRANGEMENT = Pattern.compile("[0-9a-f]{12}");
 
+    /** The approval of every arrangement the jar arrives at, unread (ADR-317), as the jar's gate spells it. */
+    private static final String AUTOMATIC = "auto";
+
     private ProfileEdit() {
     }
 
@@ -128,8 +131,9 @@ public final class ProfileEdit {
             case SEED_FOLDER -> isAFolderThatExists(value) ? Optional.empty()
                     : Optional.of(quoted + " is not the absolute path of a folder that exists");
             case EMBEDDING_MODEL, GENERATION_MODEL -> Optional.empty();
-            case ARRANGEMENT_APPROVED -> ARRANGEMENT.matcher(value).matches() ? Optional.empty()
-                    : Optional.of(quoted + " is not the twelve characters naming an arrangement, each 0 to 9 or a to f");
+            case ARRANGEMENT_APPROVED -> ARRANGEMENT.matcher(value).matches() || AUTOMATIC.equalsIgnoreCase(value) ? Optional.empty()
+                    : Optional.of(quoted + " is not the twelve characters naming an arrangement, each 0 to 9 or a to f,"
+                            + " nor " + AUTOMATIC);
             case DEGENERATE_OUTPUT_WORD_FLOOR -> isWhole(value, 0) ? Optional.empty()
                     : Optional.of(quoted + " is not a whole number from 0 to " + LARGEST_WHOLE);
             case EXTRACTION_ATTEMPT -> isWhole(value, 1) ? Optional.empty()

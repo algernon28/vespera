@@ -2213,6 +2213,10 @@ public final class Adr {
     public static final String THE_PAGE_LIST_IS_PAGES_JSON = FILE
             + "0316-the-page-list-is-pages-json-in-confluence-each-page-keyed-by-its-run-and-place-with-its-parent-title-body-files-sizes-and-digests.md";
 
+    /** ADR-317 -- {@code arrangementApproved} may hold {@code auto}, which opens the gate on every arrangement. */
+    public static final String AN_APPROVAL_OF_AUTO_OPENS_THE_GATE_ON_EVERY_ARRANGEMENT = FILE
+            + "0317-arrangementapproved-may-hold-auto-a-standing-approval-the-operator-writes-that-opens-the-gate-on-every-arrangement-this-invocation-arrives-at.md";
+
     private Adr() {
     }
 }

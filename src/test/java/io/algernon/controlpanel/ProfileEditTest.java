@@ -234,6 +234,7 @@ class ProfileEditTest {
                 new Sample(ProfileKey.EMBEDDING_MODEL, "nomic-embed-text:v1.5"),
                 new Sample(ProfileKey.GENERATION_MODEL, "qwen3:14b"),
                 new Sample(ProfileKey.ARRANGEMENT_APPROVED, "0123456789ab"),
+                new Sample(ProfileKey.ARRANGEMENT_APPROVED, "auto"),
                 new Sample(ProfileKey.RELEVANCE_SCORE_FLOOR, "0.579"),
                 new Sample(ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR, "1.5"),
                 new Sample(ProfileKey.TRANSLATION_SIMILARITY_FLOOR, "-0.2"),
@@ -330,6 +331,6 @@ class ProfileEditTest {
 
     private static String notAnArrangement(String value) {
         return "arrangementApproved is not saved: \"" + value
-                + "\" is not the twelve characters naming an arrangement, each 0 to 9 or a to f";
+                + "\" is not the twelve characters naming an arrangement, each 0 to 9 or a to f, nor auto";
     }
 }

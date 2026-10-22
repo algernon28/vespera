@@ -35,6 +35,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Feature("The control panel")
 @Issue("565")
 @Link(name = "ADR-294", url = Adr.THE_CONTROL_PANEL_LEARNS_WHAT_THE_NEXT_INVOCATION_WANTS_FROM_A_FILE, type = "adr")
+@Link(name = "ADR-317", url = Adr.AN_APPROVAL_OF_AUTO_OPENS_THE_GATE_ON_EVERY_ARRANGEMENT, type = "adr")
 class NextActionNamesTheNextInvocationTest {
 
     /** The short name of the arrangement this invocation arrived at, as the closing line quotes it. */
@@ -333,6 +334,26 @@ class NextActionNamesTheNextInvocationTest {
                 () -> assertThat(unapproved.next()).isEqualTo(run()));
         claim("and with an approval written, the same: the next run checks it, and recording answers checked none",
                 () -> assertThat(approved.next()).isEqualTo(run()));
+    }
+
+    @Test
+    @Story("The control panel learns which values the next run wants")
+    @DisplayName("Recording answers with the approval set to auto sends the next command to run, wanting nothing, and says it writes unread")
+    void labelWithTheApprovalSetToAutoSendsTheNextCommandToRun() {
+        NextAction.Closing closing = NextAction.closingAfterRecordingAnswers(
+                ProfileFixture.profileFrom(everythingSet())
+                        .arrangementApproved(ArrangementGate.AUTOMATIC, RECORDED_BY_THE_OPERATOR)
+                        .build(),
+                SIXTY_ANSWERED, QUESTIONS_WRITTEN, THE_GENERATION_MODEL);
+
+        claim("the next command is a run wanting no key and naming no arrangement",
+                () -> assertThat(closing.next()).isEqualTo(run()));
+        claim("and the line says the next run writes over whatever arrangement it arrives at, rather than that it"
+                        + " checks the value",
+                () -> assertThat(closing.line())
+                        .isEqualTo("Every value the profile asks for is answered, and arrangementApproved holds"
+                                + " \"auto\". Next: run vespera run, which arranges the documents and writes over"
+                                + " whatever arrangement they are in then, unread."));
     }
 
     @Test

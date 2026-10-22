@@ -214,15 +214,15 @@ Read a number off `relevance-labelling.html`, write it into `relevanceScoreFloor
 
 **What it does.** Names each group after its highest-scoring document, puts the groups in order, and writes `arrangement.html`. It judges nothing and removes nothing. The last line of the output gives you a twelve-character name for this arrangement.
 
-**Where it stops.** The invocation ends here until you approve. Read `arrangement.html`. If it is the arrangement you want, write the name from the last line into `arrangementApproved`, with what you checked in `provenance`, and run again.
+**Where it stops.** The invocation ends here until you approve. Read `arrangement.html`. If it is the arrangement you want, write the name from the last line into `arrangementApproved`, with what you checked in `provenance`, and run again. To have every arrangement written over without stopping here, write `auto` instead of a name.
 
 **Resume.** Interrupted, it discards its own rows and arranges again. Finished, it is not arranged again.
 
-**An approval is for one arrangement.** If anything upstream changes afterwards (the archive, the embedding model, the floor, an extraction attempt), the groups are formed again, the arrangement has a new name, and the old approval opens nothing. The last line says the approval does not match and gives you the new name. Read the page again before you copy it. The same holds when your answers change what the floor removes without the floor itself changing: the arrangement with those removals and the one without are two arrangements, each with its own name, approval and written groups, and going back to the earlier answers arrives at the earlier one again.
+**An approval is for one arrangement.** If anything upstream changes afterwards (the archive, the embedding model, the floor, an extraction attempt), the groups are formed again, the arrangement has a new name, and the old approval opens nothing, unless it is `auto`. The last line says the approval does not match and gives you the new name. Read the page again before you copy it. The same holds when your answers change what the floor removes without the floor itself changing: the arrangement with those removals and the one without are two arrangements, each with its own name, approval and written groups, and going back to the earlier answers arrives at the earlier one again.
 
 ## Stage 6b — generation
 
-**Needs:** `arrangementApproved` naming the arrangement this invocation arrived at, and the generation model pulled into Ollama (`qwen3:8b`, unless you set `generationModel`).
+**Needs:** `arrangementApproved` naming the arrangement this invocation arrived at, or `auto`, and the generation model pulled into Ollama (`qwen3:8b`, unless you set `generationModel`).
 
 **Run:** `vespera run <root>`
 

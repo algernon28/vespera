@@ -73,6 +73,8 @@ package io.algernon.vespera.profile;
  *     id is the entire concession to typing, and the ledger keeps the whole one. No {@link
  *     Measurement} pointer: what informs this key is a page, not a pass, and the operator records
  *     what they actually checked in {@code provenance}.
+ *     Or {@code auto} (ADR-317): the operator's standing approval of every arrangement an invocation
+ *     arrives at, unread, written by the operator and never the default.
  * @param generationModel which model stage 6b writes the synthesis docs with (ADR-114, #179).
  *     <b>The first key whose unset state means neither "no threshold" nor "gate shut" but "a default
  *     applies"</b>: application configuration carries a name, this key overrides it, and an
