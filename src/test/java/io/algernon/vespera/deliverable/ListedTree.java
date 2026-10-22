@@ -6,6 +6,7 @@ import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.synthesis.ArrangedCluster;
 import io.algernon.vespera.synthesis.ClusterLabel;
 import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.Unwritten;
@@ -47,12 +48,26 @@ final class ListedTree {
 
     private ListedTree() {}
 
-    /** The source over these lists, every survivor in one page. */
+    /** The source over these lists, every survivor in one page, its writing unfinished and in English. */
     static ArrangedSurvivors of(
             List<RecordedCluster> arrangement,
             Map<ClusterSlot, SynthesisDoc> written,
             List<ListedSurvivor> survivors,
             Map<ClusterSlot, Unwritten> unwritten) {
+        return of(arrangement, written, survivors, unwritten, false, DeliverableLanguage.ENGLISH);
+    }
+
+    /**
+     * The source over these lists, every survivor in one page, {@code writingFinished} saying whether the generation
+     * step's work is recorded finished (ADR-319 §5.1) and {@code language} the deliverable's language (ADR-322).
+     */
+    static ArrangedSurvivors of(
+            List<RecordedCluster> arrangement,
+            Map<ClusterSlot, SynthesisDoc> written,
+            List<ListedSurvivor> survivors,
+            Map<ClusterSlot, Unwritten> unwritten,
+            boolean writingFinished,
+            DeliverableLanguage language) {
         Map<ClusterSlot, ArrangedCluster> placeByCluster = new LinkedHashMap<>();
         for (RecordedCluster recorded : arrangement) {
             placeByCluster.put(slotOf(recorded), recorded.cluster());
@@ -80,7 +95,8 @@ final class ListedTree {
                 },
                 everySurvivorInOnePage,
                 everySurvivorInOnePage,
-                false);
+                writingFinished,
+                language);
     }
 
     /** The tree written from these lists over {@code corpusRoot}, with no pictures and no progress heard. */

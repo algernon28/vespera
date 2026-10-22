@@ -4,6 +4,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.synthesis.ArrangedCluster;
 import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.ListedDoc;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
@@ -90,7 +91,8 @@ public final class ListedArrangement {
                 },
                 everySurvivorAPageAtATime,
                 everySurvivorAPageAtATime,
-                false);
+                false,
+                DeliverableLanguage.ENGLISH);
     }
 
     /** The tree written from these lists, with no pictures, no reasons and no progress heard. */

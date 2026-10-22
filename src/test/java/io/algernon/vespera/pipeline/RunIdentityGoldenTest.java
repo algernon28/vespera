@@ -354,8 +354,9 @@ class RunIdentityGoldenTest {
 
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
-    @DisplayName("Generation is identified by the corpus root, the approved arrangement and the writing model's identity")
+    @DisplayName("Generation is identified by the corpus root, the approved arrangement, the writing model's identity and the pages' language")
     @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
+    @Link(name = "ADR-322", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
     @Issue("479")
     @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
     @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
@@ -366,14 +367,16 @@ class RunIdentityGoldenTest {
                 "the settings it records are the corpus root, the id of the approved arrangement, the"
                         + " writing model this profile names, the weights the serving runtime reported"
                         + " under that name, the 8192-token window it reads each group through by default,"
-                        + " the 1024 tokens it leaves the reply, and -1 for how much of a question too long"
+                        + " the 1024 tokens it leaves the reply, -1 for how much of a question too long"
                         + " for the window the engine is asked to keep: all of it that fits, so a cut shows"
-                        + " in the count",
+                        + " in the count, and en, the language the pages are written and drawn in where the"
+                        + " profile names none",
                 () -> assertThat(run.get("config_consumed")).isEqualTo(
                         ("{\"corpusRoot\":\"%s\",\"arrangementRunId\":\"%s\","
                                         + "\"generationModel\":\"" + GENERATION_MODEL + "\","
                                         + "\"weightsDigest\":\"" + EmbeddingScriptedBeans.DIGEST + "\","
-                                        + "\"contextWindow\":8192,\"replyAllowance\":1024,\"numKeep\":-1}")
+                                        + "\"contextWindow\":8192,\"replyAllowance\":1024,\"numKeep\":-1,"
+                                        + "\"deliverableLanguage\":\"en\"}")
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("arrangement"))));
         claim(
                 "and its code version is the synthesis module's, then extraction's, then embedding's: the code"

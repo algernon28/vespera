@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.synthesis.ClusterFaultKind;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.Unwritten;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -47,6 +48,9 @@ class UnwrittenPageWordingTest {
 
     private static final List<String> EVERY_SENTENCE = UnwrittenSentencesOnRecord.EVERY_SENTENCE;
 
+    /** The deliverable's language whose sentences ADR-174 and ADR-319 fix word for word; Italian's are ADR-322's. */
+    private static final DeliverableLanguage ENGLISH = DeliverableLanguage.ENGLISH;
+
     @Test
     @Story("A page with nothing written on it says why, in words a reader of the tree can follow")
     @DisplayName("Every case has a sentence of its own, and no two cases share one")
@@ -71,21 +75,21 @@ class UnwrittenPageWordingTest {
                 "the code's sentence for every way an answer can be turned down is the record's, word for"
                         + " word, and a new way of turning one down cannot be added without one",
                 () -> assertThat(ClusterFaultKind.values()).allSatisfy(kind -> assertThat(
-                                UnwrittenSentences.of(Unwritten.of(kind)))
+                                UnwrittenSentences.of(Unwritten.of(kind), ENGLISH))
                         .isEqualTo(UnwrittenSentencesOnRecord.forKind(kind))));
         claim(
                 "and so is its sentence for each of the three cases no reason is recorded for",
                 () -> {
-                    assertThat(UnwrittenSentences.of(Unwritten.NO_SENDABLE_DOCUMENT))
+                    assertThat(UnwrittenSentences.of(Unwritten.NO_SENDABLE_DOCUMENT, ENGLISH))
                             .isEqualTo(UnwrittenSentencesOnRecord.NO_DOCUMENT_COULD_BE_SENT);
-                    assertThat(UnwrittenSentences.of(Unwritten.NOTHING_FITS_THE_WINDOW))
+                    assertThat(UnwrittenSentences.of(Unwritten.NOTHING_FITS_THE_WINDOW, ENGLISH))
                             .isEqualTo(UnwrittenSentencesOnRecord.NO_DOCUMENT_FITS_THE_ROOM);
-                    assertThat(UnwrittenSentences.of(Unwritten.NOT_REACHED))
+                    assertThat(UnwrittenSentences.of(Unwritten.NOT_REACHED, ENGLISH))
                             .isEqualTo(UnwrittenSentencesOnRecord.WRITING_STOPPED_BEFORE_IT);
                 });
         claim(
                 "and the code has no sentence the record does not",
-                () -> assertThat(Arrays.stream(Unwritten.values()).map(UnwrittenSentences::of))
+                () -> assertThat(Arrays.stream(Unwritten.values()).map(why -> UnwrittenSentences.of(why, ENGLISH)))
                         .containsExactlyInAnyOrderElementsOf(EVERY_SENTENCE));
     }
 

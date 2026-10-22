@@ -60,6 +60,8 @@ public final class ProfileFixture {
 
     private NumericValue configurationSettingShareFloor = NumericValue.unset();
 
+    private TextValue deliverableLanguage = TextValue.unset();
+
     private ProfileFixture() {
     }
 
@@ -88,6 +90,7 @@ public final class ProfileFixture {
         fixture.translationSimilarityFloor = existing.translationSimilarityFloor();
         fixture.preferredLanguages = existing.preferredLanguages();
         fixture.configurationSettingShareFloor = existing.configurationSettingShareFloor();
+        fixture.deliverableLanguage = existing.deliverableLanguage();
         return fixture;
     }
 
@@ -246,6 +249,12 @@ public final class ProfileFixture {
         return this;
     }
 
+    /** The language the deliverable is written and drawn in (ADR-322), {@code en} or {@code it}. */
+    public ProfileFixture deliverableLanguage(String value, String provenance) {
+        this.deliverableLanguage = someText(value, provenance);
+        return this;
+    }
+
     /** The profile itself, through the one constructor {@link Profile} has. */
     public Profile build() {
         return new Profile(
@@ -265,6 +274,7 @@ public final class ProfileFixture {
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages,
-                configurationSettingShareFloor);
+                configurationSettingShareFloor,
+                deliverableLanguage);
     }
 }
