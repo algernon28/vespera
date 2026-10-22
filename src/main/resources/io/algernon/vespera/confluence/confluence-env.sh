@@ -1,4 +1,4 @@
-# Sets what `vespera publish` reads, in this shell only (ADR-308 §3).
+# Sets what `vespera publish` reads, in this shell only (ADR-308 §3, ADR-318).
 #
 # Fill in the site, the space and the parent below, then source this file in the shell that will run the publish:
 #

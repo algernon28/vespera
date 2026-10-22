@@ -1,4 +1,4 @@
-# Sets what `vespera publish` reads, in this PowerShell session only (ADR-308 §3).
+# Sets what `vespera publish` reads, in this PowerShell session only (ADR-308 §3, ADR-318).
 #
 # Fill in the site, the space and the parent below, then dot-source this file in the session that will run the
 # publish:
