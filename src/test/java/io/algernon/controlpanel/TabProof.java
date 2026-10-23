@@ -10,7 +10,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * What a tab of the control panel computes to tell whether the server answering it holds the start's token (ADR-323
+ * What a tab of the control panel computes to tell whether the server answering it holds the start's token (ADR-325
  * §4.1 to §4.3), computed as the control panel's script computes it, for the tests that play the tab or check the
  * server's answer.
  */

@@ -15,12 +15,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Which command the control panel's opener starts to open its own address, and where it starts none (ADR-323 §7), read
+ * Which command the control panel's opener starts to open its own address, and where it starts none (ADR-325 §7), read
  * off the one function that chooses, with no display and no process.
  */
 @Epic("Operation")
 @Feature("The control panel")
-@Link(name = "ADR-323", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
+@Link(name = "ADR-325", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
 class SystemBrowserOpenerTest {
 
     /** The address the control panel prints, token and all. */

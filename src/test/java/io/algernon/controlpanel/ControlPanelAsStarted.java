@@ -27,18 +27,18 @@ import java.util.jar.Manifest;
 import java.util.stream.Stream;
 
 /**
- * The control panel as the operator starts it (ADR-323 §9): {@code java -jar} on a jar of the control panel's compiled
+ * The control panel as the operator starts it (ADR-325 §9): {@code java -jar} on a jar of the control panel's compiled
  * classes whose manifest names the jar for the screen tests as the one beside it, so that {@code ControlPanel.main}
  * runs as shipped and a Run would start {@link JarForScreenTests}, never Vespera.
  *
- * <p>It runs with {@code CI=1}, so it opens no browser (ADR-323 §7), with {@code java.io.tmpdir} a folder of the
+ * <p>It runs with {@code CI=1}, so it opens no browser (ADR-325 §7), with {@code java.io.tmpdir} a folder of the
  * test's own, so that its token and its launch values are kept there and never in the user's own folder, and with the
  * corpus-root locks read in a folder of the test's own. What it writes on each stream is read as it comes, each line of
  * standard output with the moment it was read. Closing it ends its process forcibly and waits for it to end.
  */
 final class ControlPanelAsStarted implements AutoCloseable {
 
-    /** The environment variable that names the port the control panel listens at (ADR-323 §1). */
+    /** The environment variable that names the port the control panel listens at (ADR-325 §1). */
     static final String PORT_VARIABLE = "VESPERA_CONTROL_PANEL_PORT";
 
     /** What ADR-288 §4's line, naming the jar it will start, begins with. */
@@ -56,7 +56,7 @@ final class ControlPanelAsStarted implements AutoCloseable {
     /** The name the manifest gives the jar beside the control panel's own. */
     private static final String JAR_BESIDE_IT = "vespera-for-screen-tests.jar";
 
-    /** The file the token is kept in, beside the launch values (ADR-323 §2). */
+    /** The file the token is kept in, beside the launch values (ADR-325 §2). */
     private static final String TOKEN_FILE = "token";
 
     /** Variables a JVM announces on standard error as it starts, which would be lines the control panel did not write. */
@@ -189,7 +189,7 @@ final class ControlPanelAsStarted implements AutoCloseable {
         return query == null ? "" : query.substring("token=".length());
     }
 
-    /** The token's file a control panel started with {@code temporaryDirectory} keeps it in (ADR-323 §2). */
+    /** The token's file a control panel started with {@code temporaryDirectory} keeps it in (ADR-325 §2). */
     static Path tokenFile(Path temporaryDirectory) {
         return LaunchValues.fileIn(temporaryDirectory, System.getProperty("user.name")).resolveSibling(TOKEN_FILE);
     }

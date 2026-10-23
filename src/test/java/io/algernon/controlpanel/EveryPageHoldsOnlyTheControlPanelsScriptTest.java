@@ -29,7 +29,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Every page the control panel writes holds one {@code <script>} element, the control panel's own script by its
- * address and with no text of its own, and no attribute whose name begins with {@code on} (ADR-323 §4.1, amending
+ * address and with no text of its own, and no attribute whose name begins with {@code on} (ADR-325 §4.1, amending
  * ADR-302 §1), whatever text from outside it shows (ADR-285 §4).
  *
  * <p>Every page of the control panel's own is asked for twice: once after a {@code run} child ended with 0 beside a
@@ -43,7 +43,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("561")
 @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
-@Link(name = "ADR-323", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
+@Link(name = "ADR-325", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
 class EveryPageHoldsOnlyTheControlPanelsScriptTest {
 
     /** The child's last line: a script, and an image whose failure to load runs one. */

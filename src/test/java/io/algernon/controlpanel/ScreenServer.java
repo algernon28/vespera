@@ -117,7 +117,7 @@ final class ScreenServer implements AutoCloseable {
     /**
      * The paths of the control panel's own pages, as {@code ControlPanel.main} starts the server with them, sorted:
      * every path but a report's, which is the jar's page (ADR-302 §3), and the script's and {@code /alive}, which are
-     * no pages (ADR-323 §4.2, §4.3). The pages are built for their paths alone, on files under {@code folder}.
+     * no pages (ADR-325 §4.2, §4.3). The pages are built for their paths alone, on files under {@code folder}.
      */
     static List<String> pathsOfItsOwnPages(Path folder) throws IOException {
         Path elsewhere = Files.createDirectories(folder.resolve("only-for-the-paths"));

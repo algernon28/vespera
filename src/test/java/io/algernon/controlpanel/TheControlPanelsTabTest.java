@@ -29,7 +29,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * What a page of the control panel carries for its tab to come back to a later start, and what the server answers the
- * tab with (ADR-323 §4 to §6): the start's mark and the tab's key on every page of its own, the one script, served to
+ * tab with (ADR-325 §4 to §6): the start's mark and the tab's key on every page of its own, the one script, served to
  * the cookie alone and holding no data of a start, the second policy, the invocation page's refresh, and {@code
  * /alive}, answered without the cookie with a proof only a server holding the token can give.
  *
@@ -41,7 +41,7 @@ import org.junit.jupiter.api.io.TempDir;
  */
 @Epic("Operation")
 @Feature("The control panel")
-@Link(name = "ADR-323", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
+@Link(name = "ADR-325", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
 class TheControlPanelsTabTest {
 
     /** The policy every response of the control panel carries. */

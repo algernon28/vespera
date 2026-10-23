@@ -24,13 +24,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The control panel's start, in process (ADR-323 §1 to §3, §7): {@code ControlPanel.begin} with the bound, the opener
+ * The control panel's start, in process (ADR-325 §1 to §3, §7): {@code ControlPanel.begin} with the bound, the opener
  * and the lines of each stream handed in, so that a test gives a short bound, an opener that records, and consumers it
  * reads, and no browser is opened and no line is waited for longer than the test says.
  */
 @Epic("Operation")
 @Feature("The control panel")
-@Link(name = "ADR-323", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
+@Link(name = "ADR-325", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
 class ControlPanelStartTest {
 
     private static final String USER = System.getProperty("user.name");

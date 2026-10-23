@@ -23,12 +23,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * How the token's file is read and written (ADR-323 §2): never throwing, each line handed to a consumer, and no line
+ * How the token's file is read and written (ADR-325 §2): never throwing, each line handed to a consumer, and no line
  * holding the token.
  */
 @Epic("Operation")
 @Feature("The control panel")
-@Link(name = "ADR-323", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
+@Link(name = "ADR-325", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
 class ControlPanelTokenTest {
 
     private static final String USER = System.getProperty("user.name");

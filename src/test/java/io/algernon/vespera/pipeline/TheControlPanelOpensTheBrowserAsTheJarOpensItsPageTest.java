@@ -19,11 +19,11 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The control panel's opener and the jar's choose the same command for every system and environment, the address apart
- * (ADR-323 §7, §8; ADR-266 §2). The control panel's links no class of the jar, so its function is reached by name.
+ * (ADR-325 §7, §8; ADR-266 §2). The control panel's links no class of the jar, so its function is reached by name.
  */
 @Epic("Operation")
 @Feature("The control panel")
-@Link(name = "ADR-323", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
+@Link(name = "ADR-325", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
 class TheControlPanelOpensTheBrowserAsTheJarOpensItsPageTest {
 
     private static final URI JAR_PAGE = URI.create("file:///runs/progress.html");

@@ -163,7 +163,7 @@ class TheControlPanelsChildIT {
                         "-jar", CONTROL_PANEL_JAR.toAbsolutePath().toString())
                 .directory(CONTROL_PANEL_JAR.toAbsolutePath().getParent().toFile());
         JVM_NOTICES.forEach(builder.environment()::remove);
-        // ADR-323: no browser opened, no port of the machine's operator taken, no token of theirs read or written
+        // ADR-325: no browser opened, no port of the machine's operator taken, no token of theirs read or written
         builder.environment().put("CI", "1");
         builder.environment().put("VESPERA_CONTROL_PANEL_PORT", "0");
         Process process = builder.start();

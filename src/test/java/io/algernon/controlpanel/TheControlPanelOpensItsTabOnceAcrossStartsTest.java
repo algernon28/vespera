@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The control panel as the operator starts it, twice where the test needs a second start (ADR-323 §1 to §4): the port
+ * The control panel as the operator starts it, twice where the test needs a second start (ADR-325 §1 to §4): the port
  * it listens at, the token it keeps in a file of the user's own, the start that waits for a tab of its last start, the
  * tab that comes back to it, and the new token and address of a start no tab comes back to.
  *
@@ -45,7 +45,7 @@ import org.junit.jupiter.api.io.TempDir;
  */
 @Epic("Operation")
 @Feature("The control panel")
-@Link(name = "ADR-323", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
+@Link(name = "ADR-325", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
 class TheControlPanelOpensItsTabOnceAcrossStartsTest {
 
     /** The port the control panel listens at where the environment names none. */
@@ -321,7 +321,7 @@ class TheControlPanelOpensItsTabOnceAcrossStartsTest {
     }
 
     /**
-     * Polls {@code /alive} at {@code port} as the control panel's script does (ADR-323 §4.2): one second after the
+     * Polls {@code /alive} at {@code port} as the control panel's script does (ADR-325 §4.2): one second after the
      * last poll settled, a fresh nonce, no cookie, sent from the page's own origin; and returns the mark of the first
      * answer whose proof {@code tabKey} verifies and whose mark is not {@code ownMark}, or null once
      * {@link #POLLING_BOUND} has passed.

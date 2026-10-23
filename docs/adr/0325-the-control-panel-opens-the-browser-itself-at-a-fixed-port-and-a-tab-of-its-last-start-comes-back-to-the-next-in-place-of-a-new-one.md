@@ -1,4 +1,4 @@
-# ADR-323 — The control panel opens the browser itself, at a fixed port, and a tab of its last start comes back to the next in place of a new one
+# ADR-325 — The control panel opens the browser itself, at a fixed port, and a tab of its last start comes back to the next in place of a new one
 
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.

@@ -21,13 +21,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * What the server counts as a tab coming back (ADR-323 §4.4): a request holding the token that is let in to a path that
+ * What the server counts as a tab coming back (ADR-325 §4.4): a request holding the token that is let in to a path that
  * is no report's and is not {@code /alive}. The class is a file of its own, as {@code ControlPanelServerTest} is
  * written and not changed.
  */
 @Epic("Operation")
 @Feature("The control panel")
-@Link(name = "ADR-323", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
+@Link(name = "ADR-325", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
 class ControlPanelServerTabTest {
 
     private static final String ROOT = "/";
