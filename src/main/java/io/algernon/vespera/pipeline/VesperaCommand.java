@@ -143,6 +143,7 @@ public class VesperaCommand implements Callable<Integer> {
         private final String deliverableRoot;
         private final ProfileStore profileStore;
         private CorpusRootLock corpusRootLock;
+        private SidecarStarter sidecarStarter;
         private String[] arguments = new String[0];
 
         @Parameters(
@@ -208,6 +209,15 @@ public class VesperaCommand implements Callable<Integer> {
             this.arguments = arguments.getSourceArgs();
         }
 
+        /**
+         * The starter of the sidecars, provided only by {@code VesperaApplication.main} (ADR-323 §1): a context built
+         * by Spring's test support has none, and this is then not called.
+         */
+        @Autowired(required = false)
+        void startSidecarsWith(SidecarStarter sidecarStarter) {
+            this.sidecarStarter = sidecarStarter;
+        }
+
         @Override
         public Integer call() throws Exception {
             String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
@@ -234,6 +244,15 @@ public class VesperaCommand implements Callable<Integer> {
                 try {
                     corpusRootLock.take(corpusRoot, workingDirectoryInUse, arguments);
                 } catch (CorpusRootInUseException | CorpusRootLockUnavailableException refused) {
+                    System.err.println(refused.getMessage());
+                    return CommandLine.ExitCode.SOFTWARE;
+                }
+            }
+            // After the root is taken and before the job starts: a run refused for its root starts nothing (ADR-323 §1).
+            if (sidecarStarter != null) {
+                try {
+                    sidecarStarter.ensureRunning();
+                } catch (SidecarStartRefusedException refused) {
                     System.err.println(refused.getMessage());
                     return CommandLine.ExitCode.SOFTWARE;
                 }
@@ -313,6 +332,7 @@ public class VesperaCommand implements Callable<Integer> {
         private final NextAction nextAction;
         private final Path workingDirectoryInUse;
         private final ObjectProvider<AutoLabelling> autoLabelling;
+        private SidecarStarter sidecarStarter;
 
         @Option(
                 names = "--auto",
@@ -356,6 +376,12 @@ public class VesperaCommand implements Callable<Integer> {
             this.autoLabelling = autoLabelling;
         }
 
+        /** As {@link Run#startSidecarsWith}: {@code --auto} asks Ollama's model, so it asks the starter first (ADR-323 §1). */
+        @Autowired(required = false)
+        void startSidecarsWith(SidecarStarter sidecarStarter) {
+            this.sidecarStarter = sidecarStarter;
+        }
+
         /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
         void forgetPreviousInvocation() {
             file = null;
@@ -388,6 +414,15 @@ public class VesperaCommand implements Callable<Integer> {
             Map<String, Integer> counts = Map.of();
             try {
                 if (auto) {
+                    if (sidecarStarter != null) {
+                        try {
+                            sidecarStarter.ensureRunning();
+                        } catch (SidecarStartRefusedException refused) {
+                            ended = "refused";
+                            System.err.println(refused.getMessage());
+                            return CommandLine.ExitCode.SOFTWARE;
+                        }
+                    }
                     AutoLabelling labelling = autoLabelling.getIfAvailable();
                     if (labelling == null) {
                         ended = "refused";

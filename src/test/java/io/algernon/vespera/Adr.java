@@ -2259,6 +2259,15 @@ public final class Adr {
             + "0322-the-progress-pages-three-line-charts-stand-in-one-row-that-wraps-each-drawn-600-units-wide-and-legible-down-to-500-px.md";
 
     /**
+     * ADR-323 -- {@code vespera run} and {@code vespera label --auto} start the Docker engine and the sidecars when they
+     * are not answering, with the README's {@code up} and {@code --no-recreate}, the files chosen by
+     * {@code vespera.docling.image}, and recreate and stop none; stage 2's start check waits for a converter that gives
+     * no answer yet (amends ADR-179, ADR-158, ADR-071, ADR-175, ADR-164, ADR-165 and ADR-170).
+     */
+    public static final String VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER = FILE
+            + "0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md";
+
+    /**
      * ADR-325 -- the control panel opens the browser itself and listens at 24291 or the port {@code
      * VESPERA_CONTROL_PANEL_PORT} names; it holds no token and sets no cookie, letting a request in past {@code Host},
      * {@code Sec-Fetch-Site} and a {@code POST}'s {@code Origin}; and a tab of its last start, polling {@code /alive}
