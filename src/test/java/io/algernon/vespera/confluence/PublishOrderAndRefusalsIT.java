@@ -16,59 +16,27 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * What a publish sends in what order, and how it answers the site's refusals (ADR-316 §4, ADR-313 §3; #633): every
- * page is created before any body, one {@code 409} is answered and a second stops it, a copy refused as too large is
- * skipped, counted and listed, a paced request is sent again after its wait, and a file is sent with {@code
- * X-Atlassian-Token: no-check} and its digest as its comment. Against a stub.
+ * How a publish answers the site's refusals (ADR-316 §4, ADR-313 §3; #633): one {@code 409} is answered and a second
+ * stops it, a copy refused as too large is skipped, counted and listed, a paced request is sent again after its wait,
+ * and a file is sent with {@code X-Atlassian-Token: no-check} and its digest as its comment. The order a publish sends
+ * a page's parts in is {@link PublishSendsEachPageWholeIT}'s (ADR-320). Against a stub.
  */
 @Epic("Operation")
 @Feature("The publish")
 @Issue("633")
 @Link(name = "ADR-316", url = Adr.THE_PAGE_LIST_IS_PAGES_JSON, type = "adr")
 @Link(name = "ADR-313", url = Adr.A_CLUSTERS_CONFLUENCE_PAGE_CARRIES_ITS_COPIES_AS_FILES, type = "adr")
-class PublishOrderAndRefusalsTest {
+@Tag("confluence")
+class PublishOrderAndRefusalsIT {
 
     @TempDir
     Path folder;
-
-    @Test
-    @Story("A publish sends the rendering whole")
-    @DisplayName("A publish creates every page, parents first, before it sends any body, and labels and keys each")
-    void aPublishCreatesEveryPageBeforeAnyBody() throws IOException {
-        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
-        try (StubConfluence site = StubConfluence.start()) {
-            site.publisher(new ArrayList<>()).publish(rendering.confluence(), Rendering.RUN, folder, line -> {});
-            List<StubConfluence.Request> sent = site.sent();
-            List<Integer> creates = IntStream.range(0, sent.size())
-                    .filter(at -> sent.get(at).method().equals("POST") && sent.get(at).path().equals("/wiki/api/v2/pages"))
-                    .boxed().toList();
-            int firstBody = IntStream.range(0, sent.size())
-                    .filter(at -> sent.get(at).method().equals("PUT") && !sent.get(at).path().contains("/properties"))
-                    .findFirst().orElse(-1);
-            List<StubConfluence.Page> pages = site.pages();
-
-            claim("three pages were created, and the last create came before the first body was sent",
-                    () -> assertThat(List.of(creates.size(), creates.getLast() < firstBody, firstBody > 0))
-                            .containsExactly(3, true, true));
-            claim("parents first: the root page under the parent named, each other under its parent's page",
-                    () -> assertThat(pages).extracting(page -> page.title + " < " + page.parentId).containsExactly(
-                            Rendering.ROOT_TITLE + " < " + StubConfluence.PARENT_ID,
-                            Rendering.PARTITION_TITLE + " < " + pages.get(0).id,
-                            Rendering.CLUSTER_TITLE + " < " + pages.get(1).id));
-            claim("each is labelled with the run's marker, and its property holds its key and its body's digest",
-                    () -> assertThat(pages).allSatisfy(page -> {
-                        assertThat(page.labels).containsExactly("vespera-" + Rendering.MARKER);
-                        assertThat(page.property).containsOnlyKeys("key", "bodySha256");
-                        assertThat((String) page.property.get("key")).startsWith(Rendering.RUN + ":");
-                    }));
-        }
-    }
 
     @Test
     @Story("A publish sends the rendering whole")
@@ -103,9 +71,10 @@ class PublishOrderAndRefusalsTest {
 
             claim("after one 409 the body was sent again and the publish went to its end",
                     () -> assertThat(once.published()).as(once.closingLine()).isTrue());
-            claim("after two it stopped, saying the page changed while it was sent, and sent no file after it",
+            claim("after two it stopped, saying the page changed while it was sent, and no line closed that page",
                     () -> assertThat(List.of(twice.published(), twice.closingLine().contains(Rendering.CLUSTER),
-                                    twice.closingLine().startsWith("vespera publish stopped:"), lines.isEmpty()))
+                                    twice.closingLine().startsWith("vespera publish stopped:"),
+                                    lines.stream().noneMatch(line -> line.startsWith(Rendering.CLUSTER_TITLE + ":"))))
                             .containsExactly(false, true, true, true));
         }
     }

@@ -2,6 +2,8 @@
 
 > **Partly superseded — see [ADR-318](0318-the-publish-reads-the-email-from-vespera-confluence-email-and-the-parent-from-vespera-confluence-folder-id-or-folder-title-and-no-earlier-name.md).** §3's account's email is read from `VESPERA_CONFLUENCE_EMAIL`, and the parent from `vespera.confluence.folder-id`, set by `VESPERA_CONFLUENCE_FOLDER_ID`, or `vespera.confluence.folder-title`, set by `VESPERA_CONFLUENCE_FOLDER_TITLE`; `VESPERA_CONFLUENCE_USER`, `VESPERA_CONFLUENCE_PARENT_ID`, `VESPERA_CONFLUENCE_PARENT_TITLE` and the two `parent` properties are read nowhere. The rest of §3 stands.
 
+> **Partly superseded — see [ADR-320](0320-a-publish-sends-each-page-whole-its-files-before-its-body-before-it-creates-the-next-and-says-how-far-it-has-got.md).** §8's *"Every page is created before any body is written"* no longer holds: a publish finds or creates a page, sends its files and then its body before it creates the next, a title link to a later page resolving once that page exists. §5's publish also prints its totals, a line as each page starts and a line for each file. The rest of §8 stands. The publish's test classes are named `*IT` and run by a `verify` run locally, not by CI (ADR-320 §6).
+
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
 - **Supersedes**: [ADR-304](0304-vespera-never-sends-the-deliverable-tree-to-confluence-itself-and-holds-no-uploader-no-credential-and-no-connection-for-it.md), whole. Vespera sends the Confluence rendering to one Confluence Cloud site, under one parent in one space the operator names, when and only when the operator asks it to (§1 to §3).
@@ -111,16 +113,16 @@ No stage reads a value of the publish, and no stage's version names `confluence`
 
 ## Tests
 
-Built by [#633](https://github.com/algernon28/vespera/issues/633), against a stub HTTP server; no test reaches a real site.
+Built by [#633](https://github.com/algernon28/vespera/issues/633), against a stub HTTP server; no test reaches a real site. The publish's classes below were renamed `*IT` by ADR-320 §6.
 
 | Method | What it holds |
 | --- | --- |
 | `NothingShippedReachesConfluenceTest.onlyTheConfluenceModuleNamesAConfluenceRestPath` | no file under `src/main` outside `io/algernon/vespera/confluence/` names a Confluence REST path or Atlassian's host (§1, §7) |
 | `NothingShippedReachesConfluenceTest.theShippedConfigurationHoldsNoCredential` | no shipped YAML file holds a key for a Confluence site's address or a credential (§3) |
 | `NothingShippedReachesConfluenceTest.theCommandHasRunLabelAndPublish` | the command tree is `run`, `label` and `publish` (§5) |
-| `confluence.PublishSendsToOneHostTest` | a publish sends to the configured `https` host alone, and refuses another host or `http` before sending (§2) |
-| `confluence.PublishReadsItsCredentialFromTheEnvironmentTest` | the token and email are read from the environment alone, a missing one is named and refused before sending, and no line the publish prints holds the token (§3) |
-| `confluence.RepublishUpdatesInPlaceTest` | a second publish of the same rendering updates no page whose local hash is unchanged, updates a changed one with the next version, and deletes nothing (§8) |
+| `confluence.PublishSendsToOneHostIT` | a publish sends to the configured `https` host alone, and refuses another host or `http` before sending (§2) |
+| `confluence.PublishReadsItsCredentialFromTheEnvironmentIT` | the token and email are read from the environment alone, a missing one is named and refused before sending, and no line the publish prints holds the token (§3) |
+| `confluence.RepublishUpdatesInPlaceIT` | a second publish of the same rendering updates no page whose local hash is unchanged, updates a changed one with the next version, and deletes nothing (§8) |
 | `controlpanel.ChildCommandTest.onlyRunLabelAndPublishCanBeBuilt` | the control panel starts the jar's three commands and nothing else (§6) |
 
 ## What this does not decide

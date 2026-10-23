@@ -2235,6 +2235,14 @@ public final class Adr {
             + "0319-a-cluster-whose-answer-is-turned-down-the-last-two-times-it-is-asked-stands-without-writing-and-the-generation-step-finishes-with-it.md";
 
     /**
+     * ADR-320 -- a publish sends each page whole, its files before its body, before it creates the next, and says how
+     * far it has got: totals first, a line as each page starts and for each file, and the page it stopped at
+     * (supersedes ADR-308 §8's and ADR-316 §4's order).
+     */
+    public static final String A_PUBLISH_SENDS_EACH_PAGE_WHOLE_AND_SAYS_HOW_FAR_IT_HAS_GOT = FILE
+            + "0320-a-publish-sends-each-page-whole-its-files-before-its-body-before-it-creates-the-next-and-says-how-far-it-has-got.md";
+
+    /**
      * ADR-322 -- {@code vespera run} and {@code vespera label --auto} start the Docker engine and the sidecars when they
      * are not answering, with the README's {@code up} and {@code --no-recreate}, the files chosen by
      * {@code vespera.docling.image}, and recreate and stop none; stage 2's start check waits for a converter that gives
