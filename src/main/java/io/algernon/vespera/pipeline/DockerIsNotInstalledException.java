@@ -1,6 +1,6 @@
 package io.algernon.vespera.pipeline;
 
-/** There is no {@code docker} command on this machine (ADR-322 §8). */
+/** There is no {@code docker} command on this machine (ADR-323 §8). */
 final class DockerIsNotInstalledException extends SidecarStartRefusedException {
 
     DockerIsNotInstalledException() {

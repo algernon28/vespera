@@ -8,7 +8,7 @@
 # on any classpath, the jar's or the IDE's or spring-boot:run's (ADR-179). `vespera run` and
 # `vespera label --auto` start these services when they are not answering, with the `up` line the
 # README gives plus --no-recreate, from a copy of this file the jar carries, and stop and recreate
-# none (ADR-322); an operator can start them with that line too. Nothing reads a port back, so the
+# none (ADR-323); an operator can start them with that line too. Nothing reads a port back, so the
 # defaults in application.yaml and Spring AI (11434) are all an invocation has, and a
 # Docker-assigned port makes them wrong. Pinning costs a port collision when
 # something else local already holds one of these -- which is the failure an operator can diagnose

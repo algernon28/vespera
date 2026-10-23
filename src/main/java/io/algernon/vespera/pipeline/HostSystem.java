@@ -3,7 +3,7 @@ package io.algernon.vespera.pipeline;
 import java.util.List;
 import java.util.Locale;
 
-/** The operating systems whose Docker engine Vespera knows how to start (ADR-322 §5). */
+/** The operating systems whose Docker engine Vespera knows how to start (ADR-323 §5). */
 enum HostSystem {
     WINDOWS,
     MAC,
@@ -23,7 +23,7 @@ enum HostSystem {
         return LINUX;
     }
 
-    /** The commands that start the engine, tried in this order until one exits 0 (ADR-322 §5's table). */
+    /** The commands that start the engine, tried in this order until one exits 0 (ADR-323 §5's table). */
     List<List<String>> engineStartCommands() {
         return switch (this) {
             case WINDOWS -> List.of(

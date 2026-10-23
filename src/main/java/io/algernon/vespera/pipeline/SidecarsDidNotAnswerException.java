@@ -2,7 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import java.time.Duration;
 
-/** {@code up} succeeded and a sidecar still did not answer within the bound (ADR-322 §8). */
+/** {@code up} succeeded and a sidecar still did not answer within the bound (ADR-323 §8). */
 final class SidecarsDidNotAnswerException extends SidecarStartRefusedException {
 
     /** {@code which} is {@code docling-serve}, {@code Ollama}, or {@code docling-serve and Ollama}. */

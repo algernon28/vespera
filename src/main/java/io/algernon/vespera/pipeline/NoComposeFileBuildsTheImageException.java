@@ -1,6 +1,6 @@
 package io.algernon.vespera.pipeline;
 
-/** No compose file the jar carries builds the converter image the configuration names (ADR-322 §2, §8). */
+/** No compose file the jar carries builds the converter image the configuration names (ADR-323 §2, §8). */
 final class NoComposeFileBuildsTheImageException extends SidecarStartRefusedException {
 
     NoComposeFileBuildsTheImageException(String configured, String cpuImage, String gpuImage) {

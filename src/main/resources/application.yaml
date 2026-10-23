@@ -17,14 +17,14 @@ vespera:
   deliverable-root:
   sidecars:
     # Whether `vespera run` and `vespera label --auto` start the Docker engine and bring docling-serve and Ollama up
-    # when they are not answering (ADR-322). They run `docker compose -p vespera up -d --build --no-recreate` from
+    # when they are not answering (ADR-323). They run `docker compose -p vespera up -d --build --no-recreate` from
     # the compose files the jar carries, naming compose.gpu.yaml too where vespera.docling.image is the image it
     # builds, and recreate, stop or remove nothing. Set false (VESPERA_SIDECARS_START=false) for a machine whose
     # sidecars are started some other way, or to keep a stopped sidecar stopped. An application property and no
     # profile value: it says how this machine is run, not what has been judged about a corpus.
     start: true
     # How long any wait for the Docker engine or a sidecar lasts: after the engine is started, after `up`, at
-    # stage 2's start for a converter that gives no answer yet, and after a dropped connection (ADR-322 §7,
+    # stage 2's start for a converter that gives no answer yet, and after a dropped connection (ADR-323 §7,
     # amending ADR-175 §2). 180 seconds covers the restarts measured at 6 to 9 seconds and a first start that loads
     # its models.
     wait-at-most: 180s

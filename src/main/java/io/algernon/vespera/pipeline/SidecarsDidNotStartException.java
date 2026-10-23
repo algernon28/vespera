@@ -2,7 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import java.util.List;
 
-/** {@code docker compose up} exited non-zero (ADR-322 §8). */
+/** {@code docker compose up} exited non-zero (ADR-323 §8). */
 final class SidecarsDidNotStartException extends SidecarStartRefusedException {
 
     SidecarsDidNotStartException(List<String> up, ProcessOutcome outcome) {

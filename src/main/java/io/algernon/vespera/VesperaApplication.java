@@ -37,7 +37,7 @@ public class VesperaApplication {
                 "corpusRootLock",
                 new CorpusRootLock(CorpusRootLock.folderNamedBy(
                         context.getEnvironment().getProperty(CorpusRootLock.FOLDER_PROPERTY)))));
-        // So is the starter of the sidecars (ADR-322 section 1): `run` and `label --auto` ask it, a test context has
+        // So is the starter of the sidecars (ADR-323 section 1): `run` and `label --auto` ask it, a test context has
         // none, and so no test context starts the Docker engine or a container.
         application.addInitializers(context -> context.getBeanFactory().registerSingleton(
                 "sidecarStarter", SidecarStarter.forTheApplication(context.getEnvironment())));

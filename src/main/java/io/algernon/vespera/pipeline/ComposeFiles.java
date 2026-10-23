@@ -15,7 +15,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.dataformat.yaml.YAMLMapper;
 
 /**
- * The compose files Vespera starts the sidecars from, and the Docling image each builds (ADR-322 §2, §4).
+ * The compose files Vespera starts the sidecars from, and the Docling image each builds (ADR-323 §2, §4).
  *
  * <p>The jar carries {@code compose.yaml}, {@code compose.gpu.yaml} and everything under {@code docker/} as
  * resources under {@code sidecars/}, byte for byte; {@link #fromTheClasspath} writes them out to a new temporary

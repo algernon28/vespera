@@ -13,7 +13,7 @@ import org.springframework.web.client.ResourceAccessException;
 
 /**
  * Checks {@code docling-serve}'s health once, immediately before stage 2's step processes its first
- * occurrence (ADR-071), waiting for a converter that gives no answer yet (ADR-322 §7) — not at job start, since census and stage 1 never touch the sidecar, and not
+ * occurrence (ADR-071), waiting for a converter that gives no answer yet (ADR-323 §7) — not at job start, since census and stage 1 never touch the sidecar, and not
  * before every call, since a sidecar that dies later fails the call itself. What that failure earns
  * depends on how the call failed (ADR-175): a failure the sidecar answers with, or three timeouts in a
  * row, is skipped and counted by the breaker; a dropped connection is waited out by {@link
@@ -56,7 +56,7 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
 
     /**
      * A converter that gave no answer, the connection refused or reset or closed with no status line or silent past
-     * the timeout, is read as one still starting and waited for under the bound every wait for a sidecar has (ADR-322
+     * the timeout, is read as one still starting and waited for under the bound every wait for a sidecar has (ADR-323
      * §7). One that answers with an error status is up and fails the step at once, in {@link #beforeStep}. At the
      * bound the check is asked once more through the conversion client and whatever that throws fails the step, so
      * the message and the closing line are those of a converter that never answered.

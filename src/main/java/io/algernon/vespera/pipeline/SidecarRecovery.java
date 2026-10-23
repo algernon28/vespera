@@ -23,7 +23,7 @@ class SidecarRecovery {
 
     /**
      * How long a sidecar is given to answer again unless {@code vespera.sidecars.wait-at-most} says otherwise
-     * (ADR-322 §7, amending ADR-175 §2). On the whole archive on 2026-09-28 a killed container was back in 6 to 9
+     * (ADR-323 §7, amending ADR-175 §2). On the whole archive on 2026-09-28 a killed container was back in 6 to 9
      * seconds (ADR-175's evidence); three minutes also covers one that reloads its models first.
      */
     private static final Duration WAIT_AT_MOST = Duration.ofSeconds(180);
@@ -39,7 +39,7 @@ class SidecarRecovery {
         this(client, WAIT_AT_MOST, POLL_EVERY);
     }
 
-    /** The bound is the application property, one for every wait for a sidecar (ADR-322 §7). */
+    /** The bound is the application property, one for every wait for a sidecar (ADR-323 §7). */
     @Autowired
     SidecarRecovery(DoclingClient client, @Value("${vespera.sidecars.wait-at-most:180s}") Duration waitAtMost) {
         this(client, waitAtMost, POLL_EVERY);
@@ -81,7 +81,7 @@ class SidecarRecovery {
 
     /**
      * Waits for a sidecar that has not yet answered its first health check, which is a sidecar still starting
-     * (ADR-322 §7): asks on the same clock as {@link #awaitHealthy}, and says nothing itself, because the caller
+     * (ADR-323 §7): asks on the same clock as {@link #awaitHealthy}, and says nothing itself, because the caller
      * says what it is waiting for.
      *
      * @return how long it took to answer, or empty if it had not answered when the bound passed

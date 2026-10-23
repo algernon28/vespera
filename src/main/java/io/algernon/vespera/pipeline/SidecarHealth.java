@@ -1,6 +1,6 @@
 package io.algernon.vespera.pipeline;
 
-/** Whether each sidecar answers right now (ADR-322 §3): the question the starter asks before and after it acts. */
+/** Whether each sidecar answers right now (ADR-323 §3): the question the starter asks before and after it acts. */
 interface SidecarHealth {
 
     /** docling-serve answers {@code GET /health} with a 2xx. */

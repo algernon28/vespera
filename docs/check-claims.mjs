@@ -732,7 +732,7 @@ const UNCHECKED = [
   "whether the reports README points at actually inform the value it points them at for",
   'whether following "Running it" gets an invocation past stage 2 — that needs Docker, and this starts nothing',
   "that Step 0's profile.yaml example parses — this compares its keys with the value types, and never runs ProfileStore",
-  'that the packaged jar nests no Docker Compose artifact and runs no Spring compose support — PackagedJarIT holds that, under ./mvnw verify, not this; what the jar does start (ADR-322) is held by SidecarStartTest',
+  'that the packaged jar nests no Docker Compose artifact and runs no Spring compose support — PackagedJarIT holds that, under ./mvnw verify, not this; what the jar does start (ADR-323) is held by SidecarStartTest',
 ];
 
 /* ---------- report ---------- */

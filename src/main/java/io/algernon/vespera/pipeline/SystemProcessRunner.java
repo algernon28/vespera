@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-/** The {@link ProcessRunner} that starts real processes, with standard error merged into the output (ADR-322). */
+/** The {@link ProcessRunner} that starts real processes, with standard error merged into the output (ADR-323). */
 final class SystemProcessRunner implements ProcessRunner {
 
     /** The exit code a command killed for running past its limit counts as. */

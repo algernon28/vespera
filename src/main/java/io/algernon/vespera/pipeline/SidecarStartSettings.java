@@ -6,7 +6,7 @@ import org.springframework.boot.convert.DurationStyle;
 import org.springframework.core.env.Environment;
 
 /**
- * What the sidecar starter reads from configuration (ADR-322 §2, §7, §9): whether to start the sidecars at all
+ * What the sidecar starter reads from configuration (ADR-323 §2, §7, §9): whether to start the sidecars at all
  * ({@code vespera.sidecars.start}, true unless set), how long to wait for the engine or a sidecar
  * ({@code vespera.sidecars.wait-at-most}, 180 seconds unless set), the converter image that chooses the compose
  * files ({@code vespera.docling.image}), and where each sidecar is looked for.

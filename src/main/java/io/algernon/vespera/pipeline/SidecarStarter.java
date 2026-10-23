@@ -18,7 +18,7 @@ import org.springframework.core.env.Environment;
 
 /**
  * Brings the two sidecars up where they are not answering: starts the Docker engine where it is not running, then
- * runs the README's {@code up} with {@code --no-recreate}, and waits for both sidecars (ADR-322). It never stops,
+ * runs the README's {@code up} with {@code --no-recreate}, and waits for both sidecars (ADR-323). It never stops,
  * removes or recreates a container or the engine, and does nothing at exit.
  *
  * <p>The commands that use a sidecar, {@code vespera run} and {@code vespera label --auto}, ask {@link
@@ -30,7 +30,7 @@ public class SidecarStarter {
 
     /** How a call to {@link #ensureRunning} ended when it did not refuse. */
     enum Outcome {
-        /** {@code vespera.sidecars.start} is false (ADR-322 §9). */
+        /** {@code vespera.sidecars.start} is false (ADR-323 §9). */
         NOT_ASKED_TO_START,
         /** A base URL names another machine, which Docker on this one cannot make answer. */
         ON_ANOTHER_MACHINE,
@@ -40,7 +40,7 @@ public class SidecarStarter {
         STARTED
     }
 
-    /** The lock file, in the folder the corpus-root locks lie in (ADR-322 §6). */
+    /** The lock file, in the folder the corpus-root locks lie in (ADR-323 §6). */
     private static final String LOCK_FILE = "sidecars.lock";
 
     private static final long LOCKED_BYTE = Long.MAX_VALUE - 1;
@@ -103,7 +103,7 @@ public class SidecarStarter {
     }
 
     /**
-     * Makes both sidecars answer where they do not, in the order of ADR-322 §3.
+     * Makes both sidecars answer where they do not, in the order of ADR-323 §3.
      *
      * @throws SidecarStartRefusedException when they do not answer and cannot be made to
      */
@@ -164,7 +164,7 @@ public class SidecarStarter {
                 || name.equals("[0:0:0:0:0:0:0:1]");
     }
 
-    // ---- the engine (ADR-322 §5)
+    // ---- the engine (ADR-323 §5)
 
     private void makeTheEngineAnswer() {
         if (engineAnswers()) {
@@ -215,7 +215,7 @@ public class SidecarStarter {
         }
     }
 
-    // ---- up (ADR-322 §4)
+    // ---- up (ADR-323 §4)
 
     private void bringUp(boolean withTheGpuFile) {
         try (ComposeFiles files = composeFiles.get()) {
@@ -239,7 +239,7 @@ public class SidecarStarter {
         }
     }
 
-    // ---- the wait after up (ADR-322 §3, step 8)
+    // ---- the wait after up (ADR-323 §3, step 8)
 
     private void waitForBoth() {
         log.info("Waiting up to {} seconds for docling-serve and Ollama to answer", settings.waitAtMost().toSeconds());
@@ -272,7 +272,7 @@ public class SidecarStarter {
         }
     }
 
-    // ---- the lock (ADR-322 §6)
+    // ---- the lock (ADR-323 §6)
 
     /**
      * Takes {@code sidecars.lock} in the lock folder, waiting for it where another invocation holds it: unlike the

@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * What the sidecar starter runs commands through (ADR-322): the one seam between it and the operating system, so
+ * What the sidecar starter runs commands through (ADR-323): the one seam between it and the operating system, so
  * that a test runs no process.
  */
 interface ProcessRunner {

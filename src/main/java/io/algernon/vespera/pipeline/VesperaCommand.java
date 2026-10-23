@@ -210,7 +210,7 @@ public class VesperaCommand implements Callable<Integer> {
         }
 
         /**
-         * The starter of the sidecars, provided only by {@code VesperaApplication.main} (ADR-322 §1): a context built
+         * The starter of the sidecars, provided only by {@code VesperaApplication.main} (ADR-323 §1): a context built
          * by Spring's test support has none, and this is then not called.
          */
         @Autowired(required = false)
@@ -248,7 +248,7 @@ public class VesperaCommand implements Callable<Integer> {
                     return CommandLine.ExitCode.SOFTWARE;
                 }
             }
-            // After the root is taken and before the job starts: a run refused for its root starts nothing (ADR-322 §1).
+            // After the root is taken and before the job starts: a run refused for its root starts nothing (ADR-323 §1).
             if (sidecarStarter != null) {
                 try {
                     sidecarStarter.ensureRunning();
@@ -376,7 +376,7 @@ public class VesperaCommand implements Callable<Integer> {
             this.autoLabelling = autoLabelling;
         }
 
-        /** As {@link Run#startSidecarsWith}: {@code --auto} asks Ollama's model, so it asks the starter first (ADR-322 §1). */
+        /** As {@link Run#startSidecarsWith}: {@code --auto} asks Ollama's model, so it asks the starter first (ADR-323 §1). */
         @Autowired(required = false)
         void startSidecarsWith(SidecarStarter sidecarStarter) {
             this.sidecarStarter = sidecarStarter;
