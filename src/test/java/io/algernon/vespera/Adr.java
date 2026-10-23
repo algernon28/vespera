@@ -2267,6 +2267,16 @@ public final class Adr {
     public static final String VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER = FILE
             + "0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md";
 
+    /**
+     * ADR-325 -- the control panel opens the browser itself and listens at 24291 or the port {@code
+     * VESPERA_CONTROL_PANEL_PORT} names; it holds no token and sets no cookie, letting a request in past {@code Host},
+     * {@code Sec-Fetch-Site} and a {@code POST}'s {@code Origin}; and a tab of its last start, polling {@code /alive}
+     * for the start's mark, reloads onto the next start in place of a new one (amends ADR-291 §1 to §6 and §8, ADR-297
+     * §2 and §7 and ADR-302 §1, §3, §9, §11 and §12).
+     */
+    public static final String THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK = FILE
+            + "0325-the-control-panel-opens-the-browser-itself-at-a-fixed-port-and-a-tab-of-its-last-start-comes-back-to-the-next-in-place-of-a-new-one.md";
+
     private Adr() {
     }
 }

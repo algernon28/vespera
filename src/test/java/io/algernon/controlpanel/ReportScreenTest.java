@@ -26,8 +26,8 @@ import org.junit.jupiter.api.io.TempDir;
  * sixteen files the jar writes (ADR-306 §2), each answered as written under a second policy, {@code sandbox
  * allow-scripts}, a missing one with one line, and no other file of the working directory at all.
  *
- * <p>The requests are written by {@link RawHttp}, holding the cookie as a browser does, so that each header's every
- * value and the body's bytes are read as sent.
+ * <p>The requests are written by {@link RawHttp}, addressed to the control panel's own address as a browser addresses
+ * them, so that each header's every value and the body's bytes are read as sent.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -130,7 +130,6 @@ class ReportScreenTest {
     private static RawHttp.Response get(ScreenServer screens, String path) throws IOException {
         ControlPanelServer server = screens.server();
         return RawHttp.send(server.address(), "GET", path, List.of(
-                "Host: 127.0.0.1:" + server.address().getPort(),
-                "Cookie: " + ControlPanelServer.COOKIE + "=" + server.token()));
+                "Host: 127.0.0.1:" + server.address().getPort()));
     }
 }

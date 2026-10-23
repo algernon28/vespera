@@ -32,9 +32,9 @@ import org.junit.jupiter.api.Test;
  * (ADR-291) started with stub pages: a page of forms, a page that echoes the request it was sent, and a page that
  * answers a {@code POST} with a {@code 303}, as a screen that writes answers.
  *
- * <p>Every test opens the address the server printed, so each one passes the token exchange and holds the cookie, and
- * every form is sent through the server's checks of {@code Host}, the cookie and {@code Origin}: a request the browser
- * sent wrongly is refused before a stub page runs.
+ * <p>Every test opens the address the server printed, the root with no token (ADR-325 §2), and every form is sent
+ * through the server's checks of {@code Host}, {@code Sec-Fetch-Site} and {@code Origin}: a request the browser sent
+ * wrongly is refused before a stub page runs.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-297", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_TESTED_THROUGH_THE_PAGES_IT_SERVES, type = "adr")
 class PanelBrowserTest {
 
-    /** The page of forms, at the root, where the token exchange lands. */
+    /** The page of forms, at the root, where the printed address lands. */
     private static final String FORMS = "/";
 
     /** The page that echoes the method, the origin and the fields it was sent. */
@@ -110,20 +110,21 @@ class PanelBrowserTest {
 
     @Test
     @Story("The control panel's screens are tested as a browser uses them")
-    @DisplayName("Opening the printed address lands on the page without the token, and the next page is answered on the cookie")
-    void openingThePrintedAddressLandsOnThePageAndHoldsTheCookie() {
+    @DisplayName("Opening the printed address lands on the page at the root, at that very address, and the next page is answered")
+    @Link(name = "ADR-325", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
+    void openingThePrintedAddressLandsOnTheRootAndTheNextPageIsAnswered() {
         PanelBrowser browser = PanelBrowser.opening(server.firstAddress());
         Page landed = browser.page();
         Page next = browser.go(ECHO).page();
 
-        claim("the address the panel printed is answered with the page at the root, 200, after the token exchange's"
-                        + " redirect took the token out of the address",
-                () -> assertThat(List.of(landed.status(), landed.address().toString()))
-                        .containsExactly(200, origin + FORMS));
+        claim("the address the panel printed is the root, and is answered with the page there, 200, at that very"
+                        + " address, no redirect having moved it",
+                () -> assertThat(List.of(landed.status(), landed.address().toString(),
+                                server.firstAddress().toString()))
+                        .containsExactly(200, origin + FORMS, origin + FORMS));
         claim("the page is read as a document, its title being the one the page wrote",
                 () -> assertThat(landed.document().title()).isEqualTo("Forms"));
-        claim("and the next page asked for is answered, 200, by its own page, so the cookie the token was exchanged"
-                        + " for went with the request",
+        claim("and the next page asked for is answered, 200, by its own page",
                 () -> assertThat(List.of(next.status(), text(next, "method"))).containsExactly(200, "GET"));
     }
 

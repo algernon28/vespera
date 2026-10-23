@@ -303,8 +303,9 @@ class LaunchScreenTest {
     }
 
     /**
-     * No {@code GET} of the control panel changes anything (ADR-302 §1): another site's page can open any of its
-     * addresses with the cookie, so a {@code GET} carrying a form's fields in its query neither writes nor starts.
+     * No {@code GET} of the control panel changes anything (ADR-302 §1): any of its addresses can be opened, by a
+     * browser that marks no request as another site's or by anything else on the machine (ADR-325 §2), so a
+     * {@code GET} carrying a form's fields in its query neither writes nor starts.
      */
     @Test
     @Story("The operator starts an invocation from the control panel")
