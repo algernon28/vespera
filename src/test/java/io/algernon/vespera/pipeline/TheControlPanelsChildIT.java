@@ -157,11 +157,15 @@ class TheControlPanelsChildIT {
     @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
     @Story("The operator starts the control panel with java -jar")
     @DisplayName("Started with java -jar on its own jar, the control panel names the packaged jar beside it and the java that started it, then the address to open, and serves until it is ended")
-    void theControlPanelStartedByJavaJarNamesTheJarBesideItAndItsOwnJava() throws Exception {
+    void theControlPanelStartedByJavaJarNamesTheJarBesideItAndItsOwnJava(@TempDir Path temporary) throws Exception {
         Path java = javaOfThisRuntime();
-        ProcessBuilder builder = new ProcessBuilder(java.toString(), "-jar", CONTROL_PANEL_JAR.toAbsolutePath().toString())
+        ProcessBuilder builder = new ProcessBuilder(java.toString(), "-Djava.io.tmpdir=" + temporary,
+                        "-jar", CONTROL_PANEL_JAR.toAbsolutePath().toString())
                 .directory(CONTROL_PANEL_JAR.toAbsolutePath().getParent().toFile());
         JVM_NOTICES.forEach(builder.environment()::remove);
+        // ADR-323: no browser opened, no port of the machine's operator taken, no token of theirs read or written
+        builder.environment().put("CI", "1");
+        builder.environment().put("VESPERA_CONTROL_PANEL_PORT", "0");
         Process process = builder.start();
         CompletableFuture<byte[]> error = readWhole(process.getErrorStream());
         List<String> lines;

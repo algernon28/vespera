@@ -324,13 +324,19 @@ Or build both jars and start the control panel in one command, with the `gui` pr
 
 On Windows it is `.\mvnw.cmd -Pgui`. `Ctrl+C` ends Maven, the control panel and the invocation it started.
 
-It prints two lines: the jar it will start and the Java it starts it with, then the address to open:
+It prints the jar it will start and the Java it starts it with, then the address it opens in your default browser:
 
 ```
-open http://127.0.0.1:<port>/?token=<token> in your browser
+open http://127.0.0.1:24291/?token=<token> in your browser
 ```
 
-Open that address in your browser on the same machine, by pasting it into the address bar or clicking it in the terminal. It is good for this start only: each start picks another port and another token, and the control panel answers only a browser that came in through the address it printed. If it found no jar beside its own, it prints one line naming where it looked, and exits 1: build both jars with `./mvnw package`, and keep them side by side.
+If no browser opens, open that address yourself on the same machine, by pasting it into the address bar or clicking it in the terminal; nothing is opened where the environment variable `CI` is set, or on Linux with no display. The control panel answers only a browser that came in through that address.
+
+Leave the tab open. When you end the control panel with `Ctrl+C` and start it again, that tab reloads itself onto the new start and no other tab opens: the start prints `the control panel waits up to 5 seconds for a tab it opened before`, then `a tab it opened before came back to http://127.0.0.1:24291/, so the control panel opens no other`. If no tab comes back within those 5 seconds, because you closed it or the browser, it opens a new tab on a new address, and the old address is refused from then on. A first start, with no tab to wait for, opens one at once.
+
+It listens at port 24291. To use another, set `VESPERA_CONTROL_PANEL_PORT` in the shell you start it from; `0` lets the system pick a free port at each start, and then no tab comes back. If the port is taken, by another program or by a control panel you already started, it says so on one line, listens at a port the system picks, and opens a new tab there. A value that is not a port from 0 to 65535 is refused with one line, and it exits 1.
+
+If it found no jar beside its own, it prints one line naming where it looked, and exits 1: build both jars with `./mvnw package`, and keep them side by side.
 
 It serves until you end it, with `Ctrl+C` or by closing the terminal it runs in. Ending it that way also ends the invocation it started, if one is running, as Stop would; a forced kill of the control panel, such as `kill -9`, `taskkill /F` or End task in Task Manager, does not, and the control panel started again shows that invocation holding the working directory.
 

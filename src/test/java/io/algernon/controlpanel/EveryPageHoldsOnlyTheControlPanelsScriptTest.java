@@ -22,25 +22,29 @@ import java.util.Map;
 import java.util.TreeSet;
 import org.jsoup.nodes.Attribute;
 import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * No page the control panel writes holds a {@code <script>} element or an attribute whose name begins with {@code on}
- * (ADR-302 §1), whatever text from outside it shows (ADR-285 §4).
+ * Every page the control panel writes holds one {@code <script>} element, the control panel's own script by its
+ * address and with no text of its own, and no attribute whose name begins with {@code on} (ADR-323 §4.1, amending
+ * ADR-302 §1), whatever text from outside it shows (ADR-285 §4).
  *
- * <p>Every path the server is started with but a report's, which is the jar's page and not the control panel's, is
- * asked for twice: once after a {@code run} child ended with 0 beside a next act wanting values and answers, and once
- * while a second runs, so that the invocation page's Stop and Stop's confirmation are written. What the pages show
- * from outside the control panel holds markup: a launch value, the child's last line, a code set's name and a
- * question's path, each of which would put a script or an event attribute on the page were it not escaped.
+ * <p>Every page of the control panel's own is asked for twice: once after a {@code run} child ended with 0 beside a
+ * next act wanting values and answers, and once while a second runs, so that the invocation page's Stop and Stop's
+ * confirmation are written. A report is the jar's page and not the control panel's, and the script and {@code /alive}
+ * are no pages. What the pages show from outside the control panel holds markup: a launch value, the child's last
+ * line, a code set's name and a question's path, each of which would put a script or an event attribute on the page
+ * were it not escaped.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("561")
 @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
-class NoPageHoldsAScriptTest {
+@Link(name = "ADR-323", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
+class EveryPageHoldsOnlyTheControlPanelsScriptTest {
 
     /** The child's last line: a script, and an image whose failure to load runs one. */
     private static final String MARKUP_LINE = "<script>alert(1)</script><img src=x onerror=alert(2)>";
@@ -57,9 +61,6 @@ class NoPageHoldsAScriptTest {
     /** A question's path, closing its attribute and adding an event attribute. */
     private static final String MARKUP_PATH = "a/\" onfocus=\"alert(6)\" autofocus=\".pdf";
 
-    /** The path every report is served under; a report is the jar's page, not the control panel's. */
-    private static final String REPORT_PATH = "/report/";
-
     /** What the attribute of an event begins with. */
     private static final String EVENT = "on";
 
@@ -70,13 +71,13 @@ class NoPageHoldsAScriptTest {
     Path folder;
 
     @Test
-    @Story("The control panel's pages run no script")
-    @DisplayName("No page the control panel writes holds a script element or an event attribute, after an invocation ended and while one runs, though the text it shows holds markup")
-    void noPageHoldsAScriptElementOrAnEventAttribute() throws IOException, InterruptedException {
+    @Story("The control panel's pages run only its own script")
+    @DisplayName("Every page the control panel writes holds one script, its own by its address and with no text, and no event attribute, after an invocation ended and while one runs, though the text it shows holds markup")
+    void everyPageHoldsOneScriptByItsAddressAndNoEventAttribute() throws IOException, InterruptedException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         writeTheWorkingDirectory(workingDirectory);
-        List<String> paths = pagesOfTheControlPanel();
+        List<String> paths = ScreenServer.pathsOfItsOwnPages(folder);
         List<Page> pages = new ArrayList<>();
         LaunchValues values = new LaunchValues(corpusRoot.toString(), workingDirectory.toString(), "", MARKUP_IMAGE,
                 "", "", MARKUP_MODEL, "");
@@ -99,14 +100,15 @@ class NoPageHoldsAScriptTest {
         Page codeSets = pages.get(paths.indexOf("/code-sets"));
         Page launch = pages.get(paths.indexOf("/"));
 
-        claim("every page of the control panel but the reports was asked for after the child ended and while the"
-                        + " second ran, and each was answered with a page",
+        claim("every page of the control panel's own was asked for after the child ended and while the second ran,"
+                        + " and each was answered with a page",
                 () -> assertThat(pages).hasSize(paths.size() * STATES)
                         .extracting(Page::status).containsOnly(200));
         claim("the second child was running while the pages were asked for again",
                 () -> assertThat(byId(running, "child").attr("data-ending")).isEqualTo("running"));
-        claim("no page holds a script element, or an attribute whose name begins with on",
-                () -> assertThat(scriptsAndEventAttributesOf(pages)).isEmpty());
+        claim("every page holds one script element, whose address is the control panel's script and which holds no"
+                        + " text, and no attribute whose name begins with on",
+                () -> assertThat(scriptsOtherThanItsOwnAndEventAttributesOf(pages)).isEmpty());
         claim("while the text from outside the control panel reached the pages as text: the child's last line,"
                         + " the code set's name, the question's path and the two launch values, each whole",
                 () -> assertThat(List.of(byId(ended, "last-line").text(),
@@ -117,30 +119,31 @@ class NoPageHoldsAScriptTest {
                         .containsExactly(MARKUP_LINE, MARKUP_NAME, MARKUP_PATH, MARKUP_IMAGE, MARKUP_MODEL));
     }
 
-    /** Every path the server is started with, but the reports', as {@code ControlPanel.main} starts it. */
-    private List<String> pagesOfTheControlPanel() throws IOException {
-        Path elsewhere = Files.createDirectories(folder.resolve("only-for-the-paths"));
-        return ControlPanelPages.pages(new ChildRuntime(elsewhere.resolve("java"), elsewhere.resolve("vespera.jar")),
-                        elsewhere.resolve("launch-values.properties"), elsewhere.resolve("root-locks"),
-                        System.getProperty("user.name"))
-                .keySet().stream()
-                .filter(path -> !path.startsWith(REPORT_PATH))
-                .sorted()
-                .toList();
-    }
-
-    /** Each script element and event attribute of the pages, named by the page's path. */
-    private static TreeSet<String> scriptsAndEventAttributesOf(List<Page> pages) {
+    /**
+     * What departs from one script element by the control panel's script's address, holding no text, and no event
+     * attribute, named by the page's path: a page holding no script or more than one, a script at another address or
+     * holding text, and each event attribute.
+     */
+    private static TreeSet<String> scriptsOtherThanItsOwnAndEventAttributesOf(List<Page> pages) {
         TreeSet<String> found = new TreeSet<>();
         for (Page page : pages) {
-            for (Element element : page.document().getAllElements()) {
-                if (element.nameIs("script")) {
-                    found.add(page.address().getPath() + " holds a script element");
+            String path = page.address().getPath();
+            Elements scripts = page.document().select("script");
+            if (scripts.size() != 1) {
+                found.add(path + " holds " + scripts.size() + " script elements");
+            }
+            for (Element script : scripts) {
+                if (!script.attr("src").equals(TabProof.SCRIPT)) {
+                    found.add(path + " holds a script at '" + script.attr("src") + "'");
                 }
+                if (!script.data().isEmpty()) {
+                    found.add(path + " holds a script with text of its own");
+                }
+            }
+            for (Element element : page.document().getAllElements()) {
                 for (Attribute attribute : element.attributes()) {
                     if (attribute.getKey().toLowerCase(Locale.ROOT).startsWith(EVENT)) {
-                        found.add(page.address().getPath() + " holds " + attribute.getKey() + " on "
-                                + element.tagName());
+                        found.add(path + " holds " + attribute.getKey() + " on " + element.tagName());
                     }
                 }
             }

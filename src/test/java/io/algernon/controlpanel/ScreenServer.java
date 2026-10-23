@@ -114,6 +114,23 @@ final class ScreenServer implements AutoCloseable {
         return ControlPanelPages.pages(runtime, launchValuesFile, corpusRootLockFolder, userName);
     }
 
+    /**
+     * The paths of the control panel's own pages, as {@code ControlPanel.main} starts the server with them, sorted:
+     * every path but a report's, which is the jar's page (ADR-302 §3), and the script's and {@code /alive}, which are
+     * no pages (ADR-323 §4.2, §4.3). The pages are built for their paths alone, on files under {@code folder}.
+     */
+    static List<String> pathsOfItsOwnPages(Path folder) throws IOException {
+        Path elsewhere = Files.createDirectories(folder.resolve("only-for-the-paths"));
+        return ControlPanelPages.pages(new ChildRuntime(elsewhere.resolve("java"), elsewhere.resolve("vespera.jar")),
+                        elsewhere.resolve("launch-values.properties"), elsewhere.resolve("root-locks"),
+                        System.getProperty("user.name"))
+                .keySet().stream()
+                .filter(path -> !path.startsWith("/report/") && !path.equals(TabProof.SCRIPT)
+                        && !path.equals(TabProof.ALIVE))
+                .sorted()
+                .toList();
+    }
+
     /** Launch values naming only the corpus root and the working directory, every other value empty. */
     static LaunchValues values(Path corpusRoot, Path workingDirectory) {
         return new LaunchValues(corpusRoot.toString(), workingDirectory.toString(), "", "", "", "", "", "");
