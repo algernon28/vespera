@@ -181,6 +181,7 @@ final class ProgressPage implements JobExecutionListener {
             "^(" + StageProgress.LABEL_SHAPE + "): ([0-9,]+)(?: of ([0-9,]+) \\([0-9]+%\\)| so far)$");
 
     private static final int CHART_WIDTH = 1100;
+    private static final int LINE_CHART_WIDTH = 600;
     private static final int CHART_HEIGHT = 260;
     private static final int PLOT_TOP = 36;
     private static final int PLOT_HEIGHT = 168;
@@ -725,9 +726,7 @@ final class ProgressPage implements JobExecutionListener {
                 + "<div class=\"tiles\" title=\"" + ReportPage.escapeAttribute(JOB_TILES_HOVER) + "\">\n" + tiles + "</div>\n"
                 + bar
                 + timeline(states, executions, started, now, zone)
-                + databaseChart()
-                + countsChart()
-                + verdictsChart();
+                + chartRow();
         return new String[] {
             page("steps", stepsBody, last, seconds), page("samples", samplesBody, last, seconds),
             page("runs", runsBody, last, seconds), page("", progressBody, last, seconds)
@@ -938,6 +937,17 @@ final class ProgressPage implements JobExecutionListener {
         return svg.toString();
     }
 
+    private static final String CHART_ROW_HOVER =
+            "Charts over time: the database's size, the running step's counts and the verdicts of the step removing occurrences.";
+
+    /** The line charts' cards in one row, then the sentence of a step with no count to draw (ADR-322 section 1). */
+    private String chartRow() {
+        String counts = countsChart();
+        boolean card = counts.startsWith("<figure");
+        return "<div class=\"chart-row\" title=\"" + ReportPage.escapeAttribute(CHART_ROW_HOVER) + "\">\n"
+                + databaseChart() + (card ? counts : "") + verdictsChart() + "</div>\n" + (card ? "" : counts);
+    }
+
     /** The database's size at each sample, over its own range (ADR-268 section 7). */
     private String databaseChart() {
         double[] values = samples.stream().mapToDouble(Sample::databaseBytes).toArray();
@@ -1121,46 +1131,40 @@ final class ProgressPage implements JobExecutionListener {
         int longest = tickTexts.stream().mapToInt(String::length).max().orElse(1);
         int left = Math.max(56, 8 * longest + 8);
         int bottom = PLOT_TOP + PLOT_HEIGHT;
-        // end labels: the text each line ends in, and two within 14 units of each other as one label holding both
-        List<String> endTexts = new ArrayList<>();
+        // end labels (ADR-322 section 4): one a series, never joined, 14 units apart and inside the plot's height
         double[] endY = new double[lines.size()];
+        String[] labels = new String[lines.size()];
+        int longestLabel = 0;
         for (int s = 0; s < lines.size(); s++) {
             Line line = lines.get(s);
             double last = line.values()[line.values().length - 1];
             endY[s] = bottom - (last - axis.lo()) / (axis.hi() - axis.lo()) * PLOT_HEIGHT;
-            endTexts.add((line.name().isEmpty() || lines.size() == 1 ? "" : line.name() + " ") + show.apply(last));
+            labels[s] = (line.name().isEmpty() || lines.size() == 1 ? "" : line.name() + " ") + show.apply(last);
+            longestLabel = Math.max(longestLabel, labels[s].length());
         }
         List<Integer> byHeight = new ArrayList<>();
         for (int i = 0; i < lines.size(); i++) {
             byHeight.add(i);
         }
         byHeight.sort((a, b) -> Double.compare(endY[a], endY[b]));
-        List<List<Integer>> groups = new ArrayList<>();
-        int longestLabel = 0;
-        for (int index : byHeight) {
-            List<Integer> group = groups.isEmpty() ? null : groups.getLast();
-            if (group != null && endY[index] - endY[group.getLast()] <= 14) {
-                group.add(index);
-            } else {
-                groups.add(new ArrayList<>(List.of(index)));
-            }
+        double[] labelY = new double[lines.size()];
+        for (int k = 0; k < byHeight.size(); k++) {
+            double wanted = endY[byHeight.get(k)] + 4;
+            labelY[k] = k == 0 ? wanted : Math.max(wanted, labelY[k - 1] + 14);
         }
-        List<String> labels = new ArrayList<>();
-        for (List<Integer> group : groups) {
-            group.sort(null);
-            List<String> texts = new ArrayList<>();
-            for (int index : group) {
-                texts.add(endTexts.get(index));
+        int lowest = byHeight.size() - 1;
+        if (lowest >= 0 && labelY[lowest] > bottom + 4) {
+            labelY[lowest] = bottom + 4;
+            for (int k = lowest - 1; k >= 0; k--) {
+                labelY[k] = Math.min(labelY[k], labelY[k + 1] - 14);
             }
-            labels.add(String.join(", ", texts));
-            longestLabel = Math.max(longestLabel, labels.getLast().length());
         }
         // the plot leaves eight units for each character of the longest end label, and ends there (ADR-268 section 7)
-        int plotRight = CHART_WIDTH - 12 - 8 * longestLabel;
+        int plotRight = LINE_CHART_WIDTH - 12 - 8 * longestLabel;
         int plot = plotRight - left;
         StringBuilder svg = new StringBuilder(figureHead(title, caption, lines));
         svg.append("<svg class=\"chart\" data-chart=\"").append(key).append("\" role=\"img\" viewBox=\"0 0 ")
-                .append(CHART_WIDTH).append(' ').append(CHART_HEIGHT).append("\"><title>")
+                .append(LINE_CHART_WIDTH).append(' ').append(CHART_HEIGHT).append("\"><title>")
                 .append(ReportPage.escape(title)).append("</title>\n");
         svg.append("<text class=\"axis-title y\" x=\"").append(left).append("\" y=\"16\">")
                 .append(ReportPage.escape(axis.title())).append("</text>\n");
@@ -1214,10 +1218,9 @@ final class ProgressPage implements JobExecutionListener {
                     .append(f1(y)).append("\" r=\"4\" stroke-width=\"2\"/>\n");
             endX = x;
         }
-        for (int g = 0; g < groups.size(); g++) {
+        for (int k = 0; k < byHeight.size(); k++) {
             svg.append("<text class=\"end-label\" x=\"").append(f1(endX + 10)).append("\" y=\"")
-                    .append(f1(endY[groups.get(g).getFirst()] + 4)).append("\">")
-                    .append(ReportPage.escape(labels.get(g))).append("</text>\n");
+                    .append(f1(labelY[k])).append("\">").append(ReportPage.escape(labels[byHeight.get(k)])).append("</text>\n");
         }
         return svg.append("</svg>\n</figure>\n").toString();
     }
