@@ -2251,6 +2251,14 @@ public final class Adr {
             + "0321-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md";
 
     /**
+     * ADR-322 -- the progress page's three line charts stand after the timeline in one row that wraps, three, two or
+     * one across, each drawn 600 units wide and never under 500 px, where its text is 10 px high, with one end label
+     * a series; the timeline keeps 1,100 units and 917 px (amends ADR-268 §7 and ADR-269 §7).
+     */
+    public static final String THE_THREE_LINE_CHARTS_STAND_IN_ONE_ROW_THAT_WRAPS = FILE
+            + "0322-the-progress-pages-three-line-charts-stand-in-one-row-that-wraps-each-drawn-600-units-wide-and-legible-down-to-500-px.md";
+
+    /**
      * ADR-325 -- the control panel opens the browser itself and listens at 24291 or the port {@code
      * VESPERA_CONTROL_PANEL_PORT} names; its token is kept in the user's own folder while a tab comes back holding it,
      * and a tab of its last start, polling {@code /alive} without its cookie and checking the answer's proof, reloads

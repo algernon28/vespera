@@ -149,15 +149,16 @@ class EveryDivOfTheProgressPagesSaysWhatItShowsTest {
     }
 
     @Test
+    @Link(name = "ADR-322", url = Adr.THE_THREE_LINE_CHARTS_STAND_IN_ONE_ROW_THAT_WRAPS, type = "adr")
     @Story("Every part of a page says what it shows when the pointer rests on it")
     @DisplayName("Every box of the four tabs carries a description shown on hover, at the first write and the last, whichever step is removing documents")
     void everyDivOfTheFourTabsCarriesAHoverTextAtTheFirstWriteAndTheLast() {
         Set<String> classesSeen = new LinkedHashSet<>();
         RUN_PAGES.values().forEach(page -> divsOf(page).forEach(tag -> classesSeen.add(attributeOf(tag, "class"))));
         claim(
-                "the pages written hold the row of figures, the figures and the cards the tables stand in, so the"
-                        + " claims below are about every kind of box the tabs draw",
-                () -> assertThat(classesSeen).contains("tiles", "tile", "table-card"));
+                "the pages written hold the row of figures, the figures, the row of charts and the cards the tables"
+                        + " stand in, so the claims below are about every kind of box the tabs draw",
+                () -> assertThat(classesSeen).contains("tiles", "tile", "chart-row", "table-card"));
         RUN_PAGES.forEach((what, page) -> claim(
                 "every box of " + what + " carries a description that is not blank",
                 () -> assertThat(divsOf(page)).allSatisfy(tag -> assertThat(titleOf(tag)).as(tag).isNotBlank())));
