@@ -180,7 +180,8 @@ final class ProgressPage implements JobExecutionListener {
     private static final Pattern COUNTER = Pattern.compile(
             "^(" + StageProgress.LABEL_SHAPE + "): ([0-9,]+)(?: of ([0-9,]+) \\([0-9]+%\\)| so far)$");
 
-    private static final int CHART_WIDTH = 1100;
+    private static final int TIMELINE_WIDTH = 1100;
+    private static final int CHART_WIDTH = 600;
     private static final int CHART_HEIGHT = 260;
     private static final int PLOT_TOP = 36;
     private static final int PLOT_HEIGHT = 168;
@@ -725,9 +726,7 @@ final class ProgressPage implements JobExecutionListener {
                 + "<div class=\"tiles\" title=\"" + ReportPage.escapeAttribute(JOB_TILES_HOVER) + "\">\n" + tiles + "</div>\n"
                 + bar
                 + timeline(states, executions, started, now, zone)
-                + databaseChart()
-                + countsChart()
-                + verdictsChart();
+                + chartRow();
         return new String[] {
             page("steps", stepsBody, last, seconds), page("samples", samplesBody, last, seconds),
             page("runs", runsBody, last, seconds), page("", progressBody, last, seconds)
@@ -899,12 +898,12 @@ final class ProgressPage implements JobExecutionListener {
     private static String timeline(
             Map<String, String> states, Map<String, StepExecution> executions, Instant started, Instant now, ZoneId zone) {
         long total = Math.max(1000, Duration.between(started, now).toMillis());
-        int plot = CHART_WIDTH - TIMELINE_LABELS - 20;
+        int plot = TIMELINE_WIDTH - TIMELINE_LABELS - 20;
         int height = STEPS_IN_JOB_ORDER.size() * TIMELINE_ROW + 48;
         String title = "Timeline of the steps";
         StringBuilder svg = new StringBuilder(figureHead(
                 title, "Each step's bar runs from its start to its end, or to this write while it runs, and is labelled with its state.", null));
-        svg.append("<svg class=\"timeline\" role=\"img\" viewBox=\"0 0 ").append(CHART_WIDTH).append(' ').append(height)
+        svg.append("<svg class=\"timeline\" role=\"img\" viewBox=\"0 0 ").append(TIMELINE_WIDTH).append(' ').append(height)
                 .append("\"><title>").append(title).append("</title>\n");
         int row = 0;
         for (String step : STEPS_IN_JOB_ORDER) {
@@ -936,6 +935,21 @@ final class ProgressPage implements JobExecutionListener {
                 .append("<text class=\"axis-title x\" text-anchor=\"middle\" x=\"").append(TIMELINE_LABELS + plot / 2)
                 .append("\" y=\"").append(axis + 20).append("\">Elapsed (h:mm:ss)</text>\n</svg>\n</figure>\n");
         return svg.toString();
+    }
+
+    /** What the row of line charts shows (ADR-322 section 1). */
+    private static final String CHART_ROW_HOVER =
+            "Charts over time: the database's size, the running step's counts and the verdicts of the step removing occurrences.";
+
+    /**
+     * The three line charts in one row that wraps (ADR-322 section 1): the cards only, and where the counts chart is
+     * a sentence that the step reports no count, the sentence after the row's close.
+     */
+    private String chartRow() {
+        String counts = countsChart();
+        boolean card = counts.startsWith("<figure");
+        return "<div class=\"chart-row\" title=\"" + ReportPage.escapeAttribute(CHART_ROW_HOVER) + "\">\n"
+                + databaseChart() + (card ? counts : "") + verdictsChart() + "</div>\n" + (card ? "" : counts);
     }
 
     /** The database's size at each sample, over its own range (ADR-268 section 7). */
@@ -1121,7 +1135,9 @@ final class ProgressPage implements JobExecutionListener {
         int longest = tickTexts.stream().mapToInt(String::length).max().orElse(1);
         int left = Math.max(56, 8 * longest + 8);
         int bottom = PLOT_TOP + PLOT_HEIGHT;
-        // end labels: the text each line ends in, and two within 14 units of each other as one label holding both
+        // one end label a series, top to bottom in the order of their lines' ends, ties in the order drawn; each
+        // baseline 4 units below its line's end and at least 14 below the label above, the lowest no more than 4
+        // below the plot's bottom and those above it moved up to stay 14 apart (ADR-322 section 4)
         List<String> endTexts = new ArrayList<>();
         double[] endY = new double[lines.size()];
         for (int s = 0; s < lines.size(); s++) {
@@ -1135,25 +1151,20 @@ final class ProgressPage implements JobExecutionListener {
             byHeight.add(i);
         }
         byHeight.sort((a, b) -> Double.compare(endY[a], endY[b]));
-        List<List<Integer>> groups = new ArrayList<>();
+        double[] labelY = new double[byHeight.size()];
         int longestLabel = 0;
-        for (int index : byHeight) {
-            List<Integer> group = groups.isEmpty() ? null : groups.getLast();
-            if (group != null && endY[index] - endY[group.getLast()] <= 14) {
-                group.add(index);
-            } else {
-                groups.add(new ArrayList<>(List.of(index)));
+        for (int g = 0; g < labelY.length; g++) {
+            labelY[g] = endY[byHeight.get(g)] + 4;
+            if (g > 0) {
+                labelY[g] = Math.max(labelY[g], labelY[g - 1] + 14);
             }
+            longestLabel = Math.max(longestLabel, endTexts.get(byHeight.get(g)).length());
         }
-        List<String> labels = new ArrayList<>();
-        for (List<Integer> group : groups) {
-            group.sort(null);
-            List<String> texts = new ArrayList<>();
-            for (int index : group) {
-                texts.add(endTexts.get(index));
+        if (labelY.length > 0 && labelY[labelY.length - 1] > bottom + 4) {
+            labelY[labelY.length - 1] = bottom + 4;
+            for (int g = labelY.length - 2; g >= 0; g--) {
+                labelY[g] = Math.min(labelY[g], labelY[g + 1] - 14);
             }
-            labels.add(String.join(", ", texts));
-            longestLabel = Math.max(longestLabel, labels.getLast().length());
         }
         // the plot leaves eight units for each character of the longest end label, and ends there (ADR-268 section 7)
         int plotRight = CHART_WIDTH - 12 - 8 * longestLabel;
@@ -1214,10 +1225,10 @@ final class ProgressPage implements JobExecutionListener {
                     .append(f1(y)).append("\" r=\"4\" stroke-width=\"2\"/>\n");
             endX = x;
         }
-        for (int g = 0; g < groups.size(); g++) {
+        for (int g = 0; g < labelY.length; g++) {
             svg.append("<text class=\"end-label\" x=\"").append(f1(endX + 10)).append("\" y=\"")
-                    .append(f1(endY[groups.get(g).getFirst()] + 4)).append("\">")
-                    .append(ReportPage.escape(labels.get(g))).append("</text>\n");
+                    .append(f1(labelY[g])).append("\">")
+                    .append(ReportPage.escape(endTexts.get(byHeight.get(g)))).append("</text>\n");
         }
         return svg.append("</svg>\n</figure>\n").toString();
     }
