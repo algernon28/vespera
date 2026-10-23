@@ -14,6 +14,7 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.qameta.allure.Epic;
@@ -220,7 +221,8 @@ class AClusterPageIsOneFileWithItsPicturesInlinedTest {
                     endedWithAnEntry.add(new String(page.toByteArray(), StandardCharsets.UTF_8).endsWith("</li>\n"));
                 },
                 ConfluenceEntries.NONE,
-                false);
+                false,
+                DeliverableLanguage.ENGLISH);
         String written = page.toString(StandardCharsets.UTF_8);
         List<Long> entryEnds = new ArrayList<>();
         for (int at = written.indexOf("</li>\n"); at >= 0; at = written.indexOf("</li>\n", at + 1)) {

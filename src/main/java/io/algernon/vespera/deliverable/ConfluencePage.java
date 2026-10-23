@@ -1,5 +1,6 @@
 package io.algernon.vespera.deliverable;
 
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.Unwritten;
@@ -38,6 +39,7 @@ final class ConfluencePage {
      * @param entryCount how many entries the cluster's membership has
      * @param breaks where the HTML pages split the cluster, or {@code null} for one page
      * @param titleOf the title of page {@code k} of the cluster, counted from 1
+     * @param language the language of the page's fixed words (ADR-321 §4)
      */
     static List<PageFile> write(
             OutputStream out,
@@ -49,7 +51,8 @@ final class ConfluencePage {
             ClusterPage.PageBreaks breaks,
             int page,
             IntFunction<String> titleOf,
-            boolean writingFinished)
+            boolean writingFinished,
+            DeliverableLanguage language)
             throws IOException {
         OutputStream stream = new BufferedOutputStream(out, 1 << 16);
         int pages = breaks == null ? 1 : breaks.pages();
@@ -57,17 +60,17 @@ final class ConfluencePage {
         int after = breaks == null ? entryCount : breaks.firstEntryOf(page + 1);
         StringBuilder text = new StringBuilder();
         if (pages > 1) {
-            text.append(navigation(page, pages, titleOf));
+            text.append(navigation(page, pages, titleOf, language));
         }
         if (page == 1) {
             text.append(firstPageBody(recorded, doc, why, writingFinished, number -> {
                 int holding = breaks == null || number < 1 || number > entryCount ? page : pageHolding(breaks, number);
                 return titleOf.apply(holding);
-            }));
+            }, language));
         }
         List<PageFile> files = new ArrayList<>();
         if (entryCount > 0) {
-            text.append("<h2>").append(ClusterPage.MEMBERSHIP_HEADING).append("</h2>\n")
+            text.append("<h2>").append(FixedWords.membershipHeading(language)).append("</h2>\n")
                     .append(first == 0 ? "<ol>\n" : "<ol start=\"" + (first + 1) + "\">\n");
             write(stream, text);
             try (FileChannel channel = FileChannel.open(entries.file(), StandardOpenOption.READ)) {
@@ -83,7 +86,7 @@ final class ConfluencePage {
             text.append("</ol>\n");
         }
         if (pages > 1) {
-            text.append(navigation(page, pages, titleOf));
+            text.append(navigation(page, pages, titleOf, language));
         }
         write(stream, text);
         stream.flush();
@@ -105,13 +108,15 @@ final class ConfluencePage {
             SynthesisDoc doc,
             Unwritten why,
             boolean writingFinished,
-            IntFunction<String> titleOf) {
+            IntFunction<String> titleOf,
+            DeliverableLanguage language) {
         StringBuilder body = new StringBuilder();
         if (doc == null) {
             body.append("<p><em>")
-                    .append(Html.escape(why == null ? Deliverable.NOTHING_WAS_WRITTEN_OVER_IT : UnwrittenSentences.of(why)))
+                    .append(Html.escape(
+                            why == null ? FixedWords.nothingWasWrittenOverIt(language) : UnwrittenSentences.of(why, language)))
                     .append("</em></p>\n");
-            UnwrittenSentences.standing(why, writingFinished)
+            UnwrittenSentences.standing(why, writingFinished, language)
                     .ifPresent(standing -> body.append("<p><em>").append(Html.escape(standing)).append("</em></p>\n"));
             return body.toString();
         }
@@ -122,24 +127,25 @@ final class ConfluencePage {
         int documentCount = recorded.cluster().documentCount();
         if (doc.documentsSent() < documentCount) {
             body.append("<p>")
-                    .append(Html.escape(ClusterPage.SUBSET_DISCLOSURE.formatted(doc.documentsSent(), documentCount)))
+                    .append(Html.escape(
+                            FixedWords.subsetDisclosure(language).formatted(doc.documentsSent(), documentCount)))
                     .append("</p>\n");
         }
         return body.toString();
     }
 
     /** The line that names page {@code page} of {@code pages} and links the others by their titles (ADR-303 §5). */
-    private static String navigation(int page, int pages, IntFunction<String> titleOf) {
+    private static String navigation(int page, int pages, IntFunction<String> titleOf, DeliverableLanguage language) {
         List<String> links = new ArrayList<>();
         if (page > 1) {
-            links.add(ConfluencePages.link(titleOf.apply(1), "first"));
-            links.add(ConfluencePages.link(titleOf.apply(page - 1), "previous"));
+            links.add(ConfluencePages.link(titleOf.apply(1), FixedWords.first(language)));
+            links.add(ConfluencePages.link(titleOf.apply(page - 1), FixedWords.previous(language)));
         }
         if (page < pages) {
-            links.add(ConfluencePages.link(titleOf.apply(page + 1), "next"));
-            links.add(ConfluencePages.link(titleOf.apply(pages), "last"));
+            links.add(ConfluencePages.link(titleOf.apply(page + 1), FixedWords.next(language)));
+            links.add(ConfluencePages.link(titleOf.apply(pages), FixedWords.last(language)));
         }
-        return "<p>Page " + page + " of " + pages + ": " + String.join(", ", links) + "</p>\n";
+        return "<p>" + FixedWords.pageOf(language).formatted(page, pages) + String.join(", ", links) + "</p>\n";
     }
 
     private static void write(OutputStream stream, StringBuilder text) throws IOException {

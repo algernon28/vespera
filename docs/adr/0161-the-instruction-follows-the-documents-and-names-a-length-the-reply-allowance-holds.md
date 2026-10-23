@@ -1,5 +1,7 @@
 # ADR-161 — The instruction follows the documents and names a length the reply allowance holds
 
+> **Partly amended — see [ADR-321](0321-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md).** §1's instruction ends with one sentence more, after the citation sentence: the answer is one JSON object of two fields, `title` and `prose`, the writing ending with its last sentence, both written in the deliverable's language. Its two rules, its 400 words and §3's allowance stand; the Consequences' *"still inside `INSTRUCTION_RESERVE`'s 256 tokens"* holds of the text after the documents alone.
+
 - **Date**: 2026-09-26
 - **Status**: accepted
 - **Amends**: [ADR-159](0159-generation-asks-for-no-thinking-and-the-prompt-names-the-square-brackets-a-citation-is-written-in.md) §2, in one word and one place. The citation sentence moves after the documents, so the numbers it names appear "above", not "below". Its rule is unchanged: the instruction names square brackets, and no number it shows is greater than the number of documents the call sent.

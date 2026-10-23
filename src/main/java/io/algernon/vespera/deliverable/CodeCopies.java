@@ -2,6 +2,7 @@ package io.algernon.vespera.deliverable;
 
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.ReplacingMove;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -80,7 +81,12 @@ final class CodeCopies {
      * @param typed the entries of the names file, empty where it is absent, refused or holds nothing
      * @param written the folders of the tree this drawing wrote, to which {@code code} and each set's folder are added
      */
-    Path draw(ListedCodeSets code, List<CodeSetNames.Entry> typed, Appendable index, Set<String> written)
+    Path draw(
+            ListedCodeSets code,
+            List<CodeSetNames.Entry> typed,
+            Appendable index,
+            Set<String> written,
+            DeliverableLanguage language)
             throws IOException {
         List<ListedCodeSet> sets = code.sets();
         long dormant = CodeSetFolderNames.dormant(sets, typed);
@@ -105,7 +111,7 @@ final class CodeCopies {
         Path root = tree.resolve(DIRECTORY_NAME);
         Files.createDirectories(root);
         written.add(DIRECTORY_NAME);
-        IndexPage.codeHeading(index);
+        IndexPage.codeHeading(index, language);
         Path listingPart = tree.resolve(LISTING_FILE_NAME + Deliverable.PART_SUFFIX);
         try (Writer listing = Files.newBufferedWriter(listingPart, StandardCharsets.UTF_8)) {
             listing.append(HEADER).append('\n');
@@ -113,7 +119,7 @@ final class CodeCopies {
                 String folderName = folders.get(set.folder());
                 written.add(DIRECTORY_NAME + "/" + folderName);
                 long[] standing = copySet(code.membersOf(set), root.resolve(folderName), folderName, listing);
-                IndexPage.codeRow(index, folderName, set.folder(), standing[0], standing[1]);
+                IndexPage.codeRow(index, folderName, set.folder(), standing[0], standing[1], language);
             }
         }
         IndexPage.codeEnd(index);

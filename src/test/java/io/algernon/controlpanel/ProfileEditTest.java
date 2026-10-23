@@ -248,7 +248,9 @@ class ProfileEditTest {
                 new Sample(ProfileKey.CLUSTER_PAGE_BYTE_CEILING, "9223372036854775807"),
                 new Sample(ProfileKey.OUT_OF_SCOPE_NAME_ENDINGS, ".P3A, .dgn .x.y"),
                 new Sample(ProfileKey.CODE_NAME_ENDINGS, ".java"),
-                new Sample(ProfileKey.PREFERRED_LANGUAGES, "it, EN"));
+                new Sample(ProfileKey.PREFERRED_LANGUAGES, "it, EN"),
+                new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "it"),
+                new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "EN"));
         Map<Sample, String> refused = new LinkedHashMap<>();
         refused.put(new Sample(ProfileKey.SEED_FOLDER, "seeds"), notAFolder("seeds"));
         refused.put(new Sample(ProfileKey.SEED_FOLDER, temp.resolve("absent").toString()),
@@ -286,6 +288,9 @@ class ProfileEditTest {
         refused.put(new Sample(ProfileKey.PREFERRED_LANGUAGES, "it, eng"),
                 "preferredLanguages is not saved: \"it, eng\" is not a list of two-letter language codes");
         refused.put(new Sample(ProfileKey.GENERATION_MODEL, "qwen3\n14b"), "generationModel is not saved: a value is one line");
+        refused.put(new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "fr"), "deliverableLanguage is not saved: \"fr\" is not en or it");
+        refused.put(new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "italian"),
+                "deliverableLanguage is not saved: \"italian\" is not en or it");
 
         for (Sample sample : accepted) {
             claim(sample.key().key() + " \"" + sample.value() + "\" is saved",

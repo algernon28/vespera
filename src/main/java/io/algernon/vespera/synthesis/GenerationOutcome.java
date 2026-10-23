@@ -13,7 +13,11 @@ public sealed interface GenerationOutcome {
     record Finished(int written, int alreadyWritten, Map<ClusterSlot, Unwritten> unsendable)
             implements GenerationOutcome {}
 
-    /** Something unsendable, or a fault row standing under the run: the step must not record completion. */
+    /**
+     * Something unsendable, or a fault row standing under the run. The walk does not decide completion from this
+     * outcome alone: the step records it when every standing fault is a repeated one and nothing is unsendable
+     * (ADR-319 §2, §4).
+     */
     record LeftUnfinished(int standingFaults, int faultedThisInvocation, Map<ClusterSlot, Unwritten> unsendable)
             implements GenerationOutcome {}
 

@@ -208,6 +208,9 @@ class ProfileStoreTest {
             configurationSettingShareFloor:
               value: "0.56"
               provenance: "read off the format mix"
+            deliverableLanguage:
+              value: "it"
+              provenance: "the readers read Italian"
             """;
 
     @Test
@@ -252,12 +255,14 @@ class ProfileStoreTest {
                                 loaded.outOfScopeNameEndings().value(), loaded.translationSimilarityFloor().value()))
                         .containsExactly(".P3A .DGN", "0.55"));
         claim(
-                "and so does the preferred languages key, the last but one",
-                () -> assertThat(loaded.preferredLanguages().value()).isEqualTo("it, en"));
+                "and so do the preferred languages key and the floor on the share of settings, the two before the last",
+                () -> assertThat(List.of(
+                                loaded.preferredLanguages().value(), loaded.configurationSettingShareFloor().value()))
+                        .containsExactly("it, en", "0.56"));
         claim(
-                "including the last key, the floor on the share of settings, which is the one a shorter way in could"
-                        + " not have filled",
-                () -> assertThat(loaded.configurationSettingShareFloor().value()).isEqualTo("0.56"));
+                "including the last key, the language the pages are in, which is the one a shorter way in could not"
+                        + " have filled",
+                () -> assertThat(loaded.deliverableLanguage().value()).isEqualTo("it"));
     }
 
     @Test

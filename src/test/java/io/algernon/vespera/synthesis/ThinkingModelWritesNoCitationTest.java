@@ -88,7 +88,7 @@ class ThinkingModelWritesNoCitationTest {
     void everyCallAsksTheModelNotToThinkFirst() {
         ScriptedChatModel model = new ScriptedChatModel("The flows [1] and the results [2] agree.");
 
-        new ClusterSynthesis(model).docFor(aGroupOfTwo(), MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW);
+        new ClusterSynthesis(model).docFor(aGroupOfTwo(), MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "the call says outright that the model is not to think before answering. Left unsaid,"
@@ -139,7 +139,7 @@ class ThinkingModelWritesNoCitationTest {
      */
     private static void claimTheInstructionCitesWithinTheDocumentsSent(ClusterCall group) {
         ScriptedChatModel model = new ScriptedChatModel(WRITING_CITING_THE_FIRST_DOCUMENT);
-        new ClusterSynthesis(model).docFor(group, MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW);
+        new ClusterSynthesis(model).docFor(group, MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ENGLISH);
         int documentsSent = group.exemplars().size();
 
         String instruction = model.whatWasAsked();
@@ -189,7 +189,7 @@ class ThinkingModelWritesNoCitationTest {
     /** What turning {@code model}'s answer down recorded, or {@code null} where it was not turned down. */
     private static ClusterFault faultFrom(ChatModel model) {
         try {
-            new ClusterSynthesis(model).docFor(aGroupOfTwo(), MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW);
+            new ClusterSynthesis(model).docFor(aGroupOfTwo(), MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ENGLISH);
             return null;
         } catch (ClusterFaultException turnedDown) {
             return turnedDown.fault();
