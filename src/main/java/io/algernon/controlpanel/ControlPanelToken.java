@@ -14,7 +14,7 @@ import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 /**
- * The token a start keeps for a tab to come back holding (ADR-323 §2): one file, {@code token}, in the folder of the
+ * The token a start keeps for a tab to come back holding (ADR-325 §2): one file, {@code token}, in the folder of the
  * user's own that holds the launch values (ADR-292 §3), under the same rules. Reading and writing never throw; each
  * line they have to say is handed to a consumer, and none holds the token.
  */

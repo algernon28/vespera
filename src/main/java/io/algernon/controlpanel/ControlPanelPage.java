@@ -7,16 +7,16 @@ import java.util.stream.Collectors;
 /**
  * The one owner of the control panel's pages' skeleton, styling and escaping (ADR-302 §10; ADR-285 §4): every page is
  * written through {@link #render}, every text a page shows from outside it goes through {@link #escape}, and no page
- * holds a script but the control panel's own, by its address, or an attribute of an event (ADR-323 §4.1). The words, layout and styling of a page are no decision's
+ * holds a script but the control panel's own, by its address, or an attribute of an event (ADR-325 §4.1). The words, layout and styling of a page are no decision's
  * (ADR-302, What this does not decide).
  */
 final class ControlPanelPage {
 
-    /** The path of the control panel's one script (ADR-323 §4.2). */
+    /** The path of the control panel's one script (ADR-325 §4.2). */
     static final String SCRIPT_PATH = "/control-panel.js";
 
     /**
-     * The control panel's one script, the same at every start (ADR-323 §4.2): it reads the page's {@code data-start},
+     * The control panel's one script, the same at every start (ADR-325 §4.2): it reads the page's {@code data-start},
      * {@code data-tab-key} and {@code data-refresh-seconds}, polls {@code /alive} one second after the last poll
      * settled, never on an interval and never from inside another timer's callback, reloads the page where the server
      * answers as a later start with a proof the tab's key verifies, and, where the page asks, once the server has
@@ -127,7 +127,7 @@ final class ControlPanelPage {
     /**
      * The whole page, carrying the start's mark and the tab's key the server gave the exchange, the control panel's one
      * script by its address, and, where it asks to be loaded again, the script's refresh and the browser's own inside
-     * {@code <noscript>} (ADR-323 §4.1, §5).
+     * {@code <noscript>} (ADR-325 §4.1, §5).
      *
      * @param exchange the request the page answers, which the server marked with the start's mark and the tab's key
      * @param refreshSeconds how often the page asks to be loaded again, none where it is not above zero

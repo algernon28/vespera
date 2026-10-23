@@ -10,7 +10,7 @@ import java.util.Optional;
 /**
  * Starts the system's own command for opening an address, as ADR-266 §2 names it, without waiting for it and with its
  * output discarded, and opens nothing where no person could see it: under {@code CI}, or on a system other than Windows
- * and macOS with no display (ADR-323 §7). It holds the choice in one function and no switch to not open.
+ * and macOS with no display (ADR-325 §7). It holds the choice in one function and no switch to not open.
  */
 final class SystemBrowserOpener implements BrowserOpener {
 

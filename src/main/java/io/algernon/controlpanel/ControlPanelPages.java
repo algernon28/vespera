@@ -53,7 +53,7 @@ public final class ControlPanelPages {
         return pages;
     }
 
-    /** The control panel's one script (ADR-323 §4.2): the same text at every start, to a {@code GET} or {@code HEAD}. */
+    /** The control panel's one script (ADR-325 §4.2): the same text at every start, to a {@code GET} or {@code HEAD}. */
     private static void script(HttpExchange exchange) throws IOException {
         if (!Exchanges.isRead(exchange)) {
             Exchanges.methodNotAllowed(exchange, "GET, HEAD");

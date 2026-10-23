@@ -26,18 +26,18 @@ public final class ControlPanel {
     /** The variable of the environment that names the folder the corpus-root locks lie in (ADR-302 §2; ADR-279). */
     static final String CORPUS_ROOT_LOCK_FOLDER_VARIABLE = "VESPERA_CORPUS_ROOT_LOCK_FOLDER";
 
-    /** The variable of the environment that names the port the control panel listens at (ADR-323 §1). */
+    /** The variable of the environment that names the port the control panel listens at (ADR-325 §1). */
     static final String PORT_VARIABLE = "VESPERA_CONTROL_PANEL_PORT";
 
-    /** The port the control panel listens at where the environment names none (ADR-323 §1). */
+    /** The port the control panel listens at where the environment names none (ADR-325 §1). */
     static final int FIXED_PORT = 24291;
 
-    /** The line a start that kept a token writes before it waits, whatever bound it was handed (ADR-323 §3). */
+    /** The line a start that kept a token writes before it waits, whatever bound it was handed (ADR-325 §3). */
     static final String WAITING = "the control panel waits up to 5 seconds for a tab it opened before";
 
     private static final int MAXIMUM_PORT = 65535;
 
-    /** How long a start that kept a token waits for a tab to come back (ADR-323 §3). */
+    /** How long a start that kept a token waits for a tab to come back (ADR-325 §3). */
     private static final Duration TAB_BOUND = Duration.ofSeconds(5);
 
     private ControlPanel() {
@@ -77,7 +77,7 @@ public final class ControlPanel {
     }
 
     /**
-     * ADR-323 §3's start, after the line naming the jar: reads the port the variable names and refuses one it cannot
+     * ADR-325 §3's start, after the line naming the jar: reads the port the variable names and refuses one it cannot
      * (§1), binds it or, where it is taken, one the system picks, and where the token of the last start is kept waits up
      * to {@code bound} for a tab it opened to come back, opening none where one does and otherwise drawing a new token,
      * keeping it, printing the address and asking {@code opener} to open it. Every line is handed to {@code out} or
@@ -134,7 +134,7 @@ public final class ControlPanel {
 
     /**
      * The port {@code named} asks for: 24291 where it is absent or blank, the port a decimal integer from 0 to 65535
-     * names, and empty for anything else (ADR-323 §1).
+     * names, and empty for anything else (ADR-325 §1).
      */
     static OptionalInt requestedPort(String named) {
         if (named == null || named.isBlank()) {

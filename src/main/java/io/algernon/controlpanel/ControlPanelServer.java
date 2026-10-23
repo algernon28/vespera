@@ -32,8 +32,8 @@ import javax.crypto.spec.SecretKeySpec;
  * page's handler runs only after those checks, and every response carries the four headers of §7.
  *
  * <p>Beside the pages it answers {@code /alive}, to a request holding no token, with the start's mark and a proof that
- * the server holds the token (ADR-323 §4.3), and it notes the first request that is let in after it started and is no
- * report's, no tab's poll, which is a tab coming back (ADR-323 §4.4).
+ * the server holds the token (ADR-325 §4.3), and it notes the first request that is let in after it started and is no
+ * report's, no tab's poll, which is a tab coming back (ADR-325 §4.4).
  *
  * <p>The token, and the checks that read it, live in this class and its nested classes. The server writes no file and
  * starts no process (ADR-291 §8).
@@ -266,14 +266,14 @@ final class ControlPanelServer implements AutoCloseable {
             page.handle(exchange);
         }
 
-        /** A request let in, to a path that is no report's: a tab has come back (ADR-323 §4.4). */
+        /** A request let in, to a path that is no report's: a tab has come back (ADR-325 §4.4). */
         private void noteTab(String path) {
             if (!path.startsWith(REPORTS)) {
                 tabCameBack.countDown();
             }
         }
 
-        /** ADR-323 §4.3: the mark and a proof of the port, the mark and the nonce under the tab's key. */
+        /** ADR-325 §4.3: the mark and a proof of the port, the mark and the nonce under the tab's key. */
         private void alive(HttpExchange exchange, Credentials held) throws IOException {
             if (!exchange.getRequestMethod().equals("GET")) {
                 exchange.getResponseHeaders().set("Allow", "GET");
