@@ -9,6 +9,7 @@ import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.synthesis.ArrangedCluster;
 import io.algernon.vespera.synthesis.ClusterLabel;
 import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.ListedDoc;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
@@ -525,7 +526,7 @@ class DeliverableTest {
         RecordedCluster written = aCluster(A_LATER_ORDINAL, THE_NAME_THAT_SORTS_FIRST, FIRST_PLACE, SECOND_PLACE);
         List<RecordedCluster> arrangement = List.of(unwritten, written);
         List<ListedDoc> writing = List.of(writingFor(A_LATER_ORDINAL, 12L));
-        String theReason = "<p><em>" + Html.escape(UnwrittenSentences.of(why)) + "</em></p>";
+        String theReason = "<p><em>" + Html.escape(UnwrittenSentences.of(why, DeliverableLanguage.ENGLISH)) + "</em></p>";
 
         Path plainTree = ListedArrangement.writeTo(
                 plain, provenance(THE_SEED_FOLDER_VALUE), arrangement, writing, membersOfBothClusters(),

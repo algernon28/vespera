@@ -1,6 +1,7 @@
 package io.algernon.vespera.deliverable;
 
 import io.algernon.vespera.ledger.ReplacingMove;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
@@ -85,7 +86,7 @@ final class ClusterPageSizes {
 
     private String page() {
         long[] ascending = clusters.stream().mapToLong(cluster -> cluster[SIZE]).sorted().toArray();
-        StringBuilder page = new StringBuilder(Html.head("Group page sizes"));
+        StringBuilder page = new StringBuilder(Html.head("Group page sizes", DeliverableLanguage.ENGLISH));
         page.append("<h1>Group page sizes</h1>\n")
                 .append("<p>This page states how large the page of each group is when it is written whole, in bytes: the")
                 .append(" file as it stands on disk, its pictures inlined. Writing a whole number of bytes into ")

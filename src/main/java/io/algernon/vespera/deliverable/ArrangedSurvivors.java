@@ -2,6 +2,7 @@ package io.algernon.vespera.deliverable;
 
 import io.algernon.vespera.synthesis.ArrangedCluster;
 import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.Unwritten;
@@ -60,6 +61,9 @@ public interface ArrangedSurvivors {
      */
     boolean writingFinished();
 
+    /** The language the tree is written and drawn in: its fixed words, and every page's {@code lang} (ADR-321 §4). */
+    DeliverableLanguage language();
+
     /** A source whose every answer is the function it was given for it. */
     static ArrangedSurvivors reading(
             Supplier<List<ListedPartition>> partitions,
@@ -71,11 +75,17 @@ public interface ArrangedSurvivors {
             Function<Set<ClusterSlot>, Map<ClusterSlot, ArrangedCluster>> placesOf,
             Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheirPictures,
             Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheManifest,
-            boolean writingFinished) {
+            boolean writingFinished,
+            DeliverableLanguage language) {
         return new ArrangedSurvivors() {
             @Override
             public boolean writingFinished() {
                 return writingFinished;
+            }
+
+            @Override
+            public DeliverableLanguage language() {
+                return language;
             }
 
             @Override

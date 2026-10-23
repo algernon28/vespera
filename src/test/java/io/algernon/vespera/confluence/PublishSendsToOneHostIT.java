@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -28,7 +29,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 @Feature("The publish")
 @Issue("633")
 @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
-class PublishSendsToOneHostTest {
+@Tag("confluence")
+class PublishSendsToOneHostIT {
 
     @TempDir
     Path folder;

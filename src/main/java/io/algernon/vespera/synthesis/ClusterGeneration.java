@@ -56,6 +56,7 @@ public class ClusterGeneration {
             ClusterExemplars exemplars,
             String modelName,
             int contextWindow,
+            DeliverableLanguage language,
             GenerationProgress progress) {
         progress.toGoThrough(clusterCount);
         int written = 0;
@@ -90,7 +91,8 @@ public class ClusterGeneration {
                 doc = clusterSynthesis.docFor(
                         new ClusterCall(recorded.label().value(), material.seedPath(), material.exemplars()),
                         modelName,
-                        contextWindow);
+                        contextWindow,
+                        language);
             } catch (ClusterFaultException e) {
                 if (e.noAnswerWasAskedFor()) {
                     progress.noDocumentCountedInsideTheRoom(recorded, e.fault());
@@ -121,7 +123,9 @@ public class ClusterGeneration {
             turnedDownInARow.clear();
             progress.clusterGoneThrough();
         }
-        // Completion needs two things (ADR-116): no unsendable cluster, and no fault row standing.
+        // Without an unsendable cluster and a fault row standing, the walk is Finished (ADR-116); otherwise
+        // LeftUnfinished is returned and the step decides whether every standing fault is a repeated one,
+        // which lets it record completion (ADR-319 §4).
         progress.statementStarting(SynthesisStatement.STANDING_FAULTS, OptionalLong.empty());
         int standingFaults = clusterFaults.countForRun(generation);
         progress.statementEnded(SynthesisStatement.STANDING_FAULTS);

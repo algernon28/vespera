@@ -8,6 +8,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.synthesis.ArrangedCluster;
 import io.algernon.vespera.synthesis.ClusterLabel;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.ListedDoc;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
@@ -205,7 +206,7 @@ class DeliverablePicturesTest {
      * The whole page for a written cluster of two documents with no pictures, as the writer wrote it
      * before pictures existed. The archive is not there, so each entry names its document and says so.
      */
-    private static final String THE_PAGE_WITH_NO_PICTURES = Html.head(THE_TITLE)
+    private static final String THE_PAGE_WITH_NO_PICTURES = Html.head(THE_TITLE, DeliverableLanguage.ENGLISH)
             + "<h1>" + THE_TITLE + "</h1>\n"
             + "<div class=\"writing\" title=\"What the local model wrote over this group from the documents listed below it;"
             + " each number in brackets is a link to the document it cites.\">\n"

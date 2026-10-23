@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
@@ -30,7 +31,8 @@ import org.springframework.core.env.SystemEnvironmentPropertySource;
 @Epic("Operation")
 @Feature("The publish")
 @Link(name = "ADR-318", url = Adr.THE_PUBLISH_READS_THE_EMAIL_AND_THE_FOLDER_BY_THEIR_NEW_NAMES, type = "adr")
-class PublishReadsItsValuesByTheirNamesTest {
+@Tag("confluence")
+class PublishReadsItsValuesByTheirNamesIT {
 
     /** A title no page or folder of the stub's space carries. */
     private static final String NO_SUCH_TITLE = "Nothing is titled so";
