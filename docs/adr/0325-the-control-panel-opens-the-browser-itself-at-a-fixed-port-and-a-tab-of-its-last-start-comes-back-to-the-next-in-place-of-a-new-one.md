@@ -9,9 +9,9 @@
 - **Keeps**: [ADR-297](0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md): the pages are tested as a browser reads them, through `PanelBrowser` and `RawHttp`, and the start as the operator starts it; what a browser does with the script that no test can see is said in §9.
 - **Keeps**: [ADR-307](0307-the-child-the-control-panel-started-ends-with-it-wherever-its-end-runs-the-jvms-shutdown-hooks.md): `Ctrl+C` still ends the child with the control panel, and a tab that comes back shows the invocation page with no child (§3).
 - **Keeps**: [ADR-046](0046-the-pom-carries-what-a-recorded-decision-requires.md) and [ADR-216](0216-nothing-ships-that-no-decision-requires-and-nothing-calls-a-javadoc-states-its-own-contract-and-agents-md-carries-no-history.md): no dependency and no plugin is added.
-- **Amends**: ADR-291 §1, whose port is 0 at every start: it is 24291, or the one `VESPERA_CONTROL_PANEL_PORT` names, and one the system picks where that one is taken or the variable names 0 (§1); §2, whose token lives only in the server's memory and whose control panel opens no browser: the token is kept in a file of the user's own while a tab comes back holding it, and the control panel opens the browser (§2, §7); §4 and §6, which gain one path answered without the token, `/alive` (§4.3); §8, whose control panel writes no file holding the token: one file holds it (§2); its Known limits, which gain those below; its Consequences' "A restarted control panel has a new port and a new token"; its alternatives refused "A fixed port, or one the operator configures" and "Opening the browser itself", reversed for the reasons below; and its What this does not decide's "The port and the token are never remembered".
-- **Amends**: [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md) §3: the folder of the user's own holds a second file, `token`, under the same rules (§2).
-- **Amends**: [ADR-302](0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md) §1, whose pages carry no script of the control panel's own and whose invocation page refreshes by `<meta http-equiv="refresh">`: every page of the control panel's own carries one script, by its address, and the invocation page's refresh is the script's, the `<meta>` kept inside `<noscript>` for a browser running no script (§4, §5); its "No `GET` of the control panel changes anything", which gains one exception, a tab coming back (§4.4); §9, whose attributes a test reads gain `data-start`, `data-tab-key` and `data-refresh-seconds` (§4.1, §5); §11, whose start writes the address at once: it may first wait for a tab, and writes another line where one comes back (§3); §12's fifth reason, "the port and the token are drawn again at every start", which no longer holds and which the other four carry without it (§6); and its Tests' test that no page holds a `<script>` element, which holds one script by its address instead.
+- **Amends**: ADR-291 §1, whose port is 0 at every start: it is 24291, or the one `VESPERA_CONTROL_PANEL_PORT` names, and one the system picks where that one is taken or the variable names 0 (§1); §2, whose token lives only in the server's memory and whose control panel opens no browser: the token is kept in a file of the user's own while a tab comes back holding it, and the control panel opens the browser (§2, §7); §4 and §6, which gain one path answered without the token, `/alive` (§4.3); §8, whose control panel writes no file holding the token: one file holds it (§2); its Known limits, which gain those below; its Consequences' "A restarted control panel has a new port and a new token"; its alternatives refused "A fixed port, or one the operator configures" and "Opening the browser itself", reversed for the reasons below; and its What this does not decide's "The port and the token are never remembered". It carries a note at its head.
+- **Amends**: [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md) §3: the folder of the user's own holds a second file, `token`, under the same rules (§2). It carries a note at its head.
+- **Amends**: [ADR-302](0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md) §1, whose pages carry no script of the control panel's own and whose invocation page refreshes by `<meta http-equiv="refresh">`: every page of the control panel's own carries one script, by its address, and the invocation page's refresh is the script's, the `<meta>` kept inside `<noscript>` for a browser running no script (§4, §5); its "No `GET` of the control panel changes anything", which gains one exception, a tab coming back (§4.4); §9, whose attributes a test reads gain `data-start`, `data-tab-key` and `data-refresh-seconds` (§4.1, §5); §11, whose start writes the address at once: it may first wait for a tab, and writes another line where one comes back (§3); §12's fifth reason, "the port and the token are drawn again at every start", which no longer holds and which the other four carry without it (§6); and its Tests' test that no page holds a `<script>` element, which holds one script by its address instead. It carries a note at its head.
 - **Settles**: that the control panel opens the browser itself, and that a tab it opened is reused across its starts and not within one, are the operator's; §1 to §10 are decided under the operator's delegation of 2026-10-23.
 
 ## Context
@@ -39,10 +39,12 @@ The server binds `127.0.0.1` alone, as ADR-291 §1 has it, at **24291**, unless 
 
 | `VESPERA_CONTROL_PANEL_PORT` | The port |
 | --- | --- |
-| absent or blank | 24291 |
-| a decimal integer from 1 to 65535 | that port |
-| `0` | one the system picks, as ADR-291 §1 had it |
+| absent, or nothing but whitespace | 24291 |
+| one to five ASCII digits naming 1 to 65535 | that port |
+| one to five ASCII digits naming 0 | one the system picks, as ADR-291 §1 had it |
 | anything else | none: one line on standard error, and exit 1 |
+
+The value is read as it is set, with nothing trimmed: a digit string with a space before or after it names no port and is refused, and leading zeros are digits like any other, so `08080` names 8080 and `00` names 0. Six digits or more are refused whatever they name.
 
 The variable is read after the jar beside the control panel's own is found (ADR-288 §4) and before the server is started. A value it refuses starts nothing and writes no address; the line, `<value>` the variable as set:
 
@@ -122,7 +124,7 @@ The token is still passed on no command line and never logged. It lies in the fi
 
    and then asks the opener to open that address (§7).
 
-Every line is flushed as it is written. A start that read no token waits for nothing: no tab can hold a token nobody kept. Then the control panel serves until its process ends, with ADR-307's shutdown hook as before. A tab that comes back after `Ctrl+C` shows the invocation page of a start whose child has not been started, the child of the last having ended with it (ADR-307).
+Every line is flushed as it is written. The waiting line names 5 seconds, the bound `main` hands in, whatever bound a test hands in (§10): it is the operator's line, and a test's shorter bound does not change what the operator reads. A start that read no token waits for nothing: no tab can hold a token nobody kept. Then the control panel serves until its process ends, with ADR-307's shutdown hook as before. A tab that comes back after `Ctrl+C` shows the invocation page of a start whose child has not been started, the child of the last having ended with it (ADR-307).
 
 **The bound, against the poll.** A tab polls one second after its last poll settled (§4.2), each poll given up after a second, and a hidden tab's timer may wake a second late. So a tab that last polled just before the server came up polls again within 2 seconds, its answer comes back over loopback in milliseconds and in at most a second, and the reload it then sends reaches the server at once: within 3 seconds of the server coming up. The bound of 5 seconds leaves 2 more for a loaded machine. They are spent only by a start that kept a token, and only in full where no tab comes back.
 
@@ -161,7 +163,7 @@ So a poll never carries the cookie, a server that does not hold the token cannot
 The server answers `/alive` itself, beside the pages it is started with, to a request holding neither the cookie nor the token:
 
 - after ADR-291 §4's check of `Host` and ADR-302 §12's of `Sec-Fetch-Site`, each refusing as there; the cookie is not checked on this path, and the token neither exchanged nor read;
-- a method other than `GET` is answered **405**, with `Allow: GET`;
+- a method other than `GET`, `HEAD` included, is answered **405**, with `Allow: GET`: the script sends nothing but a `GET`, and an answer with no body proves nothing;
 - a query other than exactly `nonce=` and 32 lowercase hexadecimal characters is answered **400**, with no body;
 - otherwise **200**, `Content-Type: text/plain; charset=utf-8`, and as its body the start's mark, one space, and the **proof**: `HMAC-SHA256`, keyed with the tab's key's 32 bytes, of the ASCII text `<port> <mark> <nonce>`, `<port>` being the port the server is bound to in decimal, as 43 characters of base64url without padding, and no line break.
 
@@ -171,7 +173,7 @@ The port inside the proof keeps a server listening at the fixed port from handin
 
 #### 4.4 A tab coming back
 
-A tab has come back once the server lets in, after it started, a request holding the token, in its cookie or as ADR-291 §3's exchange, to a path that does not begin `/report/`. A request to `/alive` holds no token, and a report's tab carries no script of the control panel's (ADR-302 §3), so neither is one.
+A tab has come back once the server lets in, after it started, a request holding the token, in its cookie or as ADR-291 §3's exchange, to a path that does not begin `/report/`. A request to `/alive` holds no token, and a report's tab carries no script of the control panel's (ADR-302 §3), so neither is one. Any other request let in counts, whatever its method and path: a `GET` of `/control-panel.js`, a `POST` from the control panel's own origin, and a path no page is at, answered 404. Each holds the token, so a browser holding the cookie is there, which is all a tab coming back has to show; telling a page apart from the rest would add a rule and change no outcome, since a browser asks for the script and posts a form only from a page it has loaded.
 
 It is the one effect a `GET` of the control panel has beyond showing a page (ADR-302 §1): it decides whether the start opens a new tab, and changes no page, no file, no value a page shows and no child.
 
@@ -209,7 +211,7 @@ static Optional<List<String>> command(URI address, String osName, Map<String, St
 
 empty where nothing is opened.
 
-**Opening never stops the control panel.** Whatever `open` throws, an `IOException` or a `RuntimeException`, is caught and written as one line on standard error, the exception's class name alone, and the control panel serves as before, the address already printed:
+**Opening never stops the control panel.** Whatever `open` throws, an `IOException` or a `RuntimeException`, is caught and written as one line on standard error, the exception's class name alone, as `Class.getName` gives it, its package included, as ADR-266's warning writes it, and never its message; the control panel serves as before, the address already printed:
 
 ```
 the control panel could not open the browser: <exception class name>
@@ -243,7 +245,7 @@ A bound handed in is what the wait reads, so no clock is: a test hands in a shor
 
 ### 11. What changes
 
-No file under `src/main/java/io/algernon/vespera` changes, so no run id moves, and no dependency or plugin is added. The README's section on starting the control panel says that it opens the browser, at which port it listens and how another is named, that a tab it opened comes back to the next start, and how long an address it prints is good for. `docs/architecture.md`'s sentence on the control panel's server changes with the build.
+No file under `src/main/java/io/algernon/vespera` changes, so no run id moves, and no dependency or plugin is added. The README's section on starting the control panel says that it opens the browser, at which port it listens and how another is named, that a tab it opened comes back to the next start, and how long an address it prints is good for. `docs/architecture.md`'s sentence on the control panel's server says the same of the port, the kept token, `/alive` and the opening of the browser.
 
 ## Known limits
 
@@ -282,7 +284,7 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves, a
 
 ## Tests
 
-These land with this record and fail against the control panel it amends; each passes once §1 to §10 are built.
+These hold §1 to §9 through the pages and the start as the operator meets them; none of them names a class of §10.
 
 | Method | What it holds |
 | --- | --- |
@@ -305,7 +307,7 @@ These land with this record and fail against the control panel it amends; each p
 
 `pipeline.TheControlPanelsChildIT.theControlPanelStartedByJavaJarNamesTheJarBesideItAndItsOwnJava` starts the packaged control panel with `CI=1`, `VESPERA_CONTROL_PANEL_PORT=0` and a temporary directory of its own, so that it opens no browser, listens at no port of the machine's operator and reads no token of theirs.
 
-**The build owes** these, each written with the classes of §10, which they name:
+These hold the classes of §10, which they name:
 
 | Method | What it holds |
 | --- | --- |
@@ -316,7 +318,7 @@ These land with this record and fail against the control panel it amends; each p
 | `controlpanel.ControlPanelStartTest.noTabWithinTheBoundAsksTheOpenerOnceForTheNewAddress` | with a short bound and no tab: one address printed, the opener asked once for it, its token new and kept (§3) |
 | `controlpanel.ControlPanelStartTest.anOpenerThatThrowsLeavesTheAddressPrintedAndTheControlPanelServing` | an opener throwing: §7's line naming the class, the address printed before it, and the server answering (§7) |
 | `controlpanel.ControlPanelStartTest.aPortOfZeroReadsAndKeepsNoTokenAndWaitsForNoTab` | a kept token in the file and the variable `0`: a port the system picked, a token of its own, the file untouched, no waiting line (§1, §2) |
-| `controlpanel.ControlPanelServerTest.aReportOrAnAliveRequestIsNoTabComingBack` | requests to `/alive` and to a report's path, with the cookie, leave the wait running; a page's path with it ends it (§4.4) |
+| `controlpanel.ControlPanelServerTabTest.aReportOrAnAliveRequestIsNoTabComingBack` | requests to `/alive` and to a report's path, with the cookie, leave the wait running; a page's path with it ends it (§4.4) |
 | `controlpanel.ControlPanelTokenTest.aTokenFileThatCannotBeReadIsReplacedWithOneLine` | bytes that are not a token, and a folder in the file's place: no token, §2's line naming the file and not the token (§2) |
 | `controlpanel.ControlPanelTokenTest.aFolderOthersCanWriteInIsNeitherReadNorWritten` | where POSIX permissions apply, a folder `rwxrwxrwx`: no token read, none written, §2's line naming the folder (§2) |
 | `pipeline.TheControlPanelOpensTheBrowserAsTheJarOpensItsPageTest.bothChooseTheSameCommandForEverySystem` | for each system and environment, `SystemBrowserOpener.command` and the jar's `SystemPageOpener.command` choose the same command, the address apart (§7, §8) |
