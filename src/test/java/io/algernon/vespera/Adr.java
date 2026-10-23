@@ -2243,6 +2243,14 @@ public final class Adr {
             + "0320-a-publish-sends-each-page-whole-its-files-before-its-body-before-it-creates-the-next-and-says-how-far-it-has-got.md";
 
     /**
+     * ADR-321 -- the deliverable is written and drawn in the language the profile's {@code deliverableLanguage} names,
+     * English unless it names Italian, and the question names the answer's two fields and where its writing ends
+     * (amends ADR-161 §1, ADR-174 §2, ADR-274 §1.4, ADR-310 §2, ADR-315 §2 and ADR-319 §5.1).
+     */
+    public static final String THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES = FILE
+            + "0321-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md";
+
+    /**
      * ADR-323 -- {@code vespera run} and {@code vespera label --auto} start the Docker engine and the sidecars when they
      * are not answering, with the README's {@code up} and {@code --no-recreate}, the files chosen by
      * {@code vespera.docling.image}, and recreate and stop none; stage 2's start check waits for a converter that gives

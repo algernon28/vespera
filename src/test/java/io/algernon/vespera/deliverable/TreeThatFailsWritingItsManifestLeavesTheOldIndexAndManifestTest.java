@@ -143,6 +143,7 @@ class TreeThatFailsWritingItsManifestLeavesTheOldIndexAndManifestTest {
                         page.accept(survivors);
                     });
                 },
-                whole.writingFinished());
+                whole.writingFinished(),
+                whole.language());
     }
 }

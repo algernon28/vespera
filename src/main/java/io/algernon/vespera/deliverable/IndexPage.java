@@ -1,5 +1,6 @@
 package io.algernon.vespera.deliverable;
 
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.FilenameStem;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
@@ -28,16 +29,23 @@ final class IndexPage {
     /** The most characters of a slug a name carries, so the longest file of the tree is bounded (ADR-274 §1.2). */
     static final int SLUG_LENGTH = 40;
 
-    /** What the index says for the folder of the set at the corpus root (ADR-296 §4). */
-    private static final String THE_ARCHIVES_TOP = "the archive's top";
+    /** The index's paragraph on documents.csv and the copies, in English; the Italian is {@link FixedWords}'s (ADR-321 §4). */
+    static final String THE_INDEXS_PARAGRAPH = "The path column of documents.csv names each document beneath the archive"
+            + " root recorded above. Each group's folder holds its page and a copy of every document listed on it,"
+            + " checked against the digest taken when it was converted, and each link on a group's page leads to its"
+            + " copy; the archive root names where they were copied from. The seed_partition column is not a path"
+            + " beneath that root: it names a seed beneath the seed folder, which is a root of its own. The copy and"
+            + " copy_outcome columns say which documents were copied and, of any that were not, why.";
 
     private IndexPage() {}
 
     /** One partition's heading and the head of its table of clusters, appended to {@code index}. */
-    static void partitionHeading(Appendable index, ListedPartition partition) throws IOException {
+    static void partitionHeading(Appendable index, ListedPartition partition, DeliverableLanguage language)
+            throws IOException {
         index.append("<h2>")
                 .append(Html.escape(partition.seedPath()))
-                .append("</h2>\n<table>\n<tr><th>Group</th><th>Documents</th><th>Written up as</th></tr>\n");
+                .append("</h2>\n<table>\n")
+                .append(FixedWords.clusterTableHeadRow(language));
     }
 
     /** Closes the table {@link #partitionHeading} opened. */
@@ -57,7 +65,8 @@ final class IndexPage {
             ListedPartition partition,
             int partitionCount,
             RecordedCluster recorded,
-            Optional<SynthesisDoc> doc)
+            Optional<SynthesisDoc> doc,
+            DeliverableLanguage language)
             throws IOException {
         int documentCount = recorded.cluster().documentCount();
         String label = Html.escape(recorded.label().value());
@@ -67,7 +76,7 @@ final class IndexPage {
                     .append("</td><td>")
                     .append(String.valueOf(documentCount))
                     .append("</td><td><em>")
-                    .append(Html.escape(Deliverable.NOTHING_WAS_WRITTEN_OVER_IT))
+                    .append(Html.escape(FixedWords.nothingWasWrittenOverIt(language)))
                     .append("</em></td></tr>\n");
             return;
         }
@@ -109,15 +118,20 @@ final class IndexPage {
     }
 
     /** What produced the tree, and what its path columns resolve against: everything before the first partition. */
-    static void open(Appendable index, DeliverableProvenance provenance) throws IOException {
-        index.append(Html.head("Deliverable " + provenance.runId()))
-                .append("<h1>Deliverable ")
+    static void open(Appendable index, DeliverableProvenance provenance, DeliverableLanguage language)
+            throws IOException {
+        index.append(Html.head(FixedWords.theDeliverable(language) + provenance.runId(), language))
+                .append("<h1>")
+                .append(FixedWords.theDeliverable(language))
                 .append(Html.escape(provenance.runId()))
-                .append("</h1>\n<ul>\n<li>Run: ")
+                .append("</h1>\n<ul>\n<li>")
+                .append(FixedWords.run(language))
                 .append(Html.escape(provenance.runId()))
-                .append("</li>\n<li>Walk: ")
+                .append("</li>\n<li>")
+                .append(FixedWords.walk(language))
                 .append(String.valueOf(provenance.walk()))
-                .append("</li>\n<li>Archive root: ")
+                .append("</li>\n<li>")
+                .append(FixedWords.archiveRoot(language))
                 .append(Html.escape(provenance.corpusRoot()))
                 .append("</li>\n");
         for (NamedValue value : provenance.values()) {
@@ -127,38 +141,38 @@ final class IndexPage {
                     .append(Html.escape(value.value()))
                     .append("</li>\n");
         }
-        index.append("</ul>\n<p>The path column of documents.csv names each document beneath the archive root"
-                + " recorded above. Each group's folder holds its page and a copy of every document listed on"
-                + " it, checked against the digest taken when it was converted, and each link on a group's page"
-                + " leads to its copy; the archive root names where they were copied from. The seed_partition column is"
-                + " not a path beneath that root: it names a seed beneath the seed folder, which is a root of"
-                + " its own. The copy and copy_outcome columns say which documents were copied and, of any"
-                + " that were not, why.</p>\n");
+        index.append("</ul>\n<p>").append(FixedWords.indexParagraph(language)).append("</p>\n");
     }
 
     /**
      * The heading, the one sentence and the head of the table of code sets (ADR-296 §4), appended after the last
      * group's table. Never says <em>group</em> of a code set (ADR-122).
      */
-    static void codeHeading(Appendable index) throws IOException {
-        index.append("<h2>Code</h2>\n<p>Each code set is copied whole under code/, keeping its folders, and each of its"
-                + " files is checked against the size and modification time recorded when the archive was"
-                + " walked.</p>\n<table>\n<tr><th>Code set</th><th>Folder in the archive</th><th>Files copied</th>"
-                + "<th>Files not copied</th></tr>\n");
+    static void codeHeading(Appendable index, DeliverableLanguage language) throws IOException {
+        index.append("<h2>")
+                .append(FixedWords.code(language))
+                .append("</h2>\n<p>")
+                .append(FixedWords.codeSentence(language))
+                .append("</p>\n<table>\n<tr>");
+        for (String head : FixedWords.codeTableHeads(language)) {
+            index.append("<th>").append(head).append("</th>");
+        }
+        index.append("</tr>\n");
     }
 
     /**
      * One code set's row: its drawn folder name linking {@code code/<name>/}, its folder in the archive, and how many of
      * its files' copies stand and how many do not.
      */
-    static void codeRow(Appendable index, String drawnName, String folder, long copied, long notCopied)
+    static void codeRow(
+            Appendable index, String drawnName, String folder, long copied, long notCopied, DeliverableLanguage language)
             throws IOException {
         index.append("<tr><td><a href=\"")
                 .append(Html.escape(CodeCopies.DIRECTORY_NAME + "/" + ClusterPage.percentEncoded(drawnName) + "/"))
                 .append("\">")
                 .append(Html.escape(drawnName))
                 .append("</a></td><td>")
-                .append(Html.escape(folder.isEmpty() ? THE_ARCHIVES_TOP : folder))
+                .append(Html.escape(folder.isEmpty() ? FixedWords.archivesTop(language) : folder))
                 .append("</td><td>")
                 .append(String.valueOf(copied))
                 .append("</td><td>")

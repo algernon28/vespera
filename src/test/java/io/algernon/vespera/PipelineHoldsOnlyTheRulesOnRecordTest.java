@@ -138,6 +138,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "InvocationRuns",
             "LabelFileReader",
             "LabelIngestion",
+            // ADR-321: reads the deliverable's language the profile holds and hands synthesis and the tree a plain value;
+            // the two languages, the default and what each says are synthesis's and deliverable's.
+            "LanguageOfTheDeliverable",
             "MisshapenProfileRefusal",
             "NextAction",
             // ADR-294: writes and deletes what NextAction gives for the control panel, and decides none of it.
@@ -510,6 +513,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "synthesis.ClusterMaterial",
                             "synthesis.ClusterSlot",
                             "synthesis.Clusters",
+                            // ADR-321: the deliverable's language, read through LanguageOfTheDeliverable and handed to
+                            // the writing and to the tree as a plain value.
+                            "synthesis.DeliverableLanguage",
                             "synthesis.GenerationOutcome",
                             "synthesis.GenerationProgress",
                             "synthesis.OpeningChunk",

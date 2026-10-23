@@ -160,6 +160,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         refused.put(ProfileKey.OUT_OF_SCOPE_NAME_ENDINGS, List.of(".P3A *.dgn", "dgn", ".."));
         refused.put(ProfileKey.CODE_NAME_ENDINGS, List.of(".java src/"));
         refused.put(ProfileKey.PREFERRED_LANGUAGES, List.of("it, eng", "italian"));
+        refused.put(ProfileKey.DELIVERABLE_LANGUAGE, List.of("fr", "italian", "it, en"));
         refused.put(ProfileKey.ARRANGEMENT_APPROVED, List.of("0123456789AB"));
         refused.put(ProfileKey.SEED_FOLDER, List.of(temp.resolve("absent").toString(), aFile.toString()));
 
@@ -375,6 +376,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         samples.put(ProfileKey.TRANSLATION_SIMILARITY_FLOOR, List.of("0.85", "-0.2"));
         samples.put(ProfileKey.PREFERRED_LANGUAGES, List.of("it, en", "EN"));
         samples.put(ProfileKey.CONFIGURATION_SETTING_SHARE_FLOOR, List.of("0.7"));
+        samples.put(ProfileKey.DELIVERABLE_LANGUAGE, List.of("it", "EN", " it "));
         return samples;
     }
 
@@ -415,6 +417,14 @@ class TheJarReadsWhatTheControlPanelWritesTest {
             case CODE_NAME_ENDINGS, OUT_OF_SCOPE_NAME_ENDINGS ->
                     ((NameEndingsValue) loaded).reading() instanceof NameEndingsValue.Answered;
             case PREFERRED_LANGUAGES -> ((LanguagesValue) loaded).reading() instanceof LanguagesValue.Answered;
+            case DELIVERABLE_LANGUAGE -> {
+                try {
+                    new LanguageOfTheDeliverable(store).language();
+                    yield loaded.isSet();
+                } catch (IllegalStateException stopped) {
+                    yield false;
+                }
+            }
             default -> ((NumericValue) loaded).reading() instanceof NumericValue.Answered;
         };
     }

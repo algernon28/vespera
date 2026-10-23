@@ -1,6 +1,7 @@
 package io.algernon.vespera.deliverable;
 
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.Unwritten;
@@ -38,7 +39,7 @@ import java.util.function.LongConsumer;
 final class ClusterPage {
 
     /** What the writing's block shows (ADR-275 section 2): fixed words, none of the cluster's. */
-    private static final String WRITING_HOVER = "What the local model wrote over this group from the documents listed below it;"
+    static final String WRITING_HOVER = "What the local model wrote over this group from the documents listed below it;"
             + " each number in brackets is a link to the document it cites.";
 
     /**
@@ -102,6 +103,7 @@ final class ClusterPage {
      * @param writingFinished whether the generation step's work under the run drawn is recorded finished or is being
      *     recorded by the invocation drawing it, which is what lets the page of a cluster with a fault on record say it
      *     stands without writing (ADR-319 §5.1)
+     * @param language the language the page's fixed words are in and its {@code lang} names (ADR-321 §4)
      */
     static void write(
             OutputStream out,
@@ -115,17 +117,19 @@ final class ClusterPage {
             DeliverableProgress progress,
             LongConsumer entryEnds,
             ConfluenceEntries confluence,
-            boolean writingFinished)
+            boolean writingFinished,
+            DeliverableLanguage language)
             throws IOException {
         emit(out, recorded, doc, why, numbered(doc, members), null, 1, folder, copies, pictures, progress, entryEnds,
-                confluence, writingFinished);
+                confluence, writingFinished, language);
     }
 
     /**
      * Writes page {@code page} of {@code breaks}, which flushes {@code out} and does not close it (ADR-303 §5): the
      * title, the navigation, on the first page the writing or the sentence saying why there is none, the list headed as
      * ever and numbered on from the page before, the navigation again. Tells nobody of an entry: the page written whole
-     * has told each once (ADR-303 §3). {@code writingFinished} is as {@link #write} has it (ADR-319 §5.1).
+     * has told each once (ADR-303 §3). {@code writingFinished} and {@code language} are as {@link #write} has them
+     * (ADR-319 §5.1, ADR-321 §4).
      */
     static void writePage(
             OutputStream out,
@@ -138,10 +142,11 @@ final class ClusterPage {
             Path folder,
             Copies copies,
             EntryPictures pictures,
-            boolean writingFinished)
+            boolean writingFinished,
+            DeliverableLanguage language)
             throws IOException {
         emit(out, recorded, doc, why, numbered, breaks, page, folder, copies, pictures, DeliverableProgress.NONE,
-                bytesHandedOn -> {}, ConfluenceEntries.NONE, writingFinished);
+                bytesHandedOn -> {}, ConfluenceEntries.NONE, writingFinished, language);
     }
 
     /**
@@ -162,30 +167,37 @@ final class ClusterPage {
             DeliverableProgress progress,
             LongConsumer entryEnds,
             ConfluenceEntries confluence,
-            boolean writingFinished)
+            boolean writingFinished,
+            DeliverableLanguage language)
             throws IOException {
         HandedOn handedOn = new HandedOn(out);
         OutputStream stream = new BufferedOutputStream(handedOn, BUFFER_BYTES);
-        StringBuilder text = new StringBuilder(opening(recorded, doc));
+        StringBuilder text = new StringBuilder(opening(recorded, doc, language));
         if (breaks != null) {
-            text.append(navigation(page, breaks.pages()));
+            text.append(navigation(page, breaks.pages(), language));
         }
         if (breaks == null || page == 1) {
             text.append(firstPageBody(
-                    recorded, doc, why, writingFinished, breaks == null ? number -> "" : breaks::nameOfPageHolding));
+                    recorded,
+                    doc,
+                    why,
+                    writingFinished,
+                    breaks == null ? number -> "" : breaks::nameOfPageHolding,
+                    language));
         }
         int first = breaks == null ? 0 : breaks.firstEntryOf(page);
         int after = breaks == null ? numbered.size() : breaks.firstEntryOf(page + 1);
         if (!numbered.isEmpty()) {
-            text.append(listOpening(first));
+            text.append(listOpening(first, language));
             stream.write(text.toString().getBytes(StandardCharsets.UTF_8));
             text.setLength(0);
             writeMembership(
-                    stream, handedOn, numbered, first, after, folder, copies, pictures, progress, entryEnds, confluence);
+                    stream, handedOn, numbered, first, after, folder, copies, pictures, progress, entryEnds, confluence,
+                    language);
             text.append(LIST_CLOSING);
         }
         if (breaks != null) {
-            text.append(navigation(page, breaks.pages()));
+            text.append(navigation(page, breaks.pages(), language));
         }
         text.append(Html.tail());
         stream.write(text.toString().getBytes(StandardCharsets.UTF_8));
@@ -193,9 +205,9 @@ final class ClusterPage {
     }
 
     /** The head and the {@code <h1>}, the title being the generated one or the derived label where nothing was written. */
-    private static String opening(RecordedCluster recorded, SynthesisDoc doc) {
+    private static String opening(RecordedCluster recorded, SynthesisDoc doc, DeliverableLanguage language) {
         String title = doc == null ? recorded.label().value() : doc.title();
-        return Html.head(title) + "<h1>" + Html.escape(title) + "</h1>\n";
+        return Html.head(title, language) + "<h1>" + Html.escape(title) + "</h1>\n";
     }
 
     /**
@@ -208,21 +220,26 @@ final class ClusterPage {
             SynthesisDoc doc,
             Unwritten why,
             boolean writingFinished,
-            IntFunction<String> pageOf) {
+            IntFunction<String> pageOf,
+            DeliverableLanguage language) {
         StringBuilder body = new StringBuilder();
         if (doc == null) {
             body.append("<p><em>")
-                    .append(Html.escape(why == null ? Deliverable.NOTHING_WAS_WRITTEN_OVER_IT : UnwrittenSentences.of(why)))
+                    .append(Html.escape(
+                            why == null ? FixedWords.nothingWasWrittenOverIt(language) : UnwrittenSentences.of(why, language)))
                     .append("</em></p>\n");
-            UnwrittenSentences.standing(why, writingFinished)
+            UnwrittenSentences.standing(why, writingFinished, language)
                     .ifPresent(standing -> body.append("<p><em>").append(Html.escape(standing)).append("</em></p>\n"));
         } else {
-            body.append("<div class=\"writing\" title=\"").append(Html.escape(WRITING_HOVER)).append("\">\n")
+            body.append("<div class=\"writing\" title=\"")
+                    .append(Html.escape(FixedWords.writingHover(language)))
+                    .append("\">\n")
                     .append(ProseHtml.of(doc.prose(), pageOf)).append("\n</div>\n");
             int documentCount = recorded.cluster().documentCount();
             if (doc.documentsSent() < documentCount) {
                 body.append("<p>")
-                        .append(Html.escape(SUBSET_DISCLOSURE.formatted(doc.documentsSent(), documentCount)))
+                        .append(Html.escape(
+                                FixedWords.subsetDisclosure(language).formatted(doc.documentsSent(), documentCount)))
                         .append("</p>\n");
             }
         }
@@ -230,8 +247,8 @@ final class ClusterPage {
     }
 
     /** The heading and opening of the list, numbered on from the entry at {@code first}, counted from 0 (ADR-303 §5). */
-    private static String listOpening(int first) {
-        return "<h2>" + MEMBERSHIP_HEADING + "</h2>\n" + (first == 0 ? "<ol>\n" : "<ol start=\"" + (first + 1) + "\">\n");
+    private static String listOpening(int first, DeliverableLanguage language) {
+        return "<h2>" + FixedWords.membershipHeading(language) + "</h2>\n" + (first == 0 ? "<ol>\n" : "<ol start=\"" + (first + 1) + "\">\n");
     }
 
     /** The name of page {@code page}, counted from 1: {@code index.html} and then {@code index-<page>.html} (ADR-303 §4). */
@@ -243,17 +260,18 @@ final class ClusterPage {
      * The line that names page {@code page} of {@code pages} and links the others (ADR-303 §5): the first, the
      * previous, the next and the last, each left out where it would point at the page itself or at no page.
      */
-    private static String navigation(int page, int pages) {
+    private static String navigation(int page, int pages, DeliverableLanguage language) {
         List<String> links = new ArrayList<>();
         if (page > 1) {
-            links.add(link(1, "first"));
-            links.add(link(page - 1, "previous"));
+            links.add(link(1, FixedWords.first(language)));
+            links.add(link(page - 1, FixedWords.previous(language)));
         }
         if (page < pages) {
-            links.add(link(page + 1, "next"));
-            links.add(link(pages, "last"));
+            links.add(link(page + 1, FixedWords.next(language)));
+            links.add(link(pages, FixedWords.last(language)));
         }
-        return "<p class=\"pages\">Page " + page + " of " + pages + ": " + String.join(", ", links) + "</p>\n";
+        return "<p class=\"pages\">" + FixedWords.pageOf(language).formatted(page, pages) + String.join(", ", links)
+                + "</p>\n";
     }
 
     private static String link(int page, String word) {
@@ -274,6 +292,8 @@ final class ClusterPage {
      * @return the breaks, or empty where the plan is one page: a cluster of fewer than two entries has no entry's end to
      *     split at
      * @param writingFinished as {@link #write} has it, since the line it brings is part of the first page (ADR-319 §5.1)
+     * @param language as {@link #write} has it: the navigation is counted in its words, which are longer in Italian, so
+     *     that no page comes out larger than its plan (ADR-321 §4)
      */
     static Optional<PageBreaks> plan(
             long ceiling,
@@ -281,20 +301,26 @@ final class ClusterPage {
             SynthesisDoc doc,
             Unwritten why,
             long[] entrySizes,
-            boolean writingFinished) {
+            boolean writingFinished,
+            DeliverableLanguage language) {
         int entryCount = entrySizes.length;
         if (entryCount < 2) {
             return Optional.empty();
         }
         String widest = "9".repeat(Integer.toString(entryCount + 1).length());
         String longestName = "index-" + widest + ".html";
-        String widestNavigation = "<p class=\"pages\">Page " + widest + " of " + widest + ": "
-                + String.join(", ", Collections.nCopies(4, "<a href=\"./" + longestName + "\">previous</a>"))
+        String widestNavigation = "<p class=\"pages\">" + FixedWords.pageOf(language).formatted(0, 0).replace("0", widest)
+                + String.join(
+                        ", ",
+                        Collections.nCopies(
+                                4,
+                                "<a href=\"./" + longestName + "\">" + FixedWords.longestNavigationWord(language) + "</a>"))
                 + "</p>\n";
-        long aroundEveryList = utf8(opening(recorded, doc)) + 2 * utf8(widestNavigation)
-                + utf8("<h2>" + MEMBERSHIP_HEADING + "</h2>\n") + utf8(LIST_CLOSING) + utf8(Html.tail());
+        long aroundEveryList = utf8(opening(recorded, doc, language)) + 2 * utf8(widestNavigation)
+                + utf8("<h2>" + FixedWords.membershipHeading(language) + "</h2>\n") + utf8(LIST_CLOSING)
+                + utf8(Html.tail());
         long firstPage = aroundEveryList + utf8("<ol>\n")
-                + utf8(firstPageBody(recorded, doc, why, writingFinished, number -> longestName));
+                + utf8(firstPageBody(recorded, doc, why, writingFinished, number -> longestName, language));
         long laterPage = aroundEveryList + utf8("<ol start=\"" + widest + "\">\n");
         List<Integer> firsts = new ArrayList<>();
         firsts.add(0);
@@ -315,9 +341,14 @@ final class ClusterPage {
      * opening, which {@code entryEnds} does not tell (ADR-303 §3).
      */
     static long bytesBeforeTheFirstEntry(
-            RecordedCluster recorded, SynthesisDoc doc, Unwritten why, boolean writingFinished) {
-        return utf8(opening(recorded, doc)) + utf8(firstPageBody(recorded, doc, why, writingFinished, number -> ""))
-                + utf8(listOpening(0));
+            RecordedCluster recorded,
+            SynthesisDoc doc,
+            Unwritten why,
+            boolean writingFinished,
+            DeliverableLanguage language) {
+        return utf8(opening(recorded, doc, language))
+                + utf8(firstPageBody(recorded, doc, why, writingFinished, number -> "", language))
+                + utf8(listOpening(0, language));
     }
 
     private static long utf8(String text) {
@@ -479,7 +510,8 @@ final class ClusterPage {
             EntryPictures pictures,
             DeliverableProgress progress,
             LongConsumer entryEnds,
-            ConfluenceEntries confluence)
+            ConfluenceEntries confluence,
+            DeliverableLanguage language)
             throws IOException {
         for (int at = first; at < after; at++) {
             confluence.start(at + 1, entries.get(at));
@@ -487,7 +519,7 @@ final class ClusterPage {
             page.append("<li id=\"").append(ANCHOR_PREFIX).append(at + 1).append("\">\n");
             if (entries.get(at).isEmpty()) {
                 page.append("<em>")
-                        .append(Html.escape(Deliverable.THE_CLUSTER_NO_LONGER_HOLDS_IT))
+                        .append(Html.escape(FixedWords.theClusterNoLongerHoldsIt(language)))
                         .append("</em>\n</li>\n");
                 stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
                 endEntry(stream, handedOn, entryEnds);
@@ -506,7 +538,7 @@ final class ClusterPage {
                         .append("</a>\n");
                 copy = Optional.of(folder.resolve(copies.nameOf(member)));
             } else {
-                page.append(path).append(" <em>").append(Html.escape(outcome.sentence())).append("</em>\n");
+                page.append(path).append(" <em>").append(Html.escape(outcome.sentence(language))).append("</em>\n");
             }
             stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
             pictures.writeUnder(stream, member, copy, confluence);

@@ -1,5 +1,7 @@
 package io.algernon.vespera.deliverable;
 
+import io.algernon.vespera.synthesis.DeliverableLanguage;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -69,9 +71,12 @@ final class EntryPictures {
 
     private final Set<String> furniture;
 
-    private EntryPictures(SurvivorPictures source, Set<String> furniture) {
+    private final DeliverableLanguage language;
+
+    private EntryPictures(SurvivorPictures source, Set<String> furniture, DeliverableLanguage language) {
         this.source = source;
         this.furniture = furniture;
+        this.language = language;
     }
 
     /**
@@ -114,7 +119,7 @@ final class EntryPictures {
             }
         });
         furniture.addAll(nearCopyFurniture(hashes));
-        return new EntryPictures(pictures, Set.copyOf(furniture));
+        return new EntryPictures(pictures, Set.copyOf(furniture), source.language());
     }
 
     /** The digests, in full lower-case hexadecimal, of every picture judged furniture across the tree. */
@@ -165,7 +170,7 @@ final class EntryPictures {
             also.picture(candidate.digest(), candidate.mediaType().equals(PNG_MEDIA_TYPE), candidate.picture());
         }
         if (shown.notShown() > 0) {
-            text(page, notShownLine(shown.notShown()));
+            text(page, notShownLine(shown.notShown(), language));
             also.notShown(shown.notShown());
         }
     }
@@ -197,13 +202,20 @@ final class EntryPictures {
         return new Shown(List.copyOf(shown), notShown);
     }
 
-    /** The line saying how many of a document's pictures are not shown, {@code notShown} being one or more. */
-    static String notShownLine(int notShown) {
-        return "<p><em>" + notShown
-                + (notShown == 1
-                        ? " more picture from this document is not shown."
-                        : " more pictures from this document are not shown.")
-                + "</em></p>\n";
+    /**
+     * The line saying how many of a document's pictures are not shown, {@code notShown} being one or more, in {@code
+     * language} (ADR-321 §4).
+     */
+    static String notShownLine(int notShown, DeliverableLanguage language) {
+        String sentence = switch (language) {
+            case ENGLISH -> notShown == 1
+                    ? " more picture from this document is not shown."
+                    : " more pictures from this document are not shown.";
+            case ITALIAN -> notShown == 1
+                    ? " altra immagine di questo documento non è mostrata."
+                    : " altre immagini di questo documento non sono mostrate.";
+        };
+        return "<p><em>" + notShown + sentence + "</em></p>\n";
     }
 
     /**
