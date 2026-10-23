@@ -1,16 +1,19 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.extraction.DoclingClient;
+import java.time.Duration;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.step.StepExecution;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 
 /**
  * Checks {@code docling-serve}'s health once, immediately before stage 2's step processes its first
- * occurrence (ADR-071) — not at job start, since census and stage 1 never touch the sidecar, and not
+ * occurrence (ADR-071), waiting for a converter that gives no answer yet (ADR-322 §7) — not at job start, since census and stage 1 never touch the sidecar, and not
  * before every call, since a sidecar that dies later fails the call itself. What that failure earns
  * depends on how the call failed (ADR-175): a failure the sidecar answers with, or three timeouts in a
  * row, is skipped and counted by the breaker; a dropped connection is waited out by {@link
@@ -30,9 +33,11 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
     private static final Logger log = LoggerFactory.getLogger(ExtractionHealthCheckListener.class);
 
     private final DoclingClient doclingClient;
+    private final SidecarRecovery sidecarRecovery;
 
-    ExtractionHealthCheckListener(DoclingClient doclingClient) {
+    ExtractionHealthCheckListener(DoclingClient doclingClient, SidecarRecovery sidecarRecovery) {
         this.doclingClient = doclingClient;
+        this.sidecarRecovery = sidecarRecovery;
     }
 
     @Override
@@ -40,11 +45,41 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
         log.info("Stage 2 (extraction) starting: checking docling-serve health");
         try {
             doclingClient.checkHealth();
+        } catch (ResourceAccessException noAnswerYet) {
+            waitForAConverterStillStarting(noAnswerYet);
         } catch (RuntimeException healthCheckFailed) {
             log.error("Stage 2 (extraction) sidecar health check failed: {}", healthCheckFailed.toString());
             throw healthCheckFailed;
         }
         log.info("Stage 2 (extraction) sidecar is healthy");
+    }
+
+    /**
+     * A converter that gave no answer, the connection refused or reset or closed with no status line or silent past
+     * the timeout, is read as one still starting and waited for under the bound every wait for a sidecar has (ADR-322
+     * §7). One that answers with an error status is up and fails the step at once, in {@link #beforeStep}. At the
+     * bound the check is asked once more through the conversion client and whatever that throws fails the step, so
+     * the message and the closing line are those of a converter that never answered.
+     */
+    private void waitForAConverterStillStarting(ResourceAccessException noAnswerYet) {
+        log.warn(
+                "Stage 2 (extraction) docling-serve is not answering its health check yet ({}); waiting up to {}"
+                        + " seconds for it to start",
+                noAnswerYet.toString(),
+                sidecarRecovery.waitAtMost().toSeconds());
+        Optional<Duration> answeredAfter = sidecarRecovery.awaitStarting();
+        if (answeredAfter.isPresent()) {
+            log.info(
+                    "Stage 2 (extraction) docling-serve answers its health check after {} seconds",
+                    answeredAfter.get().toSeconds());
+            return;
+        }
+        try {
+            doclingClient.checkHealth();
+        } catch (RuntimeException healthCheckFailed) {
+            log.error("Stage 2 (extraction) sidecar health check failed: {}", healthCheckFailed.toString());
+            throw healthCheckFailed;
+        }
     }
 
     /**

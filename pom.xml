@@ -258,6 +258,21 @@
             <resource>
                 <directory>${project.build.directory}/generated-resources/implementation-versions</directory>
             </resource>
+            <!--
+              The compose files and the build context of the Docling image, copied byte for byte into the jar under
+              sidecars/ (ADR-322 section 4): Vespera starts the sidecars from these, so the jar needs nothing from the
+              checkout. Unfiltered, so the files in the jar are the files the README and the tests read.
+            -->
+            <resource>
+                <directory>${project.basedir}</directory>
+                <targetPath>sidecars</targetPath>
+                <filtering>false</filtering>
+                <includes>
+                    <include>compose.yaml</include>
+                    <include>compose.gpu.yaml</include>
+                    <include>docker/**</include>
+                </includes>
+            </resource>
         </resources>
         <plugins>
             <plugin>
