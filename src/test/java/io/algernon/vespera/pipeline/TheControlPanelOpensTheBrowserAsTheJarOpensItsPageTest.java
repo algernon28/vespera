@@ -28,7 +28,7 @@ class TheControlPanelOpensTheBrowserAsTheJarOpensItsPageTest {
 
     private static final URI JAR_PAGE = URI.create("file:///runs/progress.html");
 
-    private static final URI PANEL_PAGE = URI.create("http://127.0.0.1:24291/?token=" + "A".repeat(43));
+    private static final URI PANEL_PAGE = URI.create("http://127.0.0.1:24291/");
 
     private static final List<String> SYSTEMS = List.of("Windows 11", "Mac OS X", "Linux", "FreeBSD", "");
 

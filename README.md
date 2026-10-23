@@ -328,12 +328,12 @@ On Windows it is `.\mvnw.cmd -Pgui`. `Ctrl+C` ends Maven, the control panel and 
 It prints the jar it will start and the Java it starts it with, then the address it opens in your default browser:
 
 ```
-open http://127.0.0.1:24291/?token=<token> in your browser
+open http://127.0.0.1:24291/ in your browser
 ```
 
-If no browser opens, open that address yourself on the same machine, by pasting it into the address bar or clicking it in the terminal; nothing is opened where the environment variable `CI` is set, or on Linux with no display. The control panel answers only a browser that came in through that address.
+If no browser opens, open that address yourself on the same machine, by pasting it into the address bar or clicking it in the terminal; nothing is opened where the environment variable `CI` is set, or on Linux with no display. The control panel asks for no password or key: anyone, and any program, on this machine can open it while it runs, but a website open in your browser cannot use it.
 
-Leave the tab open. When you end the control panel with `Ctrl+C` and start it again, that tab reloads itself onto the new start and no other tab opens: the start prints `the control panel waits up to 5 seconds for a tab it opened before`, then `a tab it opened before came back to http://127.0.0.1:24291/, so the control panel opens no other`. If no tab comes back within those 5 seconds, because you closed it or the browser, it opens a new tab on a new address, and the old address is refused from then on. A first start, with no tab to wait for, opens one at once. So an address it prints stays good, across `Ctrl+C` and restarts, for as long as a tab comes back to each start, and until the first start that opens a new tab; it is never good on a port the system picked after that start ends. Keep it to yourself: anyone on your machine who has it can use the control panel while it is good.
+Leave the tab open. When you end the control panel with `Ctrl+C` and start it again, that tab reloads itself onto the new start and no other tab opens: the start prints `the control panel waits up to 5 seconds for a tab it opened before`, then `a tab it opened before came back to http://127.0.0.1:24291/, so the control panel opens no other`. If no tab comes back within those 5 seconds, because you closed it or the browser, it opens a new one. So every start waits those 5 seconds before it opens a tab, but one at a port the system picked, which opens one at once.
 
 It listens at port 24291. To use another, set `VESPERA_CONTROL_PANEL_PORT` in the shell you start it from; `0` lets the system pick a free port at each start, and then no tab comes back. If the port is taken, by another program or by a control panel you already started, it says so on one line, listens at a port the system picks, and opens a new tab there. A value that is not a port from 0 to 65535 is refused with one line, and it exits 1.
 

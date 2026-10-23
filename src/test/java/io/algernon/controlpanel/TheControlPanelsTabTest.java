@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
-import org.jsoup.nodes.Element;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -29,15 +29,14 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * What a page of the control panel carries for its tab to come back to a later start, and what the server answers the
- * tab with (ADR-325 §4 to §6): the start's mark and the tab's key on every page of its own, the one script, served to
- * the cookie alone and holding no data of a start, the second policy, the invocation page's refresh, and {@code
- * /alive}, answered without the cookie with a proof only a server holding the token can give.
+ * tab with (ADR-325 §4 to §6): the start's mark on every page of its own and no other mark of the start, the one
+ * script, served as every page is and holding no data of a start, the second policy, the invocation page's refresh,
+ * and {@code /alive}, answered with the start's mark alone.
  *
  * <p>One server, started with the screens' pages as {@code ControlPanel.main} starts it, at a port the system picks,
  * serves every test but the two that need a server of their own: a second start, and a child to watch run. The
  * pages of its own are asked for once, through {@link PanelBrowser}; the script and {@code /alive} are asked for on
- * {@link RawHttp}, so that each request carries exactly the cookie, {@code Host} and {@code Sec-Fetch-Site} it is
- * given, or none.
+ * {@link RawHttp}, so that each request carries exactly the {@code Host} and {@code Sec-Fetch-Site} it is given.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -63,34 +62,26 @@ class TheControlPanelsTabTest {
     /** How often the invocation page is reloaded while its child runs: every 2 seconds. */
     private static final String EVERY_TWO_SECONDS = "2";
 
-    /** What the script never names: what parses a value as markup, what runs text as code, and a repeating timer. */
+    /**
+     * What the script never names: what parses a value as markup, what runs text as code, a repeating timer, and what
+     * a tab would need to check a proof of a token, the browser's cryptography, a nonce and a tab's key.
+     */
     private static final List<Pattern> NEVER_IN_THE_SCRIPT = List.of(Pattern.compile("\\binnerHTML\\b"),
             Pattern.compile("\\bouterHTML\\b"), Pattern.compile("\\binsertAdjacentHTML\\b"),
             Pattern.compile("\\bdocument\\.write"), Pattern.compile("\\beval\\s*\\("),
-            Pattern.compile("\\bFunction\\s*\\("), Pattern.compile("\\bsetInterval\\b"));
+            Pattern.compile("\\bFunction\\s*\\("), Pattern.compile("\\bsetInterval\\b"),
+            Pattern.compile("\\bcrypto\\.subtle\\b"), Pattern.compile("(?i)\\bnonce\\b"),
+            Pattern.compile("data-tab-key"));
 
-    /** A fetch that sends no cookie. */
-    private static final Pattern WITHOUT_THE_COOKIE = Pattern.compile("credentials\\s*:\\s*['\"]omit['\"]");
-
-    /** A nonce of 31 lowercase hexadecimal characters, one short. */
-    private static final String SHORT_NONCE = "0123456789abcdef0123456789abcde";
-
-    /** A nonce of 32 hexadecimal characters in capitals. */
-    private static final String NONCE_IN_CAPITALS = "0123456789ABCDEF0123456789ABCDEF";
-
-    /** A nonce of 32 lowercase hexadecimal characters, as the script writes one. */
-    private static final String NONCE = "0123456789abcdef0123456789abcdef";
-
-    /** Four queries the server does not answer: no nonce, a short one, one in capitals, one beside another parameter. */
-    private static final List<String> NOT_A_NONCE = List.of(TabProof.ALIVE, TabProof.aliveTarget(SHORT_NONCE),
-            TabProof.aliveTarget(NONCE_IN_CAPITALS), TabProof.aliveTarget(NONCE) + "&token=x");
+    /** A query on /alive, which the server does not read. */
+    private static final String A_QUERY = "?nonce=0123456789abcdef0123456789abcdef";
 
     @TempDir
     static Path folder;
 
     private static ScreenServer screens;
 
-    /** Every page of the control panel's own, asked for once with the cookie. */
+    /** Every page of the control panel's own, asked for once. */
     private static final List<Page> PAGES = new ArrayList<>();
 
     @BeforeAll
@@ -109,56 +100,52 @@ class TheControlPanelsTabTest {
 
     @Test
     @Story("A tab the control panel opened comes back to its next start")
-    @DisplayName("Every page of the control panel's own carries the start's mark and the tab's key, derived from the start's token")
-    void everyPageCarriesTheStartsMarkAndTheKeyDerivedFromTheToken() {
+    @DisplayName("Every page of the control panel's own carries the start's mark, the same on each, and no other mark of the start")
+    void everyPageCarriesTheStartsMarkAndNoOtherMarkOfTheStart() {
         List<String> marks = PAGES.stream().map(page -> page.document().body().attr("data-start")).distinct().toList();
-        List<String> keys = PAGES.stream().map(page -> page.document().body().attr("data-tab-key")).distinct().toList();
+        List<String> withAKey = PAGES.stream().filter(page -> page.document().body().hasAttr("data-tab-key"))
+                .map(page -> page.address().getPath()).toList();
 
         claim("every page of the control panel's own was answered with a page",
                 () -> assertThat(PAGES).isNotEmpty().extracting(Page::status).containsOnly(200));
         claim("every page carries one mark of the start, the same on each, 22 characters of base64url",
                 () -> assertThat(marks).satisfiesExactly(mark -> assertThat(mark).matches(MARK)));
-        claim("and one tab's key, the same on each: the HMAC-SHA256 of the key's text, keyed with the start's token",
-                () -> assertThat(keys).containsExactly(TabProof.tabKeyOf(screens.server().token())));
+        claim("and none carries a tab's key, there being no token to derive one from",
+                () -> assertThat(withAKey).isEmpty());
     }
 
     @Test
     @Story("A tab the control panel opened comes back to its next start")
-    @DisplayName("The script is served as JavaScript to a request holding the cookie alone, the same at every start, holding no mark, key or token")
-    void theScriptIsServedWithTheCookieAloneTheSameAtEveryStart(@TempDir Path another) throws IOException {
-        Response script = script(screens, true);
-        Response withoutTheCookie = script(screens, false);
-        List<String> data = new ArrayList<>(dataOf(screens));
+    @DisplayName("The script is served as JavaScript to a request of the control panel's own origin, the same at every start, holding neither start's mark")
+    void theScriptIsServedAsJavaScriptTheSameAtEveryStart(@TempDir Path another) throws IOException {
+        Response script = script(screens);
+        List<String> marks = new ArrayList<>(List.of(markOf(screens)));
         Response atAnotherStart;
         try (ScreenServer second = ScreenServer.start(another, valuesUnder(another))) {
-            atAnotherStart = script(second, true);
-            data.addAll(dataOf(second));
+            atAnotherStart = script(second);
+            marks.add(markOf(second));
         }
-        List<String> held = data.stream().filter(value -> !value.isBlank() && script.body().contains(value)).toList();
+        List<String> held = marks.stream().filter(mark -> !mark.isBlank() && script.body().contains(mark)).toList();
 
-        claim("asked for with the cookie, the script is answered 200, as JavaScript in UTF-8",
+        claim("asked for with no cookie, the script is answered 200, as JavaScript in UTF-8",
                 () -> assertThat(List.of(script.status(), script.header("Content-Type")))
                         .containsExactly(200, List.of(SCRIPT_TYPE)));
         claim("a second start answers the same text, which is not empty",
                 () -> assertThat(script.body()).isNotBlank().isEqualTo(atAnotherStart.body()));
-        claim("holding neither start's mark, tab's key or token", () -> assertThat(held).isEmpty());
-        claim("and asked for without the cookie, it is refused as every page is",
-                () -> assertThat(withoutTheCookie.status()).isEqualTo(403));
+        claim("holding neither start's mark", () -> assertThat(held).isEmpty());
     }
 
     @Test
     @Story("A tab the control panel opened comes back to its next start")
-    @DisplayName("The script polls /alive without the cookie, and names nothing that parses a value as markup, runs text as code or repeats on an interval")
-    void theScriptPollsAliveWithoutTheCookieAndParsesNoMarkup() throws IOException {
-        String text = script(screens, true).body();
+    @DisplayName("The script polls /alive, and names nothing that checks a proof, parses a value as markup, runs text as code or repeats on an interval")
+    void theScriptPollsAliveComputesNoProofAndParsesNoMarkup() throws IOException {
+        String text = script(screens).body();
         List<String> named = NEVER_IN_THE_SCRIPT.stream().filter(never -> never.matcher(text).find())
                 .map(Pattern::pattern).toList();
 
-        claim("the script asks /alive", () -> assertThat(text).contains(TabProof.ALIVE));
-        claim("with a fetch that sends no cookie, credentials: 'omit'",
-                () -> assertThat(WITHOUT_THE_COOKIE.matcher(text).find()).isTrue());
-        claim("and it names none of innerHTML, outerHTML, insertAdjacentHTML, document.write, eval, Function and"
-                + " setInterval", () -> assertThat(named).isEmpty());
+        claim("the script asks /alive", () -> assertThat(text).contains(TabPaths.ALIVE));
+        claim("and it names none of innerHTML, outerHTML, insertAdjacentHTML, document.write, eval, Function,"
+                + " setInterval, crypto.subtle, a nonce and data-tab-key", () -> assertThat(named).isEmpty());
     }
 
     @Test
@@ -212,81 +199,65 @@ class TheControlPanelsTabTest {
 
     @Test
     @Story("A tab the control panel opened comes back to its next start")
-    @DisplayName("Asked for without the cookie, /alive answers the pages' mark and a proof of the port, the mark and the nonce under the tab's key")
-    void theAliveAnswerProvesTheStartWithoutTheCookie() throws IOException {
-        int port = screens.server().address().getPort();
+    @DisplayName("/alive answers the pages' mark and nothing else, with a query or without")
+    void theAliveAnswerIsTheStartsMarkAlone() throws IOException {
         String mark = PAGES.getFirst().document().body().attr("data-start");
-        String key = TabProof.tabKeyOf(screens.server().token());
-        String firstNonce = TabProof.nonce();
-        String secondNonce = TabProof.nonce();
-        Response first = alive(TabProof.aliveTarget(firstNonce), "same-origin");
-        Response second = alive(TabProof.aliveTarget(secondNonce), "same-origin");
+        Response bare = alive(TabPaths.ALIVE, "same-origin");
+        Response withAQuery = alive(TabPaths.ALIVE + A_QUERY, "same-origin");
 
-        claim("asked for with a nonce and no cookie, /alive is answered 200, in plain text",
-                () -> assertThat(List.of(first.status(), first.header("Content-Type")))
+        claim("asked for with no cookie and no query, /alive is answered 200, in plain text",
+                () -> assertThat(List.of(bare.status(), bare.header("Content-Type")))
                         .containsExactly(200, List.of(PLAIN_TEXT)));
-        claim("its body is the pages' mark, one space, and the HMAC-SHA256 of the port, the mark and the nonce under"
-                        + " the tab's key",
-                () -> assertThat(first.body()).isEqualTo(mark + " " + TabProof.proof(key, port, mark, firstNonce)));
-        claim("another nonce is answered with its own proof, not the first's",
-                () -> assertThat(second.body()).isEqualTo(mark + " " + TabProof.proof(key, port, mark, secondNonce))
-                        .isNotEqualTo(first.body()));
+        claim("its body is the pages' mark and nothing else, and so is the body of a request with a query, which is"
+                        + " not read",
+                () -> assertThat(List.of(bare.body(), withAQuery.status(), withAQuery.body()))
+                        .containsExactly(mark, 200, mark));
         claim("and the answer carries the four headers every response carries, each once, with its value",
-                () -> assertThat(EVERY_RESPONSE).allSatisfy((name, value) -> assertThat(first.header(name)).as(name)
+                () -> assertThat(EVERY_RESPONSE).allSatisfy((name, value) -> assertThat(bare.header(name)).as(name)
                         .containsExactly(value)));
     }
 
     @Test
     @Story("A tab the control panel opened comes back to its next start")
-    @DisplayName("/alive refuses a request of another site or for another host, names GET as its one method, and answers no nonce it cannot read")
-    void anAliveRequestOfAnotherSiteHostOrMethodOrABadNonceIsNotAnswered() throws IOException {
+    @DisplayName("/alive refuses a request of another site, of another port of this machine or for another host, and names GET as its one method")
+    void anAliveRequestOfAnotherSiteHostOrMethodIsNotAnswered() throws IOException {
         InetSocketAddress server = screens.server().address();
         String host = "Host: 127.0.0.1:" + server.getPort();
-        String target = TabProof.aliveTarget(TabProof.nonce());
-        Response crossSite = alive(target, "cross-site");
-        Response anotherHost = RawHttp.send(server, "GET", target, List.of("Host: evil.example:" + server.getPort()));
-        Response posted = RawHttp.send(server, "POST", target,
+        Response crossSite = alive(TabPaths.ALIVE, "cross-site");
+        Response sameSite = alive(TabPaths.ALIVE, "same-site");
+        Response anotherHost = RawHttp.send(server, "GET", TabPaths.ALIVE,
+                List.of("Host: evil.example:" + server.getPort()));
+        Response posted = RawHttp.send(server, "POST", TabPaths.ALIVE,
                 List.of(host, "Origin: http://127.0.0.1:" + server.getPort()));
-        List<Integer> unread = new ArrayList<>();
-        for (String query : NOT_A_NONCE) {
-            unread.add(alive(query, "same-origin").status());
-        }
 
-        claim("sent from another site, or to another host, it is refused with the line every refusal gives",
-                () -> assertThat(List.of(List.of(crossSite.status(), crossSite.body()),
-                                List.of(anotherHost.status(), anotherHost.body())))
+        claim("sent from another site, from another port of this machine, or to another host, it is refused with the"
+                        + " line every refusal gives",
+                () -> assertThat(Stream.of(crossSite, sameSite, anotherHost)
+                                .map(refused -> List.of(refused.status(), refused.body())).toList())
                         .containsExactly(List.of(403, ControlPanelServer.REFUSAL),
-                                List.of(403, ControlPanelServer.REFUSAL)));
-        claim("a POST is answered 405, naming GET as the one method allowed",
+                                List.of(403, ControlPanelServer.REFUSAL), List.of(403, ControlPanelServer.REFUSAL)));
+        claim("and a POST is answered 405, naming GET as the one method allowed",
                 () -> assertThat(List.of(posted.status(), posted.header("Allow")))
                         .containsExactly(405, List.of("GET")));
-        claim("and no nonce, a nonce one character short, one in capitals and one beside another parameter are each"
-                        + " answered 400",
-                () -> assertThat(unread).containsExactly(400, 400, 400, 400));
     }
 
-    /** The script asked for on the server of {@code screens}, with the start's cookie or without it. */
-    private static Response script(ScreenServer screens, boolean withTheCookie) throws IOException {
+    /** The script asked for on the server of {@code screens}, as a page of its own origin asks for it, with no cookie. */
+    private static Response script(ScreenServer screens) throws IOException {
         InetSocketAddress server = screens.server().address();
-        List<String> lines = new ArrayList<>(List.of("Host: 127.0.0.1:" + server.getPort(),
+        return RawHttp.send(server, "GET", TabPaths.SCRIPT, List.of("Host: 127.0.0.1:" + server.getPort(),
                 "Sec-Fetch-Site: same-origin"));
-        if (withTheCookie) {
-            lines.add("Cookie: " + ControlPanelServer.COOKIE + "=" + screens.server().token());
-        }
-        return RawHttp.send(server, "GET", TabProof.SCRIPT, lines);
     }
 
-    /** {@code target} asked of the class's server with no cookie, marked as sent from {@code site}. */
+    /** {@code target} asked of the class's server, marked as sent from {@code site}. */
     private static Response alive(String target, String site) throws IOException {
         InetSocketAddress server = screens.server().address();
         return RawHttp.send(server, "GET", target, List.of("Host: 127.0.0.1:" + server.getPort(),
                 "Sec-Fetch-Site: " + site));
     }
 
-    /** The mark and the tab's key of the first page of {@code screens}, and its token. */
-    private static List<String> dataOf(ScreenServer screens) {
-        Element body = screens.browser().page().document().body();
-        return List.of(body.attr("data-start"), body.attr("data-tab-key"), screens.server().token());
+    /** The start's mark the first page of {@code screens} carries. */
+    private static String markOf(ScreenServer screens) {
+        return screens.browser().page().document().body().attr("data-start");
     }
 
     /** Each refresh of the page, as the elements it lies in and its seconds. */

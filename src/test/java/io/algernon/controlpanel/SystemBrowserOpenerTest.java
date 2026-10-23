@@ -23,8 +23,8 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-325", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
 class SystemBrowserOpenerTest {
 
-    /** The address the control panel prints, token and all. */
-    private static final URI ADDRESS = URI.create("http://127.0.0.1:24291/?token=" + "A".repeat(43));
+    /** The address the control panel prints: its root at the fixed port. */
+    private static final URI ADDRESS = URI.create("http://127.0.0.1:24291/");
 
     private static final String WINDOWS = "Windows 11";
 

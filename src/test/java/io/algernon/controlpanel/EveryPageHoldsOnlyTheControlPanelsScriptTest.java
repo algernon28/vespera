@@ -133,7 +133,7 @@ class EveryPageHoldsOnlyTheControlPanelsScriptTest {
                 found.add(path + " holds " + scripts.size() + " script elements");
             }
             for (Element script : scripts) {
-                if (!script.attr("src").equals(TabProof.SCRIPT)) {
+                if (!script.attr("src").equals(TabPaths.SCRIPT)) {
                     found.add(path + " holds a script at '" + script.attr("src") + "'");
                 }
                 if (!script.data().isEmpty()) {

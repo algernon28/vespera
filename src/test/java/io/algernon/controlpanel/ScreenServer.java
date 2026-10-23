@@ -125,8 +125,8 @@ final class ScreenServer implements AutoCloseable {
                         elsewhere.resolve("launch-values.properties"), elsewhere.resolve("root-locks"),
                         System.getProperty("user.name"))
                 .keySet().stream()
-                .filter(path -> !path.startsWith("/report/") && !path.equals(TabProof.SCRIPT)
-                        && !path.equals(TabProof.ALIVE))
+                .filter(path -> !path.startsWith("/report/") && !path.equals(TabPaths.SCRIPT)
+                        && !path.equals(TabPaths.ALIVE))
                 .sorted()
                 .toList();
     }

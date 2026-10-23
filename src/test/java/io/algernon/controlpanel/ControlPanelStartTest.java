@@ -9,9 +9,8 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -26,7 +25,8 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * The control panel's start, in process (ADR-325 §1 to §3, §7): {@code ControlPanel.begin} with the bound, the opener
  * and the lines of each stream handed in, so that a test gives a short bound, an opener that records, and consumers it
- * reads, and no browser is opened and no line is waited for longer than the test says.
+ * reads, and no browser is opened and no line is waited for longer than the test says. No token's file is handed in,
+ * since the start keeps none.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -35,12 +35,14 @@ class ControlPanelStartTest {
 
     private static final String USER = System.getProperty("user.name");
 
-    /** A token kept by an earlier start. */
-    private static final String KEPT = "k".repeat(43);
-
+    /** A bound no tab comes back within, short enough not to slow the build. */
     private static final Duration SHORT = Duration.ofMillis(300);
 
+    /** A bound the test never waits out: where the start returns well before it, it did not wait it out either. */
     private static final Duration LONG = Duration.ofSeconds(30);
+
+    /** Well short of {@link #LONG}: a start that returns within it ended its wait early, or waited for nothing. */
+    private static final Duration WELL_BEFORE_THE_BOUND = Duration.ofSeconds(10);
 
     @TempDir
     Path folder;
@@ -54,28 +56,23 @@ class ControlPanelStartTest {
 
     @Test
     @Story("A tab the control panel opened comes back to its next start")
-    @DisplayName("A tab that comes back within the bound ends the wait at once and leaves the opener unasked")
+    @DisplayName("A tab polling /alive within the bound ends the wait at once and leaves the opener unasked")
     void aTabThatComesBackWithinTheBoundLeavesTheOpenerUnasked() throws Exception {
         int port = ControlPanelAsStarted.freePort();
-        Path tokenFile = ControlPanelToken.fileIn(folder, USER);
-        ControlPanelToken.write(tokenFile, USER, KEPT, line -> {
-            throw new AssertionError(line);
-        });
         Said said = new Said();
         CompletableFuture<Optional<ControlPanelServer>> start = CompletableFuture.supplyAsync(() -> begin(said,
-                String.valueOf(port), tokenFile, LONG));
+                String.valueOf(port), LONG));
         long waitingSince = awaitLine(said, ControlPanel.WAITING);
-        RawHttp.Response reloaded = RawHttp.send(new java.net.InetSocketAddress(ControlPanelAsStarted.loopback(), port),
-                "GET", "/", List.of("Host: 127.0.0.1:" + port,
-                        "Cookie: " + ControlPanelServer.COOKIE + "=" + KEPT));
-        Optional<ControlPanelServer> server = start.get(10, TimeUnit.SECONDS);
+        RawHttp.Response polled = RawHttp.send(new InetSocketAddress(ControlPanelAsStarted.loopback(), port), "GET",
+                TabPaths.ALIVE, List.of("Host: 127.0.0.1:" + port, "Sec-Fetch-Site: same-origin"));
+        Optional<ControlPanelServer> server = start.get(WELL_BEFORE_THE_BOUND.toSeconds(), TimeUnit.SECONDS);
         Duration took = Duration.ofNanos(System.nanoTime() - waitingSince);
         server.ifPresent(ControlPanelServer::close);
 
-        claim("the tab's request was answered by the start that kept its token", () -> assertThat(reloaded.status())
+        claim("the tab's poll, holding no cookie, was answered by the start", () -> assertThat(polled.status())
                 .isEqualTo(200));
-        claim("the wait ended at once, long before its bound of 30 seconds", () -> assertThat(took)
-                .isLessThan(Duration.ofSeconds(10)));
+        claim("the wait ended at once, long before its bound of " + LONG.toSeconds() + " seconds",
+                () -> assertThat(took).isLessThan(WELL_BEFORE_THE_BOUND));
         claim("the start said it waited, then that a tab came back at its port, and printed no address",
                 () -> assertThat(said.out).containsExactly(ControlPanel.WAITING,
                         "a tab it opened before came back to http://127.0.0.1:" + port
@@ -85,39 +82,29 @@ class ControlPanelStartTest {
 
     @Test
     @Story("A tab the control panel opened comes back to its next start")
-    @DisplayName("With no tab within the bound, the opener is asked once for the one address printed, whose token is new and kept")
-    void noTabWithinTheBoundAsksTheOpenerOnceForTheNewAddress() throws Exception {
+    @DisplayName("With no tab within the bound, the start says it waited, prints the address of its root, and asks the opener once for it")
+    void noTabWithinTheBoundAsksTheOpenerOnceForTheRoot() throws Exception {
         int port = ControlPanelAsStarted.freePort();
-        Path tokenFile = ControlPanelToken.fileIn(folder, USER);
-        ControlPanelToken.write(tokenFile, USER, KEPT, line -> {
-            throw new AssertionError(line);
-        });
         Said said = new Said();
-        Optional<ControlPanelServer> server = begin(said, String.valueOf(port), tokenFile, SHORT);
+        Optional<ControlPanelServer> server = begin(said, String.valueOf(port), SHORT);
         server.ifPresent(ControlPanelServer::close);
-        String kept = Files.readString(tokenFile, StandardCharsets.UTF_8);
-        String printed = said.out.stream().filter(line -> line.startsWith("open ")).findFirst().orElse("");
+        URI root = URI.create("http://127.0.0.1:" + port + "/");
 
-        claim("the start waited, then printed one address", () -> assertThat(said.out)
-                .hasSize(2).first().isEqualTo(ControlPanel.WAITING));
-        claim("the opener was asked once, for the address printed", () -> assertThat(said.opened).hasSize(1)
-                .allSatisfy(address -> assertThat(printed).isEqualTo("open " + address + " in your browser")));
-        claim("its token is not the one kept, and the file now holds it", () -> assertThat(kept)
-                .isNotEqualTo(KEPT).matches("[A-Za-z0-9_-]{43}")
-                .isEqualTo(ControlPanelAsStarted.tokenOf(printed)));
+        claim("the start waited, then printed the address of its root, with no query",
+                () -> assertThat(said.out).containsExactly(ControlPanel.WAITING, "open " + root + " in your browser"));
+        claim("the opener was asked once, for that address", () -> assertThat(said.opened).containsExactly(root));
         claim("and nothing was said on standard error", () -> assertThat(said.err).isEmpty());
     }
 
     @Test
     @Story("The control panel opens the browser itself")
-    @DisplayName("An opener that throws leaves the address printed before it, a line naming the exception's class, and the control panel serving")
+    @DisplayName("An opener that throws leaves the address printed before it, a line naming the exception's class, and the control panel serving its page")
     void anOpenerThatThrowsLeavesTheAddressPrintedAndTheControlPanelServing() throws Exception {
         for (Exception failure : List.of(new IOException("no program"), new IllegalStateException("no display"))) {
             int port = ControlPanelAsStarted.freePort();
             Said said = new Said();
             List<String> order = new CopyOnWriteArrayList<>();
-            Optional<ControlPanelServer> server = ControlPanel.begin(state(), String.valueOf(port),
-                    ControlPanelToken.fileIn(folder.resolve(failure.getClass().getSimpleName()), USER), USER, SHORT,
+            Optional<ControlPanelServer> server = ControlPanel.begin(state(), String.valueOf(port), SHORT,
                     address -> {
                         order.add("opener");
                         if (failure instanceof IOException io) {
@@ -128,47 +115,38 @@ class ControlPanelStartTest {
                         said.out.add(line);
                         order.add("out");
                     }, said.err::add);
-            RawHttp.Response answer = RawHttp.send(server.orElseThrow().address(), "GET", "/?token="
-                    + server.get().token(), List.of("Host: 127.0.0.1:" + port));
+            RawHttp.Response answer = RawHttp.send(server.orElseThrow().address(), "GET", "/",
+                    List.of("Host: 127.0.0.1:" + port));
             server.get().close();
 
-            claim("the address was printed before the opener was asked", () -> assertThat(order)
-                    .containsExactly("out", "opener"));
+            claim("the address was printed, after the waiting line, before the opener was asked",
+                    () -> assertThat(order).containsExactly("out", "out", "opener"));
             claim("one line named the exception's class", () -> assertThat(said.err)
                     .containsExactly("the control panel could not open the browser: " + failure.getClass().getName()));
-            claim("and the server answered, redirecting a request holding the token", () -> assertThat(answer.status())
-                    .isEqualTo(303));
+            claim("and the server answered the page of its root, to a request holding no cookie",
+                    () -> assertThat(answer.status()).isEqualTo(200));
         }
     }
 
     @Test
     @Story("The control panel listens at a port that stays the same from one start to the next")
-    @DisplayName("With the variable at 0, a kept token is neither read nor replaced, the token is the start's own, and no waiting line is written")
-    void aPortOfZeroReadsAndKeepsNoTokenAndWaitsForNoTab() throws Exception {
-        Path tokenFile = ControlPanelToken.fileIn(folder, USER);
-        ControlPanelToken.write(tokenFile, USER, KEPT, line -> {
-            throw new AssertionError(line);
-        });
+    @DisplayName("With the variable at 0, the start listens at a port the system picked, prints its root's address at once, and waits for no tab")
+    void aPortOfZeroWaitsForNoTab() throws Exception {
         Said said = new Said();
         long before = System.nanoTime();
-        Optional<ControlPanelServer> server = begin(said, "0", tokenFile, LONG);
+        Optional<ControlPanelServer> server = begin(said, "0", LONG);
         Duration took = Duration.ofNanos(System.nanoTime() - before);
-        String token = server.orElseThrow().token();
-        int port = server.get().address().getPort();
+        int port = server.orElseThrow().address().getPort();
         server.get().close();
 
-        claim("the start waited for nothing", () -> assertThat(took).isLessThan(Duration.ofSeconds(10)));
-        claim("it wrote the address alone, at a port the system picked, with a token of its own",
-                () -> assertThat(said.out).hasSize(1).first().isEqualTo("open http://127.0.0.1:" + port + "/?token="
-                        + token + " in your browser"));
-        claim("the file still holds the token kept before", () -> assertThat(Files.readString(tokenFile,
-                StandardCharsets.UTF_8)).isEqualTo(KEPT).isNotEqualTo(token));
+        claim("the start waited for nothing", () -> assertThat(took).isLessThan(WELL_BEFORE_THE_BOUND));
+        claim("it wrote the address of its root alone, at a port the system picked, with no waiting line",
+                () -> assertThat(said.out).containsExactly("open http://127.0.0.1:" + port + "/ in your browser"));
     }
 
-    private Optional<ControlPanelServer> begin(Said said, String port, Path tokenFile, Duration bound) {
+    private Optional<ControlPanelServer> begin(Said said, String port, Duration bound) {
         try {
-            return ControlPanel.begin(state(), port, tokenFile, USER, bound, said.opened::add, said.out::add,
-                    said.err::add);
+            return ControlPanel.begin(state(), port, bound, said.opened::add, said.out::add, said.err::add);
         } catch (IOException e) {
             throw new AssertionError(e);
         }

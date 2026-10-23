@@ -26,7 +26,8 @@ import org.jsoup.select.Elements;
  * store, and each page it lands on parsed by jsoup as a browser parses HTML.
  *
  * <p>It does what a browser does with a page of server-written forms and no script: it opens the address the panel
- * printed, keeps the cookie the token is exchanged for, follows a {@code 303} with a {@code GET}, and submits a form
+ * printed, keeps any cookie it is sent, of which the panel sends none (ADR-325 §2), follows a {@code 303} with a
+ * {@code GET}, and submits a form
  * by its name with the fields jsoup reads from it as a browser would send them, a {@code POST} carrying its page's
  * origin. Of a form's submit buttons a browser sends only the one pressed (ADR-302 §9): {@link #press} sends that
  * one, and {@link #submit} none. A form whose action leaves the panel's origin is refused, as the panel's {@code form-action 'self'} has a

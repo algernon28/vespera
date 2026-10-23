@@ -32,7 +32,7 @@ import java.util.stream.Stream;
  * runs as shipped and a Run would start {@link JarForScreenTests}, never Vespera.
  *
  * <p>It runs with {@code CI=1}, so it opens no browser (ADR-325 §7), with {@code java.io.tmpdir} a folder of the
- * test's own, so that its token and its launch values are kept there and never in the user's own folder, and with the
+ * test's own, so that its launch values are kept there and never in the user's own folder, and with the
  * corpus-root locks read in a folder of the test's own. What it writes on each stream is read as it comes, each line of
  * standard output with the moment it was read. Closing it ends its process forcibly and waits for it to end.
  */
@@ -47,7 +47,7 @@ final class ControlPanelAsStarted implements AutoCloseable {
     /** What ADR-302 §11's line, the address to open, begins with, before the port. */
     static final String OPEN = "open http://127.0.0.1:";
 
-    /** What that line ends with, after the token. */
+    /** What that line ends with, after the address. */
     static final String IN_YOUR_BROWSER = " in your browser";
 
     /** How long a test waits for a line, or for the process to end, before it fails rather than hangs. */
@@ -55,9 +55,6 @@ final class ControlPanelAsStarted implements AutoCloseable {
 
     /** The name the manifest gives the jar beside the control panel's own. */
     private static final String JAR_BESIDE_IT = "vespera-for-screen-tests.jar";
-
-    /** The file the token is kept in, beside the launch values (ADR-325 §2). */
-    private static final String TOKEN_FILE = "token";
 
     /** Variables a JVM announces on standard error as it starts, which would be lines the control panel did not write. */
     private static final List<String> JVM_NOTICES = List.of("JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS");
@@ -173,7 +170,7 @@ final class ControlPanelAsStarted implements AutoCloseable {
         process.waitFor(BOUND.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    /** The address an address line names, the token in its query. */
+    /** The address an address line names. */
     static URI addressIn(String addressLine) {
         return URI.create(addressLine.substring("open ".length(), addressLine.length() - IN_YOUR_BROWSER.length()));
     }
@@ -183,21 +180,18 @@ final class ControlPanelAsStarted implements AutoCloseable {
         return addressIn(addressLine).getPort();
     }
 
-    /** The token an address line names. */
-    static String tokenOf(String addressLine) {
-        String query = addressIn(addressLine).getRawQuery();
-        return query == null ? "" : query.substring("token=".length());
-    }
-
-    /** The token's file a control panel started with {@code temporaryDirectory} keeps it in (ADR-325 §2). */
-    static Path tokenFile(Path temporaryDirectory) {
-        return LaunchValues.fileIn(temporaryDirectory, System.getProperty("user.name")).resolveSibling(TOKEN_FILE);
-    }
-
-    /** What the token's file holds, whole; empty where there is no such file. */
-    static String tokenFileHolds(Path temporaryDirectory) throws IOException {
-        Path file = tokenFile(temporaryDirectory);
-        return Files.isRegularFile(file) ? Files.readString(file, StandardCharsets.UTF_8) : "";
+    /**
+     * The names of the files in the folder of the user's own a control panel started with {@code temporaryDirectory}
+     * keeps its launch values in (ADR-292 §3), sorted; empty where there is no such folder.
+     */
+    static List<String> filesOfTheUsersOwnFolder(Path temporaryDirectory) throws IOException {
+        Path folder = LaunchValues.fileIn(temporaryDirectory, System.getProperty("user.name")).getParent();
+        if (!Files.isDirectory(folder)) {
+            return List.of();
+        }
+        try (Stream<Path> files = Files.list(folder)) {
+            return files.map(file -> file.getFileName().toString()).sorted().toList();
+        }
     }
 
     /** A port of {@code 127.0.0.1} free as this is called: one the system picked, then let go. */
