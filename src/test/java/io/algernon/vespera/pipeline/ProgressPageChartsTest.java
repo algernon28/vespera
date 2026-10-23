@@ -640,9 +640,17 @@ class ProgressPageChartsTest {
         return text;
     }
 
-    /** The timeline's markup, from its opening tag to its close, or nothing where the page has none. */
+    /**
+     * The timeline's card, from its heading to the card's close, or nothing where the page has none: every step's mark
+     * lies in it, whether the card draws one drawing (ADR-268 section 8) or a drawing a leg (ADR-324 section 2).
+     */
     private static String timeline(String page) {
-        return between(page, "<svg class=\"timeline\"");
+        int from = page.indexOf("<h2>Timeline of the steps</h2>");
+        if (from < 0) {
+            return "";
+        }
+        int to = page.indexOf("</figure>", from);
+        return to < 0 ? page.substring(from) : page.substring(from, to);
     }
 
     /** The markup of the chart {@code name}, from the attribute that names it to its close, or nothing. */

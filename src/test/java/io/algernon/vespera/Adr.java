@@ -2234,6 +2234,15 @@ public final class Adr {
     public static final String A_CLUSTER_TURNED_DOWN_THE_LAST_TWO_TIMES_STANDS_WITHOUT_WRITING = FILE
             + "0319-a-cluster-whose-answer-is-turned-down-the-last-two-times-it-is-asked-stands-without-writing-and-the-generation-step-finishes-with-it.md";
 
+    /**
+     * ADR-324 -- the timeline of the steps folds into four legs, deduplication, translation, clustering and generation,
+     * each one bar from its first start to its last end with a state read off its steps, the leg the job is in open,
+     * and a fold kept in the page's address across the reload, which the script makes where scripts run (amends ADR-265
+     * §1, ADR-267 §1 and §4, ADR-268 §8 and ADR-269 §3).
+     */
+    public static final String THE_TIMELINE_FOLDS_INTO_FOUR_LEGS = FILE
+            + "0324-the-timeline-of-the-steps-folds-into-four-legs-each-one-bar-open-where-the-job-is-and-a-fold-outlives-the-reload-in-the-pages-address.md";
+
     private Adr() {
     }
 }
