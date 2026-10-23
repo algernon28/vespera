@@ -100,7 +100,7 @@ final class InvocationPages {
             body.append("<p><a id=\"progress\" href=\"/report/progress.html\" target=\"_blank\" rel=\"noopener\">Progress</a></p>\n");
         }
         body.append("<h2>Reports</h2>\n").append(LaunchPages.reports(state));
-        Exchanges.page(exchange, ControlPanelPage.render("Invocation", runs ? REFRESH_SECONDS : 0, body.toString()));
+        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Invocation", runs ? REFRESH_SECONDS : 0, body.toString()));
     }
 
     private void stop(HttpExchange exchange) throws IOException {
@@ -121,7 +121,7 @@ final class InvocationPages {
             }
             body.append("<form name=\"stop-confirmed\" method=\"post\" action=\"/stop\">")
                     .append(ControlPanelPage.button("stop", "Stop", false)).append("</form>\n");
-            Exchanges.page(exchange, ControlPanelPage.render("Stop", 0, body.toString()));
+            Exchanges.page(exchange, ControlPanelPage.render(exchange, "Stop", 0, body.toString()));
             return;
         }
         try {

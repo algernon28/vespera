@@ -92,7 +92,7 @@ final class ValuePages {
             body.append("</ol>\n").append(ControlPanelPage.button("save", "Save", false)).append('\n')
                     .append(ControlPanelPage.button("save-then-label", "Save, then Label", false)).append("\n</form>\n");
         }
-        Exchanges.page(exchange, ControlPanelPage.render("Questions", 0, body.toString()));
+        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Questions", 0, body.toString()));
     }
 
     private static String option(String value, String caption, boolean selected) {
@@ -180,7 +180,7 @@ final class ValuePages {
                     .append(ControlPanelPage.field("new-name", "Name", "", false))
                     .append(ControlPanelPage.button("save", "Save", false)).append("\n</form>\n");
         }
-        Exchanges.page(exchange, ControlPanelPage.render("Code sets", 0, body.toString()));
+        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Code sets", 0, body.toString()));
     }
 
     private void saveCodeSets(HttpExchange exchange) throws IOException {
@@ -249,7 +249,7 @@ final class ValuePages {
                     .append(NextPages.reportsOf(key.key()))
                     .append(ControlPanelPage.button("save", "Save", false)).append("\n</form>\n");
         }
-        Exchanges.page(exchange, ControlPanelPage.render("Profile", 0, body.toString()));
+        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Profile", 0, body.toString()));
     }
 
     private void saveProfile(HttpExchange exchange) throws IOException {
