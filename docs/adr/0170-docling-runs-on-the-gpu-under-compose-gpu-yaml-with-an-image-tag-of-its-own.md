@@ -1,5 +1,7 @@
 # ADR-170 — Docling runs on the GPU under compose.gpu.yaml, with an image tag of its own
 
+> **Partly amended — see [ADR-323](0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md) §2.** §3's `VESPERA_DOCLING_IMAGE`, naming the GPU tag, is also what makes Vespera's `up` name `compose.gpu.yaml`; a value neither file builds refuses the start before Docker is asked anything.
+
 - **Date**: 2026-09-28
 - **Status**: accepted
 - **Amends**: [ADR-165](0165-ollama-is-given-an-nvidia-gpu-by-an-override-file-and-compose-yaml-alone-asks-for-none.md). Its §2, *"docling-serve stays on its CPU image"*, stops being true under `compose.gpu.yaml`: the GPU file now gives the GPU to Ollama **and** to docling-serve. Its §1, *"The file carries nothing but the request"*, stays true of `ollama` and not of `docling-serve`, which the file also gives an image name and a build argument (§2 here). `compose.yaml` on its own still asks for no device, for any service, and everything else in ADR-165 stands.

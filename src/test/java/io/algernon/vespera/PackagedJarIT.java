@@ -19,10 +19,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The packaged jar starts no sidecar, because it carries no compose support (ADR-158).
+ * The packaged jar carries no Spring compose support (ADR-158, ADR-179), and it carries the compose files its own
+ * starter brings the sidecars up from (ADR-323).
  *
- * <p>The operator starts the sidecars from {@code compose.yaml} and then runs this jar. That split
- * holds only while Spring Boot's Docker Compose support stays out of the jar. Two settings of the
+ * <p>Spring Boot's Docker Compose support reconciles running containers to the files it is given and stops them at
+ * exit, which is what ADR-179 records going wrong; the jar's own starter recreates and stops nothing. That holds only
+ * while Spring Boot's Docker Compose support stays out of the jar. Two settings of the
  * Boot plugin's {@code repackage} goal keep it out, each on its own. {@code excludeDockerCompose},
  * {@code true} by default, strips {@code spring-boot-docker-compose} whatever its scope.
  * {@code includeOptional}, {@code false} by default, leaves out every {@code <optional>} dependency.
@@ -56,6 +58,9 @@ class PackagedJarIT {
 
     /** Where the Boot plugin puts the application's own classes. */
     private static final String CLASSES = "BOOT-INF/classes/";
+
+    /** Where under the jar's classes the compose files the starter reads lie (ADR-323 §4). */
+    private static final String SIDECARS = "sidecars/";
 
     /** The control panel's classes, as a jar names their entries. */
     private static final String CONTROL_PANEL = "io/algernon/controlpanel/";
@@ -177,6 +182,42 @@ class PackagedJarIT {
     }
 
     /** The name of every file and folder the jar holds. */
+    @Test
+    @Story("The jar carries the files it starts the sidecars from")
+    @DisplayName("The packaged jar carries the two compose files and the converter's build folder, byte for byte as the repository holds them")
+    @Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
+    void carriesTheComposeFilesTheStarterReads() throws IOException {
+        java.util.Map<String, byte[]> repository = new java.util.TreeMap<>();
+        for (String name : List.of("compose.yaml", "compose.gpu.yaml")) {
+            repository.put(name, Files.readAllBytes(Path.of(name)));
+        }
+        try (java.util.stream.Stream<Path> walk = Files.walk(Path.of("docker"))) {
+            for (Path file : walk.filter(Files::isRegularFile).toList()) {
+                repository.put(file.toString().replace('\\', '/'), Files.readAllBytes(file));
+            }
+        }
+        java.util.Map<String, byte[]> carried = new java.util.TreeMap<>();
+        try (JarFile jar = new JarFile(EXECUTABLE_JAR.toFile())) {
+            jar.stream()
+                    .filter(entry -> !entry.isDirectory() && entry.getName().startsWith(CLASSES + SIDECARS))
+                    .forEach(entry -> {
+                        try (java.io.InputStream bytes = jar.getInputStream(entry)) {
+                            carried.put(entry.getName().substring((CLASSES + SIDECARS).length()), bytes.readAllBytes());
+                        } catch (IOException unreadable) {
+                            throw new java.io.UncheckedIOException(unreadable);
+                        }
+                    });
+        }
+
+        claim("the jar carries, under " + CLASSES + SIDECARS + ", exactly the files of compose.yaml, compose.gpu.yaml"
+                        + " and docker/ by the same relative paths",
+                () -> assertThat(carried.keySet()).containsExactlyElementsOf(repository.keySet()));
+        claim("and each with the repository's bytes, so no resource filter rewrote one",
+                () -> assertThat(carried).allSatisfy((name, bytes) -> assertThat(bytes)
+                        .as(name)
+                        .isEqualTo(repository.get(name))));
+    }
+
     private static List<String> entriesOf(Path jar) throws IOException {
         try (JarFile file = new JarFile(jar.toFile())) {
             return file.stream().map(ZipEntry::getName).toList();

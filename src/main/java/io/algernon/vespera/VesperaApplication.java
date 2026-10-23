@@ -3,6 +3,7 @@ package io.algernon.vespera;
 import io.algernon.vespera.pipeline.CorpusRootLock;
 import io.algernon.vespera.pipeline.MisshapenProfileRefusal;
 import io.algernon.vespera.pipeline.ProfileShapeCheck;
+import io.algernon.vespera.pipeline.SidecarStarter;
 import io.algernon.vespera.pipeline.TemporaryFilesInTheWorkingDirectory;
 import io.algernon.vespera.pipeline.WorkingDirectoryInUseRefusal;
 import io.algernon.vespera.pipeline.WorkingDirectoryLock;
@@ -36,6 +37,10 @@ public class VesperaApplication {
                 "corpusRootLock",
                 new CorpusRootLock(CorpusRootLock.folderNamedBy(
                         context.getEnvironment().getProperty(CorpusRootLock.FOLDER_PROPERTY)))));
+        // So is the starter of the sidecars (ADR-323 section 1): `run` and `label --auto` ask it, a test context has
+        // none, and so no test context starts the Docker engine or a container.
+        application.addInitializers(context -> context.getBeanFactory().registerSingleton(
+                "sidecarStarter", SidecarStarter.forTheApplication(context.getEnvironment())));
         ConfigurableApplicationContext context;
         try {
             context = application.run(args);

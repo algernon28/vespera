@@ -62,7 +62,7 @@ class ClosingLineOverALockedDatabaseFileTest {
     @DisplayName("Stage 2 failing on a locked database file names the file and says to close what holds it")
     void stageTwoOverALockedDatabaseFile() {
         String line = closingLine(ExtractionHealthCheckListener.class,
-                () -> new ExtractionHealthCheckListener(null).afterStep(failedWith(chunkFailure(locked()))));
+                () -> new ExtractionHealthCheckListener(null, null).afterStep(failedWith(chunkFailure(locked()))));
 
         claim("the line names the database file and says another process holds it",
                 () -> assertThat(line).contains(DATABASE_FILE.toString()).contains("held by another process"));
@@ -77,7 +77,7 @@ class ClosingLineOverALockedDatabaseFileTest {
     @DisplayName("Stage 2 failing on anything else keeps its advice about docling-serve")
     void stageTwoOverAnyOtherFailure() {
         String line = closingLine(ExtractionHealthCheckListener.class,
-                () -> new ExtractionHealthCheckListener(null)
+                () -> new ExtractionHealthCheckListener(null, null)
                         .afterStep(failedWith(chunkFailure(new IllegalStateException("Connection refused")))));
 
         claim("the line still tells the operator to bring docling-serve back if it stopped answering",

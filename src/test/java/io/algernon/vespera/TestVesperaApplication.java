@@ -15,11 +15,16 @@ import org.springframework.boot.SpringApplication;
  * Start them first, with the {@code up} line the README gives, exactly as for the packaged jar: no entry
  * point starts or stops them (ADR-158, ADR-179).
  *
+ * <p>
+ * It sets {@code vespera.sidecars.start} to false, so the starter does not look for the sidecars at
+ * {@code compose.yaml}'s addresses and start them beside the containers this entry point brings (ADR-323 §1).
+ *
  * @see TestcontainersConfiguration for the containers this adds
  */
 public class TestVesperaApplication {
 
     static void main(String[] args) {
+        System.setProperty("vespera.sidecars.start", "false");
         SpringApplication.from(VesperaApplication::main).with(TestcontainersConfiguration.class).run(args);
     }
 

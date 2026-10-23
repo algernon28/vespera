@@ -206,12 +206,16 @@ You need Java 26 and a Docker daemon. Run every command below from the root of t
 ./mvnw package
 ```
 
-**Start the sidecars, once, before the first invocation.** Vespera needs two services running beside it:
+**The sidecars.** Vespera needs two services running beside it:
 
 - Ollama, which serves the models;
 - docling-serve, the document converter.
 
-Nothing in Vespera starts them or stops them. That holds for the jar, for a run from your IDE and for `./mvnw spring-boot:run` alike. If your `.env` sets `SPRING_DOCKER_COMPOSE_ENABLED`, that line no longer does anything, and you can take it out. You start them yourself from `compose.yaml`:
+`vespera run` and `vespera label --auto` start them for you when they are not answering, whichever way you run Vespera: the jar, your IDE, the `headless` and `gui` profiles below, or the control panel. If Docker itself is not running, they start it first: Docker Desktop on Windows and macOS, the `docker` service on Linux. On Linux that has to work without a password; if it does not, start Docker yourself (`sudo systemctl start docker`). The first start builds the document converter's image, which takes minutes; what Docker prints is in the log as it goes. Nothing in Vespera stops them, and a container that already exists, running or stopped, is started as it is and never replaced. The other commands start nothing. If your `.env` sets `SPRING_DOCKER_COMPOSE_ENABLED`, that line does nothing, and you can take it out.
+
+If anything stands in the way, the command stops before it walks anything, and its last line says what: no `docker` command, Docker not starting, a converter image that neither compose file builds, `docker compose` failing, a sidecar still not answering three minutes after it was started, or a lock file or temporary folder it cannot write. `vespera.sidecars.wait-at-most` changes those three minutes. To keep the sidecars yours to start and stop, set `VESPERA_SIDECARS_START=false`; Vespera then starts nothing, as before. If you point Vespera at sidecars on another machine, through `vespera.docling.base-url` or `spring.ai.ollama.base-url`, it starts nothing either.
+
+You can still start them yourself from `compose.yaml`, which is the line Vespera runs, without `--no-recreate`:
 
 ```
 docker compose -p vespera up -d --build
@@ -219,7 +223,7 @@ docker compose -p vespera up -d --build
 
 `-p vespera` names the Compose project `vespera`, whatever your checkout's directory is called. Give it on every `docker compose` command here, so that each one finds the same containers. Without it, Docker Compose names the project after the directory, and a second checkout starts a second set that fights the first for the same ports.
 
-If your machine has an NVIDIA graphics card that Docker can use, let Ollama and the document converter run on it. Ollama runs its models several times faster there than on the processor, and the converter got through a sample of the archive two to two and a half times faster. Docker Desktop on Windows can use one through WSL 2; on Linux, Docker needs NVIDIA's Container Toolkit. Start the sidecars with a second file, `compose.gpu.yaml`, named after the first:
+If your machine has an NVIDIA graphics card that Docker can use, let Ollama and the document converter run on it. Ollama runs its models several times faster there than on the processor, and the converter got through a sample of the archive two to two and a half times faster. Docker Desktop on Windows can use one through WSL 2; on Linux, Docker needs NVIDIA's Container Toolkit. Set `VESPERA_DOCLING_IMAGE` to the card's image, as below: that is what makes Vespera start the sidecars with a second file, `compose.gpu.yaml`, named after the first. By hand, the line is:
 
 ```
 docker compose -p vespera -f compose.yaml -f compose.gpu.yaml up -d --build
@@ -267,9 +271,9 @@ The document converter's image is not pulled. It is built on your machine from `
 
 The services listen on ports `11434` and `5001`, which is where Vespera looks for them. If something else on your machine already holds one of those ports, the start fails and names the port.
 
-Leave the sidecars up for all five invocations. They can be days apart.
+Leave the sidecars up for all five invocations. They can be days apart. If they are down when you run the next one, it starts them again.
 
-If a sidecar stops on its own, Docker starts it again, and it does the same after your machine restarts, as long as Docker itself starts. When the document converter goes away while documents are being converted, Vespera waits up to three minutes for it to come back and then asks again about the document it was converting, so a restart of the converter does not stop the command. A document that makes the converter go away twice, or that the converter answers with an error, is marked, skipped and listed in `extraction-failures.html`, and the command carries on with the rest. If five documents in a row make it go away twice, or are turned down for the converter's own reasons, Vespera does not yet know whether the documents or the converter are to blame, so it checks the converter with a small document of its own. If the converter reads that one, the five were the documents' own doing: each is marked, skipped and listed in `extraction-failures.html`, and the command carries on. Only if the converter cannot read Vespera's own document either does the command stop, and it says so. One of your exemplars failing that way does stop the command, and the message names the file. If the converter is not back within three minutes the command stops and says so, and you can run the same command again once it is back. A sidecar you stop with `docker compose -p vespera stop` stays stopped, even across a restart of your machine.
+If a sidecar stops on its own, Docker starts it again, and it does the same after your machine restarts, as long as Docker itself starts. When the document converter goes away while documents are being converted, Vespera waits up to three minutes for it to come back and then asks again about the document it was converting, so a restart of the converter does not stop the command. A document that makes the converter go away twice, or that the converter answers with an error, is marked, skipped and listed in `extraction-failures.html`, and the command carries on with the rest. If five documents in a row make it go away twice, or are turned down for the converter's own reasons, Vespera does not yet know whether the documents or the converter are to blame, so it checks the converter with a small document of its own. If the converter reads that one, the five were the documents' own doing: each is marked, skipped and listed in `extraction-failures.html`, and the command carries on. Only if the converter cannot read Vespera's own document either does the command stop, and it says so. One of your exemplars failing that way does stop the command, and the message names the file. If the converter is not back within three minutes the command stops and says so, and you can run the same command again once it is back. A sidecar you stop with `docker compose -p vespera stop` stays stopped, even across a restart of your machine, until the next `vespera run` or `vespera label --auto` starts it, unless `VESPERA_SIDECARS_START=false` is set. A command that reaches the document converter while it is still starting waits up to three minutes for it to answer, and says so in one line, rather than stopping.
 
 **Give Ollama its models.** Ollama serves only the models it has been given, and Vespera does not fetch them for you:
 
@@ -299,7 +303,7 @@ So `vespera run <root>` is `java -jar target/vespera-0.0.1-SNAPSHOT.jar run <roo
 
 On Windows it is `.\mvnw.cmd -Pheadless "-Dvespera.args=run D:\corpus"`, the quotes kept.
 
-**Stop the sidecars when you are finished:**
+**Stop the sidecars when you are finished.** Vespera never stops them:
 
 ```
 docker compose -p vespera stop
@@ -311,7 +315,7 @@ When `compose.yaml` has changed since you started the sidecars, for example afte
 
 ## Starting the control panel
 
-The control panel runs the same commands from your browser, one at a time, and shows each report in a tab of its own. `./mvnw package` builds it beside the jar, and it starts the jar beside its own with the Java that started it. The sidecars are still yours to start, as above. From the root of this repository:
+The control panel runs the same commands from your browser, one at a time, and shows each report in a tab of its own. `./mvnw package` builds it beside the jar, and it starts the jar beside its own with the Java that started it. The commands it runs start the sidecars as above; the control panel itself starts nothing, and its launch page shows a sidecar not answering until a command has started it. From the root of this repository:
 
 ```
 java -jar target/vespera-0.0.1-SNAPSHOT-control-panel.jar

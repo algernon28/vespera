@@ -25,6 +25,7 @@ import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +38,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -82,6 +84,10 @@ import org.springframework.test.context.DynamicPropertySource;
  * {@code /health} and {@code /version} with the statuses each test names. The extractor is a {@link
  * ScriptedExtractor} with nothing queued, because no conversion should ever be asked for.
  *
+ * <p>Since ADR-323 §7 the start check waits for a converter that gives no answer, so the unreachable one is waited
+ * for, on a short clock, and the step then fails with the line it failed with before; the unhealthy one answers, with
+ * an error, and fails at once.
+ *
  * <p>{@code @DirtiesContext} per method, because the extractor identity is a lazily built singleton:
  * once one test had composed it, a later one would never call {@code /version} again, and the order
  * the tests ran in would decide what each saw.
@@ -96,7 +102,14 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-080", url = Adr.THE_BOILERPLATE_FLOOR_IS_A_GATE, type = "adr")
 @Link(name = "ADR-093", url = Adr.LOGGING_IS_EXPLICIT_AND_PROCESS_SCOPED, type = "adr")
 @Link(name = "ADR-157", url = Adr.A_STAGE_ASKS_FOR_ITS_RUN_AFTER_ITS_OWN_GATE, type = "adr")
+@Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
 class ExtractionWithTheSidecarDownTest {
+
+    /** How long these tests wait for a converter that gives no answer: half a second, so the wait runs out quickly. */
+    private static final Duration WAIT_AT_MOST = Duration.ofMillis(500);
+
+    /** How often they ask it meanwhile. */
+    private static final Duration CHECK_EVERY = Duration.ofMillis(20);
 
     /** A loopback port nothing listens on unless a test starts a sidecar on it. */
     private static final int SIDECAR_PORT = aFreePort();
@@ -302,8 +315,8 @@ class ExtractionWithTheSidecarDownTest {
     }
 
     /**
-     * The production {@link DoclingClient} pointed at {@link #SIDECAR}, and an extractor with nothing
-     * queued. {@code @TestConfiguration}, for the reason {@link StubbedExtractionBeans} gives.
+     * The production {@link DoclingClient} pointed at {@link #SIDECAR}, an extractor with nothing
+     * queued, and the wait for the converter on a short clock. {@code @TestConfiguration}, for the reason {@link StubbedExtractionBeans} gives.
      */
     @TestConfiguration
     static class UnreachableSidecarBeans {
@@ -316,6 +329,13 @@ class ExtractionWithTheSidecarDownTest {
         @Bean
         DoclingExtractor doclingExtractor() {
             return new ScriptedExtractor();
+        }
+
+        /** The wait for a converter that gives no answer, on a clock short enough to run (ADR-323 §7). */
+        @Bean
+        @Primary
+        SidecarRecovery sidecarRecoveryOnAShortClock(DoclingClient client) {
+            return new SidecarRecovery(client, WAIT_AT_MOST, CHECK_EVERY);
         }
     }
 }

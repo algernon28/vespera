@@ -2258,6 +2258,15 @@ public final class Adr {
     public static final String THE_THREE_LINE_CHARTS_STAND_IN_ONE_ROW_THAT_WRAPS = FILE
             + "0322-the-progress-pages-three-line-charts-stand-in-one-row-that-wraps-each-drawn-600-units-wide-and-legible-down-to-500-px.md";
 
+    /**
+     * ADR-323 -- {@code vespera run} and {@code vespera label --auto} start the Docker engine and the sidecars when they
+     * are not answering, with the README's {@code up} and {@code --no-recreate}, the files chosen by
+     * {@code vespera.docling.image}, and recreate and stop none; stage 2's start check waits for a converter that gives
+     * no answer yet (amends ADR-179, ADR-158, ADR-071, ADR-175, ADR-164, ADR-165 and ADR-170).
+     */
+    public static final String VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER = FILE
+            + "0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md";
+
     private Adr() {
     }
 }
