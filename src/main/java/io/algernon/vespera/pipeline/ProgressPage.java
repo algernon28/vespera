@@ -898,12 +898,12 @@ final class ProgressPage implements JobExecutionListener {
     private static String timeline(
             Map<String, String> states, Map<String, StepExecution> executions, Instant started, Instant now, ZoneId zone) {
         long total = Math.max(1000, Duration.between(started, now).toMillis());
-        int plot = TIMELINE_WIDTH - TIMELINE_LABELS - 20;
+        int plot = CHART_WIDTH - TIMELINE_LABELS - 20;
         int height = STEPS_IN_JOB_ORDER.size() * TIMELINE_ROW + 48;
         String title = "Timeline of the steps";
         StringBuilder svg = new StringBuilder(figureHead(
                 title, "Each step's bar runs from its start to its end, or to this write while it runs, and is labelled with its state.", null));
-        svg.append("<svg class=\"timeline\" role=\"img\" viewBox=\"0 0 ").append(TIMELINE_WIDTH).append(' ').append(height)
+        svg.append("<svg class=\"timeline\" role=\"img\" viewBox=\"0 0 ").append(CHART_WIDTH).append(' ').append(height)
                 .append("\"><title>").append(title).append("</title>\n");
         int row = 0;
         for (String step : STEPS_IN_JOB_ORDER) {
