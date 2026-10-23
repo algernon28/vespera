@@ -146,6 +146,7 @@ class SynthesisStatementProgressOrderTest {
                 recorded -> new ClusterMaterial(SEED_PATH, List.of()),
                 MODEL_NAME,
                 THE_WINDOW,
+                DeliverableLanguage.ENGLISH,
                 new RecordingProgress());
     }
 

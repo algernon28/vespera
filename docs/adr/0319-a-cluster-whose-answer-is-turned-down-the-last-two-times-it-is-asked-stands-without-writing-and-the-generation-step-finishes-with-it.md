@@ -1,5 +1,7 @@
 # ADR-319 — A cluster whose answer is turned down the last two times it is asked stands without writing, and the generation step finishes with it
 
+> **Partly amended — see [ADR-321](0321-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md).** §5.1's line has an Italian rendering that record fixes, drawn where the deliverable's language is Italian; the English line stands word for word. §4's two stale `synthesis` javadocs are corrected with that record's change, which moves the generation run. The rest of this record stands.
+
 - **Date**: 2026-10-22
 - **Status**: accepted on 2026-10-22.
 - **Decided**: by the operator, who decided that a cluster whose answer keeps being turned down stands as a visible hole, so that the generation step can be recorded finished and `vespera publish` can send the rendering; what "keeps being turned down" means, the kinds it covers, where the rule sits and what the reader is told are decided under delegation.

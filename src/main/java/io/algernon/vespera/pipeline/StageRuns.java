@@ -74,6 +74,7 @@ class StageRuns {
     private final ArrangementGate arrangementGate;
     private final GenerationModel generationModel;
     private final GenerationContextWindow generationContextWindow;
+    private final LanguageOfTheDeliverable languageOfTheDeliverable;
     private final OllamaClient ollamaClient;
 
     private RunId extraction;
@@ -121,6 +122,7 @@ class StageRuns {
         this.arrangementGate = arrangementGate;
         this.generationModel = generationModel;
         this.generationContextWindow = generationContextWindow;
+        this.languageOfTheDeliverable = new LanguageOfTheDeliverable(profileStore);
         this.ollamaClient = ollamaClient;
     }
 
@@ -445,7 +447,8 @@ class StageRuns {
                             ollamaClient.artefactOf(modelName).digest(),
                             generationContextWindow.size(),
                             ClusterSynthesis.REPLY_ALLOWANCE,
-                            ClusterSynthesis.KEEP_A_TOO_LONG_QUESTIONS_HEAD),
+                            ClusterSynthesis.KEEP_A_TOO_LONG_QUESTIONS_HEAD,
+                            languageOfTheDeliverable.language().code()),
                     walk,
                     Optional.of(approvedArrangement));
         }
@@ -516,6 +519,9 @@ class StageRuns {
      * operator who widens it re-generates the corpus under a run of its own: a larger window reads
      * more of each cluster, so the same archive written under two windows is two different pieces of
      * work and neither can be mistaken for the other.
+     *
+     * <p>{@code deliverableLanguage} is the code as read, in lower case, after {@code numKeep} (ADR-321 §1): the
+     * same arrangement written in the other language is another generation run.
      */
     private record GenerationConfigConsumed(
             String corpusRoot,
@@ -524,5 +530,6 @@ class StageRuns {
             String weightsDigest,
             int contextWindow,
             int replyAllowance,
-            int numKeep) {}
+            int numKeep,
+            String deliverableLanguage) {}
 }

@@ -194,7 +194,8 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
                             asked.add("for the listing");
                             whole.eachPageOfSurvivorsForTheManifest(page);
                         },
-                        whole.writingFinished()),
+                        whole.writingFinished(),
+                        whole.language()),
                 SurvivorPictures.none(),
                 DeliverableProgress.NONE);
 

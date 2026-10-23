@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-295](0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md).** Of What this does not decide: writing the confirmed seed folder into `profile.yaml` is decided there.
 
+> **Partly amended — see [ADR-323](0323-the-control-panel-opens-the-browser-itself-at-a-fixed-port-and-a-tab-of-its-last-start-comes-back-to-the-next-in-place-of-a-new-one.md).** Of §3: the folder of the user's own also holds `token`, the control panel's token, under the same rules, read and written only by a start at the fixed port. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-047](0047-the-pipeline-never-blocks.md), two commands and no new option: the values beyond the corpus root and the working directory reach the child through its environment, not its command line (§4).

@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.qameta.allure.Epic;
@@ -133,9 +134,10 @@ class TheConfluenceRenderingTest {
     @DisplayName("A title past 255 characters is cut in its text, the suffix kept whole, and control characters and runs of spaces fold to one space")
     void aLongTitleIsCutInItsTextAndItsSuffixIsKeptWhole() {
         String suffix = " (03.12 page 2 · " + MARKER + ")";
-        String cut = ConfluenceTitles.cluster("x".repeat(300), "03.12", 2, MARKER);
-        String astral = ConfluenceTitles.cluster("😀".repeat(200), "03.12", 2, MARKER);
-        String folded = ConfluenceTitles.cluster(" Doors\tand\u0007\n frames  ", "1.1", 1, MARKER);
+        String cut = ConfluenceTitles.cluster("x".repeat(300), "03.12", 2, MARKER, DeliverableLanguage.ENGLISH);
+        String astral = ConfluenceTitles.cluster("😀".repeat(200), "03.12", 2, MARKER, DeliverableLanguage.ENGLISH);
+        String folded = ConfluenceTitles.cluster(
+                " Doors\tand\u0007\n frames  ", "1.1", 1, MARKER, DeliverableLanguage.ENGLISH);
 
         claim(
                 "a title of 300 letters is 255 code units: the text cut, an ellipsis, and the suffix whole",
@@ -153,7 +155,7 @@ class TheConfluenceRenderingTest {
                 () -> assertThat(folded).isEqualTo("Doors and frames (1.1 · " + MARKER + ")"));
         claim(
                 "a text empty after folding leaves the suffix alone",
-                () -> assertThat(ConfluenceTitles.cluster(" \t ", "1.1", 1, MARKER)).isEqualTo("(1.1 · " + MARKER + ")"));
+                () -> assertThat(ConfluenceTitles.cluster(" \t ", "1.1", 1, MARKER, DeliverableLanguage.ENGLISH)).isEqualTo("(1.1 · " + MARKER + ")"));
     }
 
     @Test

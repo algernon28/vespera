@@ -115,6 +115,7 @@ class SynthesisStatementThatThrowsTest {
                         recorded -> new ClusterMaterial(SEED_PATH, List.of()),
                         MODEL_NAME,
                         THE_WINDOW,
+                        DeliverableLanguage.ENGLISH,
                         new GenerationProgress() {
                             @Override
                             public void statementStarting(SynthesisStatement started, OptionalLong rowsUpTo) {

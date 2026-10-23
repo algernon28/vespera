@@ -104,10 +104,12 @@ public class ClusterSynthesis {
      * How much of the window is kept back for everything in the call that is not a document: the
      * instructions, the cluster's name, the seed path, the ordinals.
      *
-     * <p>256 against instruction text of well under a hundred words, for the reason {@link
-     * #TOKENS_PER_WORD} leans high: what it insures against is the two unfixed pieces — a long
-     * derived label and a long path — since running out here now costs the cluster an extra round of
-     * counting (ADR-166 §2) rather than the silently truncated prompt it used to.
+     * <p>256 tokens hold the 91 words the question says after the last document's opening where one document is sent (93 with
+     * more, the citation example being longer) (ADR-321 §3), at {@link
+     * #TOKENS_PER_WORD} each, for the reason that ratio leans high: what the reserve insures against is the two
+     * unfixed pieces — a long derived label and a long path. Since ADR-166 it is the estimate a proposal is first
+     * filled to and not a guard: the engine counts the question, so running out here costs the cluster an extra
+     * round of counting (ADR-166 §2) rather than the silently truncated prompt it used to.
      */
     static final int INSTRUCTION_RESERVE = 256;
 
@@ -214,15 +216,16 @@ public class ClusterSynthesis {
      * ADR-124 recorded that second half as owed while it was; with ADR-125 built it is spent, and the
      * rule holds whole for both fields.
      */
-    public SynthesisDoc docFor(ClusterCall call, String modelName, int contextWindow) {
+    public SynthesisDoc docFor(
+            ClusterCall call, String modelName, int contextWindow, DeliverableLanguage language) {
         if (nothingFitsIn(contextWindow, call.exemplars())) {
             throw new IllegalStateException("the cluster \"" + call.label() + "\" has no document that fits"
                     + " a call in a window of " + contextWindow + " tokens, so there is nothing to write"
                     + " over -- check nothingFitsIn before calling docFor rather than reaching this");
         }
-        List<Exemplar> sent = sentAfterCounting(call, modelName, contextWindow);
+        List<Exemplar> sent = sentAfterCounting(call, modelName, contextWindow, language);
         ChatResponse response = callTurningDownARefusalOnLength(
-                new Prompt(promptFor(call, sent), optionsFor(modelName, contextWindow)), contextWindow);
+                new Prompt(promptFor(call, sent, language), optionsFor(modelName, contextWindow)), contextWindow);
         checkPromptEvaluationCeiling(response, contextWindow);
         Generation answer = answerIn(response);
         checkAnswerDidNotRunOutOfRoom(answer, response);
@@ -264,7 +267,8 @@ public class ClusterSynthesis {
      * the last question it was asked to count — its count, or its refusal verbatim — so the archive's
      * owner can see by how much without paying for a call again.
      */
-    private List<Exemplar> sentAfterCounting(ClusterCall call, String modelName, int contextWindow) {
+    private List<Exemplar> sentAfterCounting(
+            ClusterCall call, String modelName, int contextWindow, DeliverableLanguage language) {
         List<Exemplar> remaining = call.exemplars();
         QuestionCount lastCounted = null;
         while (true) {
@@ -272,7 +276,7 @@ public class ClusterSynthesis {
             if (proposed.isEmpty()) {
                 throw noDocumentFitsTheWindow(lastCounted);
             }
-            QuestionCount whole = countQuestion(call, proposed, modelName, contextWindow);
+            QuestionCount whole = countQuestion(call, proposed, modelName, contextWindow, language);
             lastCounted = whole;
             if (whole.fits()) {
                 return proposed;
@@ -281,7 +285,7 @@ public class ClusterSynthesis {
             int high = proposed.size();
             while (high - low > 1) {
                 int mid = (low + high) / 2;
-                QuestionCount outcome = countQuestion(call, proposed.subList(0, mid), modelName, contextWindow);
+                QuestionCount outcome = countQuestion(call, proposed.subList(0, mid), modelName, contextWindow, language);
                 lastCounted = outcome;
                 if (outcome.fits()) {
                     low = mid;
@@ -334,8 +338,12 @@ public class ClusterSynthesis {
      * exactly what happened before this record, and no worse.
      */
     private QuestionCount countQuestion(
-            ClusterCall call, List<Exemplar> documents, String modelName, int contextWindow) {
-        Prompt prompt = new Prompt(promptFor(call, documents), countingOptionsFor(modelName, contextWindow));
+            ClusterCall call,
+            List<Exemplar> documents,
+            String modelName,
+            int contextWindow,
+            DeliverableLanguage language) {
+        Prompt prompt = new Prompt(promptFor(call, documents, language), countingOptionsFor(modelName, contextWindow));
         try {
             ChatResponse response = chatModel.call(prompt);
             int reported = response.getMetadata().getUsage().getPromptTokens();
@@ -783,8 +791,13 @@ public class ClusterSynthesis {
      * (ADR-161 §2): see {@link #WORD_LIMIT}. A length alone, said before the documents, fixed
      * nothing measured (0 passes of 8); placement is what fixed it, and the length is what keeps the
      * passing answers well inside the allowance rather than merely finished.
+     *
+     * <p><b>The last thing the question says names the answer's two fields, where its writing ends and
+     * the language</b> (ADR-321 §2, §3): one sentence after ADR-161's instruction, in English whatever
+     * the language, with the deliverable language's English name the only word that differs. The
+     * counting call carries the same question (ADR-166 §1).
      */
-    private static String promptFor(ClusterCall call, List<Exemplar> inScoreOrder) {
+    private static String promptFor(ClusterCall call, List<Exemplar> inScoreOrder, DeliverableLanguage language) {
         String exemplars = IntStream.range(0, inScoreOrder.size())
                 .mapToObj(index -> "[" + (index + 1) + "] " + inScoreOrder.get(index).leadingChunk())
                 .reduce((first, second) -> first + "\n\n" + second)
@@ -803,6 +816,9 @@ public class ClusterSynthesis {
                 by one. Cite with the bracketed numbers, inline, written in square brackets exactly as they
                 appear above, such as %s, and use no other citation of any
                 kind.
+
+                Answer with one JSON object of two fields: "title", a heading of a few words for the
+                group, then "prose", the connected piece, which ends with its last sentence. Write both in %s.
                 """
                 .formatted(
                         inScoreOrder.size(),
@@ -811,7 +827,8 @@ public class ClusterSynthesis {
                         exemplars,
                         inScoreOrder.size(),
                         WORD_LIMIT,
-                        citationExample(inScoreOrder.size()));
+                        citationExample(inScoreOrder.size()),
+                        language.englishName());
     }
 
     /**

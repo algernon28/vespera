@@ -252,7 +252,7 @@ A stage runs again when something it was computed from changes. What it was comp
 | `relevanceScoreFloor` | stage 5 scoring onward, from the stored vectors | extraction, stage 4, vectors, your answers |
 | `translationSimilarityFloor`, `preferredLanguages` | stage 5 scoring onward, from the stored vectors | extraction, stage 4, vectors, your answers |
 | `arrangementApproved` | generation only | everything before it |
-| `generationModel`, `generationContextWindow` | generation | everything before it |
+| `generationModel`, `generationContextWindow`, `deliverableLanguage` | generation | everything before it |
 | `clusterPageByteCeiling` | no stage: the next invocation that reaches generation draws the tree again | everything |
 
 Three things to know about this table:

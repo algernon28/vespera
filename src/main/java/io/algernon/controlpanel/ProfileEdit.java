@@ -145,6 +145,9 @@ public final class ProfileEdit {
                     : Optional.of(quoted + " is not a whole number of bytes from 1 to " + Long.MAX_VALUE);
             case CODE_NAME_ENDINGS, OUT_OF_SCOPE_NAME_ENDINGS -> areNameEndings(value) ? Optional.empty()
                     : Optional.of(quoted + " is not a list of name endings, each beginning with a dot");
+            case DELIVERABLE_LANGUAGE -> "en".equalsIgnoreCase(value) || "it".equalsIgnoreCase(value)
+                    ? Optional.empty()
+                    : Optional.of(quoted + " is not en or it");
             case PREFERRED_LANGUAGES -> areLanguages(value) ? Optional.empty()
                     : Optional.of(quoted + " is not a list of two-letter language codes");
             default -> number(value).isPresent() ? Optional.empty() : Optional.of(quoted + " is not a number");

@@ -12,6 +12,7 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.Unwritten;
@@ -26,9 +27,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.LongFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -328,16 +332,96 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
                 () -> assertThat(firstThreshold - laterThreshold).isEqualTo(firstPageOnly - laterPageOnly));
     }
 
+    /**
+     * An Italian page's navigation is longer than an English one's (ADR-321 §4), so the plan counts it at its own upper
+     * bound: the smallest ceiling at which two small entries share a later page is greater in Italian than in English by
+     * exactly the longer navigation, counted twice, and the longer list heading. A plan counting the English words would
+     * leave the two thresholds the heading's byte apart.
+     */
+    @Test
+    @Story("A group past the ceiling is written as several pages")
+    @DisplayName("An Italian group's split is planned with the Italian navigation and list heading, longer than the English")
+    @Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
+    void anItalianPlanCountsItsNavigationInItalianWords() {
+        RecordedCluster unwritten = cluster(THE_SEED, 0, "Fire doors", 1, 3);
+        long[] laterPageDecides = {1_000_000, 100, 100};
+        long english = smallestCeilingOfTwoPages(unwritten, laterPageDecides, DeliverableLanguage.ENGLISH);
+        long italian = smallestCeilingOfTwoPages(unwritten, laterPageDecides, DeliverableLanguage.ITALIAN);
+        long longerNavigation = utf8(ItalianWordingOnRecord.PAGE_OF) - utf8(ENGLISH_PAGE_OF)
+                + 4 * (utf8(longestOf(ItalianWordingOnRecord.FIRST, ItalianWordingOnRecord.PREVIOUS,
+                                ItalianWordingOnRecord.NEXT, ItalianWordingOnRecord.LAST))
+                        - utf8(longestOf("first", "previous", "next", "last")));
+        long longerHeading = utf8(ItalianWordingOnRecord.MEMBERSHIP_HEADING) - utf8("The documents in this group");
+
+        claim(
+                "the Italian threshold exceeds the English by the navigation above and below the list, each longer by "
+                        + longerNavigation + " bytes at its widest, and the list heading, longer by " + longerHeading,
+                () -> assertThat(italian - english).isEqualTo(2 * longerNavigation + longerHeading));
+    }
+
+    /**
+     * Where the plan is tight, the pages an Italian group is written as stay within the ceiling (ADR-303 §3, ADR-321 §4):
+     * the ceiling is the smallest at which the Italian plan puts five long entries on three pages.
+     */
+    @Test
+    @Story("A group past the ceiling is written as several pages")
+    @DisplayName("At the tightest ceiling its plan allows, every page of an Italian group holding more than one entry is within the ceiling")
+    @Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
+    void anItalianClustersPagesAreWithinATightCeiling(@TempDir Path base) throws IOException {
+        List<ListedSurvivor> members = longMembers(A_LONG_PATH, A_LONG_PATH, A_LONG_PATH, A_LONG_PATH, A_LONG_PATH);
+        Path wholeTree = drawLong(base.resolve("whole"), members, UNSET, DeliverableLanguage.ITALIAN);
+        String whole = read(folderOf(wholeTree, DOORS_FOLDER).resolve("index.html"));
+        long[] entrySizes = entriesOf(whole).stream().mapToLong(AClusterPastTheCeilingIsSplitIntoPagesTest::utf8).toArray();
+        RecordedCluster doors = cluster(THE_SEED, 0, "Fire doors", 1, members.size());
+        long tight = smallestCeilingOf(3, entrySizes,
+                ceiling -> ClusterPage.plan(ceiling, doors, longWriting(members), null, entrySizes, false,
+                        DeliverableLanguage.ITALIAN));
+
+        List<Path> pages = pagesIn(folderOf(
+                drawLong(base.resolve("split"), members, new ClusterPageCeiling.Bytes(tight), DeliverableLanguage.ITALIAN),
+                DOORS_FOLDER));
+
+        claim(
+                "the group is written as the three pages its plan made: the first, carrying the writing, holds entry 1"
+                        + " alone, and the two after it two entries each, filled to the ceiling",
+                () -> assertThat(pages.stream().map(page -> numbersOn(read(page))).toList())
+                        .containsExactly(List.of(1), List.of(2, 3), List.of(4, 5)));
+        for (Path page : pages.subList(1, pages.size())) {
+            claim(
+                    page.getFileName() + ", holding two entries, is within the ceiling of " + tight + " bytes, its"
+                            + " Italian navigation counted",
+                    () -> assertThat(Files.size(page)).isLessThanOrEqualTo(tight));
+        }
+    }
+
+    /** The English navigation's opening, as ADR-303 §5 has it, which the Italian is measured against. */
+    private static final String ENGLISH_PAGE_OF = "Page %d of %d: ";
+
+    private static String longestOf(String... words) {
+        return Arrays.stream(words).max(Comparator.comparingInt(String::length)).orElseThrow();
+    }
+
     /** The smallest ceiling at which {@code entrySizes} are planned as two pages and not three. */
     private static long smallestCeilingOfTwoPages(RecordedCluster unwritten, long[] entrySizes) {
+        return smallestCeilingOfTwoPages(unwritten, entrySizes, DeliverableLanguage.ENGLISH);
+    }
+
+    /** As above, the cluster's page in {@code language}. */
+    private static long smallestCeilingOfTwoPages(
+            RecordedCluster unwritten, long[] entrySizes, DeliverableLanguage language) {
+        return smallestCeilingOf(2, entrySizes,
+                ceiling -> ClusterPage.plan(ceiling, unwritten, null, null, entrySizes, false, language));
+    }
+
+    /** The smallest ceiling at which {@code plan} makes {@code pages} pages or fewer of {@code entrySizes}. */
+    private static long smallestCeilingOf(
+            int pages, long[] entrySizes, LongFunction<Optional<ClusterPage.PageBreaks>> plan) {
         long low = 1;
-        long high = 999_999;
+        long high = Arrays.stream(entrySizes).sum() + 999_999;
         while (low < high) {
             long middle = (low + high) / 2;
-            int pages = ClusterPage.plan(middle, unwritten, null, null, entrySizes, false)
-                    .map(ClusterPage.PageBreaks::pages)
-                    .orElse(1);
-            if (pages <= 2) {
+            int planned = plan.apply(middle).map(ClusterPage.PageBreaks::pages).orElse(1);
+            if (planned <= pages) {
                 high = middle;
             } else {
                 low = middle + 1;
@@ -545,11 +629,31 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
     /** The first cluster over {@code members}, its writing citing the first and the last, drawn under {@code base}. */
     private static Path drawLong(Path base, List<ListedSurvivor> members, ClusterPageCeiling ceiling) {
         RecordedCluster doors = cluster(THE_SEED, 0, "Fire doors", 1, members.size());
-        long[] sent = members.stream().mapToLong(member -> member.occurrence().value()).toArray();
-        SynthesisDoc doc = writing("Fire doors and their inspection", "Doors [1] and closers [" + members.size() + "].", sent);
         return ListedTree.writeWithCeiling(
-                base.resolve("work"), base.resolve("archive"), List.of(doors), Map.of(slotOf(doors), doc), members,
-                Map.of(), SurvivorPictures.none(), ceiling, DeliverableProgress.NONE);
+                base.resolve("work"), base.resolve("archive"), List.of(doors), Map.of(slotOf(doors), longWriting(members)),
+                members, Map.of(), SurvivorPictures.none(), ceiling, DeliverableProgress.NONE);
+    }
+
+    /** As {@link #drawLong(Path, List, ClusterPageCeiling)}, the deliverable in {@code language} (ADR-321). */
+    private static Path drawLong(
+            Path base, List<ListedSurvivor> members, ClusterPageCeiling ceiling, DeliverableLanguage language) {
+        RecordedCluster doors = cluster(THE_SEED, 0, "Fire doors", 1, members.size());
+        return Deliverable.writeTo(
+                base.resolve("work"),
+                DeliverableRoot.UNNAMED,
+                ListedTree.provenance(base.resolve("archive")),
+                ListedTree.of(List.of(doors), Map.of(slotOf(doors), longWriting(members)), members, Map.of(), false,
+                        language),
+                ListedCodeSets.NONE,
+                SurvivorPictures.none(),
+                ceiling,
+                DeliverableProgress.NONE);
+    }
+
+    /** The writing over the first cluster of {@code members}, citing the first and the last. */
+    private static SynthesisDoc longWriting(List<ListedSurvivor> members) {
+        long[] sent = members.stream().mapToLong(member -> member.occurrence().value()).toArray();
+        return writing("Fire doors and their inspection", "Doors [1] and closers [" + members.size() + "].", sent);
     }
 
     /** Members of the first cluster whose paths are as long as {@code lengths}, in that order, scored highest first. */

@@ -10,6 +10,7 @@ import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.synthesis.ArrangedCluster;
 import io.algernon.vespera.synthesis.ClusterLabel;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.Unwritten;
@@ -97,7 +98,7 @@ class ClusterPageTest {
             new ArrangedCluster(THE_SEED, 1, 2, 1, 2), new ClusterLabel("Sprinkler\nMaintenance"));
 
     /** The written cluster's page, whole. */
-    private static final String THE_WRITTEN_PAGE = Html.head(THE_WRITING.title())
+    private static final String THE_WRITTEN_PAGE = Html.head(THE_WRITING.title(), DeliverableLanguage.ENGLISH)
             + "<h1>Retrofitting `Suppression` &amp; Sprinklers, 2018 [draft]</h1>\n"
             + "<div class=\"writing\" title=\"What the local model wrote over this group from the documents listed below it;"
             + " each number in brackets is a link to the document it cites.\">\n"
@@ -123,7 +124,7 @@ class ClusterPageTest {
             + Html.tail();
 
     /** The unwritten cluster's page, whole, where no reason was handed over. */
-    private static final String THE_UNWRITTEN_PAGE = Html.head(THE_UNWRITTEN_CLUSTER.label().value())
+    private static final String THE_UNWRITTEN_PAGE = Html.head(THE_UNWRITTEN_CLUSTER.label().value(), DeliverableLanguage.ENGLISH)
             + "<h1>Sprinkler\nMaintenance</h1>\n"
             + "<p><em>nothing was written over this group</em></p>\n"
             + "<h2>The documents in this group</h2>\n"
@@ -253,7 +254,7 @@ class ClusterPageTest {
                 "the reason's sentence replaces the plain one and nothing else on the page changes (ADR-174)",
                 () -> assertThat(Files.readString(page, StandardCharsets.UTF_8))
                         .isEqualTo(THE_UNWRITTEN_PAGE.replace(
-                                Deliverable.NOTHING_WAS_WRITTEN_OVER_IT, UnwrittenSentences.of(Unwritten.NOT_REACHED))));
+                                Deliverable.NOTHING_WAS_WRITTEN_OVER_IT, UnwrittenSentences.of(Unwritten.NOT_REACHED, DeliverableLanguage.ENGLISH))));
     }
 
     @Test
@@ -303,7 +304,7 @@ class ClusterPageTest {
         try (OutputStream out = Files.newOutputStream(page)) {
             ClusterPage.write(
                     out, recorded, doc, why, members, page.getParent(), copies, pictures, progress, bytes -> {},
-                    ConfluenceEntries.NONE, false);
+                    ConfluenceEntries.NONE, false, DeliverableLanguage.ENGLISH);
         }
     }
 

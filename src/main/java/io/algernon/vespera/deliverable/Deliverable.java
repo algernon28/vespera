@@ -2,6 +2,7 @@ package io.algernon.vespera.deliverable;
 
 import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.synthesis.ClusterSlot;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.Unwritten;
@@ -331,12 +332,13 @@ public final class Deliverable {
             long[] filesLeft = new long[1];
             Path[] listingPart = new Path[1];
             ClusterPageSizes sizes = new ClusterPageSizes(ceiling);
-            try (ConfluencePages confluence = new ConfluencePages(tree, provenance.runId(), moves, written)) {
+            try (ConfluencePages confluence = new ConfluencePages(tree, provenance.runId(), moves, written, source.language())) {
                 Path indexPart =
                         writeIndexAndClusterPages(
                                 tree, provenance, partitions, source, entryPictures, copies, written, filesLeft, moves,
                                 progress, ceiling, sizes, confluence,
-                                index -> listingPart[0] = codeCopies.draw(code, namesTypedIn(workingDirectory, progress), index, written));
+                                index -> listingPart[0] = codeCopies.draw(
+                                        code, namesTypedIn(workingDirectory, progress), index, written, source.language()));
                 progress.copiesAtALongPath(copies.copiesAtALongPath() + codeCopies.copiesAtALongPath());
                 Path manifestPart = writeManifest(tree, source, copies, progress);
                 // Both are whole before either is moved, so a write that fails before the first move leaves the pair
@@ -407,9 +409,10 @@ public final class Deliverable {
         progress.toWriteMembershipEntries(source.survivorCount());
 
         boolean writingFinished = source.writingFinished();
+        DeliverableLanguage language = source.language();
         Path indexPart = tree.resolve(INDEX_FILE_NAME + PART_SUFFIX);
         try (Writer index = Files.newBufferedWriter(indexPart, StandardCharsets.UTF_8)) {
-            IndexPage.open(index, provenance);
+            IndexPage.open(index, provenance, language);
             for (ListedPartition partition : partitions) {
                 List<RecordedCluster> clusters = source.clustersOf(partition);
                 List<ListedSurvivor> survivors = source.survivorsOf(partition);
@@ -435,7 +438,7 @@ public final class Deliverable {
                             membersByCluster.getOrDefault(ClusterSlot.of(recorded), List.of());
                     copies.copyAll(clusterFolder, members);
                 }
-                IndexPage.partitionHeading(index, partition);
+                IndexPage.partitionHeading(index, partition, language);
                 confluence.partitionStarted(partition, partitions.size());
                 for (RecordedCluster recorded : clusters) {
                     ClusterSlot slot = ClusterSlot.of(recorded);
@@ -451,7 +454,7 @@ public final class Deliverable {
                     try (OutputStream page = Files.newOutputStream(pagePart); entries) {
                         ClusterPage.write(
                                 page, recorded, writing, why, members, clusterFolder, copies, pictures, progress, ends,
-                                entries, writingFinished);
+                                entries, writingFinished, language);
                     }
                     long onePageSize = Files.size(pagePart);
                     Optional<ClusterPage.PageBreaks> breaks = ceiling instanceof ClusterPageCeiling.Bytes limit
@@ -463,8 +466,10 @@ public final class Deliverable {
                                     recorded,
                                     writing,
                                     why,
-                                    ends.sizes(ClusterPage.bytesBeforeTheFirstEntry(recorded, writing, why, writingFinished)),
-                                    writingFinished)
+                                    ends.sizes(ClusterPage.bytesBeforeTheFirstEntry(
+                                            recorded, writing, why, writingFinished, language)),
+                                    writingFinished,
+                                    language)
                             : Optional.empty();
                     int pageCount = breaks.map(ClusterPage.PageBreaks::pages).orElse(1);
                     int pagesOver = 0;
@@ -474,7 +479,7 @@ public final class Deliverable {
                     } else {
                         pagesOver = writePages(
                                 clusterFolder, recorded, writing, why, members, breaks.get(), copies, pictures, moves,
-                                ((ClusterPageCeiling.Bytes) ceiling).bytes(), writingFinished);
+                                ((ClusterPageCeiling.Bytes) ceiling).bytes(), writingFinished, language);
                     }
                     confluence.clusterDrawn(
                             partition, recorded, doc, why, ClusterPage.numbered(writing, members).size(), breaks, entries,
@@ -482,7 +487,7 @@ public final class Deliverable {
                     sizes.drawn(onePageSize, ends.count(), pageCount, pagesOver);
                     filesLeft[0] += filesLeftIn(clusterFolder, members, copies, pageCount);
                     progress.clusterDrawn();
-                    IndexPage.clusterRow(index, partition, partitions.size(), recorded, doc);
+                    IndexPage.clusterRow(index, partition, partitions.size(), recorded, doc, language);
                 }
                 IndexPage.partitionEnd(index);
                 confluence.partitionEnded();
@@ -511,7 +516,8 @@ public final class Deliverable {
             EntryPictures pictures,
             ReplacingMove moves,
             long ceiling,
-            boolean writingFinished)
+            boolean writingFinished,
+            DeliverableLanguage language)
             throws IOException {
         List<Optional<ListedSurvivor>> numbered = ClusterPage.numbered(writing, members);
         int over = 0;
@@ -525,7 +531,7 @@ public final class Deliverable {
             try (OutputStream out = Files.newOutputStream(parts.get(at))) {
                 ClusterPage.writePage(
                         out, recorded, writing, why, numbered, breaks, page, clusterFolder, copies, pictures,
-                        writingFinished);
+                        writingFinished, language);
             }
             if (Files.size(parts.get(at)) > ceiling) {
                 over++;

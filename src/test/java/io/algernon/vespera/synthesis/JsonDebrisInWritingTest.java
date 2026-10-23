@@ -148,7 +148,7 @@ class JsonDebrisInWritingTest {
     private static SynthesisDoc docFor(String prose) {
         ChatModel model = prompt -> new ChatResponse(List.of(new Generation(new AssistantMessage(
                 "{\"title\":\"" + A_HEADING + "\",\"prose\":\"" + prose + "\"}"))));
-        return new ClusterSynthesis(model).docFor(aClusterOfTwo(), MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW);
+        return new ClusterSynthesis(model).docFor(aClusterOfTwo(), MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ENGLISH);
     }
 
     /** Two short documents, in descending score so the order they are sent in is the order listed. */
