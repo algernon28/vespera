@@ -196,7 +196,7 @@ final class ConfluencePages implements AutoCloseable {
      * then lists the seed partition's page and its clusters' pages, parents first (ADR-316 §2).
      */
     void partitionEnded() throws IOException {
-        String table = "<table><tbody>\n" + FixedWords.groupTableHeadRow(language) + partitionRows
+        String table = "<table><tbody>\n" + FixedWords.clusterTableHeadRow(language) + partitionRows
                 + "</tbody></table>\n";
         Path part = directory.resolve(partitionFolder).resolve(BODY_NAME + Deliverable.PART_SUFFIX);
         Files.writeString(part, table, StandardCharsets.UTF_8);

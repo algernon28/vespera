@@ -45,7 +45,7 @@ final class IndexPage {
         index.append("<h2>")
                 .append(Html.escape(partition.seedPath()))
                 .append("</h2>\n<table>\n")
-                .append(FixedWords.groupTableHeadRow(language));
+                .append(FixedWords.clusterTableHeadRow(language));
     }
 
     /** Closes the table {@link #partitionHeading} opened. */

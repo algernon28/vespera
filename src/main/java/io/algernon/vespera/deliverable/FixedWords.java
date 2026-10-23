@@ -9,10 +9,10 @@ import java.util.List;
  * (ADR-321 §4): the English as its record fixes it, and the Italian as ADR-321 §4's table gives it.
  *
  * <p>Each word is an exhaustive {@code switch} over the language, so a third language is a compile error here
- * until its table is written (ADR-321 §1); {@code longestNavigationWord} and {@code groupTableHeadRow} derive from
+ * until its table is written (ADR-321 §1); {@code longestNavigationWord} and {@code clusterTableHeadRow} derive from
  * those words. The English of the navigation ({@code pageOf}, first, previous, next, last), of the index's lines
  * (run, walk, archive root), of the index's and root page's heading ({@code theDeliverable}) and the heads of the
- * group table ({@code groupTableHeads}), of its code sets (heading, sentence, heads, the archive's top) and of the page in a
+ * cluster table ({@code clusterTableHeads}), of its code sets (heading, sentence, heads, the archive's top) and of the page in a
  * title lives here; the rest of the English stays with the constants of the class that first held it. The words
  * of the unwritten sentences and of a copy's outcome are held by {@link UnwrittenSentences} and {@link
  * CopyOutcome}, and the pictures' by {@link EntryPictures}; each says <em>group</em> and <em>gruppo</em> where the
@@ -158,7 +158,7 @@ final class FixedWords {
     }
 
     /** The heads of a seed partition's table of groups: group, documents, and what the writing is titled. */
-    static List<String> groupTableHeads(DeliverableLanguage language) {
+    static List<String> clusterTableHeads(DeliverableLanguage language) {
         return switch (language) {
             case ENGLISH -> List.of("Group", "Documents", "Written up as");
             case ITALIAN -> List.of("Gruppo", "Documenti", "Titolo del testo");
@@ -166,9 +166,9 @@ final class FixedWords {
     }
 
     /** The row of heads of a seed partition's table of groups, as the index, the root page and the partition write it. */
-    static String groupTableHeadRow(DeliverableLanguage language) {
+    static String clusterTableHeadRow(DeliverableLanguage language) {
         StringBuilder row = new StringBuilder("<tr>");
-        groupTableHeads(language).forEach(head -> row.append("<th>").append(head).append("</th>"));
+        clusterTableHeads(language).forEach(head -> row.append("<th>").append(head).append("</th>"));
         return row.append("</tr>\n").toString();
     }
 
