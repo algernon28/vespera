@@ -247,7 +247,7 @@ class AnItalianTreeIsDrawnInItalianTest {
                 "the table of groups is headed in Italian, and the unwritten group's cell says nothing was written in"
                         + " Italian",
                 () -> assertThat(index)
-                        .contains(headRow(ItalianWordingOnRecord.THE_TABLE_OF_GROUPS))
+                        .contains(headRow(ItalianWordingOnRecord.THE_TABLE_OF_CLUSTERS))
                         .contains("<em>" + ItalianWordingOnRecord.NOTHING_WAS_WRITTEN_OVER_IT + "</em>"));
     }
 
@@ -266,7 +266,7 @@ class AnItalianTreeIsDrawnInItalianTest {
         claim(
                 "and both pages head their table of groups in Italian, the unwritten group's cell in Italian",
                 () -> assertThat(List.of(root, partition)).allSatisfy(page -> assertThat(page)
-                        .contains(headRow(ItalianWordingOnRecord.THE_TABLE_OF_GROUPS))
+                        .contains(headRow(ItalianWordingOnRecord.THE_TABLE_OF_CLUSTERS))
                         .contains("<em>" + ItalianWordingOnRecord.NOTHING_WAS_WRITTEN_OVER_IT + "</em>")));
     }
 

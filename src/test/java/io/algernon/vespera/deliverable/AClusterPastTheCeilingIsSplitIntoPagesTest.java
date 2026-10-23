@@ -367,7 +367,7 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
     @Story("A group past the ceiling is written as several pages")
     @DisplayName("At the tightest ceiling its plan allows, every page of an Italian group holding more than one entry is within the ceiling")
     @Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
-    void anItalianGroupsPagesAreWithinATightCeiling(@TempDir Path base) throws IOException {
+    void anItalianClustersPagesAreWithinATightCeiling(@TempDir Path base) throws IOException {
         List<ListedSurvivor> members = longMembers(A_LONG_PATH, A_LONG_PATH, A_LONG_PATH, A_LONG_PATH, A_LONG_PATH);
         Path wholeTree = drawLong(base.resolve("whole"), members, UNSET, DeliverableLanguage.ITALIAN);
         String whole = read(folderOf(wholeTree, DOORS_FOLDER).resolve("index.html"));

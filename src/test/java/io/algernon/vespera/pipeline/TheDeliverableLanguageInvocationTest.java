@@ -115,7 +115,7 @@ class TheDeliverableLanguageInvocationTest {
                         .contains("<h2>" + ItalianWordingOnRecord.MEMBERSHIP_HEADING + "</h2>"));
         claim(
                 "and the index heads its table of groups in Italian",
-                () -> assertThat(index).contains("<th>" + ItalianWordingOnRecord.THE_TABLE_OF_GROUPS.getFirst() + "</th>"));
+                () -> assertThat(index).contains("<th>" + ItalianWordingOnRecord.THE_TABLE_OF_CLUSTERS.getFirst() + "</th>"));
     }
 
     @Test

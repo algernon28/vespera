@@ -130,7 +130,7 @@ public final class ItalianWordingOnRecord {
             + " stati, perché.";
 
     /** The three heads of a seed partition's table of groups, on the index, the root page and its own page. */
-    public static final List<String> THE_TABLE_OF_GROUPS = List.of("Gruppo", "Documenti", "Titolo del testo");
+    public static final List<String> THE_TABLE_OF_CLUSTERS = List.of("Gruppo", "Documenti", "Titolo del testo");
 
     /** The index's code sets: the heading, the sentence, the four heads and the folder of a set at the corpus root. */
     public static final String CODE = "Codice";
