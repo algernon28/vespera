@@ -2,7 +2,7 @@
 
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
-- **Decided**: by the operator, who asked for the three charts at the foot of the `Overview` tab to be resized and set side by side on one row, and chose that a narrower window wraps them onto further rows rather than keep them on one row and scroll each; the viewBox, the floor, the grid, the widths and the end labels are decided under delegation, on ADR-269 §7's principle that a chart's text is never drawn under 10 px high.
+- **Decided**: by the operator, who asked for the three charts at the foot of the `Overview` tab to be resized and set side by side on one row, and set the rule for any width of window: the charts shrink with the window while they stay readable, and wrap onto more rows where they would not (Context); the viewBox, the floor, the grid, the widths and the end labels are decided under delegation, on ADR-269 §7's principle that a chart's text is never drawn under 10 px high.
 - **Amends**: [ADR-268](0268-the-progress-page-shows-what-the-stage-that-removes-occurrences-has-removed-and-draws-to-the-data-viz-method.md), in these places and no others: §7's "where two end labels would lie within 14 units of each other, one label holds both, `<name> <value>, <name> <value>`", which §4 below replaces with one label a series, set at least 14 units apart; and §7's "Each `<svg>` is never drawn narrower than its viewBox", already replaced by ADR-269 §7, which §2 below narrows further for the line charts. [ADR-269](0269-the-progress-page-is-four-tabs-draws-a-hover-over-each-chart-and-lists-the-runs-the-working-directory-holds.md), in these places and no others: §7's "no rule of it gives anything a `min-width` but the charts' below", and its third bullet, "Every `<svg>` has `min-width: 917px` … that is a window 983 px wide", which §2 below keeps for the timeline alone and replaces for the line charts; its Consequence "a window narrower than about 1,000 px … shows a scroll bar under each chart", which now holds of the timeline alone; the last clause of its alternative refused "A second, narrower drawing of each chart for narrow windows, chosen by a media query", "the scroll bar under a chart below 917 px is what the operator asked for", which now holds of the timeline alone, the refusal itself standing (§6); and what its test `ProgressPageTabsTest.everyPageIsAsWideAsTheWindowAndOnlyAChartOrATableScrolls` holds of `min-width`.
 - **Keeps**: the rest of ADR-268 and ADR-269, above all ADR-268 §7's three charts, their order, titles, captions, axes and anatomy but for the end labels, its eight units of right margin for each character of the longest end label, and §9's palette and type; ADR-269 §4's hover and §3's one fixed script, whose text does not change; ADR-269 §7's viewport tag, the body as wide as the window with a margin of 16 px, every `<svg>` `width: 100%; height: auto`, only a chart's or a table's card scrolling sideways and never the page, and its 10 px floor; [ADR-267](0267-the-progress-page-draws-tiles-a-timeline-of-the-steps-and-charts-over-time-and-its-tables-are-pages-of-their-own.md) §4, the SVG written in Java with no library, no JSON and no template engine; [ADR-275](0275-every-div-of-every-page-vespera-writes-says-on-hover-what-it-shows-and-every-step-of-the-timeline-what-it-does.md) §1, every `<div>` a page carries says on hover what it shows, the row of §1 below among them; [ADR-130](0130-one-report-page-module-owns-the-skeleton-styling-escaping-and-tables.md), one module assembles every page; [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md), no stage's version names `pipeline`.
 
@@ -10,7 +10,11 @@
 
 The `Overview` tab, `progress.html`, draws, after its tiles, ADR-267 §1's timeline of the steps and then ADR-268 §7's three line charts, the database's size, the running step's counts and the verdicts of the outcome step, each a `<figure class="chart-card">` the width of the page, one below the other. Every drawing is 1,100 units wide; each line chart is 260 high. ADR-269 §7 draws every `<svg>` as wide as its card and no narrower than 917 px, `1100 × 10 / 12` rounded up, the width at which its 12-unit text is 10 px high, and its card scrolls sideways below that, which is a window 983 px wide. So the three charts take three rows of the page whatever the window, and a wide window draws each larger rather than beside the others.
 
-The operator asked for the three resized and set on one row. Offered two ways for a window too narrow for three, each card keeping one row and scrolling, or the row wrapping, the operator chose to wrap: three across in a wide window, two and the third below in a narrower one, one a row in a narrow one, and no sideways scroll bar on the three where wrapping can avoid one.
+The operator asked for the three resized and set on one row ("i'd like the 3 bottom panels in the HTML resized and rearranged on the same row"), and, of a window too narrow for three, set the rule this record implements:
+
+> "The window size should be dynamic. Shrink the charts as long as they stay readable. If they become too narrow to read, wrap them on more rows"
+
+So the charts follow the window's width rather than a fixed one; they narrow with it for as long as their text can be read, ADR-269 §7's 10 px; and where three side by side would go under that, the row holds two and the third goes below, and where two would, one a row. Wrapping, not a scroll bar, is what a window too narrow for the charts gets, wherever wrapping can still help.
 
 A line chart drawn narrower than 917 px keeps its text 10 px high only if its viewBox is narrower too: drawn `<w>` px wide, a viewBox `<V>` units wide draws its 12-unit text `12 × <w> / <V>` px high.
 
@@ -39,6 +43,8 @@ svg.chart { min-width: 500px; }
 ```
 
 ### 3. The row is a grid that wraps
+
+**The grid is the operator's rule of the Context, and nothing else: each card narrows fluidly with the window down to the width at which its chart's text is 10 px high, 500 px, and where the cards of a row would go narrower than that, the row wraps**, three across becoming two and the third below, two becoming one a row. No width of window is fixed in the page: the columns follow the width of the row, and the widths of §6 are where the floor falls, not settings.
 
 ```css
 .chart-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(min(534px, 100%), (100% - 48px) / 3), 1fr)); gap: 16px; margin: 16px 0; }
@@ -78,7 +84,9 @@ A label moved off its line's end is read by its name, which every label of a cha
 
 A chart's text is `<card's column> − 34` px over 50: a third of a row 1,871 px wide, a window of 1,920 px less a vertical scroll bar of 17 px, is 613 px, a chart of 579 px, text 11.6 px high.
 
-**Below 566 px, a phone's width, the one column is narrower than a chart at its floor, and that card, and only it, scrolls sideways**: ADR-269 §7's 10 px floor is the principle this record keeps, and in a column narrower than 534 px no layout of a 600-unit chart keeps its text at 10 px without scrolling. Wrapping takes the scroll bar off the three charts at every width from 566 px up; ADR-269 §7 put one under every chart below 983 px.
+**Below 566 px, a phone's width, the rule has nothing left to wrap**: the row already holds one card, and a single card cannot wrap further. Its chart stays at its floor of 500 px, readable, and scrolls sideways inside its own card, and only that card scrolls; the page does not. Shrinking it further would put its text under 10 px, which the rule refuses ("as long as they stay readable"). Wrapping takes the scroll bar off the three charts at every width from 566 px up; ADR-269 §7 put one under every chart below 983 px.
+
+**Three stand across only from 1,666 px because that is where three cards at the floor fit**: the rule ties the wrap to readability, and the 600-unit viewBox and the 500 px floor stand (§2), so a window narrower than 1,666 px, a screen of 1,920 px at a Windows scaling of 125 % among them, shows two across and the third below. That is the rule working, not a width to lower: a narrower viewBox would fit three in a narrower window only by narrowing every plot (Alternatives refused).
 
 **A second, narrower drawing of each chart chosen by a media query, refused by ADR-269, stays refused**: each line chart is drawn once, 600 units wide, at every width, and the row wraps by the grid alone, with no media query. The clause of that refusal that keeps a scroll bar under a chart below 917 px holds of the timeline alone.
 
@@ -96,10 +104,11 @@ The README's sentence on how the pages fit the window says that the charts of th
 
 ## Alternatives refused
 
-- **Each card keeps the one row and scrolls in a narrow window.** Offered, and not chosen: the operator chose wrapping.
+- **Each card keeps the one row and scrolls in a narrow window.** The rule of the Context wraps the charts once they would be too narrow to read, and keeps a scroll bar for the one case wrapping cannot help, a single card below 566 px.
+- **The charts shrinking below the floor in a window under 566 px, so that nothing scrolls.** At 360 px a 600-unit chart would draw its text under 6 px; the rule shrinks the charts only while they stay readable.
 - **`repeat(auto-fit, minmax(534px, 1fr))`.** A write that draws two charts, or one, would stretch them across the page and shrink them when the third is drawn; with no cap, a window of 2,216 px or more fits four columns, and auto-fill would leave the fourth empty while auto-fit widens the three. And a row narrower than 534 px would hold a column wider than itself, scrolling the page.
 - **Columns set by media queries at 1,116 and 1,666 px.** A media query reads the window's width with its scroll bar, so a window just past 1,666 px with a scroll bar of 17 px would draw three charts at 494 px, under the floor; the grid reads the row it lays out.
-- **A narrower viewBox, 540 units, for three across from about 1,520 px.** It leaves the plot 60 units less beside the end labels and the value ticks, under half the chart for a label of 24 characters and ticks of 9.
+- **A narrower viewBox, 540 units, for three across from about 1,520 px.** It leaves the plot 60 units less beside the end labels and the value ticks, under half the chart for a label of 24 characters and ticks of 9, in every window, to bring three across into windows from 1,520 to 1,666 px wide, where two across already keep the charts readable.
 - **The end labels kept joined, or set in a smaller type.** Joined, the Context: no plot at all for byte-level reduction's five kinds at zero. Smaller, under the 10 px floor at the chart's narrowest.
 - **Dropping the end labels where a chart has two series or more.** ADR-268 §9 rests the palette's three light series under 3:1 on the legend, the end labels and the table of samples together.
 - **The timeline narrowed or put in the row.** Its sixteen rows of step names and states need its width, and it is one drawing the operator did not ask to move.
