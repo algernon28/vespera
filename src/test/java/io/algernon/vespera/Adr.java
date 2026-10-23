@@ -2235,6 +2235,14 @@ public final class Adr {
             + "0319-a-cluster-whose-answer-is-turned-down-the-last-two-times-it-is-asked-stands-without-writing-and-the-generation-step-finishes-with-it.md";
 
     /**
+     * ADR-320 -- a publish sends each page whole, its files before its body, before it creates the next, and says how
+     * far it has got: totals first, a line as each page starts and for each file, and the page it stopped at
+     * (supersedes ADR-308 §8's and ADR-316 §4's order).
+     */
+    public static final String A_PUBLISH_SENDS_EACH_PAGE_WHOLE_AND_SAYS_HOW_FAR_IT_HAS_GOT = FILE
+            + "0320-a-publish-sends-each-page-whole-its-files-before-its-body-before-it-creates-the-next-and-says-how-far-it-has-got.md";
+
+    /**
      * ADR-322 -- the progress page's three line charts stand after the timeline in one row that wraps, three, two or
      * one across, each drawn 600 units wide and never under 500 px, where its text is 10 px high, with one end label
      * a series; the timeline keeps 1,100 units and 917 px (amends ADR-268 §7 and ADR-269 §7).

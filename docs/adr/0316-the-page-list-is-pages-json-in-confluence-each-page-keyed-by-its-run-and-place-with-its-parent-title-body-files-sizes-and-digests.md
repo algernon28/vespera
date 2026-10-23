@@ -1,5 +1,7 @@
 # ADR-316 — The page list is `pages.json` in `confluence/`, each page keyed by its run and place, with its parent, title, body, files, sizes and digests
 
+> **Partly superseded — see [ADR-320](0320-a-publish-sends-each-page-whole-its-files-before-its-body-before-it-creates-the-next-and-says-how-far-it-has-got.md).** §4's **Order** no longer holds: a publish goes through the list a page at a time, and finds or creates a page, sends its files and then its body before it creates the next. The rest of §4 stands.
+
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
 - **Rests on**: [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md) §8, how a publish finds, skips and updates a page; [ADR-310](0310-a-confluence-pages-title-is-its-text-followed-by-its-place-and-its-generation-runs-marker-cut-to-255-characters-with-the-marker-kept-whole.md), the titles; [ADR-312](0312-the-confluence-rendering-lies-under-confluence-at-the-trees-root-drawn-by-every-drawing-and-what-an-earlier-drawing-left-in-it-is-counted-and-kept.md), where the rendering lies; [ADR-313](0313-a-clusters-confluence-page-carries-its-copies-as-files-and-a-copy-the-site-refuses-is-counted-and-listed-by-the-publish.md), [ADR-314](0314-the-confluence-rendering-writes-each-picture-its-cluster-page-shows-as-a-file-of-its-own-from-the-same-bytes-the-html-page-inlines.md) and [ADR-315](0315-the-root-page-carries-the-indexs-groups-and-counts-and-documents-csv-as-a-file-and-neither-the-corpus-root-nor-the-profiles-values.md), the files a page carries.
@@ -80,5 +82,5 @@ The page list is drawn by `deliverable` and read by `confluence`, and no value i
 | `…everyPathInThePageListNamesAFileThatStands` (#620) | each body and file path resolves from `confluence/` to a file whose size and digest match (§1, §2) |
 | `…thePageListNamesNoCorpusRootNoWorkingDirectoryAndNoProfileValue` (#620) | distinctive fixture strings appear nowhere in it (§2) |
 | `…aRedrawingOfTheSameRunKeepsEveryKey` (#620) | two drawings of one generation run give equal keys (§3) |
-| `…aPublishCreatesEveryPageBeforeAnyBody` (#633) | against a stub, every create precedes the first body update (§4) |
+| `…aPageIsFilledBeforeTheNextIsCreated` (ADR-320) | against a stub, a page's create, files and body precede the next page's create, parents first, each labelled and keyed (§4 as ADR-320 §1 has it) |
 | `…aSecond409StopsThePublish` (#633) | one 409 is answered by a re-read and a resend; a second stops it (§4) |

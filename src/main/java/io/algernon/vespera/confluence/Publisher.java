@@ -40,12 +40,17 @@ import org.springframework.web.client.RestClientException;
  * <p><b>Before anything is sent</b> the five values are read (ADR-308 §3), the page list is read and every body is
  * checked against its digest, and every file it lists is checked to stand at its size. A refusal there sends nothing.
  *
- * <p><b>Then, in order:</b> the space and the parent are found; the pages of the run are found by their label and
- * their key; every page the list lists that does not stand is created, empty, parents first; then each body whose
- * digest the page's property does not already hold is sent, with the page's version plus one; then each page's files
- * are sent, a file standing at its size with its digest in its comment skipped. A {@code 409} on a body is answered by
- * reading the page's version again and sending once more; a second stops the publish. A copy or a picture's file the
- * site refuses as too large ({@code 413}) is skipped, counted and listed in {@value #NOT_CARRIED_FILE_NAME}; any other
+ * <p><b>Then</b> the totals are printed, the space and the parent are found, the pages of the run are found by their
+ * label and their key, and every page of the list not so found is looked for by its title, by reads alone: a page so
+ * titled that no publish made stops the publish before anything is written (ADR-320 §3). <b>Then, a page at a
+ * time</b>,
+ * in the list's order, parents first (ADR-320 §1): the page is found or created empty; its files are sent, a file
+ * standing at its size with its digest in its comment skipped; its body is sent where its digest or title changed, with
+ * the page's version plus one; its closing line is printed; the next page is taken. A line says as each page starts and
+ * after each file (ADR-320 §4). A {@code 409} on a body is answered by reading the page's version again and sending
+ * once
+ * more; a second stops the publish, saying which page it stopped at (ADR-320 §5). A copy or a picture's file the site
+ * refuses as too large ({@code 413}) is skipped, counted and listed in {@value #NOT_CARRIED_FILE_NAME}; any other
  * refusal stops the publish (ADR-313 §3). Nothing is deleted, and a page of the run whose key the list no longer holds
  * is counted on the closing line (ADR-308 §8).
  */
@@ -117,8 +122,8 @@ public class Publisher {
     public record Outcome(boolean published, String closingLine) {}
 
     /**
-     * Publishes the rendering in {@code confluence}, drawn for {@code generationRun}, telling {@code out} a line per
-     * page it went through; {@value #NOT_CARRIED_FILE_NAME} and any template are written in {@code workingDirectory}.
+     * Publishes the rendering in {@code confluence}, drawn for {@code generationRun}, telling {@code out} the totals,
+     * a line as each page starts, a line per file and the page's closing line (ADR-320 §4); {@value #NOT_CARRIED_FILE_NAME} and any template are written in {@code workingDirectory}.
      */
     public Outcome publish(Path confluence, String generationRun, Path workingDirectory, Consumer<String> out) {
         ConfluenceSite.Read read = ConfluenceSite.of(environment, baseUrl, spaceKey, parentId, parentTitle);
@@ -251,6 +256,10 @@ public class Publisher {
         private int filesReplaced;
         private int filesUnchanged;
         private int leftAsTheyStand;
+        private int fileNumber;
+        private int fileTotal;
+        private int pageNumber;
+        private String pageTitle;
 
         Run(ConfluenceSite site, PageList list, Path confluence, ConfluenceApi api, Consumer<String> out) {
             this.site = site;
@@ -261,17 +270,50 @@ public class Publisher {
         }
 
         void publish() throws InterruptedException {
+            List<Page> pages = list.pages();
+            long bytes = 0;
+            int fileCount = 0;
+            for (Page page : pages) {
+                for (PageFile file : PageList.filesOf(page)) {
+                    fileCount++;
+                    bytes += file.size();
+                }
+            }
+            this.fileTotal = fileCount;
+            out.accept("vespera publish is sending the rendering of generation run " + list.marker() + " to "
+                    + site.site().getHost() + ", space " + site.spaceKey() + ": " + pages.size()
+                    + (pages.size() == 1 ? " page" : " pages") + " and " + fileCount
+                    + (fileCount == 1 ? " file" : " files") + " holding " + bytes + (bytes == 1 ? " byte" : " bytes"));
             String spaceId = api.spaceId(site.spaceKey()).orElseThrow(() -> new TheSiteRefusedThePublishException(
                     "the site holds no space with the key " + site.spaceKey() + " that this account can read"));
             String parent = parent(spaceId);
             String label = LABEL_PREFIX + list.marker();
             Map<String, Standing> found = ofTheRun(label);
             Set<String> listed = new HashSet<>();
-            for (Page page : list.pages()) {
+            Map<String, Standing> byTitle = new HashMap<>();
+            for (Page page : pages) {
                 listed.add(page.key());
+                if (!found.containsKey(page.key())) {
+                    Standing at = titled(spaceId, page);
+                    if (at != null) {
+                        byTitle.put(page.key(), at);
+                    }
+                }
+            }
+            for (Page page : pages) {
+                pageNumber++;
+                pageTitle = page.title();
+                List<PageFile> files = PageList.filesOf(page);
+                long pageBytes = files.stream().mapToLong(PageFile::size).sum();
+                out.accept("page " + pageNumber + " of " + pages.size() + ": " + page.title() + ", "
+                        + (files.isEmpty() ? "no files" : files.size() + (files.size() == 1 ? " file" : " files")
+                        + " holding " + pageBytes + (pageBytes == 1 ? " byte" : " bytes")));
                 Standing at = found.get(page.key());
                 if (at == null) {
-                    at = titled(spaceId, page, label);
+                    at = byTitle.get(page.key());
+                    if (at != null) {
+                        api.label(at.page().id(), label);
+                    }
                 }
                 if (at == null) {
                     String under = page.parent() == null ? parent : standing.get(page.parent()).page().id();
@@ -285,12 +327,9 @@ public class Publisher {
                     done.put(page.key(), "created");
                 }
                 standing.put(page.key(), at);
-            }
-            for (Page page : list.pages()) {
+                String filesSaid = sendFiles(page, files);
                 sendBody(page);
-            }
-            for (Page page : list.pages()) {
-                sendFiles(page);
+                out.accept(page.title() + ": " + done.get(page.key()) + filesSaid);
             }
             leftAsTheyStand = (int) found.keySet().stream().filter(key -> !listed.contains(key)).count();
         }
@@ -333,10 +372,11 @@ public class Publisher {
 
         /**
          * The page titled as {@code page} is, where one stands and its property holds the page's key: a page the
-         * label's search did not yet find. One titled so that holds another key, or none, stops the publish, as a
+         * label's search did not yet find, labelled when its turn comes (ADR-320 §3). One titled so that holds
+         * another key, or none, stops the publish, as a
          * title is unique within the space and the page is not this publish's to take.
          */
-        private Standing titled(String spaceId, Page page, String label) throws InterruptedException {
+        private Standing titled(String spaceId, Page page) throws InterruptedException {
             Optional<SitePage> titled = api.pageTitled(spaceId, page.title());
             if (titled.isEmpty()) {
                 return null;
@@ -346,7 +386,6 @@ public class Publisher {
                 throw new TheSiteRefusedThePublishException("a page titled " + page.title() + " stands in the space"
                         + " and is not the page " + page.key() + " of this rendering, so it was left as it stands");
             }
-            api.label(titled.get().id(), label);
             return new Standing(titled.get(), property.get());
         }
 
@@ -386,8 +425,8 @@ public class Publisher {
             }
         }
 
-        private void sendFiles(Page page) throws InterruptedException {
-            List<PageFile> files = PageList.filesOf(page);
+        /** Sends the page's files, a line after each; the clause of the page's closing line that tells of them. */
+        private String sendFiles(Page page, List<PageFile> files) throws InterruptedException {
             int sent = 0;
             int kept = 0;
             int refused = 0;
@@ -395,10 +434,14 @@ public class Publisher {
                 String id = standing.get(page.key()).page().id();
                 Map<String, SiteFile> onThePage = api.files(id);
                 for (PageFile file : files) {
+                    fileNumber++;
+                    String said = "file " + fileNumber + " of " + fileTotal + ": " + file.name() + ", " + file.size()
+                            + (file.size() == 1 ? " byte, " : " bytes, ");
                     SiteFile there = onThePage.get(file.name());
                     if (there != null && there.size() == file.size() && there.comment().contains(file.sha256())) {
                         filesUnchanged++;
                         kept++;
+                        out.accept(said + "unchanged");
                         continue;
                     }
                     Reply reply = api.sendFile(id, Optional.ofNullable(there).map(SiteFile::id),
@@ -406,6 +449,7 @@ public class Publisher {
                     if (reply.status() == TOO_LARGE && file.skippedWhenTooLarge()) {
                         notCarried.add(new NotCarried(page.key(), file.name(), file.size(), file.kind()));
                         refused++;
+                        out.accept(said + "refused by the site as too large");
                         continue;
                     }
                     if (!reply.ok()) {
@@ -418,11 +462,11 @@ public class Publisher {
                         filesReplaced++;
                     }
                     sent++;
+                    out.accept(said + "sent");
                 }
             }
-            out.accept(page.title() + ": " + done.get(page.key()) + (files.isEmpty() ? "" : "; files: " + sent
-                    + " sent, " + kept + " unchanged" + (refused == 0 ? "" : ", " + refused
-                    + " refused by the site as too large")));
+            return files.isEmpty() ? "" : "; files: " + sent + " sent, " + kept + " unchanged"
+                    + (refused == 0 ? "" : ", " + refused + " refused by the site as too large");
         }
 
         void writeNotCarried(Path workingDirectory) throws IOException {
@@ -446,8 +490,10 @@ public class Publisher {
         }
 
         String doneSoFar() {
-            return "It had created " + created + (created == 1 ? " page" : " pages") + ", updated " + updated
-                    + " and sent " + (filesAdded + filesReplaced) + (filesAdded + filesReplaced == 1 ? " file" : " files")
+            return (pageNumber == 0 ? "" : "It stopped at page " + pageNumber + " of " + list.pages().size() + ", "
+                    + pageTitle + ". ") + "It had created " + created + (created == 1 ? " page" : " pages")
+                    + ", updated " + updated + " and sent " + (filesAdded + filesReplaced)
+                    + (filesAdded + filesReplaced == 1 ? " file" : " files")
                     + ".";
         }
 

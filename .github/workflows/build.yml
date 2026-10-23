@@ -65,7 +65,10 @@ jobs:
 
       # verify, not test: the integration test is bound to failsafe and excluded from surefire, so
       # `mvnw test` never reaches it. Docker is already running on this runner.
-      - run: ./mvnw -B verify
+      #
+      # -DexcludedGroups=confluence: CI no longer runs the publish integration tests, which are tagged
+      # `confluence`; they are run locally with `./mvnw verify` (ADR-320 section 6).
+      - run: ./mvnw -B verify -DexcludedGroups=confluence
 
       - if: always()
         uses: actions/upload-artifact@v4
