@@ -118,6 +118,10 @@ class ProgressPageChartsOnOneRowTest {
     private static final Pattern END_LABEL =
             Pattern.compile("<text class=\"end-label\" x=\"(-?[0-9.]+)\" y=\"(-?[0-9.]+)\">([^<]*)</text>");
 
+    /** The marker at the end of a chart's first series, the one drawn in the first series' colour: its height. */
+    private static final Pattern THE_FIRST_SERIES_END =
+            Pattern.compile("<circle class=\"end s1\" cx=\"-?[0-9.]+\" cy=\"(-?[0-9.]+)\"");
+
     private static final Pattern VALUE_AXIS =
             Pattern.compile("<line class=\"axis\" x1=\"[0-9.]+\" y1=\"([0-9.]+)\" x2=\"[0-9.]+\" y2=\"([0-9.]+)\"/>");
 
@@ -283,6 +287,23 @@ class ProgressPageChartsOnOneRowTest {
                         + " bottom in the order of their lines' ends, the two at zero in the order they are drawn: "
                         + expectedVerdicts,
                 () -> assertThat(labelsTopDown(chart(threeCharts, "verdicts"))).containsExactlyElementsOf(expectedVerdicts));
+        String verdicts = chart(threeCharts, "verdicts");
+        Map<String, Double> heights = labelHeights(verdicts);
+        Matcher firstEnd = THE_FIRST_SERIES_END.matcher(verdicts);
+        double endOfTheFirst = firstEnd.find() ? Double.parseDouble(firstEnd.group(1)) : Double.NaN;
+        String highest = expectedVerdicts.getFirst();
+        claim(
+                "the label '" + highest + "', the highest, which no label above it moves, sits " + (int) BELOW_THE_END
+                        + " units below the marker at its line's end",
+                () -> assertThat(heights.getOrDefault(highest, Double.NaN)).isEqualTo(endOfTheFirst + BELOW_THE_END));
+        String upperAtZero = expectedVerdicts.get(3);
+        String lowerAtZero = expectedVerdicts.get(4);
+        claim(
+                "the two labels at zero, '" + upperAtZero + "' and '" + lowerAtZero + "', whose lines end at one point on"
+                        + " the plot's bottom, are exactly " + (int) LABEL_SPACING + " units apart: the lower at "
+                        + (int) BELOW_THE_END + " units below the bottom, the upper moved up to the spacing and no further",
+                () -> assertThat(heights.getOrDefault(lowerAtZero, Double.NaN) - heights.getOrDefault(upperAtZero, Double.NaN))
+                        .isEqualTo(LABEL_SPACING));
         List<String> expectedCounts = List.of("read " + READ_AND_WRITTEN, "written " + READ_AND_WRITTEN);
         claim(
                 "the chart of counts, whose two lines end at one point, has one end label for each: " + expectedCounts,
@@ -404,6 +425,16 @@ class ProgressPageChartsOnOneRowTest {
         }
         places.sort(Comparator.comparingDouble(place -> place[1]));
         return places;
+    }
+
+    /** Each end label's text and the height of its baseline. */
+    private static Map<String, Double> labelHeights(String chart) {
+        Map<String, Double> heights = new LinkedHashMap<>();
+        Matcher label = END_LABEL.matcher(chart);
+        while (label.find()) {
+            heights.put(label.group(3), Double.parseDouble(label.group(2)));
+        }
+        return heights;
     }
 
     /** Each end label's text, top to bottom. */

@@ -1,5 +1,7 @@
 package io.algernon.vespera.deliverable;
 
+import io.algernon.vespera.synthesis.DeliverableLanguage;
+
 /**
  * The titles of the Confluence rendering's pages (ADR-310): a cluster's {@code TEXT (P.C · MARKER)} or {@code TEXT
  * (P.C page K · MARKER)}, a seed partition's {@code TEXT (P · MARKER)}, and the root page's {@code Vespera MARKER}.
@@ -41,8 +43,10 @@ final class ConfluenceTitles {
      * A cluster's page's title, {@code place} being {@code P.C} and {@code page} counted from 1: the first page carries no
      * page number (ADR-310 §2).
      */
-    static String cluster(String text, String place, int page, String marker) {
-        return titled(text, " (" + place + (page == 1 ? "" : " page " + page) + " · " + marker + ")");
+    static String cluster(String text, String place, int page, String marker, DeliverableLanguage language) {
+        return titled(
+                text,
+                " (" + place + (page == 1 ? "" : FixedWords.pageInATitle(language) + page) + " · " + marker + ")");
     }
 
     /** {@code text} folded and, where the whole would pass the limit, cut, then {@code suffix} whole (ADR-310 §4). */

@@ -9,6 +9,7 @@ import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.synthesis.ArrangedCluster;
 import io.algernon.vespera.synthesis.ClusterLabel;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.ListedDoc;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
@@ -70,7 +71,7 @@ class IndexPageTest {
      * cluster whose label carries a pipe and whose title a backtick and brackets, and one unwritten
      * cluster whose label carries a line break: only the ampersand is markup to HTML, and is escaped.
      */
-    private static final String THE_INDEX = Html.head("Deliverable run-1")
+    private static final String THE_INDEX = Html.head("Deliverable run-1", DeliverableLanguage.ENGLISH)
             + "<h1>Deliverable run-1</h1>\n"
             + "<ul>\n"
             + "<li>Run: run-1</li>\n"

@@ -1,5 +1,7 @@
 package io.algernon.vespera.deliverable;
 
+import io.algernon.vespera.synthesis.DeliverableLanguage;
+
 /**
  * The skeleton every page of the tree stands on, and the one escaping rule (ADR-274 §1.1, §1.3).
  *
@@ -31,9 +33,12 @@ final class Html {
                 .replace("'", "&#39;");
     }
 
-    /** Everything of a page before its body: the document type, the character set, the title and the stylesheet. */
-    static String head(String title) {
-        return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<title>" + escape(title)
+    /**
+     * Everything of a page before its body: the document type, the language the page names (ADR-321 §4), the character
+     * set, the title and the stylesheet.
+     */
+    static String head(String title, DeliverableLanguage language) {
+        return "<!DOCTYPE html>\n<html lang=\"" + language.code() + "\">\n<head>\n<meta charset=\"UTF-8\">\n<title>" + escape(title)
                 + "</title>\n<style>\n" + STYLES + "</style>\n</head>\n<body>\n";
     }
 
