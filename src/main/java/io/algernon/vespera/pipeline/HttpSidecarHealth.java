@@ -16,7 +16,10 @@ final class HttpSidecarHealth implements SidecarHealth {
 
     private static final Duration ANSWER_WITHIN = Duration.ofSeconds(5);
 
-    private final HttpClient client = HttpClient.newBuilder().connectTimeout(ANSWER_WITHIN).build();
+    private final HttpClient client = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .connectTimeout(ANSWER_WITHIN)
+            .build();
     private final URI doclingHealth;
     private final URI ollamaVersion;
 

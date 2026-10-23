@@ -21,13 +21,6 @@ class SidecarRecovery {
 
     private static final Logger log = LoggerFactory.getLogger(SidecarRecovery.class);
 
-    /**
-     * How long a sidecar is given to answer again unless {@code vespera.sidecars.wait-at-most} says otherwise
-     * (ADR-323 §7, amending ADR-175 §2). On the whole archive on 2026-09-28 a killed container was back in 6 to 9
-     * seconds (ADR-175's evidence); three minutes also covers one that reloads its models first.
-     */
-    private static final Duration WAIT_AT_MOST = Duration.ofSeconds(180);
-
     /** How long between two health checks while waiting. */
     private static final Duration POLL_EVERY = Duration.ofSeconds(2);
 
@@ -35,13 +28,9 @@ class SidecarRecovery {
     private final Duration waitAtMost;
     private final Duration pollEvery;
 
-    SidecarRecovery(DoclingClient client) {
-        this(client, WAIT_AT_MOST, POLL_EVERY);
-    }
-
     /** The bound is the application property, one for every wait for a sidecar (ADR-323 §7). */
     @Autowired
-    SidecarRecovery(DoclingClient client, @Value("${vespera.sidecars.wait-at-most:180s}") Duration waitAtMost) {
+    SidecarRecovery(DoclingClient client, @Value("${" + SidecarStartSettings.WAIT_AT_MOST_PROPERTY + ":" + SidecarStartSettings.DEFAULT_WAIT_AT_MOST + "}") Duration waitAtMost) {
         this(client, waitAtMost, POLL_EVERY);
     }
 

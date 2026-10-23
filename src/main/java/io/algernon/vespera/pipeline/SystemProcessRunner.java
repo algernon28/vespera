@@ -16,6 +16,9 @@ final class SystemProcessRunner implements ProcessRunner {
     /** The exit code a command killed for running past its limit counts as. */
     static final int KILLED = -1;
 
+    /** How long the output is read after the command has exited. */
+    private static final Duration OUTPUT_GRACE = Duration.ofSeconds(1);
+
     @Override
     public ProcessOutcome run(List<String> command, Duration timeout) throws IOException {
         Process process = start(command);
@@ -33,7 +36,10 @@ final class SystemProcessRunner implements ProcessRunner {
                 process.destroyForcibly();
                 process.waitFor();
             }
-            reader.join();
+            // A child the command started may hold the output open for as long as it lives: the read is given a
+            // second after the command is gone, and then let go (ADR-323 §5).
+            reader.join(OUTPUT_GRACE);
+            closeQuietly(process);
             return new ProcessOutcome(exited ? process.exitValue() : KILLED, output.toString());
         } catch (InterruptedException interrupted) {
             process.destroyForcibly();
@@ -60,6 +66,15 @@ final class SystemProcessRunner implements ProcessRunner {
             process.destroyForcibly();
             Thread.currentThread().interrupt();
             throw new IOException("interrupted while waiting for " + String.join(" ", command), interrupted);
+        }
+    }
+
+    /** Lets go of the output so a reader still blocked on it ends; what it had read is already kept. */
+    private static void closeQuietly(Process process) {
+        try {
+            process.getInputStream().close();
+        } catch (IOException ignored) {
+            // The reader ends either way.
         }
     }
 

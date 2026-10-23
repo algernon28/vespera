@@ -18,7 +18,12 @@ record SidecarStartSettings(
 
     static final String WAIT_AT_MOST_PROPERTY = "vespera.sidecars.wait-at-most";
 
-    private static final String DEFAULT_WAIT_AT_MOST = "180s";
+    /**
+     * How long a sidecar is given to answer unless {@code vespera.sidecars.wait-at-most} says otherwise, written
+     * once (ADR-323 §7, amending ADR-175 §2). On the whole archive on 2026-09-28 a killed container was back in 6
+     * to 9 seconds (ADR-175's evidence); three minutes also covers one that reloads its models first.
+     */
+    static final String DEFAULT_WAIT_AT_MOST = "180s";
 
     private static final String DEFAULT_DOCLING = "http://localhost:5001";
 

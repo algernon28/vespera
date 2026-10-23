@@ -95,7 +95,7 @@ public class SidecarStarter {
                     try {
                         return ComposeFiles.fromTheClasspath();
                     } catch (IOException unwritten) {
-                        throw new java.io.UncheckedIOException(unwritten);
+                        throw new ComposeFilesUnwritableException(unwritten);
                     }
                 },
                 CorpusRootLock.folderNamedBy(environment.getProperty(CorpusRootLock.FOLDER_PROPERTY)),
@@ -121,7 +121,7 @@ public class SidecarStarter {
         }
         String cpuImage;
         String gpuImage;
-        try (ComposeFiles files = composeFiles.get()) {
+        try (ComposeFiles files = writtenOut()) {
             cpuImage = files.cpuImage();
             gpuImage = files.gpuImage();
         }
@@ -215,10 +215,19 @@ public class SidecarStarter {
         }
     }
 
+    /** The compose files, written out; a folder that will not take them refuses the start (ADR-323 §8). */
+    private ComposeFiles writtenOut() {
+        try {
+            return composeFiles.get();
+        } catch (java.io.UncheckedIOException unwritten) {
+            throw new ComposeFilesUnwritableException(unwritten.getCause());
+        }
+    }
+
     // ---- up (ADR-323 §4)
 
     private void bringUp(boolean withTheGpuFile) {
-        try (ComposeFiles files = composeFiles.get()) {
+        try (ComposeFiles files = writtenOut()) {
             List<String> up = new ArrayList<>(List.of("docker", "compose", "-p", "vespera", "-f"));
             up.add(files.composeFile().toString());
             if (withTheGpuFile) {
@@ -285,8 +294,7 @@ public class SidecarStarter {
             channel = FileChannel.open(
                     lockFolder.resolve(LOCK_FILE), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         } catch (IOException | RuntimeException unavailable) {
-            throw new IllegalStateException("the lock file " + LOCK_FILE + " cannot be opened in " + lockFolder,
-                    unavailable);
+            throw new SidecarLockUnavailableException(lockFolder.resolve(LOCK_FILE), unavailable);
         }
         boolean said = false;
         while (true) {
@@ -299,8 +307,7 @@ public class SidecarStarter {
                 // Another invocation of this JVM holds it, which a test can; wait the same way.
             } catch (IOException unlockable) {
                 closeQuietly(channel);
-                throw new IllegalStateException("the lock file " + LOCK_FILE + " in " + lockFolder
-                        + " cannot be locked", unlockable);
+                throw new SidecarLockUnavailableException(lockFolder.resolve(LOCK_FILE), unlockable);
             }
             if (!said) {
                 log.info("Another Vespera invocation is starting the sidecars; waiting for it");

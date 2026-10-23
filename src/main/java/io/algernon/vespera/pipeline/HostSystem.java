@@ -13,12 +13,17 @@ enum HostSystem {
 
     /** The system this JVM runs on; anything that is neither Windows nor macOS is taken for Linux. */
     static HostSystem current() {
-        String name = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-        if (name.contains("win")) {
-            return WINDOWS;
-        }
+        return named(System.getProperty("os.name", ""));
+    }
+
+    /** The system an {@code os.name} names: macOS is asked first, because "Darwin" contains "win" (ADR-323 §5). */
+    static HostSystem named(String osName) {
+        String name = osName.toLowerCase(Locale.ROOT);
         if (name.contains("mac") || name.contains("darwin")) {
             return MAC;
+        }
+        if (name.startsWith("windows")) {
+            return WINDOWS;
         }
         return LINUX;
     }

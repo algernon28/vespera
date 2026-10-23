@@ -191,6 +191,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-323: start the Docker engine and the sidecars, and say why where they cannot; none decides a
             // verdict, a cache key, a cluster or text of the deliverable.
             "ComposeFiles",
+            "ComposeFilesUnwritableException",
             "DockerEngineDidNotStartException",
             "DockerIsNotInstalledException",
             "HostSystem",
@@ -199,6 +200,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "ProcessOutcome",
             "ProcessRunner",
             "SidecarHealth",
+            "SidecarLockUnavailableException",
             "SidecarStartRefusedException",
             "SidecarStartSettings",
             "SidecarStarter",
