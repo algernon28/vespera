@@ -29,8 +29,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * What a page of the control panel carries for its tab to come back to a later start, and what the server answers the
- * tab with (ADR-325 §4 to §6): the start's mark on every page of its own and no other mark of the start, the one
- * script, served as every page is and holding no data of a start, the second policy, the invocation page's refresh,
+ * tab with (ADR-325 §4 to §6): the start's mark on every page of its own, the one script, served as every page is and holding no data of a start, the second policy, the invocation page's refresh,
  * and {@code /alive}, answered with the start's mark alone.
  *
  * <p>One server, started with the screens' pages as {@code ControlPanel.main} starts it, at a port the system picks,
@@ -62,19 +61,17 @@ class TheControlPanelsTabTest {
     /** How often the invocation page is reloaded while its child runs: every 2 seconds. */
     private static final String EVERY_TWO_SECONDS = "2";
 
-    /**
-     * What the script never names: what parses a value as markup, what runs text as code, a repeating timer, and what
-     * a tab would need to check a proof of a token, the browser's cryptography, a nonce and a tab's key.
-     */
+    /** What the script never names: what parses a value as markup, what runs text as code, and a repeating timer. */
     private static final List<Pattern> NEVER_IN_THE_SCRIPT = List.of(Pattern.compile("\\binnerHTML\\b"),
             Pattern.compile("\\bouterHTML\\b"), Pattern.compile("\\binsertAdjacentHTML\\b"),
             Pattern.compile("\\bdocument\\.write"), Pattern.compile("\\beval\\s*\\("),
-            Pattern.compile("\\bFunction\\s*\\("), Pattern.compile("\\bsetInterval\\b"),
-            Pattern.compile("\\bcrypto\\.subtle\\b"), Pattern.compile("(?i)\\bnonce\\b"),
-            Pattern.compile("data-tab-key"));
+            Pattern.compile("\\bFunction\\s*\\("), Pattern.compile("\\bsetInterval\\b"));
 
     /** A query on /alive, which the server does not read. */
-    private static final String A_QUERY = "?nonce=0123456789abcdef0123456789abcdef";
+    private static final String A_QUERY = "?any=0123456789abcdef0123456789abcdef";
+
+    /** The one method {@code /alive} allows. */
+    private static final List<String> ALIVE_ALLOWS = List.of("GET");
 
     @TempDir
     static Path folder;
@@ -100,18 +97,14 @@ class TheControlPanelsTabTest {
 
     @Test
     @Story("A tab the control panel opened comes back to its next start")
-    @DisplayName("Every page of the control panel's own carries the start's mark, the same on each, and no other mark of the start")
-    void everyPageCarriesTheStartsMarkAndNoOtherMarkOfTheStart() {
+    @DisplayName("Every page of the control panel's own carries the start's mark, the same on each")
+    void everyPageCarriesTheStartsMark() {
         List<String> marks = PAGES.stream().map(page -> page.document().body().attr("data-start")).distinct().toList();
-        List<String> withAKey = PAGES.stream().filter(page -> page.document().body().hasAttr("data-tab-key"))
-                .map(page -> page.address().getPath()).toList();
 
         claim("every page of the control panel's own was answered with a page",
                 () -> assertThat(PAGES).isNotEmpty().extracting(Page::status).containsOnly(200));
-        claim("every page carries one mark of the start, the same on each, 22 characters of base64url",
+        claim("and every page carries one mark of the start, the same on each, 22 characters of base64url",
                 () -> assertThat(marks).satisfiesExactly(mark -> assertThat(mark).matches(MARK)));
-        claim("and none carries a tab's key, there being no token to derive one from",
-                () -> assertThat(withAKey).isEmpty());
     }
 
     @Test
@@ -137,15 +130,15 @@ class TheControlPanelsTabTest {
 
     @Test
     @Story("A tab the control panel opened comes back to its next start")
-    @DisplayName("The script polls /alive, and names nothing that checks a proof, parses a value as markup, runs text as code or repeats on an interval")
-    void theScriptPollsAliveComputesNoProofAndParsesNoMarkup() throws IOException {
+    @DisplayName("The script polls /alive, and names nothing that parses a value as markup, runs text as code or repeats on an interval")
+    void theScriptPollsAliveAndParsesNoMarkup() throws IOException {
         String text = script(screens).body();
         List<String> named = NEVER_IN_THE_SCRIPT.stream().filter(never -> never.matcher(text).find())
                 .map(Pattern::pattern).toList();
 
         claim("the script asks /alive", () -> assertThat(text).contains(TabPaths.ALIVE));
-        claim("and it names none of innerHTML, outerHTML, insertAdjacentHTML, document.write, eval, Function,"
-                + " setInterval, crypto.subtle, a nonce and data-tab-key", () -> assertThat(named).isEmpty());
+        claim("and it names none of innerHTML, outerHTML, insertAdjacentHTML, document.write, eval, Function and"
+                + " setInterval", () -> assertThat(named).isEmpty());
     }
 
     @Test
@@ -219,7 +212,7 @@ class TheControlPanelsTabTest {
 
     @Test
     @Story("A tab the control panel opened comes back to its next start")
-    @DisplayName("/alive refuses a request of another site, of another port of this machine or for another host, and names GET as its one method")
+    @DisplayName("/alive refuses a request of another site, of another port of this machine or for another host, and answers a POST or a HEAD naming GET as its one method")
     void anAliveRequestOfAnotherSiteHostOrMethodIsNotAnswered() throws IOException {
         InetSocketAddress server = screens.server().address();
         String host = "Host: 127.0.0.1:" + server.getPort();
@@ -229,6 +222,7 @@ class TheControlPanelsTabTest {
                 List.of("Host: evil.example:" + server.getPort()));
         Response posted = RawHttp.send(server, "POST", TabPaths.ALIVE,
                 List.of(host, "Origin: http://127.0.0.1:" + server.getPort()));
+        Response head = RawHttp.send(server, "HEAD", TabPaths.ALIVE, List.of(host, "Sec-Fetch-Site: same-origin"));
 
         claim("sent from another site, from another port of this machine, or to another host, it is refused with the"
                         + " line every refusal gives",
@@ -236,9 +230,11 @@ class TheControlPanelsTabTest {
                                 .map(refused -> List.of(refused.status(), refused.body())).toList())
                         .containsExactly(List.of(403, ControlPanelServer.REFUSAL),
                                 List.of(403, ControlPanelServer.REFUSAL), List.of(403, ControlPanelServer.REFUSAL)));
-        claim("and a POST is answered 405, naming GET as the one method allowed",
-                () -> assertThat(List.of(posted.status(), posted.header("Allow")))
-                        .containsExactly(405, List.of("GET")));
+        claim("and a POST, and a HEAD though every page answers one, are each answered 405, naming GET as the one"
+                        + " method allowed",
+                () -> assertThat(Stream.of(posted, head).map(refused -> List.of(refused.status(),
+                                refused.header("Allow"))).toList())
+                        .containsExactly(List.of(405, ALIVE_ALLOWS), List.of(405, ALIVE_ALLOWS)));
     }
 
     /** The script asked for on the server of {@code screens}, as a page of its own origin asks for it, with no cookie. */

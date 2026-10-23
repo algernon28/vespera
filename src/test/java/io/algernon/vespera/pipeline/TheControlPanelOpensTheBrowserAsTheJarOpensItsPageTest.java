@@ -28,7 +28,7 @@ class TheControlPanelOpensTheBrowserAsTheJarOpensItsPageTest {
 
     private static final URI JAR_PAGE = URI.create("file:///runs/progress.html");
 
-    private static final URI PANEL_PAGE = URI.create("http://127.0.0.1:24291/");
+    private static final URI CONTROL_PANEL_PAGE =URI.create("http://127.0.0.1:24291/");
 
     private static final List<String> SYSTEMS = List.of("Windows 11", "Mac OS X", "Linux", "FreeBSD", "");
 
@@ -40,19 +40,19 @@ class TheControlPanelOpensTheBrowserAsTheJarOpensItsPageTest {
     @Story("The control panel opens its address as the jar opens its page")
     @DisplayName("For each system and environment, the control panel's opener and the jar's choose the same command, the address apart")
     void bothChooseTheSameCommandForEverySystem() throws ReflectiveOperationException {
-        Method panel = Class.forName("io.algernon.controlpanel.SystemBrowserOpener")
+        Method controlPanelCommand = Class.forName("io.algernon.controlpanel.SystemBrowserOpener")
                 .getDeclaredMethod("command", URI.class, String.class, Map.class);
-        panel.setAccessible(true);
+        controlPanelCommand.setAccessible(true);
         List<String> differing = new ArrayList<>();
         int compared = 0;
         for (String system : SYSTEMS) {
             for (Map<String, String> environment : ENVIRONMENTS) {
                 Optional<List<String>> jar = SystemPageOpener.command(JAR_PAGE, system, environment);
                 @SuppressWarnings("unchecked")
-                Optional<List<String>> controlPanel = (Optional<List<String>>) panel.invoke(null, PANEL_PAGE, system,
-                        environment);
+                Optional<List<String>> controlPanel = (Optional<List<String>>) controlPanelCommand.invoke(null,
+                        CONTROL_PANEL_PAGE, system, environment);
                 compared++;
-                if (!withoutTheAddress(jar, JAR_PAGE).equals(withoutTheAddress(controlPanel, PANEL_PAGE))) {
+                if (!withoutTheAddress(jar, JAR_PAGE).equals(withoutTheAddress(controlPanel, CONTROL_PANEL_PAGE))) {
                     differing.add(system + " " + environment + ": " + jar + " against " + controlPanel);
                 }
             }

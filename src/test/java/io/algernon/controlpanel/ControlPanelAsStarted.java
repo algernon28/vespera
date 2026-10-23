@@ -180,20 +180,6 @@ final class ControlPanelAsStarted implements AutoCloseable {
         return addressIn(addressLine).getPort();
     }
 
-    /**
-     * The names of the files in the folder of the user's own a control panel started with {@code temporaryDirectory}
-     * keeps its launch values in (ADR-292 §3), sorted; empty where there is no such folder.
-     */
-    static List<String> filesOfTheUsersOwnFolder(Path temporaryDirectory) throws IOException {
-        Path folder = LaunchValues.fileIn(temporaryDirectory, System.getProperty("user.name")).getParent();
-        if (!Files.isDirectory(folder)) {
-            return List.of();
-        }
-        try (Stream<Path> files = Files.list(folder)) {
-            return files.map(file -> file.getFileName().toString()).sorted().toList();
-        }
-    }
-
     /** A port of {@code 127.0.0.1} free as this is called: one the system picked, then let go. */
     static int freePort() throws IOException {
         try (ServerSocket free = new ServerSocket(0, 1, loopback())) {

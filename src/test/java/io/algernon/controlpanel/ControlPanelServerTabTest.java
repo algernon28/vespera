@@ -17,13 +17,15 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
  * What the server counts as a tab coming back (ADR-325 §4.4): a {@code GET} of {@code /alive}, or a request let in past
  * every check to a path that does not begin {@code /report/}, whatever its answer; a request under {@code /report/},
- * and one another site starts, refused before it is counted, are not.
+ * and one refused before it is counted, by {@code Sec-Fetch-Site}, by a {@code POST}'s {@code Origin} or by its
+ * {@code Host}, are not.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -48,8 +50,8 @@ class ControlPanelServerTabTest {
 
     @Test
     @Story("A tab the control panel opened comes back to its next start")
-    @DisplayName("A report, and a poll of /alive another site sends, leave the wait running; a poll of /alive from the control panel's own origin ends it")
-    void aReportIsNoTabComingBackAndAPollOfAliveIs() throws IOException, InterruptedException {
+    @DisplayName("A report, a poll of /alive another site sends or another host is named in, and a POST from another site leave the wait running; a poll of /alive from the control panel's own origin ends it")
+    void aReportOrARefusedRequestIsNoTabComingBackAndAPollOfAliveIs() throws IOException, InterruptedException {
         try (ControlPanelServer server = ControlPanelServer.start(Map.of(ROOT, page(), REPORT, page()))) {
             InetSocketAddress address = server.address();
             String host = "Host: 127.0.0.1:" + address.getPort();
@@ -57,16 +59,23 @@ class ControlPanelServerTabTest {
             RawHttp.Response report = RawHttp.send(address, "GET", REPORT, List.of(host));
             RawHttp.Response anotherSite = RawHttp.send(address, "GET", TabPaths.ALIVE,
                     List.of(host, "Sec-Fetch-Site: cross-site"));
-            boolean afterReportAndAnotherSite = server.awaitTab(LONG_ENOUGH);
+            RawHttp.Response anotherHost = RawHttp.send(address, "GET", TabPaths.ALIVE,
+                    List.of("Host: evil.example:" + address.getPort(), "Sec-Fetch-Site: same-origin"));
+            RawHttp.Response postedFromAnotherSite = RawHttp.send(address, "POST", ROOT,
+                    List.of(host, "Origin: http://evil.example"));
+            boolean afterTheRefused = server.awaitTab(LONG_ENOUGH);
             RawHttp.Response polled = RawHttp.send(address, "GET", TabPaths.ALIVE,
                     List.of(host, "Sec-Fetch-Site: same-origin"));
             long before = System.nanoTime();
             boolean afterPoll = server.awaitTab(PLENTY);
             Duration waited = Duration.ofNanos(System.nanoTime() - before);
 
-            claim("the report was served, with no cookie, and the poll another site sent was refused",
-                    () -> assertThat(List.of(report.status(), anotherSite.status())).containsExactly(200, 403));
-            claim("and neither ended the wait", () -> assertThat(afterReportAndAnotherSite).isFalse());
+            claim("the report was served, with no cookie, and the poll another site sent, the poll naming another host"
+                            + " and the POST from another site's origin were each refused",
+                    () -> assertThat(Stream.of(report, anotherSite, anotherHost, postedFromAnotherSite)
+                                    .map(RawHttp.Response::status).toList())
+                            .containsExactly(200, 403, 403, 403));
+            claim("and none of the four ended the wait", () -> assertThat(afterTheRefused).isFalse());
             claim("a poll of /alive from the control panel's own origin was answered and ended the wait",
                     () -> assertThat(List.of(polled.status(), afterPoll)).containsExactly(200, true));
             claim("returning as soon as it had come, not after its bound of " + PLENTY.toSeconds() + " seconds",

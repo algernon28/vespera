@@ -79,6 +79,9 @@ class ControlPanelServerTest {
     /** A value shaped as a token, 43 characters, which no request needs and the server does not read. */
     private static final String ANY_TOKEN = "A".repeat(43);
 
+    /** The one line every refusal answers with, as ADR-291 §4 and ADR-325 §2 word it. */
+    private static final String REFUSAL = "open the address the control panel printed when it started";
+
     private static final String REFUSAL_TYPE = "text/plain; charset=utf-8";
 
     private static final String METHODS_ALLOWED = "GET, HEAD, POST";
@@ -185,14 +188,14 @@ class ControlPanelServerTest {
         List<String> notRefused = new ArrayList<>();
         for (String host : foreign) {
             Response refused = send("GET", ROOT, host);
-            if (refused.status() != 403 || !refused.body().equals(ControlPanelServer.REFUSAL)) {
+            if (refused.status() != 403 || !refused.body().equals(REFUSAL)) {
                 notRefused.add(host);
             }
         }
         Response noHost = send("GET", ROOT);
 
         claim("another site's name, another port, no port and the IPv6 loopback, as Host, are each answered 403 with"
-                        + " the one line",
+                        + " the one line \"" + REFUSAL + "\"",
                 () -> assertThat(notRefused).isEmpty());
         claim("a request with no Host at all is answered 403",
                 () -> assertThat(noHost.status()).isEqualTo(403));
@@ -296,7 +299,7 @@ class ControlPanelServerTest {
                             + " answered 403 with the one line, as plain text, and sets no cookie",
                     () -> {
                         assertThat(refused.status()).isEqualTo(403);
-                        assertThat(refused.body()).isEqualTo(ControlPanelServer.REFUSAL);
+                        assertThat(refused.body()).isEqualTo(REFUSAL);
                         assertThat(refused.header("Content-Type")).containsExactly(REFUSAL_TYPE);
                         assertThat(refused.header("Set-Cookie")).isEmpty();
                     });
@@ -338,7 +341,6 @@ class ControlPanelServerTest {
                             .containsExactly(200, 200, 200);
                     assertThat(RAN).containsExactly("GET " + ROOT, "GET " + SECOND, "GET " + ROOT);
                 });
-
     }
 
     @Test
@@ -563,7 +565,6 @@ class ControlPanelServerTest {
                 .that(com.tngtech.archunit.base.DescribedPredicate.describe("the server's classes",
                         type -> type.getName().equals(name) || type.getName().startsWith(name + "$")));
     }
-
 
     /** A type that writes a file, logs, or starts a process, by its name. */
     private static boolean writesFilesLogsOrStartsProcesses(String type) {

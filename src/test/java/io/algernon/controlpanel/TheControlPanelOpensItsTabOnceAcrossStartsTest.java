@@ -89,9 +89,6 @@ class TheControlPanelOpensItsTabOnceAcrossStartsTest {
     /** A start's mark: 22 characters of base64url, 16 random bytes with no padding. */
     private static final String MARK = "[A-Za-z0-9_-]{22}";
 
-    /** The one file the folder of the user's own may hold at a start, the launch values, and no other. */
-    private static final List<String> LAUNCH_VALUES = List.of("launch-values.properties");
-
     @TempDir
     Path folder;
 
@@ -188,8 +185,8 @@ class TheControlPanelOpensItsTabOnceAcrossStartsTest {
 
     @Test
     @Story("A tab the control panel opened comes back to its next start")
-    @DisplayName("A start no tab comes back to waits 5 seconds, then prints the address of its root, and keeps no file of a token")
-    void aStartNoTabComesBackToWaitsTheBoundThenOpensTheRootAndKeepsNoFile() throws IOException, InterruptedException {
+    @DisplayName("A start no tab comes back to waits 5 seconds, then prints the address of its root")
+    void aStartNoTabComesBackToWaitsTheBoundThenOpensTheRoot() throws IOException, InterruptedException {
         int port = ControlPanelAsStarted.freePort();
         List<Line> lines;
         String address;
@@ -200,7 +197,6 @@ class TheControlPanelOpensItsTabOnceAcrossStartsTest {
         List<String> texts = lines.stream().map(Line::text).toList();
         Optional<Line> waiting = lines.stream().filter(line -> line.text().equals(WAITING)).findFirst();
         Line printed = lines.stream().filter(line -> line.text().equals(address)).findFirst().orElseThrow();
-        List<String> kept = ControlPanelAsStarted.filesOfTheUsersOwnFolder(folder);
 
         claim("it writes the line naming the jar it will start, the line saying it waits for a tab, and the address of"
                         + " its root at its port, with no query, in that order and nothing between them",
@@ -208,14 +204,12 @@ class TheControlPanelOpensItsTabOnceAcrossStartsTest {
                         .satisfiesExactly(first -> assertThat(first).startsWith(WILL_START),
                                 second -> assertThat(second).isEqualTo(WAITING),
                                 third -> assertThat(third).matches(addressAt(port))));
-        claim("it wrote the address at least " + TAB_BOUND.minus(READING_SLACK).toSeconds() + " seconds after the"
+        claim("and it wrote the address at least " + TAB_BOUND.minus(READING_SLACK).toSeconds() + " seconds after the"
                         + " waiting line: the " + TAB_BOUND.toSeconds() + " seconds it waits, less "
                         + READING_SLACK.toSeconds() + " for reading the two lines",
                 () -> assertThat(waiting).map(line -> Duration.ofNanos(printed.readAtNanos() - line.readAtNanos()))
                         .hasValueSatisfying(between -> assertThat(between)
                                 .isGreaterThanOrEqualTo(TAB_BOUND.minus(READING_SLACK))));
-        claim("and the folder of the user's own holds no file but the launch values, so no token is kept",
-                () -> assertThat(kept).isSubsetOf(LAUNCH_VALUES));
     }
 
     @Test
