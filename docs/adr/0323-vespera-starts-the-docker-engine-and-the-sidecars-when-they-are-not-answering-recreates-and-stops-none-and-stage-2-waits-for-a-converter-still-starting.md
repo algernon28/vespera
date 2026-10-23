@@ -69,6 +69,8 @@ Two `vespera run` invocations, 30 s apart, failed at stage 2's health check beca
 
 **Every entry point that goes through `VesperaApplication.main` does it**: the jar, an IDE run of `VesperaApplication` (the `Local SpringApp` and `Local Vespera Label` configurations), the Maven `headless` profile, which runs the jar, and the control panel, the Maven `gui` profile's included, whose child is the jar (ADR-278) and which passes `VESPERA_DOCLING_IMAGE` to it (ADR-292). The control panel itself starts nothing: its launch page goes on reading the sidecars and reports one not answering as it does today, and Run stays enabled.
 
+**`TestVesperaApplication` sets `vespera.sidecars.start` to false.** It goes through `VesperaApplication.main`, so it is given a starter, and that starter reads the environment before Testcontainers has published the converter's address, and never sees Ollama's, which arrives as a connection detail with no property. Left on, it would ask the shipped addresses, find nothing, and bring the compose sidecars up beside the throwaway Testcontainers ones, on the same ports. The entry point exists to run on those throwaway containers alone (ADR-179's consequences), so it turns the start off. Not held by a test: building that entry point needs Docker.
+
 **The starter is registered by `VesperaApplication.main` alone**, as the corpus-root lock is (ADR-279 §7), and the two commands reach it as an optional collaborator. A context built by Spring's test support has none, so no test context starts the Docker engine or a container. A test that means to exercise the starter builds it with a process runner of its own (Tests). The integration tests that launch the jar pass `-Dvespera.sidecars.start=false` (§9).
 
 ### 2. The GPU is chosen by `vespera.docling.image`, the value the identity already uses
@@ -87,7 +89,7 @@ Two `vespera run` invocations, 30 s apart, failed at stage 2's health check beca
 
 1. **`vespera.sidecars.start` is false**: nothing more. No sidecar is asked and no command is run (§9).
 2. **Either base URL names another machine**: nothing more. `vespera.docling.base-url` and `spring.ai.ollama.base-url` are each read for its host; a host that is not a loopback name or address (`localhost`, `127.0.0.0/8`, `::1`) is a sidecar Docker on this machine cannot make answer. The host is read as written and never looked up: `localhost`, any `127.x.y.z` and `::1` are this machine, and every other name is another, `localhost.localdomain` included although many hosts files map it here. A lookup could wait on a resolver before anything else is asked, and a name an operator wrote for another machine is the case this step exists for. One INFO line says so, and a sidecar that does not answer fails where it fails today.
-3. **Both sidecars answer**: nothing more. docling-serve is asked `GET /health`, Ollama `GET /api/version`, each waiting at most 5 s for its answer, the bound `DoclingClient.HEALTH_CHECK_TIMEOUT` sets. Any 2xx is an answer. No command is run, so a machine whose sidecars are up never meets Docker here, whoever started them and however.
+3. **Both sidecars answer**: nothing more. docling-serve is asked `GET /health`, Ollama `GET /api/version`, each waiting at most 5 s for its answer, the bound `DoclingClient.HEALTH_CHECK_TIMEOUT` sets, over HTTP/1.1 as `DoclingClient` asks, so no request carries an upgrade to HTTP/2 a sidecar's server may mishandle. Any 2xx is an answer. No command is run, so a machine whose sidecars are up never meets Docker here, whoever started them and however.
 4. **No compose file builds `vespera.docling.image`**: refused (§2, §8).
 5. **The sidecar-start lock is taken** (§6), and both sidecars are asked again. Both answer: nothing more. That is another invocation having started them while this one waited.
 6. **The engine is made to answer** (§5).
@@ -116,6 +118,8 @@ docker compose -p vespera -f <folder>/compose.yaml -f <folder>/compose.gpu.yaml 
 
 ### 5. The engine, per system
 
+**Which system.** `os.name` is read in lower case: one that contains `mac` or `darwin` is macOS, then one that starts with `windows` is Windows, and anything else is Linux. macOS is asked first because `darwin` contains `win`.
+
 **Is it running.** `docker version --format {{.Server.Version}}`, which exits 0 when the engine answers and non-zero when it does not (F). A `docker` that cannot be started at all, the program missing from `PATH`, refuses the command with §8's line naming Docker.
 
 **Starting it.** The commands below, tried in order until one exits 0:
@@ -128,7 +132,7 @@ docker compose -p vespera -f <folder>/compose.yaml -f <folder>/compose.gpu.yaml 
 
 `--detach` because the wait is Vespera's own, under its own bound. `--no-ask-password` because nothing here prompts (ADR-047): where polkit would ask, the command exits non-zero and the next is tried. Nothing is run under `sudo`. When every command exits non-zero, the command is refused naming each one, its exit code and the last line it printed (§8). A start command whose program cannot be started at all, `systemctl` on a machine without systemd, counts as exit 127, the shell's code for a command not found, with the reason it could not be started as its line, and the next command is tried; where that program is `docker`, the command is refused as Docker not installed.
 
-**Waiting for it.** `docker version` again every 2 s, until it exits 0 or `vespera.sidecars.wait-at-most` has passed since the start command returned; one INFO line when the wait begins, one when it ends. At the bound, refused (§8). Every command of this section is killed if it has not exited after 30 s, and counts as exit -1 with what it printed before, so the wait ends no later than the bound and one such command after it. After the engine answers, containers that were running when it stopped come back by themselves under `restart: unless-stopped` (F, ADR-164), and `up --no-recreate` leaves them so.
+**Waiting for it.** `docker version` again every 2 s, until it exits 0 or `vespera.sidecars.wait-at-most` has passed since the start command returned; one INFO line when the wait begins, one when it ends. At the bound, refused (§8). A command's output is read until it exits and then for at most 1 s more, whatever it started still holding its output open: `cmd /c start` leaves Docker Desktop holding it, and a `systemctl` that starts a process in the background can too, and an unbounded read would hold the start, and the lock, for as long as that process lives. Every command of this section is killed if it has not exited after 30 s, and counts as exit -1 with what it printed before, so the wait ends no later than the bound and one such command after it. After the engine answers, containers that were running when it stopped come back by themselves under `restart: unless-stopped` (F, ADR-164), and `up --no-recreate` leaves them so.
 
 **What is not covered.** Rootless Docker under `systemctl --user`, Podman, and a Docker context pointing at another machine. For the last, `docker version` answers and `up` runs there, but the loopback URLs of step 2 reach nothing, so step 8 refuses at the bound. An operator on any of them starts the sidecars and sets `vespera.sidecars.start` to false.
 
@@ -161,6 +165,8 @@ Stage 2 (extraction) docling-serve answers its health check after <n> seconds
 
 `<what the transport reported>` is the failure as the ERROR line of today's failed check already writes it, its `toString()`. The first line is WARN and the second INFO. Nothing is logged per check, as ADR-192 asks of every loop.
 
+**The default is written once in code.** `SidecarStartSettings` holds `180s` as the value `vespera.sidecars.wait-at-most` takes where nothing sets it, and `SidecarRecovery`'s property fallback names that constant; `application.yaml` ships the same value with its comment, as every shipped setting is. `SidecarRecovery` keeps no constant of its own and no constructor that takes no bound: it is built by Spring from the property, or by a test through the constructor that takes the bound and the interval (ADR-216, nothing ships that no decision requires).
+
 **One bound, in one class.** `SidecarRecovery` already holds ADR-175's wait, and the start check reuses it rather than a second copy: the same 2 s between checks, the same 5 s each check waits, the same bound. The bound becomes `vespera.sidecars.wait-at-most` because a test that launches the jar against a converter that never answers cannot otherwise end in less than three minutes. It stays an application property and is no profile value: it says how long a machine takes to start a container, not what the operator has judged about a corpus (ADR-175 §2). 180 seconds covers the measured restart of 6 to 9 seconds (ADR-175), the measured first answer of 6.4 seconds (ADR-164, G), and the 30 seconds and more of #651 with room for a GPU image loading its models.
 
 **It covers docling-serve, and Ollama only through §3.** Stage 2's start is where a converter still starting has been met, and seed extraction already waits on its first refused call through ADR-175 §6. Ollama is waited for at step 8 whenever Vespera started the sidecars. An Ollama the operator started a moment before a command that reaches it first, a resumed run whose stage 2 is finished or `vespera label --auto`, is not waited for: its first question fails as it does today. That is left open (*What this does not decide*).
@@ -183,8 +189,14 @@ Each is one line on standard error, exit code 1. `<command>` is a command line a
   > docker compose could not start the sidecars: <command> exited <code>: <last line>. Fix what that names and run the same command again.
 - **A sidecar did not answer after `up`** (`SidecarsDidNotAnswerException`), `<which>` being `docling-serve`, `Ollama`, or `docling-serve and Ollama`:
   > the sidecars were started but <which> did not answer within <n> seconds; docker compose -p vespera logs says why. Run the same command again once they answer.
+- **The sidecar-start lock cannot be opened or locked** (`SidecarLockUnavailableException`), `<lock file>` being its absolute path and `<reason>` the message of what refused it:
+  > the sidecars are not answering and Vespera cannot start them: the lock file <lock file> cannot be opened (<reason>). Make its folder writable, or name another with vespera.corpus-root-lock-folder, and run the same command again.
+- **The compose files cannot be written out** (`ComposeFilesUnwritableException`), `<folder>` being `java.io.tmpdir`:
+  > the sidecars are not answering and Vespera cannot start them: the compose files it starts them from cannot be written out (<reason>). Make room in <folder>, or make it writable, and run the same command again.
 
-The five exception types extend `SidecarStartRefusedException`, the one type the two commands catch. The lines carry no record id: the operator reading them has none of these records.
+Neither of the last two is a fault of Docker's, and each would otherwise reach the operator as a stack trace from the middle of a start, which is what every other line here exists to prevent; so they are refusals like the rest, printed and exited the same way.
+
+The seven exception types extend `SidecarStartRefusedException`, the one type the two commands catch. The lines carry no record id: the operator reading them has none of these records.
 
 ### 9. The opt-out
 
@@ -259,7 +271,12 @@ New, under `src/test`, all in `io.algernon.vespera.pipeline` and needing no Dock
   - a loopback address written out other than `localhost`, `127.1.2.3` and `[::1]`, is this machine; `localhost.localdomain` is another, and nothing is run;
   - a start command whose program cannot be started counts as exit 127 with its reason, and the next is tried;
   - a start that finds the lock held waits past the bound, runs nothing, and once the lock is free asks again and finds the sidecars answering.
-- **`SystemProcessRunnerTest`** (unit): a command running past its limit is killed and counts as exit -1 with what it printed, the command being the Java running the tests on a class that sleeps until killed; a program that cannot be started throws `IOException`.
+  - the lock folder being a file: §8's line for a lock that cannot be opened; compose files that cannot be written out: §8's line for them.
+- **`SystemProcessRunnerTest`** (unit): a command running past its limit is killed and counts as exit -1 with what it printed, the command being the Java running the tests on a class that sleeps until killed; a program that cannot be started throws `IOException`; a command that exits while a process it started keeps its output open returns within its limit, with its own exit code.
+- **`HostSystemTest`** (unit): `Darwin` and `Mac OS X` are macOS, `Windows 11` is Windows, `Linux` is Linux.
+- **`HttpSidecarHealthTest`** (unit): against a loopback server that records each request, a question carries no `Upgrade` header, and a 2xx is an answer and a 503 none.
+- **`NoTestContextStartsTheSidecarsTest`** (`@CascadeSliceTest`): a context Spring's test support builds holds no `SidecarStarter`.
+- **`PackagedJarIT`** gains a claim: the jar carries `compose.yaml`, `compose.gpu.yaml` and every file under `docker/` under `BOOT-INF/classes/sidecars/`, byte for byte.
 - **`ComposeFilesTest`** (unit): the compose files written out from the classpath are the repository's `compose.yaml`, `compose.gpu.yaml` and every file under `docker/`, byte for byte and no other; and each file's Docling image is read as its `docling-serve.image` says.
 - **`SidecarStartSettingsTest`** (unit): `vespera.sidecars.start` is true unless set and false when set so; the bound is 180 s unless `vespera.sidecars.wait-at-most` says otherwise; the image is `vespera.docling.image`; Ollama's URL is `spring.ai.ollama.base-url`, `http://localhost:11434` unless set.
 - **`StageTwoWaitsForAConverterStillStartingTest`** (unit, the listener with a scripted client and a `SidecarRecovery` on a short clock): a converter that gives no answer and then answers is waited for, with §7's two lines; one that answers with an error fails at once with that failure and is not waited for; one that never answers is asked once more at the bound and that failure is what the step fails with; one that answers at once is not waited for. Against a loopback server that reads each request and closes the connection without a byte, the production `DoclingClient`'s check throws `ResourceAccessException` and its quick question says no; and a server that closes every connection so for 300 ms, longer than the JDK client's own retries of a closed connection take, and then answers is waited for by the start check through the production client.
@@ -269,6 +286,7 @@ Amended:
 
 - **`ExtractionWithTheSidecarDownTest`**: a `SidecarRecovery` on a short clock, so its unreachable converter is waited for and then fails with the line it has today.
 - **`PipelineHoldsOnlyTheRulesOnRecordTest`**: the starter's classes are on record as holding no rule. The two production collaborators the implementation adds, the process runner that starts real processes and the health that asks over HTTP, join the list in the change that adds them.
+- **`ExtractionItemProcessorTest`**: builds its `SidecarRecovery` through the constructor that takes the bound and the interval, since the one that took neither goes.
 - **`ClosingLineOverALockedDatabaseFileTest`**: builds the listener with its new second argument, the wait, which its claims never reach.
 - **The integration tests that launch the jar**: `-Dvespera.sidecars.start=false`, and `TheClosingLineIsTheLastLineIT` `-Dvespera.sidecars.wait-at-most=1s`.
 - **`SidecarsAreStartedByTheOperatorTest`** is renamed `SpringsComposeSupportIsOnNoClasspathTest`.

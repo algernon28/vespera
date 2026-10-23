@@ -82,6 +82,9 @@ class SidecarStartTest {
 
     private static final String POLKIT_REFUSAL = "Failed to start docker.service: Interactive authentication required.";
 
+    /** What writing a file reports on a full drive. */
+    private static final String NO_SPACE = "No space left on device";
+
     /** What starting {@code systemctl} reports on a machine that has none. */
     private static final String NO_SYSTEMCTL = "Cannot run program \"systemctl\": error=2, No such file or directory";
 
@@ -517,6 +520,55 @@ class SidecarStartTest {
                                 java.util.concurrent.TimeUnit.MILLISECONDS))
                         .isEqualTo(SidecarStarter.Outcome.ALREADY_ANSWERING));
         claim("no command was run at any point", () -> assertThat(docker.commands()).isEmpty());
+    }
+
+    @Test
+    @Story("Vespera refuses, naming why, when it cannot start them")
+    @DisplayName("When the sidecar lock cannot be opened, the start is refused in one line naming the lock file, and not with a stack trace")
+    void aLockThatCannotBeOpenedIsRefused() throws IOException {
+        Path notAFolder = Files.writeString(lockFolder.resolve("a-file-not-a-folder"), "");
+        ScriptedDocker docker = ScriptedDocker.engineRunning();
+        SidecarStarter starter = new SidecarStarter(settings(cpuImage), docker, ScriptedSidecarHealth.neitherAnswering(),
+                HostSystem.LINUX, () -> ComposeFiles.in(REPOSITORY), notAFolder, CHECK_EVERY);
+
+        Throwable refused = catchThrowable(starter::ensureRunning);
+
+        claim("the start is refused with the line naming the lock file it could not open and saying how to give it one"
+                        + " it can, whatever the system's reason",
+                () -> assertThat(refused)
+                        .isInstanceOf(SidecarLockUnavailableException.class)
+                        .isInstanceOf(SidecarStartRefusedException.class)
+                        .message()
+                        .matches(java.util.regex.Pattern.quote("the sidecars are not answering and Vespera cannot start"
+                                        + " them: the lock file " + notAFolder.resolve("sidecars.lock") + " cannot be"
+                                        + " opened (")
+                                + ".+"
+                                + java.util.regex.Pattern.quote("). Make its folder writable, or name another with"
+                                        + " vespera.corpus-root-lock-folder, and run the same command again.")));
+        claim("and no command was run", () -> assertThat(docker.commands()).isEmpty());
+    }
+
+    @Test
+    @Story("Vespera refuses, naming why, when it cannot start them")
+    @DisplayName("When the compose files cannot be written out, the start is refused in one line saying so, and not with a stack trace")
+    void composeFilesThatCannotBeWrittenAreRefused() {
+        ScriptedDocker docker = ScriptedDocker.engineRunning();
+        SidecarStarter starter = new SidecarStarter(settings(cpuImage), docker, ScriptedSidecarHealth.neitherAnswering(),
+                HostSystem.LINUX, () -> {
+                    throw new java.io.UncheckedIOException(new IOException(NO_SPACE));
+                }, lockFolder, CHECK_EVERY);
+
+        Throwable refused = catchThrowable(starter::ensureRunning);
+
+        claim("the start is refused with the line naming the reason and the temporary folder they are written to",
+                () -> assertThat(refused)
+                        .isInstanceOf(ComposeFilesUnwritableException.class)
+                        .isInstanceOf(SidecarStartRefusedException.class)
+                        .hasMessage("the sidecars are not answering and Vespera cannot start them: the compose files it"
+                                + " starts them from cannot be written out (" + NO_SPACE + "). Make room in "
+                                + System.getProperty("java.io.tmpdir") + ", or make it writable, and run the same"
+                                + " command again."));
+        claim("and no command was run", () -> assertThat(docker.commands()).isEmpty());
     }
 
     private void assertTheEngineIsStartedBy(HostSystem host, List<String> startCommand) {

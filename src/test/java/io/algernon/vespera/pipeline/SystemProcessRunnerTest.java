@@ -33,6 +33,12 @@ class SystemProcessRunnerTest {
     /** How long the sleeping command is given before it is killed: half a second. */
     private static final Duration LIMIT = Duration.ofMillis(500);
 
+    /**
+     * How long the command that leaves a child behind is given: ten seconds, far more than it takes to start a JVM and
+     * exit, and far less than the child sleeps.
+     */
+    private static final Duration CHILD_LIMIT = Duration.ofSeconds(10);
+
     /** The exit code a command killed at its limit counts as. */
     private static final int KILLED = -1;
 
@@ -64,5 +70,43 @@ class SystemProcessRunnerTest {
 
         claim("it throws the input-output exception the starter reads as a program not there",
                 () -> assertThat(thrown).isInstanceOf(IOException.class));
+    }
+
+    @Test
+    @Story("Vespera refuses, naming why, when it cannot start them")
+    @DisplayName("A command that exits while a process it started keeps its output open returns within its limit, with its own exit code")
+    @org.junit.jupiter.api.Timeout(value = 30)
+    void aCommandWhoseChildKeepsItsOutputOpenStillReturns(@org.junit.jupiter.api.io.TempDir java.nio.file.Path folder)
+            throws IOException {
+        java.nio.file.Path childsId = folder.resolve("child.pid");
+        List<String> leaver = List.of(
+                ProcessHandle.current().info().command().orElseThrow(),
+                "-cp",
+                System.getProperty("java.class.path"),
+                LeavesAChildHoldingItsOutput.class.getName(),
+                childsId.toString());
+        long began = System.nanoTime();
+        ProcessOutcome outcome;
+        try {
+            outcome = new SystemProcessRunner().run(leaver, CHILD_LIMIT);
+        } finally {
+            killTheChildNamedIn(childsId);
+        }
+        Duration took = Duration.ofNanos(System.nanoTime() - began);
+        ProcessOutcome returned = outcome;
+
+        claim("it returned within the " + CHILD_LIMIT.toSeconds() + " seconds it was given, although the process it"
+                        + " started was still holding its output open",
+                () -> assertThat(took).isLessThan(CHILD_LIMIT));
+        claim("with the exit code the command itself exited with, 0, and not as a command killed at its limit",
+                () -> assertThat(returned.exitCode()).isZero());
+    }
+
+    /** Kills the child whose id the command wrote, so that no test leaves a process behind, whatever it ended in. */
+    private static void killTheChildNamedIn(java.nio.file.Path childsId) throws IOException {
+        if (java.nio.file.Files.exists(childsId)) {
+            long pid = Long.parseLong(java.nio.file.Files.readString(childsId).strip());
+            ProcessHandle.of(pid).ifPresent(ProcessHandle::destroyForcibly);
+        }
     }
 }

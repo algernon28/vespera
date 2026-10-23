@@ -320,7 +320,7 @@ class ExtractionItemProcessorTest {
                 new DegenerateOutputConfidenceFloor(null),
                 new Shingler(jdbcTemplate),
                 // Nothing here drops a connection, so nothing is waited for: there is no sidecar to ask.
-                new SidecarRecovery(null) {
+                new SidecarRecovery(null, java.time.Duration.ZERO, java.time.Duration.ZERO) {
                     @Override
                     void awaitHealthy() {}
                 });
