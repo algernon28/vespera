@@ -32,12 +32,12 @@ public final class ControlPanel {
     /** The port the control panel listens at where the environment names none (ADR-325 §1). */
     static final int FIXED_PORT = 24291;
 
-    /** The line a start that kept a token writes before it waits, whatever bound it was handed (ADR-325 §3). */
+    /** The line a start at a port of its own writes before it waits, whatever bound it was handed (ADR-325 §3). */
     static final String WAITING = "the control panel waits up to 5 seconds for a tab it opened before";
 
     private static final int MAXIMUM_PORT = 65535;
 
-    /** How long a start that kept a token waits for a tab to come back (ADR-325 §3). */
+    /** How long a start at a port of its own waits for a tab to come back (ADR-325 §3). */
     private static final Duration TAB_BOUND = Duration.ofSeconds(5);
 
     private ControlPanel() {
@@ -51,15 +51,13 @@ public final class ControlPanel {
             System.out.println("the control panel will start " + runtime.jar().toAbsolutePath() + " with "
                     + runtime.java());
             String userName = System.getProperty("user.name");
-            Path tempDirectory = Path.of(System.getProperty("java.io.tmpdir"));
-            Path launchValuesFile = LaunchValues.fileIn(tempDirectory, userName);
+            Path launchValuesFile = LaunchValues.fileIn(Path.of(System.getProperty("java.io.tmpdir")), userName);
             ControlPanelState state = new ControlPanelState(runtime, launchValuesFile,
                     corpusRootLockFolder(System.getenv(CORPUS_ROOT_LOCK_FOLDER_VARIABLE), System.getProperty("user.home")),
                     userName);
             endChildWithThisJvm(state);
             Optional<ControlPanelServer> server = begin(state, System.getenv(PORT_VARIABLE),
-                    ControlPanelToken.fileIn(tempDirectory, userName), userName, TAB_BOUND, new SystemBrowserOpener(),
-                    line -> {
+                    TAB_BOUND, new SystemBrowserOpener(), line -> {
                         System.out.println(line);
                         System.out.flush();
                     }, line -> {
@@ -78,14 +76,13 @@ public final class ControlPanel {
 
     /**
      * ADR-325 §3's start, after the line naming the jar: reads the port the variable names and refuses one it cannot
-     * (§1), binds it or, where it is taken, one the system picks, and where the token of the last start is kept waits up
-     * to {@code bound} for a tab it opened to come back, opening none where one does and otherwise drawing a new token,
-     * keeping it, printing the address and asking {@code opener} to open it. Every line is handed to {@code out} or
-     * {@code err}, which flush. Empty where the variable names no port, the control panel having said so on
-     * {@code err}.
+     * (§1), binds it or, where it is taken, one the system picks, and at a port of its own waits up to {@code bound}
+     * for a tab it opened to come back, opening none where one does and otherwise printing the address and asking
+     * {@code opener} to open it. Every line is handed to {@code out} or {@code err}, which flush. Empty where the
+     * variable names no port, the control panel having said so on {@code err}.
      */
-    static Optional<ControlPanelServer> begin(ControlPanelState state, String portNamed, Path tokenFile, String userName,
-            Duration bound, BrowserOpener opener, Consumer<String> out, Consumer<String> err) throws IOException {
+    static Optional<ControlPanelServer> begin(ControlPanelState state, String portNamed, Duration bound,
+            BrowserOpener opener, Consumer<String> out, Consumer<String> err) throws IOException {
         OptionalInt requested = requestedPort(portNamed);
         if (requested.isEmpty()) {
             err.accept(PORT_VARIABLE + " is " + portNamed
@@ -95,32 +92,24 @@ public final class ControlPanel {
         Map<String, HttpHandler> pages = ControlPanelPages.pages(state);
         ControlPanelServer server;
         try {
-            server = ControlPanelServer.bind(pages, requested.getAsInt());
+            server = ControlPanelServer.start(pages, requested.getAsInt());
         } catch (BindException taken) {
             err.accept("the port " + requested.getAsInt() + " is taken, so the control panel listens at a port the"
                     + " system picked, and no tab it opened before can come back to it");
-            server = ControlPanelServer.bind(pages, 0);
+            server = ControlPanelServer.start(pages, 0);
             requested = OptionalInt.of(0);
         }
-        boolean keepsToken = requested.getAsInt() != 0;
-        Optional<String> kept = keepsToken ? ControlPanelToken.read(tokenFile, userName, err) : Optional.empty();
-        int port = server.address().getPort();
-        server.serve(kept.orElse(null));
-        if (kept.isPresent()) {
+        if (requested.getAsInt() != 0) {
             out.accept(WAITING);
             try {
                 if (server.awaitTab(bound)) {
-                    out.accept("a tab it opened before came back to http://127.0.0.1:" + port
-                            + "/, so the control panel opens no other");
+                    out.accept("a tab it opened before came back to " + server.firstAddress()
+                            + ", so the control panel opens no other");
                     return Optional.of(server);
                 }
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
             }
-            server.drawNewToken();
-        }
-        if (keepsToken) {
-            ControlPanelToken.write(tokenFile, userName, server.token(), err);
         }
         URI address = server.firstAddress();
         out.accept("open " + address + " in your browser");

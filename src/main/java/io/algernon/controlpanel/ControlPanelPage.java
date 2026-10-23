@@ -7,8 +7,8 @@ import java.util.stream.Collectors;
 /**
  * The one owner of the control panel's pages' skeleton, styling and escaping (ADR-302 §10; ADR-285 §4): every page is
  * written through {@link #render}, every text a page shows from outside it goes through {@link #escape}, and no page
- * holds a script but the control panel's own, by its address, or an attribute of an event (ADR-325 §4.1). The words, layout and styling of a page are no decision's
- * (ADR-302, What this does not decide).
+ * holds a script but the control panel's own, by its address, or an attribute of an event (ADR-325 §4.1). The words,
+ * layout and styling of a page are no decision's (ADR-302, What this does not decide).
  */
 final class ControlPanelPage {
 
@@ -16,72 +16,37 @@ final class ControlPanelPage {
     static final String SCRIPT_PATH = "/control-panel.js";
 
     /**
-     * The control panel's one script, the same at every start (ADR-325 §4.2): it reads the page's {@code data-start},
-     * {@code data-tab-key} and {@code data-refresh-seconds}, polls {@code /alive} one second after the last poll
-     * settled, never on an interval and never from inside another timer's callback, reloads the page where the server
-     * answers as a later start with a proof the tab's key verifies, and, where the page asks, once the server has
-     * answered as the same start and the page's seconds have passed. It writes nothing into the page.
+     * The control panel's one script, the same at every start (ADR-325 §4.2): it reads the page's {@code data-start}
+     * and {@code data-refresh-seconds}, polls {@code /alive} one second after the last poll settled, never on an
+     * interval and never from inside another timer's callback, reloads the page where the server answers a mark that
+     * is not the page's, and, where the page asks, once the server has answered the page's mark and the page's seconds
+     * have passed. It writes nothing into the page.
      */
     static final String SCRIPT = """
             (function () {
               'use strict';
               var body = document.body;
               var start = body.getAttribute('data-start');
-              var tabKey = body.getAttribute('data-tab-key');
               var seconds = parseInt(body.getAttribute('data-refresh-seconds') || '0', 10);
               var loadedAt = Date.now();
-              var subtle = window.crypto && window.crypto.subtle;
-              if (!subtle || !start || !tabKey) {
+              if (!start) {
                 if (seconds > 0) {
                   window.setTimeout(function () { window.location.reload(); }, seconds * 1000);
                 }
                 return;
               }
-              var encoder = new TextEncoder();
-              function bytesOf(text) {
-                var plain = text.replace(/-/g, '+').replace(/_/g, '/');
-                while (plain.length % 4 !== 0) { plain += '='; }
-                var raw = window.atob(plain);
-                var bytes = new Uint8Array(raw.length);
-                for (var i = 0; i < raw.length; i++) { bytes[i] = raw.charCodeAt(i); }
-                return bytes;
-              }
-              function nonceOf() {
-                var bytes = new Uint8Array(16);
-                window.crypto.getRandomValues(bytes);
-                var text = '';
-                for (var i = 0; i < bytes.length; i++) {
-                  text += (bytes[i] < 16 ? '0' : '') + bytes[i].toString(16);
-                }
-                return text;
-              }
-              function proven(answer, nonce) {
-                var parts = answer.split(' ');
-                if (parts.length !== 2) { return Promise.resolve(null); }
-                var signed = window.location.port + ' ' + parts[0] + ' ' + nonce;
-                return subtle.importKey('raw', bytesOf(tabKey), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify'])
-                  .then(function (key) {
-                    return subtle.verify('HMAC', key, bytesOf(parts[1]), encoder.encode(signed));
-                  })
-                  .then(function (verified) { return verified ? parts[0] : null; });
-              }
               function poll() {
-                var nonce = nonceOf();
                 var reloading = false;
-                window.fetch('/alive?nonce=' + nonce, {
+                window.fetch('/alive', {
                   credentials: 'omit',
                   cache: 'no-store',
                   redirect: 'error',
                   signal: AbortSignal.timeout(1000)
                 })
                   .then(function (response) { return response.status === 200 ? response.text() : null; })
-                  .then(function (answer) { return answer === null ? null : proven(answer, nonce); })
-                  .then(function (mark) {
-                    if (mark === null) { return; }
-                    if (mark !== start) {
-                      reloading = true;
-                      window.location.reload();
-                    } else if (seconds > 0 && Date.now() - loadedAt >= seconds * 1000) {
+                  .then(function (answer) {
+                    if (answer === null || !/^[A-Za-z0-9_-]{22}$/.test(answer)) { return; }
+                    if (answer !== start || (seconds > 0 && Date.now() - loadedAt >= seconds * 1000)) {
                       reloading = true;
                       window.location.reload();
                     }
@@ -125,11 +90,11 @@ final class ControlPanelPage {
     }
 
     /**
-     * The whole page, carrying the start's mark and the tab's key the server gave the exchange, the control panel's one
+     * The whole page, carrying the start's mark the server gave the exchange, the control panel's one
      * script by its address, and, where it asks to be loaded again, the script's refresh and the browser's own inside
      * {@code <noscript>} (ADR-325 §4.1, §5).
      *
-     * @param exchange the request the page answers, which the server marked with the start's mark and the tab's key
+     * @param exchange the request the page answers, which the server marked with the start's mark
      * @param refreshSeconds how often the page asks to be loaded again, none where it is not above zero
      * @param body the page's content, already escaped
      */
@@ -137,7 +102,6 @@ final class ControlPanelPage {
         String refresh = refreshSeconds > 0
                 ? "<noscript><meta http-equiv=\"refresh\" content=\"" + refreshSeconds + "\"></noscript>\n" : "";
         String marks = " data-start=\"" + escape(attribute(exchange, ControlPanelServer.MARK_ATTRIBUTE)) + "\""
-                + " data-tab-key=\"" + escape(attribute(exchange, ControlPanelServer.TAB_KEY_ATTRIBUTE)) + "\""
                 + (refreshSeconds > 0 ? " data-refresh-seconds=\"" + refreshSeconds + "\"" : "");
         String navigation = NAVIGATION.stream()
                 .map(entry -> "<a href=\"" + entry[0] + "\">" + entry[1] + "</a>")
