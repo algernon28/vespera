@@ -28,12 +28,12 @@ import org.yaml.snakeyaml.Yaml;
 
 /**
  * What Vespera runs to bring its two sidecars up when they are not answering, and what it refuses with when it cannot
- * (ADR-322 §2 to §6 and §8).
+ * (ADR-323 §2 to §6 and §8).
  *
  * <p>No Docker is needed: the starter is given a {@link ScriptedDocker}, which records every command and answers each
  * from a script, and a {@link ScriptedSidecarHealth}. The compose files are the repository's own, read where the tests
  * run, so the images a configuration is compared with are the ones the files build. What Docker itself does with the
- * commands is ADR-322's probes, not something a unit test can show.
+ * commands is ADR-323's probes, not something a unit test can show.
  *
  * <p>Each expected command is written out in full, so a command the starter should not run, a recreate, a stop or a
  * removal among them, fails the claim that lists what it ran.
@@ -41,7 +41,7 @@ import org.yaml.snakeyaml.Yaml;
 @Epic("Pipeline")
 @Feature("The sidecars")
 @Issue("652")
-@Link(name = "ADR-322", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
+@Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
 class SidecarStartTest {
 
     /** The repository root, which is where Maven runs the tests from and where the compose files lie. */
@@ -81,6 +81,18 @@ class SidecarStartTest {
     private static final String NO_DESKTOP_PLUGIN = "docker: 'desktop' is not a docker command.";
 
     private static final String POLKIT_REFUSAL = "Failed to start docker.service: Interactive authentication required.";
+
+    /** What starting {@code systemctl} reports on a machine that has none. */
+    private static final String NO_SYSTEMCTL = "Cannot run program \"systemctl\": error=2, No such file or directory";
+
+    /**
+     * A host name many machines' hosts files map to the loopback address, and which is still not {@code localhost}
+     * written out.
+     */
+    private static final String NAME_NO_LOOKUP_RESOLVES = "localhost.localdomain";
+
+    /** How long a test holds the sidecar lock: longer than {@link #WAIT_AT_MOST}, so a bounded wait would have ended. */
+    private static final Duration HELD_FOR = Duration.ofMillis(1500);
 
     /** The last line Compose prints where the GPU file asks for a device the machine does not have. */
     private static final String COMPOSE_REFUSAL =
@@ -419,6 +431,94 @@ class SidecarStartTest {
                 .isRegularFile());
     }
 
+    @Test
+    @Story("Vespera starts the sidecars only where they are not answering")
+    @DisplayName("A loopback address other than localhost, 127.x.y.z or ::1 written out, is this machine, and the sidecars there are started")
+    void aLoopbackAddressWrittenOutIsThisMachine() {
+        for (URI here : List.of(URI.create("http://127.1.2.3:5001"), URI.create("http://[::1]:5001"))) {
+            ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
+            ScriptedDocker docker = ScriptedDocker.engineRunning().whenUpSucceeds(() -> health.answering(true, true));
+            SidecarStartSettings settings = new SidecarStartSettings(true, here, OLLAMA_HERE, cpuImage, WAIT_AT_MOST);
+
+            SidecarStarter.Outcome outcome = starter(settings, docker, health, HostSystem.LINUX).ensureRunning();
+
+            claim("the converter looked for at " + here + " is on this machine, so the sidecars were started",
+                    () -> assertThat(outcome).isEqualTo(SidecarStarter.Outcome.STARTED));
+        }
+    }
+
+    @Test
+    @Story("Vespera starts the sidecars only where they are not answering")
+    @DisplayName("A host name other than localhost is read as another machine without being looked up, even localhost.localdomain, which many hosts files map to this machine")
+    void aHostNameIsAnotherMachineWithoutALookup() {
+        ScriptedDocker docker = ScriptedDocker.engineRunning();
+        SidecarStartSettings named = new SidecarStartSettings(
+                true, URI.create("http://" + NAME_NO_LOOKUP_RESOLVES + ":5001"), OLLAMA_HERE, cpuImage, WAIT_AT_MOST);
+
+        SidecarStarter.Outcome outcome =
+                starter(named, docker, ScriptedSidecarHealth.neitherAnswering(), HostSystem.LINUX).ensureRunning();
+
+        claim("a name that is not localhost is another machine: only a loopback name or address written out is"
+                        + " this one, and nothing is resolved to decide",
+                () -> assertThat(outcome).isEqualTo(SidecarStarter.Outcome.ON_ANOTHER_MACHINE));
+        claim("and no command was run", () -> assertThat(docker.commands()).isEmpty());
+    }
+
+    @Test
+    @Story("Vespera refuses, naming why, when it cannot start them")
+    @DisplayName("A start command whose program cannot be started counts as exiting 127 with the reason it could not, and the next command is tried")
+    void aStartCommandThatCannotBeLaunchedCountsAsExit127() {
+        ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ScriptedDocker.NEVER)
+                .cannotLaunch(SYSTEMCTL_START, NO_SYSTEMCTL)
+                .answering(DESKTOP_START, 1, NO_DESKTOP_PLUGIN);
+
+        Throwable refused = catchThrowable(() ->
+                starter(settings(cpuImage), docker, ScriptedSidecarHealth.neitherAnswering(), HostSystem.LINUX)
+                        .ensureRunning());
+
+        claim("Docker Desktop's command was still tried after the service's could not be started",
+                () -> assertThat(docker.commands()).contains(DESKTOP_START));
+        claim("and the refusal names the service's command as exiting 127, the shell's code for a command not found,"
+                        + " with the reason it could not be started",
+                () -> assertThat(refused)
+                        .isInstanceOf(DockerEngineDidNotStartException.class)
+                        .hasMessage("the Docker engine is not running and Vespera could not start it: "
+                                + String.join(" ", SYSTEMCTL_START) + " exited 127: " + NO_SYSTEMCTL + "; "
+                                + String.join(" ", DESKTOP_START) + " exited 1: " + NO_DESKTOP_PLUGIN
+                                + ". Start Docker yourself and run the same command again."));
+    }
+
+    @Test
+    @Story("Two invocations do not start the sidecars twice")
+    @DisplayName("A start that finds the sidecar lock held waits for it, without a bound of its own, and asks the sidecars again once it has it")
+    void aStartWaitsForTheLockAnotherHolds() throws Exception {
+        ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
+        ScriptedDocker docker = ScriptedDocker.engineRunning();
+        SidecarStarter starter = starter(settings(cpuImage), docker, health, HostSystem.LINUX);
+        java.nio.file.Files.createDirectories(lockFolder);
+        java.util.concurrent.CompletableFuture<SidecarStarter.Outcome> started;
+        try (java.nio.channels.FileChannel held = java.nio.channels.FileChannel.open(
+                        lockFolder.resolve("sidecars.lock"),
+                        java.nio.file.StandardOpenOption.CREATE,
+                        java.nio.file.StandardOpenOption.WRITE);
+                java.nio.channels.FileLock ignored = held.lock(Long.MAX_VALUE - 1, 1, false)) {
+            started = java.util.concurrent.CompletableFuture.supplyAsync(starter::ensureRunning);
+            Thread.sleep(HELD_FOR.toMillis());
+
+            claim("while the lock is held, longer than the " + WAIT_AT_MOST.toSeconds() + " second(s) every other wait"
+                            + " of these tests lasts, the start neither refused nor finished",
+                    () -> assertThat(started).isNotDone());
+            claim("and it ran no command", () -> assertThat(docker.commands()).isEmpty());
+            health.answering(true, true);
+        }
+
+        claim("once the holder let go, the start asked the sidecars again, found them answering, and ran nothing",
+                () -> assertThat(started.get(WAIT_AT_MOST.multipliedBy(5).toMillis(),
+                                java.util.concurrent.TimeUnit.MILLISECONDS))
+                        .isEqualTo(SidecarStarter.Outcome.ALREADY_ANSWERING));
+        claim("no command was run at any point", () -> assertThat(docker.commands()).isEmpty());
+    }
+
     private void assertTheEngineIsStartedBy(HostSystem host, List<String> startCommand) {
         ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
         ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
@@ -459,7 +559,7 @@ class SidecarStartTest {
         return new SidecarStartSettings(true, DOCLING_HERE, OLLAMA_HERE, image, WAIT_AT_MOST);
     }
 
-    /** ADR-322 §4's up, naming {@code files} in the order given. */
+    /** ADR-323 §4's up, naming {@code files} in the order given. */
     private static List<String> up(Path... files) {
         List<String> command = new ArrayList<>(List.of("docker", "compose", "-p", "vespera"));
         for (Path file : files) {

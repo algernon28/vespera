@@ -2,7 +2,7 @@
 
 > **Read with [ADR-214](0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md).** Chroma is removed, so the operator's `up` starts two services, Ollama and docling-serve, where the Decision below names three, and the operator-facing cost *"Chroma's contents go with its container too"* has no object. This record's decision stands.
 
-> **Partly amended — see [ADR-322](0322-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md).** The jar starts the sidecars when they are not answering, for `vespera run` and `vespera label --auto`, from the compose files it carries, and still stops none. It still nests no compose artifact and needs nothing from the checkout, and every compose command still names `-p vespera`.
+> **Partly amended — see [ADR-323](0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md).** The jar starts the sidecars when they are not answering, for `vespera run` and `vespera label --auto`, from the compose files it carries, and still stops none. It still nests no compose artifact and needs nothing from the checkout, and every compose command still names `-p vespera`.
 
 - **Date**: 2026-09-26
 - **Status**: accepted

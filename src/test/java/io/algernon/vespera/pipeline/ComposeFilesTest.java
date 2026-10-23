@@ -21,7 +21,7 @@ import org.yaml.snakeyaml.Yaml;
 
 /**
  * The compose files Vespera starts its sidecars from are the jar's own copy of the repository's, so that the jar
- * needs nothing from the checkout, and each file's converter image is read from the file (ADR-322 §2 and §4).
+ * needs nothing from the checkout, and each file's converter image is read from the file (ADR-323 §2 and §4).
  *
  * <p>The copy is compared with the repository's files byte for byte: a build that left one out, or a resource
  * filter that rewrote one, would start the sidecars from files that are not the ones the README and the tests read.
@@ -29,7 +29,7 @@ import org.yaml.snakeyaml.Yaml;
 @Epic("Pipeline")
 @Feature("The sidecars")
 @Issue("652")
-@Link(name = "ADR-322", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
+@Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
 class ComposeFilesTest {
 
     /** The repository root, which is where Maven runs the tests from. */

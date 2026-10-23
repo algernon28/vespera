@@ -16,13 +16,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
 /**
- * What the starter reads from configuration (ADR-322 §2, §7 and §9): whether to start the sidecars at all, how long to
+ * What the starter reads from configuration (ADR-323 §2, §7 and §9): whether to start the sidecars at all, how long to
  * wait for them, the converter image that chooses the compose files, and where each sidecar is looked for.
  */
 @Epic("Pipeline")
 @Feature("The sidecars")
 @Issue("652")
-@Link(name = "ADR-322", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
+@Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
 class SidecarStartSettingsTest {
 
     /** How long a wait for a sidecar or the engine lasts unless configured: three minutes. */

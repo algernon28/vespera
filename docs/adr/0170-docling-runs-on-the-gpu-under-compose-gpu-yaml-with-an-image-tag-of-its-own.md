@@ -1,6 +1,6 @@
 # ADR-170 — Docling runs on the GPU under compose.gpu.yaml, with an image tag of its own
 
-> **Partly amended — see [ADR-322](0322-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md) §2.** §3's `VESPERA_DOCLING_IMAGE`, naming the GPU tag, is also what makes Vespera's `up` name `compose.gpu.yaml`; a value neither file builds refuses the start before Docker is asked anything.
+> **Partly amended — see [ADR-323](0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md) §2.** §3's `VESPERA_DOCLING_IMAGE`, naming the GPU tag, is also what makes Vespera's `up` name `compose.gpu.yaml`; a value neither file builds refuses the start before Docker is asked anything.
 
 - **Date**: 2026-09-28
 - **Status**: accepted

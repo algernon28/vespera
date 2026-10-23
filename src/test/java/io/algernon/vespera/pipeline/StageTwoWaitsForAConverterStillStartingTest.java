@@ -30,7 +30,7 @@ import org.springframework.web.client.ResourceAccessException;
 
 /**
  * Stage 2's start check waits for a converter that gives no answer yet, and fails as it always has where the
- * converter answers with an error or still gives no answer once the wait is over (ADR-322 §7, amending ADR-071 and
+ * converter answers with an error or still gives no answer once the wait is over (ADR-323 §7, amending ADR-071 and
  * ADR-175).
  *
  * <p>The converter is a client whose two health questions are scripted: the one check through the conversion client,
@@ -40,7 +40,7 @@ import org.springframework.web.client.ResourceAccessException;
 @Epic("Extraction")
 @Feature("Stage 2 step")
 @Issue("651")
-@Link(name = "ADR-322", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
+@Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
 class StageTwoWaitsForAConverterStillStartingTest {
 
     /** How long these tests wait for a converter to start: one second. */
@@ -51,6 +51,9 @@ class StageTwoWaitsForAConverterStillStartingTest {
 
     /** How many of the wait's questions a converter that is still starting says no to before it answers. */
     private static final int NOT_YET = 3;
+
+    /** How many connections the converter closes without a status line before it answers. */
+    private static final int CONNECTIONS_CLOSED = 4;
 
     /** A converter that says no to every question of the wait. */
     private static final int NEVER = Integer.MAX_VALUE;
@@ -145,6 +148,38 @@ class StageTwoWaitsForAConverterStillStartingTest {
         claim("and no line says it is being waited for", () -> assertThat(lines(Level.WARN)).isEmpty());
     }
 
+    @Test
+    @Story("A converter still starting is waited for")
+    @DisplayName("A converter whose port is open and which closes the connection without a status line gives no answer, to the production client")
+    void aConnectionClosedWithNoStatusLineIsNoAnswer() throws Exception {
+        try (ClosesThenAnswers converter = ClosesThenAnswers.closingEvery()) {
+            DoclingClient client = new DoclingClient(converter.baseUrl());
+
+            claim("the production client's health check throws the exception that reads as no answer, the one the"
+                            + " start check waits on, and not one that would fail the step at once",
+                    () -> assertThat(catchThrowable(client::checkHealth)).isInstanceOf(ResourceAccessException.class));
+            claim("and its quick question reads the same converter as not answering", () -> assertThat(client.isHealthy())
+                    .isFalse());
+        }
+    }
+
+    @Test
+    @Story("A converter still starting is waited for")
+    @DisplayName("A converter that closes its first connections without a status line and then answers is waited for by the start check, through the production client")
+    void aConverterClosingConnectionsWhileItStartsIsWaitedFor() throws Exception {
+        try (ClosesThenAnswers converter = ClosesThenAnswers.closingFirst(CONNECTIONS_CLOSED)) {
+            DoclingClient client = new DoclingClient(converter.baseUrl());
+            ExtractionHealthCheckListener listener =
+                    new ExtractionHealthCheckListener(client, new SidecarRecovery(client, WAIT_AT_MOST, CHECK_EVERY));
+
+            claim("the start check returns without a failure once the converter answers",
+                    () -> assertThatCode(() -> listener.beforeStep(null)).doesNotThrowAnyException());
+            claim("one warning said it was waited for", () -> assertThat(lines(Level.WARN)).hasSize(1));
+            claim("and the converter had closed its first " + CONNECTIONS_CLOSED + " connections before it answered",
+                    () -> assertThat(converter.closed()).isGreaterThanOrEqualTo(CONNECTIONS_CLOSED));
+        }
+    }
+
     private static ExtractionHealthCheckListener listener(ScriptedConverter converter) {
         return new ExtractionHealthCheckListener(converter, new SidecarRecovery(converter, WAIT_AT_MOST, CHECK_EVERY));
     }
@@ -198,6 +233,67 @@ class StageTwoWaitsForAConverterStillStartingTest {
         @Override
         public boolean isHealthy() {
             return waitQuestions.incrementAndGet() > notYet;
+        }
+    }
+
+    /**
+     * A converter on a loopback port that reads each request and closes the connection without writing a byte, as
+     * docling-serve does while its port is open and its server is not up yet, for its first {@code closing}
+     * connections, and answers {@code 200} to every one after.
+     */
+    private static final class ClosesThenAnswers implements AutoCloseable {
+
+        private final java.net.ServerSocket server;
+        private final int closing;
+        private final AtomicInteger connections = new AtomicInteger();
+        private final Thread acceptor;
+
+        private ClosesThenAnswers(int closing) throws java.io.IOException {
+            this.server = new java.net.ServerSocket(0, 50, java.net.InetAddress.getLoopbackAddress());
+            this.closing = closing;
+            this.acceptor = Thread.ofVirtual().start(this::serve);
+        }
+
+        static ClosesThenAnswers closingEvery() throws java.io.IOException {
+            return new ClosesThenAnswers(Integer.MAX_VALUE);
+        }
+
+        static ClosesThenAnswers closingFirst(int connections) throws java.io.IOException {
+            return new ClosesThenAnswers(connections);
+        }
+
+        String baseUrl() {
+            return "http://127.0.0.1:" + server.getLocalPort();
+        }
+
+        int closed() {
+            return Math.min(connections.get(), closing);
+        }
+
+        private void serve() {
+            while (!server.isClosed()) {
+                try (java.net.Socket connection = server.accept()) {
+                    java.io.BufferedReader request = new java.io.BufferedReader(new java.io.InputStreamReader(
+                            connection.getInputStream(), java.nio.charset.StandardCharsets.ISO_8859_1));
+                    String line;
+                    while ((line = request.readLine()) != null && !line.isEmpty()) {
+                        // The request line and headers; nothing in them changes the answer.
+                    }
+                    if (connections.incrementAndGet() > closing) {
+                        connection.getOutputStream().write(("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n"
+                                        + "Connection: close\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.ISO_8859_1));
+                        connection.getOutputStream().flush();
+                    }
+                } catch (java.io.IOException closedOrGone) {
+                    // The server was closed, or the client went away; the next accept says which.
+                }
+            }
+        }
+
+        @Override
+        public void close() throws Exception {
+            server.close();
+            acceptor.join(java.time.Duration.ofSeconds(5));
         }
     }
 }

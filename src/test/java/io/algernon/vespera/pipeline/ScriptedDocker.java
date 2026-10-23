@@ -10,7 +10,7 @@ import java.util.function.Consumer;
 
 /**
  * A {@link ProcessRunner} that runs nothing: it records every command it is given, in order, and answers each from a
- * script (ADR-322). The engine check answers exit 1 until it has been asked {@link #engineAnswersAfter} times and exit
+ * script (ADR-323). The engine check answers exit 1 until it has been asked {@link #engineAnswersAfter} times and exit
  * 0 after; a start command answers what {@link #answering} set for it, and any other command {@link #otherCommandsExiting}, exit 1 unless set; {@code up} answers {@link
  * #upAnswers}, and on exit 0 runs {@link #whenUpSucceeds}, which is how a test has the sidecars answer once they are
  * up. Not installed, every command it is given throws as {@code ProcessBuilder.start} does for a program that is not
@@ -26,6 +26,7 @@ final class ScriptedDocker implements ProcessRunner {
 
     private final List<List<String>> commands = new ArrayList<>();
     private final Map<List<String>, ProcessOutcome> scripted = new HashMap<>();
+    private final java.util.Set<List<String>> unlaunchable = new java.util.HashSet<>();
     private boolean installed = true;
     private int engineAnswersAfter;
     private int otherCommandsExit = 1;
@@ -57,6 +58,13 @@ final class ScriptedDocker implements ProcessRunner {
         return this;
     }
 
+    /** {@code command}'s program cannot be started, as {@code systemctl} cannot on a machine without systemd. */
+    ScriptedDocker cannotLaunch(List<String> command, String why) {
+        unlaunchable.add(command);
+        scripted.put(command, new ProcessOutcome(0, why));
+        return this;
+    }
+
     /** What a command no script names exits with, and prints nothing: 1 unless set. */
     ScriptedDocker otherCommandsExiting(int exitCode) {
         otherCommandsExit = exitCode;
@@ -82,6 +90,9 @@ final class ScriptedDocker implements ProcessRunner {
     public ProcessOutcome run(List<String> command, Duration timeout) throws IOException {
         commands.add(List.copyOf(command));
         refuseWhereNotInstalled(command);
+        if (unlaunchable.contains(command)) {
+            throw new IOException(scripted.get(command).output());
+        }
         if (command.equals(ENGINE_CHECK)) {
             engineChecks++;
             return engineChecks > engineAnswersAfter

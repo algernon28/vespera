@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
  * Spring Boot's Docker Compose support, which reconciles the running containers to the compose files it is given and
  * stops them when the application exits, is on no classpath Vespera runs from, the jar's, the IDE's or
  * {@code ./mvnw spring-boot:run}'s (ADR-179 §1). Vespera starts its sidecars by a starter of its own, which recreates
- * and stops none (ADR-322); that is held by {@code SidecarStartTest}, and this class holds only that Spring's support
+ * and stops none (ADR-323); that is held by {@code SidecarStartTest}, and this class holds only that Spring's support
  * stays out.
  *
  * <p>On 2026-09-30 an IDE run brought Spring Boot's Docker Compose support up from {@code compose.yaml}

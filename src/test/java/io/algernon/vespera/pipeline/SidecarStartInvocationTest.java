@@ -33,11 +33,11 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * The two commands that use a sidecar ask the starter before they do anything else, and a refusal ends the command
- * with its line and exit code 1; the commands that use none never ask (ADR-322 §1, §3 and §8).
+ * with its line and exit code 1; the commands that use none never ask (ADR-323 §1, §3 and §8).
  *
  * <p>The starter is the production one, given a {@link ScriptedDocker} on a machine with no {@code docker} command and
  * a {@link ScriptedSidecarHealth} under which neither sidecar answers, so every start ends in the refusal that says
- * Docker is not installed. A context built by Spring's test support has no starter of its own, as ADR-322 §1 has it,
+ * Docker is not installed. A context built by Spring's test support has no starter of its own, as ADR-323 §1 has it,
  * so this class adds one.
  */
 @CascadeSliceTest
@@ -45,7 +45,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Epic("Pipeline")
 @Feature("The sidecars")
 @Issue("652")
-@Link(name = "ADR-322", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
+@Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
 class SidecarStartInvocationTest {
 
     /** The exit code of a refused start, the one a corpus root in use gets. */

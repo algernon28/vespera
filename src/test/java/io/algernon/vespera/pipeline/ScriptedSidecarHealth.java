@@ -3,7 +3,7 @@ package io.algernon.vespera.pipeline;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * A {@link SidecarHealth} whose answers a test sets (ADR-322): each sidecar answers or not, and docling-serve may
+ * A {@link SidecarHealth} whose answers a test sets (ADR-323): each sidecar answers or not, and docling-serve may
  * fail a number of checks before it answers. It counts every question, so a test can claim nothing was asked.
  */
 final class ScriptedSidecarHealth implements SidecarHealth {

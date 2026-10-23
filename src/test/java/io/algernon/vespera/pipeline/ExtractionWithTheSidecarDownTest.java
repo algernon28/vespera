@@ -84,7 +84,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * {@code /health} and {@code /version} with the statuses each test names. The extractor is a {@link
  * ScriptedExtractor} with nothing queued, because no conversion should ever be asked for.
  *
- * <p>Since ADR-322 §7 the start check waits for a converter that gives no answer, so the unreachable one is waited
+ * <p>Since ADR-323 §7 the start check waits for a converter that gives no answer, so the unreachable one is waited
  * for, on a short clock, and the step then fails with the line it failed with before; the unhealthy one answers, with
  * an error, and fails at once.
  *
@@ -102,7 +102,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-080", url = Adr.THE_BOILERPLATE_FLOOR_IS_A_GATE, type = "adr")
 @Link(name = "ADR-093", url = Adr.LOGGING_IS_EXPLICIT_AND_PROCESS_SCOPED, type = "adr")
 @Link(name = "ADR-157", url = Adr.A_STAGE_ASKS_FOR_ITS_RUN_AFTER_ITS_OWN_GATE, type = "adr")
-@Link(name = "ADR-322", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
+@Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
 class ExtractionWithTheSidecarDownTest {
 
     /** How long these tests wait for a converter that gives no answer: half a second, so the wait runs out quickly. */
@@ -331,7 +331,7 @@ class ExtractionWithTheSidecarDownTest {
             return new ScriptedExtractor();
         }
 
-        /** The wait for a converter that gives no answer, on a clock short enough to run (ADR-322 §7). */
+        /** The wait for a converter that gives no answer, on a clock short enough to run (ADR-323 §7). */
         @Bean
         @Primary
         SidecarRecovery sidecarRecoveryOnAShortClock(DoclingClient client) {
