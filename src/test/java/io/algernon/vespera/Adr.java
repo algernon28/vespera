@@ -2235,6 +2235,14 @@ public final class Adr {
             + "0319-a-cluster-whose-answer-is-turned-down-the-last-two-times-it-is-asked-stands-without-writing-and-the-generation-step-finishes-with-it.md";
 
     /**
+     * ADR-320 -- a publish sends each page whole, its files before its body, before it creates the next, and says how
+     * far it has got: totals first, a line as each page starts and for each file, and the page it stopped at
+     * (supersedes ADR-308 §8's and ADR-316 §4's order).
+     */
+    public static final String A_PUBLISH_SENDS_EACH_PAGE_WHOLE_AND_SAYS_HOW_FAR_IT_HAS_GOT = FILE
+            + "0320-a-publish-sends-each-page-whole-its-files-before-its-body-before-it-creates-the-next-and-says-how-far-it-has-got.md";
+
+    /**
      * ADR-321 -- the deliverable is written and drawn in the language the profile's {@code deliverableLanguage} names,
      * English unless it names Italian, and the question names the answer's two fields and where its writing ends
      * (amends ADR-161 §1, ADR-174 §2, ADR-274 §1.4, ADR-310 §2, ADR-315 §2 and ADR-319 §5.1).

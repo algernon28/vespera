@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,7 +42,8 @@ import picocli.CommandLine;
 @Feature("The publish")
 @Issue("633")
 @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
-class PublishFindsTheLastDrawnRenderingTest {
+@Tag("confluence")
+class PublishFindsTheLastDrawnRenderingIT {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
