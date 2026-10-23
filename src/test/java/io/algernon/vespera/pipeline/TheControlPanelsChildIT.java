@@ -119,6 +119,7 @@ class TheControlPanelsChildIT {
                         "-Dstdout.encoding=UTF-8",
                         "-Dstderr.encoding=UTF-8",
                         "-Dspring.docker.compose.enabled=false",
+                        "-Dvespera.sidecars.start=false",
                         "-jar", EXECUTABLE_JAR.toAbsolutePath().toString(),
                         "label")
                 .directory(workingDirectory.toFile())

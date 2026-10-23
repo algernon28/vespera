@@ -2,6 +2,8 @@
 
 > **Read with [ADR-214](0214-chroma-is-removed-and-vectors-live-in-sqlite-alone.md).** Chroma is removed, so the README's `up` line starts two services where the header below says three, and §2's bullet on Chroma has no object. The measurements that ran with Chroma in the file are what was measured then. This record's decision stands.
 
+> **Partly amended — see [ADR-322](0322-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md) §2.** Vespera's own `up` names `compose.gpu.yaml` beside `compose.yaml` where `vespera.docling.image` is the image the GPU file builds, and `compose.yaml` alone otherwise. `compose.yaml` on its own still asks for no device.
+
 - **Date**: 2026-09-27
 - **Status**: accepted
 - **Extends**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md). The operator still starts the sidecars from `compose.yaml`, and the README's one `up` line still starts all three on any machine with a Docker daemon. What this record adds is a second file, `compose.gpu.yaml`, that an operator with an NVIDIA GPU names beside the first, so that Ollama runs its models on the GPU.

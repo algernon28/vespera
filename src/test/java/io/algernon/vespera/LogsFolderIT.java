@@ -92,6 +92,7 @@ class LogsFolderIT {
                                     Stream.of(
                                             javaExecutable(),
                                             "-Dspring.docker.compose.enabled=false",
+                                            "-Dvespera.sidecars.start=false",
                                             "-jar",
                                             EXECUTABLE_JAR.toString()),
                                     Stream.of(args))

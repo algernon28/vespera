@@ -360,6 +360,8 @@ class TheClosingLineIsTheLastLineIT {
                                         "-Dstdout.encoding=UTF-8",
                                         "-Dstderr.encoding=UTF-8",
                                         "-Dspring.docker.compose.enabled=false",
+                                        "-Dvespera.sidecars.start=false",
+                                        "-Dvespera.sidecars.wait-at-most=1s",
                                         "-Dvespera.docling.base-url=" + converterUrl,
                                         "-Dvespera.docling.image=" + IMAGE,
                                         "-Dspring.ai.ollama.base-url=" + ollamaUrl,

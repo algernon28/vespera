@@ -1,5 +1,7 @@
 # ADR-175 — A file that fails is marked and skipped, and only a sidecar that stays gone stops stage 2
 
+> **Partly amended — see [ADR-322](0322-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md).** §2's 180 s is the application property `vespera.sidecars.wait-at-most`, 180 seconds unless set, and `SidecarRecovery`'s wait also serves stage 2's start check (ADR-322 §7). The 2 s and the 5 s stay code defaults, and §3's message is unchanged. *What this does not decide*'s question whether the bounds should be configurable is answered for the bound.
+
 - **Date**: 2026-10-03
 - **Status**: accepted
 - **Amends**: [ADR-071](0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md). *"A dead sidecar already fails the call itself, which the skip/breaker machinery below already handles"* held only for a sidecar that answers with a service-scope failure, or answers nothing within the call timeout. A sidecar that closed the connection failed the step on the first such call, and the breaker never counted it (Context). From this record a dropped connection is waited out and the call placed once more (§2), and a sidecar that does not come back, or that goes on dropping, stops the step by a failure of its own (§3, §3a). ADR-071's timeout, its two streaks and its breaker are unchanged (§4).

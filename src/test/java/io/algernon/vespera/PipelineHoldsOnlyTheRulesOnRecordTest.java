@@ -185,6 +185,21 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-265: records which step ended at a shut gate; the gate's decision is the gate's.
             "ShutGates",
             "SidecarRecovery",
+            // ADR-322: start the Docker engine and the sidecars, and say why where they cannot; none decides a
+            // verdict, a cache key, a cluster or text of the deliverable.
+            "ComposeFiles",
+            "DockerEngineDidNotStartException",
+            "DockerIsNotInstalledException",
+            "HostSystem",
+            "NoComposeFileBuildsTheImageException",
+            "ProcessOutcome",
+            "ProcessRunner",
+            "SidecarHealth",
+            "SidecarStartRefusedException",
+            "SidecarStartSettings",
+            "SidecarStarter",
+            "SidecarsDidNotAnswerException",
+            "SidecarsDidNotStartException",
             "StageFiveGates",
             "StageModules",
             "StageProgress",

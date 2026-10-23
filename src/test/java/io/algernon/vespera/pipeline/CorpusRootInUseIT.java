@@ -165,6 +165,7 @@ class CorpusRootInUseIT {
                             ProcessHandle.current().info().command().orElseThrow(),
                             "--enable-native-access=ALL-UNNAMED",
                             "-Dspring.docker.compose.enabled=false",
+                            "-Dvespera.sidecars.start=false",
                             "-Dvespera.working-dir=" + workingDirectory,
                             "-D" + CorpusRootLock.FOLDER_PROPERTY + "=" + folder,
                             "-jar", EXECUTABLE_JAR.toString(),
