@@ -2234,6 +2234,14 @@ public final class Adr {
     public static final String A_CLUSTER_TURNED_DOWN_THE_LAST_TWO_TIMES_STANDS_WITHOUT_WRITING = FILE
             + "0319-a-cluster-whose-answer-is-turned-down-the-last-two-times-it-is-asked-stands-without-writing-and-the-generation-step-finishes-with-it.md";
 
+    /**
+     * ADR-322 -- the progress page's three line charts stand after the timeline in one row that wraps, three, two or
+     * one across, each drawn 600 units wide and never under 500 px, where its text is 10 px high, with one end label
+     * a series; the timeline keeps 1,100 units and 917 px (amends ADR-268 §7 and ADR-269 §7).
+     */
+    public static final String THE_THREE_LINE_CHARTS_STAND_IN_ONE_ROW_THAT_WRAPS = FILE
+            + "0322-the-progress-pages-three-line-charts-stand-in-one-row-that-wraps-each-drawn-600-units-wide-and-legible-down-to-500-px.md";
+
     private Adr() {
     }
 }
