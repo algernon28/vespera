@@ -80,7 +80,7 @@ final class SystemProcessRunner implements ProcessRunner {
     private static Process start(List<String> command, ProcessBuilder.Redirect output) throws IOException {
         ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(output);
         builder.redirectInput(ProcessBuilder.Redirect.from(new java.io.File(
-                System.getProperty("os.name", "").toLowerCase().contains("win") ? "NUL" : "/dev/null")));
+                HostSystem.current() == HostSystem.WINDOWS ? "NUL" : "/dev/null")));
         return builder.start();
     }
 
