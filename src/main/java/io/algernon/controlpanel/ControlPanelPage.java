@@ -29,12 +29,7 @@ final class ControlPanelPage {
               var start = body.getAttribute('data-start');
               var seconds = parseInt(body.getAttribute('data-refresh-seconds') || '0', 10);
               var loadedAt = Date.now();
-              if (!start) {
-                if (seconds > 0) {
-                  window.setTimeout(function () { window.location.reload(); }, seconds * 1000);
-                }
-                return;
-              }
+              if (!start) { return; }
               function poll() {
                 var reloading = false;
                 window.fetch('/alive', {
