@@ -1,5 +1,7 @@
 # ADR-323 — Vespera starts the Docker engine and the sidecars when they are not answering, recreates and stops none, and stage 2 waits for a converter still starting
 
+> **Partly amended — see [ADR-326](0326-a-command-whose-output-file-cannot-be-written-or-read-refuses-the-start-in-a-line-of-its-own-and-only-a-program-that-cannot-be-started-is-docker-not-installed.md).** Of §5: only a program that cannot be started is Docker not installed, or exit 127; a temporary file a command's output goes to that cannot be created or read refuses the start with a line of its own, whatever the program, and the next start command is not tried. Of §8: a ninth line, `CommandOutputFileUnusableException`'s, and eight exception types. Of Tests: `SidecarStartTest` and `SystemProcessRunnerTest` gain its claims.
+
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
 - **Decided**: by the operator, who decided that Vespera starts the Docker engine where it is not running, Docker Desktop on Windows and macOS and the service on Linux, then brings the sidecars up with the README's `up` line, `compose.gpu.yaml` included where the configuration asks for the GPU, and never stops them; and that stage 2's start check waits for a converter that is still starting. How the GPU is known, which commands start them, the per-system commands, the bounds, the refusals, the opt-out and the locks are decided under delegation.

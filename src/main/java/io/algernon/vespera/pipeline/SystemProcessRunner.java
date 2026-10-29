@@ -22,12 +22,25 @@ final class SystemProcessRunner implements ProcessRunner {
     /** How long a command that was killed is waited for. */
     private static final Duration KILL_GRACE = Duration.ofSeconds(1);
 
+    private final Path folder;
+
+    /** A runner whose output files are created in {@code folder} (ADR-326). */
+    SystemProcessRunner(Path folder) {
+        this.folder = folder;
+    }
+
     @Override
-    public ProcessOutcome run(List<String> command, Duration timeout) throws IOException {
+    public ProcessOutcome run(List<String> command, Duration timeout)
+            throws IOException, CommandOutputFileException {
         // The output goes to a file, not a pipe: a child the command started may hold it open for as long as it
         // lives, and on Windows closing a pipe another thread is blocked reading waits for that read (ADR-323 §5).
         // Nothing here reads a pipe, so nothing here can block on one.
-        Path file = Files.createTempFile("vespera-command-", ".out");
+        Path file;
+        try {
+            file = Files.createTempFile(folder, "vespera-command-", ".out");
+        } catch (IOException | RuntimeException unwritable) {
+            throw new CommandOutputFileException(command, folder, asIoException(unwritable));
+        }
         try {
             Process process = start(command, ProcessBuilder.Redirect.to(file.toFile()));
             try {
@@ -36,7 +49,13 @@ final class SystemProcessRunner implements ProcessRunner {
                     process.destroyForcibly();
                     process.waitFor(KILL_GRACE.toMillis(), TimeUnit.MILLISECONDS);
                 }
-                return new ProcessOutcome(exited ? process.exitValue() : KILLED, linesOf(Files.readAllBytes(file)));
+                byte[] bytes;
+                try {
+                    bytes = Files.readAllBytes(file);
+                } catch (IOException | RuntimeException unreadable) {
+                    throw new CommandOutputFileException(command, folder, asIoException(unreadable));
+                }
+                return new ProcessOutcome(exited ? process.exitValue() : KILLED, linesOf(bytes));
             } catch (InterruptedException interrupted) {
                 process.destroyForcibly();
                 Thread.currentThread().interrupt();
@@ -70,6 +89,10 @@ final class SystemProcessRunner implements ProcessRunner {
             Thread.currentThread().interrupt();
             throw new IOException("interrupted while waiting for " + String.join(" ", command), interrupted);
         }
+    }
+
+    private static IOException asIoException(Exception failure) {
+        return failure instanceof IOException io ? io : new IOException(failure.getMessage(), failure);
     }
 
     /** Nothing here is asked for input: a command that reads its input gets the end of it at once. */
