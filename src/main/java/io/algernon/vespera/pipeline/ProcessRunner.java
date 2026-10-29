@@ -17,8 +17,10 @@ interface ProcessRunner {
      *
      * @throws IOException when the program cannot be started, as {@link ProcessBuilder#start} does for one that is
      *     not there
+     * @throws CommandOutputFileException when the temporary file its output goes to cannot be created or read
+     *     (ADR-326)
      */
-    ProcessOutcome run(List<String> command, Duration timeout) throws IOException;
+    ProcessOutcome run(List<String> command, Duration timeout) throws IOException, CommandOutputFileException;
 
     /**
      * Runs the command to its end with no bound of Vespera's, handing every line it prints to {@code eachLine} as it

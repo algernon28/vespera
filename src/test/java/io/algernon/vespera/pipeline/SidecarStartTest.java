@@ -28,7 +28,7 @@ import org.yaml.snakeyaml.Yaml;
 
 /**
  * What Vespera runs to bring its two sidecars up when they are not answering, and what it refuses with when it cannot
- * (ADR-323 §2 to §6 and §8).
+ * (ADR-323 §2 to §6 and §8, ADR-326).
  *
  * <p>No Docker is needed: the starter is given a {@link ScriptedDocker}, which records every command and answers each
  * from a script, and a {@link ScriptedSidecarHealth}. The compose files are the repository's own, read where the tests
@@ -84,6 +84,12 @@ class SidecarStartTest {
 
     /** What writing a file reports on a full drive. */
     private static final String NO_SPACE = "No space left on device";
+
+    /** What reading a file back reports where the drive under it fails. */
+    private static final String READ_FAILED = "Input/output error";
+
+    /** The folder a command's output file is created in, as the application's runner has it. */
+    private static final Path OUTPUT_FOLDER = Path.of(System.getProperty("java.io.tmpdir")).toAbsolutePath();
 
     /** What starting {@code systemctl} reports on a machine that has none. */
     private static final String NO_SYSTEMCTL = "Cannot run program \"systemctl\": error=2, No such file or directory";
@@ -569,6 +575,64 @@ class SidecarStartTest {
                                 + System.getProperty("java.io.tmpdir") + ", or make it writable, and run the same"
                                 + " command again."));
         claim("and no command was run", () -> assertThat(docker.commands()).isEmpty());
+    }
+
+    @Test
+    @Story("Vespera refuses, naming why, when it cannot start them")
+    @Issue("659")
+    @Link(name = "ADR-326", url = Adr.A_COMMANDS_OUTPUT_FILE_THAT_FAILS_REFUSES_THE_START_IN_A_LINE_OF_ITS_OWN, type = "adr")
+    @DisplayName("When the temporary file the Docker engine check's output goes to cannot be written, the start is refused saying so, and not as Docker missing")
+    void anEngineChecksOutputFileThatCannotBeWrittenIsRefusedAndNotAsDockerMissing() {
+        ScriptedDocker docker =
+                ScriptedDocker.engineRunning().outputFileFails(ScriptedDocker.ENGINE_CHECK, OUTPUT_FOLDER, NO_SPACE);
+
+        Throwable refused = catchThrowable(() ->
+                starter(settings(cpuImage), docker, ScriptedSidecarHealth.neitherAnswering(), HostSystem.LINUX)
+                        .ensureRunning());
+
+        claim("the start is refused with the line naming the engine check, the reason its output file failed and the"
+                        + " folder to make room in, and not with the line saying no docker command was found, since"
+                        + " docker was there",
+                () -> assertThat(refused)
+                        .isInstanceOf(CommandOutputFileUnusableException.class)
+                        .isInstanceOf(SidecarStartRefusedException.class)
+                        .isNotInstanceOf(DockerIsNotInstalledException.class)
+                        .hasMessage(outputFileRefusal(ScriptedDocker.ENGINE_CHECK, NO_SPACE)));
+        claim("and nothing was run after the engine check", () -> assertThat(docker.commands())
+                .containsExactly(ScriptedDocker.ENGINE_CHECK));
+    }
+
+    @Test
+    @Story("Vespera refuses, naming why, when it cannot start them")
+    @Issue("659")
+    @Link(name = "ADR-326", url = Adr.A_COMMANDS_OUTPUT_FILE_THAT_FAILS_REFUSES_THE_START_IN_A_LINE_OF_ITS_OWN, type = "adr")
+    @DisplayName("When the temporary file a start command's output goes to cannot be read, the start is refused saying so, not counted as a command not found, and no other start command is tried")
+    void aStartCommandsOutputFileThatCannotBeReadIsRefusedAndNotCountedAsNotFound() {
+        ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ScriptedDocker.NEVER)
+                .outputFileFails(SYSTEMCTL_START, OUTPUT_FOLDER, READ_FAILED)
+                .answering(DESKTOP_START, 0, "");
+
+        Throwable refused = catchThrowable(() ->
+                starter(settings(cpuImage), docker, ScriptedSidecarHealth.neitherAnswering(), HostSystem.LINUX)
+                        .ensureRunning());
+
+        claim("the start is refused with the line naming the service's start command and the reason its output file"
+                        + " failed, and not with the line listing the start commands that exited, the service's as"
+                        + " exit 127",
+                () -> assertThat(refused)
+                        .isInstanceOf(CommandOutputFileUnusableException.class)
+                        .isNotInstanceOf(DockerEngineDidNotStartException.class)
+                        .hasMessage(outputFileRefusal(SYSTEMCTL_START, READ_FAILED)));
+        claim("and Docker Desktop's command, whose output would go to the same folder, was not tried: the engine was"
+                        + " checked and the service's start run, and nothing after",
+                () -> assertThat(docker.commands()).containsExactly(ScriptedDocker.ENGINE_CHECK, SYSTEMCTL_START));
+    }
+
+    /** The line a start is refused with where {@code command}'s output file in {@link #OUTPUT_FOLDER} failed. */
+    private static String outputFileRefusal(List<String> command, String reason) {
+        return "the sidecars are not answering and Vespera cannot start them: the temporary file the output of "
+                + String.join(" ", command) + " goes to cannot be written or read (" + reason + "). Make room in "
+                + OUTPUT_FOLDER + ", or make it writable, and run the same command again.";
     }
 
     private void assertTheEngineIsStartedBy(HostSystem host, List<String> startCommand) {

@@ -192,6 +192,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // verdict, a cache key, a cluster or text of the deliverable.
             "ComposeFiles",
             "ComposeFilesUnwritableException",
+            // ADR-326: say that a command's output file failed, apart from a program that cannot be started.
+            "CommandOutputFileException",
+            "CommandOutputFileUnusableException",
             "DockerEngineDidNotStartException",
             "DockerIsNotInstalledException",
             "HostSystem",
