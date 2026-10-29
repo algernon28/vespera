@@ -19,6 +19,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -116,16 +117,17 @@ final class ProgressPage implements JobExecutionListener {
             + "        opened = opened.filter(function (other) { return other !== name; });\n"
             + "        folded = folded.filter(function (other) { return other !== name; });\n"
             + "        (becomes ? opened : folded).push(name);\n"
-            + "        try { location.replace(carry() || '#'); } catch (e) { }\\n"
-            + "      });\\n"
-            + "    });\\n"
-            + "  } catch (e) { }\\n"
+            + "        try { location.replace(carry() || '#'); } catch (e) { }\n"
+            + "      });\n"
+            + "    });\n"
+            + "  } catch (e) { }\n"
             + "})();";
 
     /**
      * The one script of every tab of every write (ADR-269 section 3): the same text always, holding no data of an
      * invocation. It checks the liveness mark and draws the hover of each line chart from the attributes of the
-     * chart's hit circles; it writes text only through {@code textContent} and parses no markup.
+     * chart's hit circles; it reloads the tab and keeps the folds in the fragment of the address (ADR-216); it
+     * writes text only through {@code textContent} and parses no markup.
      */
     private static final String SCRIPT =
             "document.querySelectorAll('.liveness[data-written]').forEach(function (mark) {\n"
@@ -955,7 +957,7 @@ final class ProgressPage implements JobExecutionListener {
         legs.put(StepNames.CLUSTERING, List.of(
                 StepNames.RELEVANCE_SCORING, StepNames.RELEVANCE_FLOOR, StepNames.CLUSTERING, StepNames.RELEVANCE_REPORT));
         legs.put(StepNames.GENERATION, List.of(StepNames.ARRANGEMENT, StepNames.GENERATION));
-        return java.util.Collections.unmodifiableMap(legs);
+        return Collections.unmodifiableMap(legs);
     }
 
     /** A leg's state, read off its steps' states at the write by the first rule that holds (ADR-324 section 3). */
@@ -980,7 +982,7 @@ final class ProgressPage implements JobExecutionListener {
     }
 
     /**
-     * The timeline's card (ADR-324): one time axis, then a fold a leg, each holding a summary with the leg's bar and
+     * The timeline's card (ADR-324): one time axis, then a leg each, each holding a summary with the leg's bar and
      * the drawing of its steps, one bar a step on the same axis of time from the job's start to this write (ADR-267
      * section 1, ADR-268 section 8).
      */

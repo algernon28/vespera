@@ -419,6 +419,7 @@ class ProgressPageTabsTest {
 
     @Test
     @Link(name = "ADR-322", url = Adr.THE_THREE_LINE_CHARTS_STAND_IN_ONE_ROW_THAT_WRAPS, type = "adr")
+    @Link(name = "ADR-324", url = Adr.THE_TIMELINE_FOLDS_INTO_FOUR_LEGS, type = "adr")
     @Story("The pages are as wide as the window, and only a chart or a table too wide for it scrolls")
     @DisplayName("Every tab and the label page fill the window: the viewport tag, no max-width or min-width on the body, every chart scaled to its card down to the width its text can be read at, and only a chart's or a table's card scrolling sideways")
     void everyPageIsAsWideAsTheWindowAndOnlyAChartOrATableScrolls(@TempDir Path labelDirectory) throws IOException {
@@ -460,15 +461,22 @@ class ProgressPageTabsTest {
                     () -> {
                         assertThat(lastValue(rules, "body", "max-width")).isEqualTo("none");
                         assertThat(values(rules, "min-width")).doesNotContainKeys("body", "html");
+                        assertThat(values(rules, "min-inline-size")).doesNotContainKeys("body", "html");
                         assertThat(values(rules, "overflow-x")).doesNotContainKeys("body", "html");
                     });
             claim(
-                    name + " gives a min-width only to the drawings, each where its 12-unit text is 10 px high: the"
-                            + " timeline " + TIMELINE_LEGIBLE_WIDTH + " in a viewBox 1,100 wide, a line chart "
-                            + LINE_CHART_LEGIBLE_WIDTH + " in one 600 wide; and draws every chart as wide as its card",
+                    name + " gives a min-width only to the drawings, each where its 12-unit text is 10 px high: every"
+                            + " drawing of the timeline's card, its time axis, each leg's bar and each leg's steps, "
+                            + TIMELINE_LEGIBLE_WIDTH + " in a viewBox 1,100 wide, a line chart "
+                            + LINE_CHART_LEGIBLE_WIDTH + " in one 600 wide; sets that floor by min-width and never by"
+                            + " its synonym min-inline-size; and draws every chart as wide as its card",
                     () -> {
                         assertThat(values(rules, "min-width")).containsExactlyInAnyOrderEntriesOf(Map.of(
-                                "svg.timeline", TIMELINE_LEGIBLE_WIDTH, "svg.chart", LINE_CHART_LEGIBLE_WIDTH));
+                                "svg.timeline-axis", TIMELINE_LEGIBLE_WIDTH,
+                                "svg.timeline-leg", TIMELINE_LEGIBLE_WIDTH,
+                                "svg.timeline", TIMELINE_LEGIBLE_WIDTH,
+                                "svg.chart", LINE_CHART_LEGIBLE_WIDTH));
+                        assertThat(values(rules, "min-inline-size")).isEmpty();
                         assertThat(lastValue(rules, "svg", "width")).isEqualTo("100%");
                         assertThat(lastValue(rules, "svg", "height")).isEqualTo("auto");
                     });

@@ -100,7 +100,7 @@ final class ReportPage {
             + ".key.s5 { border-color: var(--series-5); }\n"
             + "svg { display: block; width: 100%; height: auto; }\n"
             + "svg.timeline { min-width: 917px; }\n"
-            + "svg.timeline-axis, svg.timeline-leg { min-inline-size: 917px; }\n"
+            + "svg.timeline-axis, svg.timeline-leg { min-width: 917px; }\n"
             + "details.leg > summary { cursor: pointer; }\n"
             + "details.leg[open] > summary .leg-span rect, details.leg[open] > summary .leg-span .state { display: none; }\n"
             + "svg.chart { min-width: 500px; }\n"

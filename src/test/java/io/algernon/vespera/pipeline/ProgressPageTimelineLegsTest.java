@@ -426,6 +426,11 @@ class ProgressPageTimelineLegsTest {
                 "and it still parses no markup",
                 () -> assertThat(script).doesNotContain("innerHTML").doesNotContain("outerHTML")
                         .doesNotContain("insertAdjacentHTML").doesNotContain("document.write"));
+        claim(
+                "and it holds no backslash: the script needs none, and one written outside a string is no JavaScript, so"
+                        + " that the whole script would not run, its reload with it, and with the meta refresh in a"
+                        + " noscript a running tab would never be rewritten",
+                () -> assertThat(script).doesNotContain("\\"));
     }
 
     @Test
