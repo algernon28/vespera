@@ -14,7 +14,8 @@ import java.util.function.Consumer;
  * 0 after; a start command answers what {@link #answering} set for it, and any other command {@link #otherCommandsExiting}, exit 1 unless set; {@code up} answers {@link
  * #upAnswers}, and on exit 0 runs {@link #whenUpSucceeds}, which is how a test has the sidecars answer once they are
  * up. Not installed, every command it is given throws as {@code ProcessBuilder.start} does for a program that is not
- * there.
+ * there. A command {@link #outputFileFails} names throws as the runner does where the temporary file its output goes to
+ * cannot be created or read (ADR-326).
  */
 final class ScriptedDocker implements ProcessRunner {
 
@@ -27,6 +28,7 @@ final class ScriptedDocker implements ProcessRunner {
     private final List<List<String>> commands = new ArrayList<>();
     private final Map<List<String>, ProcessOutcome> scripted = new HashMap<>();
     private final java.util.Set<List<String>> unlaunchable = new java.util.HashSet<>();
+    private final Map<List<String>, CommandOutputFileException> outputFileFailures = new HashMap<>();
     private boolean installed = true;
     private int engineAnswersAfter;
     private int otherCommandsExit = 1;
@@ -65,6 +67,15 @@ final class ScriptedDocker implements ProcessRunner {
         return this;
     }
 
+    /**
+     * The temporary file {@code command}'s output goes to, in {@code folder}, cannot be created or read, for {@code
+     * why}, as on a drive that has filled since the compose files were written out.
+     */
+    ScriptedDocker outputFileFails(List<String> command, java.nio.file.Path folder, String why) {
+        outputFileFailures.put(command, new CommandOutputFileException(command, folder, new IOException(why)));
+        return this;
+    }
+
     /** What a command no script names exits with, and prints nothing: 1 unless set. */
     ScriptedDocker otherCommandsExiting(int exitCode) {
         otherCommandsExit = exitCode;
@@ -87,8 +98,11 @@ final class ScriptedDocker implements ProcessRunner {
     }
 
     @Override
-    public ProcessOutcome run(List<String> command, Duration timeout) throws IOException {
+    public ProcessOutcome run(List<String> command, Duration timeout) throws IOException, CommandOutputFileException {
         commands.add(List.copyOf(command));
+        if (outputFileFailures.containsKey(command)) {
+            throw outputFileFailures.get(command);
+        }
         refuseWhereNotInstalled(command);
         if (unlaunchable.contains(command)) {
             throw new IOException(scripted.get(command).output());
