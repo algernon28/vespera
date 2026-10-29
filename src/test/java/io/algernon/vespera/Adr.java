@@ -2277,6 +2277,14 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK = FILE
             + "0325-the-control-panel-opens-the-browser-itself-at-a-fixed-port-and-a-tab-of-its-last-start-comes-back-to-the-next-in-place-of-a-new-one.md";
 
+    /**
+     * ADR-326 -- a temporary file a command's output goes to that cannot be created or read refuses the start with a
+     * line of its own, whatever the program; only a program that cannot be started is Docker not installed, or exit
+     * 127 (amends ADR-323 §5 and §8).
+     */
+    public static final String A_COMMANDS_OUTPUT_FILE_THAT_FAILS_REFUSES_THE_START_IN_A_LINE_OF_ITS_OWN = FILE
+            + "0326-a-command-whose-output-file-cannot-be-written-or-read-refuses-the-start-in-a-line-of-its-own-and-only-a-program-that-cannot-be-started-is-docker-not-installed.md";
+
     private Adr() {
     }
 }
