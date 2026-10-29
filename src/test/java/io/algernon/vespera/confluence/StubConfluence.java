@@ -34,7 +34,9 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * A Confluence Cloud site in memory, served on the loopback address by the JDK's own HTTP server, answering the calls a
  * publish makes as {@code docs/research/confluence-loading.md} §5 measured them: a title is unique within a space, a
- * second {@code POST} of a file name is refused with {@code 400}, and a body is taken as sent. No test reaches a real
+ * second {@code POST} of a file name is refused with {@code 400}, and a body is taken as sent. It answers the calls
+ * ADR-328 adds as Atlassian's v2 and v1 references describe them, none measured: a page's or a folder's direct
+ * children, a page's {@code DELETE}, which moves it to the trash, and a label's {@code DELETE}. No test reaches a real
  * site.
  *
  * <p>The publish is pointed at {@code https://} {@value #SITE_HOST}: {@link #requests()} sends each request it builds
@@ -57,6 +59,11 @@ final class StubConfluence implements AutoCloseable {
     static final String PARENT_ID = "7001";
 
     static final String PARENT_TITLE = "Handed over";
+
+    /** A second folder of the space, under which no tree stands (ADR-328 §4). */
+    static final String OTHER_PARENT_ID = "7002";
+
+    static final String OTHER_PARENT_TITLE = "Elsewhere";
 
     /** The account and its token, synthetic. */
     static final String USER = "operator@example.org";
@@ -101,8 +108,11 @@ final class StubConfluence implements AutoCloseable {
         }
     }
 
-    /** What a write the site took did: a page created, a file put on a page, or a body sent to one. */
-    enum Kind { CREATED, FILE, BODY }
+    /**
+     * What a write the site took did: a page created, a file put on a page, a body sent to one, or a page moved to the
+     * trash (ADR-328 §5).
+     */
+    enum Kind { CREATED, FILE, BODY, TRASHED }
 
     /**
      * A write the site took, in the order it took them (ADR-320 §1): its kind, the title of the page it was on as the
@@ -155,6 +165,8 @@ final class StubConfluence implements AutoCloseable {
     private final List<BodyTaken> bodiesTaken = new ArrayList<>();
     private final Map<String, Integer> conflictsLeft = new HashMap<>();
     private final Set<String> tooLarge = new HashSet<>();
+    private final Map<String, Integer> removalsRefused = new HashMap<>();
+    private final List<Page> trash = new ArrayList<>();
     private int pacesLeft;
     private String pacedWith = "7";
     private String nextLinkOfTheLabelSearch;
@@ -242,7 +254,7 @@ final class StubConfluence implements AutoCloseable {
 
     private void took(Kind kind, Page page, String file) {
         writes.add(new Write(kind, page.title, file));
-        if (kind != Kind.FILE && !page.body.isEmpty()) {
+        if ((kind == Kind.CREATED || kind == Kind.BODY) && !page.body.isEmpty()) {
             bodiesTaken.add(new BodyTaken(page.title, page.body, Set.copyOf(page.files.keySet())));
         }
     }
@@ -270,7 +282,51 @@ final class StubConfluence implements AutoCloseable {
 
     /** Puts a page titled {@code title} in the space that no publish made. */
     synchronized void aPageNoPublishMade(String title) {
-        pages.put("" + ids, new Page("" + ids++, title, PARENT_ID));
+        aPageNoPublishMadeUnder(PARENT_ID, title);
+    }
+
+    /** Puts a page titled {@code title} under the page or folder {@code parentId} that no publish made, and gives it. */
+    synchronized Page aPageNoPublishMadeUnder(String parentId, String title) {
+        Page page = new Page("" + ids++, title, parentId);
+        pages.put(page.id, page);
+        return page;
+    }
+
+    /**
+     * Puts a page an earlier publish made under {@code parentId}: titled {@code title}, labelled {@code label}, its
+     * property holding {@code key} and the digest of a body no rendering draws now, and carrying {@code files}, each
+     * with its digest in its comment, as a publish leaves them (ADR-316 §4).
+     */
+    synchronized Page aPageAnEarlierPublishMade(
+            String parentId, String title, String label, String key, Map<String, byte[]> files) {
+        Page page = new Page("" + ids++, title, parentId);
+        page.body = "<p>An earlier body.</p>";
+        page.version = 2;
+        page.labels.add(label);
+        page.propertyId = "p" + ids++;
+        page.propertyVersion = 2;
+        page.property = new LinkedHashMap<>(Map.of("key", key, "bodySha256", "0".repeat(64)));
+        files.forEach((name, bytes) -> page.files.put(name, new File("att" + ids++, name, bytes, sha256(bytes))));
+        pages.put(page.id, page);
+        return page;
+    }
+
+    /** Answers a {@code DELETE} of the page titled {@code title} with {@code status}, the page left as it stands. */
+    synchronized void refuseToRemove(String title, int status) {
+        removalsRefused.put(title, status);
+    }
+
+    /** The pages moved to the trash, in the order they were moved. */
+    synchronized List<Page> trash() {
+        return List.copyOf(trash);
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (java.security.NoSuchAlgorithmException absent) {
+            throw new IllegalStateException(absent);
+        }
     }
 
     private void answer(HttpExchange exchange) throws IOException {
@@ -310,6 +366,7 @@ final class StubConfluence implements AutoCloseable {
 
     private static final Pattern PAGE = Pattern.compile("/wiki/api/v2/pages/([^/]+)");
     private static final Pattern FOLDER = Pattern.compile("/wiki/api/v2/folders/([^/]+)");
+    private static final Pattern CHILDREN = Pattern.compile("/wiki/api/v2/(pages|folders)/([^/]+)/direct-children");
     private static final Pattern PROPERTIES = Pattern.compile("/wiki/api/v2/pages/([^/]+)/properties");
     private static final Pattern PROPERTY = Pattern.compile("/wiki/api/v2/pages/([^/]+)/properties/([^/]+)");
     private static final Pattern ATTACHMENTS = Pattern.compile("/wiki/api/v2/pages/([^/]+)/attachments");
@@ -333,9 +390,34 @@ final class StubConfluence implements AutoCloseable {
                     ? List.of(Map.of("id", SPACE_ID, "key", SPACE_KEY)) : List.of()));
         }
         if (method.equals("GET") && (m = FOLDER.matcher(path)).matches()) {
+            if (m.group(1).equals(OTHER_PARENT_ID)) {
+                return Answer.of(200, Map.of("id", OTHER_PARENT_ID, "title", OTHER_PARENT_TITLE, "spaceId", SPACE_ID));
+            }
             return m.group(1).equals(PARENT_ID)
                     ? Answer.of(200, Map.of("id", PARENT_ID, "title", PARENT_TITLE, "spaceId", SPACE_ID))
                     : Answer.of(404, Map.of("message", "Not found"));
+        }
+        if (method.equals("GET") && (m = CHILDREN.matcher(path)).matches()) {
+            String parent = m.group(2);
+            boolean folder = m.group(1).equals("folders");
+            if (folder ? !(parent.equals(PARENT_ID) || parent.equals(OTHER_PARENT_ID)) : !pages.containsKey(parent)) {
+                return Answer.of(404, Map.of("message", "Not found"));
+            }
+            List<Object> children = new ArrayList<>();
+            int position = 0;
+            for (Page page : pages.values()) {
+                if (parent.equals(page.parentId)) {
+                    Map<String, Object> child = new LinkedHashMap<>();
+                    child.put("id", page.id);
+                    child.put("status", "current");
+                    child.put("title", page.title);
+                    child.put("type", "page");
+                    child.put("spaceId", SPACE_ID);
+                    child.put("childPosition", position++);
+                    children.add(child);
+                }
+            }
+            return Answer.of(200, results(children));
         }
         if (method.equals("GET") && path.equals("/wiki/rest/api/search")) {
             String title = unquoted(CQL_TITLE, request.query("cql"));
@@ -415,6 +497,16 @@ final class StubConfluence implements AutoCloseable {
             if (method.equals("GET")) {
                 return Answer.of(200, pageJson(page));
             }
+            if (method.equals("DELETE")) {
+                Integer refused = removalsRefused.get(page.title);
+                if (refused != null) {
+                    return Answer.of(refused, Map.of("message", "You are not permitted to delete this page"));
+                }
+                pages.remove(page.id);
+                trash.add(page);
+                took(Kind.TRASHED, page, null);
+                return Answer.of(204, null);
+            }
             if (method.equals("PUT")) {
                 JsonNode sent = JSON.readTree(request.body());
                 int left = conflictsLeft.getOrDefault(page.title, 0);
@@ -432,6 +524,13 @@ final class StubConfluence implements AutoCloseable {
                 took(Kind.BODY, page, null);
                 return Answer.of(200, pageJson(page));
             }
+        }
+        if ((m = LABEL.matcher(path)).matches() && method.equals("DELETE")) {
+            Page page = pages.get(m.group(1));
+            if (page == null || !page.labels.remove(request.query("name"))) {
+                return Answer.of(404, Map.of("message", "Not found"));
+            }
+            return Answer.of(204, null);
         }
         if ((m = LABEL.matcher(path)).matches() && method.equals("POST")) {
             Page page = pages.get(m.group(1));

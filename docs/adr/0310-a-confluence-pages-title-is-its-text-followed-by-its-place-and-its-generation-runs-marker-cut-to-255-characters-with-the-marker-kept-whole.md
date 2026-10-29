@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-321](0321-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md).** Where the deliverable's language is Italian, §2's second form reads `TEXT (P.C pagina K · MARKER)`, and a cluster's title is written by the model in Italian. The rest of this record stands.
 
+> **Partly superseded — see [ADR-328](0328-the-confluence-rendering-is-one-tree-updated-in-place-by-each-publish-its-pages-keyed-and-titled-by-their-place-with-no-run-id-and-a-page-it-no-longer-has-moved-to-the-trash.md).** No title carries the run's marker: the root page is `Vespera`, a seed partition's page `TEXT (P)`, a cluster's `TEXT (P.C)` and `TEXT (P.C page K)`, the place padded as §2 pads it; every generation run is published into one tree, updated in place, so §1, §5's uniqueness across runs and the first two Consequences no longer hold. §4 stands with that suffix.
+
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
 - **Decided**: by the operator, on [#613](https://github.com/algernon28/vespera/issues/613): the run's marker (§1), a cluster's page (§2), a seed partition's page and the root page (§3), the length cut and the characters (§4), and where any value lives (§6).

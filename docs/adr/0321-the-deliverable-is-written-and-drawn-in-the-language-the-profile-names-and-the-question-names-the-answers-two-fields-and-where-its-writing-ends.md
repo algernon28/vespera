@@ -1,5 +1,7 @@
 # ADR-321 — The deliverable is written and drawn in the language the profile names, and the question names the answer's two fields and where its writing ends
 
+> **Partly amended — see [ADR-328](0328-the-confluence-rendering-is-one-tree-updated-in-place-by-each-publish-its-pages-keyed-and-titled-by-their-place-with-no-run-id-and-a-page-it-no-longer-has-moved-to-the-trash.md).** The Italian form of ADR-310 §2 reads `TEXT (P.C pagina K)`, with no marker. The rest of this record stands.
+
 - **Date**: 2026-10-22
 - **Status**: accepted on 2026-10-22.
 - **Decided**: by the operator, who decided that what the deliverable shows its readers is in Italian: the fixed words Vespera writes on its pages, the title and the writing of each cluster, which the local model writes in Italian itself and nothing translates afterwards, and every page title Vespera or the model makes; and that the question states the shape of the answer it imposes. Whether the HTML tree follows the Confluence rendering, whether the language is a value or fixed, the Italian words, the language the instruction is written in and the wording of the shape are decided under delegation.

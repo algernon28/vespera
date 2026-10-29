@@ -52,6 +52,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
 @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
 @Link(name = "ADR-310", url = Adr.A_CONFLUENCE_PAGES_TITLE_ENDS_WITH_ITS_PLACE_AND_ITS_RUNS_MARKER, type = "adr")
+@Link(name = "ADR-328", url = Adr.THE_CONFLUENCE_RENDERING_IS_ONE_TREE_UPDATED_IN_PLACE_WITH_NO_RUN_ID, type = "adr")
 @Link(name = "ADR-315", url = Adr.THE_ROOT_PAGE_CARRIES_NEITHER_THE_CORPUS_ROOT_NOR_THE_PROFILE, type = "adr")
 class AnItalianTreeIsDrawnInItalianTest {
 
@@ -60,9 +61,6 @@ class AnItalianTreeIsDrawnInItalianTest {
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
 
     private static final String SEED_PATH = "seeds/Sicurezza.docx";
-
-    /** The marker ADR-310 derives from {@link ListedTree#RUN_ID}: its first twelve characters. */
-    private static final String MARKER = "aaaaaaaaaaaa";
 
     /** How many documents the written cluster holds, and how many entries its list has with the one it no longer holds. */
     private static final int FOUR_DOCUMENTS = 4;
@@ -260,8 +258,9 @@ class AnItalianTreeIsDrawnInItalianTest {
         String partition = asRead(textOf(confluence.resolve("1-sicurezza").resolve(ConfluencePages.BODY_NAME)));
 
         claim(
-                "the root page opens with the deliverable named in Italian and the record's Italian sentence",
-                () -> assertThat(root).startsWith("<h1>" + ItalianWordingOnRecord.THE_DELIVERABLE + ListedTree.RUN_ID
+                "the root page opens with the deliverable named in Italian, without the run's id, and the record's"
+                        + " Italian sentence",
+                () -> assertThat(root).startsWith("<h1>" + ItalianWordingOnRecord.THE_DELIVERABLE.strip()
                         + "</h1>\n<p>" + ItalianWordingOnRecord.THE_ROOT_PAGES_SENTENCE + "</p>"));
         claim(
                 "and both pages head their table of groups in Italian, the unwritten group's cell in Italian",
@@ -314,7 +313,7 @@ class AnItalianTreeIsDrawnInItalianTest {
                 .toList();
         List<String> doorsPages = IntStream.rangeClosed(1, FIVE_ENTRIES)
                 .mapToObj(page -> DOORS_TITLE + " (1.1"
-                        + (page == 1 ? "" : ItalianWordingOnRecord.PAGE_IN_A_TITLE + page) + " · " + MARKER + ")")
+                        + (page == 1 ? "" : ItalianWordingOnRecord.PAGE_IN_A_TITLE + page) + ")")
                 .toList();
 
         claim(
@@ -325,7 +324,7 @@ class AnItalianTreeIsDrawnInItalianTest {
                 "and the root page, the seed partition's page and the unwritten group's page keep the titles that are"
                         + " names: Vespera, the seed's file name and the group's label",
                 () -> assertThat(titles).contains(
-                        "Vespera " + MARKER, "Sicurezza (1 · " + MARKER + ")", "Serrande (1.2 · " + MARKER + ")"));
+                        "Vespera", "Sicurezza (1)", "Serrande (1.2)"));
     }
 
     @Test

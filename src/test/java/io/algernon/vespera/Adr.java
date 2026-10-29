@@ -2304,6 +2304,15 @@ public final class Adr {
     public static final String AN_ENDED_PROGRESS_PAGE_KEEPS_RELOADING_AND_A_SETTING_OPENS_NO_BROWSER = FILE
             + "0327-an-ended-progress-page-keeps-reloading-so-a-tab-left-open-shows-the-next-invocation-and-vespera-open-browser-set-false-opens-nothing.md";
 
+    /**
+     * ADR-328 -- the Confluence rendering is one tree, updated in place by each publish: its pages titled and keyed by
+     * their place with no run id, a page the rendering no longer has moved to the trash after every page is sent, and a
+     * tree an earlier publish made with its marker taken and retitled in place (supersedes ADR-310 §1, ADR-316 §3 and
+     * ADR-308 §8's nothing deleted; amends ADR-310 §2 to §4, ADR-315 §2, ADR-316 §2 and ADR-320 §3 to §5).
+     */
+    public static final String THE_CONFLUENCE_RENDERING_IS_ONE_TREE_UPDATED_IN_PLACE_WITH_NO_RUN_ID = FILE
+            + "0328-the-confluence-rendering-is-one-tree-updated-in-place-by-each-publish-its-pages-keyed-and-titled-by-their-place-with-no-run-id-and-a-page-it-no-longer-has-moved-to-the-trash.md";
+
     private Adr() {
     }
 }

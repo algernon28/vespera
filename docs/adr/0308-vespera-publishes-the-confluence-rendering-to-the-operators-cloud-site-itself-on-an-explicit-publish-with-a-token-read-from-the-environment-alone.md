@@ -4,6 +4,8 @@
 
 > **Partly superseded — see [ADR-320](0320-a-publish-sends-each-page-whole-its-files-before-its-body-before-it-creates-the-next-and-says-how-far-it-has-got.md).** §8's *"Every page is created before any body is written"* no longer holds: a publish finds or creates a page, sends its files and then its body before it creates the next, a title link to a later page resolving once that page exists. §5's publish also prints its totals, a line as each page starts and a line for each file. The rest of §8 stands. The publish's test classes are named `*IT` and run by a `verify` run locally, not by CI (ADR-320 §6).
 
+> **Partly superseded — see [ADR-328](0328-the-confluence-rendering-is-one-tree-updated-in-place-by-each-publish-its-pages-keyed-and-titled-by-their-place-with-no-run-id-and-a-page-it-no-longer-has-moved-to-the-trash.md).** §8's *"Nothing is deleted. A page of an earlier publish whose key the page list no longer holds is left as it stands and counted in the closing line"* no longer holds: after every page of the list is sent, a page of the tree whose key the list does not hold is moved to the space's trash, deepest first, one holding a page the tree does not own left as it stands, and a removal the site refuses said, counted and left. The rest of §8 stands.
+
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
 - **Supersedes**: [ADR-304](0304-vespera-never-sends-the-deliverable-tree-to-confluence-itself-and-holds-no-uploader-no-credential-and-no-connection-for-it.md), whole. Vespera sends the Confluence rendering to one Confluence Cloud site, under one parent in one space the operator names, when and only when the operator asks it to (§1 to §3).
@@ -122,7 +124,7 @@ Built by [#633](https://github.com/algernon28/vespera/issues/633), against a stu
 | `NothingShippedReachesConfluenceTest.theCommandHasRunLabelAndPublish` | the command tree is `run`, `label` and `publish` (§5) |
 | `confluence.PublishSendsToOneHostIT` | a publish sends to the configured `https` host alone, and refuses another host or `http` before sending (§2) |
 | `confluence.PublishReadsItsCredentialFromTheEnvironmentIT` | the token and email are read from the environment alone, a missing one is named and refused before sending, and no line the publish prints holds the token (§3) |
-| `confluence.RepublishUpdatesInPlaceIT` | a second publish of the same rendering updates no page whose local hash is unchanged, updates a changed one with the next version, and deletes nothing (§8) |
+| `confluence.RepublishUpdatesInPlaceIT` | a second publish of the same rendering updates no page whose local hash is unchanged, updates a changed one with the next version (§8); what becomes of a page the list no longer holds is `confluence.PublishUpdatesOneTreeInPlaceIT`'s ([ADR-328](0328-the-confluence-rendering-is-one-tree-updated-in-place-by-each-publish-its-pages-keyed-and-titled-by-their-place-with-no-run-id-and-a-page-it-no-longer-has-moved-to-the-trash.md), [#667](https://github.com/algernon28/vespera/issues/667)) |
 | `controlpanel.ChildCommandTest.onlyRunLabelAndPublishCanBeBuilt` | the control panel starts the jar's three commands and nothing else (§6) |
 
 ## What this does not decide

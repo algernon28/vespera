@@ -340,7 +340,7 @@ The second rendering of the deliverable, which stage 6b draws beside the HTML tr
 _Avoid_: Confluence output, Confluence export, export, the wiki, wiki export, space export, upload, Confluence tree, Confluence version
 
 **Publish**:
-The one act by which this project sends anything to a destination: `vespera publish`, which sends the Confluence rendering of a working directory's last drawing to the operator's Confluence Cloud site, as pages under the one parent the operator names, updating in place what an earlier publish sent (ADR-308). It reads no document's text and is not a stage; no run id moves. Nothing else is said to publish: stage 6b draws, and the control panel starts the command.
+The one act by which this project sends anything to a destination: `vespera publish`, which sends the Confluence rendering of a working directory's last drawing to the operator's Confluence Cloud site, as pages under the one parent the operator names, updating in place what an earlier publish sent, one tree whose pages are matched by their place, and moving to the space's trash the pages of that tree the rendering no longer has (ADR-308, ADR-328). It reads no document's text and is not a stage; no run id moves. Nothing else is said to publish: stage 6b draws, and the control panel starts the command.
 _Avoid_: upload, export
 
 **Page list**:

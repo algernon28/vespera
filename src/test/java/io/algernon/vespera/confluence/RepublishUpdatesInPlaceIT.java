@@ -21,8 +21,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * A publish of a rendering published before updates its pages in place, found by their key: a page whose body's digest
- * its property holds is not sent again, a changed one is sent with the next version, a file standing at its size with
- * its digest in its comment is skipped, and nothing is deleted (ADR-308 §8, ADR-316 §4). Against a stub.
+ * its property holds is not sent again, a changed one is sent with the next version, and a file standing at its size
+ * with its digest in its comment is skipped (ADR-308 §8, ADR-316 §4). What becomes of a page the rendering no longer
+ * has is {@link PublishUpdatesOneTreeInPlaceIT}'s (ADR-328 §5). Against a stub.
  */
 @Epic("Operation")
 @Feature("The publish")
@@ -116,28 +117,6 @@ class RepublishUpdatesInPlaceIT {
             claim("which now holds the new bytes",
                     () -> assertThat(new String(copy.bytes, StandardCharsets.US_ASCII))
                             .isEqualTo("%PDF-1.4 synthetic, drawn again"));
-        }
-    }
-
-    @Test
-    @Story("A publish updates the run's pages in place")
-    @DisplayName("A page of the run the page list no longer holds is left as it stands and counted, and nothing is deleted")
-    void aPageTheListNoLongerHoldsIsLeftAndCounted() throws IOException {
-        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
-        try (StubConfluence site = StubConfluence.start()) {
-            site.publisher(new ArrayList<>()).publish(rendering.confluence(), Rendering.RUN, folder, line -> {});
-            rendering.withoutTheCluster();
-            Publisher.Outcome again = site.publisher(new ArrayList<>())
-                    .publish(rendering.confluence(), Rendering.RUN, folder, line -> {});
-
-            claim("the publish went to its end and counted the page it left",
-                    () -> assertThat(again.closingLine())
-                            .contains("1 page of this run the page list no longer holds was left as it stands"));
-            claim("which still stands on the site, with its files",
-                    () -> assertThat(page(site, Rendering.CLUSTER_TITLE).files).containsOnlyKeys(Rendering.COPY,
-                            Rendering.PICTURE));
-            claim("and no request of either publish was a DELETE",
-                    () -> assertThat(site.sent()).noneMatch(request -> request.method().equals("DELETE")));
         }
     }
 

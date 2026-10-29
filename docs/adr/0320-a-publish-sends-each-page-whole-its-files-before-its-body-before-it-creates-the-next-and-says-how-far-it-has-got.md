@@ -1,5 +1,7 @@
 # ADR-320 — A publish sends each page whole, its files before its body, before it creates the next, and says how far it has got
 
+> **Partly amended — see [ADR-328](0328-the-confluence-rendering-is-one-tree-updated-in-place-by-each-publish-its-pages-keyed-and-titled-by-their-place-with-no-run-id-and-a-page-it-no-longer-has-moved-to-the-trash.md).** §4 gains the lines of a removal and of a tree an earlier publish made with its marker being taken, and its closing line counts the pages removed and left in place of the pages of the run left as they stand; §3 takes a page found by its title only where its property holds that page's key by its place; §5's stop during the removals names the removal it stopped at. §1 and §2 stand.
+
 - **Date**: 2026-10-22
 - **Status**: accepted on 2026-10-22.
 - **Supersedes**: [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md) §8's *"Every page is created before any body is written, so a link between pages, which Confluence resolves by title, finds its page"*, and [ADR-316](0316-the-page-list-is-pages-json-in-confluence-each-page-keyed-by-its-run-and-place-with-its-parent-title-body-files-sizes-and-digests.md) §4's **Order**: a publish goes through the page list a page at a time, and finds or creates a page, sends its files and then its body before it creates the next (§1, §2).
