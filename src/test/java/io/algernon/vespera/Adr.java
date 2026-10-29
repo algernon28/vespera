@@ -2294,6 +2294,16 @@ public final class Adr {
     public static final String A_COMMANDS_OUTPUT_FILE_THAT_FAILS_REFUSES_THE_START_IN_A_LINE_OF_ITS_OWN = FILE
             + "0326-a-command-whose-output-file-cannot-be-written-or-read-refuses-the-start-in-a-line-of-its-own-and-only-a-program-that-cannot-be-started-is-docker-not-installed.md";
 
+    /**
+     * ADR-327 -- every last write of the progress page reloads at the interval as the writes before it, says after the
+     * end that it is reloaded and shows the next invocation, and its mark carries the interval and no time written;
+     * {@code vespera.open-browser}, true unless set, opens neither the progress page nor the deliverable's index where
+     * it is false (amends ADR-265 §1 and §2, ADR-266 §2, §3 and §5, ADR-267 §3 to §5, ADR-269 §1 to §3, ADR-274 §7
+     * and ADR-324 §5).
+     */
+    public static final String AN_ENDED_PROGRESS_PAGE_KEEPS_RELOADING_AND_A_SETTING_OPENS_NO_BROWSER = FILE
+            + "0327-an-ended-progress-page-keeps-reloading-so-a-tab-left-open-shows-the-next-invocation-and-vespera-open-browser-set-false-opens-nothing.md";
+
     private Adr() {
     }
 }

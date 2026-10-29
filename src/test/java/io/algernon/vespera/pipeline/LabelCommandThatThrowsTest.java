@@ -31,8 +31,6 @@ class LabelCommandThatThrowsTest {
 
     private static final String ENDED_FAILED = "This invocation has ended: failed.";
 
-    private static final String RELOAD = "<meta http-equiv=\"refresh\" content=\"";
-
     private static final String ANSWERS_HEADER = ReportPage.headerRow("Answers", "Count");
 
     @Test
@@ -58,9 +56,8 @@ class LabelCommandThatThrowsTest {
         claim("the label command left a page", () -> assertThat(written).isRegularFile());
         String text = Files.readString(written, StandardCharsets.UTF_8);
         claim(
-                "the page says the invocation ended failed, no longer reloads, and has no table of answers, since"
-                        + " nothing was counted",
-                () -> assertThat(text).contains(ENDED_FAILED).doesNotContain(RELOAD).doesNotContain(ANSWERS_HEADER));
+                "the page says the invocation ended failed, and has no table of answers, since nothing was counted",
+                () -> assertThat(text).contains(ENDED_FAILED).doesNotContain(ANSWERS_HEADER));
         claim(
                 "and the exception's message is not on the page",
                 () -> assertThat(text).doesNotContain(thrown.getMessage()));

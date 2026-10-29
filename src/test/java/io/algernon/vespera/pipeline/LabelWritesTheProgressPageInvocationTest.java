@@ -42,9 +42,6 @@ class LabelWritesTheProgressPageInvocationTest {
 
     private static final String PAGE = "progress.html";
 
-    /** What a page that reloads itself carries in its head, up to the number of seconds. */
-    private static final String RELOAD = "<meta http-equiv=\"refresh\" content=\"";
-
     private static final String ENDED_RECORDED = "This invocation has ended: recorded.";
 
     private static final String ENDED_REFUSED = "This invocation has ended: refused.";
@@ -88,8 +85,8 @@ class LabelWritesTheProgressPageInvocationTest {
 
     @Test
     @Story("The label command writes what it recorded")
-    @DisplayName("After the label command records one new answer, the page says it recorded, names the command, counts the answers and no longer reloads")
-    void theLabelCommandWritesWhatItRecordedAndStopsTheReload(@TempDir Path root, @TempDir Path seeds)
+    @DisplayName("After the label command records one new answer, the page says it recorded, names the command and counts the answers")
+    void theLabelCommandWritesWhatItRecorded(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aScoredCorpus(root, seeds);
         answerEveryQuestionWith(true);
@@ -100,8 +97,8 @@ class LabelWritesTheProgressPageInvocationTest {
         claim("the label command reported success", () -> assertThat(cli.getExitCode()).isZero());
         String page = thePage();
         claim(
-                "the page names the label command, says it ended having recorded, and carries no reload",
-                () -> assertThat(page).contains(THE_LABEL_COMMAND).contains(ENDED_RECORDED).doesNotContain(RELOAD));
+                "the page names the label command and says it ended having recorded",
+                () -> assertThat(page).contains(THE_LABEL_COMMAND).contains(ENDED_RECORDED));
         claim(
                 "and it counts, in order, the " + ONE_ANSWER + " answer the file gave as new, and none changed,"
                         + " unchanged or still blank",
@@ -159,8 +156,8 @@ class LabelWritesTheProgressPageInvocationTest {
                 () -> assertThat(cli.getExitCode()).isNotZero());
         String page = thePage();
         claim(
-                "the page says it ended refused, carries no reload and no table of answers",
-                () -> assertThat(page).contains(ENDED_REFUSED).doesNotContain(RELOAD).doesNotContain(ANSWERS_HEADER));
+                "the page says it ended refused, and carries no table of answers",
+                () -> assertThat(page).contains(ENDED_REFUSED).doesNotContain(ANSWERS_HEADER));
         for (String forbidden : List.of(
                 MARKER, LABEL_FILE, root.toString(), seeds.toString(), workingDirectory.toString())) {
             claim(

@@ -238,9 +238,9 @@ class ProgressPageInvocationTest {
     }
 
     @Test
-    @Story("The last write says how the invocation ended and stops the page reloading")
-    @DisplayName("After an invocation that completed, the page says it ended, no longer reloads, and lists every step in order with none of them running")
-    void theLastWriteSaysTheInvocationEndedAndStopsTheReload(@TempDir Path root, @TempDir Path seeds)
+    @Story("The last write says how the invocation ended")
+    @DisplayName("After an invocation that completed, the page says it ended and lists every step in order with none of them running")
+    void theLastWriteSaysTheInvocationEnded(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aMarkedCorpus(root, seeds);
         profileNaming(seeds, BOILERPLATE_FLOOR);
@@ -250,9 +250,8 @@ class ProgressPageInvocationTest {
         claim("the invocation reported success", () -> assertThat(cli.getExitCode()).isZero());
         String page = thePage(PAGE);
         claim(
-                "the page says the invocation has ended, and how, and carries no reload, so a browser that has"
-                        + " it open stops asking for it",
-                () -> assertThat(page).contains(ENDED_COMPLETED).doesNotContain(RELOAD).doesNotContain(RUNNING));
+                "the page says the invocation has ended, and how, and not that it is running",
+                () -> assertThat(page).contains(ENDED_COMPLETED).doesNotContain(RUNNING));
         String stepsPage = thePage(STEPS_PAGE);
         List<String> steps = stepsInJobOrder();
         claim(
@@ -336,8 +335,8 @@ class ProgressPageInvocationTest {
                         .contains(row(StepNames.BYTE_LEVEL_REDUCTION, "not started")));
         String page = thePage(PAGE);
         claim(
-                "and the page says the invocation ended failed, carrying no reload",
-                () -> assertThat(page).contains(ENDED_FAILED).doesNotContain(RELOAD));
+                "and the page says the invocation ended failed",
+                () -> assertThat(page).contains(ENDED_FAILED));
     }
 
     @Test

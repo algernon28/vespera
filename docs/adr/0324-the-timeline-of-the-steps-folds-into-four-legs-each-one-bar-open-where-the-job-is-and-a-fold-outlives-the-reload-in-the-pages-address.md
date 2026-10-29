@@ -1,5 +1,7 @@
 # ADR-324 — The timeline of the steps folds into four legs, each one bar, open where the job is, and a fold outlives the reload in the page's address
 
+> **Partly amended — see [ADR-327](0327-an-ended-progress-page-keeps-reloading-so-a-tab-left-open-shows-the-next-invocation-and-vespera-open-browser-set-false-opens-nothing.md).** Of §5: the script schedules its reload where the liveness mark carries `data-interval`, which the last write's mark carries too, and the last write carries the `<noscript>` refresh as every write before it. A fold outlives the invocation as it outlives the reload. The rest of this record stands.
+
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
 - **Decided**: by the operator, who asked that the bars of the timeline fold, on `progress.html` and in the control panel, into four named deduplication, translation, clustering and generation, each folding to one bar, and who approved a drawing of four rows, one open on its steps; which steps each holds, the bar's span and state, which is open, how a fold is kept across the page's reload and what the control panel shows are decided under delegation.

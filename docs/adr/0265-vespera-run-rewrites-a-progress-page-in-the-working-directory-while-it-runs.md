@@ -10,6 +10,8 @@
 
 > **Partly amended — see [ADR-270](0270-every-log-vespera-writes-is-in-the-working-directorys-logs-folder-the-invocation-account-among-them.md).** §6's "It names `vespera.progress-interval` beside `vespera.account-dir`" no longer holds: the README names `vespera.progress-interval` alone, `vespera.account-dir` being no longer read.
 
+> **Partly amended — see [ADR-327](0327-an-ended-progress-page-keeps-reloading-so-a-tab-left-open-shows-the-next-invocation-and-vespera-open-browser-set-false-opens-nothing.md).** Of §1 and §2: the last write reloads at the interval, as every write before it, and says after the words this record fixes that the page is reloaded every <S> s and shows the next invocation in this working directory once one starts. The rest of this record stands.
+
 - **Date**: 2026-10-15
 - **Status**: accepted on 2026-10-15.
 - **Keeps**: [ADR-130](0130-one-report-page-module-owns-the-skeleton-styling-escaping-and-tables.md), one module assembles every page; [ADR-198](0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md), the invocation account and its allow-list of progress lines, which this page reads and does not copy; [ADR-223](0223-5fs-size-report-6a-and-6b-go-through-one-seed-partition-at-a-time-and-what-is-still-held-says-why.md) §3 and §6, a page moved over its place in one move; [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md), no stage's version names `pipeline`; [ADR-261](0261-an-agent-may-read-and-write-a-working-directorys-profile-and-read-its-pages-of-paths-counts-and-reasons-and-nothing-else-in-it.md), whose list of pages an agent may read this page does not join.
@@ -125,7 +127,7 @@ The README names `progress.html` among the files of the working directory, with 
 | Method | What it holds |
 | --- | --- |
 | `pipeline.ProgressPageInvocationTest.whileAStepRunsThePageNamesItAndIsRewritten` | during stage 5a, the page reloads itself, says the invocation is running, names `seed-extraction` as `running` with the step's progress line, states the time written, the elapsed time and the database's size, and is written again with a later time |
-| `pipeline.ProgressPageInvocationTest.theLastWriteSaysTheInvocationEndedAndStopsTheReload` | after an invocation that completed, the page carries no reload, says it ended `completed`, has the header row of §1, and no step `running` |
+| `pipeline.ProgressPageInvocationTest.theLastWriteSaysTheInvocationEnded` | after an invocation that completed, the page says it ended `completed`, has the header row of §1, and no step `running`; that the last write carries no reload is amended by ADR-327 (corrected for [#664](https://github.com/algernon28/vespera/issues/664)) |
 | `pipeline.ProgressPageInvocationTest.thePageNamesNoPathAndNoTextOfADocument` | a marked word in every name and text of the corpus and the seeds, the converter's message, the root, the seed folder and the working directory occur nowhere on the page |
 | `pipeline.ProgressPageInvocationTest.aStepThatEndsAtAShutGateIsShownStoppedThere` | with the boilerplate floor unset, stage 4a's row is `stopped at a gate` and stage 3's `finished` |
 | `pipeline.ProgressPageInvocationTest.aFailedStepIsShownFailedAndTheStepsAfterItNotStarted` | a profile that does not load fails the census: its row is `failed`, stage 1's `not started`, and the page says it ended `failed` |

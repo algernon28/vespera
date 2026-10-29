@@ -126,11 +126,12 @@ final class ProgressPage implements JobExecutionListener {
     /**
      * The one script of every tab of every write (ADR-269 section 3): the same text always, holding no data of an
      * invocation. It checks the liveness mark and draws the hover of each line chart from the attributes of the
-     * chart's hit circles; it reloads the tab and keeps the folds in the fragment of the address (ADR-216); it
+     * chart's hit circles; it reloads the tab and keeps the folds in the fragment of the address (ADR-324
+     * section 5, ADR-327); it
      * writes text only through {@code textContent} and parses no markup.
      */
     private static final String SCRIPT =
-            "document.querySelectorAll('.liveness[data-written]').forEach(function (mark) {\n"
+            "document.querySelectorAll('.liveness[data-interval]').forEach(function (mark) {\n"
             + "  setTimeout(function () { location.reload(); },"
             + " Math.max(1, Math.ceil(Number(mark.dataset.interval) / 1000)) * 1000);\n"
             + "});\n"
@@ -470,7 +471,10 @@ final class ProgressPage implements JobExecutionListener {
         openOnce(written);
     }
 
-    /** The last page of a command that starts no job: no reload, and its counts as a table when it recorded. */
+    /**
+     * The last page of a command that starts no job: the page reloads at the interval (ADR-327 section 1), and its
+     * counts as a table when it recorded.
+     */
     void commandEnds(String outcome, Map<String, Integer> counts) {
         synchronized (writing) {
             ended = true;
@@ -697,11 +701,12 @@ final class ProgressPage implements JobExecutionListener {
         String status = last
                 ? "This invocation has ended: " + job.getStatus().name().toLowerCase(Locale.ROOT) + ". It started at "
                         + startedAt + " and ended at " + WRITTEN_AT.format(LocalDateTime.ofInstant(now, zone)) + "."
+                        + " This page is reloaded every " + seconds + " s, so it shows the next invocation in this working directory once one starts."
                 : "This invocation is running. It started at " + startedAt + ", and this page is rewritten every "
                         + seconds + " s.";
         String writtenAt = "Written at " + WRITTEN_AT.format(LocalDateTime.ofInstant(now, zone));
         String mark = last
-                ? "<span class=\"liveness\">ended</span> "
+                ? "<span class=\"liveness\" data-interval=\"" + interval.toMillis() + "\">ended</span> "
                 : "<span class=\"liveness\" data-written=\"" + now.toEpochMilli() + "\" data-interval=\""
                         + interval.toMillis() + "\">live</span> ";
         String[] heads = new String[TAB_NAMES.length];
@@ -777,8 +782,8 @@ final class ProgressPage implements JobExecutionListener {
                 + timeline(states, executions, started, now, zone, last)
                 + chartRow();
         return new String[] {
-            page("steps", stepsBody, last, seconds), page("samples", samplesBody, last, seconds),
-            page("runs", runsBody, last, seconds), page("", progressBody, last, seconds)
+            page("steps", stepsBody, seconds), page("samples", samplesBody, seconds),
+            page("runs", runsBody, seconds), page("", progressBody, seconds)
         };
     }
 
@@ -850,9 +855,9 @@ final class ProgressPage implements JobExecutionListener {
                 ReportPage.headerRow(headers.toArray(new String[0])), rows.toString());
     }
 
-    private static String page(String which, String body, boolean last, int seconds) {
+    private static String page(String which, String body, int seconds) {
         String withScript = body + "<script>\n" + SCRIPT + "\n</script>\n";
-        return last ? ReportPage.drawn(titled(which), withScript) : ReportPage.drawnReloadingByScript(titled(which), withScript, seconds);
+        return ReportPage.drawnReloadingByScript(titled(which), withScript, seconds);
     }
 
     private static String titled(String which) {
@@ -1363,6 +1368,7 @@ final class ProgressPage implements JobExecutionListener {
         String status = last
                 ? "This invocation has ended: " + outcome + ". It started at " + startedAt + " and ended at "
                         + WRITTEN_AT.format(LocalDateTime.ofInstant(now, ZoneId.systemDefault())) + "."
+                        + " This page is reloaded every " + seconds + " s, so it shows the next invocation in this working directory once one starts."
                 : "This invocation is running. It started at " + startedAt + ", and this page is rewritten when it ends.";
         StringBuilder rows = new StringBuilder();
         counts.forEach((words, value) ->
@@ -1377,7 +1383,7 @@ final class ProgressPage implements JobExecutionListener {
                 + "</div>\n"
                 + (counts.isEmpty() ? "" : ReportPage.tableCard(
                 "How many answers this invocation recorded, by kind.", ReportPage.headerRow("Answers", "Count"), rows.toString()));
-        return last ? ReportPage.drawn(TITLE, body) : ReportPage.drawnReloading(TITLE, body, seconds);
+        return ReportPage.drawnReloading(TITLE, body, seconds);
     }
 
     private static boolean anExecutionAfter(String step, Map<String, StepExecution> executions) {

@@ -165,6 +165,7 @@ class GenerationTasklet implements Tasklet {
     private final ProfileStore profileStore;
     private final OllamaClient ollamaClient;
     private final ObjectProvider<PageOpener> opener;
+    private final boolean openBrowser;
     private final Path root;
     private final Path workingDirectory;
     private final DeliverableRoot deliverableRoot;
@@ -188,6 +189,7 @@ class GenerationTasklet implements Tasklet {
             ProfileStore profileStore,
             OllamaClient ollamaClient,
             ObjectProvider<PageOpener> opener,
+            @Value("${vespera.open-browser:true}") boolean openBrowser,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
             @Value("${" + VesperaCommand.Run.DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot) {
@@ -215,6 +217,7 @@ class GenerationTasklet implements Tasklet {
         this.profileStore = profileStore;
         this.ollamaClient = ollamaClient;
         this.opener = opener;
+        this.openBrowser = openBrowser;
         this.root = root;
         this.workingDirectory = workingDirectory;
     }
@@ -590,6 +593,9 @@ class GenerationTasklet implements Tasklet {
 
     /** Hands the index to the opener once, after it is in place; an opener that fails is one warning (ADR-274 §7). */
     private void openTheIndex(Path tree) {
+        if (!openBrowser) {
+            return; // vespera.open-browser is false: nothing is opened (ADR-327 section 5)
+        }
         PageOpener pageOpener = opener.getIfAvailable();
         if (pageOpener == null) {
             return;
