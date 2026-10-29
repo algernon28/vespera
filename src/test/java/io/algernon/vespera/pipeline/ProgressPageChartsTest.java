@@ -368,9 +368,9 @@ class ProgressPageChartsTest {
     }
 
     @Test
-    @Story("The pages of detail reload while the job runs and stop when it ends")
-    @DisplayName("After the first write both pages of detail reload at the page's interval and say the invocation runs; after the last, neither reloads and both say it ended")
-    void eachPageOfDetailReloadsWhileTheJobRunsAndNotAfterItEnds() throws IOException {
+    @Story("The pages of detail reload while the job runs and say how it ended")
+    @DisplayName("After the first write both pages of detail reload at the page's interval and say the invocation runs; after the last, both say it ended")
+    void eachPageOfDetailReloadsWhileTheJobRunsAndSaysHowItEnded() throws IOException {
         ProgressPage progressPage = aPage(Clock.systemDefaultZone());
         JobExecution execution = anExecution(1L, LocalDateTime.now());
 
@@ -387,10 +387,8 @@ class ProgressPageChartsTest {
                         .contains(RELOAD + RELOAD_SECONDS + "\">")
                         .contains(RUNNING)));
         claim(
-                "after the last write neither reloads, and each says how the invocation ended",
-                () -> assertThat(afterTheEnd).allSatisfy(detail -> assertThat(detail)
-                        .doesNotContain(RELOAD)
-                        .contains(ENDED_COMPLETED)));
+                "after the last write each says how the invocation ended",
+                () -> assertThat(afterTheEnd).allSatisfy(detail -> assertThat(detail).contains(ENDED_COMPLETED)));
     }
 
     @Test

@@ -88,7 +88,19 @@ class ProgressPageTabsTest {
 
     private static final String ENDED_COMPLETED = "This invocation has ended: completed.";
 
-    private static final String ENDED_MARK = "<span class=\"liveness\">ended</span>";
+    /**
+     * The last write's mark: the word, and the interval in milliseconds the script reloads the tab at, with no time
+     * written for the script to call stale.
+     */
+    private static final String ENDED_MARK =
+            "<span class=\"liveness\" data-interval=\"" + NO_SCHEDULED_WRITE_MEANWHILE.toMillis() + "\">ended</span>";
+
+    /** A refresh at the page's interval that only a browser running no script follows. */
+    private static final String REFRESH_WITHOUT_A_SCRIPT = "<noscript>" + RELOAD + RELOAD_SECONDS + "\"></noscript>";
+
+    /** What every page that has ended says after when its invocation started and ended, at the page's interval. */
+    private static final String RELOADED_FOR_THE_NEXT = "This page is reloaded every " + RELOAD_SECONDS
+            + " s, so it shows the next invocation in this working directory once one starts.";
 
     private static final String VIEWPORT = "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
 
@@ -181,9 +193,10 @@ class ProgressPageTabsTest {
     }
 
     @Test
-    @Story("Every tab says whether the invocation runs, reloads while it does and stops when it ends")
-    @DisplayName("While the job runs each of the four tabs reloads, says it is running and carries a live mark and the time written; after the last write none reloads and each says it ended")
-    void everyTabSaysWhetherTheInvocationRunsAndReloadsUntilTheLastWrite() throws IOException {
+    @Story("Every tab says whether the invocation runs, and reloads while it does and after it has ended")
+    @DisplayName("While the job runs each of the four tabs reloads, says it is running and carries a live mark and the time written; after the last write each still reloads at the same interval, by its head only in a browser running no script, says it ended, and its mark carries the interval and no time")
+    @Link(name = "ADR-327", url = Adr.AN_ENDED_PROGRESS_PAGE_KEEPS_RELOADING_AND_A_SETTING_OPENS_NO_BROWSER, type = "adr")
+    void everyTabSaysWhetherTheInvocationRunsAndReloadsAfterItHasEndedToo() throws IOException {
         Instant written = STARTED.atZone(ZoneId.systemDefault()).toInstant().plus(FIRST_WRITE_AFTER);
         ProgressPage progressPage = aPage(Clock.fixed(written, ZoneId.systemDefault()));
         JobExecution execution = anExecution(1L, STARTED);
@@ -213,18 +226,28 @@ class ProgressPageTabsTest {
                     () -> assertThat(read).containsExactly(written.toEpochMilli(), NO_SCHEDULED_WRITE_MEANWHILE.toMillis()));
         });
         afterTheEnd.forEach((name, page) -> claim(
-                "after the last write, " + name + " does not reload, says the invocation ended completed, and its"
-                        + " mark says it ended, with no time for a script to call stale",
+                "after the last write, " + name + " still carries exactly one refresh, at the page's interval of "
+                        + RELOAD_SECONDS + " s, inside a noscript, as every write before it: a browser running no"
+                        + " script reloads it by its head, and one running the script by the script",
+                () -> {
+                    assertThat(count(Pattern.compile(Pattern.quote(RELOAD)), page)).isEqualTo(1);
+                    assertThat(page).contains(REFRESH_WITHOUT_A_SCRIPT);
+                }));
+        afterTheEnd.forEach((name, page) -> claim(
+                "and " + name + " says the invocation ended completed, and its mark is exactly " + ENDED_MARK
+                        + ": the word ended and the interval in milliseconds, with no time written for the script to"
+                        + " call stale",
                 () -> assertThat(page)
-                        .doesNotContain(RELOAD)
                         .contains(ENDED_COMPLETED)
                         .contains(ENDED_MARK)
+                        .doesNotContain("data-written=")
                         .doesNotContainPattern(LIVE_MARK)));
     }
 
     @Test
     @Story("Every tab says when the invocation started and, once it has, when it ended")
-    @DisplayName("A job started at eight and ended an hour, two minutes and three seconds later: every tab's first write names the start and the interval, and every tab's last write the start and the end")
+    @DisplayName("A job started at eight and ended an hour, two minutes and three seconds later: every tab's first write names the start and the interval, and every tab's last write the start, the end, and that the page goes on reloading to show the next one")
+    @Link(name = "ADR-327", url = Adr.AN_ENDED_PROGRESS_PAGE_KEEPS_RELOADING_AND_A_SETTING_OPENS_NO_BROWSER, type = "adr")
     void theStatusLineSaysWhenTheInvocationStartedAndWhenItEnded() throws IOException {
         ZoneId zone = ZoneId.systemDefault();
         Instant start = STARTED.atZone(zone).toInstant();
@@ -243,7 +266,8 @@ class ProgressPageTabsTest {
         String ended = AS_THE_PAGE_WRITES_A_TIME.format(STARTED.plus(RUNS_FOR));
         String running = "This invocation is running. It started at " + started + ", and this page is rewritten every "
                 + RELOAD_SECONDS + " s.";
-        String endedLine = "This invocation has ended: completed. It started at " + started + " and ended at " + ended + ".";
+        String endedLine = "This invocation has ended: completed. It started at " + started + " and ended at " + ended + ". "
+                + RELOADED_FOR_THE_NEXT;
         first.forEach((name, page) -> claim(
                 "the first write of " + name + " says: " + running,
                 () -> assertThat(page).contains(running)));
@@ -254,7 +278,8 @@ class ProgressPageTabsTest {
 
     @Test
     @Story("Every tab says when the invocation started and, once it has, when it ended")
-    @DisplayName("The label command's page says when the command started, and on its last write when it ended, and has no bar of tabs and no tab of runs")
+    @DisplayName("The label command's page says when the command started, and on its last write when it ended and that the page goes on reloading to show the next one, and has no bar of tabs and no tab of runs")
+    @Link(name = "ADR-327", url = Adr.AN_ENDED_PROGRESS_PAGE_KEEPS_RELOADING_AND_A_SETTING_OPENS_NO_BROWSER, type = "adr")
     void theLabelPageSaysWhenTheCommandStartedAndWhenItEndedAndHasNoTabs() throws IOException {
         ZoneId zone = ZoneId.systemDefault();
         Instant start = STARTED.atZone(zone).toInstant();
@@ -280,9 +305,11 @@ class ProgressPageTabsTest {
                 () -> assertThat(whileRunning).contains(
                         "This invocation is running. It started at " + started + ", and this page is rewritten when it ends."));
         claim(
-                "the page written as it ends says it recorded, when it started and when it ended",
+                "the page written as it ends says it recorded, when it started and when it ended, and that it is"
+                        + " reloaded every " + RELOAD_SECONDS + " s to show the next invocation",
                 () -> assertThat(afterTheEnd).contains(
-                        "This invocation has ended: recorded. It started at " + started + " and ended at " + ended + "."));
+                        "This invocation has ended: recorded. It started at " + started + " and ended at " + ended + ". "
+                                + RELOADED_FOR_THE_NEXT));
         claim(
                 "neither has a bar of tabs: the command writes one page",
                 () -> assertThat(whileRunning + afterTheEnd).doesNotContain("<nav class=\"tabs\""));
@@ -340,9 +367,9 @@ class ProgressPageTabsTest {
     }
 
     @Test
-    @Story("The last write keeps the charts and the hover, and stops the reload")
-    @DisplayName("The last write of the page still holds the tiles, the timeline and the database chart, carries no reload but the one script, and its mark says the invocation ended")
-    void theLastWriteKeepsTheChartsAndTheHoverAndCarriesNoReload() throws IOException {
+    @Story("The last write keeps the charts and the hover")
+    @DisplayName("The last write of the page still holds the tiles, the timeline and the database chart, and the one script")
+    void theLastWriteKeepsTheChartsAndTheHover() throws IOException {
         ProgressPage progressPage = aPage(Clock.systemDefaultZone());
         JobExecution execution = anExecution(1L, LocalDateTime.now());
         aStep(execution, StepNames.CENSUS, BatchStatus.COMPLETED, execution.getStartTime(), execution.getStartTime());
@@ -359,14 +386,68 @@ class ProgressPageTabsTest {
                         .contains("<svg class=\"timeline\"")
                         .contains("data-chart=\"database\""));
         claim(
-                "it carries no reload, so a browser that has it open keeps it, and says the invocation ended",
-                () -> assertThat(page).contains(ENDED_COMPLETED).doesNotContain(RELOAD));
-        claim(
-                "it still carries the one script, so the hover works on the page that stays open",
+                "and it still carries the one script, so the hover works on the page that stays open",
                 () -> assertThat(all(SCRIPT, page)).hasSize(1));
+    }
+
+    @Test
+    @Story("Every tab says whether the invocation runs, and reloads while it does and after it has ended")
+    @DisplayName("The label command's last write, whether it recorded or failed, still reloads at the page's interval by its head, outside any noscript, as its first write does")
+    @Link(name = "ADR-327", url = Adr.AN_ENDED_PROGRESS_PAGE_KEEPS_RELOADING_AND_A_SETTING_OPENS_NO_BROWSER, type = "adr")
+    void theLabelPagesLastWriteReloadsAtTheIntervalByItsHead() throws IOException {
+        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
+        Map<String, String> lastWrites = new LinkedHashMap<>();
+
+        progressPage.commandStarts("vespera label");
+        progressPage.commandEnds("recorded", Map.of("new", 1));
+        lastWrites.put("recorded", read(PAGE));
+        progressPage.commandStarts("vespera label");
+        progressPage.commandEnds("failed", Map.of());
+        lastWrites.put("failed", read(PAGE));
+
+        lastWrites.forEach((outcome, page) -> claim(
+                "the last write of a label command that ended " + outcome + " says so, and carries exactly one"
+                        + " refresh, at the page's interval of " + RELOAD_SECONDS + " s, outside any noscript, since"
+                        + " the label page carries no script to reload it",
+                () -> {
+                    assertThat(page).contains("This invocation has ended: " + outcome + ".");
+                    assertThat(count(Pattern.compile(Pattern.quote(RELOAD)), page)).isEqualTo(1);
+                    assertThat(page).contains(RELOAD + RELOAD_SECONDS + "\">").doesNotContain("<noscript>");
+                }));
+    }
+
+    @Test
+    @Story("Every tab says whether the invocation runs, and reloads while it does and after it has ended")
+    @DisplayName("The pages' one script schedules its reload for a liveness mark that carries the interval, the ended mark included, and calls stale only a mark that carries the time it was written")
+    @Link(name = "ADR-327", url = Adr.AN_ENDED_PROGRESS_PAGE_KEEPS_RELOADING_AND_A_SETTING_OPENS_NO_BROWSER, type = "adr")
+    void theScriptReloadsATabThatHasEndedAndCallsStaleOnlyATabStillRunning() throws IOException {
+        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
+        JobExecution execution = anExecution(1L, LocalDateTime.now());
+
+        progressPage.beforeJob(execution);
+        execution.setStatus(BatchStatus.COMPLETED);
+        progressPage.afterJob(execution);
+
+        List<String> scripts = all(SCRIPT, read(PAGE));
+        claim("the last write carries the one script", () -> assertThat(scripts).hasSize(1));
+        String script = scripts.isEmpty() ? "" : scripts.getFirst();
+        int reload = script.indexOf("location.reload()");
+        String beforeTheReload = reload < 0 ? "" : script.substring(0, reload);
         claim(
-                "and its mark says the invocation ended, with no time written on it for the script to call stale",
-                () -> assertThat(page).contains(ENDED_MARK).doesNotContainPattern(LIVE_MARK));
+                "the script schedules location.reload() for each liveness mark that carries data-interval, which"
+                        + " the ended mark carries as the live one does, and names no data-written before it: so a"
+                        + " tab that has ended is reloaded too",
+                () -> {
+                    assertThat(reload).isNotNegative();
+                    assertThat(beforeTheReload).contains(".liveness[data-interval]").doesNotContain("data-written");
+                });
+        int stale = script.indexOf("'liveness stale'");
+        int selected = stale < 0 ? -1 : script.lastIndexOf("querySelectorAll(", stale);
+        String staleSelection = selected < 0 ? "" : script.substring(selected, stale);
+        claim(
+                "and it gives the class stale only to a liveness mark it selected by data-written, which the ended"
+                        + " mark does not carry: a tab that has ended is never called stale for being old",
+                () -> assertThat(staleSelection).startsWith("querySelectorAll('.liveness[data-written]')"));
     }
 
     @Test
