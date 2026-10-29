@@ -471,7 +471,10 @@ final class ProgressPage implements JobExecutionListener {
         openOnce(written);
     }
 
-    /** The last page of a command that starts no job: no reload, and its counts as a table when it recorded. */
+    /**
+     * The last page of a command that starts no job: the page reloads at the interval (ADR-327 section 1), and its
+     * counts as a table when it recorded.
+     */
     void commandEnds(String outcome, Map<String, Integer> counts) {
         synchronized (writing) {
             ended = true;
@@ -779,8 +782,8 @@ final class ProgressPage implements JobExecutionListener {
                 + timeline(states, executions, started, now, zone, last)
                 + chartRow();
         return new String[] {
-            page("steps", stepsBody, last, seconds), page("samples", samplesBody, last, seconds),
-            page("runs", runsBody, last, seconds), page("", progressBody, last, seconds)
+            page("steps", stepsBody, seconds), page("samples", samplesBody, seconds),
+            page("runs", runsBody, seconds), page("", progressBody, seconds)
         };
     }
 
@@ -852,7 +855,7 @@ final class ProgressPage implements JobExecutionListener {
                 ReportPage.headerRow(headers.toArray(new String[0])), rows.toString());
     }
 
-    private static String page(String which, String body, boolean last, int seconds) {
+    private static String page(String which, String body, int seconds) {
         String withScript = body + "<script>\n" + SCRIPT + "\n</script>\n";
         return ReportPage.drawnReloadingByScript(titled(which), withScript, seconds);
     }

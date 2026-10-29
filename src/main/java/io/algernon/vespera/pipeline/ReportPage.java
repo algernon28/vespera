@@ -153,11 +153,6 @@ final class ReportPage {
         return head(title, "<meta http-equiv=\"refresh\" content=\"" + seconds + "\">\n") + body + tail();
     }
 
-    /** Like {@link #render}, for the progress pages (ADR-267 section 4): their stylesheet follows the shared one. */
-    static String drawn(String title, String body) {
-        return head(title, VIEWPORT, DRAWN_STYLES) + body + tail();
-    }
-
     /** Like {@link #reloading}, for the progress pages: their stylesheet follows the shared one. */
     static String drawnReloading(String title, String body, int seconds) {
         return head(title, "<meta http-equiv=\"refresh\" content=\"" + seconds + "\">\n" + VIEWPORT, DRAWN_STYLES)
