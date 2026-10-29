@@ -88,7 +88,7 @@ public class SidecarStarter {
         SidecarStartSettings settings = SidecarStartSettings.from(environment);
         return new SidecarStarter(
                 settings,
-                new SystemProcessRunner(),
+                new SystemProcessRunner(Path.of(System.getProperty("java.io.tmpdir"))),
                 new HttpSidecarHealth(settings),
                 HostSystem.current(),
                 () -> {
@@ -207,6 +207,9 @@ public class SidecarStarter {
     private ProcessOutcome runOrNotInstalled(List<String> command) {
         try {
             return runner.run(command, COMMAND_LIMIT);
+        } catch (CommandOutputFileException unusable) {
+            // Whatever the program: Docker is not what failed, and the next command writes to the same folder.
+            throw new CommandOutputFileUnusableException(unusable);
         } catch (IOException cannotStart) {
             if (command.getFirst().equals("docker")) {
                 throw new DockerIsNotInstalledException();
