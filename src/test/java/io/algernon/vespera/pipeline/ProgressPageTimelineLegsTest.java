@@ -365,16 +365,16 @@ class ProgressPageTimelineLegsTest {
 
     @Test
     @Story("The timeline folds its steps into four parts")
-    @DisplayName("The timeline draws its time axis once, above the parts, titled as the card, and every drawing of the card is as wide as the charts")
+    @DisplayName("The timeline draws its time axis once, above the parts, titled as the card, and every drawing of the card is 1,100 units wide")
     void theTimeAxisIsDrawnOnceAboveTheLegsAndEveryDrawingSharesItsWidth() throws IOException {
         JobExecution job = aJob();
         aStep(job, StepNames.CENSUS, BatchStatus.COMPLETED, 0, 10L);
         aStep(job, StepNames.BYTE_LEVEL_REDUCTION, BatchStatus.STARTED, 10, null);
         String page = theFirstWrite(job, "axis");
         String card = card(page);
-        String database = page.substring(page.lastIndexOf("<svg", page.indexOf("data-chart=\"database\"")));
-        String chartsWidth = first(VIEW_BOX_WIDTH, database);
-        List<String> widths = all(VIEW_BOX_WIDTH, String.join("\n", all(A_DRAWING, card, 1)), 1);
+        List<Double> widths = all(VIEW_BOX_WIDTH, String.join("\n", all(A_DRAWING, card, 1)), 1).stream()
+                .map(Double::parseDouble)
+                .toList();
 
         claim(
                 "the card titles one time axis, Elapsed (h:mm:ss)",
@@ -387,8 +387,8 @@ class ProgressPageTimelineLegsTest {
                 () -> assertThat(first(THE_AXIS_DRAWING, card)).isEqualTo("Timeline of the steps"));
         claim(
                 "and every drawing of the card, the axis, each part's bar and each part's steps, nine in all, has a"
-                        + " viewBox as wide as the database chart's, so that one instant lies at one place on each",
-                () -> assertThat(widths).hasSize(9).containsOnly(chartsWidth));
+                        + " viewBox 1,100 units wide, ADR-322's width of the timeline, so that one instant lies at one place on each",
+                () -> assertThat(widths).hasSize(9).containsOnly(1100.0));
     }
 
     @Test

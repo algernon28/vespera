@@ -80,6 +80,48 @@ final class ProgressPage implements JobExecutionListener {
 
     static final String RUNS_FILE_NAME = "progress-runs.html";
 
+    /** The part of the script that keeps the legs' folds in the page's address, and uses no storage (ADR-324 section 5). */
+    private static final String FOLDS_SCRIPT =
+            "(function () {\n"
+            + "  try {\n"
+            + "    var opened = [];\n"
+            + "    var folded = [];\n"
+            + "    location.hash.replace(/^#/, '').split('&').forEach(function (part) {\n"
+            + "      var at = part.indexOf('=');\n"
+            + "      if (at < 0) { return; }\n"
+            + "      var names = part.slice(at + 1).split(',').filter(function (name) { return name !== ''; });\n"
+            + "      if (part.slice(0, at) === 'open') { opened = names; }\n"
+            + "      if (part.slice(0, at) === 'folded') { folded = names; }\n"
+            + "    });\n"
+            + "    var legs = Array.prototype.slice.call(document.querySelectorAll('details.leg'));\n"
+            + "    legs.forEach(function (leg) {\n"
+            + "      if (opened.indexOf(leg.dataset.leg) >= 0) { leg.open = true; }\n"
+            + "      if (folded.indexOf(leg.dataset.leg) >= 0) { leg.open = false; }\n"
+            + "    });\n"
+            + "    var carry = function () {\n"
+            + "      var fragment = opened.length === 0 && folded.length === 0 ? ''\n"
+            + "        : '#open=' + opened.join(',') + '&folded=' + folded.join(',');\n"
+            + "      document.querySelectorAll('nav.tabs a').forEach(function (link) {\n"
+            + "        link.setAttribute('href', link.getAttribute('href').split('#')[0] + fragment);\n"
+            + "      });\n"
+            + "      return fragment;\n"
+            + "    };\n"
+            + "    carry();\n"
+            + "    legs.forEach(function (leg) {\n"
+            + "      var summary = leg.querySelector('summary');\n"
+            + "      if (summary === null) { return; }\n"
+            + "      summary.addEventListener('click', function () {\n"
+            + "        var name = leg.dataset.leg;\n"
+            + "        var becomes = !leg.open;\n"
+            + "        opened = opened.filter(function (other) { return other !== name; });\n"
+            + "        folded = folded.filter(function (other) { return other !== name; });\n"
+            + "        (becomes ? opened : folded).push(name);\n"
+            + "        try { location.replace(carry() || '#'); } catch (e) { }\\n"
+            + "      });\\n"
+            + "    });\\n"
+            + "  } catch (e) { }\\n"
+            + "})();";
+
     /**
      * The one script of every tab of every write (ADR-269 section 3): the same text always, holding no data of an
      * invocation. It checks the liveness mark and draws the hover of each line chart from the attributes of the
@@ -87,6 +129,10 @@ final class ProgressPage implements JobExecutionListener {
      */
     private static final String SCRIPT =
             "document.querySelectorAll('.liveness[data-written]').forEach(function (mark) {\n"
+            + "  setTimeout(function () { location.reload(); },"
+            + " Math.max(1, Math.ceil(Number(mark.dataset.interval) / 1000)) * 1000);\n"
+            + "});\n"
+            + "document.querySelectorAll('.liveness[data-written]').forEach(function (mark) {\n"
             + "  var behind = Date.now() - Number(mark.dataset.written);\n"
             + "  if (behind > " + STALE_AFTER_INTERVALS + " * Number(mark.dataset.interval)) {\n"
             + "    mark.className = 'liveness stale';\n"
@@ -150,7 +196,8 @@ final class ProgressPage implements JobExecutionListener {
             + "    tip.style.top = (box.top - beside.top + card.scrollTop + 8) + 'px';\n"
             + "    tip.style.display = 'block';\n"
             + "  });\n"
-            + "});";
+            + "});\n"
+            + FOLDS_SCRIPT;
 
     private static final String[] TAB_NAMES = {"Overview", "Steps", "Samples", "Runs"};
 
@@ -725,7 +772,7 @@ final class ProgressPage implements JobExecutionListener {
         String progressBody = heads[0]
                 + "<div class=\"tiles\" title=\"" + ReportPage.escapeAttribute(JOB_TILES_HOVER) + "\">\n" + tiles + "</div>\n"
                 + bar
-                + timeline(states, executions, started, now, zone)
+                + timeline(states, executions, started, now, zone, last)
                 + chartRow();
         return new String[] {
             page("steps", stepsBody, last, seconds), page("samples", samplesBody, last, seconds),
@@ -803,7 +850,7 @@ final class ProgressPage implements JobExecutionListener {
 
     private static String page(String which, String body, boolean last, int seconds) {
         String withScript = body + "<script>\n" + SCRIPT + "\n</script>\n";
-        return last ? ReportPage.drawn(titled(which), withScript) : ReportPage.drawnReloading(titled(which), withScript, seconds);
+        return last ? ReportPage.drawn(titled(which), withScript) : ReportPage.drawnReloadingByScript(titled(which), withScript, seconds);
     }
 
     private static String titled(String which) {
@@ -894,47 +941,128 @@ final class ProgressPage implements JobExecutionListener {
         return String.format(Locale.ROOT, "%,.1f", perMinute) + over(base, latest);
     }
 
-    /** One bar a step on one axis of time from the job's start to this write (ADR-267 section 1, ADR-268 section 8). */
+    /** The four legs of the timeline, each with its steps in job order, every step in exactly one (ADR-324 section 1). */
+    private static final Map<String, List<String>> LEGS = legs();
+
+    private static Map<String, List<String>> legs() {
+        Map<String, List<String>> legs = new LinkedHashMap<>();
+        legs.put("deduplication", List.of(
+                StepNames.CENSUS, StepNames.BYTE_LEVEL_REDUCTION, StepNames.EXTRACTION, StepNames.CONTENT_CENSUS,
+                StepNames.REDUNDANCY_SIGNATURE, StepNames.CONTENT_REDUNDANCY));
+        legs.put(StepNames.TRANSLATION, List.of(
+                StepNames.SEED_EXTRACTION, StepNames.SEED_CORPUS_COMPARISON, StepNames.EMBEDDING_SCORING,
+                StepNames.TRANSLATION));
+        legs.put(StepNames.CLUSTERING, List.of(
+                StepNames.RELEVANCE_SCORING, StepNames.RELEVANCE_FLOOR, StepNames.CLUSTERING, StepNames.RELEVANCE_REPORT));
+        legs.put(StepNames.GENERATION, List.of(StepNames.ARRANGEMENT, StepNames.GENERATION));
+        return java.util.Collections.unmodifiableMap(legs);
+    }
+
+    /** A leg's state, read off its steps' states at the write by the first rule that holds (ADR-324 section 3). */
+    private static String legState(List<String> steps, Map<String, String> states, boolean last) {
+        List<String> of = steps.stream().map(states::get).toList();
+        if (of.stream().allMatch("not started"::equals)) {
+            return "not started";
+        }
+        if (of.stream().allMatch("finished"::equals)) {
+            return "finished";
+        }
+        if (of.contains("failed")) {
+            return "failed";
+        }
+        if (of.contains("stopped at a gate")) {
+            return "stopped at a gate";
+        }
+        if (of.contains("running")) {
+            return "running";
+        }
+        return last ? "failed" : "running";
+    }
+
+    /**
+     * The timeline's card (ADR-324): one time axis, then a fold a leg, each holding a summary with the leg's bar and
+     * the drawing of its steps, one bar a step on the same axis of time from the job's start to this write (ADR-267
+     * section 1, ADR-268 section 8).
+     */
     private static String timeline(
-            Map<String, String> states, Map<String, StepExecution> executions, Instant started, Instant now, ZoneId zone) {
+            Map<String, String> states, Map<String, StepExecution> executions, Instant started, Instant now, ZoneId zone,
+            boolean last) {
         long total = Math.max(1000, Duration.between(started, now).toMillis());
         int plot = CHART_WIDTH - TIMELINE_LABELS - 20;
-        int height = STEPS_IN_JOB_ORDER.size() * TIMELINE_ROW + 48;
         String title = "Timeline of the steps";
         StringBuilder svg = new StringBuilder(figureHead(
-                title, "Each step's bar runs from its start to its end, or to this write while it runs, and is labelled with its state.", null));
-        svg.append("<svg class=\"timeline\" role=\"img\" viewBox=\"0 0 ").append(CHART_WIDTH).append(' ').append(height)
-                .append("\"><title>").append(title).append("</title>\n");
-        int row = 0;
-        for (String step : STEPS_IN_JOB_ORDER) {
-            String state = states.get(step);
-            int y = row++ * TIMELINE_ROW;
-            svg.append("<g class=\"step\" data-step=\"").append(step).append("\" data-state=\"").append(state)
-                    .append("\"><title>").append(ReportPage.escape(StepNames.description(step))).append("</title><text x=\"4\" y=\"")
-                    .append(y + 16).append("\">").append(ReportPage.escape(step))
-                    .append("</text><text class=\"state\" x=\"").append(TIMELINE_STATES).append("\" y=\"").append(y + 16)
-                    .append("\">").append(ReportPage.escape(state)).append("</text>");
-            StepExecution execution = executions.get(step);
-            if (execution != null && execution.getStartTime() != null) {
-                Instant start = execution.getStartTime().atZone(zone).toInstant();
-                Instant end = execution.getEndTime() == null ? now : execution.getEndTime().atZone(zone).toInstant();
-                long from = Math.clamp(Duration.between(started, start).toMillis(), 0, total);
-                long to = Math.clamp(Duration.between(started, end).toMillis(), from, total);
-                svg.append("<rect x=\"").append(f1(TIMELINE_LABELS + (double) from / total * plot))
-                        .append("\" y=\"").append(y + 5).append("\" width=\"")
-                        .append(f1(Math.max(2.0, (double) (to - from) / total * plot))).append("\" height=\"14\"><title>")
-                        .append(ReportPage.escape(step + ": " + state + ", " + clockTime(Duration.between(start, end))))
-                        .append("</title></rect>");
-            }
-            svg.append("</g>\n");
-        }
-        int axis = STEPS_IN_JOB_ORDER.size() * TIMELINE_ROW + 16;
-        svg.append("<text class=\"tick\" x=\"").append(TIMELINE_LABELS).append("\" y=\"").append(axis).append("\">0:00:00</text>")
+                title, "The steps fall into four parts. Each part's bar runs from the start of its first step to the end of"
+                        + " its last, or to this write while it runs, and is labelled with its state; open a part to see"
+                        + " each step's bar.", null));
+        int axis = 16;
+        svg.append("<svg class=\"timeline-axis\" role=\"img\" viewBox=\"0 0 ").append(CHART_WIDTH).append(" 48\"><title>")
+                .append(title).append("</title>\n")
+                .append("<text class=\"tick\" x=\"").append(TIMELINE_LABELS).append("\" y=\"").append(axis).append("\">0:00:00</text>")
                 .append("<text class=\"tick\" text-anchor=\"end\" x=\"").append(TIMELINE_LABELS + plot).append("\" y=\"")
                 .append(axis).append("\">").append(clockTime(Duration.between(started, now))).append("</text>\n")
                 .append("<text class=\"axis-title x\" text-anchor=\"middle\" x=\"").append(TIMELINE_LABELS + plot / 2)
-                .append("\" y=\"").append(axis + 20).append("\">Elapsed (h:mm:ss)</text>\n</svg>\n</figure>\n");
-        return svg.toString();
+                .append("\" y=\"").append(axis + 20).append("\">Elapsed (h:mm:ss)</text>\n</svg>\n");
+        String firstGated = STEPS_IN_JOB_ORDER.stream()
+                .filter(step -> "stopped at a gate".equals(states.get(step))).findFirst().orElse(null);
+        for (Map.Entry<String, List<String>> leg : LEGS.entrySet()) {
+            String name = leg.getKey();
+            String state = legState(leg.getValue(), states, last);
+            boolean open = "running".equals(state) || "failed".equals(state)
+                    || (firstGated != null && leg.getValue().contains(firstGated));
+            Instant from = null;
+            Instant to = null;
+            for (String step : leg.getValue()) {
+                StepExecution execution = executions.get(step);
+                if (execution == null || execution.getStartTime() == null) {
+                    continue;
+                }
+                Instant start = execution.getStartTime().atZone(zone).toInstant();
+                Instant end = execution.getEndTime() == null ? now : execution.getEndTime().atZone(zone).toInstant();
+                from = from == null || start.isBefore(from) ? start : from;
+                to = to == null || end.isAfter(to) ? end : to;
+            }
+            svg.append("<details class=\"leg\" data-leg=\"").append(name).append('"').append(open ? " open" : "")
+                    .append(">\n<summary><svg class=\"timeline-leg\" role=\"img\" viewBox=\"0 0 ").append(CHART_WIDTH)
+                    .append(' ').append(TIMELINE_ROW).append("\"><title>").append(name).append(": ").append(state)
+                    .append("</title><g class=\"leg-span\" data-state=\"").append(state).append("\"><text x=\"4\" y=\"16\">")
+                    .append(name).append("</text><text class=\"state\" x=\"").append(TIMELINE_STATES)
+                    .append("\" y=\"16\">").append(state).append("</text>");
+            if (from != null) {
+                svg.append(bar(name, state, from, to, 0, started, total, plot));
+            }
+            svg.append("</g></svg></summary>\n");
+            svg.append("<svg class=\"timeline\" role=\"img\" viewBox=\"0 0 ").append(CHART_WIDTH).append(' ')
+                    .append(leg.getValue().size() * TIMELINE_ROW).append("\"><title>Steps of ").append(name)
+                    .append("</title>\n");
+            int row = 0;
+            for (String step : leg.getValue()) {
+                String stepState = states.get(step);
+                int y = row++ * TIMELINE_ROW;
+                svg.append("<g class=\"step\" data-step=\"").append(step).append("\" data-state=\"").append(stepState)
+                        .append("\"><title>").append(ReportPage.escape(StepNames.description(step))).append("</title><text x=\"4\" y=\"")
+                        .append(y + 16).append("\">").append(ReportPage.escape(step))
+                        .append("</text><text class=\"state\" x=\"").append(TIMELINE_STATES).append("\" y=\"").append(y + 16)
+                        .append("\">").append(ReportPage.escape(stepState)).append("</text>");
+                StepExecution execution = executions.get(step);
+                if (execution != null && execution.getStartTime() != null) {
+                    Instant start = execution.getStartTime().atZone(zone).toInstant();
+                    Instant end = execution.getEndTime() == null ? now : execution.getEndTime().atZone(zone).toInstant();
+                    svg.append(bar(step, stepState, start, end, y, started, total, plot));
+                }
+                svg.append("</g>\n");
+            }
+            svg.append("</svg>\n</details>\n");
+        }
+        return svg.append("</figure>\n").toString();
+    }
+
+    /** A bar from {@code start} to {@code end} on the timeline's axis of time, in the row at {@code y}. */
+    private static String bar(String name, String state, Instant start, Instant end, int y, Instant started, long total, int plot) {
+        long from = Math.clamp(Duration.between(started, start).toMillis(), 0, total);
+        long to = Math.clamp(Duration.between(started, end).toMillis(), from, total);
+        return "<rect x=\"" + f1(TIMELINE_LABELS + (double) from / total * plot) + "\" y=\"" + (y + 5) + "\" width=\""
+                + f1(Math.max(2.0, (double) (to - from) / total * plot)) + "\" height=\"14\"><title>"
+                + ReportPage.escape(name + ": " + state + ", " + clockTime(Duration.between(start, end))) + "</title></rect>";
     }
 
     private static final String CHART_ROW_HOVER =
