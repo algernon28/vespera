@@ -12,12 +12,14 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.jar.Attributes;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
@@ -32,6 +34,8 @@ import org.jsoup.select.Elements;
  *
  * <p>Closing it closes the server and kills the processes the test's JVM started since this server was started and
  * left running, and no other, and waits for each to end: on Windows a folder a live process uses cannot be deleted.
+ * A process is told from those running at the start by its pid and its start instant together, since Windows soon
+ * gives the pid of a process that ended to a new one (#661).
  */
 final class ScreenServer implements AutoCloseable {
 
@@ -47,12 +51,12 @@ final class ScreenServer implements AutoCloseable {
     private final ControlPanelServer server;
 
     /** The processes the test's JVM had started, and still had, when this server was started. */
-    private final Set<Long> runningBefore;
+    private final Set<Started> runningBefore;
 
     /** The folder the corpus-root locks are read in, under the test's own folder in place of the user's home. */
     private final Path corpusRootLockFolder;
 
-    private ScreenServer(ControlPanelServer server, Set<Long> runningBefore, Path corpusRootLockFolder) {
+    private ScreenServer(ControlPanelServer server, Set<Started> runningBefore, Path corpusRootLockFolder) {
         this.server = server;
         this.runningBefore = runningBefore;
         this.corpusRootLockFolder = corpusRootLockFolder;
@@ -67,8 +71,7 @@ final class ScreenServer implements AutoCloseable {
         String userName = System.getProperty("user.name");
         Path launchValuesFile = storedIn(folder, values, userName);
         ChildRuntime runtime = runtime();
-        Set<Long> runningBefore = ProcessHandle.current().descendants().map(ProcessHandle::pid)
-                .collect(Collectors.toUnmodifiableSet());
+        Set<Started> runningBefore = snapshot(ProcessHandle.current().descendants());
         Path corpusRootLockFolder = Files.createDirectories(folder.resolve("root-locks"));
         return new ScreenServer(ControlPanelServer.start(pages(runtime, launchValuesFile, corpusRootLockFolder,
                 userName)), runningBefore, corpusRootLockFolder);
@@ -218,8 +221,7 @@ final class ScreenServer implements AutoCloseable {
     @Override
     public void close() {
         server.close();
-        List<ProcessHandle> started = ProcessHandle.current().descendants()
-                .filter(process -> !runningBefore.contains(process.pid())).toList();
+        List<ProcessHandle> started = startedSince(runningBefore, ProcessHandle.current().descendants());
         started.forEach(ProcessHandle::destroyForcibly);
         for (ProcessHandle process : started) {
             try {
@@ -231,6 +233,32 @@ final class ScreenServer implements AutoCloseable {
                 throw new IllegalStateException("process " + process.pid() + " did not end once killed", e);
             }
         }
+    }
+
+    /**
+     * A process as one of those running when a server was started: its pid and the instant it started. A process given
+     * that pid since then started at another instant, so it is not this one.
+     */
+    record Started(long pid, Instant start) {
+
+        /** {@code process} by its pid and start instant; empty where the system gives no start instant of it. */
+        static Optional<Started> of(ProcessHandle process) {
+            return process.info().startInstant().map(start -> new Started(process.pid(), start));
+        }
+    }
+
+    /** The processes of {@code processes} by their pids and start instants, leaving out each that gives no start. */
+    static Set<Started> snapshot(Stream<ProcessHandle> processes) {
+        return processes.map(Started::of).flatMap(Optional::stream).collect(Collectors.toUnmodifiableSet());
+    }
+
+    /**
+     * The processes of {@code descendants} that are not in {@code runningBefore}: one whose pid is there under another
+     * start instant was started since, and so is one that gives no start instant, which cannot be told from it.
+     */
+    static List<ProcessHandle> startedSince(Set<Started> runningBefore, Stream<ProcessHandle> descendants) {
+        return descendants.filter(process -> Started.of(process).map(started -> !runningBefore.contains(started))
+                .orElse(true)).toList();
     }
 
     private static Path writeTheJar(Path jar) throws IOException {
