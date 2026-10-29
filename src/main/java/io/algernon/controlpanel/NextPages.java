@@ -112,7 +112,7 @@ final class NextPages {
                         .append("</form>\n");
             }
         }
-        Exchanges.page(exchange, ControlPanelPage.render("Next", 0, body.toString()));
+        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Next", 0, body.toString()));
     }
 
     private String form(List<ProfileKey> keys, NextInvocation next) {

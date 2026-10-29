@@ -74,7 +74,8 @@ function claim(re, name, doc = text) {
 }
 
 const WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15 };
-const wordNumber = (w) => WORDS[w.toLowerCase()];
+// A count past fifteen is written in digits, as AGENTS.md's integration tests are (ADR-320 §6).
+const wordNumber = (w) => (/^\d+$/.test(w) ? Number(w) : WORDS[w.toLowerCase()]);
 const backticked = (s) => [...s.matchAll(/`([A-Za-z.]+)`/g)].map((m) => m[1]);
 const subdirs = (p) => readdirSync(p, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
 
@@ -731,7 +732,7 @@ const UNCHECKED = [
   "whether the reports README points at actually inform the value it points them at for",
   'whether following "Running it" gets an invocation past stage 2 — that needs Docker, and this starts nothing',
   "that Step 0's profile.yaml example parses — this compares its keys with the value types, and never runs ProfileStore",
-  'that the packaged jar starts no sidecar — PackagedJarIT holds that, under ./mvnw verify, not this',
+  'that the packaged jar nests no Docker Compose artifact and runs no Spring compose support — PackagedJarIT holds that, under ./mvnw verify, not this; what the jar does start (ADR-323) is held by SidecarStartTest',
 ];
 
 /* ---------- report ---------- */

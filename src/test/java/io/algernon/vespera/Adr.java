@@ -2235,6 +2235,39 @@ public final class Adr {
             + "0319-a-cluster-whose-answer-is-turned-down-the-last-two-times-it-is-asked-stands-without-writing-and-the-generation-step-finishes-with-it.md";
 
     /**
+     * ADR-320 -- a publish sends each page whole, its files before its body, before it creates the next, and says how
+     * far it has got: totals first, a line as each page starts and for each file, and the page it stopped at
+     * (supersedes ADR-308 §8's and ADR-316 §4's order).
+     */
+    public static final String A_PUBLISH_SENDS_EACH_PAGE_WHOLE_AND_SAYS_HOW_FAR_IT_HAS_GOT = FILE
+            + "0320-a-publish-sends-each-page-whole-its-files-before-its-body-before-it-creates-the-next-and-says-how-far-it-has-got.md";
+
+    /**
+     * ADR-321 -- the deliverable is written and drawn in the language the profile's {@code deliverableLanguage} names,
+     * English unless it names Italian, and the question names the answer's two fields and where its writing ends
+     * (amends ADR-161 §1, ADR-174 §2, ADR-274 §1.4, ADR-310 §2, ADR-315 §2 and ADR-319 §5.1).
+     */
+    public static final String THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES = FILE
+            + "0321-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md";
+
+    /**
+     * ADR-322 -- the progress page's three line charts stand after the timeline in one row that wraps, three, two or
+     * one across, each drawn 600 units wide and never under 500 px, where its text is 10 px high, with one end label
+     * a series; the timeline keeps 1,100 units and 917 px (amends ADR-268 §7 and ADR-269 §7).
+     */
+    public static final String THE_THREE_LINE_CHARTS_STAND_IN_ONE_ROW_THAT_WRAPS = FILE
+            + "0322-the-progress-pages-three-line-charts-stand-in-one-row-that-wraps-each-drawn-600-units-wide-and-legible-down-to-500-px.md";
+
+    /**
+     * ADR-323 -- {@code vespera run} and {@code vespera label --auto} start the Docker engine and the sidecars when they
+     * are not answering, with the README's {@code up} and {@code --no-recreate}, the files chosen by
+     * {@code vespera.docling.image}, and recreate and stop none; stage 2's start check waits for a converter that gives
+     * no answer yet (amends ADR-179, ADR-158, ADR-071, ADR-175, ADR-164, ADR-165 and ADR-170).
+     */
+    public static final String VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER = FILE
+            + "0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md";
+
+    /**
      * ADR-324 -- the timeline of the steps folds into four legs, deduplication, translation, clustering and generation,
      * each one bar from its first start to its last end with a state read off its steps, the leg the job is in open,
      * and a fold kept in the page's address across the reload, which the script makes where scripts run (amends ADR-265
@@ -2242,6 +2275,16 @@ public final class Adr {
      */
     public static final String THE_TIMELINE_FOLDS_INTO_FOUR_LEGS = FILE
             + "0324-the-timeline-of-the-steps-folds-into-four-legs-each-one-bar-open-where-the-job-is-and-a-fold-outlives-the-reload-in-the-pages-address.md";
+
+    /**
+     * ADR-325 -- the control panel opens the browser itself and listens at 24291 or the port {@code
+     * VESPERA_CONTROL_PANEL_PORT} names; it holds no token and sets no cookie, letting a request in past {@code Host},
+     * {@code Sec-Fetch-Site} and a {@code POST}'s {@code Origin}; and a tab of its last start, polling {@code /alive}
+     * for the start's mark, reloads onto the next start in place of a new one (amends ADR-291 §1 to §6 and §8, ADR-297
+     * §2 and §7 and ADR-302 §1, §3, §9, §11 and §12).
+     */
+    public static final String THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK = FILE
+            + "0325-the-control-panel-opens-the-browser-itself-at-a-fixed-port-and-a-tab-of-its-last-start-comes-back-to-the-next-in-place-of-a-new-one.md";
 
     private Adr() {
     }

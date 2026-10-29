@@ -1,6 +1,9 @@
 package io.algernon.controlpanel;
 
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -46,6 +49,17 @@ public final class ControlPanelPages {
         new ReportPages(state).register(pages);
         next.register(pages);
         new ValuePages(state, next).register(pages);
+        pages.put(ControlPanelPage.SCRIPT_PATH, ControlPanelPages::script);
         return pages;
+    }
+
+    /** The control panel's one script (ADR-325 §4.2): the same text at every start, to a {@code GET} or {@code HEAD}. */
+    private static void script(HttpExchange exchange) throws IOException {
+        if (!Exchanges.isRead(exchange)) {
+            Exchanges.methodNotAllowed(exchange, "GET, HEAD");
+            return;
+        }
+        Exchanges.send(exchange, 200, "text/javascript; charset=utf-8",
+                ControlPanelPage.SCRIPT.getBytes(StandardCharsets.UTF_8));
     }
 }

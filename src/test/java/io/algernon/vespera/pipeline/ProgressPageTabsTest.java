@@ -92,8 +92,11 @@ class ProgressPageTabsTest {
 
     private static final String VIEWPORT = "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
 
-    /** The width below which a chart stops narrowing: where its 12-unit text, in a viewBox 1,100 wide, is 10 px high. */
-    private static final String LEGIBLE_WIDTH = "917px";
+    /** The width below which the timeline stops narrowing: where its 12-unit text, in a viewBox 1,100 wide, is 10 px high. */
+    private static final String TIMELINE_LEGIBLE_WIDTH = "917px";
+
+    /** The width below which a line chart stops narrowing: where its 12-unit text, in a viewBox 600 wide, is 10 px high. */
+    private static final String LINE_CHART_LEGIBLE_WIDTH = "500px";
 
     /** The time of day an invocation of these tests starts and how long after it it ends: one hour, two minutes, three seconds. */
     private static final LocalDateTime STARTED = LocalDateTime.of(2026, 10, 17, 8, 0, 0);
@@ -415,6 +418,7 @@ class ProgressPageTabsTest {
     }
 
     @Test
+    @Link(name = "ADR-322", url = Adr.THE_THREE_LINE_CHARTS_STAND_IN_ONE_ROW_THAT_WRAPS, type = "adr")
     @Story("The pages are as wide as the window, and only a chart or a table too wide for it scrolls")
     @DisplayName("Every tab and the label page fill the window: the viewport tag, no max-width or min-width on the body, every chart scaled to its card down to the width its text can be read at, and only a chart's or a table's card scrolling sideways")
     void everyPageIsAsWideAsTheWindowAndOnlyAChartOrATableScrolls(@TempDir Path labelDirectory) throws IOException {
@@ -459,10 +463,12 @@ class ProgressPageTabsTest {
                         assertThat(values(rules, "overflow-x")).doesNotContainKeys("body", "html");
                     });
             claim(
-                    name + " gives a min-width only to a chart, " + LEGIBLE_WIDTH + ", where its 12-unit text in a viewBox"
-                            + " 1,100 wide is 10 px high, and draws every chart as wide as its card",
+                    name + " gives a min-width only to the drawings, each where its 12-unit text is 10 px high: the"
+                            + " timeline " + TIMELINE_LEGIBLE_WIDTH + " in a viewBox 1,100 wide, a line chart "
+                            + LINE_CHART_LEGIBLE_WIDTH + " in one 600 wide; and draws every chart as wide as its card",
                     () -> {
-                        assertThat(values(rules, "min-width")).containsExactly(Map.entry("svg", LEGIBLE_WIDTH));
+                        assertThat(values(rules, "min-width")).containsExactlyInAnyOrderEntriesOf(Map.of(
+                                "svg.timeline", TIMELINE_LEGIBLE_WIDTH, "svg.chart", LINE_CHART_LEGIBLE_WIDTH));
                         assertThat(lastValue(rules, "svg", "width")).isEqualTo("100%");
                         assertThat(lastValue(rules, "svg", "height")).isEqualTo("auto");
                     });

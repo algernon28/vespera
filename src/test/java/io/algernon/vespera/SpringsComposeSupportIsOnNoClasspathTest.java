@@ -16,9 +16,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * No way of running Vespera starts or stops a sidecar: the operator starts them, with the {@code up}
- * line the README gives, whether Vespera then runs from the jar, from the IDE or from
- * {@code ./mvnw spring-boot:run} (ADR-179 §1).
+ * Spring Boot's Docker Compose support, which reconciles the running containers to the compose files it is given and
+ * stops them when the application exits, is on no classpath Vespera runs from, the jar's, the IDE's or
+ * {@code ./mvnw spring-boot:run}'s (ADR-179 §1). Vespera starts its sidecars by a starter of its own, which recreates
+ * and stops none (ADR-323); that is held by {@code SidecarStartTest}, and this class holds only that Spring's support
+ * stays out.
  *
  * <p>On 2026-09-30 an IDE run brought Spring Boot's Docker Compose support up from {@code compose.yaml}
  * alone. It replaced the GPU sidecars the operator had started with both compose files, by the CPU
@@ -35,7 +37,7 @@ import org.junit.jupiter.api.Test;
 @Feature("The sidecars")
 @Issue("373")
 @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
-class SidecarsAreStartedByTheOperatorTest {
+class SpringsComposeSupportIsOnNoClasspathTest {
 
     /** The pom at the repository root, which is where Maven runs the tests from. */
     private static final Path POM = Path.of("pom.xml");
@@ -53,8 +55,8 @@ class SidecarsAreStartedByTheOperatorTest {
             "org.springframework.ai.docker.compose.service.connection.ollama.OllamaDockerComposeConnectionDetailsFactory");
 
     @Test
-    @Story("The operator starts the sidecars, and nothing else does")
-    @DisplayName("Running Vespera from the IDE starts no container and stops none, because the code that would is not there")
+    @Story("Nothing Spring runs starts, reconciles or stops a container")
+    @DisplayName("Running Vespera from the IDE brings in no Spring support that would reconcile or stop a container, because the code that would is not there")
     void anIdeRunStartsNoContainer() {
         claim(
                 "Spring Boot's Docker Compose support, which runs its own up from compose.yaml alone and stops"
@@ -68,11 +70,11 @@ class SidecarsAreStartedByTheOperatorTest {
                         + " support started",
                 () -> assertThat(AI_COMPOSE_CONNECTION_DETAILS)
                         .as("classes reading containers back that are still on the classpath")
-                        .noneMatch(SidecarsAreStartedByTheOperatorTest::isOnTheClasspath));
+                        .noneMatch(SpringsComposeSupportIsOnNoClasspathTest::isOnTheClasspath));
     }
 
     @Test
-    @Story("The operator starts the sidecars, and nothing else does")
+    @Story("Nothing Spring runs starts, reconciles or stops a container")
     @DisplayName("The build declares no Docker Compose support, so no setting can turn it back on")
     void thePomDeclaresNoComposeSupport() throws IOException {
         String pom = Files.readString(POM);
@@ -88,7 +90,7 @@ class SidecarsAreStartedByTheOperatorTest {
 
     /** Whether {@code className} can be found, without loading or initialising it. */
     private static boolean isOnTheClasspath(String className) {
-        return SidecarsAreStartedByTheOperatorTest.class.getClassLoader()
+        return SpringsComposeSupportIsOnNoClasspathTest.class.getClassLoader()
                         .getResource(className.replace('.', '/') + ".class")
                 != null;
     }

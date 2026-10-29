@@ -149,7 +149,7 @@ class LargestClusterRunsOutOfRoomTest {
     void afterTheDocumentsTheRequestNamesALengthTheAnswersRoomCanHold() {
         ScriptedChatModel model = new ScriptedChatModel(answering(WRITING_CITING_THE_FIRST_DOCUMENT));
         ClusterCall cluster = aClusterOf(THE_LARGEST_CLUSTER);
-        new ClusterSynthesis(model).docFor(cluster, MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW);
+        new ClusterSynthesis(model).docFor(cluster, MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ENGLISH);
 
         Matcher length = A_LENGTH_IN_WORDS.matcher(whatFollowsTheLastDocument(model, cluster));
 
@@ -179,7 +179,7 @@ class LargestClusterRunsOutOfRoomTest {
     void theRoomTheAnswerIsAllowedIsNotRaised() {
         ScriptedChatModel model = new ScriptedChatModel(answering(WRITING_CITING_THE_FIRST_DOCUMENT));
 
-        new ClusterSynthesis(model).docFor(aClusterOf(THE_LARGEST_CLUSTER), MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW);
+        new ClusterSynthesis(model).docFor(aClusterOf(THE_LARGEST_CLUSTER), MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ENGLISH);
 
         claim(
                 "the call still allows the answer " + THE_ANSWER_ALLOWANCE + " tokens. Measured on the"
@@ -203,7 +203,7 @@ class LargestClusterRunsOutOfRoomTest {
 
         ClusterFault fault = null;
         try {
-            new ClusterSynthesis(model).docFor(aClusterOf(THE_LARGEST_CLUSTER), MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW);
+            new ClusterSynthesis(model).docFor(aClusterOf(THE_LARGEST_CLUSTER), MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ENGLISH);
         } catch (ClusterFaultException turnedDown) {
             fault = turnedDown.fault();
         }
@@ -231,7 +231,7 @@ class LargestClusterRunsOutOfRoomTest {
      */
     private static void claimTheRequestEndsBySayingHowToCite(ClusterCall cluster) {
         ScriptedChatModel model = new ScriptedChatModel(answering(WRITING_CITING_THE_FIRST_DOCUMENT));
-        new ClusterSynthesis(model).docFor(cluster, MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW);
+        new ClusterSynthesis(model).docFor(cluster, MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ENGLISH);
         int documentsSent = cluster.exemplars().size();
 
         String afterTheDocuments = whatFollowsTheLastDocument(model, cluster).replaceAll("\\s+", " ");

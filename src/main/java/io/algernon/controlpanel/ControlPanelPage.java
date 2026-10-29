@@ -1,15 +1,59 @@
 package io.algernon.controlpanel;
 
+import com.sun.net.httpserver.HttpExchange;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * The one owner of the control panel's pages' skeleton, styling and escaping (ADR-302 §10; ADR-285 §4): every page is
  * written through {@link #render}, every text a page shows from outside it goes through {@link #escape}, and no page
- * holds a script or an attribute of an event (ADR-302 §1). The words, layout and styling of a page are no decision's
- * (ADR-302, What this does not decide).
+ * holds a script but the control panel's own, by its address, or an attribute of an event (ADR-325 §4.1). The words,
+ * layout and styling of a page are no decision's (ADR-302, What this does not decide).
  */
 final class ControlPanelPage {
+
+    /** The path of the control panel's one script (ADR-325 §4.2). */
+    static final String SCRIPT_PATH = "/control-panel.js";
+
+    /**
+     * The control panel's one script, the same at every start (ADR-325 §4.2): it reads the page's {@code data-start}
+     * and {@code data-refresh-seconds}, polls {@code /alive} one second after the last poll settled, never on an
+     * interval and never from inside another timer's callback, reloads the page where the server answers a mark that
+     * is not the page's, and, where the page asks, once the server has answered the page's mark and the page's seconds
+     * have passed. It writes nothing into the page.
+     */
+    static final String SCRIPT = """
+            (function () {
+              'use strict';
+              var body = document.body;
+              var start = body.getAttribute('data-start');
+              var seconds = parseInt(body.getAttribute('data-refresh-seconds') || '0', 10);
+              var loadedAt = Date.now();
+              if (!start) { return; }
+              function poll() {
+                var reloading = false;
+                window.fetch('/alive', {
+                  credentials: 'omit',
+                  cache: 'no-store',
+                  redirect: 'error',
+                  signal: AbortSignal.timeout(1000)
+                })
+                  .then(function (response) { return response.status === 200 ? response.text() : null; })
+                  .then(function (answer) {
+                    if (answer === null || !/^[A-Za-z0-9_-]{22}$/.test(answer)) { return; }
+                    if (answer !== start || (seconds > 0 && Date.now() - loadedAt >= seconds * 1000)) {
+                      reloading = true;
+                      window.location.reload();
+                    }
+                  })
+                  .catch(function () { })
+                  .then(function () {
+                    if (!reloading) { window.setTimeout(poll, 1000); }
+                  });
+              }
+              window.setTimeout(poll, 1000);
+            })();
+            """;
 
     private static final String STYLE = """
             :root { color-scheme: light dark; --ink: #1d2330; --paper: #fbfbf8; --rule: #c9cdd6; --accent: #1f5fbf;
@@ -41,21 +85,32 @@ final class ControlPanelPage {
     }
 
     /**
-     * The whole page.
+     * The whole page, carrying the start's mark the server gave the exchange, the control panel's one
+     * script by its address, and, where it asks to be loaded again, the script's refresh and the browser's own inside
+     * {@code <noscript>} (ADR-325 §4.1, §5).
      *
+     * @param exchange the request the page answers, which the server marked with the start's mark
      * @param refreshSeconds how often the page asks to be loaded again, none where it is not above zero
      * @param body the page's content, already escaped
      */
-    static String render(String title, int refreshSeconds, String body) {
+    static String render(HttpExchange exchange, String title, int refreshSeconds, String body) {
         String refresh = refreshSeconds > 0
-                ? "<meta http-equiv=\"refresh\" content=\"" + refreshSeconds + "\">\n" : "";
+                ? "<noscript><meta http-equiv=\"refresh\" content=\"" + refreshSeconds + "\"></noscript>\n" : "";
+        String marks = " data-start=\"" + escape(attribute(exchange, ControlPanelServer.MARK_ATTRIBUTE)) + "\""
+                + (refreshSeconds > 0 ? " data-refresh-seconds=\"" + refreshSeconds + "\"" : "");
         String navigation = NAVIGATION.stream()
                 .map(entry -> "<a href=\"" + entry[0] + "\">" + entry[1] + "</a>")
                 .collect(Collectors.joining(" "));
         return "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
                 + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" + refresh
-                + "<title>" + escape(title) + "</title>\n<style>\n" + STYLE + "</style>\n</head>\n<body>\n<nav>"
-                + navigation + "</nav>\n<h1>" + escape(title) + "</h1>\n" + body + "\n</body>\n</html>\n";
+                + "<script src=\"" + SCRIPT_PATH + "\" defer></script>\n"
+                + "<title>" + escape(title) + "</title>\n<style>\n" + STYLE + "</style>\n</head>\n<body" + marks
+                + ">\n<nav>" + navigation + "</nav>\n<h1>" + escape(title) + "</h1>\n" + body
+                + "\n</body>\n</html>\n";
+    }
+
+    private static String attribute(HttpExchange exchange, String name) {
+        return exchange.getAttribute(name) instanceof String value ? value : "";
     }
 
     /** {@code text} as HTML text or as the value of an attribute in double quotes. */

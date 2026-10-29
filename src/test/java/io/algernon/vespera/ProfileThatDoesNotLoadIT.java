@@ -136,6 +136,7 @@ class ProfileThatDoesNotLoadIT {
                                             Stream.of(
                                                     javaExecutable(),
                                                     "-Dspring.docker.compose.enabled=false",
+                                                    "-Dvespera.sidecars.start=false",
                                                     "-Dvespera.working-dir=" + workingDirectory,
                                                     "-jar", EXECUTABLE_JAR.toString()),
                                             Stream.of(args))

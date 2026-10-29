@@ -1,5 +1,7 @@
 # ADR-071 — Docling's invocation contract is one sync call, a local timeout, and two consecutive-streak breakers
 
+> **Partly amended — see [ADR-323](0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md) §7.** The health check before stage 2's first occurrence is still asked once. A converter that gives no answer to it is waited for, asked every 2 s until `vespera.sidecars.wait-at-most` (180 s unless set) has passed, and asked once more at the bound; an error answer, or no answer then, fails the step with the message it fails with here.
+
 - **Date**: 2026-09-03
 - **Status**: accepted
 - **Amends**: none (fills in the mechanism ADR-070 left open — the timeout budget, the consecutive-timeout count, and the retry/backoff/skip policy for service-scope failures)

@@ -18,7 +18,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The profile's {@code configurationSettingShareFloor} key (ADR-287 §7): a number under {@code value}, as every key
- * holds one line of text, the last key of the profile; census writes it unset into a fresh profile, writes an answer
+ * holds one line of text, the key before {@code deliverableLanguage} (ADR-321 §1); census writes it unset into a fresh profile, writes an answer
  * back exactly as it was written, and loads a value no number can be read from, since an unreadable value is a state
  * of its own and not a profile that fails to load (ADR-120).
  *
@@ -42,8 +42,8 @@ class ConfigurationSettingShareFloorInTheProfileTest {
 
     @Test
     @Story("What census writes to the profile")
-    @DisplayName("A fresh profile carries the floor on the share of settings, unanswered, as its last key")
-    void aFreshProfileCarriesTheKeyUnsetAsItsLastKey(@TempDir Path workingDirectory) throws IOException {
+    @DisplayName("A fresh profile carries the floor on the share of settings, unanswered, before the pages' language")
+    void aFreshProfileCarriesTheKeyUnsetBeforeTheDeliverablesLanguage(@TempDir Path workingDirectory) throws IOException {
         ProfileStore store = new ProfileStore(workingDirectory);
 
         Profile loaded = store.load();
@@ -53,8 +53,8 @@ class ConfigurationSettingShareFloorInTheProfileTest {
                 "the key is present, and empty, among every key the profile states",
                 () -> assertThat(loaded.keysAsWritten()).containsEntry(KEY, ""));
         claim(
-                "it is the last of the profile's keys",
-                () -> assertThat(ProfileKeys.everyKey().getLast()).isEqualTo(KEY));
+                "it is the profile's last key but one: the language the pages are in follows it",
+                () -> assertThat(ProfileKeys.everyKey().get(ProfileKeys.everyKey().size() - 2)).isEqualTo(KEY));
         claim(
                 "and the file census writes carries it, so an operator has it to fill in",
                 () -> assertThat(Files.readString(store.file())).contains(KEY + ":"));

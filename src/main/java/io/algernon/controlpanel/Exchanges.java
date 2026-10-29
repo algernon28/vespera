@@ -47,7 +47,12 @@ final class Exchanges {
         return fields;
     }
 
+    /**
+     * A page of the control panel's own, answered {@code 200} with the second policy beside the one every response
+     * carries (ADR-325 §6): the control panel's script runs from its own origin and connects to no other.
+     */
     static void page(HttpExchange exchange, String html) throws IOException {
+        exchange.getResponseHeaders().add("Content-Security-Policy", "script-src 'self'; connect-src 'self'");
         send(exchange, 200, "text/html; charset=utf-8", html.getBytes(StandardCharsets.UTF_8));
     }
 

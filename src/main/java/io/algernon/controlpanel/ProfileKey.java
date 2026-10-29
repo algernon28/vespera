@@ -28,7 +28,8 @@ public enum ProfileKey {
     OUT_OF_SCOPE_NAME_ENDINGS("outOfScopeNameEndings", Kind.NAME_ENDINGS, Run.BYTE_LEVEL_REDUCTION),
     TRANSLATION_SIMILARITY_FLOOR("translationSimilarityFloor", Kind.NUMBER, Run.EMBEDDING_SCORING),
     PREFERRED_LANGUAGES("preferredLanguages", Kind.LANGUAGES, Run.EMBEDDING_SCORING),
-    CONFIGURATION_SETTING_SHARE_FLOOR("configurationSettingShareFloor", Kind.NUMBER, Run.BYTE_LEVEL_REDUCTION);
+    CONFIGURATION_SETTING_SHARE_FLOOR("configurationSettingShareFloor", Kind.NUMBER, Run.BYTE_LEVEL_REDUCTION),
+    DELIVERABLE_LANGUAGE("deliverableLanguage", Kind.TEXT, Run.GENERATION);
 
     /** The type of a key's value, which is how the jar reads it. */
     public enum Kind { TEXT, NUMBER, NAME_ENDINGS, LANGUAGES }

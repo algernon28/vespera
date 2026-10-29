@@ -101,6 +101,18 @@ final class StubConfluence implements AutoCloseable {
         }
     }
 
+    /** What a write the site took did: a page created, a file put on a page, or a body sent to one. */
+    enum Kind { CREATED, FILE, BODY }
+
+    /**
+     * A write the site took, in the order it took them (ADR-320 §1): its kind, the title of the page it was on as the
+     * site held it then, and, for a file, the file's name.
+     */
+    record Write(Kind kind, String page, String file) {}
+
+    /** A body as the site took it, with the names of the files its page held at that moment (ADR-320 §1). */
+    record BodyTaken(String page, String body, Set<String> filesHeld) {}
+
     /** A page as the stub holds it. */
     static final class Page {
         final String id;
@@ -139,6 +151,8 @@ final class StubConfluence implements AutoCloseable {
     private final HttpServer server;
     private final List<Request> requests = Collections.synchronizedList(new ArrayList<>());
     private final Map<String, Page> pages = new LinkedHashMap<>();
+    private final List<Write> writes = new ArrayList<>();
+    private final List<BodyTaken> bodiesTaken = new ArrayList<>();
     private final Map<String, Integer> conflictsLeft = new HashMap<>();
     private final Set<String> tooLarge = new HashSet<>();
     private int pacesLeft;
@@ -202,14 +216,35 @@ final class StubConfluence implements AutoCloseable {
         }
     }
 
-    /** Forgets the requests it was sent; the pages stay. */
+    /** Forgets the requests it was sent, the writes it took and the bodies it took; the pages stay. */
     void forgetTheRequests() {
         requests.clear();
+        synchronized (this) {
+            writes.clear();
+            bodiesTaken.clear();
+        }
     }
 
     /** The pages the site holds, in the order they were made. */
     synchronized List<Page> pages() {
         return List.copyOf(pages.values());
+    }
+
+    /** Every write the site took, in the order it took them; a refused request is no write. */
+    synchronized List<Write> writes() {
+        return List.copyOf(writes);
+    }
+
+    /** Every body the site took, a page created with one included, in the order it took them. */
+    synchronized List<BodyTaken> bodiesTaken() {
+        return List.copyOf(bodiesTaken);
+    }
+
+    private void took(Kind kind, Page page, String file) {
+        writes.add(new Write(kind, page.title, file));
+        if (kind != Kind.FILE && !page.body.isEmpty()) {
+            bodiesTaken.add(new BodyTaken(page.title, page.body, Set.copyOf(page.files.keySet())));
+        }
     }
 
     /** Answers the next {@code times} body updates of the page titled {@code title} with {@code 409}. */
@@ -337,6 +372,7 @@ final class StubConfluence implements AutoCloseable {
             Page page = new Page("" + ids++, title, sent.path("parentId").asString());
             page.body = sent.path("body").path("value").asString("");
             pages.put(page.id, page);
+            took(Kind.CREATED, page, null);
             return Answer.of(200, pageJson(page));
         }
         if ((m = PROPERTY.matcher(path)).matches() && method.equals("PUT")) {
@@ -393,6 +429,7 @@ final class StubConfluence implements AutoCloseable {
                 page.version++;
                 page.title = sent.path("title").asString();
                 page.body = sent.path("body").path("value").asString();
+                took(Kind.BODY, page, null);
                 return Answer.of(200, pageJson(page));
             }
         }
@@ -412,6 +449,7 @@ final class StubConfluence implements AutoCloseable {
             File standing = page.files.values().stream().filter(f -> f.id.equals(attachmentId)).findFirst().orElseThrow();
             standing.bytes = file.bytes();
             standing.comment = new String(parts.get("comment").bytes(), StandardCharsets.UTF_8);
+            took(Kind.FILE, page, standing.name);
             return Answer.of(200, Map.of("id", standing.id, "title", standing.name));
         }
         if ((m = ATTACH.matcher(path)).matches() && method.equals("POST")) {
@@ -428,6 +466,7 @@ final class StubConfluence implements AutoCloseable {
             File added = new File("att" + ids++, file.filename(), file.bytes(),
                     new String(parts.get("comment").bytes(), StandardCharsets.UTF_8));
             page.files.put(added.name, added);
+            took(Kind.FILE, page, added.name);
             return Answer.of(200, results(List.of(Map.of("id", added.id, "title", added.name))));
         }
         return Answer.of(404, Map.of("message", "No such endpoint in the stub: " + method + " " + path));

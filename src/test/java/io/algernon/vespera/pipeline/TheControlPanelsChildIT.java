@@ -86,9 +86,8 @@ class TheControlPanelsChildIT {
     /** The lines the control panel writes as it starts serving: what it will start, and the address to open. */
     private static final int TWO_LINES = 2;
 
-    /** The second line: the address of 127.0.0.1, the port the system picked and the start's token (ADR-302 §11). */
-    private static final String OPEN_THE_ADDRESS =
-            "open http://127\\.0\\.0\\.1:[0-9]{1,5}/\\?token=[A-Za-z0-9_-]{43} in your browser";
+    /** The second line: the root of 127.0.0.1 at the port the system picked, with no query (ADR-302 §11, ADR-325 §2). */
+    private static final String OPEN_THE_ADDRESS = "open http://127\\.0\\.0\\.1:[0-9]{1,5}/ in your browser";
 
     /** The control panel's exit code where it finds no jar beside its own. */
     private static final int REFUSED = 1;
@@ -119,6 +118,7 @@ class TheControlPanelsChildIT {
                         "-Dstdout.encoding=UTF-8",
                         "-Dstderr.encoding=UTF-8",
                         "-Dspring.docker.compose.enabled=false",
+                        "-Dvespera.sidecars.start=false",
                         "-jar", EXECUTABLE_JAR.toAbsolutePath().toString(),
                         "label")
                 .directory(workingDirectory.toFile())
@@ -157,11 +157,15 @@ class TheControlPanelsChildIT {
     @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
     @Story("The operator starts the control panel with java -jar")
     @DisplayName("Started with java -jar on its own jar, the control panel names the packaged jar beside it and the java that started it, then the address to open, and serves until it is ended")
-    void theControlPanelStartedByJavaJarNamesTheJarBesideItAndItsOwnJava() throws Exception {
+    void theControlPanelStartedByJavaJarNamesTheJarBesideItAndItsOwnJava(@TempDir Path temporary) throws Exception {
         Path java = javaOfThisRuntime();
-        ProcessBuilder builder = new ProcessBuilder(java.toString(), "-jar", CONTROL_PANEL_JAR.toAbsolutePath().toString())
+        ProcessBuilder builder = new ProcessBuilder(java.toString(), "-Djava.io.tmpdir=" + temporary,
+                        "-jar", CONTROL_PANEL_JAR.toAbsolutePath().toString())
                 .directory(CONTROL_PANEL_JAR.toAbsolutePath().getParent().toFile());
         JVM_NOTICES.forEach(builder.environment()::remove);
+        // ADR-325: no browser opened, no port of the machine's operator taken, no tab of theirs waited for
+        builder.environment().put("CI", "1");
+        builder.environment().put("VESPERA_CONTROL_PANEL_PORT", "0");
         Process process = builder.start();
         CompletableFuture<byte[]> error = readWhole(process.getErrorStream());
         List<String> lines;
@@ -177,8 +181,7 @@ class TheControlPanelsChildIT {
 
         claim("the control panel writes " + TWO_LINES + " lines on standard output within " + EXIT_BOUND_SECONDS
                         + " seconds: the packaged jar beside its own and the java of the runtime that started it, both"
-                        + " absolute, then the address to open, on 127.0.0.1 at a port and with a token of 43"
-                        + " characters of base64url",
+                        + " absolute, then the address to open, the root of 127.0.0.1 at a port, with no query",
                 () -> assertThat(lines).hasSize(TWO_LINES)
                         .satisfies(two -> assertThat(two.getFirst())
                                 .isEqualTo(WILL_START + EXECUTABLE_JAR.toAbsolutePath() + " with " + java))

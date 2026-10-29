@@ -126,7 +126,13 @@ package io.algernon.vespera.profile;
  * @param configurationSettingShareFloor stage 1's rule for a configuration file (ADR-287 §7): a share on a
  *     0-to-1 scale, the setting lines among the lines counted, at or above which a file is a configuration
  *     file. Ships unset, per <b>observe before enforce</b>; unset or unreadable, no file is one. Not a gate.
- *     The last component. Its {@link Measurement} points at the format-mix page.
+ *     Its {@link Measurement} points at the format-mix page.
+ * @param deliverableLanguage the language the deliverable is written and drawn in (ADR-321 §1): {@code en} or
+ *     {@code it}, in any case, the blanks around it ignored. The fourth key whose unset state means a default
+ *     applies, after {@code generationModel}, {@code generationContextWindow} and {@code embeddingModel}: unset or
+ *     blank is English, and it is not a gate. Any other answer stops the invocation where the generation run is
+ *     minted. It enters the generation run's identity. No {@link Measurement} pointer: no pass over the corpus
+ *     informs who reads the deliverable. The last component.
  */
 public record Profile(
         TextValue seedFolder,
@@ -145,7 +151,8 @@ public record Profile(
         NameEndingsValue outOfScopeNameEndings,
         NumericValue translationSimilarityFloor,
         LanguagesValue preferredLanguages,
-        NumericValue configurationSettingShareFloor) {
+        NumericValue configurationSettingShareFloor,
+        TextValue deliverableLanguage) {
 
     public Profile {
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
@@ -170,6 +177,7 @@ public record Profile(
         preferredLanguages = preferredLanguages == null ? LanguagesValue.unset() : preferredLanguages;
         configurationSettingShareFloor =
                 configurationSettingShareFloor == null ? NumericValue.unset() : configurationSettingShareFloor;
+        deliverableLanguage = deliverableLanguage == null ? TextValue.unset() : deliverableLanguage;
     }
 
     /**
@@ -197,7 +205,8 @@ public record Profile(
     /** A profile with every key present and none of them answered — what census drafts. */
     static Profile skeleton() {
         return new Profile(
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -219,7 +228,8 @@ public record Profile(
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages,
-                configurationSettingShareFloor);
+                configurationSettingShareFloor,
+                deliverableLanguage);
     }
 
     /**
@@ -245,7 +255,8 @@ public record Profile(
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages,
-                configurationSettingShareFloor);
+                configurationSettingShareFloor,
+                deliverableLanguage);
     }
 
     /** The same profile, with stage 3's pointer to {@code word-count-distribution.html} brought up to date (ADR-282). */
@@ -267,7 +278,8 @@ public record Profile(
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages,
-                configurationSettingShareFloor);
+                configurationSettingShareFloor,
+                deliverableLanguage);
     }
 
     /**
@@ -292,7 +304,8 @@ public record Profile(
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages,
-                configurationSettingShareFloor);
+                configurationSettingShareFloor,
+                deliverableLanguage);
     }
 
     /**
@@ -322,7 +335,8 @@ public record Profile(
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages,
-                configurationSettingShareFloor);
+                configurationSettingShareFloor,
+                deliverableLanguage);
     }
 
     /**
@@ -347,7 +361,8 @@ public record Profile(
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages,
-                configurationSettingShareFloor);
+                configurationSettingShareFloor,
+                deliverableLanguage);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-171). */
@@ -369,7 +384,8 @@ public record Profile(
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages,
-                configurationSettingShareFloor);
+                configurationSettingShareFloor,
+                deliverableLanguage);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-256). */
@@ -391,7 +407,8 @@ public record Profile(
                 outOfScopeNameEndings.measuredBy(measurement),
                 translationSimilarityFloor,
                 preferredLanguages,
-                configurationSettingShareFloor);
+                configurationSettingShareFloor,
+                deliverableLanguage);
     }
 
     /** The same profile, with the pointer to {@code translations.html} brought up to date (ADR-271 §6). */
@@ -413,7 +430,8 @@ public record Profile(
                 outOfScopeNameEndings,
                 translationSimilarityFloor.measuredBy(measurement),
                 preferredLanguages,
-                configurationSettingShareFloor);
+                configurationSettingShareFloor,
+                deliverableLanguage);
     }
 
     /** The same profile, with the pointer to {@code translations.html} brought up to date (ADR-271 §6). */
@@ -435,7 +453,8 @@ public record Profile(
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages.measuredBy(measurement),
-                configurationSettingShareFloor);
+                configurationSettingShareFloor,
+                deliverableLanguage);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-277 §2). */
@@ -457,7 +476,8 @@ public record Profile(
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages,
-                configurationSettingShareFloor);
+                configurationSettingShareFloor,
+                deliverableLanguage);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-287 §7). */
@@ -479,6 +499,7 @@ public record Profile(
                 outOfScopeNameEndings,
                 translationSimilarityFloor,
                 preferredLanguages,
-                configurationSettingShareFloor.measuredBy(measurement));
+                configurationSettingShareFloor.measuredBy(measurement),
+                deliverableLanguage);
     }
 }

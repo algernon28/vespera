@@ -178,6 +178,7 @@ class ClusterGenerationReportsEveryClusterTest {
                 },
                 MODEL_NAME,
                 THE_WINDOW,
+                DeliverableLanguage.ENGLISH,
                 new GenerationProgress() {
                     @Override
                     public void noSendableDocument(RecordedCluster cluster) {

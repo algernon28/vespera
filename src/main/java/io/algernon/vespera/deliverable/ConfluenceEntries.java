@@ -1,6 +1,7 @@
 package io.algernon.vespera.deliverable;
 
 import io.algernon.vespera.ledger.ReplacingMove;
+import io.algernon.vespera.synthesis.DeliverableLanguage;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -51,6 +52,7 @@ final class ConfluenceEntries implements AutoCloseable {
     private final Path clusterFolder;
     private final Copies copies;
     private final ReplacingMove moves;
+    private final DeliverableLanguage language;
     private final Set<String> copyKeys = new HashSet<>();
     private final OutputStream out;
     private final List<Long> ends = new ArrayList<>();
@@ -66,6 +68,7 @@ final class ConfluenceEntries implements AutoCloseable {
         this.clusterFolder = null;
         this.copies = null;
         this.moves = null;
+        this.language = DeliverableLanguage.DEFAULT;
         this.out = null;
     }
 
@@ -75,9 +78,11 @@ final class ConfluenceEntries implements AutoCloseable {
      */
     ConfluenceEntries(
             Path folder, String folderPath, Path clusterFolder, Copies copies, List<ListedSurvivor> members,
-            ReplacingMove moves)
+            ReplacingMove moves,
+            DeliverableLanguage language)
             throws IOException {
         this.file = folder.resolve(PART_NAME);
+        this.language = language;
         this.folder = folder;
         this.folderPath = folderPath;
         this.clusterFolder = clusterFolder;
@@ -105,7 +110,7 @@ final class ConfluenceEntries implements AutoCloseable {
                 .append("\">")
                 .append(ClusterPage.ANCHOR_PREFIX).append(number).append("</ac:parameter></ac:structured-macro>\n");
         if (entry.isEmpty()) {
-            text.append("<em>").append(Html.escape(Deliverable.THE_CLUSTER_NO_LONGER_HOLDS_IT)).append("</em>\n");
+            text.append("<em>").append(Html.escape(FixedWords.theClusterNoLongerHoldsIt(language))).append("</em>\n");
             write(text.toString());
             return;
         }
@@ -119,7 +124,7 @@ final class ConfluenceEntries implements AutoCloseable {
             ofTheEntry.add(new PageFile(copyName, "../" + copies.pathOf(member), PageFile.COPY,
                     Files.size(clusterFolder.resolve(copyName)), member.contentHash().toLowerCase(Locale.ROOT)));
         } else {
-            text.append(path).append(" <em>").append(Html.escape(outcome.sentence())).append("</em>\n");
+            text.append(path).append(" <em>").append(Html.escape(outcome.sentence(language))).append("</em>\n");
         }
         write(text.toString());
     }
@@ -156,7 +161,7 @@ final class ConfluenceEntries implements AutoCloseable {
     /** The line the HTML page writes for the pictures it does not show. */
     void notShown(int notShown) throws IOException {
         if (out != null) {
-            write(EntryPictures.notShownLine(notShown));
+            write(EntryPictures.notShownLine(notShown, language));
         }
     }
 

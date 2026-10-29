@@ -91,7 +91,7 @@ final class LaunchPages {
         body.append(seedFolderForm(values));
         body.append(freeSpace(values));
         body.append("<h2>Reports</h2>\n").append(reports(state));
-        Exchanges.page(exchange, ControlPanelPage.render("Control panel", 0, body.toString()));
+        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Control panel", 0, body.toString()));
     }
 
     private String seedFolderForm(LaunchValues values) {

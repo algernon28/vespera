@@ -2,9 +2,11 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.extraction.DoclingClient;
 import java.time.Duration;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,13 +21,6 @@ class SidecarRecovery {
 
     private static final Logger log = LoggerFactory.getLogger(SidecarRecovery.class);
 
-    /**
-     * How long a sidecar is given to answer again. On the whole archive on 2026-09-28 a killed container
-     * was back in 6 to 9 seconds (ADR-175's evidence); three minutes also covers one that reloads its
-     * models first.
-     */
-    private static final Duration WAIT_AT_MOST = Duration.ofSeconds(180);
-
     /** How long between two health checks while waiting. */
     private static final Duration POLL_EVERY = Duration.ofSeconds(2);
 
@@ -33,9 +28,10 @@ class SidecarRecovery {
     private final Duration waitAtMost;
     private final Duration pollEvery;
 
+    /** The bound is the application property, one for every wait for a sidecar (ADR-323 §7). */
     @Autowired
-    SidecarRecovery(DoclingClient client) {
-        this(client, WAIT_AT_MOST, POLL_EVERY);
+    SidecarRecovery(DoclingClient client, @Value("${" + SidecarStartSettings.WAIT_AT_MOST_PROPERTY + ":" + SidecarStartSettings.DEFAULT_WAIT_AT_MOST + "}") Duration waitAtMost) {
+        this(client, waitAtMost, POLL_EVERY);
     }
 
     /** The seam a test needs: the same wait, on a clock short enough to run. */
@@ -65,6 +61,29 @@ class SidecarRecovery {
         log.info(
                 "docling-serve answers its health check again after {} seconds",
                 Duration.ofNanos(System.nanoTime() - started).toSeconds());
+    }
+
+    /** The bound a wait for a sidecar lasts. */
+    Duration waitAtMost() {
+        return waitAtMost;
+    }
+
+    /**
+     * Waits for a sidecar that has not yet answered its first health check, which is a sidecar still starting
+     * (ADR-323 §7): asks on the same clock as {@link #awaitHealthy}, and says nothing itself, because the caller
+     * says what it is waiting for.
+     *
+     * @return how long it took to answer, or empty if it had not answered when the bound passed
+     */
+    Optional<Duration> awaitStarting() {
+        long started = System.nanoTime();
+        while (!client.isHealthy()) {
+            if (System.nanoTime() - started >= waitAtMost.toNanos()) {
+                return Optional.empty();
+            }
+            sleep();
+        }
+        return Optional.of(Duration.ofNanos(System.nanoTime() - started));
     }
 
     private void sleep() {
