@@ -100,6 +100,9 @@ final class ReportPage {
             + ".key.s5 { border-color: var(--series-5); }\n"
             + "svg { display: block; width: 100%; height: auto; }\n"
             + "svg.timeline { min-width: 917px; }\n"
+            + "svg.timeline-axis, svg.timeline-leg { min-width: 917px; }\n"
+            + "details.leg > summary { cursor: pointer; }\n"
+            + "details.leg[open] > summary .leg-span rect, details.leg[open] > summary .leg-span .state { display: none; }\n"
             + "svg.chart { min-width: 500px; }\n"
             + "svg text { fill: var(--text); font: 12px system-ui, sans-serif; }\n"
             + "svg .tick, svg .axis-title { fill: var(--muted); }\n"
@@ -159,6 +162,15 @@ final class ReportPage {
     static String drawnReloading(String title, String body, int seconds) {
         return head(title, "<meta http-equiv=\"refresh\" content=\"" + seconds + "\">\n" + VIEWPORT, DRAWN_STYLES)
                 + body + tail();
+    }
+
+    /**
+     * Like {@link #drawnReloading}, for a page whose script reloads it (ADR-324 section 5): the refresh is inside
+     * {@code <noscript>}, so only a browser that runs no script reloads by it.
+     */
+    static String drawnReloadingByScript(String title, String body, int seconds) {
+        return head(title, "<noscript><meta http-equiv=\"refresh\" content=\"" + seconds + "\"></noscript>\n" + VIEWPORT,
+                DRAWN_STYLES) + body + tail();
     }
 
     /** A table in a card of its own, which scrolls sideways where the table is too wide for the window (ADR-269). */

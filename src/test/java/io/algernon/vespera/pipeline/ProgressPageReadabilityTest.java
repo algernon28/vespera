@@ -339,23 +339,25 @@ class ProgressPageReadabilityTest {
         progressPage.afterJob(execution);
         String page = read(PAGE);
 
-        int drawings = count(Pattern.compile("<svg\\b"), page);
+        // a card a drawing, the timeline's card holding the drawings of its legs too (ADR-324 section 2)
+        int drawings = count(Pattern.compile("<figure class=\"chart-card\">"), page);
         List<String[]> headed = new ArrayList<>();
         Matcher heading = HEADED_DRAWING.matcher(page);
         while (heading.find()) {
             headed.add(new String[] {heading.group(1), heading.group(2)});
         }
         claim(
-                "the page draws the timeline, the database chart and the chart of counts, three drawings",
+                "the page draws the timeline, the database chart and the chart of counts, three cards",
                 () -> assertThat(drawings).isEqualTo(3));
         claim(
-                "each of them follows a heading a reader sees and a caption, the heading holding the drawing's own"
-                        + " title word for word, which a browser shows only as a tooltip",
+                "each of them opens on a heading a reader sees and a caption, then a drawing whose own title is the"
+                        + " heading word for word, which a browser shows only as a tooltip",
                 () -> assertThat(headed).hasSize(drawings).allSatisfy(pair -> assertThat(pair[0]).isEqualTo(pair[1])));
         claim(
                 "the database chart's heading says what it draws",
                 () -> assertThat(headed).extracting(pair -> pair[0]).contains("Database size over time"));
-        for (String drawing : List.of(between(page, "<svg class=\"timeline\""), chart(page, "database"), chart(page, "counts"))) {
+        String timeline = between(page, "<h2>Timeline of the steps</h2>", "</figure>");
+        for (String drawing : List.of(timeline, chart(page, "database"), chart(page, "counts"))) {
             claim(
                     "a drawing titles its time axis 'Elapsed (h:mm:ss)'",
                     () -> assertThat(drawing).containsPattern(X_AXIS_TITLE));
@@ -492,7 +494,8 @@ class ProgressPageReadabilityTest {
         execution.setStatus(BatchStatus.FAILED);
         progressPage.afterJob(execution);
 
-        Matcher mark = MARK.matcher(between(read(PAGE), "<svg class=\"timeline\""));
+        // the timeline's card, wherever in it each step's mark is drawn (ADR-324 section 2)
+        Matcher mark = MARK.matcher(between(read(PAGE), "<h2>Timeline of the steps</h2>", "</figure>"));
         Map<String, String> stateOf = new LinkedHashMap<>();
         Map<String, List<String>> wordsOf = new LinkedHashMap<>();
         while (mark.find()) {
