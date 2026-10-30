@@ -79,6 +79,7 @@ final class ConfluencePages implements AutoCloseable {
 
     /** The seed partition being drawn, and its rows, held until its last cluster is drawn. */
     private String partitionKey;
+    private String partitionPlace;
     private String partitionTitle;
     private String partitionFolder;
     private final StringBuilder partitionRows = new StringBuilder();
@@ -114,7 +115,8 @@ final class ConfluencePages implements AutoCloseable {
     void partitionStarted(ListedPartition partition, int partitionCount) throws IOException {
         String place = IndexPage.pad(partition.partitionOrder(), IndexPage.widthOf(partitionCount));
         partitionFolder = IndexPage.partitionDirectoryName(partition, partitionCount);
-        partitionKey = place;
+        partitionKey = Integer.toString(partition.partitionOrder());
+        partitionPlace = place;
         partitionTitle = ConfluenceTitles.partition(FilenameStem.of(partition.seedPath()), place);
         Files.createDirectories(directory.resolve(partitionFolder));
         written.add(DIRECTORY_NAME + "/" + partitionFolder);
@@ -157,11 +159,11 @@ final class ConfluencePages implements AutoCloseable {
         int clusterWidth = IndexPage.widthOf(partition.clusterCount());
         String folderPath = partitionFolder + "/" + IndexPage.clusterFolderName(recorded, clusterWidth);
         Path folder = directory.resolve(folderPath);
-        String place = partitionKey + "."
+        String place = partitionPlace + "."
                 + IndexPage.pad(recorded.cluster().clusterOrder(), clusterWidth);
         String text = doc.map(SynthesisDoc::title).orElse(recorded.label().value());
         int pages = breaks.map(ClusterPage.PageBreaks::pages).orElse(1);
-        String firstKey = place;
+        String firstKey = partitionKey + "." + recorded.cluster().clusterOrder();
         for (int page = 1; page <= pages; page++) {
             String body = page == 1 ? BODY_NAME : "page-" + page + ".xml";
             Path part = folder.resolve(body + Deliverable.PART_SUFFIX);
