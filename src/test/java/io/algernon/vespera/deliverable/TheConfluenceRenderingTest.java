@@ -59,14 +59,18 @@ import tools.jackson.databind.json.JsonMapper;
 @Link(name = "ADR-314", url = Adr.EACH_PICTURE_IS_A_FILE_OF_ITS_OWN_IN_THE_CONFLUENCE_RENDERING, type = "adr")
 @Link(name = "ADR-315", url = Adr.THE_ROOT_PAGE_CARRIES_NEITHER_THE_CORPUS_ROOT_NOR_THE_PROFILE, type = "adr")
 @Link(name = "ADR-316", url = Adr.THE_PAGE_LIST_IS_PAGES_JSON, type = "adr")
+@Link(name = "ADR-328", url = Adr.THE_CONFLUENCE_RENDERING_IS_ONE_TREE_UPDATED_IN_PLACE_WITH_NO_RUN_ID, type = "adr")
 class TheConfluenceRenderingTest {
 
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
 
     private static final String SEED_PATH = "seeds/Fire Safety.docx";
 
-    /** The marker ADR-310 derives from {@link ListedTree#RUN_ID}: its first twelve characters. */
+    /** The marker ADR-310 derived from {@link ListedTree#RUN_ID}, its first twelve characters; no page carries it (ADR-328 §2). */
     private static final String MARKER = "aaaaaaaaaaaa";
+
+    /** The groups of one seed partition that make its places two digits wide, 01 to 10 (ADR-328 §3). */
+    private static final int TEN_GROUPS = 10;
 
     /** A name of the corpus root, the working directory and a profile value no page may carry (ADR-315 §1). */
     private static final String THE_CORPUS_ROOT = "corpus-root-5f1c9e";
@@ -113,31 +117,31 @@ class TheConfluenceRenderingTest {
             Pattern.compile("<ac:image ac:alt=\"[^\"]*\"><ri:attachment ri:filename=\"([^\"]+)\" />");
 
     @Test
-    @Story("Every page is titled by its text, its place and its run")
-    @DisplayName("The root page, the seed partition's page and each group's page are titled as ADR-310 has it")
-    void everyPageIsTitledByItsTextItsPlaceAndItsRunsMarker(@TempDir Path base) throws IOException {
+    @Story("Every page is titled by its text and its place")
+    @DisplayName("The root page is Vespera, and the seed partition's page and each group's page are titled by their text and their place alone")
+    void everyPageIsTitledByItsTextAndItsPlace(@TempDir Path base) throws IOException {
         Path tree = draw(base, SurvivorPictures.none());
 
         claim(
-                "the page list titles the root page Vespera and the marker, the seed partition's page by its seed's stem"
-                        + " unslugged, a written group by its title and an unwritten one by its label, each with its"
-                        + " place and the marker",
+                "the page list titles the root page Vespera, the seed partition's page by its seed's stem unslugged, a"
+                        + " written group by its title and an unwritten one by its label, each with its place and no"
+                        + " part of the run's id",
                 () -> assertThat(titlesIn(pageList(tree))).containsExactly(
-                        "Vespera " + MARKER,
-                        "Fire Safety (1 · " + MARKER + ")",
-                        DOORS_TITLE + " (1.1 · " + MARKER + ")",
-                        "Smoke dampers (1.2 · " + MARKER + ")"));
+                        "Vespera",
+                        "Fire Safety (1)",
+                        DOORS_TITLE + " (1.1)",
+                        "Smoke dampers (1.2)"));
     }
 
     @Test
-    @Story("Every page is titled by its text, its place and its run")
+    @Story("Every page is titled by its text and its place")
     @DisplayName("A title past 255 characters is cut in its text, the suffix kept whole, and control characters and runs of spaces fold to one space")
     void aLongTitleIsCutInItsTextAndItsSuffixIsKeptWhole() {
-        String suffix = " (03.12 page 2 · " + MARKER + ")";
-        String cut = ConfluenceTitles.cluster("x".repeat(300), "03.12", 2, MARKER, DeliverableLanguage.ENGLISH);
-        String astral = ConfluenceTitles.cluster("😀".repeat(200), "03.12", 2, MARKER, DeliverableLanguage.ENGLISH);
+        String suffix = " (03.12 page 2)";
+        String cut = ConfluenceTitles.cluster("x".repeat(300), "03.12", 2, DeliverableLanguage.ENGLISH);
+        String astral = ConfluenceTitles.cluster("😀".repeat(200), "03.12", 2, DeliverableLanguage.ENGLISH);
         String folded = ConfluenceTitles.cluster(
-                " Doors\tand\u0007\n frames  ", "1.1", 1, MARKER, DeliverableLanguage.ENGLISH);
+                " Doors\tand\u0007\n frames  ", "1.1", 1, DeliverableLanguage.ENGLISH);
 
         claim(
                 "a title of 300 letters is 255 code units: the text cut, an ellipsis, and the suffix whole",
@@ -152,10 +156,10 @@ class TheConfluenceRenderingTest {
                 });
         claim(
                 "control characters become spaces, runs of whitespace one space, and the text is trimmed",
-                () -> assertThat(folded).isEqualTo("Doors and frames (1.1 · " + MARKER + ")"));
+                () -> assertThat(folded).isEqualTo("Doors and frames (1.1)"));
         claim(
                 "a text empty after folding leaves the suffix alone",
-                () -> assertThat(ConfluenceTitles.cluster(" \t ", "1.1", 1, MARKER, DeliverableLanguage.ENGLISH)).isEqualTo("(1.1 · " + MARKER + ")"));
+                () -> assertThat(ConfluenceTitles.cluster(" \t ", "1.1", 1, DeliverableLanguage.ENGLISH)).isEqualTo("(1.1)"));
     }
 
     @Test
@@ -180,7 +184,7 @@ class TheConfluenceRenderingTest {
     void eachCitationIsAnAnchorLinkNamingItsEntrysPage(@TempDir Path base) throws IOException {
         Path tree = draw(base, SurvivorPictures.none());
         String body = Files.readString(doorsFolder(tree).resolve(ConfluencePages.BODY_NAME), StandardCharsets.UTF_8);
-        String title = DOORS_TITLE + " (1.1 · " + MARKER + ")";
+        String title = DOORS_TITLE + " (1.1)";
 
         claim(
                 "the four entries open with anchor macros named document-1 to document-4, in order",
@@ -237,7 +241,7 @@ class TheConfluenceRenderingTest {
     @DisplayName("Each copy the HTML tree carries for a group is a file of that group's page under the same name, its entry linking it")
     void eachCopyIsAFileOnItsClustersPage(@TempDir Path base) throws IOException {
         Path tree = draw(base, SurvivorPictures.none());
-        JsonNode doors = pageKeyed(pageList(tree), ListedTree.RUN_ID + ":1.1");
+        JsonNode doors = pageKeyed(pageList(tree), "1.1");
         String body = Files.readString(doorsFolder(tree).resolve(ConfluencePages.BODY_NAME), StandardCharsets.UTF_8);
 
         claim(
@@ -272,7 +276,7 @@ class TheConfluenceRenderingTest {
                 });
         claim(
                 "the picture's file is named by its digest and listed on the page as a picture, with its size and digest",
-                () -> assertThat(pageKeyed(pageList(tree), ListedTree.RUN_ID + ":1.1").get("files").valueStream()
+                () -> assertThat(pageKeyed(pageList(tree), "1.1").get("files").valueStream()
                                 .filter(file -> file.get("kind").asString().equals(PageFile.PICTURE))
                                 .map(file -> List.of(file.get("name").asString(), file.get("size").asLong(),
                                         file.get("sha256").asString()))
@@ -296,20 +300,18 @@ class TheConfluenceRenderingTest {
         Path confluence = tree.resolve(ConfluencePages.DIRECTORY_NAME);
 
         claim(
-                "the list is format 1 of this generation run, its marker the run's first twelve characters",
+                "the list is format 2 of this generation run, its marker the run's first twelve characters",
                 () -> {
-                    assertThat(list.get("format").asInt()).isEqualTo(1);
+                    assertThat(list.get("format").asInt()).isEqualTo(2);
                     assertThat(list.get("generationRun").asString()).isEqualTo(ListedTree.RUN_ID);
                     assertThat(list.get("marker").asString()).isEqualTo(MARKER);
                 });
         claim(
-                "the pages are keyed by run and place, the root first, the seed partition's before its groups', each"
-                        + " naming a parent listed before it",
+                "the pages are keyed by their place alone, the root first, the seed partition's before its groups',"
+                        + " each naming a parent listed before it",
                 () -> {
                     List<String> keys = list.get("pages").valueStream().map(page -> page.get("key").asString()).toList();
-                    assertThat(keys).containsExactly(
-                            ListedTree.RUN_ID + ":root", ListedTree.RUN_ID + ":1", ListedTree.RUN_ID + ":1.1",
-                            ListedTree.RUN_ID + ":1.2");
+                    assertThat(keys).containsExactly("root", "1", "1.1", "1.2");
                     List<String> seen = new ArrayList<>();
                     for (JsonNode page : list.get("pages")) {
                         if (seen.isEmpty()) {
@@ -367,8 +369,8 @@ class TheConfluenceRenderingTest {
         byte[] manifest = Files.readAllBytes(tree.resolve(Deliverable.MANIFEST_FILE_NAME));
 
         claim(
-                "the root page opens with the run's id under the index's heading and the one sentence",
-                () -> assertThat(root).startsWith("<h1>Deliverable " + ListedTree.RUN_ID + "</h1>\n<p>"
+                "the root page opens with the index's heading, without the run's id, and the one sentence",
+                () -> assertThat(root).startsWith("<h1>Deliverable</h1>\n<p>"
                         + Html.escape(ConfluencePages.THE_ROOT_PAGES_SENTENCE) + "</p>\n"));
         claim(
                 "it links each page the list lists but itself, by its title",
@@ -395,6 +397,65 @@ class TheConfluenceRenderingTest {
                                 .map(file -> file.get("path").asString()))
                         .noneMatch(path -> path.contains(DeliverableRoot.MARKER_FILE_NAME)
                                 || path.contains(Deliverable.CODE_LISTING_FILE_NAME) || path.contains("/code/")));
+    }
+
+    @Test
+    @Story("No page carries the run's id")
+    @DisplayName("No title, key, body or file name of the rendering holds the run's id or its first twelve characters, and the HTML index still names the run")
+    void noPageCarriesTheRunsIdOrItsMarkerAndTheHtmlIndexStillNamesTheRun(@TempDir Path base) throws IOException {
+        Path tree = draw(base, picturesOfTheFirst());
+        JsonNode list = pageList(tree);
+        List<String> sent = new ArrayList<>();
+        for (JsonNode page : list.get("pages")) {
+            sent.add(page.get("key").asString());
+            sent.add(page.get("title").asString());
+            page.get("files").valueStream().forEach(file -> sent.add(file.get("name").asString()));
+        }
+        for (Path body : bodiesUnder(tree.resolve(ConfluencePages.DIRECTORY_NAME))) {
+            sent.add(Files.readString(body, StandardCharsets.UTF_8));
+        }
+
+        claim(
+                "no key, title, file name or body a publish sends holds the run's first twelve characters, with which"
+                        + " its whole id begins",
+                () -> assertThat(sent).isNotEmpty().allSatisfy(text -> assertThat(text).doesNotContain(MARKER)));
+        claim(
+                "the HTML index still opens with the run's whole id under its heading, the HTML tree being unchanged",
+                () -> assertThat(Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME), StandardCharsets.UTF_8))
+                        .contains("<h1>Deliverable " + ListedTree.RUN_ID + "</h1>"));
+    }
+
+    @Test
+    @Story("Every page is titled by its text and its place")
+    @DisplayName("Ten groups of one seed partition are keyed by their place unpadded and titled by it padded to two digits")
+    void aKeyIsItsPlaceUnpaddedAndATitleItsPlacePadded(@TempDir Path base) throws IOException {
+        Path archive = base.resolve(THE_CORPUS_ROOT);
+        Files.createDirectories(archive.resolve("notes"));
+        List<RecordedCluster> groups = new ArrayList<>();
+        List<ListedSurvivor> survivors = new ArrayList<>();
+        for (int place = 1; place <= TEN_GROUPS; place++) {
+            groups.add(cluster(THE_SEED, place - 1, "Group " + place, place, 1));
+            Files.writeString(archive.resolve("notes/" + place + ".txt"), "note " + place);
+            survivors.add(survivor(100 + place, "notes/" + place + ".txt", sha256Of(bytes("note " + place)), THE_SEED,
+                    SEED_PATH, place - 1, 0.5));
+        }
+        Path tree = ListedTree.write(base.resolve(THE_WORKING_DIRECTORY), archive, groups, Map.of(), survivors, Map.of());
+        List<JsonNode> pages = pageList(tree).get("pages").valueStream().toList();
+        List<String> expectedKeys = new ArrayList<>(List.of("root", "1"));
+        List<String> expectedTitles = new ArrayList<>(List.of("Vespera", "Fire Safety (1)"));
+        for (int place = 1; place <= TEN_GROUPS; place++) {
+            expectedKeys.add("1." + place);
+            expectedTitles.add("Group " + place + " (1." + String.format("%02d", place) + ")");
+        }
+
+        claim(
+                "the ten groups are keyed 1.1 to 1.10, with no zero before a number",
+                () -> assertThat(pages).extracting(page -> page.get("key").asString())
+                        .containsExactlyElementsOf(expectedKeys));
+        claim(
+                "and titled with their place padded to two digits, 1.01 to 1.10, as the HTML tree's folders are",
+                () -> assertThat(pages).extracting(page -> page.get("title").asString())
+                        .containsExactlyElementsOf(expectedTitles));
     }
 
     @Test
@@ -449,8 +510,8 @@ class TheConfluenceRenderingTest {
         Path folder = doorsFolder(tree);
         String first = Files.readString(folder.resolve(ConfluencePages.BODY_NAME), StandardCharsets.UTF_8);
         String second = Files.readString(folder.resolve("page-2.xml"), StandardCharsets.UTF_8);
-        String title = DOORS_TITLE + " (1.1 · " + MARKER + ")";
-        String pageTwo = DOORS_TITLE + " (1.1 page 2 · " + MARKER + ")";
+        String title = DOORS_TITLE + " (1.1)";
+        String pageTwo = DOORS_TITLE + " (1.1 page 2)";
 
         claim(
                 "a page an entry, the HTML tree's split: four Confluence pages, as four HTML pages",
@@ -477,8 +538,8 @@ class TheConfluenceRenderingTest {
         claim(
                 "the page list keys page 2 by its place and number, under the group's first page",
                 () -> {
-                    JsonNode page = pageKeyed(pageList(tree), ListedTree.RUN_ID + ":1.1.2");
-                    assertThat(page.get("parent").asString()).isEqualTo(ListedTree.RUN_ID + ":1.1");
+                    JsonNode page = pageKeyed(pageList(tree), "1.1.2");
+                    assertThat(page.get("parent").asString()).isEqualTo("1.1");
                     assertThat(page.get("title").asString()).isEqualTo(pageTwo);
                 });
     }

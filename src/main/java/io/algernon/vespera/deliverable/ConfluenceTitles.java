@@ -3,8 +3,9 @@ package io.algernon.vespera.deliverable;
 import io.algernon.vespera.synthesis.DeliverableLanguage;
 
 /**
- * The titles of the Confluence rendering's pages (ADR-310): a cluster's {@code TEXT (P.C · MARKER)} or {@code TEXT
- * (P.C page K · MARKER)}, a seed partition's {@code TEXT (P · MARKER)}, and the root page's {@code Vespera MARKER}.
+ * The titles of the Confluence rendering's pages (ADR-328 §1): a cluster's {@code TEXT (P.C)} or {@code TEXT
+ * (P.C page K)}, a seed partition's {@code TEXT (P)}, and the root page's {@code Vespera}. No title carries the run's
+ * marker.
  *
  * <p><b>The suffix is never cut</b> (ADR-310 §4): every control character of the text becomes a space, runs of
  * whitespace one space, the text is trimmed, and where the whole would pass {@value #LONGEST_TITLE} UTF-16 code units
@@ -16,37 +17,27 @@ final class ConfluenceTitles {
     /** The most UTF-16 code units a title has, Confluence's own limit (ADR-310 §4). */
     static final int LONGEST_TITLE = 255;
 
-    /** How many hexadecimal characters of the run's id its marker is (ADR-310 §1). */
-    static final int MARKER_LENGTH = 12;
-
     /** What stands for the text a title's cut leaves out. */
     private static final String CUT = "…";
 
     private ConfluenceTitles() {}
 
-    /** The generation run's marker: the first {@value #MARKER_LENGTH} characters of its id (ADR-310 §1). */
-    static String markerOf(String runId) {
-        return runId.substring(0, Math.min(MARKER_LENGTH, runId.length()));
+    /** The root page's title (ADR-328 §1). */
+    static String root() {
+        return "Vespera";
     }
 
-    /** The root page's title (ADR-310 §3). */
-    static String root(String marker) {
-        return "Vespera " + marker;
-    }
-
-    /** A seed partition's page's title, {@code place} its padded order (ADR-310 §3). */
-    static String partition(String stem, String place, String marker) {
-        return titled(stem, " (" + place + " · " + marker + ")");
+    /** A seed partition's page's title, {@code place} its padded order (ADR-328 §1). */
+    static String partition(String stem, String place) {
+        return titled(stem, " (" + place + ")");
     }
 
     /**
      * A cluster's page's title, {@code place} being {@code P.C} and {@code page} counted from 1: the first page carries no
-     * page number (ADR-310 §2).
+     * page number (ADR-310 §2, ADR-328 §1).
      */
-    static String cluster(String text, String place, int page, String marker, DeliverableLanguage language) {
-        return titled(
-                text,
-                " (" + place + (page == 1 ? "" : FixedWords.pageInATitle(language) + page) + " · " + marker + ")");
+    static String cluster(String text, String place, int page, DeliverableLanguage language) {
+        return titled(text, " (" + place + (page == 1 ? "" : FixedWords.pageInATitle(language) + page) + ")");
     }
 
     /** {@code text} folded and, where the whole would pass the limit, cut, then {@code suffix} whole (ADR-310 §4). */

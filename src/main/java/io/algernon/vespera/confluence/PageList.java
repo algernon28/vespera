@@ -27,7 +27,7 @@ record PageList(int format, String generationRun, String marker, List<Page> page
     static final String FILE_NAME = "pages.json";
 
     /** The one format this publish reads. */
-    static final int FORMAT = 1;
+    static final int FORMAT = 2;
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 

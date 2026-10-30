@@ -12,28 +12,42 @@ import java.util.Map;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * A Confluence rendering drawn by hand as stage 6b draws one (ADR-312, ADR-316): a root page carrying {@code
+ * A Confluence rendering drawn by hand as stage 6b draws one (ADR-312, ADR-316, ADR-328): a root page carrying {@code
  * documents.csv}, a seed partition's page, and a cluster's page carrying a copy and a picture's file, with the page
- * list naming them. Every text in it is synthetic.
+ * list naming them, each page keyed and titled by its place and none carrying the run's id. Every text in it is
+ * synthetic.
  */
 final class Rendering {
 
-    /** The generation run the rendering is of, and its marker. */
-    static final String RUN = "abcdef0123456789abcdef0123456789";
+    /** The generation run the rendering is of, and its marker, which only the page list and the publish's lines name. */
+    static final String RUN = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 
     static final String MARKER = "abcdef012345";
 
-    static final String ROOT = RUN + ":root";
+    /** A later generation run, drawn over the same places (ADR-328 §4). */
+    static final String LATER_RUN = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
-    static final String PARTITION = RUN + ":001";
+    static final String LATER_MARKER = "1234567890ab";
 
-    static final String CLUSTER = RUN + ":001.001";
+    /** The page list's format, whose keys are places alone (ADR-328 §3). */
+    static final int FORMAT = 2;
 
-    static final String ROOT_TITLE = "Vespera " + MARKER;
+    /** Each page's key: its place, unpadded (ADR-328 §3). */
+    static final String ROOT = "root";
 
-    static final String PARTITION_TITLE = "Seeds (001 · " + MARKER + ")";
+    static final String PARTITION = "1";
 
-    static final String CLUSTER_TITLE = "Payroll and leave (001.001 · " + MARKER + ")";
+    static final String CLUSTER = "1.1";
+
+    /** Each page's title: its text and its place, and no marker (ADR-328 §1). */
+    static final String ROOT_TITLE = "Vespera";
+
+    static final String PARTITION_TITLE = "Seeds (1)";
+
+    static final String CLUSTER_TITLE = "Payroll and leave (1.1)";
+
+    /** The label every page of the tree carries (ADR-328 §4). */
+    static final String LABEL = "vespera";
 
     static final String COPY = "leave-policy.pdf";
 
@@ -45,6 +59,10 @@ final class Rendering {
 
     private final Path tree;
     private final Map<String, String> bodies = new LinkedHashMap<>();
+    private String run = RUN;
+    private String marker = MARKER;
+    private int format = FORMAT;
+    private String clusterTitle = CLUSTER_TITLE;
 
     /**
      * Each body names its page's files by {@code ri:attachment}, and the root page and the seed partition's page link
@@ -55,9 +73,13 @@ final class Rendering {
         this.tree = tree;
         bodies.put(ROOT, "<p>The groups.</p>\n<h2>" + pageLink(PARTITION_TITLE, "Seeds") + "</h2>\n<p>"
                 + fileLink(LISTING) + "</p>");
-        bodies.put(PARTITION, "<p>The seed partition.</p>\n<p>" + pageLink(CLUSTER_TITLE, "Payroll and leave") + "</p>");
+        bodies.put(PARTITION, partitionBody(CLUSTER_TITLE));
         bodies.put(CLUSTER, "<p>What the group holds.</p>\n<p>" + fileLink(COPY) + "</p>\n<p><ac:image ac:alt=\"a"
                 + " chart\"><ri:attachment ri:filename=\"" + PICTURE + "\" /></ac:image></p>");
+    }
+
+    private static String partitionBody(String clusterTitle) {
+        return "<p>The seed partition.</p>\n<p>" + pageLink(clusterTitle, "the group") + "</p>";
     }
 
     private static String pageLink(String title, String text) {
@@ -116,6 +138,26 @@ final class Rendering {
         return this;
     }
 
+    /**
+     * Draws the rendering as the later generation run's, the place {@code 1.1} now holding the group titled {@code
+     * title}, the seed partition's page linking it by that title (ADR-328 §4).
+     */
+    Rendering asTheLaterRunWithTheClusterTitled(String title) {
+        run = LATER_RUN;
+        marker = LATER_MARKER;
+        clusterTitle = title;
+        bodies.put(PARTITION, partitionBody(title));
+        write();
+        return this;
+    }
+
+    /** Writes the page list in another format, its pages as they are. */
+    Rendering inFormat(int other) {
+        format = other;
+        write();
+        return this;
+    }
+
     private void write() {
         try {
             Files.writeString(confluence().resolve("page.xml"), bodies.get(ROOT), StandardCharsets.UTF_8);
@@ -125,13 +167,13 @@ final class Rendering {
             pages.add(page(PARTITION, ROOT, PARTITION_TITLE, "001/page.xml", List.of()));
             if (bodies.containsKey(CLUSTER)) {
                 Files.writeString(confluence().resolve("001/001/page.xml"), bodies.get(CLUSTER), StandardCharsets.UTF_8);
-                pages.add(page(CLUSTER, PARTITION, CLUSTER_TITLE, "001/001/page.xml", List.of(
+                pages.add(page(CLUSTER, PARTITION, clusterTitle, "001/001/page.xml", List.of(
                         file(COPY, "../001/001/" + COPY, "copy"), file(PICTURE, "001/001/" + PICTURE, "picture"))));
             }
             Map<String, Object> list = new LinkedHashMap<>();
-            list.put("format", 1);
-            list.put("generationRun", RUN);
-            list.put("marker", MARKER);
+            list.put("format", format);
+            list.put("generationRun", run);
+            list.put("marker", marker);
             list.put("pages", pages);
             Files.write(confluence().resolve(PageList.FILE_NAME), JSON.writeValueAsBytes(list));
         } catch (IOException e) {

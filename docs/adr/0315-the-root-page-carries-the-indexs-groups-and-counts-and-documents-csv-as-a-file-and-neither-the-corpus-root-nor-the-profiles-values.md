@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-321](0321-the-deliverable-is-written-and-drawn-in-the-language-the-profile-names-and-the-question-names-the-answers-two-fields-and-where-its-writing-ends.md).** Where the deliverable's language is Italian, §2's heading reads *Base di conoscenza* and its one sentence *"La pagina di ogni gruppo porta una copia verificata di ogni documento che elenca. documents.csv elenca ogni documento di questa esecuzione."*, and the table of groups is headed in Italian. The rest of this record stands.
 
+> **Partly amended — see [ADR-328](0328-the-confluence-rendering-is-one-tree-updated-in-place-by-each-publish-its-pages-keyed-and-titled-by-their-place-with-no-run-id-and-a-page-it-no-longer-has-moved-to-the-trash.md).** §2's first item no longer holds: the root page opens with the heading's words alone, `Deliverable` or *Base di conoscenza*, and carries no run id. The rest of this record stands.
+
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
 - **Rests on**: [ADR-312](0312-the-confluence-rendering-lies-under-confluence-at-the-trees-root-drawn-by-every-drawing-and-what-an-earlier-drawing-left-in-it-is-counted-and-kept.md), by which the root page lies directly in `confluence/`, and [ADR-310](0310-a-confluence-pages-title-is-its-text-followed-by-its-place-and-its-generation-runs-marker-cut-to-255-characters-with-the-marker-kept-whole.md), by which it is titled `Vespera <marker>`.

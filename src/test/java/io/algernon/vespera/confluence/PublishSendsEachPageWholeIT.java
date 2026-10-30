@@ -34,6 +34,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Link(name = "ADR-320", url = Adr.A_PUBLISH_SENDS_EACH_PAGE_WHOLE_AND_SAYS_HOW_FAR_IT_HAS_GOT, type = "adr")
 @Link(name = "ADR-316", url = Adr.THE_PAGE_LIST_IS_PAGES_JSON, type = "adr")
 @Link(name = "ADR-313", url = Adr.A_CLUSTERS_CONFLUENCE_PAGE_CARRIES_ITS_COPIES_AS_FILES, type = "adr")
+@Link(name = "ADR-328", url = Adr.THE_CONFLUENCE_RENDERING_IS_ONE_TREE_UPDATED_IN_PLACE_WITH_NO_RUN_ID, type = "adr")
 @Tag("confluence")
 class PublishSendsEachPageWholeIT {
 
@@ -186,12 +187,15 @@ class PublishSendsEachPageWholeIT {
                             Rendering.ROOT_TITLE + " < " + StubConfluence.PARENT_ID,
                             Rendering.PARTITION_TITLE + " < " + pages.get(0).id,
                             Rendering.CLUSTER_TITLE + " < " + pages.get(1).id));
-            claim("each is labelled with the run's marker, and its property holds its key and its body's digest",
+            claim("each is labelled vespera alone, with no part of the run's id, and its property holds its key and its"
+                            + " body's digest",
                     () -> assertThat(pages).allSatisfy(page -> {
-                        assertThat(page.labels).containsExactly("vespera-" + Rendering.MARKER);
+                        assertThat(page.labels).containsExactly(Rendering.LABEL);
                         assertThat(page.property).containsOnlyKeys("key", "bodySha256");
-                        assertThat((String) page.property.get("key")).startsWith(Rendering.RUN + ":");
                     }));
+            claim("the keys are the pages' places alone, root, the seed partition's and the group's, with no run in them",
+                    () -> assertThat(pages).extracting(page -> (String) page.property.get("key"))
+                            .containsExactly(Rendering.ROOT, Rendering.PARTITION, Rendering.CLUSTER));
         }
     }
 
