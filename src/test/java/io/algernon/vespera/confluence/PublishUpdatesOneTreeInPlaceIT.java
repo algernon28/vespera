@@ -19,14 +19,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * The Confluence rendering is one tree under the parent, which every publish updates in place, whichever generation
  * run drew it (ADR-328): a page is matched by its place; a page the rendering no longer has is moved to the trash after
- * every page is sent, one holding a page the tree does not own, or one the site refuses to delete, being left and said;
- * a tree an earlier publish made with its run's marker in its titles is taken and retitled in place; and a title a page
- * outside the tree holds, a tree under another parent and a page list of the earlier format stop the publish before
- * anything is written. Against a stub; every text is synthetic.
+ * every page is sent, deepest first, one with anything under it, or one the site refuses to delete, being left and said;
+ * a tree an earlier publish made with its run's marker in its titles is taken and retitled in place, a taking stopped
+ * half way ending on the next publish; and a title a page outside the tree holds, for a page created, retitled or
+ * taken, a parent the site will not say is a folder or a page or will not list, a tree under another parent and a page
+ * list of the earlier format stop the publish before anything is written. Against a stub; every text is synthetic.
  */
 @Epic("Operation")
 @Feature("The publish")
@@ -56,6 +59,32 @@ class PublishUpdatesOneTreeInPlaceIT {
 
     /** The three pages of the rendering. */
     private static final int THREE_PAGES = 3;
+
+    /** What a removal's line says of a page left because something stands under it (ADR-328 §5). */
+    private static final String LEFT_HOLDING =
+            ", left as it stands: something stands under it, which its removal could take with it";
+
+    /** What a removal's line says of a page the site no longer holds (ADR-328 §5). */
+    private static final String ALREADY_GONE = ", already gone";
+
+    /** What a removal's line says of a page moved to the trash (ADR-328 §5). */
+    private static final String MOVED = ", moved to the trash";
+
+    /** The status a site answers a page, a label or a listing it does not hold with, and a failure of its own. */
+    private static final int NOT_FOUND = 404;
+
+    private static final int SERVER_ERROR = 500;
+
+    /** Pages of the tree an earlier publish of a larger rendering left, which this rendering no longer has. */
+    private static final String FORMER_PARTITION_TITLE = "Former seeds (2)";
+
+    private static final String FORMER_CLUSTER_TITLE = "Former payroll (2.1)";
+
+    /** A page someone put in the space, which no publish made. */
+    private static final String A_PERSONS_PAGE = "Notes on overtime";
+
+    /** The line a publish stopped by a title a page outside the tree holds begins with (ADR-320 §3). */
+    private static final String STOPPED_BY_TITLE = "vespera publish stopped: a page titled ";
 
     @TempDir
     Path folder;
@@ -184,9 +213,9 @@ class PublishUpdatesOneTreeInPlaceIT {
             claim("the group's page and the page under it stand",
                     () -> assertThat(site.pages()).extracting(page -> page.title)
                             .contains(Rendering.CLUSTER_TITLE, notes.title));
-            claim("its line says it was left because it holds a page the tree does not own",
+            claim("its line says it was left because something stands under it",
                     () -> assertThat(lines.getLast()).isEqualTo("removal 1 of 1: " + Rendering.CLUSTER_TITLE
-                            + ", left as it stands: it holds a page this tree does not own"));
+                            + LEFT_HOLDING));
             claim("and the publish went to its end, counting it left",
                     () -> assertThat(List.of(again.published(), again.closingLine().contains(
                             "; 1 page the rendering no longer has was left as it stands"))).containsExactly(true, true));
@@ -321,6 +350,313 @@ class PublishUpdatesOneTreeInPlaceIT {
         }
     }
 
+    @Test
+    @Story("A publish removes what the rendering no longer has")
+    @DisplayName("A seed partition's page and its group's page the rendering no longer has, someone's page under the group's, are neither deleted, and each line says why")
+    void aSeedPartitionWhoseClusterHoldsAPersonsPageIsLeftWithIt() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            publish(site, rendering, Rendering.RUN, new ArrayList<>());
+            StubConfluence.Page partition = site.aPageOfTheTree(page(site, Rendering.ROOT_TITLE).id,
+                    FORMER_PARTITION_TITLE, "2");
+            StubConfluence.Page cluster = site.aPageOfTheTree(partition.id, FORMER_CLUSTER_TITLE, "2.1");
+            site.aPageNoPublishMadeUnder(cluster.id, A_PERSONS_PAGE);
+            site.forgetTheRequests();
+            List<String> lines = new ArrayList<>();
+            Publisher.Outcome again = publish(site, rendering, Rendering.RUN, lines);
+
+            claim("no DELETE was sent, of the group's page, of the seed partition's page or of any",
+                    () -> assertThat(site.sent()).filteredOn(request -> request.method().equals("DELETE"))
+                            .extracting(StubConfluence.Request::path).isEmpty());
+            claim("the seed partition's page, the group's page and the page under it stand, and nothing is in the trash",
+                    () -> assertThat(List.of(site.pages().stream().map(page -> page.title).toList()
+                            .containsAll(List.of(FORMER_PARTITION_TITLE, FORMER_CLUSTER_TITLE, A_PERSONS_PAGE)),
+                            site.trash().isEmpty())).containsExactly(true, true));
+            claim("the lines count two removals, the group's page first, and say each was left because something"
+                            + " stands under it",
+                    () -> assertThat(lines.subList(lines.size() - 3, lines.size())).containsExactly(
+                            "2 pages of the tree the rendering no longer has are moved to the trash",
+                            "removal 1 of 2: " + FORMER_CLUSTER_TITLE + LEFT_HOLDING,
+                            "removal 2 of 2: " + FORMER_PARTITION_TITLE + LEFT_HOLDING));
+            claim("and the publish went to its end, counting both left and none removed",
+                    () -> assertThat(List.of(again.published(),
+                            again.closingLine().contains("; 2 pages the rendering no longer has were left as they stand"),
+                            again.closingLine().contains("removed"))).containsExactly(true, true, false));
+        }
+    }
+
+    @Test
+    @Story("A publish removes what the rendering no longer has")
+    @DisplayName("Several pages the rendering no longer has are moved to the trash deepest first, and within one depth in the order of their numbers")
+    void severalPagesAreRemovedDeepestFirstAndInTheOrderOfTheirNumbers() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            publish(site, rendering, Rendering.RUN, new ArrayList<>());
+            String root = page(site, Rendering.ROOT_TITLE).id;
+            StubConfluence.Page two = site.aPageOfTheTree(root, "Second seeds (2)", "2");
+            site.aPageOfTheTree(two.id, "Tenth group (2.10)", "2.10");
+            site.aPageOfTheTree(page(site, Rendering.CLUSTER_TITLE).id, "Payroll and leave (1.1 page 2)", "1.1.2");
+            site.aPageOfTheTree(two.id, "Ninth group (2.9)", "2.9");
+            site.aPageOfTheTree(page(site, Rendering.PARTITION_TITLE).id, "Second group (1.2)", "1.2");
+            List<String> inOrder = List.of("Payroll and leave (1.1 page 2)", "Second group (1.2)", "Ninth group (2.9)",
+                    "Tenth group (2.10)", "Second seeds (2)");
+            site.forgetTheRequests();
+            List<String> lines = new ArrayList<>();
+            Publisher.Outcome again = publish(site, rendering, Rendering.RUN, lines);
+
+            claim("the five pages went to the trash, the page of three numbers first, then those of two in the order of"
+                            + " their numbers, 2.9 before 2.10, then the page of one",
+                    () -> assertThat(site.trash()).extracting(page -> page.title).containsExactlyElementsOf(inOrder));
+            claim("by five DELETEs, one a page, in that order, and nothing else written",
+                    () -> assertThat(site.writes()).extracting(write -> write.kind() + " " + write.page())
+                            .containsExactlyElementsOf(inOrder.stream().map(title -> "TRASHED " + title).toList()));
+            claim("each removal's line says so, numbered in that order",
+                    () -> assertThat(lines.subList(lines.size() - inOrder.size(), lines.size())).containsExactly(
+                            "removal 1 of 5: " + inOrder.get(0) + MOVED,
+                            "removal 2 of 5: " + inOrder.get(1) + MOVED,
+                            "removal 3 of 5: " + inOrder.get(2) + MOVED,
+                            "removal 4 of 5: " + inOrder.get(3) + MOVED,
+                            "removal 5 of 5: " + inOrder.get(4) + MOVED));
+            claim("and the closing line counts five removed",
+                    () -> assertThat(again.closingLine()).contains("; 5 pages the rendering no longer has were removed"));
+        }
+    }
+
+    @Test
+    @Story("A publish removes what the rendering no longer has")
+    @DisplayName("A page the site answers 404 to when it is removed is said to be gone already, and counted removed")
+    void aRemovalAnswered404IsSaidToBeGoneAlready() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            publish(site, rendering, Rendering.RUN, new ArrayList<>());
+            site.refuseToRemove(Rendering.CLUSTER_TITLE, NOT_FOUND);
+            rendering.withoutTheCluster();
+            List<String> lines = new ArrayList<>();
+            Publisher.Outcome again = publish(site, rendering, Rendering.RUN, lines);
+
+            claim("its line says the page was gone already",
+                    () -> assertThat(lines.getLast()).isEqualTo("removal 1 of 1: " + Rendering.CLUSTER_TITLE
+                            + ALREADY_GONE));
+            claim("and the publish went to its end, counting it removed and none left",
+                    () -> assertThat(List.of(again.published(),
+                            again.closingLine().contains("; 1 page the rendering no longer has was removed"),
+                            again.closingLine().contains("left as"))).containsExactly(true, true, false));
+        }
+    }
+
+    @Test
+    @Story("A publish removes what the rendering no longer has")
+    @DisplayName("A publish stopped during the removals says which removal it stopped at, and the page removed before it stays in the trash")
+    void aStopDuringTheRemovalsSaysWhichRemovalItStoppedAt() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            publish(site, rendering, Rendering.RUN, new ArrayList<>());
+            String root = page(site, Rendering.ROOT_TITLE).id;
+            StubConfluence.Page second = site.aPageOfTheTree(root, "Second seeds (2)", "2");
+            StubConfluence.Page third = site.aPageOfTheTree(root, "Third seeds (3)", "3");
+            site.answerTheListingOfTheChildrenOf(third.id, SERVER_ERROR);
+            Publisher.Outcome again = publish(site, rendering, Rendering.RUN, new ArrayList<>());
+
+            claim("the publish stopped, saying it stopped at the second of two removals, on that page, and to publish"
+                            + " again",
+                    () -> assertThat(List.of(again.published(),
+                            again.closingLine().startsWith("vespera publish stopped: "),
+                            again.closingLine().endsWith(". It stopped at removal 2 of 2, " + third.title + ". It had"
+                                    + " created 0 pages, updated 0 and sent 0 files. Publish again to go on from there.")))
+                            .containsExactly(false, true, true));
+            claim("the page removed before the stop is in the trash, and the page it stopped at stands",
+                    () -> assertThat(List.of(site.trash().stream().map(page -> page.title).toList(),
+                            site.pages().stream().map(page -> page.title).filter(third.title::equals).toList()))
+                            .containsExactly(List.of(second.title), List.of(third.title)));
+        }
+    }
+
+    @Test
+    @Story("A publish updates one tree in place")
+    @DisplayName("Of two pages of the tree holding one place, the one made first is updated and the other is neither updated nor removed")
+    void ofTwoPagesHoldingOneKeyTheLowerIdIsTheTreesAndTheOtherIsUntouched() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            publish(site, rendering, Rendering.RUN, new ArrayList<>());
+            StubConfluence.Page first = page(site, Rendering.CLUSTER_TITLE);
+            int firstsVersion = first.version;
+            StubConfluence.Page copy = site.aPageOfTheTree(StubConfluence.OTHER_PARENT_ID,
+                    "Copy of " + Rendering.CLUSTER_TITLE, Rendering.CLUSTER);
+            String copysState = stateOf(copy);
+            site.listTheLabelsSearchNewestFirst();
+            rendering.withBody(Rendering.CLUSTER, "<p>What the group holds now.</p>");
+            site.forgetTheRequests();
+            Publisher.Outcome again = publish(site, rendering, Rendering.RUN, new ArrayList<>());
+
+            claim("the publish went to its end, updating one page and removing none",
+                    () -> assertThat(List.of(again.published(),
+                            again.closingLine().contains("3 pages (0 created, 1 updated, 2 unchanged)"),
+                            again.closingLine().contains("removed"))).containsExactly(true, true, false));
+            claim("the one write was the new body, to the page titled as the group's",
+                    () -> assertThat(site.writes()).singleElement().isEqualTo(
+                            new StubConfluence.Write(StubConfluence.Kind.BODY, Rendering.CLUSTER_TITLE, null)));
+            claim("that page is the one made first, the lower id, though the label's search found it last, now at its"
+                            + " next version",
+                    () -> assertThat(page(site, Rendering.CLUSTER_TITLE)).satisfies(page -> assertThat(
+                            List.of(page.id, "" + page.version)).containsExactly(first.id, "" + (firstsVersion + 1))));
+            claim("and the other page holding that place is as it was: title, version, body, labels and property",
+                    () -> assertThat(site.pages()).filteredOn(page -> page.id.equals(copy.id)).singleElement()
+                            .satisfies(page -> assertThat(stateOf(page)).isEqualTo(copysState)));
+        }
+    }
+
+    @Test
+    @Story("A title a page outside the tree holds is refused")
+    @DisplayName("A later run retitling a page of the tree to a title a page outside it holds stops the publish in one line before anything is written")
+    void aRetitleToATitleAPageOutsideTheTreeHoldsStopsThePublishBeforeAnyWrite() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            publish(site, rendering, Rendering.RUN, new ArrayList<>());
+            site.aPageNoPublishMadeUnder(StubConfluence.OTHER_PARENT_ID, THE_LATER_GROUPS_TITLE);
+            rendering.asTheLaterRunWithTheClusterTitled(THE_LATER_GROUPS_TITLE);
+            site.forgetTheRequests();
+            Publisher.Outcome later = publish(site, rendering, Rendering.LATER_RUN, new ArrayList<>());
+
+            claim("the publish stopped in one line naming the title",
+                    () -> assertThat(List.of(later.published(),
+                            later.closingLine().startsWith(STOPPED_BY_TITLE + THE_LATER_GROUPS_TITLE
+                                    + " stands in the space"),
+                            later.closingLine().contains("\n"))).containsExactly(false, true, false));
+            claim("it sent nothing but reads", () -> assertThat(site.sent()).isNotEmpty()
+                    .allSatisfy(request -> assertThat(request.method()).isEqualTo("GET")));
+            claim("and the tree's page of that place still holds its title, the other page its own",
+                    () -> assertThat(site.pages()).extracting(page -> page.title)
+                            .contains(Rendering.CLUSTER_TITLE, THE_LATER_GROUPS_TITLE));
+        }
+    }
+
+    @Test
+    @Story("A title a page outside the tree holds is refused")
+    @DisplayName("A page titled Vespera outside the tree stops the taking of a tree an earlier publish made, in one line before anything is written")
+    void aPageTitledVesperaStopsATakingBeforeAnyWrite() throws IOException {
+        Path tree = folder.resolve("tree");
+        Rendering rendering = Rendering.drawnIn(tree);
+        try (StubConfluence site = StubConfluence.start()) {
+            anEarlierTree(site, tree, EARLIER_RUN, EARLIER_MARKER);
+            site.aPageNoPublishMadeUnder(StubConfluence.OTHER_PARENT_ID, Rendering.ROOT_TITLE);
+            Publisher.Outcome outcome = publish(site, rendering, Rendering.RUN, new ArrayList<>());
+
+            claim("the publish stopped in one line naming the title",
+                    () -> assertThat(List.of(outcome.published(),
+                            outcome.closingLine().startsWith(STOPPED_BY_TITLE + Rendering.ROOT_TITLE
+                                    + " stands in the space"),
+                            outcome.closingLine().contains("\n"))).containsExactly(false, true, false));
+            claim("it sent nothing but reads", () -> assertThat(site.sent()).isNotEmpty()
+                    .allSatisfy(request -> assertThat(request.method()).isEqualTo("GET")));
+            claim("and the earlier tree is as it was: its run's characters in its label and its keys",
+                    () -> assertThat(site.pages()).filteredOn(page -> !page.title.equals(Rendering.ROOT_TITLE))
+                            .extracting(page -> page.labels + " " + page.property.get("key")).containsExactly(
+                                    "[vespera-" + EARLIER_MARKER + "] " + EARLIER_RUN + ":root",
+                                    "[vespera-" + EARLIER_MARKER + "] " + EARLIER_RUN + ":1",
+                                    "[vespera-" + EARLIER_MARKER + "] " + EARLIER_RUN + ":1.1"));
+        }
+    }
+
+    @ParameterizedTest(name = "the page of the place {0}")
+    @ValueSource(strings = {Rendering.PARTITION, Rendering.ROOT})
+    @Story("A tree an earlier publish made is taken as this tree")
+    @DisplayName("A taking stopped before a page's earlier label was taken off takes it off on the next publish")
+    void aTakingStoppedBeforeAnEarlierLabelWasTakenOffTakesItOffOnTheNextPublish(String key) throws IOException {
+        Path tree = folder.resolve("tree");
+        Rendering rendering = Rendering.drawnIn(tree);
+        try (StubConfluence site = StubConfluence.start()) {
+            List<String> ids = anEarlierTree(site, tree, EARLIER_RUN, EARLIER_MARKER);
+            site.refuseToTakeALabelOff(ids.get(key.equals(Rendering.ROOT) ? 0 : 1), SERVER_ERROR);
+            Publisher.Outcome stopped = publish(site, rendering, Rendering.RUN, new ArrayList<>());
+            Publisher.Outcome resumed = publish(site, rendering, Rendering.RUN, new ArrayList<>());
+
+            claim("the first publish stopped while it took the tree, and the next went to its end",
+                    () -> assertThat(List.of(stopped.published(), resumed.published())).containsExactly(false, true));
+            claim("the same three pages stand, each labelled vespera alone, no earlier label left, and keyed by its"
+                            + " place",
+                    () -> assertThat(site.pages()).extracting(page -> page.id + " " + page.labels + " "
+                            + page.property.get("key")).containsExactly(
+                                    ids.get(0) + " [" + Rendering.LABEL + "] " + Rendering.ROOT,
+                                    ids.get(1) + " [" + Rendering.LABEL + "] " + Rendering.PARTITION,
+                                    ids.get(2) + " [" + Rendering.LABEL + "] " + Rendering.CLUSTER));
+        }
+    }
+
+    @Test
+    @Story("A tree an earlier publish made is taken as this tree")
+    @DisplayName("A parent that is a page has its children listed as a page's, and the tree an earlier publish made under it is taken")
+    void aParentThatIsAPageHasItsChildrenListedAsAPagesAndItsTreeTaken() throws IOException {
+        Path tree = folder.resolve("tree");
+        Rendering rendering = Rendering.drawnIn(tree);
+        try (StubConfluence site = StubConfluence.start()) {
+            StubConfluence.Page handbook = site.aPageNoPublishMadeUnder(StubConfluence.PARENT_ID, "Handbook");
+            List<String> ids = anEarlierTreeUnder(site, handbook.id, tree, EARLIER_RUN, EARLIER_MARKER);
+            Publisher.Outcome outcome = site.publisher(StubConfluence.theAccount(), StubConfluence.BASE_URL,
+                    handbook.id, "", new ArrayList<>()).publish(rendering.confluence(), Rendering.RUN, folder, line -> {});
+
+            claim("the publish went to its end, creating no page and updating the three",
+                    () -> assertThat(List.of(outcome.published(),
+                            outcome.closingLine().contains("3 pages (0 created, 3 updated, 0 unchanged)")))
+                            .containsExactly(true, true));
+            claim("the page's children were listed as a page's, and never as a folder's",
+                    () -> assertThat(site.sent()).filteredOn(request -> request.path().endsWith("/direct-children")
+                            && request.path().contains("/" + handbook.id + "/")).extracting(StubConfluence.Request::path)
+                            .containsOnly("/wiki/api/v2/pages/" + handbook.id + "/direct-children"));
+            claim("and the tree under it was taken, its pages at their addresses keyed by their place",
+                    () -> assertThat(site.pages()).filteredOn(page -> ids.contains(page.id))
+                            .extracting(page -> page.id + " " + page.property.get("key")).containsExactly(
+                                    ids.get(0) + " " + Rendering.ROOT,
+                                    ids.get(1) + " " + Rendering.PARTITION,
+                                    ids.get(2) + " " + Rendering.CLUSTER));
+        }
+    }
+
+    @ParameterizedTest(name = "HTTP {0}")
+    @ValueSource(ints = {FORBIDDEN, SERVER_ERROR})
+    @Story("A publish updates one tree in place")
+    @DisplayName("A parent the site will not say is a folder or a page stops the publish before anything is written, and is not taken for a page")
+    void aParentTheSiteWillNotSayIsAFolderStopsThePublishBeforeAnyWrite(int status) throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            site.answerEveryFolderReadWith(status);
+            Publisher.Outcome outcome = site.publisher(StubConfluence.theAccount(), StubConfluence.BASE_URL, "",
+                    StubConfluence.PARENT_TITLE, new ArrayList<>()).publish(rendering.confluence(), Rendering.RUN,
+                    folder, line -> {});
+
+            claim("the publish stopped, saying what the site answered",
+                    () -> assertThat(List.of(outcome.published(), outcome.closingLine().startsWith(
+                            "vespera publish stopped: the site answered HTTP " + status))).containsExactly(false, true));
+            claim("it sent nothing but reads", () -> assertThat(site.sent()).isNotEmpty()
+                    .allSatisfy(request -> assertThat(request.method()).isEqualTo("GET")));
+            claim("and never listed the parent's children as a page's",
+                    () -> assertThat(site.sent()).noneMatch(request -> request.path().equals(
+                            "/wiki/api/v2/pages/" + StubConfluence.PARENT_ID + "/direct-children")));
+        }
+    }
+
+    @Test
+    @Story("A publish updates one tree in place")
+    @DisplayName("A parent whose children the site answers 404 to listing stops the publish before anything is written, and is not taken as holding no tree")
+    void aParentsListingAnswered404StopsThePublishBeforeAnyWrite() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            site.answerTheListingOfTheChildrenOf(StubConfluence.PARENT_ID, NOT_FOUND);
+            Publisher.Outcome outcome = publish(site, rendering, Rendering.RUN, new ArrayList<>());
+
+            claim("the publish stopped, saying what the site answered",
+                    () -> assertThat(List.of(outcome.published(), outcome.closingLine().startsWith(
+                            "vespera publish stopped: the site answered HTTP " + NOT_FOUND))).containsExactly(false, true));
+            claim("it sent nothing but reads, and so made no tree", () -> assertThat(site.sent()).isNotEmpty()
+                    .allSatisfy(request -> assertThat(request.method()).isEqualTo("GET")));
+        }
+    }
+
+    /** A page's title, version, body, labels and property, as one text to compare before and after. */
+    private static String stateOf(StubConfluence.Page page) {
+        return page.title + " | " + page.version + " | " + page.body + " | " + new java.util.TreeSet<>(page.labels)
+                + " | " + page.propertyVersion + " " + page.property;
+    }
+
     private Publisher.Outcome publish(StubConfluence site, Rendering rendering, String run, List<String> lines) {
         return site.publisher(new ArrayList<>()).publish(rendering.confluence(), run, folder, lines::add);
     }
@@ -332,8 +668,14 @@ class PublishUpdatesOneTreeInPlaceIT {
      */
     private static List<String> anEarlierTree(StubConfluence site, Path tree, String run, String marker)
             throws IOException {
+        return anEarlierTreeUnder(site, StubConfluence.PARENT_ID, tree, run, marker);
+    }
+
+    /** {@link #anEarlierTree}, under the page or folder {@code parentId}. */
+    private static List<String> anEarlierTreeUnder(StubConfluence site, String parentId, Path tree, String run,
+            String marker) throws IOException {
         String label = "vespera-" + marker;
-        StubConfluence.Page root = site.aPageAnEarlierPublishMade(StubConfluence.PARENT_ID, "Vespera " + marker, label,
+        StubConfluence.Page root = site.aPageAnEarlierPublishMade(parentId, "Vespera " + marker, label,
                 run + ":root", Map.of(Rendering.LISTING, Files.readAllBytes(tree.resolve(Rendering.LISTING))));
         StubConfluence.Page partition = site.aPageAnEarlierPublishMade(root.id, "Seeds (1 · " + marker + ")", label,
                 run + ":1", Map.of());
