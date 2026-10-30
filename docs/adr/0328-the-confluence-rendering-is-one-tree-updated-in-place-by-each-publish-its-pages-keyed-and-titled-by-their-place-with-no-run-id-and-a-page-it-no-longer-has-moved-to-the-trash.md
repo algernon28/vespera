@@ -146,6 +146,7 @@ The titles, keys, root page's heading and page list are drawn in `deliverable`, 
 | `deliverable.TheConfluenceRenderingTest.theRootPageLinksEveryPageAndCarriesDocumentsCsv` | the root page opens `<h1>Deliverable</h1>` (§2) |
 | `deliverable.AnItalianTreeIsDrawnInItalianTest.thePageListTitlesTheLaterPagesWithPagina` | `(1.1 pagina K)`, and `Vespera` (§1) |
 | `deliverable.AnItalianTreeIsDrawnInItalianTest.theConfluenceRootAndPartitionPagesAreInItalian` | the root page opens `<h1>Base di conoscenza</h1>` (§2) |
+| `deliverable.ItalianWordingTest.aSplitClustersConfluenceTitleSaysPagina` | an Italian later page is titled `TEXT (P.C pagina K)`, its first page `TEXT (P.C)`, and an English later page still says `page`, none with a marker (§1) |
 | `confluence.PublishSendsEachPageWholeIT.aPageIsFilledBeforeTheNextIsCreated` | each page labelled `vespera` alone and keyed by its place (§4) |
 | `confluence.PublishUpdatesOneTreeInPlaceIT.aLaterRunsRenderingUpdatesTheSameTreeInPlace` | another generation run's rendering creates no page, keeps every page's id, and retitles the page of a place to the group now there (§4) |
 | `confluence.PublishUpdatesOneTreeInPlaceIT.aPageTheRenderingNoLongerHasIsMovedToTheTrash` | after the last body, a `DELETE` with no `purge`, its lines and the closing line's clause (§5) |

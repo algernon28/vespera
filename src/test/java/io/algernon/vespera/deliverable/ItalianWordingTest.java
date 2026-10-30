@@ -46,9 +46,6 @@ class ItalianWordingTest {
     /** The word this project uses, which Italian also borrows, and the English rendering, neither on an Italian page. */
     private static final List<String> NOT_GRUPPO = List.of("cluster", "group");
 
-    /** The marker of a run, the first twelve characters of its id (ADR-310 §1). */
-    private static final String MARKER = "aaaaaaaaaaaa";
-
     /** A seed partition's place and a cluster's, as a Confluence title writes them. */
     private static final String PLACE = "1.1";
 
@@ -201,19 +198,19 @@ class ItalianWordingTest {
     @DisplayName("A split group's later Confluence pages say pagina in their titles, and its first page no page at all")
     void aSplitClustersConfluenceTitleSaysPagina() {
         claim(
-                "the second page's title is the text, then the place, pagina and its number, and the marker",
-                () -> assertThat(ConfluenceTitles.cluster(A_TITLE, PLACE, THE_SECOND_PAGE, MARKER, ITALIAN))
+                "the second page's title is the text, then the place, pagina and its number",
+                () -> assertThat(ConfluenceTitles.cluster(A_TITLE, PLACE, THE_SECOND_PAGE, ITALIAN))
                         .isEqualTo(A_TITLE + " (" + PLACE + ItalianWordingOnRecord.PAGE_IN_A_TITLE + THE_SECOND_PAGE
-                                + " · " + MARKER + ")"));
+                                + ")"));
         claim(
                 "the first page's carries no page, as in English",
-                () -> assertThat(ConfluenceTitles.cluster(A_TITLE, PLACE, 1, MARKER, ITALIAN))
-                        .isEqualTo(A_TITLE + " (" + PLACE + " · " + MARKER + ")"));
+                () -> assertThat(ConfluenceTitles.cluster(A_TITLE, PLACE, 1, ITALIAN))
+                        .isEqualTo(A_TITLE + " (" + PLACE + ")"));
         claim(
                 "and an English rendering's second page still says page",
-                () -> assertThat(ConfluenceTitles.cluster(A_TITLE, PLACE, THE_SECOND_PAGE, MARKER,
+                () -> assertThat(ConfluenceTitles.cluster(A_TITLE, PLACE, THE_SECOND_PAGE,
                                 DeliverableLanguage.ENGLISH))
-                        .isEqualTo(A_TITLE + " (" + PLACE + " page " + THE_SECOND_PAGE + " · " + MARKER + ")"));
+                        .isEqualTo(A_TITLE + " (" + PLACE + " page " + THE_SECOND_PAGE + ")"));
     }
 
     /** {@code html} as a reader reads it: the five entities read back, so an escaped apostrophe reads as one. */
