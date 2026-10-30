@@ -230,16 +230,26 @@ final class ConfluenceApi {
         if (opening.status() == 404) {
             return Optional.empty();
         }
-        for (JsonNode child : listing(first, "listing the children of " + id)) {
+        for (JsonNode child : listing(opening, "listing the children of " + id)) {
             children.add(new Child(child.path("id").asString(), child.path("type").asString(""),
                     child.path("title").asString("")));
         }
         return Optional.of(children);
     }
 
-    /** Whether {@code id} is a folder of the site rather than a page. */
+    /**
+     * Whether {@code id} is a folder of the site rather than a page: {@code 2xx} is a folder and {@code 404} a page
+     * (ADR-328 §6). Any other answer is a refusal, the parent being taken for neither.
+     */
     boolean isFolder(String id) throws InterruptedException {
-        return get(uri("/wiki/api/v2/folders/" + segment(id))).ok();
+        Reply reply = get(uri("/wiki/api/v2/folders/" + segment(id)));
+        if (reply.ok()) {
+            return true;
+        }
+        if (reply.status() == 404) {
+            return false;
+        }
+        throw refused("reading the parent " + id, reply);
     }
 
     /** Moves the page to the space's trash, never purging it (ADR-328 §5); the reply is the caller's to read. */
@@ -343,15 +353,21 @@ final class ConfluenceApi {
 
     /** Every result of a listing, its {@code next} links followed while they name the site. */
     private List<JsonNode> listing(URI first, String doing) throws InterruptedException {
+        return listing(get(first), doing);
+    }
+
+    /** Every result of a listing whose first answer is {@code opening}, its {@code next} links followed. */
+    private List<JsonNode> listing(Reply opening, String doing) throws InterruptedException {
         List<JsonNode> results = new ArrayList<>();
-        URI next = first;
-        while (next != null) {
-            Reply reply = expect(get(next), doing);
+        Reply reply = expect(opening, doing);
+        while (true) {
             reply.body().path("results").forEach(results::add);
             String link = reply.body().path("_links").path("next").asString("");
-            next = link.isBlank() ? null : followed(link);
+            if (link.isBlank()) {
+                return results;
+            }
+            reply = expect(get(followed(link)), doing);
         }
-        return results;
     }
 
     /**
