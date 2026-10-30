@@ -51,8 +51,7 @@ import org.springframework.web.client.RestClientException;
  * once
  * more; a second stops the publish, saying which page it stopped at (ADR-320 §5). A copy or a picture's file the site
  * refuses as too large ({@code 413}) is skipped, counted and listed in {@value #NOT_CARRIED_FILE_NAME}; any other
- * refusal stops the publish (ADR-313 §3). Nothing is deleted, and a page of the run whose key the list no longer holds
- * is counted on the closing line (ADR-308 §8).
+ * refusal stops the publish (ADR-313 §3). A page of the tree the list no longer holds is moved to the trash after every page is sent (ADR-328 §5).
  */
 @Component
 public class Publisher {
@@ -69,8 +68,19 @@ public class Publisher {
     /** The page list's name in the rendering's folder (ADR-316 §1). */
     public static final String PAGE_LIST_FILE_NAME = PageList.FILE_NAME;
 
-    /** What every page of a run is labelled, before the run's marker (ADR-316 §4). */
+    /** What every page of the tree is labelled (ADR-328 §4). */
+    static final String LABEL = "vespera";
+
+    /** What an earlier publish labelled a run's pages with, before the run's marker (ADR-316 §4). */
     static final String LABEL_PREFIX = "vespera-";
+
+    /** A key of this tree's form (ADR-328 §3). */
+    private static final java.util.regex.Pattern TREE_KEY =
+            java.util.regex.Pattern.compile("root|[1-9][0-9]*(\\.[1-9][0-9]*){0,2}");
+
+    /** The key an earlier publish gave a page: its run, hexadecimal, and its place (ADR-316 §3). */
+    private static final java.util.regex.Pattern EARLIER_KEY =
+            java.util.regex.Pattern.compile("([0-9a-f]+):(root|[0-9]+(\\.[0-9]+){0,2})");
 
     /** The status a site refuses a file with as too large. */
     private static final int TOO_LARGE = 413;
@@ -256,6 +266,9 @@ public class Publisher {
         private int filesReplaced;
         private int filesUnchanged;
         private int leftAsTheyStand;
+        private int removed;
+        private int removalNumber;
+        private int removalTotal;
         private int fileNumber;
         private int fileTotal;
         private int pageNumber;
@@ -287,19 +300,27 @@ public class Publisher {
             String spaceId = api.spaceId(site.spaceKey()).orElseThrow(() -> new TheSiteRefusedThePublishException(
                     "the site holds no space with the key " + site.spaceKey() + " that this account can read"));
             String parent = parent(spaceId);
-            String label = LABEL_PREFIX + list.marker();
-            Map<String, Standing> found = ofTheRun(label);
+            String label = LABEL;
+            Map<String, Standing> found = ofTheTree(label);
+            List<Taken> toTake = found.containsKey("root") ? List.of() : earlierTree(parent, found);
+            Standing root = found.get("root");
+            if (root != null && !parent.equals(root.page().parentId())) {
+                throw new TheSiteRefusedThePublishException("the tree it updates stands under "
+                        + root.page().parentId() + ", not under the parent named. Name that parent, or move the page"
+                        + " Vespera under the one named");
+            }
             Set<String> listed = new HashSet<>();
             Map<String, Standing> byTitle = new HashMap<>();
             for (Page page : pages) {
                 listed.add(page.key());
-                if (!found.containsKey(page.key())) {
+                if (!found.containsKey(page.key()) && toTake.stream().noneMatch(one -> one.newKey().equals(page.key()))) {
                     Standing at = titled(spaceId, page);
                     if (at != null) {
                         byTitle.put(page.key(), at);
                     }
                 }
             }
+            take(toTake, found);
             for (Page page : pages) {
                 pageNumber++;
                 pageTitle = page.title();
@@ -327,11 +348,198 @@ public class Publisher {
                     done.put(page.key(), "created");
                 }
                 standing.put(page.key(), at);
+                found.put(page.key(), at);
                 String filesSaid = sendFiles(page, files);
                 sendBody(page);
                 out.accept(page.title() + ": " + done.get(page.key()) + filesSaid);
             }
-            leftAsTheyStand = (int) found.keySet().stream().filter(key -> !listed.contains(key)).count();
+            removeWhatTheListNoLongerHolds(found, listed);
+        }
+
+        /** An earlier publish's page to be taken: as the site holds it, its new key and the label it carries. */
+        private record Taken(Standing at, String newKey, String earlierLabel) {}
+
+        /** The pages of the tree that stand: labelled {@value #LABEL}, keyed in this tree's form; of two alike, the lower id. */
+        private Map<String, Standing> ofTheTree(String label) throws InterruptedException {
+            Map<String, Standing> found = new LinkedHashMap<>();
+            for (String id : api.pagesLabelled(site.spaceKey(), label)) {
+                Optional<Property> property = api.property(id);
+                if (property.isEmpty() || !TREE_KEY.matcher(property.get().key()).matches()) {
+                    continue;
+                }
+                Optional<SitePage> page = api.page(id);
+                if (page.isEmpty()) {
+                    continue;
+                }
+                Standing candidate = new Standing(page.get(), property.get());
+                Standing held = found.get(property.get().key());
+                if (held == null || lower(candidate.page().id(), held.page().id())) {
+                    found.put(property.get().key(), candidate);
+                }
+            }
+            return found;
+        }
+
+        private static boolean lower(String id, String than) {
+            try {
+                return Long.parseLong(id) < Long.parseLong(than);
+            } catch (NumberFormatException notNumbers) {
+                return id.compareTo(than) < 0;
+            }
+        }
+
+        /**
+         * Where no page is keyed {@code root}: the root page of a tree an earlier publish made under the parent, if there is
+         * one, and its pages, root last (ADR-328 §6). Two such trees stop the publish.
+         */
+        private List<Taken> earlierTree(String parent, Map<String, Standing> found) throws InterruptedException {
+            List<ConfluenceApi.Child> children = api.children(parent, api.isFolder(parent)).orElse(List.of());
+            List<Standing> roots = new ArrayList<>();
+            for (ConfluenceApi.Child child : children) {
+                if (!child.type().isEmpty() && !child.type().equals("page")) {
+                    continue;
+                }
+                Optional<Property> property = api.property(child.id());
+                if (property.isPresent() && property.get().key().matches("[0-9a-f]+:root")) {
+                    Optional<SitePage> page = api.page(child.id());
+                    page.ifPresent(standing -> roots.add(new Standing(standing, property.get())));
+                }
+            }
+            if (roots.isEmpty()) {
+                return List.of();
+            }
+            if (roots.size() > 1) {
+                throw new TheSiteRefusedThePublishException("the parent holds " + roots.size() + " trees an earlier"
+                        + " publish made, " + String.join(", ", roots.stream().map(r -> r.page().title()).toList())
+                        + ", and one can be taken as this tree. Remove all but the one to keep");
+            }
+            Standing earlierRoot = roots.getFirst();
+            String run = earlierRoot.property().key().substring(0, earlierRoot.property().key().indexOf(':'));
+            String earlierLabel = LABEL_PREFIX + run.substring(0, Math.min(12, run.length()));
+            List<Taken> taken = new ArrayList<>();
+            Taken last = null;
+            for (String id : api.pagesLabelled(site.spaceKey(), earlierLabel)) {
+                Optional<Property> property = api.property(id);
+                if (property.isEmpty()) {
+                    continue;
+                }
+                java.util.regex.Matcher key = EARLIER_KEY.matcher(property.get().key());
+                if (!key.matches() || !key.group(1).equals(run)) {
+                    continue;
+                }
+                Optional<SitePage> page = api.page(id);
+                if (page.isEmpty()) {
+                    continue;
+                }
+                String place = unpadded(key.group(2));
+                if (found.containsKey(place)) {
+                    continue;
+                }
+                Taken one = new Taken(new Standing(page.get(), property.get()), place, earlierLabel);
+                if (place.equals("root")) {
+                    last = one;
+                } else {
+                    taken.add(one);
+                }
+            }
+            if (last != null) {
+                taken.add(last);
+            }
+            return taken;
+        }
+
+        /** A place read without its padding: {@code 01.10} is {@code 1.10}. */
+        private static String unpadded(String place) {
+            if (place.equals("root")) {
+                return place;
+            }
+            List<String> numbers = new ArrayList<>();
+            for (String number : place.split("\\.")) {
+                numbers.add(Integer.toString(Integer.parseInt(number)));
+            }
+            return String.join(".", numbers);
+        }
+
+        /** Takes the earlier tree's pages as this tree's, the root page last, and says so (ADR-328 §6). */
+        private void take(List<Taken> toTake, Map<String, Standing> found) throws InterruptedException {
+            if (toTake.isEmpty()) {
+                return;
+            }
+            String rootTitle = toTake.getLast().newKey().equals("root") ? toTake.getLast().at().page().title() : "";
+            out.accept("the tree " + rootTitle + " an earlier publish made is taken as this tree: its "
+                    + (toTake.size() == 1 ? "1 page is" : toTake.size() + " pages are")
+                    + " retitled and updated in place");
+            for (Taken one : toTake) {
+                String id = one.at().page().id();
+                api.label(id, LABEL);
+                api.updateProperty(id, one.at().property(), one.newKey(), one.at().property().bodySha256());
+                Reply off = api.removeLabel(id, one.earlierLabel());
+                if (!off.ok() && off.status() != 404) {
+                    throw ConfluenceApi.refused("taking the label " + one.earlierLabel() + " off the page "
+                            + one.at().page().title(), off);
+                }
+                Property now = new Property(one.at().property().id(), one.at().property().version() + 1,
+                        one.newKey(), one.at().property().bodySha256());
+                found.put(one.newKey(), new Standing(one.at().page(), now));
+            }
+        }
+
+        /** Moves to the trash, deepest first, the tree's pages the list no longer holds (ADR-328 §5). */
+        private void removeWhatTheListNoLongerHolds(Map<String, Standing> found, Set<String> listed)
+                throws InterruptedException {
+            List<String> keys = new ArrayList<>(found.keySet().stream()
+                    .filter(key -> !listed.contains(key) && !key.equals("root")).toList());
+            if (keys.isEmpty()) {
+                return;
+            }
+            keys.sort((one, other) -> {
+                String[] a = one.split("\\.");
+                String[] b = other.split("\\.");
+                if (a.length != b.length) {
+                    return Integer.compare(b.length, a.length);
+                }
+                for (int at = 0; at < a.length; at++) {
+                    int c = Integer.compare(Integer.parseInt(a[at]), Integer.parseInt(b[at]));
+                    if (c != 0) {
+                        return c;
+                    }
+                }
+                return 0;
+            });
+            Set<String> owned = new HashSet<>();
+            found.values().forEach(one -> owned.add(one.page().id()));
+            removalTotal = keys.size();
+            out.accept(removalTotal == 1
+                    ? "1 page of the tree the rendering no longer has is moved to the trash"
+                    : removalTotal + " pages of the tree the rendering no longer has are moved to the trash");
+            for (String key : keys) {
+                removalNumber++;
+                SitePage page = found.get(key).page();
+                pageTitle = page.title();
+                String said = "removal " + removalNumber + " of " + removalTotal + ": " + page.title() + ", ";
+                Optional<List<ConfluenceApi.Child>> children = api.children(page.id(), false);
+                if (children.isEmpty()) {
+                    removed++;
+                    out.accept(said + "already gone");
+                    continue;
+                }
+                if (children.get().stream().anyMatch(child -> !owned.contains(child.id()))) {
+                    leftAsTheyStand++;
+                    out.accept(said + "left as it stands: it holds a page this tree does not own");
+                    continue;
+                }
+                Reply reply = api.trashPage(page.id());
+                if (reply.ok()) {
+                    removed++;
+                    out.accept(said + "moved to the trash");
+                } else if (reply.status() == 404) {
+                    removed++;
+                    out.accept(said + "already gone");
+                } else {
+                    leftAsTheyStand++;
+                    out.accept(said + "left as it stands: the site answered " + reply.said());
+                }
+            }
         }
 
         /** The parent's id: the one named, checked to lie in the space, or the one page or folder titled so. */
@@ -354,20 +562,6 @@ public class Publisher {
                         + " VESPERA_CONFLUENCE_FOLDER_ID");
             }
             return titled.getFirst();
-        }
-
-        /** The pages of the run that stand, found by their label and keyed by their property. */
-        private Map<String, Standing> ofTheRun(String label) throws InterruptedException {
-            Map<String, Standing> found = new LinkedHashMap<>();
-            for (String id : api.pagesLabelled(site.spaceKey(), label)) {
-                Optional<Property> property = api.property(id);
-                if (property.isEmpty() || property.get().key().isEmpty() || found.containsKey(property.get().key())) {
-                    continue;
-                }
-                Optional<SitePage> page = api.page(id);
-                page.ifPresent(standing -> found.put(property.get().key(), new Standing(standing, property.get())));
-            }
-            return found;
         }
 
         /**
@@ -490,6 +684,12 @@ public class Publisher {
         }
 
         String doneSoFar() {
+            if (removalNumber > 0) {
+                return "It stopped at removal " + removalNumber + " of " + removalTotal + ", " + pageTitle
+                        + ". It had created " + created + (created == 1 ? " page" : " pages") + ", updated " + updated
+                        + " and sent " + (filesAdded + filesReplaced)
+                        + (filesAdded + filesReplaced == 1 ? " file" : " files") + ".";
+            }
             return (pageNumber == 0 ? "" : "It stopped at page " + pageNumber + " of " + list.pages().size() + ", "
                     + pageTitle + ". ") + "It had created " + created + (created == 1 ? " page" : " pages")
                     + ", updated " + updated + " and sent " + (filesAdded + filesReplaced)
@@ -507,10 +707,15 @@ public class Publisher {
                     .append(" unchanged) and ").append(files).append(files == 1 ? " file (" : " files (")
                     .append(filesAdded).append(" added, ").append(filesReplaced).append(" replaced, ")
                     .append(filesUnchanged).append(" unchanged)");
+            if (removed > 0) {
+                line.append("; ").append(removed).append(removed == 1
+                        ? " page the rendering no longer has was removed"
+                        : " pages the rendering no longer has were removed");
+            }
             if (leftAsTheyStand > 0) {
                 line.append("; ").append(leftAsTheyStand).append(leftAsTheyStand == 1
-                        ? " page of this run the page list no longer holds was left as it stands"
-                        : " pages of this run the page list no longer holds were left as they stand");
+                        ? " page the rendering no longer has was left as it stands"
+                        : " pages the rendering no longer has were left as they stand");
             }
             clause(line, PageFile.COPY, "copy was", "copies were");
             clause(line, PageFile.PICTURE, "picture's file was", "pictures' files were");

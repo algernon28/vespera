@@ -53,8 +53,11 @@ final class ConfluencePages implements AutoCloseable {
     /** A page's storage body, or a split cluster's first page's. */
     static final String BODY_NAME = "page.xml";
 
-    /** The page list's format (ADR-316 §2). */
-    private static final int FORMAT = 1;
+    /** The page list's format (ADR-316 §2, ADR-328 §3). */
+    private static final int FORMAT = 2;
+
+    /** How many hexadecimal characters of the run's id its marker is (ADR-310 §1); the page list names it, no page does. */
+    private static final int MARKER_LENGTH = 12;
 
     /** The root page's one sentence (ADR-315 §2). */
     static final String THE_ROOT_PAGES_SENTENCE = "Each group's page carries a checked copy of every document it lists."
@@ -89,7 +92,7 @@ final class ConfluencePages implements AutoCloseable {
             throws IOException {
         this.directory = tree.resolve(DIRECTORY_NAME);
         this.runId = runId;
-        this.marker = ConfluenceTitles.markerOf(runId);
+        this.marker = runId.substring(0, Math.min(MARKER_LENGTH, runId.length()));
         this.moves = moves;
         this.language = language;
         this.written = written;
@@ -97,8 +100,7 @@ final class ConfluencePages implements AutoCloseable {
         written.add(DIRECTORY_NAME);
         this.root = Files.newBufferedWriter(directory.resolve(BODY_NAME + Deliverable.PART_SUFFIX), StandardCharsets.UTF_8);
         this.rest = Files.newBufferedWriter(directory.resolve(REST_OF_THE_LIST), StandardCharsets.UTF_8);
-        root.append("<h1>").append(FixedWords.theDeliverable(language)).append(Html.escape(runId))
-                .append("</h1>\n<p>")
+        root.append("<h1>").append(FixedWords.theDeliverable(language).strip()).append("</h1>\n<p>")
                 .append(Html.escape(FixedWords.rootSentence(language))).append("</p>\n");
     }
 
@@ -112,8 +114,8 @@ final class ConfluencePages implements AutoCloseable {
     void partitionStarted(ListedPartition partition, int partitionCount) throws IOException {
         String place = IndexPage.pad(partition.partitionOrder(), IndexPage.widthOf(partitionCount));
         partitionFolder = IndexPage.partitionDirectoryName(partition, partitionCount);
-        partitionKey = runId + ":" + place;
-        partitionTitle = ConfluenceTitles.partition(FilenameStem.of(partition.seedPath()), place, marker);
+        partitionKey = place;
+        partitionTitle = ConfluenceTitles.partition(FilenameStem.of(partition.seedPath()), place);
         Files.createDirectories(directory.resolve(partitionFolder));
         written.add(DIRECTORY_NAME + "/" + partitionFolder);
         partitionRows.setLength(0);
@@ -155,11 +157,11 @@ final class ConfluencePages implements AutoCloseable {
         int clusterWidth = IndexPage.widthOf(partition.clusterCount());
         String folderPath = partitionFolder + "/" + IndexPage.clusterFolderName(recorded, clusterWidth);
         Path folder = directory.resolve(folderPath);
-        String place = partitionKey.substring(runId.length() + 1) + "."
+        String place = partitionKey + "."
                 + IndexPage.pad(recorded.cluster().clusterOrder(), clusterWidth);
         String text = doc.map(SynthesisDoc::title).orElse(recorded.label().value());
         int pages = breaks.map(ClusterPage.PageBreaks::pages).orElse(1);
-        String firstKey = runId + ":" + place;
+        String firstKey = place;
         for (int page = 1; page <= pages; page++) {
             String body = page == 1 ? BODY_NAME : "page-" + page + ".xml";
             Path part = folder.resolve(body + Deliverable.PART_SUFFIX);
@@ -167,21 +169,21 @@ final class ConfluencePages implements AutoCloseable {
             try (OutputStream out = Files.newOutputStream(part)) {
                 files = ConfluencePage.write(
                         out, recorded, doc.orElse(null), why, entryCount, entries, breaks.orElse(null), page,
-                        k -> ConfluenceTitles.cluster(text, place, k, marker, language), writingFinished, language);
+                        k -> ConfluenceTitles.cluster(text, place, k, language), writingFinished, language);
             }
             String digest = sha256Of(part);
             moves.intoPlace(part, folder.resolve(body));
             clusterPages.add(new ListedPage(
                     page == 1 ? firstKey : firstKey + "." + page,
                     page == 1 ? partitionKey : firstKey,
-                    ConfluenceTitles.cluster(text, place, page, marker, language),
+                    ConfluenceTitles.cluster(text, place, page, language),
                     folderPath + "/" + body,
                     digest,
                     files));
         }
         Files.delete(entries.file());
         partitionRows.append("<tr><td>")
-                .append(link(ConfluenceTitles.cluster(text, place, 1, marker, language), recorded.label().value()))
+                .append(link(ConfluenceTitles.cluster(text, place, 1, language), recorded.label().value()))
                 .append("</td><td>")
                 .append(recorded.cluster().documentCount())
                 .append("</td><td>")
@@ -223,7 +225,7 @@ final class ConfluencePages implements AutoCloseable {
         ListedPage rootPage = new ListedPage(
                 rootKey(),
                 null,
-                ConfluenceTitles.root(marker),
+                ConfluenceTitles.root(),
                 BODY_NAME,
                 rootDigest,
                 List.of(new PageFile(
@@ -250,7 +252,7 @@ final class ConfluencePages implements AutoCloseable {
     }
 
     private String rootKey() {
-        return runId + ":root";
+        return "root";
     }
 
     private void listed(ListedPage page) throws IOException {

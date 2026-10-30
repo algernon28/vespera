@@ -211,6 +211,44 @@ final class ConfluenceApi {
                 List.of(Map.of("prefix", "global", "name", label))), "labelling the page " + pageId);
     }
 
+    /** Takes {@code label} off the page; the reply is the caller's to read (a label not on it answers 404). */
+    Reply removeLabel(String pageId, String label) throws InterruptedException {
+        URI uri = uri("/wiki/rest/api/content/" + segment(pageId) + "/label", "name", label);
+        return paced(uri, () -> rest.delete().uri(uri).exchange((request, response) ->
+                reply(response.getStatusCode().value(), response.getHeaders(), response.getBody())));
+    }
+
+    /** A child of a page or a folder: its id, type and title. */
+    record Child(String id, String type, String title) {}
+
+    /** The direct children of the page or folder {@code id}, cursor-paged (ADR-328 §5, §6). */
+    Optional<List<Child>> children(String id, boolean folder) throws InterruptedException {
+        List<Child> children = new ArrayList<>();
+        URI first = uri("/wiki/api/v2/" + (folder ? "folders/" : "pages/") + segment(id) + "/direct-children",
+                "limit", "" + PAGE_OF_RESULTS);
+        Reply opening = get(first);
+        if (opening.status() == 404) {
+            return Optional.empty();
+        }
+        for (JsonNode child : listing(first, "listing the children of " + id)) {
+            children.add(new Child(child.path("id").asString(), child.path("type").asString(""),
+                    child.path("title").asString("")));
+        }
+        return Optional.of(children);
+    }
+
+    /** Whether {@code id} is a folder of the site rather than a page. */
+    boolean isFolder(String id) throws InterruptedException {
+        return get(uri("/wiki/api/v2/folders/" + segment(id))).ok();
+    }
+
+    /** Moves the page to the space's trash, never purging it (ADR-328 §5); the reply is the caller's to read. */
+    Reply trashPage(String pageId) throws InterruptedException {
+        URI uri = uri("/wiki/api/v2/pages/" + segment(pageId));
+        return paced(uri, () -> rest.delete().uri(uri).exchange((request, response) ->
+                reply(response.getStatusCode().value(), response.getHeaders(), response.getBody())));
+    }
+
     /** Sets the property on a page that carries none. */
     void createProperty(String pageId, String key, String bodySha256) throws InterruptedException {
         expect(send(HttpMethod.POST, uri("/wiki/api/v2/pages/" + segment(pageId) + "/properties"),
