@@ -58,7 +58,7 @@ The two steps are `vespera run`'s, so `vespera run` pulls. `vespera label --auto
 5. **The model is pulled** (§4 to §7). A pull that does not end in `success` stops the step with §8's reason.
 6. **ADR-202's check is asked again**, and its answer is final: no reason, and the step goes on, its run resolved and its identity read from Ollama as today (§10); a reason, a model reported as remote once pulled or one Ollama still does not serve, and the step stops as ADR-202 §3 says, nothing sent.
 
-**A stop is ADR-202's stop.** One line at error level, from the step's own words: *"stage 5's scoring step stopped: the embedding model `<name>` was refused, so nothing was embedded and no run was minted -- `<reason>`"* and the generation step's line, as today, with §8's reason where the pull failed. The step is failed, no exception is thrown, no run is minted, and nothing is sent to the model. The invocation exits non-zero.
+**A stop is ADR-202's stop.** One line at error level, from the step's own words: *"stage 5's scoring step stopped: the embedding model <name> was refused, so nothing was embedded and no run was minted -- <reason>"* and the generation step's line, as today, with §8's reason where the pull failed. The step is failed, no exception is thrown, no run is minted, and nothing is sent to the model. The invocation exits non-zero.
 
 ### 4. The request
 
@@ -103,13 +103,13 @@ Two invocations on two working directories that reach a pull of the same model a
 Each is one line, the `<reason>` of §3's stop line. `<name>` is the model as resolved; `<Ollama's words>` is the `error` Ollama answered with, each line break in it replaced by one space, so the line stays one; `<n>` is `vespera.models.pull-stalled-at-most` in whole seconds.
 
 - **Ollama answers the request with a status that is not 2xx**, a name it cannot parse among them:
-  > Ollama would not pull `<name>` (`<status code>`: `<Ollama's words>`), so nothing of it was pulled; correct the name and run the same command again
+  > Ollama would not pull <name> (<status code>: <Ollama's words>), so nothing of it was pulled; correct the name and run the same command again
 - **Ollama sends an error line**, a name the registry does not have, a registry it cannot reach or a drive that is full among them:
-  > Ollama could not pull `<name>` (`<Ollama's words>`); it serves nothing of it until a pull ends, and the next pull resumes what was downloaded. Correct the name, make room on Ollama's drive or restore its network, as Ollama's words say, and run the same command again
+  > Ollama could not pull <name> (<Ollama's words>); it serves nothing of it until a pull ends, and the next pull resumes what was downloaded. Correct the name, make room on Ollama's drive or restore its network, as Ollama's words say, and run the same command again
 - **The answer ends without `success` and without an error**, or the connection fails, `<what happened>` being `the answer ended before the pull did` where it ended, and the failure as the transport reported it otherwise:
-  > Ollama stopped answering while pulling `<name>` (`<what happened>`); it serves nothing of it until a pull ends, and the next pull resumes what was downloaded. Run the same command again once Ollama answers
+  > Ollama stopped answering while pulling <name> (<what happened>); it serves nothing of it until a pull ends, and the next pull resumes what was downloaded. Run the same command again once Ollama answers
 - **The pull stalls past the bound** (§6):
-  > Ollama pulled nothing more of `<name>` for `<n>` seconds, so Vespera stopped waiting; it serves nothing of it until a pull ends, and the next pull resumes what was downloaded. Check the network of the machine Ollama runs on and run the same command again, or set vespera.models.pull-stalled-at-most longer
+  > Ollama pulled nothing more of <name> for <n> seconds, so Vespera stopped waiting; it serves nothing of it until a pull ends, and the next pull resumes what was downloaded. Check the network of the machine Ollama runs on and run the same command again, or set vespera.models.pull-stalled-at-most longer
 
 **Ollama's words are quoted and not sorted.** An unknown name, a network that is down and a full drive each reach the operator in one line naming the model, with what Ollama said and a remedy that covers the three. Vespera does not read the words to choose among them: they are Go errors Ollama wraps as it goes, they differ between Ollama's registry and Hugging Face's, and a remedy chosen from a misread word would send the operator after the wrong fault. A name Ollama cannot resolve is the first line, where it cannot parse it, or the second, where the registry has nothing under it.
 
@@ -182,8 +182,8 @@ New, under `src/test`, all in `io.algernon.vespera.pipeline` and needing no Dock
   - the progress lines: a layer of 100,000,000 bytes reported at 0, 25, 50, 75 and 100 million gives exactly four counter lines, 25 to 100 of 100, each matching `StageProgress.COUNTER_LINE`, between the first line and the last;
   - a model reported as remote once pulled is refused in ADR-202's remote words;
   - §8's four reasons, each whole: a 400 with `invalid model name`; an error line `pull model manifest: file does not exist`; an error line about a full drive; an error line about a registry that cannot be reached; an error carrying a line break, which the reason carries as a space; an answer ended after two lines; a stream of lines that change nothing past the bound; silence past the bound; each of the last two ending within the bound and a margin.
-- **`ModelPullSettingsTest`** (unit): pulling is on, the bound 600 seconds and Ollama at `http://localhost:11434` unless set; each is read from its property.
-- **`AModelOllamaDoesNotServeIsPulledInvocationTest`** (`@CascadeSliceTest`, pulling on, `spring.ai.ollama.base-url` at a `StubOllama` whose pulls tell `EmbeddingScriptedBeans` the model is now served under a new digest):
+- **`ModelPullSettingsTest`** (unit): pulling is on, the bound 600 seconds and Ollama at `http://localhost:11434` unless set; each is read from its property; `vespera.sidecars.start` false leaves pulling on.
+- **`AModelOllamaDoesNotServeIsPulledInvocationTest`** (`@CascadeSliceTest`, pulling on, `spring.ai.ollama.base-url` at a `StubOllama` whose pulls tell `EmbeddingScriptedBeans` the model is now served, the embedding model's under a new digest):
   - an embedding model Ollama does not serve is pulled once at stage 5's scoring step, chunks are embedded, and the scoring run's settings name the digest Ollama reports after the pull;
   - an embedding model Ollama serves sends no `/api/pull`;
   - a pull that fails with an error line stops the invocation non-zero with one line at error level naming the step, the model and Ollama's words, no stack trace, no chunk embedded and no scoring run;
@@ -192,7 +192,7 @@ New, under `src/test`, all in `io.algernon.vespera.pipeline` and needing no Dock
 
 Amended:
 
-- **`EmbeddingScriptedBeans`** gains `hasNowPulled(name, digest)`: the name is served from then on, under that digest.
+- **`EmbeddingScriptedBeans`** gains `hasNowPulled(name)`: a name scripted as never pulled is served from then on, under the digest the fixture reports.
 - **`CascadeSliceTest`** imports `ModelPull`.
 - **`PipelineHoldsOnlyTheRulesOnRecordTest`**: `ModelPull` and `ModelPullSettings` are on record as holding no rule; `ModelPull` names `embedding.LocalOllamaModel` and `embedding.OllamaClient`, and `EmbeddingScoringTasklet` and `GenerationTasklet` name neither.
 - **`application-test.yaml`**: `vespera.models.pull: false`.

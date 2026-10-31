@@ -159,6 +159,9 @@ import org.springframework.transaction.annotation.Transactional;
     EmbeddingScoringTasklet.class,
     ChunkEmbedderBeans.class,
     EmbeddingScriptedBeans.class,
+    // Asked by stage 5's scoring step and the generation step before ADR-202's check stands (ADR-329); it pulls
+    // nothing under the test profile, where vespera.models.pull is false.
+    ModelPull.class,
     // The translation step between embedding and relevance scoring (ADR-271 §5).
     TranslationTasklet.class,
     TranslationOf.class,

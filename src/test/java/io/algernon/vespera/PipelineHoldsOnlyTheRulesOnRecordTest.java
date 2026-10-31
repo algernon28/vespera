@@ -210,6 +210,10 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "SidecarsDidNotAnswerException",
             "SidecarsDidNotStartException",
             "SystemProcessRunner",
+            // ADR-329: pull into Ollama a model it does not serve, and say why where it cannot; neither decides a verdict,
+            // a cache key, a cluster or text of the deliverable.
+            "ModelPull",
+            "ModelPullSettings",
             "StageFiveGates",
             "StageModules",
             "StageProgress",
@@ -365,13 +369,15 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             Map.entry(
                     "SeedGate", Set.of("corpus.Walk", "profile.Profile", "profile.ProfileStore", "profile.TextValue")),
             Map.entry("UsableSeedGate", Set.of()),
+            // ADR-329: run by stage 5's scoring step and the generation step; it asks ADR-202's check and pulls, and
+            // hands the stage the check's answer.
+            Map.entry("ModelPull", Set.of("embedding.LocalOllamaModel", "embedding.OllamaClient")),
             Map.entry("StageFiveGates", Set.of()),
             Map.entry(
                     "EmbeddingScoringTasklet",
                     Set.of(
+                            // ADR-329 §11: ADR-202's check is asked through ModelPull, which names it and its client.
                             "embedding.ChunkEmbedder",
-                            "embedding.LocalOllamaModel",
-                            "embedding.OllamaClient",
                             "embedding.UnusableSeed",
                             "embedding.UnusableSeeds",
                             "extraction.Chunk",
@@ -477,8 +483,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "embedding.DocumentCluster",
                             "embedding.DocumentClusters",
                             "embedding.EmbeddingStatement",
-                            "embedding.LocalOllamaModel",
-                            "embedding.OllamaClient",
+                            // ADR-329 §11: ADR-202's check is asked through ModelPull, which names it and its client.
                             "embedding.RelevanceScoring",
                             "extraction.Chunk",
                             "extraction.DocumentPicture",

@@ -6,6 +6,10 @@ vespera:
   # minute before failing about an exit code when that happened. Empty and absent are the same thing
   # to the command, which checks for blank, so binding it here costs nothing the tests rely on.
   corpus-root: ""
+  models:
+    # Bound false so no test context sends /api/pull to an Ollama on the machine running the tests (ADR-329 §9). A
+    # test that means to pull sets it true and points spring.ai.ollama.base-url at a StubOllama.
+    pull: false
 
 # Loaded on top of src/main/resources/application.yaml when the "test" profile is active,
 # because a profile-specific file layers rather than replaces. An identically named

@@ -185,6 +185,15 @@ class EmbeddingScriptedBeans {
     }
 
     /**
+     * Scripts this fixture's runtime as having pulled {@code modelName} since it was scripted as never pulled: it is
+     * served from now on, under the digest the runtime reports (ADR-329). A {@link StubOllama} calls it when a pull
+     * reaches {@code success}, so the check asked after the pull finds the model as a real daemon's would.
+     */
+    static void hasNowPulled(String modelName) {
+        NEVER_PULLED.remove(modelName);
+    }
+
+    /**
      * Scripts this fixture's runtime as forwarding {@code modelName} to a hosted service: its {@code
      * /api/show} answer carries {@code remote_host} and {@code remote_model}, whatever the name says.
      */

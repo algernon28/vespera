@@ -2313,6 +2313,16 @@ public final class Adr {
     public static final String THE_CONFLUENCE_RENDERING_IS_ONE_TREE_UPDATED_IN_PLACE_WITH_NO_RUN_ID = FILE
             + "0328-the-confluence-rendering-is-one-tree-updated-in-place-by-each-publish-its-pages-keyed-and-titled-by-their-place-with-no-run-id-and-a-page-it-no-longer-has-moved-to-the-trash.md";
 
+    /**
+     * ADR-329 -- stage 5's scoring step and the generation step pull into Ollama, through {@code /api/pull}, a model
+     * Ollama does not serve, once their gates are open and before their run is resolved, and never one it serves:
+     * ADR-202's check asked first and again after the pull, progress as a counter line, a bound on a pull that has
+     * stopped moving, four one-line reasons quoting Ollama, and {@code vespera.models.pull} its own opt-out (amends
+     * ADR-323's What this does not decide, ADR-202 §2 and §3 and ADR-298 §6).
+     */
+    public static final String A_MODEL_OLLAMA_DOES_NOT_SERVE_IS_PULLED_AT_THE_STEP_THAT_NEEDS_IT = FILE
+            + "0329-vespera-pulls-into-ollama-at-the-step-that-needs-it-a-model-ollama-does-not-serve-and-never-pulls-one-it-serves.md";
+
     private Adr() {
     }
 }
