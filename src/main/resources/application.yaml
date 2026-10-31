@@ -28,6 +28,15 @@ vespera:
     # amending ADR-175 §2). 180 seconds covers the restarts measured at 6 to 9 seconds and a first start that loads
     # its models.
     wait-at-most: 180s
+  models:
+    # Whether stage 5's scoring step and the generation step have Ollama pull a model it does not serve, through
+    # /api/pull, before they send it anything (ADR-329). A model Ollama already serves is never pulled. Set false
+    # (VESPERA_MODELS_PULL=false) to pull by hand. An application property and no profile value: it says how this
+    # machine is connected, not what has been judged about a corpus.
+    pull: true
+    # How long a pull may go without moving, whether Ollama keeps sending lines that change nothing or sends none,
+    # before Vespera stops waiting (ADR-329 section 6). Bounds the stall, not the pull's length.
+    pull-stalled-at-most: 600s
   # How often the progress page progress.html is rewritten in the working directory while a run goes on (ADR-265).
   progress-interval: 5s
   # Whether an invocation opens the browser on the progress page and on the deliverable's index.html (ADR-327). Set false

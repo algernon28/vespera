@@ -6,8 +6,6 @@ import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.DocumentCluster;
 import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.embedding.EmbeddingStatement;
-import io.algernon.vespera.embedding.LocalOllamaModel;
-import io.algernon.vespera.embedding.OllamaClient;
 import io.algernon.vespera.embedding.RelevanceScoring;
 import io.algernon.vespera.extraction.Chunk;
 import io.algernon.vespera.extraction.DocumentPicture;
@@ -130,7 +128,7 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>A generation model Ollama does not serve on this machine stops the step before a run is minted</b>
  * (ADR-202, ADR-114's third stop). Once the walk and arrangement gates are open, this step resolves the
- * generation model's name once, puts it through {@link LocalOllamaModel#refusalOf}, and sends every
+ * generation model's name once, puts it through {@link ModelPull#refusalOf}, and sends every
  * question under that same name: the one it hands {@link ClusterGeneration}. A refusal is one line at
  * error level, the step failed and no exception thrown, as the five-in-a-row stop above does; no run is
  * minted, no digest is read, and no question is put. {@link StageRuns#generation} reads the name for the
@@ -163,7 +161,7 @@ class GenerationTasklet implements Tasklet {
     private final ClusterFaults clusterFaults;
     private final Ledger ledger;
     private final ProfileStore profileStore;
-    private final OllamaClient ollamaClient;
+    private final ModelPull modelPull;
     private final ObjectProvider<PageOpener> opener;
     private final boolean openBrowser;
     private final Path root;
@@ -187,7 +185,7 @@ class GenerationTasklet implements Tasklet {
             JdbcTemplate jdbcTemplate,
             Ledger ledger,
             ProfileStore profileStore,
-            OllamaClient ollamaClient,
+            ModelPull modelPull,
             ObjectProvider<PageOpener> opener,
             @Value("${vespera.open-browser:true}") boolean openBrowser,
             @Value("#{jobParameters['root']}") Path root,
@@ -215,7 +213,7 @@ class GenerationTasklet implements Tasklet {
         this.documentPictures = new DocumentPictures(jdbcTemplate);
         this.ledger = ledger;
         this.profileStore = profileStore;
-        this.ollamaClient = ollamaClient;
+        this.modelPull = modelPull;
         this.opener = opener;
         this.openBrowser = openBrowser;
         this.root = root;
@@ -256,7 +254,7 @@ class GenerationTasklet implements Tasklet {
         // The generation model's name is read once, here, and every question is sent under it (ADR-202
         // section 2). Before the run is resolved, so a refusal mints no run and reads no digest.
         String modelName = generationModel.name();
-        Optional<String> refusal = LocalOllamaModel.refusalOf(modelName, ollamaClient);
+        Optional<String> refusal = modelPull.refusalOf("Stage 6b (generation)", modelName);
         if (refusal.isPresent()) {
             stopOnAGenerationModelNotServedHere(contribution, chunkContext, modelName, refusal.get());
             return RepeatStatus.FINISHED;
