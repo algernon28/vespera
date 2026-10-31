@@ -178,10 +178,17 @@ final class PanelBrowser {
         if (standIn != null) {
             pressed.before(standIn);
         }
+        // jsoup reads a textarea's value with its white space collapsed; a browser sends its lines, ended by CRLF
+        Map<String, String> lines = form.select("textarea[name]").stream().collect(Collectors.toMap(
+                textarea -> textarea.attr("name"),
+                textarea -> textarea.wholeText().replace("\r\n", "\n").replace("\n", "\r\n")));
         String body;
         try {
             body = form.formData().stream()
-                    .map(PanelBrowser::encoded)
+                    .map(field -> lines.containsKey(field.key())
+                            ? URLEncoder.encode(field.key(), StandardCharsets.UTF_8) + "="
+                                    + URLEncoder.encode(lines.get(field.key()), StandardCharsets.UTF_8)
+                            : encoded(field))
                     .collect(Collectors.joining("&"));
         } finally {
             if (standIn != null) {

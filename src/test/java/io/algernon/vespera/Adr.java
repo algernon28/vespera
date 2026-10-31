@@ -2313,6 +2313,16 @@ public final class Adr {
     public static final String THE_CONFLUENCE_RENDERING_IS_ONE_TREE_UPDATED_IN_PLACE_WITH_NO_RUN_ID = FILE
             + "0328-the-confluence-rendering-is-one-tree-updated-in-place-by-each-publish-its-pages-keyed-and-titled-by-their-place-with-no-run-id-and-a-page-it-no-longer-has-moved-to-the-trash.md";
 
+    /**
+     * ADR-330 -- the control panel edits the whole of {@code profile.yaml} on one page, showing the value in use and
+     * where it came from, from a file the jar writes; a save writes only what changed and nothing where a key is
+     * refused; a file not in the jar's form is shown and repaired with a copy kept; a missing working directory is made
+     * owner-only; and clustering's two numbers ship as presets (amends ADR-285 §3, ADR-294 §2, ADR-295 §1 to §5 and
+     * ADR-302 §5, §8 and §9; extends ADR-298; amends ADR-087's table).
+     */
+    public static final String THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_CLUSTERING_SHIPS_AS_PRESETS = FILE
+            + "0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-clusterings-two-numbers-ship-as-presets-in-application-yaml.md";
+
     private Adr() {
     }
 }
