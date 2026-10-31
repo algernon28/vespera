@@ -112,7 +112,7 @@ Beside each key on `/profile`, `in-use-<key>` carries `data-value`, `data-source
 
 **A list has no rows of its own.** A row added in place needs a script writing into the page, which ADR-325 §4.2 refuses. Lines of a `textarea` give the operator one piece to a line with none. The server splits what is posted on line ends, spaces and commas and joins the pieces with one space, which the jar reads (`NameEndingsValue`, `LanguagesValue`), before ADR-295 §4's checks.
 
-**The picker asks Ollama as the page is answered.** `models-served`, a `datalist`, holds an `option` for each `name` of `/api/tags`, in the order answered, asked through `SidecarChecks`'s two timeouts of 2 seconds, of the launch value's address, or, where it is empty, `spring.ai.ollama.base-url` from §1's file. It carries `data-check`: `answered`; `not-answering` where no answer came in time, the list empty; `not-checked` where no address is known, the list empty. The control stays free text in all three, so the picker never stands between the operator and a save: a page is answered within the two timeouts, and a model typed by hand is saved as ADR-295 §4 has it, any text. A model not served is ADR-202's to refuse, at stage 5.
+**The picker asks Ollama as the page is answered.** `models-served`, a `datalist`, holds an `option` for each `name` of `/api/tags`, in the order answered, asked through `SidecarChecks`'s two timeouts of 2 seconds, of the launch value's address, or, where it is empty, `spring.ai.ollama.base-url` from §1's file. It carries `data-check`: `answered`; `not-answering` where no answer came in time, the list empty; `not-checked` where no address is known, the list empty. The control stays free text in all three, so the picker never stands between the operator and a save: a page is answered within the two timeouts, and a model typed by hand is saved as ADR-295 §4 has it, any text. A model not served is the step's to pull and, where that fails, to refuse, at stage 5 (ADR-202, ADR-329).
 
 ### 4. What a key is, and its measurement
 
@@ -387,3 +387,4 @@ These hold the record through what it builds. Each is `@Disabled` until then, bu
 - **Whether the launch page's label model gets the picker.**
 - **Whether `generationContextWindow`'s number, or `deliverableLanguage`'s, moves from the code into `application.yaml`**: they enter as `code`, and no candidate here named them.
 - **Editing the keys §8 marks later**, each by a record of its own.
+- **Whether `vespera.models.pull` and `vespera.models.pull-stalled-at-most` (ADR-329) join §1's list and `machine-values`.** They are the application's and no profile values, as §12's keys are; until a record adds them the page does not show them.

@@ -1,6 +1,8 @@
 # ADR-202 — Generation and embedding refuse an Ollama model not served on this machine, through the labeller's own check, before anything is sent
 
 > **Read with [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** §3 keeps the operator's documents from any party but their owner; a publish, which sends the Confluence rendering to the owner's own Confluence tenancy, keeps it. This record stands whole.
+>
+> **Partly amended — see [ADR-329](0329-vespera-pulls-into-ollama-at-the-step-that-needs-it-a-model-ollama-does-not-serve-and-never-pulls-one-it-serves.md).** Of §2 and §3: where the check refuses embedding scoring's or generation's model, `vespera.models.pull` is on, its tag does not end in `cloud` and `/api/show` answers 404, the model is pulled and the check is asked a second time, whose answer stands. The third case of §3 is met by the two stages only where pulling is off or the model is still not served after the pull; a pull that fails stops the stage as §3's refusal does, with a reason of its own. The check itself, §1's one implementation, is unchanged, and the labeller pulls nothing.
 
 - **Date**: 2026-10-05
 - **Status**: accepted

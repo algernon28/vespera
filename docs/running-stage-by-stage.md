@@ -154,11 +154,11 @@ Stage 5 is eight steps and spans three invocations, with `vespera label` between
 
 ### 5c and 5d — scoring
 
-**Needs:** the embedding model pulled into Ollama: `bge-m3:latest`, unless `embeddingModel` names another.
+**Needs:** Ollama running, and serving the embedding model, `bge-m3:latest` unless `embeddingModel` names another: where it does not, `embedding-scoring` pulls it into Ollama first, showing the megabytes pulled, unless `VESPERA_MODELS_PULL=false`.
 
 **What they do.** `embedding-scoring` turns each piece of text into a vector. `relevance-scoring` scores every surviving document against your exemplars.
 
-**Where they stop.** Gated with `no embedding model is named` only where the shipped default has been blanked and `embeddingModel` names none, or for the same exemplar reasons as above. A model Ollama does not serve stops the command with a line naming it, before anything is sent. `embedding-scoring` stops the command if the embedding model was pulled again, and changed, while it was computing vectors: the step is not recorded as finished and nothing is scored. Run the same command again: it embeds again, storing the vectors that are missing under the model as it is now, and scores from those. `relevance-scoring` fails if one of your usable exemplars has no vector under the model this scoring uses; the message gives the exemplar's number in the database, not its path.
+**Where they stop.** Gated with `no embedding model is named` only where the shipped default has been blanked and `embeddingModel` names none, or for the same exemplar reasons as above. A model Ollama does not serve, and that the step could not pull or was told not to, stops the command with a line naming it, before anything is sent; a failed pull's line quotes what Ollama said, and the next pull carries on from what Ollama kept. `embedding-scoring` stops the command if the embedding model was pulled again, and changed, while it was computing vectors: the step is not recorded as finished and nothing is scored. Run the same command again: it embeds again, storing the vectors that are missing under the model as it is now, and scores from those. `relevance-scoring` fails if one of your usable exemplars has no vector under the model this scoring uses; the message gives the exemplar's number in the database, not its path.
 
 **Resume.** Vectors are stored by content and by model, not by the run, so vectors already computed are kept across a stop, across a change of floor, and across a new walk of a changed archive. A pull that changes the embedding model is the exception: Vespera treats it as another model, does not use the vectors computed before the pull, and computes every vector again. The earlier vectors stay in the database, and are used again only if Ollama serves the earlier model again. Interrupted, `relevance-scoring` discards its own scores and computes them again from the stored vectors. Ollama has to be running whenever these two steps do work, even when every vector is already stored.
 
@@ -222,7 +222,7 @@ Read a number off `relevance-labelling.html`, write it into `relevanceScoreFloor
 
 ## Stage 6b — generation
 
-**Needs:** `arrangementApproved` naming the arrangement this invocation arrived at, or `auto`, and the generation model pulled into Ollama (`qwen3:8b`, unless you set `generationModel`).
+**Needs:** `arrangementApproved` naming the arrangement this invocation arrived at, or `auto`, and Ollama running. The generation model (`qwen3:8b`, unless you set `generationModel`) is pulled into Ollama at this step if Ollama does not serve it, unless `VESPERA_MODELS_PULL=false`.
 
 **Run:** `vespera run <root>`
 
