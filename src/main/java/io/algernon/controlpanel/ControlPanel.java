@@ -112,7 +112,7 @@ public final class ControlPanel {
             }
         }
         URI address = server.firstAddress();
-        out.accept("open " + address + " in your browser");
+        out.accept("opening the control panel; if nothing appears, go to " + address + " in your browser");
         try {
             opener.open(address);
         } catch (IOException | RuntimeException failed) {

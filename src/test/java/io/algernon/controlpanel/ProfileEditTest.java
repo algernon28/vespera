@@ -223,6 +223,31 @@ class ProfileEditTest {
                                 """, "  value: \"" + seeds.toString().replace("\\", "\\\\") + "\"\n  provenance: \"moved\"\n")));
     }
 
+    /**
+     * ADR-295 §3 as ADR-331 §6 amends it, of the one key that names a folder. The value is read as the jar reads it, the
+     * absolute path of a folder that exists, so one with a space before it is refused, on every system, where a value
+     * read stripped would be saved. {@code RELEVANCE_SCORE_FLOOR}'s spaces at both ends are the test above's.
+     */
+    @Test
+    @Story("The control panel checks a profile value before saving it")
+    @Link(name = "ADR-331", url = Adr.THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT, type = "adr")
+    @DisplayName("The seed folder keeps a space before it, so that one pasted so is refused as no absolute path, and loses a space after it")
+    void theSeedFolderKeepsASpaceBeforeItAndLosesOneAfterIt(@TempDir Path temp) throws IOException {
+        Path seeds = Files.createDirectory(temp.resolve("seeds"));
+        String pasted = " " + seeds;
+
+        claim("a space before the folder is part of what the check reads, and is refused in the one line with it",
+                () -> assertThat(ProfileEdit.refusalOf(ProfileKey.SEED_FOLDER, pasted, "moved")).contains(
+                        "seedFolder is not saved: \"" + pasted + "\" is not the absolute path of a folder that exists"));
+        claim("nothing is written for it",
+                () -> assertThatThrownBy(() -> ProfileEdit.rewrite(Optional.empty(), ProfileKey.SEED_FOLDER, pasted, "moved"))
+                        .isInstanceOf(IllegalArgumentException.class));
+        claim("and a space after the folder is written away",
+                () -> assertThat(ProfileEdit.read(ProfileEdit.rewrite(Optional.empty(), ProfileKey.SEED_FOLDER, seeds + "  ",
+                                "moved")).get(ProfileKey.SEED_FOLDER))
+                        .isEqualTo(new Stated(seeds.toString(), "moved")));
+    }
+
     @Test
     @Story("The control panel checks a profile value before saving it")
     @DisplayName("Each key's value is refused with one line where the jar would read it as unreadable, ignore it or stop on it")

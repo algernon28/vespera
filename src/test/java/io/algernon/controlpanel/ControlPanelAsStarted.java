@@ -44,8 +44,11 @@ final class ControlPanelAsStarted implements AutoCloseable {
     /** What ADR-288 §4's line, naming the jar it will start, begins with. */
     static final String WILL_START = "the control panel will start ";
 
-    /** What ADR-302 §11's line, the address to open, begins with, before the port. */
-    static final String OPEN = "open http://127.0.0.1:";
+    /** What the line saying the control panel is opening (ADR-331 §2) holds before the address it gives as a fallback. */
+    static final String BEFORE_THE_ADDRESS = "opening the control panel; if nothing appears, go to ";
+
+    /** What that line begins with, before the port. */
+    static final String OPEN = BEFORE_THE_ADDRESS + "http://127.0.0.1:";
 
     /** What that line ends with, after the address. */
     static final String IN_YOUR_BROWSER = " in your browser";
@@ -127,7 +130,7 @@ final class ControlPanelAsStarted implements AutoCloseable {
         }
     }
 
-    /** The address line ADR-302 §11 gives; the test fails where none came within {@link #BOUND}. */
+    /** The address line ADR-331 §2 gives; the test fails where none came within {@link #BOUND}. */
     String addressLine() throws InterruptedException {
         return awaitLine(line -> line.startsWith(OPEN), BOUND).map(Line::text).orElseThrow(() -> new AssertionError(
                 "the control panel printed no address to open within " + BOUND.toSeconds() + " seconds; it wrote "
@@ -172,7 +175,8 @@ final class ControlPanelAsStarted implements AutoCloseable {
 
     /** The address an address line names. */
     static URI addressIn(String addressLine) {
-        return URI.create(addressLine.substring("open ".length(), addressLine.length() - IN_YOUR_BROWSER.length()));
+        return URI.create(addressLine.substring(BEFORE_THE_ADDRESS.length(),
+                addressLine.length() - IN_YOUR_BROWSER.length()));
     }
 
     /** The port an address line names. */

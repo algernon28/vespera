@@ -14,9 +14,11 @@ import java.util.Optional;
 
 /**
  * The launch page {@code /} and the two paths its forms post to, {@code /launch} and {@code /seed-folder}
- * (ADR-302 §2, §4, §5, §6). A {@code GET} of any of them reads the working directory, the lock files and the sidecars
- * and changes nothing (ADR-302 §1); {@code /launch} and {@code /seed-folder} answer a {@code GET} with a {@code 303}
- * to {@code /}.
+ * (ADR-302 §2, §4, §5, §6; ADR-331 §3): the folders and the services on the left, the seed folder's own form under
+ * them, the preflight and the reports on the right. A {@code GET} of any of them reads the working directory, the lock
+ * files and the sidecars and writes no file (ADR-302 §1), keeping only the sidecars' last answers in memory;
+ * {@code /launch} and {@code /seed-folder} answer a
+ * {@code GET} with a {@code 303} to {@code /}, and a Browse button with a {@code 303} to the folder page.
  */
 final class LaunchPages {
 
@@ -49,98 +51,146 @@ final class LaunchPages {
         List<String> models = modelsNamed(values);
         SidecarChecks.Checks checks = SidecarChecks.ask(values.doclingBaseUrl(), values.doclingImage(),
                 values.ollamaBaseUrl(), models);
+        state.keepChecks(checks);
         List<String> warnings = new ArrayList<>(state.notes());
         warnings.addAll(values.warningsToRun());
         warnings.addAll(checks.docling().warnings());
         warnings.addAll(checks.ollama().warnings());
+        String how = InvocationPages.how(state);
 
+        String actions = ControlPanelPage.button("run", "Run", disabled)
+                + ControlPanelPage.button("label", "Label", disabled) + ControlPanelPage.button("check", "Check", false);
         StringBuilder body = new StringBuilder();
         body.append(ControlPanelPage.outcome(state.takeOutcome("/")));
-        body.append("<form name=\"launch\" method=\"post\" action=\"/launch\">\n");
-        body.append(ControlPanelPage.field("vespera.corpus-root", "Corpus root", values.corpusRoot(), false));
-        body.append(ControlPanelPage.field("vespera.working-dir", "Working directory", values.workingDirectory(), false));
-        body.append(ControlPanelPage.field("vespera.deliverable-root", "Deliverable root", values.deliverableRoot(), false));
-        body.append(ControlPanelPage.field("vespera.docling.image", "Docling image", values.doclingImage(), false));
-        body.append(ControlPanelPage.field("vespera.docling.base-url", "Docling address", values.doclingBaseUrl(), false));
-        body.append(ControlPanelPage.field("spring.ai.ollama.base-url", "Ollama address", values.ollamaBaseUrl(), false));
-        body.append(ControlPanelPage.field("vespera.label.model", "Label model", values.labelModel(), false));
-        body.append(ControlPanelPage.button("run", "Run", disabled)).append('\n');
-        body.append(ControlPanelPage.button("label", "Label", disabled)).append('\n');
-        body.append(ControlPanelPage.button("check", "Check", false)).append("\n</form>\n");
-
-        body.append("<h2>Locks</h2>\n");
-        body.append(ControlPanelPage.text("p", "holder-working-directory", holders.workingDirectory().orElse(""))).append('\n');
-        body.append(ControlPanelPage.text("p", "holder-corpus-root", holders.corpusRoot().orElse(""))).append('\n');
+        body.append(ControlPanelPage.tiles(checks, FolderPages.freeSpaceOf(values.workingDirectory()), how,
+                InvocationPages.words(state, how)));
+        body.append(foldersCard(values));
+        body.append(servicesCard(values));
+        body.append("</form>\n");
+        body.append(seedFolderCard(values));
+        body.append(preflightCard(values, holders, warnings, checks));
+        body.append("<section class=\"card\" id=\"card-reports\" data-column=\"right\">\n<h2>Reports</h2>\n");
         if (disabled && !values.workingDirectory().isEmpty()) {
             body.append("<p>").append(ControlPanelPage.reportLink("progress.html")).append("</p>\n");
         }
-
-        body.append("<h2>Warnings</h2>\n<ul id=\"warnings\" class=\"warnings\">");
-        for (String warning : warnings) {
-            body.append("<li>").append(ControlPanelPage.escape(warning)).append("</li>");
-        }
-        body.append("</ul>\n");
-
-        body.append("<h2>Sidecars</h2>\n<ul>\n<li>Docling: <span id=\"docling-check\" data-check=\"")
-                .append(checks.docling().result().attribute()).append("\">")
-                .append(describe(checks.docling().result())).append("</span></li>\n")
-                .append("<li>Ollama: <span id=\"ollama-check\" data-check=\"")
-                .append(checks.ollama().result().attribute()).append("\">")
-                .append(describe(checks.ollama().result())).append("</span></li>\n</ul>\n");
-
-        body.append(seedFolderForm(values));
-        body.append(freeSpace(values));
-        body.append("<h2>Reports</h2>\n").append(reports(state));
-        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Control panel", 0, body.toString()));
+        body.append(reports(state)).append("</section>\n");
+        body.append(ControlPanelPage.doclingImages());
+        body.append(ControlPanelPage.datalist("models", checks.ollama().models()));
+        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Launch", 0,
+                "<form name=\"launch\" method=\"post\" action=\"/launch\">\n", actions, true, body.toString()));
     }
 
-    private String seedFolderForm(LaunchValues values) {
-        return "<h2>Seed folder</h2>\n<p>A value of the profile in the working directory <code id=\"seed-folder-working-directory\">"
+    private String foldersCard(LaunchValues values) {
+        return "<section class=\"card\" id=\"card-folders\" data-column=\"left\">\n<h2>Folders</h2>\n"
+                + folder(FolderPages.Target.CORPUS_ROOT, "Corpus root", values.corpusRoot(), "D:\\archive\\corpus",
+                        "The folder of documents Vespera reads. It is never changed.", false)
+                + folder(FolderPages.Target.WORKING_DIRECTORY, "Working directory", values.workingDirectory(),
+                        "D:\\vespera\\work",
+                        "Where the database, the reports and profile.yaml live. Create it if it is not there yet.", false)
+                + folder(FolderPages.Target.DELIVERABLE_ROOT, "Output folder", values.deliverableRoot(),
+                        "D:\\vespera\\deliverable",
+                        "Where the finished pages go. Leave it empty to keep them in the working directory.", true)
+                + freeSpace(values) + "</section>\n";
+    }
+
+    /** A folder field of the launch form with its Browse button, its example, its hint and its status. */
+    private static String folder(FolderPages.Target target, String label, String value, String example, String hint,
+            boolean createdByTheJar) {
+        String name = target.field();
+        return ControlPanelPage.Field.of(name, label).value(value).example(example).hint("hint-" + name, hint)
+                .browse(target.forName())
+                .after(FolderPages.statusElement(target.forName(), FolderPages.statusOf(value, createdByTheJar)))
+                .html();
+    }
+
+    private String servicesCard(LaunchValues values) {
+        return "<section class=\"card\" id=\"card-services\" data-column=\"left\">\n<h2>Services</h2>\n"
+                + ControlPanelPage.Field.of("vespera.docling.image", "Docling image").value(values.doclingImage())
+                        .example(ControlPanelPage.DOCLING_IMAGE_CPU).list("docling-images")
+                        .hint("hint-vespera.docling.image",
+                                "The image the converter runs from. The two offered are the ones this build knows.")
+                        .html()
+                + ControlPanelPage.Field.of("vespera.docling.base-url", "Docling address")
+                        .value(values.doclingBaseUrl()).example("http://localhost:5001")
+                        .hint("hint-vespera.docling.base-url", "Where the converter answers.").html()
+                + ControlPanelPage.Field.of("spring.ai.ollama.base-url", "Ollama address")
+                        .value(values.ollamaBaseUrl()).example("http://localhost:11434")
+                        .hint("hint-spring.ai.ollama.base-url", "Where the local models answer.").html()
+                + ControlPanelPage.Field.of("vespera.label.model", "Label model").value(values.labelModel())
+                        .example("qwen3:8b").list("models")
+                        .hint("hint-vespera.label.model",
+                                "The local model that answers the questions when you ask it to.")
+                        .html()
+                + "</section>\n";
+    }
+
+    private String seedFolderCard(LaunchValues values) {
+        Map<String, String> held = state.heldForm("seed-folder");
+        String folder = held.getOrDefault("seedFolder", values.lastSeedFolder());
+        return "<section class=\"card\" id=\"card-seed-folder\" data-column=\"left\">\n<h2>Seed folder</h2>\n"
+                + "<p>A value of the profile in the working directory <code id=\"seed-folder-working-directory\">"
                 + ControlPanelPage.escape(values.workingDirectory()) + "</code>.</p>\n"
                 + "<form name=\"seed-folder\" method=\"post\" action=\"/seed-folder\">\n"
-                + ControlPanelPage.field("seedFolder", "Seed folder", values.lastSeedFolder(), false)
-                + ControlPanelPage.field("provenance", "Provenance", "", true)
+                + ControlPanelPage.Field.of("seedFolder", "Seed folder").value(folder)
+                        .example(ProfileKey.SEED_FOLDER.example())
+                        .hint("hint-seedFolder", ControlPanelPage.hintOf(ProfileKey.SEED_FOLDER))
+                        .browse(FolderPages.Target.SEED_FOLDER.forName())
+                        .after(FolderPages.statusElement(FolderPages.Target.SEED_FOLDER.forName(),
+                                FolderPages.statusOf(folder, false)))
+                        .html()
+                + ControlPanelPage.provenance("provenance", "f-provenance", "Why this value?",
+                        held.getOrDefault("provenance", ""), "hint-provenance")
                 + ControlPanelPage.text("p", "cost-seedFolder", ControlPanelPage.cost(ProfileKey.SEED_FOLDER)) + "\n"
-                + ControlPanelPage.button("save", "Save", false) + "\n</form>\n";
+                + ControlPanelPage.button("save", "Save", false) + "\n</form>\n</section>\n";
     }
 
-    private static String describe(SidecarChecks.Result result) {
-        return switch (result) {
-            case NOT_CHECKED -> "not checked";
-            case MATCHES -> "runs the image named";
-            case ANOTHER_IMAGE -> "runs another image";
-            case NOT_ANSWERING -> "not answering";
-            case SERVES_ALL -> "serves every model named";
-            case MISSING -> "does not serve a model named";
-        };
+    private String preflightCard(LaunchValues values, ControlPanelState.Holders holders, List<String> warnings,
+            SidecarChecks.Checks checks) {
+        FolderPages.Status corpusRoot = FolderPages.statusOf(values.corpusRoot(), false);
+        FolderPages.Status workingDirectory = FolderPages.statusOf(values.workingDirectory(), false);
+        boolean locked = holders.any() || state.childRuns();
+        StringBuilder card = new StringBuilder(
+                "<section class=\"card\" id=\"card-preflight\" data-column=\"right\">\n<h2>Preflight</h2>\n"
+                        + "<ul id=\"preflight\">\n");
+        card.append(row("corpus-root", corpusRoot.attribute().equals("found") ? "ok" : "bad",
+                "Corpus root: " + corpusRoot.words()));
+        card.append(row("working-directory", workingDirectory.attribute().equals("found") ? "ok" : "bad",
+                "Working directory: " + workingDirectory.words()));
+        card.append(row("docling", ControlPanelPage.stateOfCheck(checks.docling().result()),
+                "Docling: " + ControlPanelPage.describe(checks.docling().result())));
+        card.append(row("ollama", ControlPanelPage.stateOfCheck(checks.ollama().result()),
+                "Ollama: " + ControlPanelPage.describe(checks.ollama().result())));
+        card.append(row("locks", locked ? "bad" : "ok", locked
+                ? (holders.any() ? "Locks: another invocation holds a folder"
+                        : "Locks: the control panel's own command runs")
+                : "Locks: nothing holds a folder"));
+        card.append("</ul>\n<h2>Warnings</h2>\n<ul id=\"warnings\" class=\"warnings\">");
+        for (String warning : warnings) {
+            card.append("<li>").append(ControlPanelPage.escape(warning)).append("</li>");
+        }
+        card.append("</ul>\n").append(locked ? "<h2>Locks</h2>\n" : "")
+                .append(ControlPanelPage.text("p", "holder-working-directory", holders.workingDirectory().orElse("")))
+                .append('\n')
+                .append(ControlPanelPage.text("p", "holder-corpus-root", holders.corpusRoot().orElse("")))
+                .append("\n</section>\n");
+        return card.toString();
+    }
+
+    private static String row(String row, String rowState, String words) {
+        return "<li data-row=\"" + row + "\" data-state=\"" + rowState + "\">" + ControlPanelPage.escape(words)
+                + "</li>\n";
     }
 
     private String freeSpace(LaunchValues values) {
         StringBuilder items = new StringBuilder();
-        usable(values.workingDirectory()).ifPresent(bytes -> items.append(
+        FolderPages.usable(values.workingDirectory()).ifPresent(bytes -> items.append(
                 "<li data-folder=\"working-directory\" data-usable-bytes=\"" + bytes
-                        + "\">Working directory: " + bytes + " bytes</li>"));
-        usable(values.deliverableRoot()).ifPresent(bytes -> items.append(
+                        + "\">Working directory: " + FolderPages.gib(bytes) + "</li>"));
+        FolderPages.usable(values.deliverableRoot()).ifPresent(bytes -> items.append(
                 "<li data-folder=\"deliverable-root\" data-usable-bytes=\"" + bytes
-                        + "\">Deliverable root: " + bytes + " bytes</li>"));
+                        + "\">Output folder: " + FolderPages.gib(bytes) + "</li>"));
         return "<h2>Free space</h2>\n<ul id=\"free-space\">" + items + "</ul>\n"
                 + ControlPanelPage.text("p", "free-space-rules", RULES_OF_FREE_SPACE) + "\n";
-    }
-
-    /** The usable bytes of the drive of {@code folder}, measured at its nearest ancestor that exists (ADR-302 §6). */
-    private static Optional<Long> usable(String folder) {
-        if (folder.isEmpty()) {
-            return Optional.empty();
-        }
-        try {
-            Path measured = Path.of(folder).toAbsolutePath().normalize();
-            while (measured != null && Files.notExists(measured)) {
-                measured = measured.getParent();
-            }
-            return measured == null ? Optional.empty() : Optional.of(Files.getFileStore(measured).getUsableSpace());
-        } catch (IOException | RuntimeException unmeasured) {
-            return Optional.empty();
-        }
     }
 
     /** The links to the reports the working directory holds, as {@code <ul id="reports">}. */
@@ -153,7 +203,7 @@ final class LaunchPages {
                 }
             }
         });
-        return "<ul id=\"reports\">" + items + "</ul>\n";
+        return "<ul id=\"reports\">" + (items.isEmpty() ? "<li>No reports yet</li>" : items) + "</ul>\n";
     }
 
     /** The models ADR-302 §5 names: the label model, and the embedding and generation models the profile holds. */
@@ -189,10 +239,15 @@ final class LaunchPages {
         }
         Map<String, String> fields = Exchanges.form(exchange);
         LaunchValues old = state.values();
-        state.hold(new LaunchValues(posted(fields, "vespera.corpus-root"), posted(fields, "vespera.working-dir"),
-                posted(fields, "vespera.deliverable-root"), posted(fields, "vespera.docling.image"),
+        state.hold(new LaunchValues(postedFolder(fields, "vespera.corpus-root"), postedFolder(fields, "vespera.working-dir"),
+                postedFolder(fields, "vespera.deliverable-root"), posted(fields, "vespera.docling.image"),
                 posted(fields, "vespera.docling.base-url"), posted(fields, "spring.ai.ollama.base-url"),
                 posted(fields, "vespera.label.model"), old.lastSeedFolder()));
+        Optional<FolderPages.Target> browse = FolderPages.browsed(fields);
+        if (browse.isPresent() && browse.get().form().equals("launch")) {
+            Exchanges.redirect(exchange, FolderPages.addressOf(browse.get(), postedFolder(fields, browse.get().field())));
+            return;
+        }
         ControlPanelState.Start kind = fields.containsKey("run") ? ControlPanelState.Start.RUN
                 : fields.containsKey("label") ? ControlPanelState.Start.LABEL : null;
         if (kind == null) {
@@ -208,7 +263,13 @@ final class LaunchPages {
             return;
         }
         Map<String, String> fields = Exchanges.form(exchange);
-        String folder = posted(fields, "seedFolder");
+        String folder = postedFolder(fields, "seedFolder");
+        Optional<FolderPages.Target> browse = FolderPages.browsed(fields);
+        if (browse.isPresent() && browse.get() == FolderPages.Target.SEED_FOLDER) {
+            state.holdForm("seed-folder", FolderPages.withoutBrowse(fields, browse.get().field()));
+            Exchanges.redirect(exchange, FolderPages.addressOf(browse.get(), folder));
+            return;
+        }
         Optional<Path> workingDirectory = state.workingDirectory();
         if (workingDirectory.isEmpty()) {
             state.say("/", "seedFolder is not saved: the working directory is not named");
@@ -216,6 +277,7 @@ final class LaunchPages {
             Optional<String> refusal = state.write(workingDirectory.get(), ProfileEdit.FILE_NAME,
                     current -> ProfileEdit.rewrite(current, ProfileKey.SEED_FOLDER, folder, fields.getOrDefault("provenance", "")));
             if (refusal.isEmpty()) {
+                state.letGoOfForm("seed-folder");
                 LaunchValues held = state.values();
                 state.hold(new LaunchValues(held.corpusRoot(), held.workingDirectory(), held.deliverableRoot(),
                         held.doclingImage(), held.doclingBaseUrl(), held.ollamaBaseUrl(), held.labelModel(), folder));
@@ -227,5 +289,10 @@ final class LaunchPages {
 
     private static String posted(Map<String, String> fields, String name) {
         return fields.getOrDefault(name, "").strip();
+    }
+
+    /** A folder keeps the white space before it, which a name may begin with, and loses what follows (ADR-331). */
+    private static String postedFolder(Map<String, String> fields, String name) {
+        return fields.getOrDefault(name, "").stripTrailing();
     }
 }

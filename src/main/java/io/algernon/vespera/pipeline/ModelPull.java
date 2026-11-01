@@ -12,10 +12,13 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -141,14 +144,26 @@ class ModelPull {
             }
             body = response.body();
             if (response.statusCode() / 100 != 2) {
-                String text = new String(body.readAllBytes(), StandardCharsets.UTF_8);
+                BlockingQueue<Object> refusal = readInBackground(
+                        body, (answer, into) -> into.add(new String(answer.readAllBytes(), StandardCharsets.UTF_8)));
+                int code = response.statusCode();
+                long left = bound.toNanos() - (System.nanoTime() - lastMoved);
+                Object answered = left <= 0 ? null : refusal.poll(left, TimeUnit.NANOSECONDS);
+                if (answered == null) {
+                    return Optional.of(refused(
+                            modelName,
+                            code,
+                            "had not come " + boundSeconds + " seconds after the pull was asked for"));
+                }
+                if (answered instanceof Exception failedRead) {
+                    return Optional.of(refused(modelName, code, "could not be read: " + innermostMessage(failedRead)));
+                }
+                String text = (String) answered;
                 return Optional.of("Ollama would not pull " + modelName + " (" + response.statusCode() + ": "
                         + oneLine(errorIn(text).orElse(text.strip()))
                         + "), so nothing of it was pulled; correct the name and run the same command again");
             }
-            BlockingQueue<Object> lines = new LinkedBlockingQueue<>();
-            InputStream reading = body;
-            Thread.ofVirtual().start(() -> readLines(reading, lines));
+            BlockingQueue<Object> lines = readInBackground(body, ModelPull::readLines);
             String lastStatus = null;
             Map<String, Long> completedOf = new HashMap<>();
             while (true) {
@@ -164,7 +179,7 @@ class ModelPull {
                     return Optional.of(stopped(modelName, "the answer ended before the pull did"));
                 }
                 if (next instanceof IOException failed) {
-                    return Optional.of(stopped(modelName, String.valueOf(failed.getMessage())));
+                    return Optional.of(stopped(modelName, innermostMessage(failed)));
                 }
                 JsonNode line;
                 try {
@@ -200,10 +215,9 @@ class ModelPull {
             Thread.currentThread().interrupt();
             return Optional.of(stopped(modelName, "interrupted"));
         } catch (ExecutionException failed) {
-            Throwable cause = failed.getCause() == null ? failed : failed.getCause();
-            return Optional.of(stopped(modelName, String.valueOf(cause.getMessage())));
-        } catch (IOException | RuntimeException failed) {
-            return Optional.of(stopped(modelName, String.valueOf(failed.getMessage())));
+            return Optional.of(stopped(modelName, innermostMessage(failed)));
+        } catch (RuntimeException failed) {
+            return Optional.of(stopped(modelName, innermostMessage(failed)));
         } finally {
             if (body != null) {
                 try {
@@ -218,7 +232,26 @@ class ModelPull {
         }
     }
 
-    private static void readLines(InputStream body, BlockingQueue<Object> lines) {
+    /** What a virtual thread does with the answer's body, handing what it reads to {@code into}. */
+    @FunctionalInterface
+    private interface Reading {
+        void read(InputStream body, BlockingQueue<Object> into) throws IOException;
+    }
+
+    /** Reads the body on a virtual thread; a failure to read is handed over as an {@link IOException}. */
+    private static BlockingQueue<Object> readInBackground(InputStream body, Reading reading) {
+        BlockingQueue<Object> into = new LinkedBlockingQueue<>();
+        Thread.ofVirtual().start(() -> {
+            try {
+                reading.read(body, into);
+            } catch (IOException | RuntimeException failed) {
+                into.add(failed instanceof IOException io ? io : new IOException(failed.getMessage(), failed));
+            }
+        });
+        return into;
+    }
+
+    private static void readLines(InputStream body, BlockingQueue<Object> lines) throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -227,9 +260,19 @@ class ModelPull {
                 }
             }
             lines.add(END);
-        } catch (IOException | RuntimeException failed) {
-            lines.add(failed instanceof IOException io ? io : new IOException(failed.getMessage(), failed));
         }
+    }
+
+    /** The innermost cause's message, or its class's simple name where that message is null or blank (ADR-329 §8). */
+    private static String innermostMessage(Throwable failure) {
+        Set<Throwable> passed = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable innermost = failure;
+        passed.add(innermost);
+        while (innermost.getCause() != null && passed.add(innermost.getCause())) {
+            innermost = innermost.getCause();
+        }
+        String message = innermost.getMessage();
+        return message == null || message.isBlank() ? innermost.getClass().getSimpleName() : message;
     }
 
     private static Optional<String> errorIn(String text) {
@@ -248,6 +291,11 @@ class ModelPull {
     private static String stopped(String modelName, String whatHappened) {
         return "Ollama stopped answering while pulling " + modelName + " (" + oneLine(whatHappened) + "); "
                 + NOTHING_SERVED + " Run the same command again once Ollama answers";
+    }
+
+    private static String refused(String modelName, int code, String restOfIt) {
+        return "Ollama would not pull " + modelName + " (it answered " + code + ", and the rest of its answer "
+                + oneLine(restOfIt) + "), so nothing of it was pulled; correct the name and run the same command again";
     }
 
     private static String stalled(String modelName, long seconds) {

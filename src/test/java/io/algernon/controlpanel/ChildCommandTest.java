@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -239,15 +240,21 @@ class ChildCommandTest {
 
     /** Every string text of every class compiled from {@code src/main} under {@code io.algernon.controlpanel}. */
     static List<String> textsOfTheControlPanel() throws IOException, URISyntaxException {
+        return textsOfEachClassOfTheControlPanel().values().stream().flatMap(List::stream).toList();
+    }
+
+    /** The same texts by the simple name of the class they were compiled from, a nested class's with its outer's. */
+    static Map<String, List<String>> textsOfEachClassOfTheControlPanel() throws IOException, URISyntaxException {
         Path compiled = Path.of(ChildCommand.class.getProtectionDomain().getCodeSource().getLocation().toURI())
                 .resolve(CONTROL_PANEL_FOLDER);
-        List<String> texts = new ArrayList<>();
+        Map<String, List<String>> texts = new TreeMap<>();
         try (Stream<Path> files = Files.walk(compiled)) {
             for (Path file : files.filter(path -> path.toString().endsWith(".class")).toList()) {
+                String className = file.getFileName().toString().replaceFirst("[$.].*", "");
                 try (InputStream in = Files.newInputStream(file)) {
                     for (PoolEntry entry : ClassFile.of().parse(in.readAllBytes()).constantPool()) {
                         if (entry instanceof StringEntry text) {
-                            texts.add(text.stringValue());
+                            texts.computeIfAbsent(className, name -> new ArrayList<>()).add(text.stringValue());
                         }
                     }
                 }

@@ -4,6 +4,9 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -16,6 +19,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -112,16 +116,41 @@ class ChildRuntimeTest {
                         .hasMessage(REFUSAL + classes));
     }
 
+    /**
+     * ADR-288 §3 as ADR-331 amends it. The opener reads {@code PATH} to find a browser, so the texts are read class by
+     * class; {@code FolderPages} holds the same word as a field of its query, and the compiled calls hold that it reads
+     * no variable by it.
+     */
     @Test
     @Story("The control panel starts the jar with the Java running it")
-    @DisplayName("No class of the control panel reads PATH or JAVA_HOME; it reads java.home and os.name")
-    void noClassOfTheControlPanelReadsPathOrJavaHome() throws IOException, URISyntaxException {
+    @Link(name = "ADR-331", url = Adr.THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT, type = "adr")
+    @DisplayName("Neither PATH nor JAVA_HOME picks the child's java: no class holds JAVA_HOME, only the browser opener reads PATH, and the classes that find the child's java read no environment; java.home and os.name name it")
+    void neitherPathNorJavaHomePicksTheChildsJava() throws IOException, URISyntaxException {
+        Map<String, List<String>> textsOfEachClass = ChildCommandTest.textsOfEachClassOfTheControlPanel();
         List<String> texts = ChildCommandTest.textsOfTheControlPanel();
+        List<String> holdingTheWordPath = textsOfEachClass.entrySet().stream()
+                .filter(entry -> entry.getValue().stream().anyMatch("PATH"::equalsIgnoreCase))
+                .map(Map.Entry::getKey)
+                .toList();
+        JavaClasses readingNoVariable = new ClassFileImporter()
+                .importClasses(ChildRuntime.class, ChildCommand.class, FolderPages.class);
+        List<String> readingTheEnvironment = readingNoVariable.stream()
+                .filter(each -> each.getMethodCallsFromSelf().stream()
+                        .anyMatch(call -> call.getTargetOwner().isEquivalentTo(System.class)
+                                && call.getName().equals("getenv")))
+                .map(JavaClass::getSimpleName)
+                .toList();
 
         claim("the control panel's compiled texts hold java.home and os.name, which name the runtime it runs on",
                 () -> assertThat(texts).contains("java.home", "os.name"));
-        claim("and neither PATH nor JAVA_HOME, which could name an older Java than the one running it",
-                () -> assertThat(texts).doesNotContain("PATH", "JAVA_HOME"));
+        claim("no class holds JAVA_HOME, in any case, which could name an older Java than the one running it",
+                () -> assertThat(texts).noneMatch("JAVA_HOME"::equalsIgnoreCase));
+        claim("the word PATH, in any case, is held by the browser opener, which finds a browser with it, and by the"
+                        + " folder page, whose query has a field of that name, and by no other class",
+                () -> assertThat(holdingTheWordPath).containsExactly("FolderPages", "SystemBrowserOpener"));
+        claim("and the classes that find the child's java, and the folder page, ask the system for no environment"
+                        + " variable",
+                () -> assertThat(readingTheEnvironment).isEmpty());
     }
 
     /** A control panel's jar, as the build names it, with the jar beside it. */

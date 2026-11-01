@@ -2337,6 +2337,16 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS = FILE
             + "0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md";
 
+    /**
+     * ADR-331 -- the control panel opens a window of its own where a Chromium browser is found, its pages stand as a
+     * cockpit of a sidebar, a top row, tiles and cards, and its fields carry a folder page or a native control where one
+     * can be written, an example and a hint (amends ADR-288 §3 and its tests, ADR-291 §6 and its known limits, ADR-295 §3
+     * and §7, ADR-302 §1, §2, §4, §5, §6, §8, §9, §11 and what it does not decide, and ADR-325 §3, §7, §8 and its
+     * consequences).
+     */
+    public static final String THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT = FILE
+            + "0331-the-control-panel-opens-a-window-of-its-own-and-its-pages-are-a-cockpit-with-a-picker-an-example-and-a-hint-on-its-fields.md";
+
     private Adr() {
     }
 }

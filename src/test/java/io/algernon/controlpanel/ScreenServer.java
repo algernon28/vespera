@@ -39,6 +39,9 @@ import org.jsoup.select.Elements;
  */
 final class ScreenServer implements AutoCloseable {
 
+    /** What the name of a Browse button begins with, before the field it chooses a folder for (ADR-331 §5). */
+    static final String BROWSE = "browse-";
+
     /** How long a test waits for a child to end before it fails. */
     private static final Duration ENDING_BOUND = Duration.ofSeconds(30);
 
@@ -173,9 +176,19 @@ final class ScreenServer implements AutoCloseable {
         return form.select("input:not([type=submit]), select, textarea").eachAttr("name");
     }
 
-    /** The names of a form's submit buttons, in the page's order. */
+    /**
+     * The names of a form's submit buttons that act on what it holds, in the page's order: every one but a Browse
+     * button, which only chooses a folder for a field (ADR-331 §5) and which {@link #browseNames} reads.
+     */
     static List<String> buttonNames(Element form) {
-        return form.select("button:not([type=button]):not([type=reset]), input[type=submit]").eachAttr("name");
+        return form.select("button:not([type=button]):not([type=reset]), input[type=submit]").eachAttr("name").stream()
+                .filter(name -> !name.startsWith(BROWSE))
+                .toList();
+    }
+
+    /** The names of a form's Browse buttons, in the page's order: {@link #BROWSE} and the field each chooses for. */
+    static List<String> browseNames(Element form) {
+        return form.select("button[name^=" + BROWSE + "]").eachAttr("name");
     }
 
     /** Whether the page refreshes itself, and after how many seconds, as {@code content} says; empty where it does not. */

@@ -116,25 +116,45 @@ final class NextPages {
     }
 
     private String form(List<ProfileKey> keys, NextInvocation next) {
+        Map<String, String> held = state.heldForm("next");
+        Map<ProfileKey, ProfileEdit.Stated> profile = ValuePages.profileOf(state);
         StringBuilder form = new StringBuilder("<form name=\"next\" method=\"post\" action=\"/next\">\n");
         for (ProfileKey key : keys) {
             String name = key.key();
+            ProfileEdit.Stated stated = profile.get(key);
             String filled = key == ProfileKey.SEED_FOLDER ? state.values().lastSeedFolder()
-                    : key == ProfileKey.ARRANGEMENT_APPROVED ? next.arrangement().orElse("") : "";
+                    : key == ProfileKey.ARRANGEMENT_APPROVED ? next.arrangement().orElse("")
+                    : key == ProfileKey.DELIVERABLE_LANGUAGE && stated != null && stated.value() != null
+                            ? stated.value() : "";
+            String value = held.getOrDefault(name, filled);
+            boolean seedFolder = key == ProfileKey.SEED_FOLDER;
+            String forName = FolderPages.Target.NEXT_SEED_FOLDER.forName();
             form.append("<fieldset>\n");
-            form.append(ControlPanelPage.field(name, name, filled, false));
-            form.append(ControlPanelPage.field(name + ".provenance", name + " provenance", "", true));
+            form.append(ControlPanelPage.keyControl(key, name, "f-" + name, name, value,
+                    seedFolder ? forName : "",
+                    seedFolder ? FolderPages.statusElement(forName, FolderPages.statusOf(value, false)) : ""));
+            form.append(ControlPanelPage.provenance(name + ".provenance", "f-" + name + ".provenance",
+                    name + ": why this value?", held.getOrDefault(name + ".provenance", ""),
+                    "hint-" + name + "-provenance"));
             form.append(ControlPanelPage.text("p", "cost-" + name, ControlPanelPage.cost(key))).append('\n');
             form.append(reportsOf(name));
             form.append("</fieldset>\n");
         }
         form.append(ControlPanelPage.button("save", "Save", false)).append('\n')
                 .append(ControlPanelPage.button("save-then-run", "Save, then Run", false)).append("\n</form>\n");
+        form.append(ControlPanelPage.listsFor(keys, state.lastChecks().ollama().models()));
         return form.toString();
     }
 
     private void save(HttpExchange exchange) throws IOException {
         Map<String, String> fields = Exchanges.form(exchange);
+        Optional<FolderPages.Target> browse = FolderPages.browsed(fields);
+        if (browse.isPresent() && browse.get() == FolderPages.Target.NEXT_SEED_FOLDER) {
+            state.holdForm("next", FolderPages.withoutBrowse(fields, browse.get().field()));
+            Exchanges.redirect(exchange, FolderPages.addressOf(browse.get(),
+                    fields.getOrDefault(browse.get().field(), "").stripTrailing()));
+            return;
+        }
         Optional<Path> folder = state.workingDirectory();
         List<ProfileKey> keys = wanted();
         if (folder.isEmpty() || keys.isEmpty()) {
@@ -155,6 +175,7 @@ final class NextPages {
             }
             saved.add(key.key());
         }
+        state.letGoOfForm("next");
         if (fields.containsKey("save-then-run")) {
             Exchanges.redirect(exchange, InvocationPages.startAndSay(state, ControlPanelState.Start.RUN, "/next"));
             return;
