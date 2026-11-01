@@ -69,7 +69,7 @@ class MinHashBandsThatDoNotMakeItsPermutationsAreRefusedInvocationTest {
     private static final String BOILERPLATE_FLOOR = "1.0";
 
     /** The model the scripted embedder answers for. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
+    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 
     @TempDir
     static Path workingDirectory;
@@ -104,7 +104,7 @@ class MinHashBandsThatDoNotMakeItsPermutationsAreRefusedInvocationTest {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
                 .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so the embedding-model gate is open")
+                .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
                 .build());
         int before = output.getAll().length();
 

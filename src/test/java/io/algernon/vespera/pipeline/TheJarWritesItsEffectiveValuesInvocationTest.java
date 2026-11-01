@@ -4,6 +4,8 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.embedding.LabelQuestion;
+import io.algernon.vespera.embedding.RelevanceLabeller;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -15,7 +17,9 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -26,21 +30,26 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * The file the control panel reads for what the jar would use where the profile names nothing (ADR-330 §1), reached
- * through real invocations: {@code vespera run} writes it before its first step, of a closed list of keys holding no
- * path, no credential and nothing of a document, and an invocation refused leaves it as it was.
+ * through real invocations: {@code vespera run} and {@code vespera label}, with or without {@code --auto}, write it
+ * before their first step, of a closed list of keys holding no path, no credential and nothing of a document, and an
+ * invocation refused at its start leaves it as it was. That {@code vespera publish} writes none is {@code
+ * VesperaPublishWritesNoEffectiveValuesInvocationTest}'s, and where each value came from is {@code
+ * TheJarSaysWhereEachValueCameFromInvocationTest}'s.
  *
  * <p>Each of the two addresses is set here with what the file must leave out, so that a jar writing the property as it
  * stands fails. The working directory is shared by the class's methods, as every invocation test's is, so each begins
  * from a profile of its own.
  */
 @CascadeSliceTest
-@Import(SeedScriptedExtractionBeans.class)
+@Import({SeedScriptedExtractionBeans.class, AutoLabelling.class, TheJarWritesItsEffectiveValuesInvocationTest.Beans.class})
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
@@ -87,11 +96,50 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
                     THE_TECHNICAL_PRESETS.stream().flatMap(key -> Stream.of(key, key + ".source")))
             .collect(Collectors.toUnmodifiableSet());
 
+    /** Above every measured document frequency here, so stage 4's gate is open. */
+    private static final String BOILERPLATE_FLOOR = "1.0";
+
+    /** The model the scripted embedder answers for. */
+    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
+
+    /** The image {@code compose.yaml} builds, on the processor. */
+    private static final String PROCESSOR_IMAGE = "vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2";
+
+    /** The image {@code compose.gpu.yaml} builds, on the graphics card. */
+    private static final String CARD_IMAGE = "vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0-r2";
+
+    /** Answers every question, so that {@code vespera label --auto} has a local model to ask here. */
+    @TestConfiguration
+    static class Beans {
+        @Bean
+        RelevanceLabeller scriptedLabeller() {
+            return new RelevanceLabeller() {
+                @Override
+                public String identity() {
+                    return "scripted-labeller";
+                }
+
+                @Override
+                public Optional<String> refusal() {
+                    return Optional.empty();
+                }
+
+                @Override
+                public Optional<Boolean> answer(LabelQuestion question) {
+                    return Optional.of(true);
+                }
+            };
+        }
+    }
+
     @TempDir
     static Path workingDirectory;
 
     @TempDir
     static Path root;
+
+    @TempDir
+    static Path seeds;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -127,14 +175,43 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
                 () -> assertThat(List.of(said.getProperty("generationContextWindow"),
                                 said.getProperty("generationContextWindow.source")))
                         .containsExactly("8192", "code"));
-        claim("the embedding model is left out, because the test's own configuration blanks it, so nothing names one",
-                () -> assertThat(said).doesNotContainKey("embeddingModel"));
-        claim("each value of the application's own file is there, as the shipped file holds it",
+        claim("the embedding model is left out with its source, because the test's own configuration blanks it, so"
+                        + " the file never says an empty value",
+                () -> assertThat(said).doesNotContainKeys("embeddingModel", "embeddingModel.source"));
+        claim("a value of the application's own file is there, as the shipped file holds it",
                 () -> assertThat(List.of(said.getProperty("vespera.open-browser"),
-                                said.getProperty("vespera.open-browser.source"),
-                                said.getProperty("vespera.clustering.neighbours"),
+                                said.getProperty("vespera.open-browser.source")))
+                        .containsExactly("true", "shipped"));
+        claim("and every key the file holds is on the closed list",
+                () -> assertThat(said.stringPropertyNames()).isSubsetOf(THE_CLOSED_LIST));
+    }
+
+    @Test
+    @Story("The jar says what it would use")
+    @DisplayName("The file names the two images the jar's compose files build, and says when it was written, neither with a source")
+    void theImagesTheComposeFilesBuildAndTheMomentAreSaid() throws IOException {
+        cli.run("run", root.toString());
+        Properties said = theFile();
+
+        claim("the two images, the processor build's and the graphics card's, separated by one space",
+                () -> assertThat(said.getProperty("docling.images")).isEqualTo(PROCESSOR_IMAGE + " " + CARD_IMAGE));
+        claim("the moment it was written, with an offset, so it is one moment wherever it is read",
+                () -> assertThat(OffsetDateTime.parse(said.getProperty("written-at"))).isNotNull());
+        claim("and neither has a source: neither is a value of configuration",
+                () -> assertThat(said).doesNotContainKeys("docling.images.source", "written-at.source"));
+    }
+
+    @Test
+    @Story("The jar says what it would use")
+    @DisplayName("The presets the application ships are in the file as the shipped file holds them")
+    void thePresetsAreWrittenAsTheShippedFileHoldsThem() throws IOException {
+        cli.run("run", root.toString());
+        Properties said = theFile();
+
+        claim("the neighbours and the resolution, at what ships, the resolution under the profile's own name",
+                () -> assertThat(List.of(said.getProperty("vespera.clustering.neighbours"),
                                 said.getProperty("clusterResolution")))
-                        .containsExactly("true", "shipped", "15", "1.0"));
+                        .containsExactly("15", "1.0"));
         claim("each of the " + THE_TECHNICAL_PRESETS.size() + " presets of the converter, of redundancy and of relevance"
                         + " is there, and each came from the shipped file",
                 () -> assertThat(THE_TECHNICAL_PRESETS.stream()
@@ -144,8 +221,6 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
                         .containsExactlyElementsOf(THE_TECHNICAL_PRESETS.stream()
                                 .map(key -> List.of(key, "true", "shipped"))
                                 .toList()));
-        claim("and every key the file holds is on the closed list",
-                () -> assertThat(said.stringPropertyNames()).isSubsetOf(THE_CLOSED_LIST));
     }
 
     @Test
@@ -191,6 +266,87 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
                 () -> assertThat(cli.getExitCode()).isNotZero());
         claim("and the file is as the first left it",
                 () -> assertThat(theFilesText()).isEqualTo(written));
+    }
+
+    @Test
+    @Story("The jar says what it would use")
+    @DisplayName("A label refused at its start leaves the file as the last one wrote it")
+    void aLabelRefusedAtItsStartLeavesTheFileAsItWas() throws IOException {
+        cli.run("run", root.toString());
+        String written = theFilesText();
+
+        cli.run("label", "--auto", "a-file-it-may-not-be-given.yaml");
+
+        claim("the label was refused, being given a file with --auto",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim("and the file is as the run left it",
+                () -> assertThat(theFilesText()).isEqualTo(written));
+    }
+
+    @Test
+    @Story("The jar says what it would use")
+    @DisplayName("Labelling the answers in the file writes it too, with no run before it having to")
+    void aLabelWritesTheFile(@TempDir Path aCorpusOfItsOwn) throws IOException {
+        aScoredCorpusIn(aCorpusOfItsOwn);
+        Path labelFile = workingDirectory.resolve("relevance-labels.yaml");
+        Files.writeString(labelFile, Files.readString(labelFile, StandardCharsets.UTF_8)
+                .replace("relevant: null", "relevant: true"), StandardCharsets.UTF_8);
+        Files.deleteIfExists(workingDirectory.resolve(FILE_NAME));
+
+        cli.run("label");
+
+        claim("the label recorded its answers",
+                () -> assertThat(cli.getExitCode()).isZero());
+        Properties said = theFile();
+        claim("and wrote the file, with what applies",
+                () -> assertThat(said.getProperty("generationModel")).isEqualTo("qwen3:8b"));
+    }
+
+    @Test
+    @Story("The jar says what it would use")
+    @DisplayName("Labelling by the local model writes it too")
+    void aLabelByTheLocalModelWritesTheFile(@TempDir Path aCorpusOfItsOwn) throws IOException {
+        aScoredCorpusIn(aCorpusOfItsOwn);
+        Files.deleteIfExists(workingDirectory.resolve(FILE_NAME));
+
+        cli.run("label", "--auto");
+
+        claim("the local model's labelling recorded its answers",
+                () -> assertThat(cli.getExitCode()).isZero());
+        Properties said = theFile();
+        claim("and wrote the file, with what applies",
+                () -> assertThat(said.getProperty("generationModel")).isEqualTo("qwen3:8b"));
+    }
+
+    @Test
+    @Story("The jar says what it would use")
+    @DisplayName("A label that started and found no answers to record has still written it, having said what it would use before it looked")
+    void aLabelThatFindsNoAnswersHasWrittenTheFile(@TempDir Path aCorpusOfItsOwn) throws IOException {
+        aScoredCorpusIn(aCorpusOfItsOwn);
+        Files.deleteIfExists(workingDirectory.resolve(FILE_NAME));
+
+        cli.run("label");
+
+        claim("the label recorded nothing, the file having no answers in it",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim("and the file is there",
+                () -> assertThat(workingDirectory.resolve(FILE_NAME)).exists());
+    }
+
+    /**
+     * Every gate open and the job run over a corpus root of its own, so the label file asks about this one. A file of a
+     * name of its own too, because an answer is kept by the path below the root and the seed set, so one recorded by
+     * another test here would show in this file.
+     */
+    private void aScoredCorpusIn(Path corpus) throws IOException {
+        Files.writeString(corpus.resolve(corpus.getFileName() + ".txt"), "another corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profileStore.save(ProfileFixture.profile()
+                .seedFolder(seeds.toString(), "set by this test")
+                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
+                .build());
+        cli.run("run", corpus.toString());
     }
 
     private static Properties theFile() throws IOException {

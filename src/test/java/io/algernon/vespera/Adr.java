@@ -2330,7 +2330,8 @@ public final class Adr {
      * owner-only; and ten technical choices ship as presets, clustering's two numbers, the OCR preset, the timeouts in
      * a row, the shingle window, MinHash's numbers, stage 4's cuts, the number of similarities a relevance score is the
      * mean of and the sample, each entering the run it shapes only where it differs from what it was (amends ADR-285
-     * §3, ADR-294 §2, ADR-295 §1 to §5 and ADR-302 §5, §8 and §9; extends ADR-298; amends ADR-087's table, ADR-020,
+     * §3, ADR-294 §2, ADR-295 §1 to §5 and ADR-302 §5, §8 and §9; extends ADR-298; amends ADR-087's table and its
+     * sentence on resolution, ADR-020,
      * ADR-071, ADR-073, ADR-082, ADR-088 and ADR-090).
      */
     public static final String THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS = FILE

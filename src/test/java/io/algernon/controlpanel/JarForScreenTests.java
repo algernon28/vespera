@@ -18,6 +18,12 @@ public final class JarForScreenTests {
     /** The file in the working directory that says what the child does. */
     public static final String WHAT_TO_DO = "jar-for-screen-tests.txt";
 
+    /** Said before what the child does: it first copies {@code profile.yaml} as it finds it, to {@link #THE_PROFILE_IT_FOUND}. */
+    public static final String COPY_THE_PROFILE = "copy-the-profile ";
+
+    /** The file in the working directory the child copies {@code profile.yaml} to, where it is told to. */
+    public static final String THE_PROFILE_IT_FOUND = "the-profile-the-child-found.yaml";
+
     /** The first line the child prints, whatever it then does. */
     public static final String STARTED = "the jar for the screen tests started";
 
@@ -32,6 +38,10 @@ public final class JarForScreenTests {
         System.out.flush();
         Path told = Path.of(WHAT_TO_DO);
         String what = Files.isRegularFile(told) ? Files.readString(told, StandardCharsets.UTF_8).strip() : "sleep";
+        if (what.startsWith(COPY_THE_PROFILE)) {
+            Files.copy(Path.of("profile.yaml"), Path.of(THE_PROFILE_IT_FOUND));
+            what = what.substring(COPY_THE_PROFILE.length());
+        }
         if (what.startsWith("exit ")) {
             String[] parts = what.split(" ", 3);
             System.out.println(parts.length > 2 ? parts[2] : "");

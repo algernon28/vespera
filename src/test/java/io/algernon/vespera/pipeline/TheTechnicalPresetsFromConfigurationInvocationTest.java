@@ -16,11 +16,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -44,7 +43,6 @@ import org.yaml.snakeyaml.Yaml;
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Epic("Pipeline")
 @Feature("What a piece of work is identified by")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
@@ -92,7 +90,7 @@ class TheTechnicalPresetsFromConfigurationInvocationTest {
     private static final String BOILERPLATE_FLOOR = "1.0";
 
     /** The model the scripted embedder answers for. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
+    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 
     @TempDir
     static Path workingDirectory;
@@ -131,8 +129,18 @@ class TheTechnicalPresetsFromConfigurationInvocationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @BeforeAll
+    /**
+     * Made once for the class. Not in a {@code @BeforeAll} of a {@code PER_CLASS} instance: that instance, and so the
+     * context, is built before the static {@code @TempDir}s are set, so {@link #properties} would find them null.
+     */
+    private static boolean invoked;
+
+    @BeforeEach
     void oneInvocationOverACorpusOfThreeAndASeed() throws IOException {
+        if (invoked) {
+            return;
+        }
+        invoked = true;
         for (int document = 0; document < OCCURRENCES; document++) {
             Files.writeString(root.resolve("corpus-" + document + ".txt"), "a corpus document, the " + document + "th");
         }
@@ -140,7 +148,7 @@ class TheTechnicalPresetsFromConfigurationInvocationTest {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
                 .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so the embedding-model gate is open")
+                .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
                 .build());
         cli.run("run", root.toString());
     }

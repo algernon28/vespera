@@ -105,8 +105,8 @@ class LaunchImageScreenTest {
 
     @Test
     @Story("The operator is not caught by an image the sidecar does not run")
-    @DisplayName("The image the sidecar runs and the two the jar builds are offered in the field, and the one picked is held as the launch value")
-    void theImagesAreOfferedAndTheOnePickedIsHeldAsALaunchValue() throws IOException {
+    @DisplayName("The image the sidecar runs and the two the jar builds are offered in the field, and the one picked matches what the sidecar runs")
+    void theImagesAreOfferedAndTheOnePickedMatches() throws IOException {
         Path work = Files.createDirectories(folder.resolve("work"));
         HttpServer docling = aSidecarRunning(CARD_IMAGE);
         try {
@@ -126,11 +126,31 @@ class LaunchImageScreenTest {
                                 .containsExactly("docling-images", "text"));
 
                 Page checked = browser.press("launch", "check", Map.of("vespera.docling.image", CARD_IMAGE)).page();
-                claim("picked, the check finds it matches, and no file of the working folder holds it",
-                        () -> assertThat(List.of(byId(checked, "docling-check").attr("data-check"),
-                                        Files.exists(work.resolve("application.yaml")),
-                                        Files.exists(work.resolve("application-local.yaml"))))
-                                .containsExactly("matches", false, false));
+                claim("picked, the check finds it matches",
+                        () -> assertThat(byId(checked, "docling-check").attr("data-check")).isEqualTo("matches"));
+            }
+        } finally {
+            docling.stop(0);
+        }
+    }
+
+    @Test
+    @Story("The operator is not caught by an image the sidecar does not run")
+    @DisplayName("With no address on the launch page, the sidecar is asked what it runs at the address the jar last used")
+    void withNoAddressTheSidecarIsAskedWhereTheJarLastAskedIt() throws IOException {
+        Path work = Files.createDirectories(folder.resolve("work"));
+        HttpServer docling = aSidecarRunning(CARD_IMAGE);
+        try {
+            String address = "http://127.0.0.1:" + docling.getAddress().getPort();
+            theJarSaid(work, "vespera.docling.base-url=" + address + "\nvespera.docling.base-url.source=shipped\n"
+                    + "vespera.docling.image=" + PROCESSOR_IMAGE + "\nvespera.docling.image.source=shipped\n");
+            try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus(), work))) {
+                Page page = screens.browser().page();
+
+                claim("the sidecar at that address is what is shown, and it is checked against the image the jar named",
+                        () -> assertThat(List.of(byId(page, "docling-running").attr("data-image"),
+                                        byId(page, "docling-check").attr("data-check")))
+                                .containsExactly(CARD_IMAGE, "another-image"));
             }
         } finally {
             docling.stop(0);

@@ -6,6 +6,7 @@ import static io.algernon.controlpanel.ScreenServer.form;
 import static io.algernon.vespera.TestSteps.claim;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -19,22 +20,32 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
 import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.jsoup.nodes.Element;
 import org.junit.jupiter.api.Disabled;
@@ -65,16 +76,19 @@ class ProfileEditorScreenTest {
     private static final String EFFECTIVE_VALUES = "effective-values.properties";
 
     /** The embedding model the jar says it ships. */
-    private static final String SHIPPED_MODEL = "bge-m3:latest";
+    private static final String SHIPPED_EMBEDDING_MODEL = "bge-m3:latest";
 
     /** The generation model the jar says it ships. */
-    private static final String SHIPPED_WRITING_MODEL = "qwen3:8b";
+    private static final String SHIPPED_GENERATION_MODEL = "qwen3:8b";
 
     /** A value the jar reads as nothing, written with a decimal comma, which a number control would blank. */
     private static final String A_DECIMAL_COMMA = "0,4";
 
     /** The name given to a file by a repair begins with this. */
     private static final String A_REPAIRS_COPY = "profile.yaml.before-repair-";
+
+    /** The arrangement an invocation arrived at, which the next act's form offers. */
+    private static final String AN_ARRANGEMENT = "0123456789ab";
 
     /** The new key, which {@code ProfileKey} does not name yet. */
     private static final String CLUSTER_RESOLUTION = "clusterResolution";
@@ -138,13 +152,13 @@ class ProfileEditorScreenTest {
     @DisplayName("A value shows the one in use and its source: the profile's where it names one, the jar's where it does not, and none where nothing does")
     void theValueInUseAndWhereItCameFromAreShown() throws IOException {
         Path work = workingDirectory();
-        theJarSaid(work, Map.of("embeddingModel", SHIPPED_MODEL, "embeddingModel.source", "shipped",
-                "generationModel", SHIPPED_WRITING_MODEL, "generationModel.source", "shipped",
+        theJarSaid(work, Map.of("embeddingModel", SHIPPED_EMBEDDING_MODEL, "embeddingModel.source", "shipped",
+                "generationModel", SHIPPED_GENERATION_MODEL, "generationModel.source", "shipped",
                 "generationContextWindow", "8192", "generationContextWindow.source", "code"));
         theProfileIs(work, """
                 ---
                 generationModel:
-                  value: "a-named-writing-model:8b"
+                  value: "a-named-generation-model:8b"
                   provenance: "the operator's own"
                   measurement: null
                 """);
@@ -152,10 +166,10 @@ class ProfileEditorScreenTest {
             Page page = screens.browser().go("/profile").page();
 
             claim("the embedding model the profile leaves unset is the one the jar ships, and says so",
-                    () -> assertThat(inUse(page, "embeddingModel")).containsExactly(SHIPPED_MODEL, "shipped"));
+                    () -> assertThat(inUse(page, "embeddingModel")).containsExactly(SHIPPED_EMBEDDING_MODEL, "shipped"));
             claim("the generation model the profile names is the profile's, whatever the jar ships",
                     () -> assertThat(inUse(page, "generationModel"))
-                            .containsExactly("a-named-writing-model:8b", "profile"));
+                            .containsExactly("a-named-generation-model:8b", "profile"));
             claim("a number the code carries says it comes from the code",
                     () -> assertThat(inUse(page, "generationContextWindow")).containsExactly("8192", "code"));
             claim("and a floor nothing names is unset, with no value in use",
@@ -176,7 +190,7 @@ class ProfileEditorScreenTest {
             claim("and a floor, which has no default, is unset whatever the jar would say",
                     () -> assertThat(inUse(none, "relevanceScoreFloor")).containsExactly("", "unset"));
 
-            theJarSaid(work, Map.of("embeddingModel", SHIPPED_MODEL, "embeddingModel.source", "shipped"));
+            theJarSaid(work, Map.of("embeddingModel", SHIPPED_EMBEDDING_MODEL, "embeddingModel.source", "shipped"));
             Page fresh = screens.browser().go("/profile").page();
             claim("a file written after the jar beside the control panel is fresh",
                     () -> assertThat(byId(fresh, "in-use-embeddingModel").attr("data-fresh")).isEqualTo("fresh"));
@@ -187,7 +201,7 @@ class ProfileEditorScreenTest {
             claim("a file older than that jar is still shown, marked stale, so the value is not lost and not trusted",
                     () -> assertThat(List.of(byId(stale, "in-use-embeddingModel").attr("data-value"),
                                     byId(stale, "in-use-embeddingModel").attr("data-fresh")))
-                            .containsExactly(SHIPPED_MODEL, "stale"));
+                            .containsExactly(SHIPPED_EMBEDDING_MODEL, "stale"));
         }
     }
 
@@ -198,7 +212,7 @@ class ProfileEditorScreenTest {
     @DisplayName("Each field holds the value and provenance the file states, and a value the jar ships stays out of the field, offered only as its placeholder")
     void theFieldsHoldTheFilesOwnWordsAndADefaultStaysOutOfThem() throws IOException {
         Path work = workingDirectory();
-        theJarSaid(work, Map.of("embeddingModel", SHIPPED_MODEL, "embeddingModel.source", "shipped"));
+        theJarSaid(work, Map.of("embeddingModel", SHIPPED_EMBEDDING_MODEL, "embeddingModel.source", "shipped"));
         theProfileIs(work, TWO_KEYS);
         try (ScreenServer screens = start(work)) {
             Element profile = form(screens.browser().go("/profile").page(), "profile");
@@ -212,7 +226,7 @@ class ProfileEditorScreenTest {
                     () -> assertThat(List.of(control(profile, "embeddingModel").val(),
                                     control(profile, "embeddingModel").attr("placeholder"),
                                     control(profile, "embeddingModel.provenance").val()))
-                            .containsExactly("", SHIPPED_MODEL, ""));
+                            .containsExactly("", SHIPPED_EMBEDDING_MODEL, ""));
         }
     }
 
@@ -220,14 +234,42 @@ class ProfileEditorScreenTest {
     @Story("The operator edits what the file states")
     @DisplayName("The next act's fields hold what the file states, and the arrangement to approve takes the place of an earlier one")
     void theNextActsFieldsHoldTheFilesOwnWordsAndTheArrangementToApproveWins() throws IOException, InterruptedException {
+        Path work = aWorkingDirectoryWantingAnArrangementApprovedOnMonday();
+        try (ScreenServer screens = start(work)) {
+            Element next = form(screens.afterARunHasEnded().go("/next").page(), "next");
+
+            claim("the value is the arrangement this invocation arrived at, and the provenance the file's own",
+                    () -> assertThat(List.of(control(next, "arrangementApproved").val(),
+                                    control(next, "arrangementApproved.provenance").val()))
+                            .containsExactly(AN_ARRANGEMENT, "read the page on Monday"));
+        }
+    }
+
+    @Test
+    @Story("The operator edits what the file states")
+    @DisplayName("Saving the arrangement to approve under the provenance of an earlier one is refused, and writes nothing")
+    void theArrangementToApproveUnderAnEarlierOnesProvenanceIsRefused() throws IOException, InterruptedException {
+        Path work = aWorkingDirectoryWantingAnArrangementApprovedOnMonday();
+        try (ScreenServer screens = start(work)) {
+            PanelBrowser browser = screens.afterARunHasEnded().go("/next");
+            String before = profileText(work);
+            Page landed = browser.press("next", "save", Map.of()).page();
+
+            claim("the arrangement says why it was not saved, the provenance speaking of another value",
+                    () -> assertThat(landed.document().select("#refused-arrangementApproved")).hasSize(1));
+            claim("and nothing is written",
+                    () -> assertThat(profileText(work)).isEqualTo(before));
+        }
+    }
+
+    private Path aWorkingDirectoryWantingAnArrangementApprovedOnMonday() throws IOException {
         Path work = workingDirectory();
-        String arrangement = "0123456789ab";
         Files.writeString(work.resolve(NextInvocation.FILE_NAME), """
                 invocation=run
                 wants=arrangementApproved
                 answer=false
                 arrangement=%s
-                """.formatted(arrangement), UTF_8);
+                """.formatted(AN_ARRANGEMENT), UTF_8);
         ScreenServer.childWill(work, "exit 0 the closing line");
         theProfileIs(work, """
                 ---
@@ -236,20 +278,7 @@ class ProfileEditorScreenTest {
                   provenance: "read the page on Monday"
                   measurement: null
                 """);
-        try (ScreenServer screens = start(work)) {
-            PanelBrowser browser = screens.afterARunHasEnded().go("/next");
-            Element next = form(browser.page(), "next");
-
-            claim("the value is the arrangement this invocation arrived at, and the provenance the file's own",
-                    () -> assertThat(List.of(control(next, "arrangementApproved").val(),
-                                    control(next, "arrangementApproved.provenance").val()))
-                            .containsExactly(arrangement, "read the page on Monday"));
-
-            String before = profileText(work);
-            browser.press("next", "save", Map.of());
-            claim("saving it unchanged is refused and writes nothing: the provenance speaks of another value",
-                    () -> assertThat(profileText(work)).isEqualTo(before));
-        }
+        return work;
     }
 
     // ---- typed controls
@@ -324,7 +353,7 @@ class ProfileEditorScreenTest {
                             .containsExactly("fr"));
 
             browser.press("profile", "save", Map.of());
-            claim("and saving with both untouched leaves the file as it was: a bad value is the operator's to fix",
+            claim("and saving with both untouched leaves the file as it was: an unreadable value is the operator's to fix",
                     () -> assertThat(profileText(work)).isEqualTo(before));
         }
     }
@@ -371,9 +400,9 @@ class ProfileEditorScreenTest {
     @Test
     @Story("The operator picks a model")
     @DisplayName("The model picker offers what the model service serves, asked at its launch address or, with none, at the one the jar last used")
-    void theModelPickerOffersWhatOllamaServes() throws IOException {
+    void thePickerOffersWhatOllamaServes() throws IOException {
         Path work = workingDirectory();
-        HttpServer ollama = aModelServiceServing("bge-m3:latest", "qwen3:8b");
+        HttpServer ollama = anOllamaServing("bge-m3:latest", "qwen3:8b");
         try {
             String address = "http://127.0.0.1:" + ollama.getAddress().getPort();
             LaunchValues named = new LaunchValues(corpus().toString(), work.toString(), "", "", "", address, "", "");
@@ -400,7 +429,7 @@ class ProfileEditorScreenTest {
     @Test
     @Story("The operator picks a model")
     @DisplayName("With the model service silent the picker offers nothing, says so, and a name typed by hand is still saved")
-    void withOllamaSilentThePickerIsEmptyAndAModelIsStillSaved() throws IOException {
+    void withOllamaSilentThePickerIsEmptyAndANameTypedIsStillSaved() throws IOException {
         Path work = workingDirectory();
         String nobody = "http://127.0.0.1:" + aPortNobodyListensOn();
         LaunchValues values = new LaunchValues(corpus().toString(), work.toString(), "", "", "", nobody, "", "");
@@ -416,6 +445,28 @@ class ProfileEditorScreenTest {
             browser.press("profile", "save", Map.of("embeddingModel", "a-model-pulled-later:1b",
                     "embeddingModel.provenance", "the bake-off's winner"));
             claim("and the model typed by hand is saved all the same",
+                    () -> assertThat(ProfileEdit.read(profileText(work)).get(ProfileKey.EMBEDDING_MODEL))
+                            .isEqualTo(new ProfileEdit.Stated("a-model-pulled-later:1b", "the bake-off's winner")));
+        }
+    }
+
+    @Test
+    @Story("The operator picks a model")
+    @DisplayName("With no address known for the model service the picker offers nothing and says it was not asked, and a name typed by hand is still saved")
+    void withNoAddressKnownThePickerSaysItWasNotAsked() throws IOException {
+        Path work = workingDirectory();
+        try (ScreenServer screens = start(work)) {
+            PanelBrowser browser = screens.browser().go("/profile");
+            Page page = browser.page();
+
+            claim("the picker is empty and says nothing was asked, with no launch address and no file from the jar",
+                    () -> assertThat(List.of(byId(page, "models-served").attr("data-check"),
+                                    byId(page, "models-served").select("option").size()))
+                            .containsExactly("not-checked", 0));
+
+            browser.press("profile", "save", Map.of("embeddingModel", "a-model-pulled-later:1b",
+                    "embeddingModel.provenance", "the bake-off's winner"));
+            claim("and the name typed by hand is saved all the same",
                     () -> assertThat(ProfileEdit.read(profileText(work)).get(ProfileKey.EMBEDDING_MODEL))
                             .isEqualTo(new ProfileEdit.Stated("a-model-pulled-later:1b", "the bake-off's winner")));
         }
@@ -638,6 +689,108 @@ class ProfileEditorScreenTest {
         }
     }
 
+    /**
+     * §5's fifth step: a write refused once writing has begun. The pages offer no way in between two writes, so this
+     * takes the lock from a thread of the test's as soon as the first value is in the file, between that write and one
+     * of the many after it. Where the race is lost and every write ends first, nothing is claimed: the test aborts, as
+     * a test does whose environment cannot show what it holds.
+     */
+    @Test
+    @Story("The operator saves the whole profile at once")
+    @DisplayName("A write refused once saving has begun stops there: the values written stay written and are named, and what was typed for the rest stands")
+    void aWriteRefusedPartWayKeepsWhatWasWrittenAndSaysSo() throws Exception {
+        Path work = workingDirectory();
+        Map<String, String> typed = new LinkedHashMap<>();
+        for (String key : List.of("degenerateOutputConfidenceFloor", "boilerplateDocumentFrequencyFloor",
+                "relevanceScoreFloor", "logTimestampShareFloor", "translationSimilarityFloor",
+                "configurationSettingShareFloor")) {
+            typed.put(key, "0.5");
+            typed.put(key + ".provenance", "typed for " + key);
+        }
+        for (String key : List.of("degenerateOutputWordFloor", "extractionAttempt", "generationContextWindow",
+                "clusterPageByteCeiling")) {
+            typed.put(key, "2000");
+            typed.put(key + ".provenance", "typed for " + key);
+        }
+        String firstInTheFormsOrder = "degenerateOutputConfidenceFloor";
+        String lastInTheFormsOrder = "configurationSettingShareFloor";
+        try (ScreenServer screens = start(work);
+                FileChannel channel = FileChannel.open(work.resolve("vespera.lock"), StandardOpenOption.CREATE,
+                        StandardOpenOption.WRITE)) {
+            PanelBrowser browser = screens.browser().go("/profile");
+            AtomicReference<FileLock> taken = new AtomicReference<>();
+            Thread takingTheLock = new Thread(() -> takeTheLockOnceTheFileHolds(work, firstInTheFormsOrder, channel, taken));
+            takingTheLock.setDaemon(true);
+            takingTheLock.start();
+            Page landed;
+            try {
+                landed = browser.press("profile", "save", typed).page();
+            } finally {
+                takingTheLock.interrupt();
+                takingTheLock.join();
+                if (taken.get() != null) {
+                    taken.get().release();
+                }
+            }
+            assumeTrue(!profileText(work).contains(lastInTheFormsOrder + ":"),
+                    "every write ended before the lock could be taken between two of them");
+
+            claim("the first value is written and stays written",
+                    () -> assertThat(ProfileEdit.read(profileText(work)).get(ProfileKey.DEGENERATE_OUTPUT_CONFIDENCE_FLOOR))
+                            .isEqualTo(new ProfileEdit.Stated("0.5", "typed for " + firstInTheFormsOrder)));
+            claim("the outcome names what was written",
+                    () -> assertThat(byId(landed, "outcome").text()).contains(firstInTheFormsOrder));
+            claim("and what was typed for the value not written stands in its field",
+                    () -> assertThat(control(form(landed, "profile"), lastInTheFormsOrder).val()).isEqualTo("0.5"));
+        }
+    }
+
+    /** Waits for {@code key} in the file, then takes the working-directory lock, trying on the one channel until it holds it. */
+    private static void takeTheLockOnceTheFileHolds(Path work, String key, FileChannel channel, AtomicReference<FileLock> taken) {
+        while (!Thread.currentThread().isInterrupted()) {
+            if (profileText(work).contains(key + ":")) {
+                try {
+                    FileLock lock = channel.tryLock(Long.MAX_VALUE - 1, 1, false);
+                    if (lock != null) {
+                        taken.set(lock);
+                        return;
+                    }
+                } catch (OverlappingFileLockException heldByTheControlPanelForNow) {
+                    // the control panel is between its lock and its release; try again
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }
+    }
+
+    @Test
+    @Story("The operator writes the values the next invocation wants")
+    @DisplayName("Save, then Run with one value refused starts nothing and writes none of them")
+    void saveThenRunWithAKeyRefusedStartsNothing() throws IOException, InterruptedException {
+        Path work = workingDirectory();
+        Path seeds = Files.createDirectories(folder.resolve("seeds"));
+        Files.writeString(work.resolve(NextInvocation.FILE_NAME), """
+                invocation=run
+                wants=seedFolder boilerplateDocumentFrequencyFloor
+                answer=false
+                """, UTF_8);
+        ScreenServer.childWill(work, "exit 0 the closing line");
+        try (ScreenServer screens = start(work)) {
+            PanelBrowser browser = screens.afterARunHasEnded().go("/next");
+            Page landed = browser.press("next", "save-then-run", Map.of(
+                    "seedFolder", seeds.toString(),
+                    "seedFolder.provenance", "the operator's exemplars",
+                    "boilerplateDocumentFrequencyFloor", "not a number",
+                    "boilerplateDocumentFrequencyFloor.provenance", "guessed")).page();
+
+            claim("the page stays on the next act, and does not go to an invocation",
+                    () -> assertThat(landed.address().getPath()).isEqualTo("/next"));
+            claim("and the good value before the refused one is not written",
+                    () -> assertThat(work.resolve(ProfileEdit.FILE_NAME)).doesNotExist());
+        }
+    }
+
     @Test
     @Story("The operator writes the values the next invocation wants")
     @DisplayName("One value the next run wants refused writes none of them")
@@ -734,8 +887,8 @@ class ProfileEditorScreenTest {
 
     @Test
     @Story("The operator repairs a profile not in the jar's form")
-    @DisplayName("A bad value is the operator's to fix: the repair keeps it as written, and the page says the jar cannot read it")
-    void aBadValueIsTheOperatorsAndNoRepairTouchesIt() throws IOException {
+    @DisplayName("An unreadable value is the operator's to fix: the repair keeps it as written, and the page says the jar cannot read it")
+    void anUnreadableValueIsTheOperatorsAndNoRepairTouchesIt() throws IOException {
         Path work = workingDirectory();
         theProfileIs(work, """
                 # mine
@@ -777,25 +930,71 @@ class ProfileEditorScreenTest {
 
     @Test
     @Story("The operator repairs a profile not in the jar's form")
-    @DisplayName("The repair's address changes nothing when it is only opened, and refuses a form posted from another site")
-    void theRepairsAddressWritesNothingOnAGetAndRefusesAnotherSite() throws IOException {
+    @DisplayName("The repair's address changes nothing when it is only opened, and lands on the profile's page")
+    void theRepairsAddressWritesNothingOnAGet() throws IOException {
         Path work = workingDirectory();
         theProfileIs(work, NOT_IN_FORM_BUT_CERTAIN);
         try (ScreenServer screens = start(work)) {
             Page opened = screens.browser().go("/profile-repair").page();
-            InetSocketAddress server = screens.server().address();
-            RawHttp.Response posted = RawHttp.send(server, "POST", "/profile-repair",
-                    List.of("Host: 127.0.0.1:" + server.getPort(), "Origin: http://evil.example"));
 
             claim("opened, it lands on the profile's page",
                     () -> assertThat(List.of(opened.status(), opened.address().getPath()))
                             .containsExactly(200, "/profile"));
-            claim("posted from another site, it is refused",
-                    () -> assertThat(posted.status()).isEqualTo(403));
-            claim("and neither wrote anything",
+            claim("and it wrote nothing, neither the file nor a copy",
                     () -> assertThat(List.of(profileText(work).equals(NOT_IN_FORM_BUT_CERTAIN), aRepairsCopies(work).size()))
                             .containsExactly(true, 0));
         }
+    }
+
+    @Test
+    @Story("The operator repairs a profile not in the jar's form")
+    @DisplayName("A copy of the file that cannot be made leaves the file as it was, and the page says so")
+    void aCopyThatCannotBeMadeLeavesTheFileAsItWas() throws IOException {
+        Path work = workingDirectory();
+        theProfileIs(work, NOT_IN_FORM_BUT_CERTAIN);
+        Files.writeString(work.resolve("vespera.lock"), "");
+        try (ScreenServer screens = start(work)) {
+            PanelBrowser browser = screens.browser().go("/profile");
+            try (AutoCloseable restored = noNewFileCanBeMadeIn(work)) {
+                claim("the folder takes no new file, the precondition of this test",
+                        () -> assertThatThrownBy(() -> Files.createFile(work.resolve("a-new-file")))
+                                .isInstanceOf(IOException.class));
+
+                Page landed = browser.press("repair", "repair", Map.of()).page();
+
+                claim("the file is as it was, every comment still in it",
+                        () -> assertThat(profileText(work)).isEqualTo(NOT_IN_FORM_BUT_CERTAIN));
+                claim("no copy lies beside it, and the page says what stopped the repair",
+                        () -> assertThat(List.of(aRepairsCopies(work).size(), byId(landed, "outcome").text().isBlank()))
+                                .containsExactly(0, false));
+            } catch (AssertionError | IOException | RuntimeException failure) {
+                throw failure;
+            } catch (Exception closing) {
+                throw new AssertionError("the folder's permissions could not be put back", closing);
+            }
+        }
+    }
+
+    /**
+     * Has {@code folder} refuse a new file until the result is closed: by its POSIX permissions where it has them, or
+     * by an access control entry denying the owner that one right on NTFS. The folder stays readable and its files
+     * writable, so what fails is the making of a copy.
+     */
+    private static AutoCloseable noNewFileCanBeMadeIn(Path folder) throws IOException {
+        if (FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
+            Set<PosixFilePermission> before = Files.getPosixFilePermissions(folder);
+            Files.setPosixFilePermissions(folder, PosixFilePermissions.fromString("r-x------"));
+            return () -> Files.setPosixFilePermissions(folder, before);
+        }
+        AclFileAttributeView acl = Files.getFileAttributeView(folder, AclFileAttributeView.class);
+        assumeTrue(acl != null, "the file system has neither POSIX permissions nor access control lists");
+        List<AclEntry> before = acl.getAcl();
+        List<AclEntry> denying = new ArrayList<>();
+        denying.add(AclEntry.newBuilder().setType(AclEntryType.DENY).setPrincipal(acl.getOwner())
+                .setPermissions(AclEntryPermission.ADD_FILE).build());
+        denying.addAll(before);
+        acl.setAcl(denying);
+        return () -> acl.setAcl(before);
     }
 
     // ---- create if missing, edit if present
@@ -875,8 +1074,30 @@ class ProfileEditorScreenTest {
 
     @Test
     @Story("The operator sets how finely documents are grouped")
+    @DisplayName("A number written by hand that no partition can be divided by is shown as one the jar cannot read, in a control that holds it")
+    void aResolutionOfZeroWrittenByHandIsShownUnreadable() throws IOException {
+        Path work = workingDirectory();
+        theProfileIs(work, """
+                ---
+                %s:
+                  value: "0"
+                  provenance: "typed by hand"
+                  measurement: null
+                """.formatted(CLUSTER_RESOLUTION));
+        try (ScreenServer screens = start(work)) {
+            Page page = screens.browser().go("/profile").page();
+
+            claim("the page says the jar cannot read it, though it is a number",
+                    () -> assertThat(inUse(page, CLUSTER_RESOLUTION)).containsExactly("0", "unreadable"));
+            claim("and the field holds it as written",
+                    () -> assertThat(control(form(page, "profile"), CLUSTER_RESOLUTION).val()).isEqualTo("0"));
+        }
+    }
+
+    @Test
+    @Story("The operator sets how finely documents are grouped")
     @DisplayName("How finely documents are grouped is a value of the profile: above zero, with its cost, and shown as the jar ships it until the profile names one")
-    void theGroupingResolutionIsEditedLikeAnyValue() throws IOException {
+    void theClusterResolutionIsEditedLikeAnyValue() throws IOException {
         Path work = workingDirectory();
         theJarSaid(work, Map.of(CLUSTER_RESOLUTION, "1.0", CLUSTER_RESOLUTION + ".source", "shipped"));
         try (ScreenServer screens = start(work)) {
@@ -994,7 +1215,7 @@ class ProfileEditorScreenTest {
         }
     }
 
-    private static HttpServer aModelServiceServing(String... models) throws IOException {
+    private static HttpServer anOllamaServing(String... models) throws IOException {
         HttpServer service = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         String listed = String.join(",", Arrays.stream(models).map(name -> "{\"name\": \"" + name + "\"}").toList());
         service.createContext("/api/tags", exchange -> answer(exchange, "{\"models\": [" + listed + "]}"));

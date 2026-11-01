@@ -14,15 +14,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Which stages a change to a module moves (ADR-330 §10, ADR-058): the record says that moving the presets' constants
- * out of {@code extraction}, {@code similarity} and {@code embedding} moves every stage from extraction on, seven of
- * them, and leaves byte-level reduction alone. That rests on which stages name which module, and this holds it, one
- * module to a test, so that a stage gaining or losing a module says so here.
+ * Which stages name the three modules the presets' constants lie in (ADR-330 §10): that an edit of a module moves the
+ * stages naming it is ADR-058's, and this holds only what §10's table rests on, one module to a test, read off {@link
+ * StageModules}, so that a stage gaining or losing a module says so here. No test here edits a module or moves a run.
  */
 @Epic("Pipeline")
 @Feature("What a piece of work is identified by")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-class ThePresetsMoveEveryStageFromExtractionOnTest {
+class TheStagesNamingThePresetsModulesTest {
 
     /** The stages whose implementation version names {@code embedding}, in the cascade's order. */
     private static final List<String> NAMING_EMBEDDING =
@@ -39,8 +38,8 @@ class ThePresetsMoveEveryStageFromExtractionOnTest {
 
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
-    @DisplayName("An edit of the module that holds clustering and relevance scoring moves the last four stages")
-    void anEditOfEmbeddingMovesTheLastFourStages() {
+    @DisplayName("The last four stages name the module that holds clustering and relevance scoring")
+    void theStagesNamingEmbeddingAreTheLastFour() {
         claim("the stages that name embedding are the last four, the two of the seed and the scoring, the arrangement and"
                         + " the generation",
                 () -> assertThat(stagesNaming("embedding")).containsExactlyElementsOf(NAMING_EMBEDDING));
@@ -48,18 +47,18 @@ class ThePresetsMoveEveryStageFromExtractionOnTest {
 
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
-    @DisplayName("An edit of the module that holds the numbers of redundancy moves extraction and the two stages after it")
-    void anEditOfSimilarityMovesExtractionAndTheTwoAfterIt() {
-        claim("the stages that name similarity are extraction and the two after it, and each later one names their runs",
+    @DisplayName("Extraction and the two stages after it name the module that holds the numbers of redundancy")
+    void theStagesNamingSimilarityAreExtractionAndTheTwoAfterIt() {
+        claim("the stages that name similarity are extraction and the two after it",
                 () -> assertThat(stagesNaming("similarity")).containsExactlyElementsOf(NAMING_SIMILARITY));
     }
 
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
-    @DisplayName("An edit of the module that holds the converter's numbers moves the seven stages from extraction on, and leaves byte-level reduction alone")
-    void anEditOfExtractionMovesEveryStageFromExtractionOn() {
+    @DisplayName("The seven stages from extraction on name the module that holds the converter's numbers, and byte-level reduction does not")
+    void theStagesNamingExtractionAreTheSevenFromExtractionOn() {
         claim("the stages that name extraction are the seven from extraction to generation, so byte-level reduction is"
-                        + " the one stage the presets leave",
+                        + " the one stage that names it not",
                 () -> assertThat(stagesNaming("extraction")).containsExactlyElementsOf(NAMING_EXTRACTION));
     }
 

@@ -144,7 +144,9 @@ class TheShippedPresetsTest {
                         .containsExactly((long) SHIPPED_SAMPLE.get(0), (long) SHIPPED_SAMPLE.get(1)));
     }
 
+    /** The key's value as the file holds it; a key the file does not hold fails here, naming it. */
     private static String text(String key) {
+        assertThat(shipped).as("the shipped file names " + key).containsKey(key);
         return String.valueOf(shipped.get(key));
     }
 
