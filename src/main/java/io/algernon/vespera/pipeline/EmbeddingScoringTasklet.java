@@ -1,8 +1,6 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.embedding.ChunkEmbedder;
-import io.algernon.vespera.embedding.LocalOllamaModel;
-import io.algernon.vespera.embedding.OllamaClient;
 import io.algernon.vespera.embedding.UnusableSeed;
 import io.algernon.vespera.embedding.UnusableSeeds;
 import io.algernon.vespera.extraction.Chunk;
@@ -53,7 +51,7 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>It sends nothing under a model Ollama does not serve on this machine</b> (ADR-202). Once the
  * gates are open and before the measurement run or the scoring run is resolved, the embedding model's name
- * the gates read is put through {@link LocalOllamaModel#refusalOf}, once, the scoring run is minted under that
+ * the gates read is put through {@link ModelPull#refusalOf}, once, the scoring run is minted under that
  * name (ADR-244), and every chunk is sent under it. A
  * refusal stops the step as generation's stop does (ADR-111): one line at error level, the step failed, no
  * exception thrown, and no run minted. Where a gate is shut nothing is sent, so nothing is asked of Ollama.
@@ -81,7 +79,7 @@ class EmbeddingScoringTasklet implements Tasklet {
     private final HybridChunker hybridChunker;
     private final ChunkEmbedder chunkEmbedder;
     private final UnusableSeeds unusableSeeds;
-    private final OllamaClient ollamaClient;
+    private final ModelPull modelPull;
     private final ExtractionCacheKeys cacheKeys;
 
     EmbeddingScoringTasklet(
@@ -94,7 +92,7 @@ class EmbeddingScoringTasklet implements Tasklet {
             HybridChunker hybridChunker,
             ChunkEmbedder chunkEmbedder,
             UnusableSeeds unusableSeeds,
-            OllamaClient ollamaClient,
+            ModelPull modelPull,
             JdbcTemplate jdbcTemplate) {
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
@@ -105,7 +103,7 @@ class EmbeddingScoringTasklet implements Tasklet {
         this.hybridChunker = hybridChunker;
         this.chunkEmbedder = chunkEmbedder;
         this.unusableSeeds = unusableSeeds;
-        this.ollamaClient = ollamaClient;
+        this.modelPull = modelPull;
         this.cacheKeys = new ExtractionCacheKeys(jdbcTemplate);
     }
 
@@ -123,7 +121,7 @@ class EmbeddingScoringTasklet implements Tasklet {
 
         // Before either run is resolved, so a refusal mints none (ADR-202 section 2), and once, so every
         // chunk is sent under the name that was checked.
-        Optional<String> refusal = LocalOllamaModel.refusalOf(modelName, ollamaClient);
+        Optional<String> refusal = modelPull.refusalOf("Stage 5c (embedding scoring)", modelName);
         if (refusal.isPresent()) {
             stopTheStep(contribution, chunkContext, modelName, refusal.get());
             return RepeatStatus.FINISHED;

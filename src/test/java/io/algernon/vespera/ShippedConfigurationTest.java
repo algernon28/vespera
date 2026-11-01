@@ -84,6 +84,15 @@ class ShippedConfigurationTest {
     /** The datasource URL, and the only place the database lock wait is set (ADR-127). */
     private static final String DATASOURCE_URL = "spring.datasource.url";
 
+    /** Whether a model Ollama does not serve is pulled at the step that needs it (ADR-329 §9). */
+    private static final String MODELS_PULL = "vespera.models.pull";
+
+    /** How long a pull may go without moving (ADR-329 §6). */
+    private static final String MODELS_PULL_STALLED_AT_MOST = "vespera.models.pull-stalled-at-most";
+
+    /** Ten minutes, as the shipped file writes it. */
+    private static final String PULL_STALLED_AT_MOST = "600s";
+
     /**
      * Five minutes, in milliseconds: the lock wait the shipped configuration names. Named here
      * because the claim below states the number and a reader has to be told where it comes from.
@@ -159,6 +168,27 @@ class ShippedConfigurationTest {
                 () -> assertThat(properties.get(EMBEDDING_MODEL))
                         .asString()
                         .isEqualTo(THE_SHIPPED_EMBEDDING_MODEL));
+    }
+
+    /**
+     * ADR-329 §6 and §9: the shipped file carries the two settings of a pull, with the values {@code ModelPullSettings}
+     * takes where nothing sets them, so an operator reading it sees what applies.
+     */
+    @Test
+    @Story("A model Ollama does not serve is pulled")
+    @DisplayName("The shipped configuration pulls a missing model, and gives a pull up after ten minutes without moving")
+    @Issue("669")
+    @Link(name = "ADR-329", url = Adr.A_MODEL_OLLAMA_DOES_NOT_SERVE_IS_PULLED_AT_THE_STEP_THAT_NEEDS_IT, type = "adr")
+    void namesThePullsTwoSettings() throws IOException {
+        Map<Object, Object> properties = shippedProperties();
+
+        claim(
+                "vespera.models.pull is shipped true, so a model Ollama does not serve is pulled unless the operator"
+                        + " turns it off",
+                () -> assertThat(properties.get(MODELS_PULL)).asString().isEqualTo("true"));
+        claim(
+                "and vespera.models.pull-stalled-at-most is shipped as " + PULL_STALLED_AT_MOST + ", ten minutes",
+                () -> assertThat(properties.get(MODELS_PULL_STALLED_AT_MOST)).asString().isEqualTo(PULL_STALLED_AT_MOST));
     }
 
     /**

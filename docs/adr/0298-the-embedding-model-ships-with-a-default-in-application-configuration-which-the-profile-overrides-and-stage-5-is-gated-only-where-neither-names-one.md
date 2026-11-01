@@ -1,5 +1,7 @@
 # ADR-298 — The embedding model ships with a default in application configuration, `bge-m3:latest`, which the profile overrides, and stage 5 is gated only where neither names one
 
+> **Partly amended — see [ADR-329](0329-vespera-pulls-into-ollama-at-the-step-that-needs-it-a-model-ollama-does-not-serve-and-never-pulls-one-it-serves.md).** Of §6: a default nobody pulled, or a model the profile names that Ollama does not serve, is pulled at stage 5's scoring step, and refused as §6 says only where `vespera.models.pull` is false or the pull fails; `ollama pull` by hand stays the remedy where pulling is off.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Amends**: [ADR-084](0084-the-embedding-model-is-a-profile-gate-and-a-vector-carries-its-whole-embedder-identity.md), three of its parts: *"Which model is a profile key; where it is served stays configuration"*, since the name now has a shipped value in configuration and the profile key overrides it (§1); *"An unset model gates stage 5"*, narrowed to a model named neither in the profile nor in configuration (§2); and *"No default value"*, struck (§1, §7). Its embedder identity, its six-part key, its empty instruction and its re-chunk from `extraction_cache` stand whole.

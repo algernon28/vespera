@@ -275,15 +275,23 @@ Leave the sidecars up for all five invocations. They can be days apart. If they 
 
 If a sidecar stops on its own, Docker starts it again, and it does the same after your machine restarts, as long as Docker itself starts. When the document converter goes away while documents are being converted, Vespera waits up to three minutes for it to come back and then asks again about the document it was converting, so a restart of the converter does not stop the command. A document that makes the converter go away twice, or that the converter answers with an error, is marked, skipped and listed in `extraction-failures.html`, and the command carries on with the rest. If five documents in a row make it go away twice, or are turned down for the converter's own reasons, Vespera does not yet know whether the documents or the converter are to blame, so it checks the converter with a small document of its own. If the converter reads that one, the five were the documents' own doing: each is marked, skipped and listed in `extraction-failures.html`, and the command carries on. Only if the converter cannot read Vespera's own document either does the command stop, and it says so. One of your exemplars failing that way does stop the command, and the message names the file. If the converter is not back within three minutes the command stops and says so, and you can run the same command again once it is back. A sidecar you stop with `docker compose -p vespera stop` stays stopped, even across a restart of your machine, until the next `vespera run` or `vespera label --auto` starts it, unless `VESPERA_SIDECARS_START=false` is set. A command that reaches the document converter while it is still starting waits up to three minutes for it to answer, and says so in one line, rather than stopping.
 
-**Give Ollama its models.** Ollama serves only the models it has been given, and Vespera does not fetch them for you:
+**Ollama's models.** Ollama serves only the models it has been given. `vespera run` gives it the two it needs, each when it first needs it, if Ollama does not serve it yet:
 
-- The embedding model has to be there before invocation 2. That is `bge-m3:latest`, unless you set `embeddingModel`. If Ollama does not serve it, invocation 2 stops at scoring with a line naming it.
-- The model the connecting text is written with has to be there before invocation 5. That is `qwen3:8b`, unless you set `generationModel`.
+- The embedding model, at scoring in invocation 2. That is `bge-m3:latest`, unless you set `embeddingModel`.
+- The model the connecting text is written with, at the writing in invocation 5. That is `qwen3:8b`, unless you set `generationModel`.
+
+Either can be a model file on Hugging Face, named as Ollama names one, such as `hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q8_0`. Vespera pulls only a model Ollama does not serve: one it already has is never pulled again, so it cannot change under your archive. While it pulls, a line in the log and the bar on the progress page say how many megabytes it has. A pull of several gigabytes takes as long as your connection needs; Vespera gives up only when the pull has gone ten minutes without getting any further, and `vespera.models.pull-stalled-at-most` changes those ten minutes.
+
+If a pull fails, the command stops before it sends anything to the model, and its line names the model and quotes what Ollama said: a name it does not know, a network it cannot reach, a drive that is full. Fix what that says and run the same command again. A pull that stops part-way, for that reason or because you stopped the command, leaves no half-model behind: Ollama serves the model only once all of it has arrived, and the next pull carries on from what Ollama kept.
+
+To pull them yourself instead, set `VESPERA_MODELS_PULL=false`. A model Ollama does not serve then stops the command at the step that needs it, with a line naming it. These are the lines:
 
 ```
 docker compose -p vespera exec ollama ollama pull bge-m3:latest
 docker compose -p vespera exec ollama ollama pull qwen3:8b
 ```
+
+`vespera label --auto` pulls nothing. It answers the questions with `qwen3:8b`, whatever `generationModel` says, and `vespera run` pulls that model only at invocation 5 and only where `generationModel` is unset; so before you first use it, pull `qwen3:8b` with the second line above.
 
 Pulling the embedding model again can change it, because a name can be published again with other contents. Vespera then treats it as another model: the next `vespera run` embeds and scores every document again, the relevance threshold removes nothing until the sample is answered again from the new label file, and the arrangement has to be approved again. Pull it again only when you mean to, and not while `vespera run` is computing vectors: if the model changes under that step, the command stops there with a line saying so, and the next `vespera run` embeds again, storing the vectors that are missing under the model as it is now.
 
@@ -309,7 +317,7 @@ On Windows it is `.\mvnw.cmd -Pheadless "-Dvespera.args=run D:\corpus"`, the quo
 docker compose -p vespera stop
 ```
 
-This keeps the models you gave Ollama. `docker compose -p vespera down` removes the containers and keeps the models too, because they live in a volume of their own. `docker compose -p vespera down -v` removes that volume as well, and the models with it. After that, the same `ollama pull` lines as above give them back.
+This keeps the models you gave Ollama. `docker compose -p vespera down` removes the containers and keeps the models too, because they live in a volume of their own. `docker compose -p vespera down -v` removes that volume as well, and the models with it. After that, `vespera run` pulls them again when it needs them, or the same `ollama pull` lines as above give them back.
 
 When `compose.yaml` has changed since you started the sidecars, for example after you update your checkout, `docker compose -p vespera up -d --build`, or the `up` line above that names both files if you started them with both, replaces the container of each service whose part of `compose.yaml` or `compose.gpu.yaml` changed. Ollama's models stay. `docker compose -p vespera exec ollama ollama list` shows which it has. Nothing in your working directory is lost.
 
