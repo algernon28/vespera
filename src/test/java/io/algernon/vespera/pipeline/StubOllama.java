@@ -32,12 +32,16 @@ import tools.jackson.databind.json.JsonMapper;
  * <p><b>{@code /api/pull}</b> answers as its {@code PullHandler} does: a status and a body before any line, as for a
  * name it cannot parse; or one {@code ProgressResponse} per line, each sent after a pause of its own, and then the
  * answer ended, or kept open and silent until the client goes; or one line sent again and again until the client goes.
+ * It can also answer as a connection that fails would: no status at all, silent until the client goes; a status that
+ * is not 2xx and the start of a body whose rest never comes; or lines and then the connection dropped, the answer
+ * left unended.
  * A line whose {@code status} is {@code success} first makes the name served, or runs the callback a test gave in
  * its place, so a question asked once the client has read that line finds it served, as a real pull's written
  * manifest is.
  *
  * <p>Every request is recorded with its path and body, in the order they arrived. Requests are answered on threads of
- * their own, so an answer kept open holds no other question up; {@link #close} stops them.
+ * their own, so an answer kept open holds no other question up; {@link #close} stops them. Where an answer that
+ * writes finds the client gone, the name is recorded as one whose client went away.
  */
 final class StubOllama implements AutoCloseable {
 
@@ -53,7 +57,7 @@ final class StubOllama implements AutoCloseable {
     record Line(Duration after, String json) {}
 
     /** How {@code /api/pull} answers for one name. */
-    sealed interface PullAnswer permits Streamed, Repeated, Refused {}
+    sealed interface PullAnswer permits Streamed, Repeated, Refused, Unanswered, RefusedThenSilent, Dropped {}
 
     /** The lines in order, and then the answer ended, or kept open and silent while {@code keptOpen}. */
     record Streamed(List<Line> lines, boolean keptOpen) implements PullAnswer {}
@@ -64,6 +68,18 @@ final class StubOllama implements AutoCloseable {
     /** {@code status} and {@code body} before any line. */
     record Refused(int status, String body) implements PullAnswer {}
 
+    /** No status and no line: the request is read and then nothing is sent until the client goes. */
+    record Unanswered() implements PullAnswer {}
+
+    /**
+     * {@code status}, a length that is {@code body}'s, and {@code body}'s first {@code sent} bytes; the rest never
+     * comes, and the answer stays open until the client goes.
+     */
+    record RefusedThenSilent(int status, String body, int sent) implements PullAnswer {}
+
+    /** The lines in order, each sent at once, and then the connection closed with the answer unended. */
+    record Dropped(List<Line> lines) implements PullAnswer {}
+
     private final HttpServer server;
     private final ExecutorService threads = Executors.newCachedThreadPool();
     private final List<Request> requests = new CopyOnWriteArrayList<>();
@@ -71,6 +87,7 @@ final class StubOllama implements AutoCloseable {
     private final Set<String> remote = ConcurrentHashMap.newKeySet();
     private final Map<String, Integer> showStatus = new ConcurrentHashMap<>();
     private final Map<String, PullAnswer> pulls = new ConcurrentHashMap<>();
+    private final Set<String> clientWentAway = ConcurrentHashMap.newKeySet();
     private volatile Consumer<String> onPulled = served::add;
 
     private StubOllama() throws IOException {
@@ -131,6 +148,18 @@ final class StubOllama implements AutoCloseable {
         return requests.stream().filter(request -> request.path().equals(path)).toList();
     }
 
+    /**
+     * Whether, within {@code within}, an answer to a pull of {@code name} found its client gone: a write failed because
+     * the connection was closed at the other end.
+     */
+    boolean sawTheClientGo(String name, Duration within) {
+        long until = System.nanoTime() + within.toNanos();
+        while (!clientWentAway.contains(name) && System.nanoTime() < until) {
+            pause(Duration.ofMillis(20));
+        }
+        return clientWentAway.contains(name);
+    }
+
     /** Drops every script and record: nothing is served and no pull is scripted. */
     void forget() {
         requests.clear();
@@ -138,6 +167,7 @@ final class StubOllama implements AutoCloseable {
         remote.clear();
         showStatus.clear();
         pulls.clear();
+        clientWentAway.clear();
         onPulled = served::add;
     }
 
@@ -171,7 +201,10 @@ final class StubOllama implements AutoCloseable {
         switch (answer) {
             case Refused refused -> answer(exchange, refused.status(), refused.body());
             case Streamed streamed -> stream(exchange, name, streamed);
-            case Repeated repeated -> repeat(exchange, repeated);
+            case Repeated repeated -> repeat(exchange, name, repeated);
+            case Unanswered unanswered -> pause(AT_MOST);
+            case RefusedThenSilent refused -> refuseThenFallSilent(exchange, refused);
+            case Dropped dropped -> drop(exchange, dropped);
         }
     }
 
@@ -195,7 +228,7 @@ final class StubOllama implements AutoCloseable {
         }
     }
 
-    private void repeat(HttpExchange exchange, Repeated repeated) throws IOException {
+    private void repeat(HttpExchange exchange, String name, Repeated repeated) throws IOException {
         exchange.getResponseHeaders().add("Content-Type", "application/x-ndjson");
         exchange.sendResponseHeaders(200, 0);
         long until = System.nanoTime() + AT_MOST.toNanos();
@@ -205,9 +238,36 @@ final class StubOllama implements AutoCloseable {
                 body.flush();
                 pause(repeated.every());
             }
-        } catch (IOException clientWentAway) {
+        } catch (IOException closed) {
             // the client closed the connection, which is how a pull is given up
+            clientWentAway.add(name);
         }
+    }
+
+    private static void refuseThenFallSilent(HttpExchange exchange, RefusedThenSilent refused) throws IOException {
+        byte[] bytes = refused.body().getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+        exchange.sendResponseHeaders(refused.status(), bytes.length);
+        OutputStream body = exchange.getResponseBody();
+        body.write(bytes, 0, Math.min(refused.sent(), bytes.length));
+        body.flush();
+        pause(AT_MOST);
+        // the answer is left short: the server closes the connection when the exchange ends
+    }
+
+    /**
+     * Sends the lines and then throws, which makes the server close the connection with the chunked answer unended,
+     * as a connection that drops does.
+     */
+    private static void drop(HttpExchange exchange, Dropped dropped) throws IOException {
+        exchange.getResponseHeaders().add("Content-Type", "application/x-ndjson");
+        exchange.sendResponseHeaders(200, 0);
+        OutputStream body = exchange.getResponseBody();
+        for (Line line : dropped.lines()) {
+            body.write((line.json() + "\n").getBytes(StandardCharsets.UTF_8));
+        }
+        body.flush();
+        throw new IOException("the stub drops the connection");
     }
 
     private String recorded(HttpExchange exchange) throws IOException {
