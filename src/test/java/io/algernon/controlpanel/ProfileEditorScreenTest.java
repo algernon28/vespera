@@ -69,7 +69,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("ADR-330: awaits /profile's one form, its typed controls and values in use, the repair, and the folder a save makes")
+@Disabled("awaits the profile page's one form, its typed controls and values in use, the repair, and the folder a save makes")
 class ProfileEditorScreenTest {
 
     /** The file the jar writes for the control panel, in the working directory. */

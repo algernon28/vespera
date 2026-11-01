@@ -43,7 +43,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Feature("Resolution")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
 @Link(name = "ADR-081", url = Adr.MINHASH_RETRIEVES_SHINGLE_SETS_JUDGE, type = "adr")
-@Disabled("ADR-330: awaits the refusal of a preset no run can be made under")
+@Disabled("awaits the refusal of a preset no run can be made under")
 class MinHashBandsThatDoNotMakeItsPermutationsAreRefusedInvocationTest {
 
     /** The key named by configuration. */

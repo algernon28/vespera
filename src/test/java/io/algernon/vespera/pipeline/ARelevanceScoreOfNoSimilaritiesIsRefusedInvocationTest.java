@@ -42,7 +42,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Feature("Relevance scoring")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
 @Link(name = "ADR-020", url = Adr.RELEVANCE_SCORING_FUNCTION, type = "adr")
-@Disabled("ADR-330: awaits the refusal of a preset no run can be made under")
+@Disabled("awaits the refusal of a preset no run can be made under")
 class ARelevanceScoreOfNoSimilaritiesIsRefusedInvocationTest {
 
     /** The key named by configuration. */

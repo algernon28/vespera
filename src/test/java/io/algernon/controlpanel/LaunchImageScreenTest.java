@@ -31,12 +31,13 @@ import org.junit.jupiter.api.io.TempDir;
  * The launch page, of the values that are this machine's and not the profile's (ADR-330 §11, §12): the Docling image is
  * checked against what the jar last used where no launch value names one, the image the sidecar runs and the two the
  * jar's compose files build are offered, and the keys of {@code application.yaml} the control panel does not edit are
- * shown with where each came from. The image stays a launch value, written into no file of the working directory.
+ * shown with where each came from. The image stays a launch value, which the control panel writes into no file of the
+ * working directory; the jar's own file says it as {@code environment}, and the extractor identity as ever.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("ADR-330: awaits the launch page's check of the image against the jar's file, its list of images, and machine-values")
+@Disabled("awaits the launch page's check of the image against the file the jar writes, its list of images, and this machine's values")
 class LaunchImageScreenTest {
 
     /** The file the jar writes for the control panel, in the working directory. */
@@ -204,6 +205,21 @@ class LaunchImageScreenTest {
                     () -> assertThat(page.document().select("form").stream()
                                     .flatMap(each -> controlNames(each).stream()).toList())
                             .doesNotContainAnyElementsOf(THIS_MACHINES_VALUES.stream().map(List::getFirst).toList()));
+        }
+    }
+
+    @Test
+    @Story("The operator sees what this machine runs with")
+    @DisplayName("A value the jar's file does not name is left out of what this machine runs with")
+    void aValueTheFileDoesNotNameIsLeftOutOfWhatThisMachineRunsWith() throws IOException {
+        Path work = Files.createDirectories(folder.resolve("work"));
+        theJarSaid(work, "vespera.progress-interval=5s\nvespera.progress-interval.source=shipped\n");
+        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus(), work))) {
+            Page page = screens.browser().page();
+
+            claim("the one value the file names is the one listed",
+                    () -> assertThat(byId(page, "machine-values").select("li").eachAttr("data-key"))
+                            .containsExactly("vespera.progress-interval"));
         }
     }
 

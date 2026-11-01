@@ -3,6 +3,8 @@ package io.algernon.controlpanel;
 import static io.algernon.vespera.TestSteps.claim;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -11,10 +13,18 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.UserPrincipal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,7 +32,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * What ADR-330 keeps of the control panel as it stands, and building the record could undo: each passes today, carries
- * no {@code @Disabled}, and goes red where §5, §11 or §13 is built the wrong way.
+ * no {@code @Disabled}, and goes red where §5, §7, §11 or §13 is built the wrong way.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -31,6 +41,15 @@ class ProfileEditorGuardsScreenTest {
 
     /** The image picked, which is only ever a launch value. */
     private static final String AN_IMAGE = "vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0-r2";
+
+    /** What is written, in the form the jar writes it. */
+    private static final String A_PROFILE = """
+            ---
+            extractionAttempt:
+              value: "2"
+              provenance: "a second attempt"
+              measurement: null
+            """;
 
     @TempDir
     Path folder;
@@ -71,7 +90,7 @@ class ProfileEditorGuardsScreenTest {
 
     @Test
     @Story("The operator repairs a profile not in the jar's form")
-    @DisplayName("The repair's address refuses a form posted from another site, before anything handles it")
+    @DisplayName("The repair's address answers a form posted from another site with a refusal")
     void theRepairsAddressRefusesAFormFromAnotherSite() throws IOException {
         Path work = Files.createDirectories(folder.resolve("work"));
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus(), work))) {
@@ -84,10 +103,41 @@ class ProfileEditorGuardsScreenTest {
         }
     }
 
+    /**
+     * ADR-330 §7's rule for a folder that already exists on a file system of access control lists: its owner is compared
+     * and who else may write in it is not, because every folder of an ordinary drive hands that right down, each working
+     * directory {@code vespera run} has made among them. Comparing it would refuse them all. Aborted where the file
+     * system has POSIX permissions, which say otherwise.
+     */
+    @Test
+    @Story("The first save creates the profile")
+    @DisplayName("Where folders carry access control lists, a working folder of this user's stays one the control panel writes in, though others may write there too")
+    void aWorkingFolderOfThisUsersThatOthersMayWriteInIsStillWrittenIn() throws IOException {
+        assumeFalse(FileSystems.getDefault().supportedFileAttributeViews().contains("posix"),
+                "the file system has POSIX permissions, which refuse a folder others may write in");
+        Path work = Files.createDirectories(folder.resolve("work"));
+        AclFileAttributeView acl = Files.getFileAttributeView(work, AclFileAttributeView.class);
+        assumeTrue(acl != null, "the file system holds no access control lists");
+        UserPrincipal everyone = work.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName("Everyone");
+        List<AclEntry> wider = new ArrayList<>(acl.getAcl());
+        wider.add(AclEntry.newBuilder().setType(AclEntryType.ALLOW).setPrincipal(everyone)
+                .setPermissions(AclEntryPermission.ADD_FILE, AclEntryPermission.WRITE_DATA).build());
+        acl.setAcl(wider);
+
+        Optional<String> refused = new WorkingDirectoryWrite(() -> false, System.getProperty("user.name"))
+                .write(work, ProfileEdit.FILE_NAME, current -> A_PROFILE);
+
+        claim("the write is not refused",
+                () -> assertThat(refused).isEmpty());
+        claim("and the file is written",
+                () -> assertThat(work.resolve(ProfileEdit.FILE_NAME)).hasContent(A_PROFILE));
+    }
+
     @Test
     @Story("The operator is not caught by an image the sidecar does not run")
-    @DisplayName("The image picked is kept as a launch value as an invocation starts, and no file of the working folder holds it")
-    void theImagePickedIsHeldAsALaunchValueAndInNoFileOfTheWorkingDirectory() throws IOException, InterruptedException {
+    @DisplayName("The image picked is kept as a launch value as an invocation starts, and the control panel writes it into no file of the working folder")
+    void theImagePickedIsHeldAsALaunchValueAndTheControlPanelWritesItInNoFileOfTheWorkingDirectory()
+            throws IOException, InterruptedException {
         Path work = Files.createDirectories(folder.resolve("work"));
         ScreenServer.childWill(work, "exit 0 the closing line");
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus(), work))) {
@@ -100,7 +150,8 @@ class ProfileEditorGuardsScreenTest {
             });
             claim("the launch values' own file holds it, for the next start",
                     () -> assertThat(kept.doclingImage()).isEqualTo(AN_IMAGE));
-            claim("and no file of the working folder does",
+            claim("and the control panel wrote it into no file of the working folder: the child here is a stand-in that"
+                            + " writes none of its own, so what the jar's own file says of the image is not looked at",
                     () -> assertThat(filesOf(work)).noneMatch(file -> holds(file, AN_IMAGE)));
         }
     }

@@ -51,7 +51,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Epic("Relevance")
 @Feature("Clustering")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("ADR-330: awaits the neighbours in the graph")
+@Disabled("awaits the configured number of neighbours in the graph")
 class TheNeighboursReachTheGraphInvocationTest {
 
     private static final int DOCUMENTS = 4;

@@ -52,7 +52,7 @@ import org.springframework.test.context.TestPropertySource;
 @Epic("Pipeline")
 @Feature("What a piece of work is identified by")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("ADR-330: awaits the refusal of a preset no run can be made under")
+@Disabled("awaits the refusal of a preset no run can be made under")
 class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
 
     /** The stage whose run the clustering and relevance presets enter, and the one before it. */

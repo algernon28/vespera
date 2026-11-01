@@ -40,7 +40,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Epic("Relevance")
 @Feature("Clustering")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("ADR-330: awaits the two presets in the scoring run's identity")
+@Disabled("awaits the two clustering presets in the scoring run's identity")
 class TheClusteringPresetsFromConfigurationInvocationTest {
 
     private static final int DOCUMENTS = 3;
