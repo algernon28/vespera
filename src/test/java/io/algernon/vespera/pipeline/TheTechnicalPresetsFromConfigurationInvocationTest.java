@@ -35,8 +35,12 @@ import org.yaml.snakeyaml.Yaml;
  * once for the class, and each test reads one stage's run of it.
  *
  * <p>Every value here differs from the shipped one and is one the record lets a run be made under. The corpus converts
- * to the one scripted text, whose shingles are boilerplate at every window, so the redundancy values decide nothing
- * here and the three documents reach scoring; their vectors are alike, so their scores are, and they fall in one band.
+ * to the one scripted text, whose shingles are boilerplate at every window, and their vectors are alike, so this class
+ * holds what each run's identity says and the one band the sample falls in. That each number works in the step it names
+ * is the business of {@code TheShingleWindowAndMinHashReachTheirRowsInvocationTest}, {@code
+ * AnotherCutLeavesThePairInvocationTest}, {@code AScoreIsTheMeanOfTheNumberConfiguredInvocationTest} and {@code
+ * TheTimeoutsInARowConfiguredSetAnOccurrenceAsideInvocationTest}; that the bands divide the draw is {@code
+ * TheSampleBandsReachTheDrawInvocationTest}'s.
  *
  * <p>{@code RunIdentityGoldenTest} holds the text of every run's identity with the presets at their shipped values, and
  * passes unchanged once they are presets: that is the claim that no recorded configuration moves.
@@ -167,7 +171,7 @@ class TheTechnicalPresetsFromConfigurationInvocationTest {
         claim("and its recorded configuration ends with " + CONFIGURED_TIMEOUTS_IN_A_ROW + " timeouts in a row"
                         + " and shingles of " + CONFIGURED_SHINGLE_WORDS + " words",
                 () -> assertThat(extraction).singleElement().asString().endsWith(",\"timeoutsInARow\":" + CONFIGURED_TIMEOUTS_IN_A_ROW
-                        + ",\"shingleParameters\":\"word:" + CONFIGURED_SHINGLE_WORDS + "\"}"));
+                        + ",\"shingleIdentity\":\"word:" + CONFIGURED_SHINGLE_WORDS + "\"}"));
     }
 
     @Test
@@ -188,7 +192,7 @@ class TheTechnicalPresetsFromConfigurationInvocationTest {
 
     @Test
     @Story("How relevance is scored and sampled is a preset")
-    @DisplayName("The number of similarities and the sample named by configuration end the scoring run's identity, name the scale of the questions, and reach the draw")
+    @DisplayName("The number of similarities and the sample named by configuration end the scoring run's identity, name the scale of the questions, and reach the number asked from a band")
     void theRelevancePresetsNameTheScoringRunAndReachItsSample() throws IOException {
         claim("the one scoring run's recorded configuration ends with a score of the top " + CONFIGURED_TOP_SIMILARITIES
                         + " similarity, " + CONFIGURED_BANDS_OF_THE_SAMPLE + " bands and " + CONFIGURED_PER_BAND

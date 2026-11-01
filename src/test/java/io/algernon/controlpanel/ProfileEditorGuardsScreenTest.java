@@ -3,6 +3,7 @@ package io.algernon.controlpanel;
 import static io.algernon.vespera.TestSteps.claim;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.abort;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -21,6 +22,7 @@ import java.nio.file.attribute.AclEntryPermission;
 import java.nio.file.attribute.AclEntryType;
 import java.nio.file.attribute.AclFileAttributeView;
 import java.nio.file.attribute.UserPrincipal;
+import java.nio.file.attribute.UserPrincipalNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -118,7 +120,13 @@ class ProfileEditorGuardsScreenTest {
         Path work = Files.createDirectories(folder.resolve("work"));
         AclFileAttributeView acl = Files.getFileAttributeView(work, AclFileAttributeView.class);
         assumeTrue(acl != null, "the file system holds no access control lists");
-        UserPrincipal everyone = work.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName("Everyone");
+        UserPrincipal everyone;
+        try {
+            everyone = work.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName("Everyone");
+        } catch (UserPrincipalNotFoundException anotherLanguagesName) {
+            abort("this system names the group of everyone in another language, and no SID can be looked up in java.base");
+            return;
+        }
         List<AclEntry> wider = new ArrayList<>(acl.getAcl());
         wider.add(AclEntry.newBuilder().setType(AclEntryType.ALLOW).setPrincipal(everyone)
                 .setPermissions(AclEntryPermission.ADD_FILE, AclEntryPermission.WRITE_DATA).build());

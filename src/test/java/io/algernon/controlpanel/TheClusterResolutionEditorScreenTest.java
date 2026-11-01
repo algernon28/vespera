@@ -45,8 +45,7 @@ class TheClusterResolutionEditorScreenTest {
     @DisplayName("How finely documents are grouped is a number of any step, drawn as a floor is")
     void theClusterResolutionsControlIsANumberOfAnyStep() throws IOException {
         try (ScreenServer screens = start(workingDirectory())) {
-            Element control = form(screens.browser().go("/profile").page(), "profile")
-                    .selectFirst("[name=" + CLUSTER_RESOLUTION + "]");
+            Element control = form(screens.browser().go("/profile").page(), CLUSTER_RESOLUTION).selectFirst("[name=value]");
 
             claim("a number control of any step with no range, since the jar reads a number above 0 and the page's checks"
                             + " are the server's",
@@ -73,7 +72,7 @@ class TheClusterResolutionEditorScreenTest {
             claim("the page says the jar cannot read it, though it is a number",
                     () -> assertThat(inUse(page)).containsExactly("0", "unreadable"));
             claim("and the field holds it as written",
-                    () -> assertThat(form(page, "profile").selectFirst("[name=" + CLUSTER_RESOLUTION + "]").val())
+                    () -> assertThat(form(page, CLUSTER_RESOLUTION).selectFirst("[name=value]").val())
                             .isEqualTo("0"));
         }
     }
@@ -100,13 +99,13 @@ class TheClusterResolutionEditorScreenTest {
                     () -> assertThat(byId(page, "report-" + CLUSTER_RESOLUTION).select("a").eachAttr("href"))
                             .containsExactly("/report/cluster-sizes.html"));
 
-            Page refused = browser.press("profile", "save", Map.of(CLUSTER_RESOLUTION, "0",
-                    CLUSTER_RESOLUTION + ".provenance", "no groups at all")).page();
+            Page refused = browser.press(CLUSTER_RESOLUTION, "save", Map.of("value", "0",
+                    "provenance", "no groups at all")).page();
             claim("zero, which groups nothing, is refused",
-                    () -> assertThat(refused.document().select("#refused-" + CLUSTER_RESOLUTION)).hasSize(1));
+                    () -> assertThat(byId(refused, "outcome").text()).contains(CLUSTER_RESOLUTION + " is not saved"));
 
-            browser.go("/profile").press("profile", "save", Map.of(CLUSTER_RESOLUTION, "2.5",
-                    CLUSTER_RESOLUTION + ".provenance", "read off cluster-sizes.html: the pages run too long"));
+            browser.go("/profile").press(CLUSTER_RESOLUTION, "save", Map.of("value", "2.5",
+                    "provenance", "read off cluster-sizes.html: the pages run too long"));
             claim("and a number above it is written as any value is",
                     () -> assertThat(Files.readString(work.resolve(ProfileEdit.FILE_NAME), UTF_8))
                             .contains(CLUSTER_RESOLUTION + ":\n  value: \"2.5\"\n"

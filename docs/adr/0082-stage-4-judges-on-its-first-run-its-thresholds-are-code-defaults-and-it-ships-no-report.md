@@ -1,6 +1,6 @@
 # ADR-082 — Stage 4 judges on its first run; its thresholds are code defaults, and it ships no report
 
-> **Partly amended — see [ADR-330](0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** The two cuts and the containment path's two counts, 0.80, 0.95, 32 and 24, are presets in `application.yaml` at those values: what ships is changed by a record, and a value a machine names in their place enters stage 4's run, so that a run says which cuts judged it, where *"No new identity column is needed for them"* left that to the version. They are still no profile keys. Whether stage 4 ships a report now that its cuts can be moved is left open there. The rest of this record stands.
+> **Partly amended — see [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** The two cuts and the containment path's two counts, 0.80, 0.95, 32 and 24, are presets in `application.yaml` at those values: what ships is changed by a record, and a value a machine names in their place enters stage 4's run, so that a run says which cuts judged it, where *"No new identity column is needed for them"* left that to the version. They are still no profile keys. Whether stage 4 ships a report now that its cuts can be moved is left open there. The rest of this record stands.
 
 - **Date**: 2026-09-06
 - **Status**: accepted

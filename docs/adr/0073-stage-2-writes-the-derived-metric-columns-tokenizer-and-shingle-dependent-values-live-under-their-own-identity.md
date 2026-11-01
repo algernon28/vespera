@@ -1,6 +1,6 @@
 # ADR-073 — Stage 2 writes the derived-metric columns; tokenizer- and shingle-dependent values live under their own identity
 
-> **Partly amended — see [ADR-330](0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** *"Granularity is a code default, not a profile key"*: it is the preset `vespera.redundancy.shingle-words` in `application.yaml`, shipping 5, and still no profile key. Its identity stays in the row's key, and enters stage 2's run only where it is not `word:5`. The rest of this record stands.
+> **Partly amended — see [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** *"Granularity is a code default, not a profile key"*: it is the preset `vespera.redundancy.shingle-words` in `application.yaml`, shipping 5, and still no profile key. Its identity stays in the row's key, and enters stage 2's run only where it is not `word:5`. The rest of this record stands.
 
 - **Date**: 2026-09-03
 - **Status**: accepted

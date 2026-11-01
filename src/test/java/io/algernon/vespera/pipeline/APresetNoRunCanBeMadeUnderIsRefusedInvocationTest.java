@@ -11,12 +11,9 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Properties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
@@ -36,15 +33,15 @@ import org.springframework.test.context.TestPropertySource;
 
 /**
  * Every bound of the table of refusals in ADR-330 §9 not already held by a class of its own: a value named by
- * configuration that no run can be made under stops the invocation where the run it enters is minted, in the record's
- * one line and with no stack trace, the stage before having its run and the stage itself none.
+ * configuration that no run can be made under stops {@code vespera run} at its start, in the record's one line and with
+ * no stack trace, no run made.
  *
  * <p>{@code AnOcrPresetTheConverterWouldResolveIsRefusedInvocationTest}, {@code
  * MinHashBandsThatDoNotMakeItsPermutationsAreRefusedInvocationTest} and {@code
  * ARelevanceScoreOfNoSimilaritiesIsRefusedInvocationTest} hold {@code auto}, bands times rows and no similarities. Each
  * class nested here is a context of its own, because the configuration is a property of the context; what each adds is
  * its value and its line. A value that is no number stands among them: it is refused by the same line, so it reaches
- * the run's mint and is not a failure of the context to bind it.
+ * the check at the start and is not a failure of the context to bind it.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -55,15 +52,6 @@ import org.springframework.test.context.TestPropertySource;
 @Disabled("awaits the refusal of a preset no run can be made under")
 class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
 
-    /** The stage whose run the clustering and relevance presets enter, and the one before it. */
-    private static final List<String> SCORING = List.of("embedding-scoring", "seed-measurement");
-
-    /** The stage whose run the converter's presets and the shingle window enter, and the one before it. */
-    private static final List<String> EXTRACTION = List.of("extraction", "byte-level-reduction");
-
-    /** The stage whose run MinHash's numbers and the cuts enter, and the one before it. */
-    private static final List<String> REDUNDANCY = List.of("content-redundancy", "content-census");
-
     /** What a stack frame looks like in the output, which a refusal in one line does not print. */
     private static final String A_STACK_FRAME = "\tat ";
 
@@ -73,9 +61,9 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
     /** The model the scripted embedder answers for. */
     private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 
-    /** The line of a count that must be a whole number of 1 or more. */
+    /** The line of a count that must be a whole number from 1 to the most an int holds. */
     private static String aWholeNumber(String key, String value) {
-        return key + " is " + value + ": a whole number of 1 or more";
+        return key + " is " + value + ": a whole number from 1 to 2147483647";
     }
 
     /** The line of a cut that must be above 0 and at most 1. */
@@ -133,13 +121,10 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
         /** The record's line for this value, word for word. */
         abstract String theLine();
 
-        /** The stage whose run the value would enter, then the stage before it. */
-        abstract List<String> stages();
-
         @Test
         @Story("A value no run can be made under stops the invocation")
-        @DisplayName("It stops the invocation in one line, before anything is recorded under the run it would enter")
-        void stopsInOneLineBeforeItsRun(CapturedOutput output) {
+        @DisplayName("It stops the invocation in one line, at its start, before anything is walked or recorded")
+        void stopsInOneLineAtTheStart(CapturedOutput output) {
             everyGateOpen(profileStore);
             int before = output.getAll().length();
 
@@ -153,14 +138,9 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
                         assertThat(said.lines().filter(line -> line.contains(theLine())).toList()).hasSize(1);
                         assertThat(said).doesNotContain(A_STACK_FRAME);
                     });
-            claim("the stage before has its run and the refusing stage has none, so the value stopped the invocation"
-                            + " where its run would have been made, and nothing was recorded under it",
-                    () -> assertThat(List.of(runsOf(stages().get(1)), runsOf(stages().get(0)))).containsExactly(1, 0));
-        }
-
-        private int runsOf(String stage) {
-            Integer runs = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run WHERE stage = ?", Integer.class, stage);
-            return runs == null ? 0 : runs;
+            claim("no run was made and no walk begun, so the value stopped the invocation at its start and nothing was"
+                            + " recorded",
+                    () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run", Integer.class)).isZero());
         }
     }
 
@@ -183,10 +163,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return "vespera.clustering.resolution is 0: a number above 0";
         }
 
-        @Override
-        List<String> stages() {
-            return SCORING;
-        }
     }
 
     @Nested
@@ -198,10 +174,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return "vespera.clustering.resolution is NaN: a number above 0";
         }
 
-        @Override
-        List<String> stages() {
-            return SCORING;
-        }
     }
 
     @Nested
@@ -213,9 +185,15 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return "vespera.clustering.resolution is fine: a number above 0";
         }
 
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.clustering.neighbours=3000000000")
+    @DisplayName("More neighbours than a whole number here can hold")
+    class MoreNeighboursThanAWholeNumberHolds extends Refused {
         @Override
-        List<String> stages() {
-            return SCORING;
+        String theLine() {
+            return aWholeNumber("vespera.clustering.neighbours", "3000000000");
         }
     }
 
@@ -228,10 +206,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return aWholeNumber("vespera.clustering.neighbours", "0");
         }
 
-        @Override
-        List<String> stages() {
-            return SCORING;
-        }
     }
 
     @Nested
@@ -243,10 +217,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return aWholeNumber("vespera.clustering.neighbours", "1.5");
         }
 
-        @Override
-        List<String> stages() {
-            return SCORING;
-        }
     }
 
     @Nested
@@ -258,10 +228,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return aWholeNumber("vespera.relevance.sample.bands", "0");
         }
 
-        @Override
-        List<String> stages() {
-            return SCORING;
-        }
     }
 
     @Nested
@@ -273,10 +239,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return aWholeNumber("vespera.relevance.sample.per-band", "0");
         }
 
-        @Override
-        List<String> stages() {
-            return SCORING;
-        }
     }
 
     // ---- the extraction run
@@ -290,10 +252,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return theOcrPreset("");
         }
 
-        @Override
-        List<String> stages() {
-            return EXTRACTION;
-        }
     }
 
     @Nested
@@ -305,10 +263,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return theOcrPreset("a;b");
         }
 
-        @Override
-        List<String> stages() {
-            return EXTRACTION;
-        }
     }
 
     @Nested
@@ -320,10 +274,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return theTimeouts("1");
         }
 
-        @Override
-        List<String> stages() {
-            return EXTRACTION;
-        }
     }
 
     @Nested
@@ -335,10 +285,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return theTimeouts("5");
         }
 
-        @Override
-        List<String> stages() {
-            return EXTRACTION;
-        }
     }
 
     @Nested
@@ -350,10 +296,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return aWholeNumber("vespera.redundancy.shingle-words", "0");
         }
 
-        @Override
-        List<String> stages() {
-            return EXTRACTION;
-        }
     }
 
     // ---- the content-redundancy run
@@ -367,10 +309,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return aWholeNumber("vespera.redundancy.minhash.permutations", "0");
         }
 
-        @Override
-        List<String> stages() {
-            return REDUNDANCY;
-        }
     }
 
     @Nested
@@ -382,10 +320,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return aWholeNumber("vespera.redundancy.minhash.bands", "0");
         }
 
-        @Override
-        List<String> stages() {
-            return REDUNDANCY;
-        }
     }
 
     @Nested
@@ -397,10 +331,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return aWholeNumber("vespera.redundancy.minhash.rows-per-band", "0");
         }
 
-        @Override
-        List<String> stages() {
-            return REDUNDANCY;
-        }
     }
 
     @Nested
@@ -413,10 +343,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
                     + " to 9223372036854775807";
         }
 
-        @Override
-        List<String> stages() {
-            return REDUNDANCY;
-        }
     }
 
     @Nested
@@ -428,10 +354,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return aCut("vespera.redundancy.near-duplicate-jaccard", "0");
         }
 
-        @Override
-        List<String> stages() {
-            return REDUNDANCY;
-        }
     }
 
     @Nested
@@ -443,10 +365,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return aCut("vespera.redundancy.near-duplicate-jaccard", "1.5");
         }
 
-        @Override
-        List<String> stages() {
-            return REDUNDANCY;
-        }
     }
 
     @Nested
@@ -458,10 +376,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return aCut("vespera.redundancy.containment-index", "0");
         }
 
-        @Override
-        List<String> stages() {
-            return REDUNDANCY;
-        }
     }
 
     @Nested
@@ -473,10 +387,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return aCut("vespera.redundancy.containment-index", "1.5");
         }
 
-        @Override
-        List<String> stages() {
-            return REDUNDANCY;
-        }
     }
 
     @Nested
@@ -488,10 +398,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
             return aWholeNumber("vespera.redundancy.rare-shingle-sample", "0");
         }
 
-        @Override
-        List<String> stages() {
-            return REDUNDANCY;
-        }
     }
 
     @Nested
@@ -504,10 +410,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
                     + " vespera.redundancy.rare-shingle-sample, 32";
         }
 
-        @Override
-        List<String> stages() {
-            return REDUNDANCY;
-        }
     }
 
     @Nested
@@ -520,10 +422,6 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
                     + " vespera.redundancy.rare-shingle-sample, 32";
         }
 
-        @Override
-        List<String> stages() {
-            return REDUNDANCY;
-        }
     }
 
     // ---- where nothing is refused, or the file has already been written
@@ -573,13 +471,13 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
         }
     }
 
-    /** An invocation stopped here has started, so it has said what it would use (ADR-330 §1). */
+    /** An invocation refused at its start writes no file (ADR-330 §1). */
     @Nested
     @TestPropertySource(properties = "vespera.relevance.top-similarities=0")
-    @DisplayName("A value refused at its run")
+    @DisplayName("A value refused at the start")
     @Epic("Pipeline")
     @Feature("What a piece of work is identified by")
-    class AValueRefusedAtItsRunHasBeenWritten {
+    class AValueRefusedAtTheStartWritesNoFile {
 
         @Autowired
         private VesperaCli cli;
@@ -589,21 +487,19 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
 
         @Test
         @Story("A value no run can be made under stops the invocation")
-        @DisplayName("It is in the file of values the jar writes, which the invocation wrote as it started")
-        void theFileSaysTheValueThatStoppedIt() throws IOException {
+        @DisplayName("The file of values the jar writes stays as the last invocation left it")
+        void leavesTheFileAsItWas() throws IOException {
             everyGateOpen(profileStore);
-            Files.deleteIfExists(workingDirectory.resolve("effective-values.properties"));
+            Path file = workingDirectory.resolve("effective-values.properties");
+            Files.writeString(file, "left=by this test\n", StandardCharsets.UTF_8);
 
             cli.run("run", root.toString());
 
             claim("the invocation was stopped", () -> assertThat(cli.getExitCode()).isNotZero());
-            Properties said = new Properties();
-            try (Reader reader = Files.newBufferedReader(workingDirectory.resolve("effective-values.properties"),
-                    StandardCharsets.UTF_8)) {
-                said.load(reader);
-            }
-            claim("and the file says the value that stopped it, so the page shows what the machine names",
-                    () -> assertThat(said.getProperty("vespera.relevance.top-similarities")).isEqualTo("0"));
+            claim("and what this test left in the file is still all it holds, an invocation refused at its start"
+                            + " writing none",
+                    () -> assertThat(file).hasContent("left=by this test\n"));
         }
     }
 }
+

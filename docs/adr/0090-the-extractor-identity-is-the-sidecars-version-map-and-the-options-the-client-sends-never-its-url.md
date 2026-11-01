@@ -1,6 +1,6 @@
 # ADR-090 — The extractor identity is the sidecar's version map and the options the client sends, never its URL
 
-> **Partly amended — see [ADR-330](0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** The OCR preset is the preset `vespera.docling.ocr-preset` in `application.yaml`, shipping `rapidocr`. The client still names one on every conversion and never `auto`, which is refused, and `sentOptions()`, so the extractor identity, names the one sent. The rest of this record stands.
+> **Partly amended — see [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** The OCR preset is the preset `vespera.docling.ocr-preset` in `application.yaml`, shipping `rapidocr`. The client still names one on every conversion and never `auto`, which is refused, and `sentOptions()`, so the extractor identity, names the one sent. The rest of this record stands.
 
 - **Date**: 2026-09-06
 - **Status**: accepted

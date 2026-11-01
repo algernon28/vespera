@@ -153,6 +153,36 @@ class TheClusteringPresetsInvocationTest {
                 () -> assertThat(theNextInvocationFile().getProperty("wants")).isEqualTo("clusterResolution"));
     }
 
+    @Test
+    @Story("How finely documents are clustered is a preset")
+    @DisplayName("A resolution the jar cannot read waits behind an extraction attempt it cannot read")
+    void anUnreadableResolutionWaitsBehindAnUnreadableExtractionAttempt() throws IOException {
+        theProfileAlsoNamesTheResolution("0,5");
+        theProfileAlsoNamesTheExtractionAttempt("soon");
+
+        cli.run("run", root.toString());
+
+        claim("the invocation said what the next one wants, the jar reading the file",
+                () -> assertThat(workingDirectory.resolve("next-invocation.properties")).exists());
+        claim("and it wants the attempt alone, of two no invocation stops for only the first being named",
+                () -> assertThat(theNextInvocationFile().getProperty("wants")).isEqualTo("extractionAttempt"));
+
+        theProfileAlsoNamesTheResolution("0,5");
+        theProfileAlsoNamesTheExtractionAttempt("2");
+        cli.run("run", root.toString());
+
+        claim("with the attempt readable, the resolution is the one wanted",
+                () -> assertThat(theNextInvocationFile().getProperty("wants")).isEqualTo("clusterResolution"));
+    }
+
+    private void theProfileAlsoNamesTheExtractionAttempt(String value) throws IOException {
+        Path profile = profileStore.file();
+        Files.writeString(profile, Files.readString(profile, StandardCharsets.UTF_8)
+                .replaceAll("(?m)^extractionAttempt:\\R(  .*\\R)*", "")
+                + "extractionAttempt:\n  value: \"" + value + "\"\n  provenance: \"set by this test\"\n",
+                StandardCharsets.UTF_8);
+    }
+
     /**
      * Zero, a negative number and the two values {@code Double.parseDouble} reads that are no numbers anyone counts
      * with: {@code NumericValue} calls each answered, and no partition can be divided by one, so each is ignored as
@@ -208,9 +238,10 @@ class TheClusteringPresetsInvocationTest {
 
         cli.run("label", earlierFile.toString());
 
-        claim("a copy of the earlier file is refused whole, so nothing is recorded from it",
-                () -> assertThat(List.of(cli.getExitCode() != 0, answersRecorded() == answersRecorded))
-                        .containsExactly(true, true));
+        claim("a copy of the earlier file is refused",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim("whole, so nothing is recorded from it",
+                () -> assertThat(answersRecorded()).isEqualTo(answersRecorded));
         claim("the answers recorded are kept, and the new file shows each where it asks about the same document",
                 () -> assertThat(Files.readString(labelFile, StandardCharsets.UTF_8)).doesNotContain("relevant: null"));
     }

@@ -13,7 +13,6 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,8 +31,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * highest similarities, and a mean of none is no score.
  *
  * <p>A class of its own, because the configuration is a property of the context. The refusal is the record's line
- * word for word, and it comes where the run the value would enter is minted: the stage before it has its run, and the
- * stage itself has none, so nothing is recorded under a value no run can be made under.
+ * word for word, and it comes at the start of {@code vespera run}: no run is made and nothing is recorded under a value
+ * no run can be made under.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -52,13 +51,7 @@ class ARelevanceScoreOfNoSimilaritiesIsRefusedInvocationTest {
     private static final String REFUSED_VALUE = "0";
 
     /** The line the record gives for it, word for word. */
-    private static final String THE_LINE = "vespera.relevance.top-similarities is 0: a whole number of 1 or more";
-
-    /** The stage whose run the value would enter, which is not minted. */
-    private static final String REFUSING_STAGE = "embedding-scoring";
-
-    /** The stage before it, whose run is minted, so the invocation reached the refusing stage. */
-    private static final String STAGE_BEFORE = "seed-measurement";
+    private static final String THE_LINE = "vespera.relevance.top-similarities is 0: a whole number from 1 to 2147483647";
 
     /** What a stack frame looks like in the output, which a refusal in one line does not print. */
     private static final String A_STACK_FRAME = "\tat ";
@@ -95,8 +88,8 @@ class ARelevanceScoreOfNoSimilaritiesIsRefusedInvocationTest {
 
     @Test
     @Story("How relevance is scored and sampled is a preset")
-    @DisplayName("A score of the mean of no similarities stops the invocation in one line, before any document is scored")
-    void aScoreOfNoSimilaritiesIsRefusedBeforeTheScoringRun(CapturedOutput output) throws IOException {
+    @DisplayName("A score of the mean of no similarities stops the invocation in one line, before anything is walked")
+    void aScoreOfNoSimilaritiesIsRefusedAtTheStart(CapturedOutput output) throws IOException {
         Files.writeString(root.resolve("corpus-0.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         profileStore.save(ProfileFixture.profile()
@@ -117,13 +110,12 @@ class ARelevanceScoreOfNoSimilaritiesIsRefusedInvocationTest {
                     assertThat(said.lines().filter(line -> line.contains(THE_LINE)).toList()).hasSize(1);
                     assertThat(said).doesNotContain(A_STACK_FRAME);
                 });
-        claim("the stage before has its run and the refusing stage has none, so the value stopped the invocation where"
-                        + " its run would have been made, and nothing was recorded under it",
-                () -> assertThat(List.of(runsOf(STAGE_BEFORE), runsOf(REFUSING_STAGE))).containsExactly(1, 0));
+        claim("no run was made and no walk begun, so the value stopped the invocation at its start and nothing was recorded",
+                () -> assertThat(runs()).isZero());
     }
 
-    private int runsOf(String stage) {
-        Integer runs = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run WHERE stage = ?", Integer.class, stage);
+    private int runs() {
+        Integer runs = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run", Integer.class);
         return runs == null ? 0 : runs;
     }
 }

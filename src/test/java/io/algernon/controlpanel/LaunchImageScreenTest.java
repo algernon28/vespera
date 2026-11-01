@@ -2,7 +2,6 @@ package io.algernon.controlpanel;
 
 import static io.algernon.controlpanel.ScreenServer.byId;
 import static io.algernon.controlpanel.ScreenServer.controlNames;
-import static io.algernon.controlpanel.ScreenServer.form;
 import static io.algernon.vespera.TestSteps.claim;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,7 +20,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import org.jsoup.nodes.Element;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,15 +27,14 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The launch page, of the values that are this machine's and not the profile's (ADR-330 §11, §12): the Docling image is
- * checked against what the jar last used where no launch value names one, the image the sidecar runs and the two the
- * jar's compose files build are offered, and the keys of {@code application.yaml} the control panel does not edit are
+ * checked against what the jar last used where no launch value names one, the image the sidecar runs is shown, and the keys of {@code application.yaml} the control panel does not edit are
  * shown with where each came from. The image stays a launch value, which the control panel writes into no file of the
  * working directory; the jar's own file says it as {@code environment}, and the extractor identity as ever.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("awaits the launch page's check of the image against the file the jar writes, its list of images, and this machine's values")
+@Disabled("awaits the launch page's check of the image against the file the jar writes, and this machine's values")
 class LaunchImageScreenTest {
 
     /** The file the jar writes for the control panel, in the working directory. */
@@ -86,8 +83,7 @@ class LaunchImageScreenTest {
         HttpServer docling = aSidecarRunning(CARD_IMAGE);
         try {
             String address = "http://127.0.0.1:" + docling.getAddress().getPort();
-            theJarSaid(work, "vespera.docling.image=" + PROCESSOR_IMAGE + "\nvespera.docling.image.source=shipped\n"
-                    + "docling.images=" + PROCESSOR_IMAGE + " " + CARD_IMAGE + "\n");
+            theJarSaid(work, "vespera.docling.image=" + PROCESSOR_IMAGE + "\nvespera.docling.image.source=shipped\n");
             LaunchValues values = new LaunchValues(corpus().toString(), work.toString(), "", "", address, "", "", "");
             try (ScreenServer screens = ScreenServer.start(folder, values)) {
                 Page page = screens.browser().page();
@@ -106,28 +102,21 @@ class LaunchImageScreenTest {
 
     @Test
     @Story("The operator is not caught by an image the sidecar does not run")
-    @DisplayName("The image the sidecar runs and the two the jar builds are offered in the field, and the one picked matches what the sidecar runs")
-    void theImagesAreOfferedAndTheOnePickedMatches() throws IOException {
+    @DisplayName("The image the sidecar runs is shown, and typed into the field it matches")
+    void theImagePickedMatchesTheOneTheSidecarRuns() throws IOException {
         Path work = Files.createDirectories(folder.resolve("work"));
         HttpServer docling = aSidecarRunning(CARD_IMAGE);
         try {
             String address = "http://127.0.0.1:" + docling.getAddress().getPort();
-            theJarSaid(work, "docling.images=" + PROCESSOR_IMAGE + " " + CARD_IMAGE + "\n");
             LaunchValues values = new LaunchValues(corpus().toString(), work.toString(), "", "", address, "", "", "");
             try (ScreenServer screens = ScreenServer.start(folder, values)) {
                 PanelBrowser browser = screens.browser();
-                Element launch = form(browser.page(), "launch");
 
-                claim("the field offers each image once, the sidecar's first",
-                        () -> assertThat(byId(browser.page(), "docling-images").select("option").eachAttr("value"))
-                                .containsExactly(CARD_IMAGE, PROCESSOR_IMAGE));
-                claim("and is tied to that list, still free for a name typed by hand",
-                        () -> assertThat(List.of(launch.select("[name='vespera.docling.image']").attr("list"),
-                                        launch.select("[name='vespera.docling.image']").attr("type")))
-                                .containsExactly("docling-images", "text"));
+                claim("the sidecar's image is shown beside the field",
+                        () -> assertThat(byId(browser.page(), "docling-running").attr("data-image")).isEqualTo(CARD_IMAGE));
 
                 Page checked = browser.press("launch", "check", Map.of("vespera.docling.image", CARD_IMAGE)).page();
-                claim("picked, the check finds it matches",
+                claim("typed, the check finds it matches",
                         () -> assertThat(byId(checked, "docling-check").attr("data-check")).isEqualTo("matches"));
             }
         } finally {

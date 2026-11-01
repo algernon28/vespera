@@ -173,4 +173,17 @@ class TheJarSaysWhereEachValueCameFromInvocationTest {
                 () -> assertThat(valueAndSource(file, IN_ANOTHER_FILE))
                         .containsExactly(THE_OTHER_FILES_VALUE, "local-file"));
     }
+
+    @Test
+    @Story("The jar says what it would use")
+    @DisplayName("The model service's address, which no file names, is the one the jar falls back to, and says it came from the code")
+    void anAddressNothingNamesIsTheOneTheCodeFallsBackTo() throws IOException {
+        claim("no configuration names it, the precondition of this test",
+                () -> assertThat(environment.getProperty("spring.ai.ollama.base-url")).isNull());
+        Properties file = theFile();
+
+        claim("the address the jar then uses, and that the code names it",
+                () -> assertThat(valueAndSource(file, "spring.ai.ollama.base-url"))
+                        .containsExactly("http://localhost:11434", "code"));
+    }
 }

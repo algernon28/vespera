@@ -2324,18 +2324,19 @@ public final class Adr {
             + "0329-vespera-pulls-into-ollama-at-the-step-that-needs-it-a-model-ollama-does-not-serve-and-never-pulls-one-it-serves.md";
 
     /**
-     * ADR-330 -- the control panel edits the whole of {@code profile.yaml} on one page, showing the value in use and
-     * where it came from, from a file the jar writes; a save writes only what changed and nothing where a key is
-     * refused; a file not in the jar's form is shown and repaired with a copy kept; a missing working directory is made
-     * owner-only; and ten technical choices ship as presets, clustering's two numbers, the OCR preset, the timeouts in
-     * a row, the shingle window, MinHash's numbers, stage 4's cuts, the number of similarities a relevance score is the
-     * mean of and the sample, each entering the run it shapes only where it differs from what it was (amends ADR-285
-     * §3, ADR-294 §2, ADR-295 §1 to §5 and ADR-302 §5, §8 and §9; extends ADR-298; amends ADR-087's table and its
-     * sentence on resolution, ADR-020,
-     * ADR-071, ADR-073, ADR-082, ADR-088 and ADR-090).
+     * ADR-330 -- the control panel edits every value of {@code profile.yaml}, showing the value in use and where it
+     * came from, from a file the jar writes; each value's form holds what the file states, and a save of it writes
+     * nothing where it is unchanged, what a form held is let go where a save finds it no change, the file stating it already; a file not in the jar's form is shown and repaired with a copy kept; a missing
+     * working directory is made by a save of the profile, owner-only, on NTFS by a DACL of this user alone; and ten
+     * technical choices ship as presets, clustering's two numbers, the OCR preset, the timeouts in a row, the shingle
+     * window, MinHash's numbers, stage 4's cuts, the number of similarities a relevance score is the mean of and the
+     * sample, each entering the run it shapes only where it differs from what it was, and refused at the start of
+     * {@code vespera run} where no run can be made under it (amends ADR-285 §3, ADR-294 §2, ADR-295 §1 to §5, ADR-302
+     * §5, §8 and §9 and ADR-331 §5, §6, §7 and §8; extends ADR-298; amends ADR-087's table and its sentence on resolution,
+     * ADR-020, ADR-071, ADR-073, ADR-082, ADR-088 and ADR-090).
      */
     public static final String THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS = FILE
-            + "0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md";
+            + "0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md";
 
     /**
      * ADR-331 -- the control panel opens a window of its own where a Chromium browser is found, its pages stand as a
