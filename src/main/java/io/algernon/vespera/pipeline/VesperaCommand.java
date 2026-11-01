@@ -23,6 +23,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -144,6 +145,7 @@ public class VesperaCommand implements Callable<Integer> {
         private final ProfileStore profileStore;
         private CorpusRootLock corpusRootLock;
         private SidecarStarter sidecarStarter;
+        private EffectiveValuesFile effectiveValues;
         private String[] arguments = new String[0];
 
         @Parameters(
@@ -218,6 +220,15 @@ public class VesperaCommand implements Callable<Integer> {
             this.sidecarStarter = sidecarStarter;
         }
 
+        /**
+         * What the jar would use where the profile names nothing is written for the control panel (ADR-330 §1); a
+         * command built with no environment, as some tests build it, writes none.
+         */
+        @Autowired(required = false)
+        void sayWhatLiesBeneathTheProfileWith(Environment environment) {
+            this.effectiveValues = new EffectiveValuesFile(environment, workingDirectoryInUse);
+        }
+
         @Override
         public Integer call() throws Exception {
             String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
@@ -256,6 +267,10 @@ public class VesperaCommand implements Callable<Integer> {
                     System.err.println(refused.getMessage());
                     return CommandLine.ExitCode.SOFTWARE;
                 }
+            }
+            // Past the last refusal of the start and before the first step: an invocation refused above writes none (ADR-330 §1).
+            if (effectiveValues != null) {
+                effectiveValues.write();
             }
             log.info("Progress page: {}", ProgressPage.pathIn(workingDirectoryInUse));
             log.info(
@@ -333,6 +348,7 @@ public class VesperaCommand implements Callable<Integer> {
         private final Path workingDirectoryInUse;
         private final ObjectProvider<AutoLabelling> autoLabelling;
         private SidecarStarter sidecarStarter;
+        private EffectiveValuesFile effectiveValues;
 
         @Option(
                 names = "--auto",
@@ -382,6 +398,12 @@ public class VesperaCommand implements Callable<Integer> {
             this.sidecarStarter = sidecarStarter;
         }
 
+        /** As {@link Run#sayWhatLiesBeneathTheProfileWith}: a label that has started has written the file (ADR-330 §1). */
+        @Autowired(required = false)
+        void sayWhatLiesBeneathTheProfileWith(Environment environment) {
+            this.effectiveValues = new EffectiveValuesFile(environment, workingDirectoryInUse);
+        }
+
         /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
         void forgetPreviousInvocation() {
             file = null;
@@ -407,6 +429,10 @@ public class VesperaCommand implements Callable<Integer> {
                 System.err.println("vespera label --auto takes no file: it works on the label file the last run"
                         + " wrote in the working directory. Give either --auto or a file, not both.");
                 return CommandLine.ExitCode.USAGE;
+            }
+            // Past a misnamed --db-dir and --auto given a file, as the progress page is written (ADR-330 §1).
+            if (effectiveValues != null) {
+                effectiveValues.write();
             }
             log.info("Progress page: {}", ProgressPage.pathIn(workingDirectoryInUse));
             progressPage.commandStarts(auto ? "vespera label --auto" : "vespera label");

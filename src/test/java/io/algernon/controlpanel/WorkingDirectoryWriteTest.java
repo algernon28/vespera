@@ -150,7 +150,7 @@ class WorkingDirectoryWriteTest {
 
     @Test
     @Story("The control panel keeps its files from other users")
-    @DisplayName("Where POSIX permissions apply, a working directory others can write in, another user's, a missing one or a file is not written in")
+    @DisplayName("Where POSIX permissions apply, a working directory others can write in, another user's or a file is not written in")
     void aFolderOthersCanWriteInOrAnotherUserOwnsIsNotWrittenIn(@TempDir Path temp) throws IOException {
         assumeTrue(FileSystems.getDefault().supportedFileAttributeViews().contains("posix"),
                 "the file system has no POSIX permissions");
@@ -159,7 +159,6 @@ class WorkingDirectoryWriteTest {
         Path own = Files.createDirectory(temp.resolve("own"));
         Files.setPosixFilePermissions(own, PosixFilePermissions.fromString("rwx------"));
         String owner = Files.getOwner(own).getName();
-        Path missing = temp.resolve("missing");
         Path aFile = Files.createFile(temp.resolve("a-file"));
 
         claim("a folder its group and others may write in is refused, with the line naming it",
@@ -169,12 +168,6 @@ class WorkingDirectoryWriteTest {
                 () -> assertThat(new WorkingDirectoryWrite(() -> false, owner + "-someone-else")
                                 .write(own, PROFILE, c -> AFTER))
                         .contains(refusalOf(own.toRealPath())));
-        claim("a working directory that does not exist is refused, and not made",
-                () -> {
-                    assertThat(new WorkingDirectoryWrite(() -> false, owner).write(missing, PROFILE, c -> AFTER))
-                            .contains(refusalOf(missing));
-                    assertThat(missing).doesNotExist();
-                });
         claim("a file where the working directory should be is refused",
                 () -> assertThat(new WorkingDirectoryWrite(() -> false, owner).write(aFile, PROFILE, c -> AFTER))
                         .contains(refusalOf(aFile.toRealPath())));
@@ -185,6 +178,33 @@ class WorkingDirectoryWriteTest {
                 });
         claim("and the folder of the user's own is accepted for the user who owns it",
                 () -> assertThat(WorkingDirectoryWrite.refusalOfFolder(own, owner, PROFILE)).isEmpty());
+    }
+
+    /**
+     * A save of {@code profile.yaml} alone makes a working directory that is not there (ADR-330 §7, amending ADR-295 §1):
+     * no question is answered and no code set named before a run has made it, so the other two files go on refusing.
+     * That the profile's save makes it is {@code ProfileEditorScreenTest}'s.
+     */
+    @Test
+    @Story("The control panel writes into a working directory")
+    @DisplayName("A working directory that does not exist is refused for relevance-labels.yaml and code-set-names.yaml, and neither makes it")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void aWorkingDirectoryThatDoesNotExistIsRefusedForTheOtherTwoFiles(@TempDir Path temp) {
+        Path missing = temp.resolve("missing");
+        AtomicBoolean changed = new AtomicBoolean();
+
+        for (String file : List.of("relevance-labels.yaml", "code-set-names.yaml")) {
+            Optional<String> said = NO_CHILD_RUNS.write(missing, file, current -> {
+                changed.set(true);
+                return AFTER;
+            });
+
+            claim("writing " + file + " is refused with the line naming the folder and the file",
+                    () -> assertThat(said).contains(refusalOf(missing, file)));
+            claim("and after writing " + file + " the working directory is still not there",
+                    () -> assertThat(missing).doesNotExist());
+        }
+        claim("the change was never asked for", () -> assertThat(changed).isFalse());
     }
 
     @Test
@@ -253,8 +273,12 @@ class WorkingDirectoryWriteTest {
     }
 
     private static String refusalOf(Path folder) {
+        return refusalOf(folder, PROFILE);
+    }
+
+    private static String refusalOf(Path folder, String file) {
         return "the control panel writes nothing in " + folder
-                + ", which is not a folder only this user can write in, so " + PROFILE + " was not written";
+                + ", which is not a folder only this user can write in, so " + file + " was not written";
     }
 
     private static String readQuietly(Path file) {

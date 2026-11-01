@@ -119,6 +119,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-262: renders similarity's shares of the documents; the rounding and the grouping are similarity's.
             "DocumentFrequencyReport",
             "DocumentOpening",
+            // ADR-330 §1: writes effective-values.properties, what lies beneath the profile; it decides no verdict.
+            "EffectiveValuesFile",
             "EmbeddingModelGate",
             "EmbeddingScoringTasklet",
             "ExtractionAttempt",

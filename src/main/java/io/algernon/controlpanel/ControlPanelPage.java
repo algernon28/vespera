@@ -3,7 +3,9 @@ package io.algernon.controlpanel;
 import com.sun.net.httpserver.HttpExchange;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * The one owner of the control panel's pages' skeleton, styling and escaping (ADR-302 §10; ADR-285 §4): every page is
@@ -413,6 +415,13 @@ final class ControlPanelPage {
     private static final List<String> LANGUAGES = List.of("en", "it");
 
     /**
+     * A valid floating-point number of HTML, which a {@code number} control keeps and any other it blanks (ADR-330 §3):
+     * an optional minus, digits with an optional fraction or a fraction alone, and an optional exponent.
+     */
+    private static final Pattern A_NUMBER_OF_HTML =
+            Pattern.compile("-?(\\d+(\\.\\d+)?|\\.\\d+)([eE][-+]?\\d+)?");
+
+    /**
      * The control of {@code key} named {@code name}, the same on every page (ADR-331 §7): a select for the
      * deliverable's language, a number for a number with any step and no bounds, a text field offering the models or
      * {@code auto} where the key takes them, and a text field otherwise; each with its example and its hint
@@ -425,10 +434,12 @@ final class ControlPanelPage {
             String after) {
         String hintId = "hint-" + key.key();
         if (key == ProfileKey.DELIVERABLE_LANGUAGE) {
-            return choice(name, id, label, LANGUAGES, value, hintId, hintOf(key));
+            List<String> options = value.isEmpty() || LANGUAGES.contains(value) ? LANGUAGES
+                    : Stream.concat(LANGUAGES.stream(), Stream.of(value)).toList();
+            return choice(name, id, label, options, value, hintId, hintOf(key));
         }
         Field field = Field.of(name, label).id(id).value(value).example(key.example()).hint(hintId, hintOf(key));
-        if (key.kind() == ProfileKey.Kind.NUMBER) {
+        if (key.kind() == ProfileKey.Kind.NUMBER && (value.isEmpty() || A_NUMBER_OF_HTML.matcher(value).matches())) {
             field.type("number");
         }
         if (key == ProfileKey.EMBEDDING_MODEL || key == ProfileKey.GENERATION_MODEL) {
@@ -542,6 +553,15 @@ final class ControlPanelPage {
     }
 
     /**
+     * {@code cost-<key>}: the words of {@link #cost}, carrying {@code data-sample-drawn-again}, {@code true} or
+     * {@code false}, on every page that shows a key's cost (ADR-330 §9).
+     */
+    static String costElement(ProfileKey key) {
+        return "<p id=\"cost-" + escape(key.key()) + "\" data-sample-drawn-again=\"" + key.cost().sampleDrawnAgain()
+                + "\">" + escape(cost(key)) + "</p>";
+    }
+
+    /**
      * What a change of {@code key} costs, in words (ADR-295 §5): the runs the next invocation makes again, and
      * whether the approval is closed and the label file refused by it.
      */
@@ -559,6 +579,10 @@ final class ControlPanelPage {
         }
         if (cost.labelsRefused()) {
             words.append(" The label file names the old seed set, so vespera label refuses it.");
+        }
+        if (cost.sampleDrawnAgain()) {
+            words.append(" A sample of questions being answered is drawn again: other documents are asked about, and the"
+                    + " label file is written over.");
         }
         return words.toString();
     }

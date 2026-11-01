@@ -9,10 +9,20 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.FileSystems;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryFlag;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.nio.file.attribute.UserPrincipal;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -28,6 +38,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * ADR-291 §8). The file is written whole to a {@code .part} file and moved over the target. Every refusal is one line
  * returned, none thrown; what the change returns is the text, and its own refusal is an
  * {@link IllegalArgumentException} whose message is the line. Taking the lock links no class of the jar (ADR-285 §3).
+ *
+ * <p>A save of {@code profile.yaml} makes the working directory where it is not there, each folder born the user's
+ * alone, and a folder that exists is checked by its owner on a file system with no POSIX permissions (ADR-330 §7).
  */
 public final class WorkingDirectoryWrite {
 
@@ -36,6 +49,9 @@ public final class WorkingDirectoryWrite {
 
     /** The three files of a working directory the control panel writes, and no other. */
     public static final Set<String> FILES = Set.of("profile.yaml", "relevance-labels.yaml", "code-set-names.yaml");
+
+    /** The one file whose save makes a working directory that is not there (ADR-330 §7). */
+    private static final String PROFILE = "profile.yaml";
 
     /** The byte the jar locks, far past the end of the holder line. */
     private static final long LOCKED_BYTE = Long.MAX_VALUE - 1;
@@ -72,6 +88,12 @@ public final class WorkingDirectoryWrite {
         if (anInvocationItStartedRuns.getAsBoolean()) {
             return Optional.of("the control panel writes nothing into a working directory while the invocation it"
                     + " started runs, so " + fileName + " was not written");
+        }
+        if (fileName.equals(PROFILE) && Files.notExists(workingDirectory, LinkOption.NOFOLLOW_LINKS)) {
+            Optional<String> notMade = makeFolder(workingDirectory, fileName, change);
+            if (notMade.isPresent()) {
+                return notMade;
+            }
         }
         Optional<String> refusal = refusalOfFolder(workingDirectory, userName, fileName);
         if (refusal.isPresent()) {
@@ -121,11 +143,12 @@ public final class WorkingDirectoryWrite {
 
     /**
      * §1's line for a working directory that is missing, is not a folder, or is not one only this user can write in,
-     * checked by its real path, or as given where it has none; empty for one that is.
+     * checked by its real path, or as given where it has none; empty for one that is. On a file system with no POSIX
+     * permissions a folder that exists is checked by its owner alone (ADR-330 §7).
      */
     public static Optional<String> refusalOfFolder(Path workingDirectory, String userName, String fileName) {
         Path folder = realOrGiven(workingDirectory);
-        if (Files.exists(folder, LinkOption.NOFOLLOW_LINKS) && FolderOwnership.isOwn(folder, userName)) {
+        if (Files.exists(folder, LinkOption.NOFOLLOW_LINKS) && FolderOwnership.isOwnWorkingDirectory(folder, userName)) {
             return Optional.empty();
         }
         return Optional.of("the control panel writes nothing in " + folder
@@ -136,6 +159,74 @@ public final class WorkingDirectoryWrite {
     public static String holderLine(long pid, OffsetDateTime started, String fileName) {
         return "pid=" + pid + " started=" + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(
                 started.truncatedTo(ChronoUnit.SECONDS)) + " command=control-panel write " + fileName;
+    }
+
+    /**
+     * Makes the working directory a save of {@code profile.yaml} finds missing, each folder it makes born the user's
+     * alone (ADR-330 §7): by {@code rwx------} on POSIX permissions, and on a volume with access control lists by one
+     * entry for this user, inherited by what is made below, so that no moment lies between the folder and its rule. On a
+     * volume with neither it is made as the volume makes it. The change is asked first, of an absent file, so that a
+     * value it refuses makes no folder. Once made the folder is checked as an existing one is, by its real path, and its
+     * entry is read back and must be that one alone.
+     *
+     * @return the line that stopped it, empty where the folder is there
+     */
+    private Optional<String> makeFolder(Path workingDirectory, String fileName, Function<Optional<String>, String> change) {
+        try {
+            change.apply(Optional.empty());
+        } catch (IllegalArgumentException refused) {
+            return Optional.of(refused.getMessage());
+        }
+        Path folder = workingDirectory.toAbsolutePath();
+        try {
+            UserPrincipal user = null;
+            FileAttribute<?>[] attributes = new FileAttribute<?>[0];
+            if (FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
+                attributes = new FileAttribute<?>[] {
+                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"))};
+            } else if (Files.getFileStore(nearestThatExists(folder)).supportsFileAttributeView("acl")) {
+                user = folder.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(userName);
+                attributes = new FileAttribute<?>[] {onlyThisUser(user)};
+            }
+            Files.createDirectories(folder, attributes);
+            if (user != null) {
+                List<AclEntry> entries = Files.getFileAttributeView(folder, AclFileAttributeView.class).getAcl();
+                if (entries.size() != 1 || entries.getFirst().type() != AclEntryType.ALLOW
+                        || !entries.getFirst().principal().equals(user)) {
+                    return Optional.of("the control panel made " + folder + " and it is not a folder only this user"
+                            + " can write in, so " + fileName + " was not written");
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            return couldNotWrite(fileName, e);
+        }
+        return Optional.empty();
+    }
+
+    /** The one entry a folder made on a volume with access control lists holds: this user, every right, inherited. */
+    private static FileAttribute<List<AclEntry>> onlyThisUser(UserPrincipal user) {
+        List<AclEntry> entries = List.of(AclEntry.newBuilder().setType(AclEntryType.ALLOW).setPrincipal(user)
+                .setPermissions(EnumSet.allOf(AclEntryPermission.class))
+                .setFlags(AclEntryFlag.FILE_INHERIT, AclEntryFlag.DIRECTORY_INHERIT).build());
+        return new FileAttribute<>() {
+            @Override
+            public String name() {
+                return "acl:acl";
+            }
+
+            @Override
+            public List<AclEntry> value() {
+                return entries;
+            }
+        };
+    }
+
+    private static Path nearestThatExists(Path folder) {
+        Path at = folder;
+        while (at != null && Files.notExists(at)) {
+            at = at.getParent();
+        }
+        return at == null ? folder.getRoot() : at;
     }
 
     private Optional<String> writeHolding(FileChannel channel, Path folder, String fileName,

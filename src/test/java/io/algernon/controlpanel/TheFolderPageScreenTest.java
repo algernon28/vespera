@@ -18,12 +18,15 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.AclFileAttributeView;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
@@ -104,6 +107,24 @@ class TheFolderPageScreenTest {
 
     /** A profile {@code ProfileEdit} reads as in no form it wrote, a tab in an indent, so it refuses every save to it. */
     private static final String A_PROFILE_NOT_IN_FORM = "seedFolder:\n\tvalue: null\n";
+
+    /** A profile in the form the control panel edits, so the profile page draws a form for each value. */
+    private static final String A_PROFILE_IN_FORM = """
+            ---
+            extractionAttempt:
+              value: "2"
+              provenance: "a second attempt"
+              measurement: null
+            """;
+
+    /** What another invocation holding the working directory leaves in {@code vespera.lock}. */
+    private static final String ANOTHER_HOLDERS_LINE = "pid=4242 started=2026-10-19T10:15:30+02:00 command=run /corpus";
+
+    /** The byte of {@code vespera.lock} an invocation locks, far past the end of its holder line. */
+    private static final long LOCKED_BYTE = Long.MAX_VALUE - 1;
+
+    /** The reason the file comes to state, behind the page, beside another seed folder. */
+    private static final String ANOTHER_REASON = "a reason written behind the page";
 
     /** A name a strip of the query's {@code path} would make another folder's. */
     private static final String BEGINS_WITH_A_SPACE = " begins-with-a-space";
@@ -441,9 +462,15 @@ class TheFolderPageScreenTest {
         }
     }
 
+    /**
+     * Once saved, a field holds what the file states (ADR-330 §2, in place of ADR-331 §5's emptied form), so the form
+     * reads the same as it did while held. What tells the two apart is the file changing behind the page: a form let go
+     * follows it, and one still held would not.
+     */
     @Test
     @Story("The operator chooses a folder")
-    @DisplayName("Choosing the seed folder on the profile page keeps the reason typed, writes no profile, returns to that value, and Save then writes both and holds neither")
+    @DisplayName("Choosing the seed folder on the profile page keeps the reason typed, writes no profile, returns to that value, and Save then writes both, after which the form holds what the file states and no longer what was chosen")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     void chooseTheSeedFolderOnTheProfilePage() throws IOException {
         Path corpusRoot = aCorpusRoot();
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
@@ -470,10 +497,22 @@ class TheFolderPageScreenTest {
             claim("Save writes the folder chosen with the reason typed",
                     () -> assertThat(profileOf(workingDirectory).get(ProfileKey.SEED_FOLDER))
                             .isEqualTo(new ProfileEdit.Stated(seeds.toString(), REASON_TYPED)));
-            claim("and once saved, neither is held in the form",
+            claim("once saved, the form holds the folder and the reason the file now states",
                     () -> assertThat(List.of(form(saved, SEED_FOLDER).select("[name=value]").val(),
                                     form(saved, SEED_FOLDER).select("[name=provenance]").val()))
-                            .containsExactly("", ""));
+                            .containsExactly(seeds.toString(), REASON_TYPED));
+
+            Path anotherSeedFolder = Files.createDirectories(folder.resolve("other-seeds"));
+            Path profile = workingDirectory.resolve(ProfileEdit.FILE_NAME);
+            Files.writeString(profile, ProfileEdit.rewrite(Optional.of(Files.readString(profile, StandardCharsets.UTF_8)),
+                    ProfileKey.SEED_FOLDER, anotherSeedFolder.toString(), ANOTHER_REASON), StandardCharsets.UTF_8);
+            Page reloaded = browser.go("/profile").page();
+
+            claim("and neither is held any longer: with the file changed behind the page, the form holds what the file"
+                            + " states and not what was chosen",
+                    () -> assertThat(List.of(form(reloaded, SEED_FOLDER).select("[name=value]").val(),
+                                    form(reloaded, SEED_FOLDER).select("[name=provenance]").val()))
+                            .containsExactly(anotherSeedFolder.toString(), ANOTHER_REASON));
         }
     }
 
@@ -538,15 +577,24 @@ class TheFolderPageScreenTest {
         }
     }
 
+    /**
+     * The save is refused by another holder of the working directory's lock, since a file not in the form draws no form
+     * of a value on this page to press (ADR-330 §6), and the line names that holder, so no other refusal passes for it.
+     */
     @Test
     @Story("The operator chooses a folder")
-    @DisplayName("A refused save of the profile page's seed folder keeps the folder chosen and the reason typed in their fields")
+    @DisplayName("A save of the profile page's seed folder refused because another invocation holds the working directory keeps the folder chosen and the reason typed in their fields")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     void aRefusedSaveOfTheProfilePagesSeedFolderKeepsWhatItHeld() throws IOException {
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         Path seeds = Files.createDirectories(folder.resolve("seeds"));
-        Path profile = Files.writeString(workingDirectory.resolve(ProfileEdit.FILE_NAME), A_PROFILE_NOT_IN_FORM,
+        Path profile = Files.writeString(workingDirectory.resolve(ProfileEdit.FILE_NAME), A_PROFILE_IN_FORM,
                 StandardCharsets.UTF_8);
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(aCorpusRoot(), workingDirectory))) {
+        Path lockFile = Files.writeString(workingDirectory.resolve(WorkingDirectoryWrite.LOCK_FILE_NAME),
+                ANOTHER_HOLDERS_LINE + System.lineSeparator(), StandardCharsets.UTF_8);
+        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(aCorpusRoot(), workingDirectory));
+                FileChannel channel = FileChannel.open(lockFile, StandardOpenOption.WRITE);
+                FileLock taken = channel.tryLock(LOCKED_BYTE, 1, false)) {
             PanelBrowser browser = screens.browser().go("/profile");
             browser.press(SEED_FOLDER, "browse-" + PROFILE_SEED_FOLDER, Map.of("provenance", REASON_TYPED));
             browser.go(folders(PROFILE_SEED_FOLDER, seeds.toString()));
@@ -555,11 +603,11 @@ class TheFolderPageScreenTest {
             String held = Files.readString(profile, StandardCharsets.UTF_8);
             Element seedForm = form(refused, SEED_FOLDER);
 
-            claim("the save lands on the profile page with one line saying why, and the file is as it was",
+            claim("the save lands on the profile page with one line naming the other holder, and the file is as it was",
                     () -> {
                         assertThat(refused.address().getPath()).isEqualTo("/profile");
-                        assertThat(byId(refused, "outcome").text()).isNotBlank();
-                        assertThat(held).isEqualTo(A_PROFILE_NOT_IN_FORM);
+                        assertThat(byId(refused, "outcome").text()).contains(ANOTHER_HOLDERS_LINE);
+                        assertThat(held).isEqualTo(A_PROFILE_IN_FORM);
                     });
             claim("and the field holds the folder chosen, and the reason as typed",
                     () -> assertThat(List.of(seedForm.select("[name=value]").val(),
