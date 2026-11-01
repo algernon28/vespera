@@ -76,13 +76,13 @@ final class InvocationPages {
         }
         boolean runs = state.childRuns();
         Optional<Ending> ending = state.ending();
-        String how = !state.childWasStarted() ? "none" : ending.map(InvocationPages::attribute).orElse("running");
+        String how = how(state);
         StringBuilder body = new StringBuilder(ControlPanelPage.outcome(state.takeOutcome("/invocation")));
-        String words = state.childWasStarted()
-                ? state.childCommand() + ": " + wordsFor(how) + ending.filter(e -> e.exitCode() != 0)
-                        .map(e -> " (exit code " + e.exitCode() + ")").orElse("")
-                : "no invocation was started since the control panel started";
-        body.append("<p id=\"child\" data-ending=\"").append(how).append("\">")
+        String words = words(state, how);
+        body.append(ControlPanelPage.tiles(state.lastChecks(), FolderPages.freeSpaceOf(state.values().workingDirectory()),
+                how, words));
+        body.append("<p id=\"child\" data-ending=\"").append(how).append("\" data-state=\"")
+                .append(ControlPanelPage.stateOfInvocation(how)).append("\">")
                 .append(ControlPanelPage.escape(words)).append("</p>\n");
         if (runs) {
             body.append("<form name=\"stop\" method=\"get\" action=\"/stop\">")
@@ -149,6 +149,19 @@ final class InvocationPages {
         }
         Exchanges.form(exchange);
         Exchanges.redirect(exchange, startAndSay(state, ControlPanelState.Start.PUBLISH, "/invocation"));
+    }
+
+    /** How the child is, as {@code data-ending} has it: {@code none}, {@code running}, or how it ended. */
+    static String how(ControlPanelState state) {
+        return !state.childWasStarted() ? "none" : state.ending().map(InvocationPages::attribute).orElse("running");
+    }
+
+    /** The child in words, as the invocation page and the tiles say it. */
+    static String words(ControlPanelState state, String how) {
+        return state.childWasStarted()
+                ? state.childCommand() + ": " + wordsFor(how) + state.ending().filter(e -> e.exitCode() != 0)
+                        .map(e -> " (exit code " + e.exitCode() + ")").orElse("")
+                : "no invocation was started since the control panel started";
     }
 
     private static String attribute(Ending ending) {

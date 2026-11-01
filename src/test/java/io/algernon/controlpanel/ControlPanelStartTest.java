@@ -30,6 +30,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-325", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
+@Link(name = "ADR-331", url = Adr.THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT, type = "adr")
 class ControlPanelStartTest {
 
     private static final String USER = System.getProperty("user.name");
@@ -89,8 +90,10 @@ class ControlPanelStartTest {
         server.ifPresent(ControlPanelServer::close);
         URI root = URI.create("http://127.0.0.1:" + port + "/");
 
-        claim("the start waited, then printed the address of its root, with no query",
-                () -> assertThat(said.out).containsExactly(ControlPanel.WAITING, "open " + root + " in your browser"));
+        claim("the start waited, then said the control panel is opening, giving the address of its root, with no"
+                        + " query, only for where nothing appears",
+                () -> assertThat(said.out).containsExactly(ControlPanel.WAITING,
+                        "opening the control panel; if nothing appears, go to " + root + " in your browser"));
         claim("the opener was asked once, for that address", () -> assertThat(said.opened).containsExactly(root));
         claim("and nothing was said on standard error", () -> assertThat(said.err).isEmpty());
     }
@@ -140,7 +143,8 @@ class ControlPanelStartTest {
 
         claim("the start waited for nothing", () -> assertThat(took).isLessThan(WELL_BEFORE_THE_BOUND));
         claim("it wrote the address of its root alone, at a port the system picked, with no waiting line",
-                () -> assertThat(said.out).containsExactly("open http://127.0.0.1:" + port + "/ in your browser"));
+                () -> assertThat(said.out).containsExactly("opening the control panel; if nothing appears, go to"
+                        + " http://127.0.0.1:" + port + "/ in your browser"));
     }
 
     private Optional<ControlPanelServer> begin(Said said, String port, Duration bound) {

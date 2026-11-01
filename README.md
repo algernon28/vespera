@@ -323,7 +323,7 @@ When `compose.yaml` has changed since you started the sidecars, for example afte
 
 ## Starting the control panel
 
-The control panel runs the same commands from your browser, one at a time, and shows each report in a tab of its own. `./mvnw package` builds it beside the jar, and it starts the jar beside its own with the Java that started it. The commands it runs start the sidecars as above; the control panel itself starts nothing, and its launch page shows a sidecar not answering until a command has started it. From the root of this repository:
+The control panel runs the same commands from a window of its own or a tab of your browser, one at a time, and opens each report apart from its own pages. `./mvnw package` builds it beside the jar, and it starts the jar beside its own with the Java that started it. The commands it runs start the sidecars as above; the control panel itself starts nothing, and its launch page shows a sidecar not answering until a command has started it. From the root of this repository:
 
 ```
 java -jar target/vespera-0.0.1-SNAPSHOT-control-panel.jar
@@ -337,17 +337,19 @@ Or build both jars and start the control panel in one command, with the `gui` pr
 
 On Windows it is `.\mvnw.cmd -Pgui`. `Ctrl+C` ends Maven, the control panel and the invocation it started.
 
-It prints the jar it will start and the Java it starts it with, then the address it opens in your default browser:
+It prints the jar it will start and the Java it starts it with, then one line as it opens:
 
 ```
-open http://127.0.0.1:24291/ in your browser
+opening the control panel; if nothing appears, go to http://127.0.0.1:24291/ in your browser
 ```
 
-If no browser opens, open that address yourself on the same machine, by pasting it into the address bar or clicking it in the terminal; nothing is opened where the environment variable `CI` is set, or on Linux with no display. The control panel asks for no password or key: anyone, and any program, on this machine can open it while it runs, but a website open in your browser cannot use it.
+It opens a window of its own, with no address bar, where it finds a Chromium browser: Microsoft Edge or Google Chrome, or on Linux Chromium too. Otherwise it opens a tab of your default browser. The line asks nothing of you unless nothing appears; then open that address yourself on the same machine, by pasting it into the address bar or clicking it in the terminal. Nothing is opened where the environment variable `CI` is set, or on Linux with no display. The control panel asks for no password or key: anyone, and any program, on this machine can open it while it runs, but a website open in your browser cannot use it.
 
-Leave the tab open. When you end the control panel with `Ctrl+C` and start it again, that tab reloads itself onto the new start and no other tab opens: the start prints `the control panel waits up to 5 seconds for a tab it opened before`, then `a tab it opened before came back to http://127.0.0.1:24291/, so the control panel opens no other`. If no tab comes back within those 5 seconds, because you closed it or the browser, it opens a new one. So every start waits those 5 seconds before it opens a tab, but one at a port the system picked, which opens one at once.
+Leave the window or tab open. When you end the control panel with `Ctrl+C` and start it again, it reloads itself onto the new start and no other opens: the start prints `the control panel waits up to 5 seconds for a tab it opened before`, then `a tab it opened before came back to http://127.0.0.1:24291/, so the control panel opens no other`, and a window counts as a tab on both lines. If nothing comes back within those 5 seconds, because you closed it or the browser, it opens a new one. So every start waits those 5 seconds before it opens one, but one at a port the system picked, which opens one at once.
 
-It listens at port 24291. To use another, set `VESPERA_CONTROL_PANEL_PORT` in the shell you start it from; `0` lets the system pick a free port at each start, and then no tab comes back. If the port is taken, by another program or by a control panel you already started, it says so on one line, listens at a port the system picks, and opens a new tab there. A value that is not a port from 0 to 65535 is refused with one line, and it exits 1.
+Beside each folder field is a **Browse** button, which leads to the folder page: it lists a folder's subfolders by name, never a file, starting from what the field holds or from the system's drives, and **Use this folder** puts your choice back in the field. A code set's folder is chosen the same way, from the corpus root down. Nothing is written by Browse or by that choice: a launch value is written as a command starts, and any other as you save its form. You can still type a folder, and the field says what the control panel finds there; a code set's folder stays under the corpus root, so saving one that is absolute, or holds `..` or a backslash, is refused with one line and writes nothing. The working directory has to be there before a command starts: the control panel creates none, and refuses the command with one line if it is not. The folder named for the deliverable need not be, since the command creates it. Anything on this machine that can open the control panel can list the names of the folders on every drive this way.
+
+It listens at port 24291. To use another, set `VESPERA_CONTROL_PANEL_PORT` in the shell you start it from; `0` lets the system pick a free port at each start, and then nothing comes back. If the port is taken, by another program or by a control panel you already started, it says so on one line, listens at a port the system picks, and opens a new window or tab there. A value that is not a port from 0 to 65535 is refused with one line, and it exits 1.
 
 If it found no jar beside its own, it prints one line naming where it looked, and exits 1: build both jars with `./mvnw package`, and keep them side by side.
 

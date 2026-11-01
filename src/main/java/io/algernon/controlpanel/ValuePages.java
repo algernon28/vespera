@@ -47,6 +47,27 @@ final class ValuePages {
 
     private static final String NO_WORKING_DIRECTORY = "the working directory is not named, on the launch page";
 
+    /** The hint of the answer to a question, shared by every question's select (ADR-331 §8). */
+    private static final String HINT_OF_AN_ANSWER =
+            "Whether this document belongs in what you are keeping. No answer leaves it for later.";
+
+    /** The hint of a code set's name, shared by every row's (ADR-331 §8). */
+    private static final String HINT_OF_A_NAME = "The name the deliverable gives the set. Clear it to remove the name.";
+
+    /** What the profile in the working directory holds; empty where none is named, none is there or it cannot be read. */
+    static Map<ProfileKey, ProfileEdit.Stated> profileOf(ControlPanelState state) {
+        try {
+            Optional<Path> folder = state.workingDirectory();
+            if (folder.isPresent() && Files.isRegularFile(folder.get().resolve(ProfileEdit.FILE_NAME))) {
+                return ProfileEdit.read(Files.readString(folder.get().resolve(ProfileEdit.FILE_NAME),
+                        StandardCharsets.UTF_8));
+            }
+        } catch (IOException | RuntimeException unreadable) {
+            // a profile the control panel cannot read offers no value; the profile page says why
+        }
+        return Map.of();
+    }
+
     // ---- /labels
 
     private void labels(HttpExchange exchange) throws IOException {
@@ -76,20 +97,22 @@ final class ValuePages {
         }
         body.append(ControlPanelPage.outcome(pending != null ? pending : problem));
         if (problem == null) {
-            body.append("<form name=\"labels\" method=\"post\" action=\"/labels\">\n<ol>\n");
+            body.append("<form name=\"labels\" method=\"post\" action=\"/labels\">\n<section class=\"card\">\n")
+                    .append("<p class=\"hint\" id=\"hint-relevant\">").append(HINT_OF_AN_ANSWER).append("</p>\n<ol>\n");
             int i = 1;
             for (LabelAnswers.Question question : questions) {
                 body.append("<li><input type=\"hidden\" name=\"path-").append(i).append("\" value=\"")
                         .append(ControlPanelPage.escape(question.path())).append("\"> <code>")
                         .append(ControlPanelPage.escape(question.path())).append("</code> ")
-                        .append("<select name=\"relevant-").append(i).append("\" aria-label=\"relevant\">")
+                        .append("<select name=\"relevant-").append(i)
+                        .append("\" aria-label=\"relevant\" aria-describedby=\"hint-relevant\">")
                         .append(option("", "no answer", question.relevant().isEmpty()))
                         .append(option("true", "relevant", question.relevant().equals(Optional.of(true))))
                         .append(option("false", "not relevant", question.relevant().equals(Optional.of(false))))
                         .append("</select></li>\n");
                 i++;
             }
-            body.append("</ol>\n").append(ControlPanelPage.button("save", "Save", false)).append('\n')
+            body.append("</ol>\n</section>\n").append(ControlPanelPage.button("save", "Save", false)).append('\n')
                     .append(ControlPanelPage.button("save-then-label", "Save, then Label", false)).append("\n</form>\n");
         }
         Exchanges.page(exchange, ControlPanelPage.render(exchange, "Questions", 0, body.toString()));
@@ -165,20 +188,32 @@ final class ValuePages {
         }
         StringBuilder body = new StringBuilder(ControlPanelPage.outcome(pending != null ? pending : problem));
         if (problem == null) {
-            body.append("<form name=\"code-sets\" method=\"post\" action=\"/code-sets\">\n");
+            Map<String, String> held = state.heldForm("code-sets");
+            body.append("<form name=\"code-sets\" method=\"post\" action=\"/code-sets\">\n<section class=\"card\">\n")
+                    .append("<p class=\"hint\" id=\"hint-name\">").append(HINT_OF_A_NAME).append("</p>\n");
             int i = 1;
             for (CodeSetRenames.Rename rename : renames) {
-                body.append("<p><input type=\"hidden\" name=\"folder-").append(i).append("\" value=\"")
-                        .append(ControlPanelPage.escape(rename.folder())).append("\"><code>")
+                body.append("<input type=\"hidden\" name=\"folder-").append(i).append("\" value=\"")
+                        .append(ControlPanelPage.escape(rename.folder())).append("\"><p><code>")
                         .append(ControlPanelPage.escape(rename.folder().isEmpty() ? "(the root)" : rename.folder()))
-                        .append("</code>\n")
-                        .append(ControlPanelPage.field("name-" + i, "Name", rename.name(), false)).append("</p>\n");
+                        .append("</code></p>\n")
+                        .append(ControlPanelPage.Field.of("name-" + i, "Name")
+                                .value(held.getOrDefault("name-" + i, rename.name())).example("Billing engine")
+                                .hint("hint-name", "").html());
                 i++;
             }
+            String newFolder = held.getOrDefault("new-folder", "");
             body.append("<h2>Add one</h2>\n")
-                    .append(ControlPanelPage.field("new-folder", "Folder, from the corpus root", "", false))
-                    .append(ControlPanelPage.field("new-name", "Name", "", false))
-                    .append(ControlPanelPage.button("save", "Save", false)).append("\n</form>\n");
+                    .append(ControlPanelPage.Field.of("new-folder", "Folder, from the corpus root").value(newFolder)
+                            .example("src/billing")
+                            .hint("hint-new-folder", "The folder of the set of code, from the corpus root.")
+                            .browse(FolderPages.Target.NEW_FOLDER.forName())
+                            .after(FolderPages.statusElement(FolderPages.Target.NEW_FOLDER.forName(),
+                                    FolderPages.statusOfCodeSetFolder(state.values().corpusRoot(), newFolder)))
+                            .html())
+                    .append(ControlPanelPage.Field.of("new-name", "Name").value(held.getOrDefault("new-name", ""))
+                            .example("Billing engine").hint("hint-new-name", HINT_OF_A_NAME).html())
+                    .append("</section>\n").append(ControlPanelPage.button("save", "Save", false)).append("\n</form>\n");
         }
         Exchanges.page(exchange, ControlPanelPage.render(exchange, "Code sets", 0, body.toString()));
     }
@@ -191,6 +226,19 @@ final class ValuePages {
             Exchanges.redirect(exchange, "/code-sets");
             return;
         }
+        Optional<FolderPages.Target> browse = FolderPages.browsed(fields);
+        if (browse.isPresent() && browse.get() == FolderPages.Target.NEW_FOLDER) {
+            state.holdForm("code-sets", FolderPages.withoutBrowse(fields, browse.get().field()));
+            Exchanges.redirect(exchange, FolderPages.addressOf(browse.get(),
+                    fields.getOrDefault("new-folder", "").stripTrailing()));
+            return;
+        }
+        if (FolderPages.climbs(fields.getOrDefault("new-folder", "").strip())) {
+            state.say("/code-sets", "the folder is not saved: a code set's folder lies under the corpus root, and the"
+                    + " one named does not");
+            Exchanges.redirect(exchange, "/code-sets");
+            return;
+        }
         List<CodeSetRenames.Rename> left = new ArrayList<>();
         for (int i = 1; fields.containsKey("folder-" + i); i++) {
             String name = fields.getOrDefault("name-" + i, "");
@@ -198,7 +246,7 @@ final class ValuePages {
                 left.add(new CodeSetRenames.Rename(fields.get("folder-" + i), name.strip()));
             }
         }
-        String newFolder = fields.getOrDefault("new-folder", "").strip();
+        String newFolder = fields.getOrDefault("new-folder", "").stripTrailing();
         String newName = fields.getOrDefault("new-name", "").strip();
         if (!newFolder.isEmpty() || !newName.isEmpty()) {
             left.add(new CodeSetRenames.Rename(newFolder, newName));
@@ -207,6 +255,9 @@ final class ValuePages {
             CodeSetRenames.read(current);
             return CodeSetRenames.render(left);
         });
+        if (refusal.isEmpty()) {
+            state.letGoOfForm("code-sets");
+        }
         state.say("/code-sets", refusal.orElse("the names are saved in " + folder.get().resolve(CodeSetRenames.FILE_NAME)));
         Exchanges.redirect(exchange, "/code-sets");
     }
@@ -232,23 +283,44 @@ final class ValuePages {
         }
         StringBuilder body = new StringBuilder(ControlPanelPage.outcome(pending != null ? pending : problem));
         List<ProfileKey> asked = next.wanted();
+        List<ProfileKey> shown = new ArrayList<>();
+        StringBuilder list = new StringBuilder("<ul id=\"profile-list\">\n");
+        StringBuilder sections = new StringBuilder("<div class=\"sections\">\n");
         for (ProfileKey key : ProfileKey.values()) {
             if (asked.contains(key)) {
                 continue;
             }
+            shown.add(key);
             ProfileEdit.Stated held = stated.get(key);
             String current = held == null || held.value() == null ? "not set"
                     : held.value() + (held.provenance() == null ? "" : " (" + held.provenance() + ")");
-            body.append("<form name=\"").append(key.key()).append("\" method=\"post\" action=\"/profile\">\n")
+            list.append("<li><a href=\"#key-").append(key.key()).append("\">").append(key.key())
+                    .append("<span class=\"current\">")
+                    .append(ControlPanelPage.escape(held == null || held.value() == null ? "not set" : held.value()))
+                    .append("</span></a></li>\n");
+            Map<String, String> typed = state.heldForm(key.key());
+            boolean seedFolder = key == ProfileKey.SEED_FOLDER;
+            String forName = FolderPages.Target.PROFILE_SEED_FOLDER.forName();
+            String filled = key == ProfileKey.DELIVERABLE_LANGUAGE && held != null && held.value() != null
+                    ? held.value() : "";
+            String value = typed.getOrDefault("value", filled);
+            sections.append("<section class=\"card\" id=\"key-").append(key.key()).append("\">\n")
+                    .append("<form name=\"").append(key.key()).append("\" method=\"post\" action=\"/profile\">\n")
                     .append("<h2>").append(key.key()).append("</h2>\n")
                     .append("<input type=\"hidden\" name=\"key\" value=\"").append(key.key()).append("\">\n")
                     .append(ControlPanelPage.text("p", "current-" + key.key(), current)).append('\n')
-                    .append(ControlPanelPage.field("value", "Value", "", false))
-                    .append(ControlPanelPage.field("provenance", "Provenance", "", true))
+                    .append(ControlPanelPage.keyControl(key, "value", "f-" + key.key() + "-value", "Value", value,
+                            seedFolder ? forName : "",
+                            seedFolder ? FolderPages.statusElement(forName, FolderPages.statusOf(value, false)) : ""))
+                    .append(ControlPanelPage.provenance("provenance", "f-" + key.key() + "-provenance",
+                            "Why this value?", typed.getOrDefault("provenance", ""), "hint-" + key.key() + "-provenance"))
                     .append(ControlPanelPage.text("p", "cost-" + key.key(), ControlPanelPage.cost(key))).append('\n')
                     .append(NextPages.reportsOf(key.key()))
-                    .append(ControlPanelPage.button("save", "Save", false)).append("\n</form>\n");
+                    .append(ControlPanelPage.button("save", "Save", false)).append("\n</form>\n</section>\n");
         }
+        body.append("<div class=\"profile\">\n<div class=\"card\">\n").append(list).append("</ul>\n</div>\n")
+                .append(sections).append("</div>\n</div>\n")
+                .append(ControlPanelPage.listsFor(shown, state.lastChecks().ollama().models()));
         Exchanges.page(exchange, ControlPanelPage.render(exchange, "Profile", 0, body.toString()));
     }
 
@@ -256,6 +328,13 @@ final class ValuePages {
         Map<String, String> fields = Exchanges.form(exchange);
         Optional<Path> folder = state.workingDirectory();
         Optional<ProfileKey> key = ProfileKey.named(fields.getOrDefault("key", ""));
+        Optional<FolderPages.Target> browse = FolderPages.browsed(fields);
+        if (browse.isPresent() && browse.get() == FolderPages.Target.PROFILE_SEED_FOLDER && key.isPresent()) {
+            state.holdForm(key.get().key(), FolderPages.withoutBrowse(fields, browse.get().field()));
+            Exchanges.redirect(exchange, FolderPages.addressOf(browse.get(),
+                    fields.getOrDefault(browse.get().field(), "").stripTrailing()));
+            return;
+        }
         if (folder.isEmpty()) {
             state.say("/profile", NO_WORKING_DIRECTORY);
         } else if (key.isEmpty()) {
@@ -265,9 +344,12 @@ final class ValuePages {
             String provenance = fields.getOrDefault("provenance", "");
             Optional<String> refusal = state.write(folder.get(), ProfileEdit.FILE_NAME,
                     current -> ProfileEdit.rewrite(current, key.get(), value, provenance));
+            if (refusal.isEmpty()) {
+                state.letGoOfForm(key.get().key());
+            }
             state.say("/profile", refusal.orElse(key.get().key() + " is saved in "
                     + folder.get().resolve(ProfileEdit.FILE_NAME)));
         }
-        Exchanges.redirect(exchange, "/profile");
+        Exchanges.redirect(exchange, key.map(each -> "/profile#key-" + each.key()).orElse("/profile"));
     }
 }

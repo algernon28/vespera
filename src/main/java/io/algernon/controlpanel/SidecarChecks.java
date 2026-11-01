@@ -43,10 +43,17 @@ final class SidecarChecks {
         }
     }
 
-    /** One check: its result, and the warning it gives where it gives one. */
-    record Check(Result result, List<String> warnings) {
+    /**
+     * One check: its result, the warning it gives where it gives one, and the models Ollama reported, in its order,
+     * which the pages offer (ADR-331 §7); none for a check that is not Ollama's or that got no answer.
+     */
+    record Check(Result result, List<String> warnings, List<String> models) {
+        Check(Result result, List<String> warnings) {
+            this(result, warnings, List.of());
+        }
+
         Check(Result result) {
-            this(result, List.of());
+            this(result, List.of(), List.of());
         }
     }
 
@@ -60,7 +67,8 @@ final class SidecarChecks {
     /**
      * Asks both at once.
      *
-     * @param modelsNamed the models Ollama is expected to serve, none where nothing is named
+     * @param modelsNamed the models Ollama is expected to serve, none where nothing is named; Ollama is asked wherever
+     *     its address is named, for the names it serves (ADR-331 §7)
      */
     static Checks ask(String doclingBaseUrl, String doclingImage, String ollamaBaseUrl, List<String> modelsNamed) {
         CompletableFuture<Check> docling = CompletableFuture.supplyAsync(() -> docling(doclingBaseUrl, doclingImage));
@@ -89,22 +97,27 @@ final class SidecarChecks {
     }
 
     static Check ollama(String baseUrl, List<String> modelsNamed) {
-        if (baseUrl.isBlank() || modelsNamed.isEmpty()) {
+        if (baseUrl.isBlank()) {
             return new Check(Result.NOT_CHECKED);
         }
         Set<String> served = new java.util.HashSet<>();
+        List<String> names = new ArrayList<>();
         try {
             Object answer = get(baseUrl, "/api/tags");
             if (!(answer instanceof Map<?, ?> members) || !(members.get("models") instanceof List<?> models)) {
-                return new Check(Result.NOT_ANSWERING);
+                return new Check(modelsNamed.isEmpty() ? Result.NOT_CHECKED : Result.NOT_ANSWERING);
             }
             for (Object model : models) {
                 if (model instanceof Map<?, ?> entries && entries.get("name") instanceof String name) {
                     served.add(name);
+                    names.add(name);
                 }
             }
         } catch (IOException | RuntimeException notAnswering) {
-            return new Check(Result.NOT_ANSWERING);
+            return new Check(modelsNamed.isEmpty() ? Result.NOT_CHECKED : Result.NOT_ANSWERING);
+        }
+        if (modelsNamed.isEmpty()) {
+            return new Check(Result.NOT_CHECKED, List.of(), List.copyOf(names));
         }
         List<String> warnings = new ArrayList<>();
         for (String model : modelsNamed) {
@@ -113,7 +126,7 @@ final class SidecarChecks {
                 warnings.add("the model service at " + baseUrl + " does not serve " + model);
             }
         }
-        return new Check(warnings.isEmpty() ? Result.SERVES_ALL : Result.MISSING, warnings);
+        return new Check(warnings.isEmpty() ? Result.SERVES_ALL : Result.MISSING, warnings, List.copyOf(names));
     }
 
     /** The JSON the address answers 200 with; an {@link IOException} for any other answer or none in time. */

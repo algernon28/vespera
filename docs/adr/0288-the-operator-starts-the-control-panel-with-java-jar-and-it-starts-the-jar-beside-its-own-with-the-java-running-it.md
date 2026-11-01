@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-302](0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md).** Of §4: once its runtime is found, `ControlPanel.main` writes its line, starts the server and writes the address to open, and serves until its process ends, in place of exiting 0. Of What this does not decide: the README's text arrives with the screens. The rest of this record stands.
 
+> **Partly amended — see [ADR-331](0331-the-control-panel-opens-a-window-of-its-own-and-its-pages-are-a-cockpit-with-a-picker-an-example-and-a-hint-on-its-fields.md).** Of §3: neither `PATH` nor `JAVA_HOME` picks the child's `java`, which stays that of the runtime running the control panel; `PATH` is read by `SystemBrowserOpener.windowCommand` alone, to find a browser, and `JAVA_HOME` by no class. Of its Tests: `ChildRuntimeTest.noClassOfTheControlPanelReadsPathOrJavaHome` is `neitherPathNorJavaHomePicksTheChildsJava`, holding `java.home` and `os.name` in the compiled texts, `JAVA_HOME` in no class, the word `PATH` in `SystemBrowserOpener` and in `FolderPages`'s query alone, and no call of `System.getenv` in `ChildRuntime`, `ChildCommand` or `FolderPages`. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md): no launcher script, installer or image is shipped, and the operator starts the control panel as they start the jar, by `java -jar` (§1); distribution stays out of scope.

@@ -1,5 +1,7 @@
 # ADR-325 — The control panel opens the browser itself, at a fixed port, and a tab of its last start comes back to the next in place of a new one
 
+> **Partly amended — see [ADR-331](0331-the-control-panel-opens-a-window-of-its-own-and-its-pages-are-a-cockpit-with-a-picker-an-example-and-a-hint-on-its-fields.md).** Of §3: the fourth step's line is `opening the control panel; if nothing appears, go to http://127.0.0.1:<port>/ in your browser`. Of §7: `SystemBrowserOpener.open` starts what `windowCommand` chooses, a Chromium browser's `--app=<address>` where one is found and otherwise `command`'s, which stands, with the same rules for `CI`, for no display and for a failure. Of §8: "by the same commands" holds where no such browser is found. Of its Consequences: a window of its own opens where such a browser is found. The port, the checks, the mark, the one script and the wait of 5 seconds stand, a window running the script as a tab does. The rest of this record stands.
+
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone. The opener of §7 is `ProcessBuilder`, of `java.base`; `java.desktop` is not added (§7).
