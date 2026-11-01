@@ -35,7 +35,7 @@ import org.junit.jupiter.api.io.TempDir;
  */
 @Epic("Operation")
 @Feature("The control panel")
-@Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_CLUSTERING_SHIPS_AS_PRESETS, type = "adr")
+@Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
 @Disabled("ADR-330: awaits the launch page's check of the image against the jar's file, its list of images, and machine-values")
 class LaunchImageScreenTest {
 
@@ -47,6 +47,32 @@ class LaunchImageScreenTest {
 
     /** The image the graphics card's build runs, which the sidecar here says it runs. */
     private static final String CARD_IMAGE = "vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0-r2";
+
+    /**
+     * What the page lists of this machine's values, in the order ADR-330 §12 gives: each key, the value the jar said and
+     * where it came from. The first five are the application's own; the fourteen after them are the presets of the
+     * converter, of redundancy and of relevance, at the values the jar ships.
+     */
+    private static final List<List<String>> THIS_MACHINES_VALUES = List.of(
+            List.of("vespera.sidecars.start", "false", "environment"),
+            List.of("vespera.sidecars.wait-at-most", "180s", "shipped"),
+            List.of("vespera.progress-interval", "5s", "shipped"),
+            List.of("vespera.open-browser", "true", "shipped"),
+            List.of("vespera.clustering.neighbours", "15", "shipped"),
+            List.of("vespera.docling.ocr-preset", "rapidocr", "shipped"),
+            List.of("vespera.docling.timeouts-in-a-row", "3", "shipped"),
+            List.of("vespera.redundancy.shingle-words", "5", "shipped"),
+            List.of("vespera.redundancy.minhash.permutations", "128", "shipped"),
+            List.of("vespera.redundancy.minhash.bands", "16", "shipped"),
+            List.of("vespera.redundancy.minhash.rows-per-band", "8", "shipped"),
+            List.of("vespera.redundancy.minhash.seed", "6840335614489015382", "shipped"),
+            List.of("vespera.redundancy.near-duplicate-jaccard", "0.8", "shipped"),
+            List.of("vespera.redundancy.containment-index", "0.95", "shipped"),
+            List.of("vespera.redundancy.rare-shingle-sample", "32", "shipped"),
+            List.of("vespera.redundancy.rare-shingle-hits", "24", "shipped"),
+            List.of("vespera.relevance.top-similarities", "3", "shipped"),
+            List.of("vespera.relevance.sample.bands", "5", "shipped"),
+            List.of("vespera.relevance.sample.per-band", "12", "shipped"));
 
     @TempDir
     Path folder;
@@ -138,37 +164,26 @@ class LaunchImageScreenTest {
     @DisplayName("The values of the application's own file are shown with where each came from, and none has a control")
     void whatThisMachineRunsWithIsShownAndNotEdited() throws IOException {
         Path work = Files.createDirectories(folder.resolve("work"));
-        theJarSaid(work, """
-                vespera.sidecars.start=false
-                vespera.sidecars.start.source=environment
-                vespera.sidecars.wait-at-most=180s
-                vespera.sidecars.wait-at-most.source=shipped
-                vespera.progress-interval=5s
-                vespera.progress-interval.source=shipped
-                vespera.open-browser=true
-                vespera.open-browser.source=shipped
-                vespera.clustering.neighbours=15
-                vespera.clustering.neighbours.source=shipped
-                """);
+        // Written in the reverse of the page's order: the order shown is the page's own, not the file's.
+        StringBuilder said = new StringBuilder();
+        for (List<String> value : THIS_MACHINES_VALUES.reversed()) {
+            said.append(value.get(0)).append('=').append(value.get(1)).append('\n')
+                    .append(value.get(0)).append(".source=").append(value.get(2)).append('\n');
+        }
+        theJarSaid(work, said.toString());
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus(), work))) {
             Page page = screens.browser().page();
             List<List<String>> shown = byId(page, "machine-values").select("li").stream()
                     .map(item -> List.of(item.attr("data-key"), item.attr("data-value"), item.attr("data-source")))
                     .toList();
 
-            claim("each is shown with its value and where it came from, in the one order the page gives them",
-                    () -> assertThat(shown).containsExactly(
-                            List.of("vespera.sidecars.start", "false", "environment"),
-                            List.of("vespera.sidecars.wait-at-most", "180s", "shipped"),
-                            List.of("vespera.progress-interval", "5s", "shipped"),
-                            List.of("vespera.open-browser", "true", "shipped"),
-                            List.of("vespera.clustering.neighbours", "15", "shipped")));
+            claim("each of the " + THIS_MACHINES_VALUES.size() + " is shown with its value and where it came from, in"
+                            + " the one order the page gives them",
+                    () -> assertThat(shown).containsExactlyElementsOf(THIS_MACHINES_VALUES));
             claim("and no form on the page has a control for one",
                     () -> assertThat(page.document().select("form").stream()
                                     .flatMap(each -> controlNames(each).stream()).toList())
-                            .doesNotContain("vespera.sidecars.start", "vespera.sidecars.wait-at-most",
-                                    "vespera.progress-interval", "vespera.open-browser",
-                                    "vespera.clustering.neighbours"));
+                            .doesNotContainAnyElementsOf(THIS_MACHINES_VALUES.stream().map(List::getFirst).toList()));
         }
     }
 

@@ -46,7 +46,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Import(SeedScriptedExtractionBeans.class)
 @Epic("Relevance")
 @Feature("Clustering")
-@Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_CLUSTERING_SHIPS_AS_PRESETS, type = "adr")
+@Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
 @Disabled("ADR-330: awaits clusterResolution in the profile and in the scoring run's identity")
 class TheClusteringPresetsInvocationTest {
 

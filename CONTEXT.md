@@ -281,9 +281,9 @@ A value the control panel passes when it starts an invocation, remembered per us
 _Avoid_: parameter, setting, config
 
 **Preset**:
-The value of a technical choice that ships in `application.yaml` in place of a constant of the code, where a machine's own configuration may override it and, for one a record gives a profile key, the profile does (ADR-298, ADR-330). Not a threshold: a measured floor ships unset, pointing at its measurement. One that decides what a run produces enters that run's identity, written only where it differs from what runs were minted under before it was a preset, so that introducing it moves no recorded configuration.
+The value of a technical choice that ships in `application.yaml` in place of a constant of the code, where a machine's own configuration may override it and, for one a record gives a profile key, the profile does (ADR-298, ADR-330). Not a measured floor: a floor read off a corpus ships unset, pointing at its measurement. One that decides what a run produces enters that run's identity, written only where it differs from what runs were minted under before it was a preset, or as an identity already named it, so that introducing it moves no recorded configuration.
 _Avoid_: knob, tunable, parameter, option
-_Not to be confused with_: a **launch value**, which names where things are on one machine; the **profile**, which is authored per corpus; Docling's `ocr_preset`, a name its sidecar resolves, which Vespera pins in code (ADR-090).
+_Not to be confused with_: a **launch value**, which names where things are on one machine; the **profile**, which is authored per corpus; Docling's `ocr_preset`, a name its sidecar resolves, which Vespera names on every conversion from the preset `vespera.docling.ocr-preset` and never leaves to the sidecar's `auto` (ADR-090, ADR-330).
 
 **Effective values**:
 What `effective-values.properties` says, which the jar writes for the control panel as an invocation starts: what would apply where the profile names nothing, each with where it came from, from a closed list holding no credential and no path (ADR-330). What lies beneath the profile, never what the profile names; what is in use is the profile's value where it names one, and this where it does not.

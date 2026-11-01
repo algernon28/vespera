@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-323](0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md) §7.** The health check before stage 2's first occurrence is still asked once. A converter that gives no answer to it is waited for, asked every 2 s until `vespera.sidecars.wait-at-most` (180 s unless set) has passed, and asked once more at the bound; an error answer, or no answer then, fails the step with the message it fails with here.
 
+> **Partly amended — see [ADR-330](0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** *"The timeout budget and both consecutive-streak counts are fixed defaults in code"*: the consecutive-timeout count is the preset `vespera.docling.timeouts-in-a-row` in `application.yaml`, shipping 3, refused outside 2 to 4, and entering stage 2's run only where it is not 3. The timeout budget and the count of 5 stay in code. The rest of this record stands.
+
 - **Date**: 2026-09-03
 - **Status**: accepted
 - **Amends**: none (fills in the mechanism ADR-070 left open — the timeout budget, the consecutive-timeout count, and the retry/backoff/skip policy for service-scope failures)

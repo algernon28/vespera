@@ -1,6 +1,6 @@
 # ADR-087 — Clusters are modularity communities over a k-nearest-neighbour graph, built in blocks
 
-> **Partly amended — see [ADR-330](0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-clusterings-two-numbers-ship-as-presets-in-application-yaml.md).** Of its table: `k` and the resolution are presets in `application.yaml`, at 15 and 1.0, and each enters the scoring run's identity only where it differs from those. Of its sentence on resolution: the resolution becomes the profile key `clusterResolution`, which overrides the preset, shipping with a value where that sentence refused one shipping unset. The rest of this record stands.
+> **Partly amended — see [ADR-330](0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** Of its table: `k` and the resolution are presets in `application.yaml`, at 15 and 1.0, and each enters the scoring run's identity only where it differs from those. Of its sentence on resolution: the resolution becomes the profile key `clusterResolution`, which overrides the preset, shipping with a value where that sentence refused one shipping unset. The rest of this record stands.
 
 - **Date**: 2026-09-06
 - **Status**: accepted

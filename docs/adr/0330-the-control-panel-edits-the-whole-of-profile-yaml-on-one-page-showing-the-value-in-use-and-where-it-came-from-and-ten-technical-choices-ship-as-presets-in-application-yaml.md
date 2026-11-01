@@ -1,8 +1,8 @@
-# ADR-330 — The control panel edits the whole of `profile.yaml` on one page, showing the value in use and where it came from, and clustering's two numbers ship as presets in `application.yaml`
+# ADR-330 — The control panel edits the whole of `profile.yaml` on one page, showing the value in use and where it came from, and ten technical choices ship as presets in `application.yaml`
 
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
-- **Decided**: by the operator, that one record covers both parts; that `profile.yaml` stays the store, the jar reading it, every run recording it and an agent reading and writing it; that the pattern to extend is [ADR-298](0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md)'s; that the page creates the file if it is missing and edits it if it is present; and that more technical choices ship as presets and are in time edited on the control panel. Every other choice here, each with the alternative it refused, is decided under the operator's delegation of 2026-10-31, and any of them is reopened by a later record.
+- **Decided**: by the operator, that one record covers both parts; that `profile.yaml` stays the store, the jar reading it, every run recording it and an agent reading and writing it; that the pattern to extend is [ADR-298](0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md)'s; that the page creates the file if it is missing and edits it if it is present; that more technical choices ship as presets and are in time edited on the control panel; and that every candidate of §8's table is one: `RelevanceScorer.TOP_K`, `RelevanceDistribution.BANDS` and `SAMPLED_PER_BAND`, `DoclingClient.PINNED_OCR_PRESET`, `FailuresInARow.CONSECUTIVE_TIMEOUT_COUNT`, and `similarity`'s `MinHashParameters.DEFAULT`, `ShingleParameters.DEFAULT` and `RedundancyThresholds.DEFAULT`, beside clustering's two numbers. How each enters a run, what it refuses and what becomes of the floors and answers its earlier value was read under is decided here under the same delegation. Every other choice here, each with the alternative it refused, is decided under the operator's delegation of 2026-10-31, and any of them is reopened by a later record.
 - **Keeps**: [ADR-043](0043-the-profile-is-authored-as-a-file-and-recorded-in-the-ledger.md), [ADR-061](0061-the-profile-is-yaml-typed-java-records-one-object-per-value.md) and [ADR-062](0062-census-merges-new-profile-keys-and-never-touches-an-existing-value.md): the file is input, a value is `value`, `provenance` and `measurement` under its key, and a save holds only what was saved, the jar adding the rest as unset at its next load (§7).
 - **Keeps**: [ADR-006](0006-census-measure-before-judging.md): a measured floor ships unset, so no floor is a preset (§8).
 - **Keeps**: [ADR-120](0120-a-profile-values-type-is-its-keys-and-an-unreadable-value-is-a-third-state-beside-unset.md): an unreadable value is a third state, shown as one, and no repair touches it (§2, §6).
@@ -13,12 +13,19 @@
 - **Keeps**: [ADR-297](0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md): each screen is tested through the pages it serves, reading names, ids and attributes and never words. §3's control types rest on what a browser does with them, which no test sees, and this says so as that record's Consequences ask.
 - **Keeps**: [ADR-325](0325-the-control-panel-opens-the-browser-itself-at-a-fixed-port-and-a-tab-of-its-last-start-comes-back-to-the-next-in-place-of-a-new-one.md) §4: one script, which writes nothing into a page; no control here needs it (§3).
 - **Keeps**: [ADR-058](0058-a-stages-implementation-version-is-the-last-commit-touching-its-module.md) and [ADR-222](0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md): a stage's version is the last commit touching a module it names, and no stage names `pipeline` or `profile`; §10 follows from them and asks neither to change.
-- **Keeps**: [ADR-082](0082-stage-4-judges-on-its-first-run-its-thresholds-are-code-defaults-and-it-ships-no-report.md), [ADR-081](0081-minhash-retrieves-shingle-sets-judge-128-permutations-in-16-bands.md), [ADR-073](0073-stage-2-writes-the-derived-metric-columns-tokenizer-and-shingle-dependent-values-live-under-their-own-identity.md), [ADR-071](0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md), [ADR-090](0090-the-extractor-identity-is-the-sidecars-version-map-and-the-options-the-client-sends-never-its-url.md), [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md) and [ADR-020](0020-relevance-scoring-function.md): each of their numbers stays in code (§8).
+- **Keeps**: [ADR-081](0081-minhash-retrieves-shingle-sets-judge-128-permutations-in-16-bands.md): its numbers are the shipped values, byte for byte, and its *"recorded here as values, not as profile keys"* stands: no preset of §8 has a profile key (§8, §9).
+- **Keeps**: [ADR-082](0082-stage-4-judges-on-its-first-run-its-thresholds-are-code-defaults-and-it-ships-no-report.md)'s *"Why not a profile key"* and its first run judging: a similarity cut is still no judgement about one corpus, so it is no profile value (§8, §12).
 - **Keeps**: [ADR-165](0165-ollama-is-given-an-nvidia-gpu-by-an-override-file-and-compose-yaml-alone-asks-for-none.md), [ADR-170](0170-docling-runs-on-the-gpu-under-compose-gpu-yaml-with-an-image-tag-of-its-own.md) and [ADR-179](0179-no-entry-point-starts-the-sidecars-the-docling-sidecar-reports-the-image-it-runs-and-ollamas-models-live-in-a-volume.md) §2: the processor build stays the default everywhere, and a conversion is refused under an image the sidecar does not run (§11).
 - **Keeps**: [ADR-323](0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md) §9 and [ADR-327](0327-an-ended-progress-page-keeps-reloading-so-a-tab-left-open-shows-the-next-invocation-and-vespera-open-browser-set-false-opens-nothing.md) §5: those keys are the application's and no profile values (§12).
 - **Extends**: [ADR-298](0298-the-embedding-model-ships-with-a-default-in-application-configuration-which-the-profile-overrides-and-stage-5-is-gated-only-where-neither-names-one.md) §1, §3 and §4: the resolution ships in `application.yaml`, the profile overrides it, nothing is written into the profile when the shipped value applies, and a run is identified by the value resolved and not by where it was named (§8, §9).
 - **Amends**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the files that are the control panel's contract with the jar gain `effective-values.properties`, parsed in `java.base` (§1). It carries a note at its head.
 - **Amends**: [ADR-087](0087-clusters-are-modularity-communities-over-a-k-nearest-neighbour-graph-built-in-blocks.md)'s table and its sentence on resolution: `k` and the resolution are presets at the numbers it chose, and the resolution becomes the profile key that sentence foresaw, shipping with a value where it refused one shipping unset (§8). It carries a note at its head.
+- **Amends**: [ADR-020](0020-relevance-scoring-function.md)'s *"mean top-3 chunk similarity"*: the mean is of the top `vespera.relevance.top-similarities`, shipping 3, and a score under another number is on another scale (§8, §9).
+- **Amends**: [ADR-071](0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md)'s *"The timeout budget and both consecutive-streak counts are fixed defaults in code"*: the consecutive-timeout count is the preset `vespera.docling.timeouts-in-a-row`, shipping 3, refused outside 2 to 4, and entering stage 2's run where it is not 3; the budget and the count of 5 stay in code (§8, §9). It carries a note at its head.
+- **Amends**: [ADR-073](0073-stage-2-writes-the-derived-metric-columns-tokenizer-and-shingle-dependent-values-live-under-their-own-identity.md)'s *"Granularity is a code default, not a profile key"*: it is the preset `vespera.redundancy.shingle-words`, shipping 5, and still no profile key; its identity stays in the row's key, and enters stage 2's run where it is not `word:5` (§8, §9). It carries a note at its head.
+- **Amends**: [ADR-082](0082-stage-4-judges-on-its-first-run-its-thresholds-are-code-defaults-and-it-ships-no-report.md)'s *"The thresholds are code defaults"*, *"0.80 and 0.95 live in code … and are changed by a new ADR"* and *"No new identity column is needed for them"*: the two cuts and the containment path's two counts ship as presets, what ships is changed by a record, and a value a machine names in their place enters stage 4's run, so that a run says which cuts judged it (§8, §9). Its *"no threshold an operator can move"* no longer holds; whether stage 4 ships a report is left open (What this does not decide). It carries a note at its head.
+- **Amends**: [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md)'s table, whose five bands and twelve from each are the presets `vespera.relevance.sample.bands` and `vespera.relevance.sample.per-band`, the sixty being the shipped sample, and each entering the scoring run where it differs; and its section 3, *"A threshold is a number on a scale, and changing the model changes the scale"*: the scale is the embedder identity and, where it is not 3, the number of similarities a score is the mean of (§8, §9). It carries a note at its head.
+- **Amends**: [ADR-090](0090-the-extractor-identity-is-the-sidecars-version-map-and-the-options-the-client-sends-never-its-url.md)'s *"The OCR engine is pinned by the client"*: the client still names a preset on every conversion, never `auto`, and the name is the preset `vespera.docling.ocr-preset`, shipping `rapidocr`, which `sentOptions()` and so the extractor identity go on naming (§8, §9). It carries a note at its head.
 - **Amends**: [ADR-294](0294-the-control-panel-learns-what-the-next-invocation-wants-from-a-file-the-jar-writes-with-the-closing-line.md) §2: the row of a key holding something nothing can be read from gains `clusterResolution`, after `extractionAttempt` (§9). It carries a note at its head.
 - **Amends**: [ADR-295](0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md) §1, *"The control panel creates no working directory"*: a save of `profile.yaml` makes one that does not exist (§7); §2, *"three files of a working directory and no other"*: a repair also writes a copy of the file it repairs, and the file not in the form read is shown and may be repaired where it was refused alone (§6); §3, *"never offers a provenance"*: it offers back the provenance the file states, and still none of its own (§2), and *"kept unread"*: a measurement's two lines are read to be shown, and kept byte for byte (§4); §4, whose checks gain the two of §5 and the row of `clusterResolution`, and whose *"one line"* is asked of a list's pieces once its lines are joined (§3, §9); and §5, whose table gains that key (§9). It carries a note at its head.
 - **Amends**: [ADR-302](0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md) §5, *"the jar's own defaults are not the control panel's to know"*, whose `docling-check` compares with the image the jar last said where no launch value names one, and which is also asked as `/profile` is answered (§3, §11); §8, *"a form named by the key"* for *"every `ProfileKey` that the form `next` does not hold"*: one form of every key (§5), with its values filled (§2); *"`save` writes the keys in the form's order … and stops at the first refused"*: nothing is written where one is refused (§5); and *"A key's control is empty"*: it holds what the file states (§2); and §9, whose table of names gains those of §2 to §7 and §11 to §12. It carries a note at its head.
@@ -43,6 +50,20 @@ No stage names `pipeline`, `profile`, `deliverable` or `confluence`, and `io.alg
 
 **Where a cluster lies.** `document_cluster` is keyed by the scoring run, so a cluster's identity is the scoring run's, as the relevance floor's verdicts are.
 
+**Where the other candidates are named today.** Each is a constant, and none is a member of a run's `ConfigConsumed`, so each reaches a run's id through the implementation version alone:
+
+| Constant | Used by | Named besides |
+| --- | --- | --- |
+| `DoclingClient.PINNED_OCR_PRESET`, `rapidocr` | every conversion, as `ocr_preset` | `sentOptions()`, so the extractor identity, which keys `extraction_cache` and is `ExtractionConfigConsumed`'s first member, says `ocr_preset=rapidocr` (ADR-090) |
+| `FailuresInARow.CONSECUTIVE_TIMEOUT_COUNT`, 3 | `OccurrenceJudge`: below it a timeout is `extraction-failed`, at it the occurrence is set aside (ADR-071) | nothing |
+| `ShingleParameters.DEFAULT`, 5 words | stage 2's shingler, stage 3's document frequency and boilerplate, stage 4's signatures and resolution | `identity()`, `word:5`, in `shingle.shingle_parameter_identity` and in a signature's identity (ADR-073, ADR-080) |
+| `MinHashParameters.DEFAULT`, 128, 16, 8 and a seed | stage 4's signatures and bands | `identity()`, `perms:128;bands:16;rows:8;seed:6840335614489015382`, in a signature's identity (ADR-081) |
+| `RedundancyThresholds.DEFAULT`, 0.80, 0.95, 32 and 24 | stage 4's resolution | nothing (ADR-082) |
+| `RelevanceScorer.TOP_K`, 3 | every relevance score (ADR-020) | nothing |
+| `RelevanceDistribution.BANDS` and `SAMPLED_PER_BAND`, 5 and 12 | the relevance report's draw, from the scoring run's id (ADR-088, ADR-220) | nothing |
+
+**What a floor is compared on.** ADR-088 §3 makes the embedder identity a relevance floor's scale: `FloorReach`, `RelevanceLabels.forSeedSet` and `LoseNoDocumentationFloor` compare the identity each recorded answer was given under, which the label file names as `generatedUnderEmbedder`, with the run's, and a floor whose answers stand under another removes nothing. A floor stated with no answers at all applies (ADR-088). The other two floors a candidate bears on, `degenerateOutputConfidenceFloor`, read off the confidence Docling reports, and `boilerplateDocumentFrequencyFloor`, read off the document frequency of shingles, carry no scale.
+
 **What was measured.** Over the graph `NearestNeighbourGraph.build` makes of identical vectors, the shape `EmbeddingScriptedBeans` gives every test, `Communities.of` finds 1 cluster at resolution 1.0 and one for each document at 2.5, 50 and 1000, for 3, 6, 8 and 20 documents and for `k` of 15, 2 and 1. So on that fixture the count of clusters tells the resolution used, and tells nothing of `k`. A whole-job invocation over 3 documents and a seed writes 3 rows of `document_cluster` and 1 ordinal.
 
 **The image.** `vespera.docling.image` ships the processor build, which `compose.yaml` runs and `TestcontainersConfiguration` tests against, and `DoclingSidecarImageTest` holds the three as one; `compose.gpu.yaml` builds another image under another name, and an operator on it sets `VESPERA_DOCLING_IMAGE`. A device request a machine cannot satisfy stops `up` (ADR-165). The launch page's check says `not-checked` where the launch value is empty, so an operator who leaves it empty with the card's sidecar running learns of the mismatch when stage 2 stops.
@@ -64,7 +85,7 @@ No stage names `pipeline`, `profile`, `deliverable` or `confluence`, and `io.alg
 | `written-at` | the moment it was written, ISO-8601 with an offset, and no source |
 | `embeddingModel`, `generationModel`, `generationContextWindow`, `deliverableLanguage`, `clusterResolution` | what applies where the profile names none, never what the profile names: so a value cleared on the page can be shown as what it falls back to |
 | `vespera.docling.image` | an image's name |
-| `vespera.sidecars.start`, `vespera.sidecars.wait-at-most`, `vespera.progress-interval`, `vespera.open-browser`, `vespera.clustering.neighbours` | as the application resolves each |
+| `vespera.sidecars.start`, `vespera.sidecars.wait-at-most`, `vespera.progress-interval`, `vespera.open-browser`, `vespera.clustering.neighbours`, and the fourteen keys of §9's table from `vespera.docling.ocr-preset` to `vespera.relevance.sample.per-band`, in its order | as the application resolves each |
 | `spring.ai.ollama.base-url`, `vespera.docling.base-url` | its scheme, host and port alone |
 | `docling.images` | the names of the two images the compose files in the jar build, separated by one space, and no source; left out where they cannot be read |
 
@@ -175,20 +196,20 @@ Every other byte is kept, line ends included. **Everything else is the operator'
 
 **A preset** is the value of a technical choice shipped in `src/main/resources/application.yaml`, where it is read, overridden and listed, in place of a constant of the code. Spring's own layers override it for a machine. Where a choice is also a judgement about one corpus, the record that makes it a preset may give it a profile key, with its provenance, as ADR-298 has it of the embedding model. A measured floor is no preset: it ships unset and points at its measurement (ADR-006).
 
-**A candidate becomes a preset where all three hold:** an operator could want another value, on evidence they can see; another value is comparable with this one, leaving what a recorded threshold was calibrated against in place; and the cost of §10, once, is one that buys that. The rest stay in code, where a changed value is a changed record and a changed version (ADR-082).
+**Every candidate is a preset.** What it decides is not settled by its being one. Each enters the identity of the run it shapes where it differs from the value every earlier run was minted under (§9), so that a machine naming another value gets runs of its own beside those of the shipped one, and no finished run is read as if made under a value it was not. What another value does to a floor or an answer read under the shipped one is said of each below and in §9. None of the eight below `k` gets a profile key: each is a mechanism's number and no judgement about one corpus (ADR-071, ADR-073, ADR-082), so none is edited on the control panel until a record gives it one on a measurement of what it moves (§12).
 
 | Value | Where | Decision | Control panel | What it does to run identity |
 | --- | --- | --- | --- | --- |
 | resolution, 1.0 | `Communities.DEFAULT_RESOLUTION` | **Preset** `vespera.clustering.resolution`, overridden by the profile's new `clusterResolution`. How finely a partition divides is what `cluster-sizes.html` shows and what ADR-087 foresaw a key for; its objection, a key shipping unset and unanswerable, does not meet a key shipping a value. | **Now**: a key of `/profile`, with `cost-` and `report-` linking `cluster-sizes.html` | Enters the scoring run where it is not 1.0 (§9) |
 | `k`, 15 | `Clustering.NEIGHBOURS` | **Preset** `vespera.clustering.neighbours`. An operational number, no judgement about a corpus (ADR-087), so no profile key; it stands beside the resolution in the graph it shapes, and costs nothing further. | **Later**: shown read-only now (§12); edited once a record gives it a profile key on a measurement of what it moves | Enters the scoring run where it is not 15 (§9) |
-| top 3, the mean's K | `RelevanceScorer.TOP_K` | **Stays in code.** It defines ADR-020's score, the scale `relevanceScoreFloor` and every label's score are read on, so another value carries a floor across scales with no error; and no page informs it. | **Never** | None: unchanged |
-| five bands | `RelevanceDistribution.BANDS` | **Stays in code.** ADR-088 fixes it so that one archive is divided as another is. | **Never** | None: unchanged |
-| twelve from each | `RelevanceDistribution.SAMPLED_PER_BAND` | **Stays in code.** ADR-088's sixty is a ceiling on a person's sitting, and the README, the report and `vespera label --auto` all rest on it. A local model answering may yet free it; that is a record of its own. | **Never**, until such a record | None: unchanged |
-| `ocr_preset`, `rapidocr` | `DoclingClient.PINNED_OCR_PRESET` | **Stays in code.** ADR-090 pinned it so that the one choice whose drift is invisible and total is not left to anyone, and its models ship in the image. | **Never** | None: unchanged. It stays in `sentOptions()`, so the extractor identity holds it |
-| three timeouts in a row | `FailuresInARow.CONSECUTIVE_TIMEOUT_COUNT` | **Stays in code.** ADR-071's mechanism number, which decides whether a timeout is the document's or the converter's. It is no value an operator has evidence for, `extractionAttempt` answers a busy converter, and moving it would reach every stage from extraction on. | **Never** | None: unchanged |
-| 128 permutations, 16 bands, 8 rows, its seed | `similarity.MinHashParameters.DEFAULT` | **Stays in code.** ADR-081's measured choice, and a mechanism parameter as ADR-082 says; `identity()` already keys a signature. Moving it would reach every stage from extraction on. | **Never** | None: unchanged |
-| five-word shingles | `similarity.ShingleParameters.DEFAULT` | **Stays in code.** ADR-073 parks its real value on data no page shows, and a change is another measurement of every document. | **Never** | None: unchanged |
-| 0.80, 0.95, 32 and 24 | `similarity.RedundancyThresholds.DEFAULT` | **Stays in code.** ADR-082: no measurement of a corpus tells whether two documents at 0.78 are one, and the record moves, not a value. | **Never** | None: unchanged |
+| ocr preset, `rapidocr` | `DoclingClient.PINNED_OCR_PRESET` | **Preset** `vespera.docling.ocr-preset`. ADR-090's pin was against `auto`, an engine the sidecar picks and nothing records; a preset named by configuration and written into the extractor identity is recorded, so its drift is neither invisible nor silent. `auto` stays refused (§9). | **Later**: shown read-only now (§12) | None at `rapidocr`: `sentOptions()` names it as now. Another is another extractor: a stage-2 run and every later one, and every conversion asked again (§9) |
+| three timeouts in a row | `FailuresInARow.CONSECUTIVE_TIMEOUT_COUNT` | **Preset** `vespera.docling.timeouts-in-a-row`. It decides whether a timeout is the document's verdict or the converter's fault (ADR-071), so it shapes stage 2's verdicts, and is held to 2 to 4 by ADR-071's own reasons (§9). The count of 5 and the budget stay in code. | **Later**: shown read-only now (§12) | Enters the extraction run where it is not 3 (§9) |
+| five-word shingles | `similarity.ShingleParameters.DEFAULT` | **Preset** `vespera.redundancy.shingle-words`. ADR-073 parked its real value on data stage 3 shows; its identity already keys every shingle row, so another window is a measurement of its own, not a correction of this one. | **Later**: shown read-only now (§12) | Enters the extraction run, as `word:<n>`, where it is not 5 (§9) |
+| 128 permutations, 16 bands, 8 rows, its seed | `similarity.MinHashParameters.DEFAULT` | **Preset** `vespera.redundancy.minhash.permutations`, `.bands`, `.rows-per-band` and `.seed`. ADR-081's measured choice stays what ships; `identity()` already keys a signature. | **Later**: shown read-only now (§12) | Enters the content-redundancy run, as its `identity()`, where that is not the shipped one (§9) |
+| 0.80, 0.95, 32 and 24 | `similarity.RedundancyThresholds.DEFAULT` | **Preset** `vespera.redundancy.near-duplicate-jaccard`, `vespera.redundancy.containment-index`, `vespera.redundancy.rare-shingle-sample` and `vespera.redundancy.rare-shingle-hits`. ADR-082's objection to a profile key stands, and a run now says which cuts judged it, where a changed constant said so only through the version. | **Later**: shown read-only now (§12) | Enters the content-redundancy run where any of the four differs (§9) |
+| top 3, the mean's K | `RelevanceScorer.TOP_K` | **Preset** `vespera.relevance.top-similarities`. It defines ADR-020's score, so another number is another scale: it joins the scale a floor and an answer are compared on (§9), and a floor read at 3 removes nothing at another number where answers stand under 3. | **Later**: shown read-only now (§12) | Enters the scoring run where it is not 3 (§9) |
+| five bands | `RelevanceDistribution.BANDS` | **Preset** `vespera.relevance.sample.bands`. ADR-088 fixed it so that one archive is divided as another is; a machine naming another divides its archives alike, and the run says so. | **Later**: shown read-only now (§12) | Enters the scoring run where it is not 5 (§9) |
+| twelve from each | `RelevanceDistribution.SAMPLED_PER_BAND` | **Preset** `vespera.relevance.sample.per-band`. Five bands of twelve is ADR-088's sixty, the ceiling on one sitting, and is what ships; a machine whose answers a local model gives (ADR-197) may ask more. The README's sixty is the shipped sample's. | **Later**: shown read-only now (§12) | Enters the scoring run where it is not 12 (§9) |
 | `vespera.sidecars.start`, `vespera.sidecars.wait-at-most` | `application.yaml` already | **Stays a preset.** | **Later**, as a launch value (§12); shown read-only now | None: in no run's configuration (ADR-323 §9) |
 | `vespera.progress-interval` | `application.yaml` already | **Stays a preset.** | **Later**, as a launch value (§12); shown read-only now | None: in no run's configuration (ADR-265) |
 | `vespera.open-browser` | `application.yaml` already | **Stays a preset.** | **Never**: under the control panel the child runs with `CI=1` and opens nothing, so there is nothing to set (ADR-325 §8, ADR-327 §5); shown read-only | None: in no run's configuration (ADR-327 §6) |
@@ -196,35 +217,91 @@ Every other byte is kept, line ends included. **Everything else is the operator'
 
 ### 9. The presets' identity
 
-**`vespera.clustering.resolution: 1.0` and `vespera.clustering.neighbours: 15` ship in `application.yaml`**, held exactly by a test, as ADR-298 §7 holds the embedding model: another shipped value re-clusters every corpus whose profile names none, and is changed by a record.
+**Every preset of §8 ships in `application.yaml` at the value its constant held**, held exactly by a test, as ADR-298 §7 holds the embedding model: another shipped value re-clusters, re-judges or asks about other documents in every corpus whose machine names none, and is changed by a record.
+
+| Key | Ships |
+| --- | --- |
+| `vespera.clustering.resolution` | `1.0` |
+| `vespera.clustering.neighbours` | `15` |
+| `vespera.docling.ocr-preset` | `rapidocr` |
+| `vespera.docling.timeouts-in-a-row` | `3` |
+| `vespera.redundancy.shingle-words` | `5` |
+| `vespera.redundancy.minhash.permutations` | `128` |
+| `vespera.redundancy.minhash.bands` | `16` |
+| `vespera.redundancy.minhash.rows-per-band` | `8` |
+| `vespera.redundancy.minhash.seed` | `6840335614489015382`: `0x5EED_C0FF_EE12_3456L` in decimal, as `identity()` writes it |
+| `vespera.redundancy.near-duplicate-jaccard` | `0.80` |
+| `vespera.redundancy.containment-index` | `0.95` |
+| `vespera.redundancy.rare-shingle-sample` | `32` |
+| `vespera.redundancy.rare-shingle-hits` | `24` |
+| `vespera.relevance.top-similarities` | `3` |
+| `vespera.relevance.sample.bands` | `5` |
+| `vespera.relevance.sample.per-band` | `12` |
 
 **The profile's `clusterResolution` overrides the first.** It is `Profile`'s last component and `ProfileKey`'s last constant: `NumericValue`, earliest run `EMBEDDING_SCORING`, unset by default with no provenance written when the shipped value applies (ADR-298 §4). It is saved where it is a finite number above 0: `"<value>" is not a number above 0`. Unset or blank, the shipped value applies. **Unreadable, the shipped value applies**, as `translationSimilarityFloor` applies nothing, and `NextAction` names it after `extractionAttempt`, in ADR-294 §2's row. It is no gate. A class of `pipeline` resolves it, as `EmbeddingModelGate` resolves the model, and is listed in `PipelineHoldsOnlyTheRulesOnRecordTest` as holding no rule: what it resolves names the run.
 
-**Each enters `EmbeddingScoringConfigConsumed`, the record `document_cluster` is keyed under**, as two components after `preferredLanguages`, in this order, each `@JsonInclude(NON_NULL)`:
+**Each enters the run whose output it shapes**, as a component appended to that run's `ConfigConsumed`, in this order, each `@JsonInclude(NON_NULL)`, written where the value resolved is not the one in bold:
 
-| Component | Written |
-| --- | --- |
-| `clusterResolution`, a number | where the value resolved is not **1.0** |
-| `clusterNeighbours`, a whole number | where the value resolved is not **15** |
+| Run, and the component it follows | Component | Written where the value resolved is not |
+| --- | --- | --- |
+| embedding-scoring, after `preferredLanguages`; the record `document_cluster` is keyed under | `clusterResolution`, a number | **1.0** |
+| | `clusterNeighbours`, a whole number | **15** |
+| | `topSimilarities`, a whole number | **3** |
+| | `sampleBands`, a whole number | **5** |
+| | `sampledPerBand`, a whole number | **12** |
+| extraction, after `degenerateOutputWordFloor` | `timeoutsInARow`, a whole number | **3** |
+| | `shingleParameters`, the text of `ShingleParameters.identity()` | **`word:5`** |
+| content-redundancy, after `boilerplateDocumentFrequencyFloor` | `minHash`, the text of `MinHashParameters.identity()` | **`perms:128;bands:16;rows:8;seed:6840335614489015382`** |
+| | `redundancyThresholds`, the text of `RedundancyThresholds.identity()`, which this adds: `near-duplicate:<jaccard>;containment:<index>;sample:<n>;hits:<n>`, each number as Java's `toString` writes it | **`near-duplicate:0.8;containment:0.95;sample:32;hits:24`** |
 
-The two numbers stand in `StageRuns` as what every run before the presets was minted under, and they do not move if a later record changes what ships: a preset shipped at another value is written, so it cannot be taken for a run of 1.0. So **a stated 1.0 and an unset key arrive at one scoring run** (ADR-298 §3), and every run's configuration text at the shipped values is what it was, as `RunIdentityGoldenTest` holds, unedited. The scoring run reads the two as it is minted and hands them to the clustering step, so the number that names the run is the number that clusters (ADR-117).
+**The OCR preset needs no component.** `sentOptions()` names it today, as `ocr_preset=rapidocr`, and goes on naming the preset the client sends, so the extractor identity holds it at every value, and at `rapidocr` its text is what it was. Another preset is another extractor (ADR-090, ADR-147): another stage-2 run, and, `extraction_cache` being keyed by the extractor identity, every conversion asked of the sidecar again.
 
-A value no graph can be built from, named by configuration, a whole number below 1 or a resolution not above 0, stops the invocation where the scoring run is minted, with one line naming the key.
+The values in bold stand in `StageRuns` as what every run before the presets was minted under, and they do not move if a later record changes what ships: a preset shipped at another value is written, so it cannot be taken for a run of the earlier one. So **a stated 1.0 and an unset key arrive at one scoring run** (ADR-298 §3), a machine naming a preset's shipped value arrives at the run that names none, and every run's configuration text at the shipped values is what it was, as `RunIdentityGoldenTest` holds, unedited. **Each run reads its presets as it is minted and hands them to the steps that use them**, so the number that names the run is the number that works (ADR-117): the scoring run's to scoring, clustering and the relevance report's draw; stage 2's to its judge of a timeout and its shingler, and the window, through the extraction run, to stage 3's document frequency and boilerplate and to stage 4's signatures and resolution, which read the shingles of the extraction run they name; stage 4's to its signatures, bands and resolution.
+
+**The scale a relevance score is on gains the number of similarities.** `topSimilarities` changes what a score is (ADR-020), so it joins the scale ADR-088 §3 compares on: **the scale is the embedder identity, followed, where the number resolved is not 3, by `;top:<n>`**. `FloorReach`, `RelevanceLabels.forSeedSet`, `LoseNoDocumentationFloor`, the identity an answer is recorded under and the label file's `generatedUnderEmbedder` all take the scale where they take the embedder identity now. It is composed in `embedding`, because it decides whether a floor removes (ADR-222). The vector's own identity, which keys `vector`, is untouched, so nothing is embedded again; and at 3 the scale is the embedder identity byte for byte, so no answer recorded moves. Under another number:
+
+- **the answers stay**, facts about documents (ADR-088), and stand under the scale they were given on;
+- **the floor stated removes nothing** where those answers stand under another scale, and the report says why, as it does for another model (ADR-226);
+- **the run draws its own sample**, whose answers, a person's or `vespera label --auto`'s (ADR-197), are recorded under the new scale, and a floor is read off them;
+- **a floor stated with no answers at all applies**, as ADR-088 has it of every floor nothing was labelled for (Known limits).
+
+**The sample is the scoring run's.** It is drawn from that run's id (ADR-088, ADR-220), so its two numbers enter the run, and the same run always asks about the same documents. A label file names its run, so a file drawn under another shape is refused as ADR-088 refuses another sample's. The relevance report says the number each band was asked for where it says *twelve* now, and the README's sixty is said as the shipped sample's.
+
+**A value no run can be made under**, named by configuration, stops the invocation where the run it enters is minted, before anything is recorded under that run, with one line naming the key; `vespera label` and `vespera publish`, which mint no run, are not stopped by one. Each is refused by the type of the module that uses it, and the line is `pipeline`'s:
+
+| Key | Refused where it is | The line |
+| --- | --- | --- |
+| `vespera.clustering.resolution` | not a finite number above 0 | `vespera.clustering.resolution is <value>: a number above 0` |
+| `vespera.clustering.neighbours`, `vespera.redundancy.shingle-words`, `vespera.redundancy.rare-shingle-sample`, `vespera.relevance.top-similarities`, `vespera.relevance.sample.bands`, `vespera.relevance.sample.per-band` | not a whole number of 1 or more | `<key> is <value>: a whole number of 1 or more` |
+| `vespera.docling.ocr-preset` | blank, `auto` in any case, or holding a character other than a letter, a digit, `-`, `_` or `.` | `vespera.docling.ocr-preset is "<value>": one preset's name, of letters, digits, '-', '_' and '.', and never auto, which the converter resolves where nothing records it` |
+| `vespera.docling.timeouts-in-a-row` | not a whole number from 2 to 4 | `vespera.docling.timeouts-in-a-row is <value>: a whole number from 2 to 4, so that one slow document can still earn its verdict and the count stays below the five failures in a row that stop the step` |
+| `vespera.redundancy.minhash.permutations`, `.bands`, `.rows-per-band` | not a whole number of 1 or more | `<key> is <value>: a whole number of 1 or more` |
+| the three together | the bands times their rows not the permutations | `vespera.redundancy.minhash is <p> permutations in <b> bands of <r> rows: the bands times their rows must be the permutations` |
+| `vespera.redundancy.minhash.seed` | not a whole number a Java `long` holds | `vespera.redundancy.minhash.seed is <value>: a whole number from -9223372036854775808 to 9223372036854775807` |
+| `vespera.redundancy.near-duplicate-jaccard`, `vespera.redundancy.containment-index` | not a number above 0 and at most 1 | `<key> is <value>: a number above 0 and at most 1` |
+| `vespera.redundancy.rare-shingle-hits` | not a whole number from 1 to the sample | `vespera.redundancy.rare-shingle-hits is <value>: a whole number from 1 to vespera.redundancy.rare-shingle-sample, <sample>` |
+
+Why each bound: a resolution not above 0, or a count of neighbours, words, permutations, bands, rows, similarities or documents below 1, builds nothing; a cut above 1 judges no pair and one of 0 judges every pair redundant; more hits than the sample retrieves no container. `auto` is what ADR-090 ended, and the extractor identity is text of `key=value` pairs joined by `;`, so a name holding `;` or `=` would write an identity that reads as other options. A count of 1 would set aside every timeout, so that one slow document could never earn `extraction-failed`, which ADR-071 keeps it able to; and ADR-071 sets the breaker of five *"Deliberately higher than the timeout count"*.
 
 ### 10. Which run ids move
 
 **Part A moves none.** It changes `io.algernon.controlpanel`, outside every module, and `pipeline`, which no stage names; the file of §1 is in no run's configuration.
 
-**Part B moves four stages, once, because it edits `embedding`, and not because of any value:**
+**Part B moves seven stages, once, because it edits `extraction`, `similarity` and `embedding`, and not because of any value:**
 
-| Stage | When the change that edits `embedding` lands |
-| --- | --- |
-| byte-level-reduction, extraction, content-census, content-redundancy | **no move** |
-| seed-measurement, embedding-scoring, arrangement, generation | **move**: each names `embedding`, so its implementation version is the new commit |
+| Stage | Names | When the change that edits the three lands |
+| --- | --- | --- |
+| byte-level-reduction | `corpus` | **no move** |
+| extraction | `extraction`, `similarity` | **move** |
+| content-census, content-redundancy | `similarity`, `extraction` | **move** |
+| seed-measurement, embedding-scoring | `embedding`, `extraction` | **move** |
+| arrangement, generation | `synthesis`, `extraction`, `embedding` | **move** |
 
-Its configuration text stays byte for byte at the shipped values, so this is the whole of the move, and it cannot be less. The constants lie in classes of `embedding`, and ADR-058's version is the last commit touching that folder, whatever it did. `application.yaml`, `Profile` and `StageRuns` alone would leave a preset that reaches no graph. **Part B therefore lands as a commit of its own, after Part A**, so that Part A asks no pass of anyone.
+Each of the seven names a module whose folder the change touches, and each after extraction names the run before it too. Its configuration text stays byte for byte at the shipped values, so this is the whole of the move, and it cannot be less: the constants lie in classes of those three modules, and ADR-058's version is the last commit touching a folder, whatever it did. `application.yaml`, `Profile` and `StageRuns` alone would leave presets that reach no conversion, no shingle and no score. **Part B therefore lands as one change of its own, after Part A**, so that Part A asks no pass of anyone and the seven move once.
 
-That the other candidates stay in code is what keeps it to four: a constant of `similarity` or `extraction` moved out would move extraction and every stage after it.
+**What the move does again, and what it reads back.** At the shipped values the extractor identity and the embedder identity do not move, so the new stage-2 run reads every conversion from `extraction_cache`, every vector is read from `vector`, and no document is converted or embedded again. Every stage from extraction on does its own work again under its new run; the arrangement is a new run, so an approval naming the earlier one opens nothing (ADR-107); and generation writes every cluster again, `synthesis_doc` being keyed by its run.
+
+Clustering's two numbers alone, in `embedding`, would have moved the last four. A constant of `extraction` or `similarity` reaches extraction and every stage after it, and the operator's direction moves five such constants; no split of the change keeps a stage, since each module's folder is touched either way and an extraction move reaches every later stage through the runs they name.
 
 ### 11. The Docling image stays the processor build
 
@@ -248,9 +325,9 @@ The check stays advice: Run stays enabled, and stage 2 stops before a conversion
 
 **Such a key is the application's, of one machine, and its store is not `profile.yaml`**: a value there would be read with the corpus's judgements, travel with the corpus and enter no run honestly. Nor may the control panel write `application.yaml`, which lies inside the jar, or `application-local.yaml`, which is the operator's by hand and outside ADR-295 §2's files, in a form it does not read.
 
-**So what the control panel shows of one comes from §1's file, and what it edits of one is a launch value** (ADR-292): held per user in the launch values' own file, keyed by the jar's own property as text, and passed in the child's environment by its name in capitals. That links no class of the jar (ADR-285 §3), leaves `profile.yaml` the profile's store, and a contract test holds the name. `machine-values` on the launch page lists `vespera.sidecars.start`, `vespera.sidecars.wait-at-most`, `vespera.progress-interval`, `vespera.open-browser` and `vespera.clustering.neighbours`, in that order, each an item with `data-key`, `data-value` and `data-source`, and no control. A key becomes editable by the record that adds it to `LaunchValues` and to ADR-292 §4's table.
+**So what the control panel shows of one comes from §1's file, and what it edits of one is a launch value** (ADR-292): held per user in the launch values' own file, keyed by the jar's own property as text, and passed in the child's environment by its name in capitals. That links no class of the jar (ADR-285 §3), leaves `profile.yaml` the profile's store, and a contract test holds the name. `machine-values` on the launch page lists `vespera.sidecars.start`, `vespera.sidecars.wait-at-most`, `vespera.progress-interval`, `vespera.open-browser`, `vespera.clustering.neighbours` and then the fourteen keys of §9's table from `vespera.docling.ocr-preset` to `vespera.relevance.sample.per-band`, in that order, each an item with `data-key`, `data-value` and `data-source`, and no control. A key becomes editable by the record that adds it to `LaunchValues` and to ADR-292 §4's table.
 
-**A preset that enters a run's identity is not a launch value**: it decides what a run produces, and needs the provenance only a profile key carries. So `vespera.clustering.neighbours` is edited, once it is, through a profile key.
+**A preset that enters a run's identity is not a launch value**: it decides what a run produces, and needs the provenance only a profile key carries. So `vespera.clustering.neighbours` and the fourteen after it are edited, once they are, each through a profile key.
 
 ### 13. The rules a new write path obeys
 
@@ -263,9 +340,9 @@ The check stays advice: Run stays enabled, and stage 2 stops before a conversion
 
 **In `io.algernon.controlpanel`**: a reader of §1's file beside `NextInvocation`; `ValuePages` and `NextPages` as §2 to §6 say; `ProfileKey` gaining `CLUSTER_RESOLUTION` and which keys have a value beneath them; `ProfileEdit` reading a measurement and a repair, its `rewrite` and its form unchanged; `WorkingDirectoryWrite` making a folder and a repair's copy; `SidecarChecks` as §11 says; `NextPages.REPORTS_OF_A_KEY` naming `cluster-sizes.html`; and every name of ADR-302 §9's table these add. All of it in `java.base` and `jdk.httpserver`.
 
-**In `pipeline`**: the writer of §1's file, and `StageRuns`, the resolving class and `NextAction` as §9 says. **In `profile`**: `clusterResolution`. **In `embedding`**: `Clustering` taking the two numbers in place of its constants, and `Communities`' constant gone. **In `application.yaml`**: the two presets.
+**In `pipeline`**: the writer of §1's file, and `StageRuns`, the resolving class, its lines of refusal and `NextAction` as §9 says, the resolving class reading every preset of §9's table and listed in `PipelineHoldsOnlyTheRulesOnRecordTest` as holding no rule. **In `profile`**: `clusterResolution`. **In `embedding`**: `Clustering` taking the two numbers in place of its constants, and `Communities`' constant gone; `RelevanceScorer` taking the number of similarities in place of `TOP_K`; `RelevanceDistribution` taking the bands and the number from each in place of `BANDS` and `SAMPLED_PER_BAND`; the scale of §9, composed here, taken by `FloorReach`, `RelevanceLabels` and `LoseNoDocumentationFloor`; and the relevance report saying the number each band was asked for. **In `extraction`**: `DoclingClient` sending the preset it is given in place of `PINNED_OCR_PRESET`, and `sentOptions()` naming it, for every conversion and the control conversion alike; `FailuresInARow` or `OccurrenceJudge` taking the count in place of `CONSECUTIVE_TIMEOUT_COUNT`. **In `similarity`**: `Shingler`, `DocumentFrequency`, `BoilerplateShingles`, `RedundancySignatures` and `RedundancyResolution` taking the parameters they are given in place of the three `DEFAULT`s, which go; `RedundancyThresholds.identity()`; each record type refusing what §9 refuses. **In `application.yaml`**: the sixteen presets of §9's table, each with a comment saying what it decides and which run it enters.
 
-**In the documents, in the change that builds each**: the README's table of values and section of what the working directory holds, which `docs/check-claims.mjs` reads from code; `CONTEXT.md`'s Working directory and Control panel entries; `docs/architecture.md`'s sentence on the control panel's server.
+**In the documents, in the change that builds each**: the README's table of values and section of what the working directory holds, which `docs/check-claims.mjs` reads from code, and its sixty said as the shipped sample's; `CONTEXT.md`'s Working directory and Control panel entries; `docs/architecture.md`'s sentence on the control panel's server, and its *"mean of top-3 chunk similarities"* said as the shipped number's; and the javadoc of each class whose constant leaves, which says today that the number is a code default (ADR-216 §7).
 
 **Of the tests.** Every class and method named in the first table below carries `@Disabled` naming this record until it is built; **removing those lines is the one edit owed to them.** Beside it, tests that hold what §5, §7 and §9 change are to be edited as this record amends them, as named below the tables.
 
@@ -277,6 +354,11 @@ The check stays advice: Run stays enabled, and stage 2 stops before a conversion
 - A save that stops at §5's fifth step leaves part of the form saved, which the outcome says. It can be reached only by something outside the form changing under it, in the moments between two writes.
 - A `drawn` is of what the page showed: a second tab's save is seen by the first as the file having changed, and refused where it touches that key.
 - `/profile` waits up to the two timeouts for an Ollama that does not answer, on each `GET`.
+- **Two floors carry no scale, and are carried across a preset that moves what they were read off.** `degenerateOutputConfidenceFloor`, read off the confidence Docling reports, is applied as stated under another OCR preset, which moves every confidence score (ADR-090); `boilerplateDocumentFrequencyFloor`, a share of documents read off stage 3's document frequency, is applied as stated under another shingle window, at which the shares are other. Neither is an error, and the confidence report and the document-frequency page of the new runs show the distribution to read each again against.
+- A relevance floor stated with no answers recorded applies whatever the number of similarities, as it applies whatever the model (ADR-088).
+- A near-duplicate cut below what the bands retrieve, about (1/bands)^(1/rows), 0.71 at the shipped 16 and 8, is applied only to the pairs banding retrieves, so most pairs between the cut and that point are never scored; ADR-081's measurement is of the shipped numbers alone.
+- An OCR preset whose models the image does not carry is fetched by the sidecar at its first use, and fails where it cannot be fetched; the conversions then fail as the sidecar answers. A preset is a name the sidecar resolves, so one redefined there is still unseen here (ADR-090).
+- A value a machine names is in no file the corpus carries: the run's configuration says it, and the effective values say it for the machine that wrote them (§1).
 
 ## Alternatives refused
 
@@ -295,12 +377,18 @@ The check stays advice: Run stays enabled, and stage 2 stops before a conversion
 - **A repair with no copy.** A comment is the operator's writing, and the file moves over its past.
 - **A repair the jar performs.** `ProfileStore` drops every comment with no copy, and needs a child and a fourth command to be asked.
 - **Making the working directory on any file's write.** `relevance-labels.yaml` is refused where it is absent, so its save would leave an empty folder for nothing.
-- **Every candidate a preset, since the operator's direction runs that way.** Three cost every stage from extraction on, and each stays where its record put it for a reason a yaml value does not answer.
-- **`TOP_K` a preset, since `embedding` moves anyway.** A floor read on one scale, applied on another with no error, is the failure it would add.
+- **Only clustering's two numbers as presets, the rest staying in code.** Refused by the operator's direction, which makes every candidate one; the cost, seven stages where four would have moved, is §10's.
+- **A preset outside the run's identity, as a constant was, reaching a run only through the version.** A value of one machine's configuration is in no commit, so another value would reuse a finished run made under the earlier one, and verdicts of two cuts would stand under one run id.
+- **The number of similarities changed and the floor applied as stated.** A floor read on one scale, applied on another with no error, writes removals against a distribution it was not read off; the scale is the mechanism ADR-088 already has for that.
+- **The number of similarities in the vector's identity.** Every vector would be computed again for a number that changes no vector.
+- **The sample's two numbers in the label file alone, outside the scoring run.** The same run would ask about other documents as configuration changed between two invocations, which ADR-088's draw from the run id exists to refuse.
+- **A list of the OCR presets Vespera accepts.** A preset is the sidecar's to define (ADR-090), so a list here would guess at another program's; what Vespera refuses is what it can see is wrong, `auto` and a name that would misread in the identity.
+- **Every preset checked as the application starts.** `vespera label` and `vespera publish` read none of them, and would be stopped by a value they do not use; §9 refuses where the value would be used, as the resolution was refused.
+- **Profile keys for the eight.** None is a judgement about one corpus (ADR-071, ADR-073, ADR-082), which is what a profile key holds, with the provenance of how it was arrived at; a record may give one a key on a measurement of what it moves.
 - **A shipped default of the card's image.** Every machine with no card stops, CI tests another image than it ships, and every run on the default moves.
 - **Finding the card at run time and naming the image from it.** What the identity says would turn on the machine, the coin-flip ADR-090 pinned the client's options to end.
 - **A `vespera.clustering.*` key alone for the resolution, with no profile key.** A corpus's own preference would have no provenance, and would apply to whatever corpus that machine runs next.
-- **Presets in the identity at every value.** Every scoring run's text would change at the shipped values, where the member's absence changes none.
+- **Presets in the identity at every value.** Every run's text would change at the shipped values, where the member's absence changes none.
 - **Amending ADR-058 so that a commit may declare it changes no behaviour.** A version is mechanical because a person's claim is what it replaced.
 - **Launch values for an identity-bearing preset.** It would judge a corpus from a file named for a machine, with no provenance.
 
@@ -312,11 +400,14 @@ The check stays advice: Run stays enabled, and stage 2 stops before a conversion
 - The working directory holds one more file the jar writes, and may hold a repair's copy.
 - `clusterResolution` joins the profile, so ADR-062's merge adds it to every file at the next load, and the deliverable's index shows it (ADR-186).
 - Changing `clusterResolution` mints a scoring run and everything after it, and closes an approval by name, as its cost says; the vectors stay where they are.
+- A machine may name another value of any preset. Each run made under one says it in its configuration, beside the runs of the shipped value, and putting the shipped value back arrives at those again (ADR-154, ADR-156).
+- Another OCR preset converts every document again and makes every stage from extraction on again; another timeout count or shingle window makes every stage from extraction on again from the cached conversions; another MinHash or cut makes stage 4 and every later stage again; another number of similarities or sample makes the scoring run and every later one again, and keeps a floor read at the shipped number from removing where its answers stand under it.
+- What ADR-082 fixed in code, what ADR-071 and ADR-073 called code defaults, and what ADR-088 and ADR-090 fixed, ship at the same numbers in `application.yaml`, changed in what ships only by a record.
 - The operator on the card sees the mismatch on the launch page before pressing Run.
 
 ## Tests
 
-These hold the record through what it builds. Each is `@Disabled` until then, but for the two named as guards below.
+These hold the record through what it builds. Each is `@Disabled` until then, but for the three named as guards below.
 
 | Method | What it holds |
 | --- | --- |
@@ -350,8 +441,8 @@ These hold the record through what it builds. Each is `@Disabled` until then, bu
 | `controlpanel.LaunchImageScreenTest.anEmptyImageIsCheckedAgainstTheImageTheJarLastUsed` | `another-image`, the sidecar's image shown, a warning naming both (§11) |
 | `controlpanel.LaunchImageScreenTest.theImagesAreOfferedAndTheOnePickedIsHeldAsALaunchValue` | the list, the field tied to it, `matches` once picked, no file written (§11) |
 | `controlpanel.LaunchImageScreenTest.withNoFileTheSidecarsImageIsStillShown` | the image shown, `not-checked` with nothing to compare (§11) |
-| `controlpanel.LaunchImageScreenTest.whatThisMachineRunsWithIsShownAndNotEdited` | the five keys with value and source, and no control for any (§12) |
-| `pipeline.TheJarWritesItsEffectiveValuesInvocationTest.anInvocationWritesTheValuesBeneathTheProfile` | values and sources, a blanked model left out, and every key on the closed list (§1) |
+| `controlpanel.LaunchImageScreenTest.whatThisMachineRunsWithIsShownAndNotEdited` | the nineteen keys, the five and the fourteen presets, in order, with value and source, and no control for any (§12) |
+| `pipeline.TheJarWritesItsEffectiveValuesInvocationTest.anInvocationWritesTheValuesBeneathTheProfile` | values and sources, a blanked model left out, the fourteen presets each from the shipped file, and every key on the closed list (§1) |
 | `pipeline.TheJarWritesItsEffectiveValuesInvocationTest.aValueTheProfileNamesStaysOutOfTheFile` | the file says what lies beneath a value the profile names (§1) |
 | `pipeline.TheJarWritesItsEffectiveValuesInvocationTest.noCredentialOrPathEntersTheFile` | a user, a password, a path and a query off an address, and no working directory (§1) |
 | `pipeline.TheJarWritesItsEffectiveValuesInvocationTest.aRefusedInvocationLeavesTheFileAsItWas` | §1 |
@@ -359,17 +450,28 @@ These hold the record through what it builds. Each is `@Disabled` until then, bu
 | `pipeline.TheClusteringPresetsInvocationTest.anUnreadableResolutionIsNamedAndTheShippedValueApplies` | the same run, and `wants=clusterResolution` (§9) |
 | `pipeline.TheClusteringPresetsFromConfigurationInvocationTest.configurationNamesBothAndTheProfileOverridesIt` | both members in order; the profile's 1.0 leaves the resolution's out (§9) |
 | `TheShippedPresetsTest.theShippedFileNamesBothAtTheirEarlierValues` | 15 and 1.0, exactly (§8, §9) |
+| `TheShippedPresetsTest.theConvertersTwoPresetsShipAtTheirEarlierValues` | `rapidocr` and 3, exactly (§8, §9) |
+| `TheShippedPresetsTest.theShingleWindowAndMinHashShipAtTheirEarlierValues` | 5; 128, 16, 8 and the seed the code held, exactly (§8, §9) |
+| `TheShippedPresetsTest.theRedundancyCutsShipAtTheirEarlierValues` | 0.80 and 0.95; 32 and 24, exactly (§8, §9) |
+| `TheShippedPresetsTest.theRelevanceScoreAndItsSampleShipAtTheirEarlierValues` | 3; 5 and 12, exactly (§8, §9) |
+| `pipeline.TheTechnicalPresetsFromConfigurationInvocationTest.theConvertersPresetsNameTheExtractionRun` | another OCR preset in the extractor identity in place of `rapidocr`; the two components ending stage 2's configuration, in order (§9) |
+| `pipeline.TheTechnicalPresetsFromConfigurationInvocationTest.theRedundancyPresetsNameTheContentRedundancyRun` | the two components ending stage 4's configuration, in order, each as its identity writes it (§9) |
+| `pipeline.TheTechnicalPresetsFromConfigurationInvocationTest.theRelevancePresetsNameTheScoringRunAndReachItsSample` | the three components ending the scoring run's configuration, in order; the label file's scale ending `;top:1`; one question where the shipped sample asks three (§9) |
+| `pipeline.AnOcrPresetTheConverterWouldResolveIsRefusedInvocationTest.anOcrPresetOfAutoIsRefusedBeforeTheExtractionRun` | `auto`: non-zero, §9's line once and no stack trace, stage 1's run and no stage-2 run (§9) |
+| `pipeline.MinHashBandsThatDoNotMakeItsPermutationsAreRefusedInvocationTest.bandsTimesRowsOtherThanThePermutationsAreRefusedBeforeTheContentRedundancyRun` | 16 bands of 7 rows: the same, with stage 3's run and no stage-4 run (§9) |
+| `pipeline.ARelevanceScoreOfNoSimilaritiesIsRefusedInvocationTest.aScoreOfNoSimilaritiesIsRefusedBeforeTheScoringRun` | 0: the same, with the measurement run and no scoring run (§9) |
 
 **Guards, passing before this is built and carrying no `@Disabled`**, because each holds what §10 rests on:
 
 | Method | What it holds |
 | --- | --- |
-| `pipeline.ThePresetsMoveOnlyTheStagesNamingEmbeddingTest.anEditOfEmbeddingMovesTheLastFourStagesAndLeavesTheFirstFour` | `StageModules`' stages naming `embedding` are those §10 says |
-| `pipeline.ThePresetsMoveOnlyTheStagesNamingEmbeddingTest.anEditOfSimilarityWouldReachEveryStageFromExtractionOn` | those naming `similarity` are those §8's reasons say |
+| `pipeline.ThePresetsMoveEveryStageFromExtractionOnTest.anEditOfEmbeddingMovesTheLastFourStages` | `StageModules`' stages naming `embedding` are the last four of §10's table |
+| `pipeline.ThePresetsMoveEveryStageFromExtractionOnTest.anEditOfSimilarityMovesExtractionAndTheTwoAfterIt` | those naming `similarity` are extraction, content census and content redundancy |
+| `pipeline.ThePresetsMoveEveryStageFromExtractionOnTest.anEditOfExtractionMovesEveryStageFromExtractionOn` | those naming `extraction` are the seven §10 moves, byte-level reduction alone left |
 
 `pipeline.RunIdentityGoldenTest`, **unedited**, holds that no configuration text moves at the shipped values (§9, §10), as `DoclingSidecarImageTest` and its literal hold §11's image. `controlpanel.TheControlPanelLinksNoClassOfTheJarTest` holds the new classes to ADR-285 §3.
 
-**Tests the implementation adds, since each names what does not yet exist**: `pipeline.TheControlPanelReadsTheEffectiveValuesTheJarWritesTest`, each shape the jar writes read by the control panel's reader, as ADR-294's contract test holds its file; `embedding.ClusteringTest`, that the neighbours handed in reach the graph, which the fixture's identical vectors cannot show by a count; and `pipeline.TheJarReadsWhatTheControlPanelWritesTest`'s samples of `clusterResolution`.
+**Tests the implementation adds, since each names what does not yet exist**: `pipeline.TheControlPanelReadsTheEffectiveValuesTheJarWritesTest`, each shape the jar writes read by the control panel's reader, as ADR-294's contract test holds its file; `embedding.ClusteringTest`, that the neighbours handed in reach the graph, which the fixture's identical vectors cannot show by a count; and `pipeline.TheJarReadsWhatTheControlPanelWritesTest`'s samples of `clusterResolution`; a test of the resolving class, each value of §9's table of refusals refused with its line and each bound's nearest value allowed, of which the three invocation tests above take one from each run; `embedding`'s test of the scale, the embedder identity at 3 and `;top:<n>` after it at any other, and `FloorReach` removing nothing with answers under the one and a run under the other; `extraction.DoclingClientTest`'s request naming the preset the client is given, as `sendsThePinnedOcrPresetAndExportFormat` names the constant now; `extraction.OccurrenceJudgeTest`'s timeout set aside at the count it is given; and `similarity.RedundancyThresholdsTest`'s identity.
 
 **Tests that hold what this amends, edited in the change that builds it:**
 
@@ -377,6 +479,8 @@ These hold the record through what it builds. Each is `@Disabled` until then, bu
 - `controlpanel.WorkingDirectoryWriteTest.aFolderOthersCanWriteInOrAnotherUserOwnsIsNotWrittenIn`, whose claim that a working directory that does not exist is refused holds for the other two files alone (§7).
 - `controlpanel.ProfileKeyTest` and `pipeline.TheJarReadsWhatTheControlPanelWritesTest.theKeyTableIsTheProfilesComponentsAndTheRunsAreTheStagesModules`, of the key added (§9).
 - `embedding.ClusteringTest` and `embedding.ClusteringProgressTest`, which name the constant `NEIGHBOURS` and `clusterAndRecord` as they stand (§14).
+- The tests naming a constant §14 removes, each to name the value in a constant of its own or to be handed it: of `PINNED_OCR_PRESET` and `sentOptions()`, `extraction.DoclingClientTest`, `extraction.ExtractorIdentityCompositionRuleTest`, `extraction.TextInPartsTest` and `pipeline.ExtractorIdentityCompositionTest`; of `CONSECUTIVE_TIMEOUT_COUNT`, `extraction.FailuresInARowTest` and `extraction.OccurrenceJudgeTest`; of `TOP_K`, `BANDS` and `SAMPLED_PER_BAND`, `embedding.LabelledSpreadTest`, `embedding.RelevanceDistributionTest` and `embedding.RelevanceDistributionDrawsByLeastKeyAPageAtATimeTest`; of the three `DEFAULT`s, `pipeline.StageThreeWritesTheDocumentFrequencyPageTest` and every class of `similarity`'s tests that names one, `ShinglerTest`, `MinHashSignatureTest`, `RedundancySignaturesTest`, `RedundancyResolutionTest`, `BoilerplateShinglesTest`, `DocumentFrequencySharesTest`, `DocumentFrequencyIsCountedInTheDatabaseTest`, `ShingleIndexesInTheSchemaTest`, `ShinglesReachTheFloorExactlyTest`, `FrequencyProgressTest`, `SimilarityStatementProgressOrderTest`, `TheHashIndexIsBuiltForOneRunTest`, `AFailedReadOfOneHashsOccurrencesIsThrownWithItsCauseTest`, `RedundancyResolutionBoundsItsCandidatesTest`, `RedundancyResolutionReadsOnlyTheBandRowsThatCanPairTest`, `RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest` and `RedundancyResolutionReportsItsCountsTest`. A test whose claim is the shipped value goes on claiming it; none is weakened to a claim any value passes.
+- `pipeline.SeedScriptedExtractionBeans`, `pipeline.StubbedExtractionBeans` and every other double of `DoclingClient`, should its constructor gain the preset.
 
 ## What this does not decide
 
@@ -387,4 +491,6 @@ These hold the record through what it builds. Each is `@Disabled` until then, bu
 - **Whether the launch page's label model gets the picker.**
 - **Whether `generationContextWindow`'s number, or `deliverableLanguage`'s, moves from the code into `application.yaml`**: they enter as `code`, and no candidate here named them.
 - **Editing the keys §8 marks later**, each by a record of its own.
+- **Whether stage 4 ships a report of its pairs' similarities**, now that its cuts can be moved. ADR-082 refused one with nothing to move; a record that adds one says what it shows.
+- **Whether ADR-071's count of five and its timeout budget become presets.** No candidate here named them.
 - **Whether `vespera.models.pull` and `vespera.models.pull-stalled-at-most` (ADR-329) join §1's list and `machine-values`.** They are the application's and no profile values, as §12's keys are; until a record adds them the page does not show them.

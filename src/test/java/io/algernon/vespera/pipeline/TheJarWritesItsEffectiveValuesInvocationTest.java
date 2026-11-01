@@ -18,6 +18,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +43,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Import(SeedScriptedExtractionBeans.class)
 @Epic("Operation")
 @Feature("The control panel")
-@Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_CLUSTERING_SHIPS_AS_PRESETS, type = "adr")
+@Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
 @Disabled("ADR-330: awaits the writer of effective-values.properties")
 class TheJarWritesItsEffectiveValuesInvocationTest {
 
@@ -57,8 +59,17 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
     /** The converter's address, likewise. */
     private static final String DOCLING_ADDRESS = "http://a-user:a-password@localhost:5001/under/a/path?a-query=1";
 
+    /** The fourteen presets of the converter, of redundancy and of relevance (ADR-330 §9), in the record's order. */
+    private static final List<String> THE_TECHNICAL_PRESETS = List.of(
+            "vespera.docling.ocr-preset", "vespera.docling.timeouts-in-a-row", "vespera.redundancy.shingle-words",
+            "vespera.redundancy.minhash.permutations", "vespera.redundancy.minhash.bands",
+            "vespera.redundancy.minhash.rows-per-band", "vespera.redundancy.minhash.seed",
+            "vespera.redundancy.near-duplicate-jaccard", "vespera.redundancy.containment-index",
+            "vespera.redundancy.rare-shingle-sample", "vespera.redundancy.rare-shingle-hits",
+            "vespera.relevance.top-similarities", "vespera.relevance.sample.bands", "vespera.relevance.sample.per-band");
+
     /** The keys ADR-330 §1 lets into the file, each value's own and its source's, and no other. */
-    private static final Set<String> THE_CLOSED_LIST = Set.of(
+    private static final Set<String> THE_CLOSED_LIST = Stream.concat(Stream.of(
             "written-at", "docling.images",
             "embeddingModel", "embeddingModel.source",
             "generationModel", "generationModel.source",
@@ -72,7 +83,9 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
             "vespera.sidecars.wait-at-most", "vespera.sidecars.wait-at-most.source",
             "vespera.progress-interval", "vespera.progress-interval.source",
             "vespera.open-browser", "vespera.open-browser.source",
-            "vespera.clustering.neighbours", "vespera.clustering.neighbours.source");
+            "vespera.clustering.neighbours", "vespera.clustering.neighbours.source"),
+                    THE_TECHNICAL_PRESETS.stream().flatMap(key -> Stream.of(key, key + ".source")))
+            .collect(Collectors.toUnmodifiableSet());
 
     @TempDir
     static Path workingDirectory;
@@ -122,6 +135,15 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
                                 said.getProperty("vespera.clustering.neighbours"),
                                 said.getProperty("clusterResolution")))
                         .containsExactly("true", "shipped", "15", "1.0"));
+        claim("each of the " + THE_TECHNICAL_PRESETS.size() + " presets of the converter, of redundancy and of relevance"
+                        + " is there, and each came from the shipped file",
+                () -> assertThat(THE_TECHNICAL_PRESETS.stream()
+                                .map(key -> List.of(key, String.valueOf(said.getProperty(key) != null),
+                                        String.valueOf(said.getProperty(key + ".source"))))
+                                .toList())
+                        .containsExactlyElementsOf(THE_TECHNICAL_PRESETS.stream()
+                                .map(key -> List.of(key, "true", "shipped"))
+                                .toList()));
         claim("and every key the file holds is on the closed list",
                 () -> assertThat(said.stringPropertyNames()).isSubsetOf(THE_CLOSED_LIST));
     }

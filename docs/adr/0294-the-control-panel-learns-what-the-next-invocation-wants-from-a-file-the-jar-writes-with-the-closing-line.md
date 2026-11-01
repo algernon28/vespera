@@ -1,6 +1,6 @@
 # ADR-294 — The control panel learns what the next invocation wants from a file the jar writes with the closing line
 
-> **Partly amended — see [ADR-330](0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-clusterings-two-numbers-ship-as-presets-in-application-yaml.md).** Of §2: the row of a key holding something nothing can be read from gains `clusterResolution`, after `extractionAttempt`. The rest of this record stands.
+> **Partly amended — see [ADR-330](0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** Of §2: the row of a key holding something nothing can be read from gains `clusterResolution`, after `extractionAttempt`. The rest of this record stands.
 
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.

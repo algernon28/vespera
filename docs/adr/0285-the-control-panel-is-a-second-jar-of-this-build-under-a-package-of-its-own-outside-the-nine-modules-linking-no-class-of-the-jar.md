@@ -6,7 +6,7 @@
 
 > **Partly amended — see [ADR-295](0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md).** Of §3: the control panel also reads and writes three of the jar's file formats, `profile.yaml`, `relevance-labels.yaml` and `code-set-names.yaml`, in `java.base`, held to agree with the jar by contract tests.
 
-> **Partly amended — see [ADR-330](0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-clusterings-two-numbers-ship-as-presets-in-application-yaml.md).** Of §3: the files that are the control panel's contract with the jar also hold `effective-values.properties`, which `vespera run` and `vespera label` write in the working directory, saying what the jar would use where the profile names nothing; it is parsed in `java.base`, and no class of the jar is linked. The rest of this record stands.
+> **Partly amended — see [ADR-330](0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** Of §3: the files that are the control panel's contract with the jar also hold `effective-values.properties`, which `vespera run` and `vespera label` write in the working directory, saying what the jar would use where the profile names nothing; it is parsed in `java.base`, and no class of the jar is linked. The rest of this record stands.
 
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.

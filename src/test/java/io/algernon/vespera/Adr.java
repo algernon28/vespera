@@ -2327,11 +2327,14 @@ public final class Adr {
      * ADR-330 -- the control panel edits the whole of {@code profile.yaml} on one page, showing the value in use and
      * where it came from, from a file the jar writes; a save writes only what changed and nothing where a key is
      * refused; a file not in the jar's form is shown and repaired with a copy kept; a missing working directory is made
-     * owner-only; and clustering's two numbers ship as presets (amends ADR-285 §3, ADR-294 §2, ADR-295 §1 to §5 and
-     * ADR-302 §5, §8 and §9; extends ADR-298; amends ADR-087's table).
+     * owner-only; and ten technical choices ship as presets, clustering's two numbers, the OCR preset, the timeouts in
+     * a row, the shingle window, MinHash's numbers, stage 4's cuts, the number of similarities a relevance score is the
+     * mean of and the sample, each entering the run it shapes only where it differs from what it was (amends ADR-285
+     * §3, ADR-294 §2, ADR-295 §1 to §5 and ADR-302 §5, §8 and §9; extends ADR-298; amends ADR-087's table, ADR-020,
+     * ADR-071, ADR-073, ADR-082, ADR-088 and ADR-090).
      */
-    public static final String THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_CLUSTERING_SHIPS_AS_PRESETS = FILE
-            + "0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-clusterings-two-numbers-ship-as-presets-in-application-yaml.md";
+    public static final String THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS = FILE
+            + "0330-the-control-panel-edits-the-whole-of-profile-yaml-on-one-page-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md";
 
     private Adr() {
     }
