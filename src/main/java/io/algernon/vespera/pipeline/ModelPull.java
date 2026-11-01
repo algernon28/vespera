@@ -141,7 +141,23 @@ class ModelPull {
             }
             body = response.body();
             if (response.statusCode() / 100 != 2) {
-                String text = new String(body.readAllBytes(), StandardCharsets.UTF_8);
+                BlockingQueue<Object> refusal = new LinkedBlockingQueue<>();
+                InputStream refused = body;
+                Thread.ofVirtual().start(() -> {
+                    try {
+                        refusal.add(new String(refused.readAllBytes(), StandardCharsets.UTF_8));
+                    } catch (IOException | RuntimeException failed) {
+                        refusal.add(failed);
+                    }
+                });
+                Object answered = refusal.poll(bound.toNanos(), TimeUnit.NANOSECONDS);
+                if (answered == null) {
+                    return Optional.of(stalled(modelName, boundSeconds));
+                }
+                if (answered instanceof Exception failedRead) {
+                    return Optional.of(stopped(modelName, innermostMessage(failedRead)));
+                }
+                String text = (String) answered;
                 return Optional.of("Ollama would not pull " + modelName + " (" + response.statusCode() + ": "
                         + oneLine(errorIn(text).orElse(text.strip()))
                         + "), so nothing of it was pulled; correct the name and run the same command again");
@@ -164,7 +180,7 @@ class ModelPull {
                     return Optional.of(stopped(modelName, "the answer ended before the pull did"));
                 }
                 if (next instanceof IOException failed) {
-                    return Optional.of(stopped(modelName, String.valueOf(failed.getMessage())));
+                    return Optional.of(stopped(modelName, innermostMessage(failed)));
                 }
                 JsonNode line;
                 try {
@@ -201,9 +217,9 @@ class ModelPull {
             return Optional.of(stopped(modelName, "interrupted"));
         } catch (ExecutionException failed) {
             Throwable cause = failed.getCause() == null ? failed : failed.getCause();
-            return Optional.of(stopped(modelName, String.valueOf(cause.getMessage())));
-        } catch (IOException | RuntimeException failed) {
-            return Optional.of(stopped(modelName, String.valueOf(failed.getMessage())));
+            return Optional.of(stopped(modelName, innermostMessage(cause)));
+        } catch (RuntimeException failed) {
+            return Optional.of(stopped(modelName, innermostMessage(failed)));
         } finally {
             if (body != null) {
                 try {
@@ -230,6 +246,16 @@ class ModelPull {
         } catch (IOException | RuntimeException failed) {
             lines.add(failed instanceof IOException io ? io : new IOException(failed.getMessage(), failed));
         }
+    }
+
+    /** The innermost cause's message, or its class's simple name where that message is null or blank. */
+    private static String innermostMessage(Throwable failure) {
+        Throwable innermost = failure;
+        while (innermost.getCause() != null && innermost.getCause() != innermost) {
+            innermost = innermost.getCause();
+        }
+        String message = innermost.getMessage();
+        return message == null || message.isBlank() ? innermost.getClass().getSimpleName() : message;
     }
 
     private static Optional<String> errorIn(String text) {
