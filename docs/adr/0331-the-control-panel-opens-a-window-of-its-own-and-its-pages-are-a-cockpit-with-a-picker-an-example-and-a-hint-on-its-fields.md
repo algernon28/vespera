@@ -1,5 +1,7 @@
 # ADR-331 — The control panel opens a window of its own, and its pages are a cockpit, with a picker, an example and a hint on its fields
 
+> **Partly amended — see [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** Of §5: what a form held is let go where a save finds it no change, the file stating it already. Of §6 and its Consequences: a save of `profile.yaml` makes a working directory that is not there, on the operator's press; every start still refuses one, and the preflight stays `bad` until it exists. Of §7: Ollama is also asked at the address the jar last said, where no launch value names one. Of §8: the hint of `vespera.working-dir` says the first value saved makes it. The rest of this record stands.
+
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone, and starts the window by `ProcessBuilder`, `java.desktop` not added (§1). Its §4: one class owns the pages' skeleton, styling and escaping (§3).

@@ -280,6 +280,15 @@ _Avoid_: console (the jar's standard output, ADR-093), launcher (ADR-158; the Do
 A value the control panel passes when it starts an invocation, remembered per user: the corpus root, the working directory, the deliverable root, the Docling image, Docling's and Ollama's addresses and the label model, each keyed by the jar's own property (ADR-292). Not a profile value: it names where things are on one machine, and judges nothing about a corpus.
 _Avoid_: parameter, setting, config
 
+**Preset**:
+The value of a technical choice that ships in `application.yaml` in place of a constant of the code, where a machine's own configuration may override it and, for one a record gives a profile key, the profile does (ADR-298, ADR-330). Not a measured floor: a floor read off a corpus ships unset, pointing at its measurement. One that decides what a run produces enters that run's identity, written only where it differs from what runs were minted under before it was a preset, or as an identity already named it, so that introducing it moves no recorded configuration.
+_Avoid_: knob, tunable, parameter, option
+_Not to be confused with_: a **launch value**, which names where things are on one machine; the **profile**, which is authored per corpus; Docling's `ocr_preset`, a name its sidecar resolves, which Vespera names on every conversion from the preset `vespera.docling.ocr-preset` and never leaves to the sidecar's `auto` (ADR-090, ADR-330).
+
+**Effective values**:
+What `effective-values.properties` says, which the jar writes for the control panel as an invocation starts: what would apply where the profile names nothing, each with where it came from, from a closed list holding no credential and no path (ADR-330). What lies beneath the profile, never what the profile names; what is in use is the profile's value where it names one, and this where it does not.
+_Avoid_: current settings, resolved config, runtime config
+
 ### Output
 
 **Synthesis doc**:

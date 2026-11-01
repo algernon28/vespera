@@ -1,5 +1,7 @@
 # ADR-087 — Clusters are modularity communities over a k-nearest-neighbour graph, built in blocks
 
+> **Partly amended — see [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** Of its table: `k` and the resolution are presets in `application.yaml`, at 15 and 1.0, and each enters the scoring run's identity only where it differs from those. Of its sentence on resolution: the resolution becomes the profile key `clusterResolution`, which overrides the preset, shipping with a value where that sentence refused one shipping unset. The rest of this record stands.
+
 - **Date**: 2026-09-06
 - **Status**: accepted
 - **Amends**: none — settles what [ADR-045](0045-clustering-runs-within-each-seed-partition.md) scoped and [ADR-027](0027-clustering-moves-to-stage-5.md) placed, under the memory contract [ADR-085](0085-vectors-live-in-sqlite-and-the-pairwise-matrix-is-never-materialised.md) imposed
