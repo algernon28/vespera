@@ -165,7 +165,7 @@ class RelevanceDistributionDrawsByLeastKeyAPageAtATimeTest {
     void eachBandGivesItsTwelveOfLeastKeyReadAPageAtATime() {
         StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
 
-        RelevanceDistribution.Distribution distribution = new RelevanceDistribution(log.jdbcTemplate()).measure(scoring);
+        RelevanceDistribution.Distribution distribution = new RelevanceDistribution(log.jdbcTemplate()).measure(scoring, BANDS, PER_BAND);
 
         claim(
                 "every band holds the " + IN_A_BAND + " occurrences scored in it, and the other run's scores are not"
@@ -208,11 +208,11 @@ class RelevanceDistributionDrawsByLeastKeyAPageAtATimeTest {
             answers.put(written.get(i).occurrenceId(), i % 2 == 0);
         }
         RelevanceDistribution.Distribution distribution =
-                new RelevanceDistribution(pool.jdbcTemplate()).measure(scoring);
+                new RelevanceDistribution(pool.jdbcTemplate()).measure(scoring, BANDS, PER_BAND);
         LabelledSpread.Spread overEveryScoreHeld = LabelledSpread.of(distribution, written, answers);
         StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
 
-        LabelledSpread.Spread spread = new RelevanceDistribution(log.jdbcTemplate()).spreadOf(scoring, answers);
+        LabelledSpread.Spread spread = new RelevanceDistribution(log.jdbcTemplate()).spreadOf(scoring, answers, BANDS, PER_BAND);
 
         claim(
                 "the answers fall in the same bands and the candidate cuts keep and discard the same numbers as"

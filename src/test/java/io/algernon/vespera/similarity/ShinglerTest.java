@@ -48,6 +48,9 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_DERIVED_METRICS, type = "adr")
 class ShinglerTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
     /**
      * The most rows {@link Shingler#write} sends in one JDBC batch, as issue #367 fixes it. It mirrors
      * {@code Shingler.SHINGLE_INSERT_BATCH}, which the spec makes {@code private}, so the test states the
@@ -73,8 +76,8 @@ class ShinglerTest {
         String documentOne = "Chapter One. " + sharedPassage + ". The story begins here.";
         String documentTwo = "Appendix B. " + sharedPassage + ". Figures follow below.";
 
-        List<Long> hashesOne = shingler.hashesOf(documentOne, ShingleParameters.DEFAULT);
-        List<Long> hashesTwo = shingler.hashesOf(documentTwo, ShingleParameters.DEFAULT);
+        List<Long> hashesOne = shingler.hashesOf(documentOne, FIVE_WORD_SHINGLES);
+        List<Long> hashesTwo = shingler.hashesOf(documentTwo, FIVE_WORD_SHINGLES);
 
         claim(
                 "the two documents' shingle sets intersect on at least one hash — the shared passage's —"
@@ -89,7 +92,7 @@ class ShinglerTest {
         Shingler shingler = new Shingler(jdbcTemplate);
         String text = "one two three four five six seven eight nine ten";
 
-        List<Long> fiveWordWindows = shingler.hashesOf(text, ShingleParameters.DEFAULT);
+        List<Long> fiveWordWindows = shingler.hashesOf(text, FIVE_WORD_SHINGLES);
         List<Long> threeWordWindows = shingler.hashesOf(text, new ShingleParameters(3));
 
         claim(
@@ -112,7 +115,7 @@ class ShinglerTest {
                 "three words under a five-word window is not a partial shingle -- it is no shingle at"
                         + " all, so it never contributes a hash that would collide with a genuine five-word"
                         + " window elsewhere",
-                () -> assertThat(shingler.hashesOf("too short here", ShingleParameters.DEFAULT))
+                () -> assertThat(shingler.hashesOf("too short here", FIVE_WORD_SHINGLES))
                         .isEmpty());
     }
 
@@ -125,14 +128,14 @@ class ShinglerTest {
         RunId runId = aRun(occurrenceId);
         String text = "the quick brown fox jumps over the lazy dog again";
 
-        shingler.write(occurrenceId, runId, text, ShingleParameters.DEFAULT);
+        shingler.write(occurrenceId, runId, text, FIVE_WORD_SHINGLES);
 
         claim(
                 "every hash the function computed for this text is present among the rows stored for"
                         + " this occurrence, run and granularity",
-                () -> assertThat(storedHashes(occurrenceId, runId, ShingleParameters.DEFAULT.identity()))
+                () -> assertThat(storedHashes(occurrenceId, runId, FIVE_WORD_SHINGLES.identity()))
                         .containsExactlyInAnyOrderElementsOf(
-                                shingler.hashesOf(text, ShingleParameters.DEFAULT)));
+                                shingler.hashesOf(text, FIVE_WORD_SHINGLES)));
     }
 
     @Test
@@ -144,9 +147,9 @@ class ShinglerTest {
         OccurrenceId occurrenceId = anOccurrence();
         RunId runId = aRun(occurrenceId);
         String text = "alpha beta gamma delta epsilon ".repeat(3);
-        List<Long> computed = shingler.hashesOf(text, ShingleParameters.DEFAULT);
+        List<Long> computed = shingler.hashesOf(text, FIVE_WORD_SHINGLES);
 
-        shingler.write(occurrenceId, runId, text, ShingleParameters.DEFAULT);
+        shingler.write(occurrenceId, runId, text, FIVE_WORD_SHINGLES);
 
         claim(
                 "the text is one five-word passage written out three times back to back, so its shingle"
@@ -156,7 +159,7 @@ class ShinglerTest {
                 "counted hash by hash, the rows stored for this occurrence and run occur exactly as often"
                         + " as the function computed them, so no repetition was folded into a single row",
                 () -> assertThat(countedPerHash(
-                                storedHashes(occurrenceId, runId, ShingleParameters.DEFAULT.identity())))
+                                storedHashes(occurrenceId, runId, FIVE_WORD_SHINGLES.identity())))
                         .isEqualTo(countedPerHash(computed)));
     }
 
@@ -171,11 +174,11 @@ class ShinglerTest {
 
         claim(
                 "writing an empty text completes without an error",
-                () -> assertThatCode(() -> shingler.write(occurrenceId, runId, "", ShingleParameters.DEFAULT))
+                () -> assertThatCode(() -> shingler.write(occurrenceId, runId, "", FIVE_WORD_SHINGLES))
                         .doesNotThrowAnyException());
         claim(
                 "no shingle row is stored for this occurrence and run",
-                () -> assertThat(storedHashes(occurrenceId, runId, ShingleParameters.DEFAULT.identity()))
+                () -> assertThat(storedHashes(occurrenceId, runId, FIVE_WORD_SHINGLES.identity()))
                         .isEmpty());
     }
 
@@ -190,9 +193,9 @@ class ShinglerTest {
         String text = IntStream.range(0, LONG_TEXT_WORDS)
                 .mapToObj(index -> "word" + index)
                 .collect(Collectors.joining(" "));
-        List<Long> computed = shingler.hashesOf(text, ShingleParameters.DEFAULT);
+        List<Long> computed = shingler.hashesOf(text, FIVE_WORD_SHINGLES);
 
-        shingler.write(occurrenceId, runId, text, ShingleParameters.DEFAULT);
+        shingler.write(occurrenceId, runId, text, FIVE_WORD_SHINGLES);
 
         claim(
                 "a text of " + LONG_TEXT_WORDS + " distinct words gives more shingles than two full"
@@ -202,12 +205,12 @@ class ShinglerTest {
         claim(
                 "every shingle the function computed is stored for this occurrence and run, exactly once,"
                         + " none lost or repeated at a batch boundary",
-                () -> assertThat(storedHashes(occurrenceId, runId, ShingleParameters.DEFAULT.identity()))
+                () -> assertThat(storedHashes(occurrenceId, runId, FIVE_WORD_SHINGLES.identity()))
                         .containsExactlyInAnyOrderElementsOf(computed));
         claim(
                 "the rows were inserted in the order the function computed the shingles, across every"
                         + " batch boundary",
-                () -> assertThat(hashesInInsertionOrder(occurrenceId, runId, ShingleParameters.DEFAULT.identity()))
+                () -> assertThat(hashesInInsertionOrder(occurrenceId, runId, FIVE_WORD_SHINGLES.identity()))
                         .isEqualTo(computed));
     }
 
@@ -221,15 +224,15 @@ class ShinglerTest {
         String text = "the quick brown fox jumps over the lazy dog again";
         ShingleParameters wideWindow = new ShingleParameters(3);
 
-        shingler.write(occurrenceId, runId, text, ShingleParameters.DEFAULT);
+        shingler.write(occurrenceId, runId, text, FIVE_WORD_SHINGLES);
         shingler.write(occurrenceId, runId, text, wideWindow);
 
         claim(
                 "the first granularity's rows are untouched by the second write -- still exactly what"
                         + " the function computed for it",
-                () -> assertThat(storedHashes(occurrenceId, runId, ShingleParameters.DEFAULT.identity()))
+                () -> assertThat(storedHashes(occurrenceId, runId, FIVE_WORD_SHINGLES.identity()))
                         .containsExactlyInAnyOrderElementsOf(
-                                shingler.hashesOf(text, ShingleParameters.DEFAULT)));
+                                shingler.hashesOf(text, FIVE_WORD_SHINGLES)));
         claim(
                 "the second granularity's rows exist under their own identity, alongside the first"
                         + " rather than in place of it",

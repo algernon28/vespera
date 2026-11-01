@@ -102,6 +102,7 @@ class RelevanceScoringTasklet implements Tasklet {
         RunId measurementRun = stageRuns.seedMeasurement();
         RunId scoring = stageRuns.embeddingScoring();
         String modelName = stageRuns.embeddingModelName();
+        int topSimilarities = stageRuns.topSimilarities();
 
         return TaskletSteps.once(
                 ledger,
@@ -176,6 +177,9 @@ class RelevanceScoringTasklet implements Tasklet {
                             chunkingRuleIdentity,
                             identity.get(),
                             residentSeedVectors,
+                            // The number the scoring run was minted under, so the score that is recorded is the one
+                            // the run is named by (ADR-330 section 9, ADR-117).
+                            topSimilarities,
                             scored));
                     LOG.info("Stage 5d (relevance scoring) finished under scoring run {}", scoring.value());
                     return true;
@@ -196,6 +200,7 @@ class RelevanceScoringTasklet implements Tasklet {
             String chunkingRuleIdentity,
             String embedderIdentity,
             Map<OccurrenceId, List<float[]>> residentSeedVectors,
+            int topSimilarities,
             StageProgress scored) {
         Set<OccurrenceId> translations = ledger.verdicts().carryingAmong(scoring, VerdictKind.TRANSLATION_OF, page);
         List<OccurrenceId> toScore = page.stream().filter(id -> !translations.contains(id)).toList();
@@ -212,7 +217,8 @@ class RelevanceScoringTasklet implements Tasklet {
                     chunkerIdentity,
                     chunkingRuleIdentity,
                     embedderIdentity,
-                    residentSeedVectors);
+                    residentSeedVectors,
+                    topSimilarities);
             scored.itemDone();
         }
     }

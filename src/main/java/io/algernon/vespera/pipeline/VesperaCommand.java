@@ -4,6 +4,7 @@ import io.algernon.vespera.confluence.Publisher;
 import io.algernon.vespera.deliverable.DeliverableRoot;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.Runs;
+import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.TextValue;
 import java.nio.file.Files;
@@ -146,6 +147,7 @@ public class VesperaCommand implements Callable<Integer> {
         private CorpusRootLock corpusRootLock;
         private SidecarStarter sidecarStarter;
         private EffectiveValuesFile effectiveValues;
+        private Presets presets;
         private String[] arguments = new String[0];
 
         @Parameters(
@@ -229,6 +231,15 @@ public class VesperaCommand implements Callable<Integer> {
             this.effectiveValues = new EffectiveValuesFile(environment, workingDirectoryInUse);
         }
 
+        /**
+         * The presets a run is minted under, checked at the start (ADR-330 §9); a command built without them, as some
+         * tests build it, checks none.
+         */
+        @Autowired(required = false)
+        void refusePresetsNoRunCanBeMadeUnderWith(Presets presets) {
+            this.presets = presets;
+        }
+
         @Override
         public Integer call() throws Exception {
             String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
@@ -250,6 +261,17 @@ public class VesperaCommand implements Callable<Integer> {
             if (misplacedDeliverableRoot.isPresent()) {
                 System.err.println(misplacedDeliverableRoot.get());
                 return CommandLine.ExitCode.SOFTWARE;
+            }
+            // A preset no run can be made under, named by configuration, in one line and no stack trace: before the
+            // corpus-root lock is taken, the sidecars started and the job started, so that nothing is walked, no run is
+            // minted and the file of ADR-330 §1 is not written (ADR-330 §9). vespera label and vespera publish, which
+            // read no preset, are not stopped by one.
+            if (presets != null) {
+                Optional<String> unmakeableRun = presets.refusal(profileToReadThePresetsOver());
+                if (unmakeableRun.isPresent()) {
+                    System.err.println(unmakeableRun.get());
+                    return CommandLine.ExitCode.SOFTWARE;
+                }
             }
             if (corpusRootLock != null) {
                 try {
@@ -288,6 +310,23 @@ public class VesperaCommand implements Callable<Integer> {
             }
             log.info("{}", nextAction.line(corpusRoot, new InvocationRuns(execution.getExecutionContext())));
             return CommandLine.ExitCode.OK;
+        }
+
+        /**
+         * The profile the presets are checked over: whether its {@code clusterResolution} stands in place of the
+         * configured one. A profile that cannot be read, or none to read, names nothing, and is left to the job's own
+         * refusal of it.
+         */
+        private Profile profileToReadThePresetsOver() {
+            if (profileStore != null) {
+                try {
+                    return profileStore.load();
+                } catch (RuntimeException unreadable) {
+                    // names nothing here
+                }
+            }
+            return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                    null, null, null, null);
         }
 
         /**

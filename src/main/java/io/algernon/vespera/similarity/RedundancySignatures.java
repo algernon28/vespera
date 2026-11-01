@@ -30,19 +30,27 @@ public class RedundancySignatures {
      *
      * @param boilerplateFloor the floor value that produced {@code boilerplateHashes} — folded into the
      *     written row's {@code signature_identity} (ADR-080), never re-derived from the set itself
+     * @param shingleParameters the window stage 2's shingles were written under, which names the rows read
+     * @param minHashParameters the permutations the signature is of: the numbers stage 4's run was minted under
+     *     (ADR-330 §9), held by no constant here
      * @return whether a signature was written; {@code false} means every one of this document's
      *     shingles was boilerplate
      */
     public boolean write(
-            OccurrenceId occurrenceId, RunId stage4RunId, RunId stage2RunId, Set<Long> boilerplateHashes, double boilerplateFloor) {
-        Set<Long> distinctive = distinctiveShingleSet(occurrenceId, stage2RunId, boilerplateHashes);
+            OccurrenceId occurrenceId,
+            RunId stage4RunId,
+            RunId stage2RunId,
+            Set<Long> boilerplateHashes,
+            double boilerplateFloor,
+            ShingleParameters shingleParameters,
+            MinHashParameters minHashParameters) {
+        Set<Long> distinctive = distinctiveShingleSet(occurrenceId, stage2RunId, boilerplateHashes, shingleParameters);
         if (distinctive.isEmpty()) {
             return false;
         }
 
-        MinHashParameters minHashParameters = MinHashParameters.DEFAULT;
         int[] minima = MinHashSignature.minima(distinctive, minHashParameters);
-        String signatureIdentity = signatureIdentity(boilerplateFloor);
+        String signatureIdentity = signatureIdentity(boilerplateFloor, shingleParameters, minHashParameters);
 
         jdbcTemplate.update(
                 "INSERT INTO minhash_signature (occurrence_id, run_id, signature_identity, signature)"
@@ -76,15 +84,15 @@ public class RedundancySignatures {
     }
 
     /**
-     * What a signature computed under {@link ShingleParameters#DEFAULT} and {@link
-     * MinHashParameters#DEFAULT} means (ADR-080, ADR-081): the shingle parameter identity, the
+     * What a signature computed under the {@link ShingleParameters} and {@link
+     * MinHashParameters} it is given means (ADR-080, ADR-081): the shingle parameter identity, the
      * permutation identity, and the boilerplate floor that stripped its input — deliberately redundant
      * with {@code run_id}, which already folds all three in, so a reader holding a signature row can
      * say what it is without first resolving the run row it belongs to.
      */
-    static String signatureIdentity(double boilerplateFloor) {
-        return ShingleParameters.DEFAULT.identity() + ";" + MinHashParameters.DEFAULT.identity() + ";floor:"
-                + boilerplateFloor;
+    static String signatureIdentity(
+            double boilerplateFloor, ShingleParameters shingleParameters, MinHashParameters minHashParameters) {
+        return shingleParameters.identity() + ";" + minHashParameters.identity() + ";floor:" + boilerplateFloor;
     }
 
     /**
@@ -96,7 +104,11 @@ public class RedundancySignatures {
      * SQLite would otherwise answer from it and read every row of the run for each document. The text is
      * the one {@code RedundancyResolution} reads a shingle set with (ADR-225 section 4).
      */
-    private Set<Long> distinctiveShingleSet(OccurrenceId occurrenceId, RunId stage2RunId, Set<Long> boilerplateHashes) {
+    private Set<Long> distinctiveShingleSet(
+            OccurrenceId occurrenceId,
+            RunId stage2RunId,
+            Set<Long> boilerplateHashes,
+            ShingleParameters shingleParameters) {
         Set<Long> distinctive = new HashSet<>();
         jdbcTemplate.query(
                 "SELECT shingle_hash FROM shingle INDEXED BY shingle_by_occurrence"
@@ -109,7 +121,7 @@ public class RedundancySignatures {
                 },
                 occurrenceId.value(),
                 stage2RunId.value(),
-                ShingleParameters.DEFAULT.identity());
+                shingleParameters.identity());
         return distinctive;
     }
 }

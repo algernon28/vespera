@@ -41,6 +41,9 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-080", url = Adr.THE_BOILERPLATE_FLOOR_IS_A_GATE, type = "adr")
 class BoilerplateShinglesTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
     /** The corpus stage 3 measured: 10 documents carried at least one shingle. */
     private static final int SHINGLED_DOCUMENTS = 10;
 
@@ -64,7 +67,7 @@ class BoilerplateShinglesTest {
         documentFrequency(stage3RunId, HASH_AT_THE_FLOOR, SHINGLED_DOCUMENTS / 2);
         documentFrequency(stage3RunId, HASH_BELOW_THE_FLOOR, SHINGLED_DOCUMENTS / 2 - 1);
 
-        Set<Long> boilerplate = new BoilerplateShingles(jdbcTemplate).resolve(stage3RunId, FLOOR);
+        Set<Long> boilerplate = new BoilerplateShingles(jdbcTemplate).resolve(stage3RunId, FLOOR, FIVE_WORD_SHINGLES);
 
         claim(
                 "a hash in 5 of the 10 shingled documents reaches a floor of 0.5 and is boilerplate",
@@ -82,7 +85,7 @@ class BoilerplateShinglesTest {
         RunId stage3RunId = fixture();
         documentFrequency(stage3RunId, HASH_AT_THE_FLOOR, SHINGLED_DOCUMENTS / 2);
 
-        Set<Long> boilerplate = new BoilerplateShingles(jdbcTemplate).resolve(stage3RunId, FLOOR);
+        Set<Long> boilerplate = new BoilerplateShingles(jdbcTemplate).resolve(stage3RunId, FLOOR, FIVE_WORD_SHINGLES);
 
         claim(
                 "stage 3 writes a row only for a hash seen in two or more documents (ADR-074), so a hash"
@@ -101,7 +104,7 @@ class BoilerplateShinglesTest {
         RunId stage3RunId = ledger.runs().startRun("content-census", "unmeasured", "{}", walkId, List.of());
         documentFrequency(stage3RunId, HASH_AT_THE_FLOOR, SHINGLED_DOCUMENTS);
 
-        Set<Long> boilerplate = new BoilerplateShingles(jdbcTemplate).resolve(stage3RunId, FLOOR);
+        Set<Long> boilerplate = new BoilerplateShingles(jdbcTemplate).resolve(stage3RunId, FLOOR, FIVE_WORD_SHINGLES);
 
         claim(
                 "with no denominator recorded there is no proportion to compare against, and answering"
@@ -120,7 +123,7 @@ class BoilerplateShinglesTest {
                 "INSERT INTO shingle_corpus_size (run_id, shingle_parameter_identity, shingled_document_count)"
                         + " VALUES (?, ?, ?)",
                 stage3RunId.value(),
-                ShingleParameters.DEFAULT.identity(),
+                FIVE_WORD_SHINGLES.identity(),
                 SHINGLED_DOCUMENTS);
         return stage3RunId;
     }
@@ -131,7 +134,7 @@ class BoilerplateShinglesTest {
                         + " (run_id, shingle_parameter_identity, shingle_hash, document_count, total_count)"
                         + " VALUES (?, ?, ?, ?, ?)",
                 stage3RunId.value(),
-                ShingleParameters.DEFAULT.identity(),
+                FIVE_WORD_SHINGLES.identity(),
                 hash,
                 documentCount,
                 documentCount);

@@ -117,6 +117,7 @@ class TheScoringRunIsMintedFromOneReadingOfTheProfileTest {
                 null,
                 null,
                 servingTheModel(),
+                PresetsFixture.shipped(),
                 root,
                 invocation);
 

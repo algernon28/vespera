@@ -2,6 +2,7 @@ package io.algernon.vespera.embedding;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.Ledger;
@@ -94,7 +95,7 @@ class RelevanceDistributionTest {
     void cutsFiveEqualBandsOverTheObservedRange() {
         RunId scoringRun = aScoringRunScoring(SCORES);
 
-        RelevanceDistribution.Distribution distribution = new RelevanceDistribution(jdbcTemplate).measure(scoringRun);
+        RelevanceDistribution.Distribution distribution = new RelevanceDistribution(jdbcTemplate).measure(scoringRun, BANDS, PER_BAND);
 
         claim(
                 "a corpus is divided five ways, so two archives are always described the same way",
@@ -136,8 +137,8 @@ class RelevanceDistributionTest {
         RunId scoringRun = aScoringRunScoring(scoresFillingEveryBand());
         RelevanceDistribution distribution = new RelevanceDistribution(jdbcTemplate);
 
-        List<OccurrenceId> firstDraw = occurrencesOf(distribution.measure(scoringRun));
-        List<OccurrenceId> secondDraw = occurrencesOf(distribution.measure(scoringRun));
+        List<OccurrenceId> firstDraw = occurrencesOf(distribution.measure(scoringRun, BANDS, PER_BAND));
+        List<OccurrenceId> secondDraw = occurrencesOf(distribution.measure(scoringRun, BANDS, PER_BAND));
 
         claim(
                 "sixty documents are asked for in total -- at roughly two minutes each that is about two"
@@ -149,7 +150,7 @@ class RelevanceDistributionTest {
                 "and they are spread " + PER_BAND + " to a band rather than taken from wherever the"
                         + " documents happen to be, so the proportion found relevant in one band can be"
                         + " compared with the proportion in another",
-                () -> assertThat(distribution.measure(scoringRun).bands())
+                () -> assertThat(distribution.measure(scoringRun, BANDS, PER_BAND).bands())
                         .allSatisfy(band -> assertThat(band.sampledCount()).isEqualTo(PER_BAND)));
         claim(
                 "asking twice over the same run gives the same sixty documents in the same order, so a"
@@ -169,7 +170,7 @@ class RelevanceDistributionTest {
     void aShortBandGivesWhatItHasAndRecordsTheShortfall() {
         RunId scoringRun = aScoringRunScoring(scoresLeavingTheSecondBandShort());
 
-        RelevanceDistribution.Distribution distribution = new RelevanceDistribution(jdbcTemplate).measure(scoringRun);
+        RelevanceDistribution.Distribution distribution = new RelevanceDistribution(jdbcTemplate).measure(scoringRun, BANDS, PER_BAND);
 
         RelevanceDistribution.Band shortBand = distribution.bands().get(SHORT_BAND);
         claim(
@@ -194,6 +195,55 @@ class RelevanceDistributionTest {
                 "so the sitting is shorter than sixty documents, by exactly what the short band lacked",
                 () -> assertThat(distribution.sample())
                         .hasSize(SAMPLE_SIZE - (PER_BAND - DOCUMENTS_IN_THE_SHORT_BAND)));
+    }
+
+    /**
+     * The two numbers are what is given and not constants of the class (ADR-330 §8, §9): the scores that fill the shipped
+     * five bands of twelve, divided otherwise, so a class ignoring either would draw the shipped shape.
+     */
+    @Test
+    @Story("Sixty documents, chosen the same way every time")
+    @DisplayName("Asked for another shape of sample, it cuts that many bands and draws that many from each, and says what each lacked of that many")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void theBandsAndTheNumberFromEachAreWhatItIsGiven() {
+        RunId scoringRun = aScoringRunScoring(scoresFillingEveryBand());
+        int twoBands = 2;
+        int threeFromEach = 3;
+
+        RelevanceDistribution.Distribution distribution =
+                new RelevanceDistribution(jdbcTemplate).measure(scoringRun, twoBands, threeFromEach);
+
+        claim("the range is cut into the " + twoBands + " bands asked for",
+                () -> assertThat(distribution.bands()).hasSize(twoBands));
+        claim("each supplies the " + threeFromEach + " asked for, so " + (twoBands * threeFromEach) + " in all",
+                () -> {
+                    assertThat(distribution.bands().stream().map(RelevanceDistribution.Band::sampledCount).toList())
+                            .containsOnly(threeFromEach);
+                    assertThat(distribution.sample()).hasSize(twoBands * threeFromEach);
+                });
+
+        int moreThanABandHolds = 2 * BANDS * DOCUMENTS_PER_FULL_BAND;
+        RelevanceDistribution.Distribution asking = new RelevanceDistribution(jdbcTemplate).measure(scoringRun, 1, moreThanABandHolds);
+        claim("and what a band could not supply is measured against the number asked for, whatever that is",
+                () -> assertThat(asking.bands().getFirst().shortfall())
+                        .isEqualTo(moreThanABandHolds - BANDS * DOCUMENTS_PER_FULL_BAND));
+    }
+
+    /** A sample of no bands or of none from each divides nothing and asks nothing (ADR-330 §9). */
+    @Test
+    @Story("Sixty documents, chosen the same way every time")
+    @DisplayName("A sample of no bands, or of no document from each, is refused")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void aSampleOfNoBandsOrNoneFromEachIsRefused() {
+        RunId scoringRun = aScoringRunScoring(SCORES);
+        RelevanceDistribution distribution = new RelevanceDistribution(jdbcTemplate);
+
+        claim("no bands are refused",
+                () -> assertThatThrownBy(() -> distribution.measure(scoringRun, 0, PER_BAND))
+                        .isInstanceOf(IllegalArgumentException.class));
+        claim("and so is none from each",
+                () -> assertThatThrownBy(() -> distribution.measure(scoringRun, BANDS, 0))
+                        .isInstanceOf(IllegalArgumentException.class));
     }
 
     private static List<OccurrenceId> occurrencesOf(RelevanceDistribution.Distribution distribution) {

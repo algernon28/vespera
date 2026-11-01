@@ -9,9 +9,10 @@ import java.util.function.Supplier;
  * What the relevance floor lets stage 5e do (ADR-088, ADR-118, ADR-226 moving ADR-222's rules 2 and 3),
  * answered as the action the step takes and not as a classification of the floor.
  *
- * <p>A threshold is a number on a scale and the embedder identity the vectors carry is the scale. The
- * answers recorded for the seed set carry the identity that was on screen when each was given, so a
- * number read off another scale, or off several, removes nothing. Nothing checks that a floor was ever
+ * <p>A threshold is a number on a scale and the {@link RelevanceScale} is the scale: the embedder identity the
+ * vectors carry, and, where the number of similarities a score is the mean of is not 3, {@code ;top:<n>} after it
+ * (ADR-330 section 9). The answers recorded for the seed set carry the scale that was on screen when each was given,
+ * so a number read off another scale, or off several, removes nothing. Nothing checks that a floor was ever
  * labelled (ADR-088): no answers at all applies it.
  *
  * <p>Where the vectors carry no single embedder identity no removal is made and the answers are not
@@ -33,17 +34,17 @@ public final class FloorReach {
     }
 
     /**
-     * The reach for a run whose vectors carry {@code embedderIdentity}. {@code answers} is read once,
-     * here, and only where there is an identity and a number.
+     * The reach for a run whose scores are on {@code scale}, which {@link RelevanceScale#of} composes. {@code
+     * answers} is read once, here, and only where there is a scale and a number.
      */
     public static FloorReach of(
-            Optional<String> embedderIdentity, OptionalDouble floor, Supplier<List<RelevanceLabel>> answers) {
-        if (embedderIdentity.isEmpty() || floor.isEmpty()) {
+            Optional<String> scale, OptionalDouble floor, Supplier<List<RelevanceLabel>> answers) {
+        if (scale.isEmpty() || floor.isEmpty()) {
             return new FloorReach(floor, List.of(), OptionalDouble.empty());
         }
         List<String> answeredUnder =
                 answers.get().stream().map(RelevanceLabel::embedderIdentity).distinct().toList();
-        boolean onThisScale = answeredUnder.isEmpty() || answeredUnder.equals(List.of(embedderIdentity.get()));
+        boolean onThisScale = answeredUnder.isEmpty() || answeredUnder.equals(List.of(scale.get()));
         return new FloorReach(floor, answeredUnder, onThisScale ? floor : OptionalDouble.empty());
     }
 

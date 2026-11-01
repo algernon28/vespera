@@ -96,9 +96,27 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
         return said;
     }
 
+    /** The presets of the shipped file, each said under its own name but the resolution, said under the profile's. */
+    private static final Map<String, String> THE_PRESETS = Map.ofEntries(
+            Map.entry("vespera.clustering.neighbours", "15"),
+            Map.entry("vespera.docling.ocr-preset", "rapidocr"),
+            Map.entry("vespera.docling.timeouts-in-a-row", "3"),
+            Map.entry("vespera.redundancy.shingle-words", "5"),
+            Map.entry("vespera.redundancy.minhash.permutations", "128"),
+            Map.entry("vespera.redundancy.minhash.bands", "16"),
+            Map.entry("vespera.redundancy.minhash.rows-per-band", "8"),
+            Map.entry("vespera.redundancy.minhash.seed", "6840335614489015382"),
+            Map.entry("vespera.redundancy.near-duplicate-jaccard", "0.8"),
+            Map.entry("vespera.redundancy.containment-index", "0.95"),
+            Map.entry("vespera.redundancy.rare-shingle-sample", "32"),
+            Map.entry("vespera.redundancy.rare-shingle-hits", "24"),
+            Map.entry("vespera.relevance.top-similarities", "3"),
+            Map.entry("vespera.relevance.sample.bands", "5"),
+            Map.entry("vespera.relevance.sample.per-band", "12"));
+
     /** A layer naming every key the application resolves but Ollama's address, which the shipped file does not name. */
     private static Layer theShippedFile() {
-        return new Layer(THE_JARS_OWN_FILE, Map.of(
+        Map<String, Object> values = new LinkedHashMap<>(Map.of(
                 EMBEDDING_MODEL, "bge-m3:latest",
                 GENERATION_MODEL, "qwen3:8b",
                 IMAGE, "vespera/docling:v1.32.0",
@@ -106,7 +124,18 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
                 WAIT_AT_MOST, "5m",
                 PROGRESS_INTERVAL, "30s",
                 OPEN_BROWSER, "true",
-                DOCLING_ADDRESS, "http://localhost:5001"));
+                DOCLING_ADDRESS, "http://localhost:5001",
+                "vespera.clustering.resolution", "1.0"));
+        values.putAll(THE_PRESETS);
+        return new Layer(THE_JARS_OWN_FILE, values);
+    }
+
+    /** What the shipped file's presets are said as: the resolution under the profile's name, the rest under their own. */
+    private static Map<String, Said> thePresetsAsSaid() {
+        Map<String, Said> said = new LinkedHashMap<>();
+        said.put("clusterResolution", new Said("1.0", "shipped"));
+        THE_PRESETS.forEach((key, value) -> said.put(key, new Said(value, "shipped")));
+        return said;
     }
 
     /** Each shape the jar writes: a value of each source, a value left out, an address cut, and characters it escapes. */
@@ -114,7 +143,7 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
         return Stream.of(
                 Arguments.of("nothing named, the code's values alone", List.of(), whatTheCodeHolds()),
                 Arguments.of("every value the shipped file names", List.of(theShippedFile()),
-                        whatTheCodeHoldsAnd(Map.of(
+                        whatTheCodeHoldsAnd(thePresetsAnd(Map.of(
                                 "embeddingModel", new Said("bge-m3:latest", "shipped"),
                                 "generationModel", new Said("qwen3:8b", "shipped"),
                                 IMAGE, new Said("vespera/docling:v1.32.0", "shipped"),
@@ -122,7 +151,7 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
                                 WAIT_AT_MOST, new Said("5m", "shipped"),
                                 PROGRESS_INTERVAL, new Said("30s", "shipped"),
                                 OPEN_BROWSER, new Said("true", "shipped"),
-                                DOCLING_ADDRESS, new Said("http://localhost:5001", "shipped")))),
+                                DOCLING_ADDRESS, new Said("http://localhost:5001", "shipped"))))),
                 Arguments.of("a value of each other source",
                         List.of(new Layer(ANOTHER_FILE, Map.of(EMBEDDING_MODEL, "a-model-of-this-machine")),
                                 new Layer(A_SYSTEM_PROPERTY, Map.of(IMAGE, "an-image-of-this-machine")),
@@ -153,6 +182,12 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
                                 "embeddingModel", new Said("modèllo:latest", "local-file"),
                                 "generationModel", new Said("#a=model:one two", "local-file"),
                                 IMAGE, new Said(" registry.example:5000/a\\b!", "local-file")))));
+    }
+
+    private static Map<String, Said> thePresetsAnd(Map<String, Said> others) {
+        Map<String, Said> said = thePresetsAsSaid();
+        said.putAll(others);
+        return said;
     }
 
     private static Map<String, Said> withoutTheDoclingAddress() {

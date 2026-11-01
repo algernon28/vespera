@@ -480,7 +480,8 @@ public class ExtractionJobConfiguration {
         if (!running.equals(image)) {
             throw DoclingRunsAnotherImageException.running(running, image);
         }
-        return ExtractorIdentity.composedOf(image, reported);
+        // What the client sends, for the preset it was handed (ADR-330 section 9): another preset is another extractor.
+        return ExtractorIdentity.composedOf(image, reported, doclingClient.sentOptions());
     }
 
     /**

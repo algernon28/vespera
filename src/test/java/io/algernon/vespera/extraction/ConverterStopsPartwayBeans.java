@@ -186,8 +186,10 @@ public class ConverterStopsPartwayBeans {
     }
 
     @Bean
-    DoclingClient doclingClient(@Value("${vespera.docling.image}") String configuredImage) {
-        return new DoclingClient("unused") {
+    DoclingClient doclingClient(
+            @Value("${vespera.docling.image}") String configuredImage,
+            @Value("${vespera.docling.ocr-preset}") String ocrPreset) {
+        return new DoclingClient("unused", ocrPreset) {
 
             @Override
             public void checkHealth() {}

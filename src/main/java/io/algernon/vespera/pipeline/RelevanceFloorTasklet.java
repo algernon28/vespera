@@ -98,8 +98,11 @@ class RelevanceFloorTasklet implements Tasklet {
         // threshold against the wrong identity is what would let a number calibrated elsewhere remove
         // documents here. Not yet a decision this run can be finished on -- a later invocation, once
         // embedding-scoring has actually run, may answer differently under this very run id.
+        // The scale, which is the embedder identity and, where the scoring run's number of similarities is not the
+        // shipped 3, `;top:<n>` after it (ADR-330 section 9).
         Optional<String> currentIdentity =
-                TimedStatement.of(STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName, stageRuns.embeddingModelArtefact()));
+                TimedStatement.<Optional<String>>of(STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName, stageRuns.embeddingModelArtefact()))
+                        .map(stageRuns::relevanceScale);
         FloorReach reach = relevanceFloor.reachFor(currentIdentity, STAGE, stageRuns.relevanceScoreFloor());
 
         // Every removal this run has standing goes before the reach is acted on, whichever way it

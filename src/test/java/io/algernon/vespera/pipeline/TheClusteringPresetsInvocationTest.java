@@ -20,7 +20,6 @@ import java.util.Map;
 import java.util.Properties;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -50,7 +49,6 @@ import org.yaml.snakeyaml.Yaml;
 @Epic("Relevance")
 @Feature("Clustering")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("awaits clusterResolution in the profile and in the scoring run's identity")
 class TheClusteringPresetsInvocationTest {
 
     private static final int DOCUMENTS = 3;

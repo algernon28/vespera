@@ -153,6 +153,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-266: hands the progress page to the system to open, and decides nothing it shows.
             "PageOpener",
             "PendingConversions",
+            // ADR-330 §9: reads the presets and the profile's resolution; what it resolves names the run.
+            "Presets",
             "ProfileShapeCheck",
             // ADR-265: renders what the job holds in memory, and decides nothing it shows.
             "ProgressPage",
@@ -313,10 +315,18 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "profile.ProfileStore",
                             "similarity.DocumentFrequency",
                             "similarity.FrequencyProgress",
+                            // ADR-330 §9: the window the run named, handed to the read of the shares.
+                            "similarity.ShingleParameters",
                             "similarity.SimilarityStatement")),
             Map.entry("RedundancyGate", Set.of("profile.NumericValue", "profile.Profile", "profile.ProfileStore")),
-            Map.entry("RedundancyBoilerplate", Set.of("similarity.BoilerplateShingles")),
-            Map.entry("RedundancySignatureItemWriter", Set.of("similarity.RedundancySignatures")),
+            // ADR-330 §9: the window and the signature's numbers the run named, handed over.
+            Map.entry("RedundancyBoilerplate", Set.of("similarity.BoilerplateShingles", "similarity.ShingleParameters")),
+            Map.entry(
+                    "RedundancySignatureItemWriter",
+                    Set.of(
+                            "similarity.MinHashParameters",
+                            "similarity.RedundancySignatures",
+                            "similarity.ShingleParameters")),
             Map.entry(
                     "RedundancyJobConfiguration",
                     Set.of(
@@ -331,7 +341,10 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "extraction.ExtractionMetrics",
                             "similarity.AlphanumericCounts",
                             "similarity.RedundancyResolution",
+                            // ADR-330 §9: the window and the cuts the run named, handed over.
+                            "similarity.RedundancyThresholds",
                             "similarity.ResolutionProgress",
+                            "similarity.ShingleParameters",
                             "similarity.SimilarityStatement")),
             Map.entry(
                     "SeedConversions",

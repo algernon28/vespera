@@ -52,6 +52,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Link(name = "ADR-182", url = Adr.STAGE_4B_BUILDS_THE_BY_HASH_INDEX_STAGE_2_WRITES_WITHOUT, type = "adr")
 class TheHashIndexIsBuiltForOneRunTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
     /** The shingle rows each of the two runs is given, a number of no significance. */
     private static final int ROWS_A_RUN = 40;
 
@@ -84,7 +87,7 @@ class TheHashIndexIsBuiltForOneRunTest {
                                 + " VALUES (?, ?, ?, ?)",
                         occurrence.value(),
                         run.value(),
-                        ShingleParameters.DEFAULT.identity(),
+                        FIVE_WORD_SHINGLES.identity(),
                         hash);
             }
         }

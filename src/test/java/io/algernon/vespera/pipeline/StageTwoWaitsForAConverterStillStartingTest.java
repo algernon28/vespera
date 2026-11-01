@@ -43,6 +43,9 @@ import org.springframework.web.client.ResourceAccessException;
 @Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
 class StageTwoWaitsForAConverterStillStartingTest {
 
+    /** The OCR preset the application ships (vespera.docling.ocr-preset). */
+    private static final String OCR_PRESET = "rapidocr";
+
     /** How long these tests wait for a converter to start: one second. */
     private static final Duration WAIT_AT_MOST = Duration.ofSeconds(1);
 
@@ -156,7 +159,7 @@ class StageTwoWaitsForAConverterStillStartingTest {
     @DisplayName("A converter whose port is open and which closes the connection without a status line gives no answer, to the production client")
     void aConnectionClosedWithNoStatusLineIsNoAnswer() throws Exception {
         try (ClosesThenAnswers converter = ClosesThenAnswers.closingEvery()) {
-            DoclingClient client = new DoclingClient(converter.baseUrl());
+            DoclingClient client = new DoclingClient(converter.baseUrl(), OCR_PRESET);
 
             claim("the production client's health check throws the exception that reads as no answer, the one the"
                             + " start check waits on, and not one that would fail the step at once",
@@ -171,7 +174,7 @@ class StageTwoWaitsForAConverterStillStartingTest {
     @DisplayName("A converter that closes every connection without a status line for a while and then answers is waited for by the start check, through the production client")
     void aConverterClosingConnectionsWhileItStartsIsWaitedFor() throws Exception {
         try (ClosesThenAnswers converter = ClosesThenAnswers.closingFor(CLOSING_FOR)) {
-            DoclingClient client = new DoclingClient(converter.baseUrl());
+            DoclingClient client = new DoclingClient(converter.baseUrl(), OCR_PRESET);
             ExtractionHealthCheckListener listener =
                     new ExtractionHealthCheckListener(client, new SidecarRecovery(client, WAIT_AT_MOST, CHECK_EVERY));
 
@@ -207,7 +210,7 @@ class StageTwoWaitsForAConverterStillStartingTest {
         private boolean checkAnswers;
 
         private ScriptedConverter(int notYet, boolean answersWithAnError) {
-            super("http://unused.invalid");
+            super("http://unused.invalid", OCR_PRESET);
             this.notYet = notYet;
             this.answersWithAnError = answersWithAnError;
         }

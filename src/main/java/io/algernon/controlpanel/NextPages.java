@@ -32,7 +32,8 @@ final class NextPages {
             Map.entry("configurationSettingShareFloor", List.of("format-mix.html")),
             Map.entry("preferredLanguages", List.of("translations.html")),
             Map.entry("translationSimilarityFloor", List.of("translations.html")),
-            Map.entry("clusterPageByteCeiling", List.of("cluster-page-sizes.html")));
+            Map.entry("clusterPageByteCeiling", List.of("cluster-page-sizes.html")),
+            Map.entry("clusterResolution", List.of("cluster-sizes.html")));
 
     /** {@code report-<key>}, the links to the reports §8's table names for the key; empty where it names none. */
     static String reportsOf(String key) {

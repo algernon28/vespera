@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.ModelArtefact;
 import io.algernon.vespera.embedding.OllamaClient;
+import io.algernon.vespera.embedding.RelevanceScale;
 import io.algernon.vespera.extraction.ExtractorIdentity;
 import io.algernon.vespera.ledger.ImplementationVersions;
 import io.algernon.vespera.ledger.Ledger;
@@ -13,6 +14,9 @@ import io.algernon.vespera.profile.LanguagesValue;
 import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
+import io.algernon.vespera.similarity.MinHashParameters;
+import io.algernon.vespera.similarity.RedundancyThresholds;
+import io.algernon.vespera.similarity.ShingleParameters;
 import io.algernon.vespera.synthesis.ClusterSynthesis;
 import java.nio.file.Path;
 import java.util.List;
@@ -56,10 +60,32 @@ import org.springframework.stereotype.Component;
  * floor, the embedding model's name and artefact, the generation model's weights digest) is read fresh when its
  * run is minted, never when this holder is built. The scoring run's three are then kept, and handed to
  * the steps after it, which read what the run names and not the profile again (ADR-228, ADR-117).
+ *
+ * <p>The sixteen presets of ADR-330 section 9 are read the same way: each run reads its own through {@link Presets}
+ * as it is minted, writes into its configuration the ones that differ from what every earlier run was minted under, and
+ * hands them on through the accessors below, so the number that names the run is the number that works.
  */
 @Component
 @JobScope
 class StageRuns {
+
+    /*
+     * What every run was minted under before the sixteen presets of ADR-330 section 9 existed. They are held here and
+     * not read from what ships: a preset shipped at another value later is written, so that it cannot be taken for a
+     * run of the earlier one, and the configuration text of a run at these values is what it was
+     * (RunIdentityGoldenTest). A member of a run's configuration is left out where the value resolved is one of these.
+     */
+    private static final double RESOLUTION_EVERY_EARLIER_RUN = 1.0;
+    private static final int GRAPH_K_EVERY_EARLIER_RUN = 15;
+    private static final int SIMILARITIES_EVERY_EARLIER_RUN = 3;
+    private static final int BANDS_EVERY_EARLIER_RUN = 5;
+    private static final int PER_BAND_EVERY_EARLIER_RUN = 12;
+    private static final int TIMEOUTS_IN_A_ROW_EVERY_EARLIER_RUN = 3;
+    private static final String SHINGLE_IDENTITY_EVERY_EARLIER_RUN = "word:5";
+    private static final String MINHASH_IDENTITY_EVERY_EARLIER_RUN =
+            "perms:128;bands:16;rows:8;seed:6840335614489015382";
+    private static final String THRESHOLDS_IDENTITY_EVERY_EARLIER_RUN =
+            "near-duplicate:0.8;containment:0.95;sample:32;hits:24";
 
     private final Ledger ledger;
     private final RunMint runMint;
@@ -76,12 +102,22 @@ class StageRuns {
     private final GenerationContextWindow generationContextWindow;
     private final LanguageOfTheDeliverable languageOfTheDeliverable;
     private final OllamaClient ollamaClient;
+    private final Presets presets;
 
     private RunId extraction;
     private OptionalLong degenerateOutputWordFloor;
+    private int timeoutsInARow;
+    private ShingleParameters shingleParameters;
     private RunId contentCensus;
     private RunId contentRedundancy;
     private double contentRedundancyFloor;
+    private MinHashParameters minHashParameters;
+    private RedundancyThresholds redundancyThresholds;
+    private double clusterResolution;
+    private int clusterNeighbours;
+    private int topSimilarities;
+    private int sampleBands;
+    private int sampledPerBand;
     private RunId seedMeasurement;
     private RunId embeddingScoring;
     private String embeddingModelName;
@@ -107,6 +143,7 @@ class StageRuns {
             GenerationModel generationModel,
             GenerationContextWindow generationContextWindow,
             OllamaClient ollamaClient,
+            Presets presets,
             @Value("#{jobParameters['root']}") Path root,
             @Value("#{jobExecution.executionContext}") ExecutionContext executionContext) {
         this.ledger = ledger;
@@ -124,6 +161,7 @@ class StageRuns {
         this.generationContextWindow = generationContextWindow;
         this.languageOfTheDeliverable = new LanguageOfTheDeliverable(profileStore);
         this.ollamaClient = ollamaClient;
+        this.presets = presets;
     }
 
     /** The corpus root every stage from here on reads, canonicalised once. */
@@ -144,6 +182,10 @@ class StageRuns {
             // One load serves both keys, so the number that names the run is the number that removes (ADR-117).
             Profile profile = profileStore.load();
             DegenerateOutputWordFloor wordFloor = DegenerateOutputWordFloor.of(profile.degenerateOutputWordFloor());
+            // The two presets stage 2's run is minted under, read here as the run is, and kept to be handed to the
+            // steps that use them (ADR-330 section 9, ADR-117).
+            int timeouts = presets.timeoutsInARow();
+            ShingleParameters window = presets.shingleParameters();
             extraction = runMint.mint(
                     StageModules.EXTRACTION,
                     new ExtractionConfigConsumed(
@@ -152,14 +194,36 @@ class StageRuns {
                             // Read here, fresh on every mint (ADR-185 §1), as embeddingScoring() reads
                             // the relevance floor -- never a bean built at start-up.
                             ExtractionAttempt.of(profile.extractionAttempt()).identityMember(),
-                            wordFloor.identityMember()),
+                            wordFloor.identityMember(),
+                            timeouts == TIMEOUTS_IN_A_ROW_EVERY_EARLIER_RUN ? null : timeouts,
+                            window.identity().equals(SHINGLE_IDENTITY_EVERY_EARLIER_RUN) ? null : window.identity()),
                     walk,
                     Optional.of(byteLevelReductionRunId));
             degenerateOutputWordFloor = wordFloor instanceof DegenerateOutputWordFloor.Floor floor
                     ? OptionalLong.of(floor.words())
                     : OptionalLong.empty();
+            timeoutsInARow = timeouts;
+            shingleParameters = window;
         }
         return extraction;
+    }
+
+    /**
+     * How many timeouts in a row set an occurrence aside, as stage 2's run was minted (ADR-330 section 9), which
+     * mints that run if it has not yet been. The number that names the run is the number that works (ADR-117).
+     */
+    int timeoutsInARow() {
+        extraction();
+        return timeoutsInARow;
+    }
+
+    /**
+     * The shingle window stage 2's run was minted under, which mints that run if it has not yet been: the window of
+     * the shingles written under it, and so of every later stage that reads them (ADR-330 section 9).
+     */
+    ShingleParameters shingleParameters() {
+        extraction();
+        return shingleParameters;
     }
 
     /**
@@ -199,15 +263,38 @@ class StageRuns {
                             "the content-redundancy run must not be minted while the gate is closed"));
             WalkId walk = runMint.finishedWalk(canonicalRoot, "stage 4");
             RunId contentCensusRunId = upstream(StageModules.CONTENT_CENSUS);
+            // The signature's numbers and the cuts, read as the run is minted and kept for the steps (ADR-330 section 9).
+            MinHashParameters permutations = presets.minHashParameters();
+            RedundancyThresholds cuts = presets.redundancyThresholds();
             contentRedundancy = runMint.mint(
                     StageModules.CONTENT_REDUNDANCY,
                     new ContentRedundancyConfigConsumed(
-                            canonicalRoot.toString(), contentCensusRunId.value(), floor),
+                            canonicalRoot.toString(),
+                            contentCensusRunId.value(),
+                            floor,
+                            permutations.identity().equals(MINHASH_IDENTITY_EVERY_EARLIER_RUN)
+                                    ? null
+                                    : permutations.identity(),
+                            cuts.identity().equals(THRESHOLDS_IDENTITY_EVERY_EARLIER_RUN) ? null : cuts.identity()),
                     walk,
                     Optional.of(contentCensusRunId));
             contentRedundancyFloor = floor;
+            minHashParameters = permutations;
+            redundancyThresholds = cuts;
         }
         return contentRedundancy;
+    }
+
+    /** The signature's numbers stage 4's run was minted under, which mints that run if it has not yet been. */
+    MinHashParameters minHashParameters() {
+        contentRedundancy();
+        return minHashParameters;
+    }
+
+    /** The cuts stage 4's run was minted under, which mints that run if it has not yet been. */
+    RedundancyThresholds redundancyThresholds() {
+        contentRedundancy();
+        return redundancyThresholds;
     }
 
     /** The boilerplate floor stage 4's run was minted under (ADR-080). Mints stage 4's run if it has not yet. */
@@ -291,6 +378,13 @@ class StageRuns {
         List<String> preferredLanguages = preferredLanguagesReading instanceof LanguagesValue.Answered answered
                 ? answered.languages()
                 : List.of();
+        // The five presets the run is minted under, read beside them: the resolution is the profile's where that can be
+        // acted on, from the same load (ADR-330 section 9). They are kept to be handed to the steps that use them.
+        double resolution = presets.clusterResolution(profile);
+        int neighbours = presets.clusterNeighbours();
+        int similarities = presets.topSimilarities();
+        int bands = presets.sampleBands();
+        int perBand = presets.sampledPerBand();
         // The artefact is read once, here, beside the floor (ADR-228).
         ModelArtefact artefact = ollamaClient.artefactOf(modelName);
         WalkId walk = runMint.finishedWalk(canonicalRoot, "stage 5");
@@ -304,9 +398,19 @@ class StageRuns {
                         measurementRunId.value(),
                         relevanceScoreFloor,
                         translationSimilarityFloor,
-                        preferredLanguages),
+                        preferredLanguages,
+                        resolution == RESOLUTION_EVERY_EARLIER_RUN ? null : resolution,
+                        neighbours == GRAPH_K_EVERY_EARLIER_RUN ? null : neighbours,
+                        similarities == SIMILARITIES_EVERY_EARLIER_RUN ? null : similarities,
+                        bands == BANDS_EVERY_EARLIER_RUN ? null : bands,
+                        perBand == PER_BAND_EVERY_EARLIER_RUN ? null : perBand),
                 walk,
                 Optional.of(measurementRunId));
+        this.clusterResolution = resolution;
+        this.clusterNeighbours = neighbours;
+        this.topSimilarities = similarities;
+        this.sampleBands = bands;
+        this.sampledPerBand = perBand;
         embeddingModelName = modelName;
         embeddingModelArtefact = artefact;
         this.relevanceScoreFloor = relevanceScoreFloor;
@@ -375,6 +479,51 @@ class StageRuns {
     List<String> preferredLanguages() {
         embeddingScoring();
         return preferredLanguages;
+    }
+
+    /**
+     * The resolution the scoring run was minted under, which mints that run if it has not yet been: the profile's
+     * {@code clusterResolution} where that can be acted on, else the preset (ADR-330 section 9).
+     */
+    double clusterResolution() {
+        embeddingScoring();
+        return clusterResolution;
+    }
+
+    /** The neighbours of each document the scoring run was minted under, which mints that run if it has not yet been. */
+    int clusterNeighbours() {
+        embeddingScoring();
+        return clusterNeighbours;
+    }
+
+    /**
+     * The number of similarities a score is the mean of, as the scoring run was minted, which mints that run if it
+     * has not yet been.
+     */
+    int topSimilarities() {
+        embeddingScoring();
+        return topSimilarities;
+    }
+
+    /** The bands the relevance report cuts the scores into, as the scoring run was minted. */
+    int sampleBands() {
+        embeddingScoring();
+        return sampleBands;
+    }
+
+    /** The documents each band is asked for, as the scoring run was minted. */
+    int sampledPerBand() {
+        embeddingScoring();
+        return sampledPerBand;
+    }
+
+    /**
+     * The scale a score of this run is on, given the embedder identity its vectors carry: the identity and, where the
+     * run's number of similarities is not 3, {@code ;top:<n>} after it (ADR-330 section 9). Composed in {@code
+     * embedding}, which decides whether a floor removes by it (ADR-222).
+     */
+    String relevanceScale(String embedderIdentity) {
+        return RelevanceScale.of(embedderIdentity, topSimilarities());
     }
 
     /** The artefact the scoring run was minted under, which mints that run if it has not yet been (ADR-228). */
@@ -461,14 +610,25 @@ class StageRuns {
             Double degenerateOutputConfidenceFloor,
             // Per component, never per class: the floor must keep serialising as null (ADR-185 §1).
             @JsonInclude(JsonInclude.Include.NON_NULL) Integer extractionAttempt,
-            @JsonInclude(JsonInclude.Include.NON_NULL) Long degenerateOutputWordFloor) {}
+            @JsonInclude(JsonInclude.Include.NON_NULL) Long degenerateOutputWordFloor,
+            // The two presets of ADR-330 section 9, each written only where it is not what every run before the
+            // presets was minted under, so that an earlier run's text stays as it was.
+            @JsonInclude(JsonInclude.Include.NON_NULL) Integer timeoutsInARow,
+            @JsonInclude(JsonInclude.Include.NON_NULL) String shingleIdentity) {}
 
     /** Stage 3's own {@code ConfigConsumed}, unchanged. */
     private record ContentCensusConfigConsumed(String root, String extractionRunId) {}
 
-    /** Stage 4's own {@code ConfigConsumed}, unchanged. */
+    /**
+     * Stage 4's own {@code ConfigConsumed}, extended by the two presets of ADR-330 section 9, each written only where it
+     * is not what every run before the presets was minted under.
+     */
     private record ContentRedundancyConfigConsumed(
-            String root, String stage3RunId, double boilerplateDocumentFrequencyFloor) {}
+            String root,
+            String stage3RunId,
+            double boilerplateDocumentFrequencyFloor,
+            @JsonInclude(JsonInclude.Include.NON_NULL) String minHash,
+            @JsonInclude(JsonInclude.Include.NON_NULL) String redundancyThresholds) {}
 
     /** Stage 5's measurement run's own {@code ConfigConsumed}, unchanged. */
     private record SeedMeasurementConfigConsumed(String root, String seedFolder, String redundancyRunId) {}
@@ -482,7 +642,15 @@ class StageRuns {
             String measurementRunId,
             Double relevanceScoreFloor,
             Double translationSimilarityFloor,
-            List<String> preferredLanguages) {}
+            List<String> preferredLanguages,
+            // The five of ADR-330 section 9, in that order, each written only where it is not what every run before
+            // the presets was minted under: the number a scoring run's cluster and sample are made at, and the mean a
+            // score is.
+            @JsonInclude(JsonInclude.Include.NON_NULL) Double clusterResolution,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Integer clusterNeighbours,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Integer topSimilarities,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Integer sampleBands,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Integer sampledPerBand) {}
 
     /**
      * Stage 6a's own {@code ConfigConsumed}, extended once (ADR-230 section 3). {@code standingRemovals}

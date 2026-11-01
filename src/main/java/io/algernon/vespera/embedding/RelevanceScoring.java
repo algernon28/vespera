@@ -184,6 +184,9 @@ public class RelevanceScoring {
      * vectors than chunks is refused as none is, because a pull and a pull back between two chunks of one
      * document leaves it with a vector for only some of them, and scored on those it would be measured on a
      * part of itself with no line saying so (ADR-231 sections 3 and 5).
+     *
+     * <p>{@code topSimilarities} is the number of similarities the score is the mean of: the one the scoring run
+     * was minted under (ADR-330 §9), handed down by it.
      */
     public void scoreAndRecord(
             OccurrenceId occurrenceId,
@@ -193,7 +196,8 @@ public class RelevanceScoring {
             String chunkerIdentity,
             String chunkingRuleIdentity,
             String embedderIdentity,
-            Map<OccurrenceId, List<float[]>> residentSeedVectors) {
+            Map<OccurrenceId, List<float[]>> residentSeedVectors,
+            int topSimilarities) {
         List<float[]> survivorChunkVectors =
                 vectorCache.vectorsFor(contentHash, chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
         if (survivorChunkVectors.isEmpty() || survivorChunkVectors.size() < chunkCount) {
@@ -208,7 +212,7 @@ public class RelevanceScoring {
                             + " corpus survivor has a chunk -- either no stage ever examined this occurrence,"
                             + " or another pull of the embedding model wrote its vectors");
         }
-        RelevanceScore score = scorer.score(survivorChunkVectors, residentSeedVectors);
+        RelevanceScore score = scorer.score(survivorChunkVectors, residentSeedVectors, topSimilarities);
         scoreCache.record(occurrenceId, runId, score);
     }
 }

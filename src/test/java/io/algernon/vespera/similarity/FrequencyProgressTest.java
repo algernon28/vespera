@@ -47,6 +47,9 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
 class FrequencyProgressTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
     /** Hashes 0 to 9 and 5 to 14: five of them in both documents. */
     private static final int FIVE_SHARED_HASHES = 5;
 
@@ -127,7 +130,7 @@ class FrequencyProgressTest {
                             + " VALUES (?, ?, ?, ?)",
                     occurrence,
                     stage2.value(),
-                    ShingleParameters.DEFAULT.identity(),
+                    FIVE_WORD_SHINGLES.identity(),
                     hash);
         }
     }

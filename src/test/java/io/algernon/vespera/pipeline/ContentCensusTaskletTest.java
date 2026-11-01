@@ -365,6 +365,7 @@ class ContentCensusTaskletTest {
                 null,
                 null,
                 null,
+                PresetsFixture.shipped(),
                 root,
                 invocations.get(root));
     }

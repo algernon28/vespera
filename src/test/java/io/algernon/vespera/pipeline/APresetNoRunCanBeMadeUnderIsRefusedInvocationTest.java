@@ -16,7 +16,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -49,7 +48,6 @@ import org.springframework.test.context.TestPropertySource;
 @Epic("Pipeline")
 @Feature("What a piece of work is identified by")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("awaits the refusal of a preset no run can be made under")
 class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
 
     /** What a stack frame looks like in the output, which a refusal in one line does not print. */
@@ -428,7 +426,7 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
 
     /** A resolution the profile stands in place of is used by no run, so nothing is refused of it. */
     @Nested
-    @TestPropertySource(properties = "vespera.clustering.resolution=0")
+    @TestPropertySource(properties = "vespera.clustering.resolution=0.0") // 0.0, so as not to share AResolutionOfZero's cached context and its runs
     @DisplayName("A resolution of 0 under a profile that names another")
     @Epic("Pipeline")
     @Feature("What a piece of work is identified by")

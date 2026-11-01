@@ -41,7 +41,7 @@ class ProfileKeyTest {
         }
     }
 
-    /** The seventeen keys in the profile's order, with the type and run the records' tables give each. */
+    /** The nineteen keys in the profile's order, with the type and run the records' tables give each. */
     private static final List<Row> TABLE = List.of(
             new Row("seedFolder", Kind.TEXT, Run.SEED_MEASUREMENT),
             new Row("degenerateOutputConfidenceFloor", Kind.NUMBER, Run.EXTRACTION),
@@ -61,13 +61,15 @@ class ProfileKeyTest {
             new Row("preferredLanguages", Kind.LANGUAGES, Run.EMBEDDING_SCORING),
             new Row("configurationSettingShareFloor", Kind.NUMBER, Run.BYTE_LEVEL_REDUCTION),
             // ADR-321: the deliverable's language enters the generation run alone, so the approval stays open.
-            new Row("deliverableLanguage", Kind.TEXT, Run.GENERATION));
+            new Row("deliverableLanguage", Kind.TEXT, Run.GENERATION),
+            // ADR-330 §9: last of the profile, entering the scoring run, where a cluster's identity lies.
+            new Row("clusterResolution", Kind.NUMBER, Run.EMBEDDING_SCORING));
 
-    /** The thirteen keys whose runs include embedding scoring: a change of any draws the sample again. */
+    /** The fourteen keys whose runs include embedding scoring: a change of any draws the sample again. */
     private static final List<String> THE_SAMPLE_DRAWN_AGAIN = List.of("seedFolder", "degenerateOutputConfidenceFloor",
             "degenerateOutputWordFloor", "boilerplateDocumentFrequencyFloor", "embeddingModel", "relevanceScoreFloor",
             "logTimestampShareFloor", "extractionAttempt", "codeNameEndings", "outOfScopeNameEndings",
-            "translationSimilarityFloor", "preferredLanguages", "configurationSettingShareFloor");
+            "translationSimilarityFloor", "preferredLanguages", "configurationSettingShareFloor", "clusterResolution");
 
     /** The five keys whose runs lie after embedding scoring, or that enter no run: a change of any leaves the sample. */
     private static final List<String> THE_SAMPLE_LEFT_ALONE = List.of("arrangementApproved", "generationModel",
@@ -75,9 +77,9 @@ class ProfileKeyTest {
 
     @Test
     @Story("The control panel says what a change costs before it is saved")
-    @DisplayName("Each of the seventeen profile keys, in the profile's order, has its type and the earliest run it enters, the page ceiling entering none")
+    @DisplayName("Each of the nineteen profile keys, in the profile's order, has its type and the earliest run it enters, the page ceiling entering none")
     void eachKeyHasItsTypeAndEarliestRun() {
-        claim("the table holds the seventeen keys in the profile's order, each with its type and earliest run, and the"
+        claim("the table holds the nineteen keys in the profile's order, each with its type and earliest run, and the"
                         + " page ceiling with none",
                 () -> assertThat(Arrays.stream(ProfileKey.values())
                                 .map(key -> new Row(key.key(), key.kind(), key.earliestRun()))
@@ -119,13 +121,31 @@ class ProfileKeyTest {
     }
 
     /**
+     * The keys {@code effective-values.properties} says a value beneath (ADR-330 §1, §14), by name, the resolution's
+     * preset among them, so that a page told nothing says it does not know them.
+     */
+    @Test
+    @Story("The control panel says what a change costs before it is saved")
+    @DisplayName("Five values have something beneath the profile: the two models, the reading window, the language and how finely documents are grouped")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void fiveKeysHaveAValueBeneathTheProfile() {
+        claim("these five and no other, in the profile's order",
+                () -> assertThat(Arrays.stream(ProfileKey.values())
+                                .filter(ProfileKey::hasAValueBeneath)
+                                .map(ProfileKey::key)
+                                .toList())
+                        .containsExactly("embeddingModel", "generationModel", "generationContextWindow",
+                                "deliverableLanguage", "clusterResolution"));
+    }
+
+    /**
      * A change of the scoring run's identity draws another sample from its id and writes the label file over (ADR-330
      * §9, §10). Each key is named, so the table cannot move a key across the line unseen, as a rule read off its runs
      * would let it.
      */
     @Test
     @Story("The control panel says what a change costs before it is saved")
-    @DisplayName("A change draws the sample being answered again for the thirteen values whose runs include embedding scoring, and for no other of the eighteen")
+    @DisplayName("A change draws the sample being answered again for the fourteen values whose runs include embedding scoring, and for no other of the nineteen")
     @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     void aChangeDrawsTheSampleAgainWhereItsRunsIncludeEmbeddingScoring() {
         List<String> drawnAgain = Arrays.stream(ProfileKey.values())
@@ -137,7 +157,7 @@ class ProfileKeyTest {
                 .map(ProfileKey::key)
                 .toList();
 
-        claim("a change of each of the thirteen values draws the sample again",
+        claim("a change of each of the fourteen values draws the sample again",
                 () -> assertThat(drawnAgain).containsExactlyInAnyOrderElementsOf(THE_SAMPLE_DRAWN_AGAIN));
         claim("and a change of each of the other five leaves it",
                 () -> assertThat(leftAlone).containsExactlyInAnyOrderElementsOf(THE_SAMPLE_LEFT_ALONE));

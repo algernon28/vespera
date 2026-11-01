@@ -2,6 +2,7 @@ package io.algernon.vespera.embedding;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.WholeRun;
@@ -50,6 +51,17 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-096", url = Adr.K_RETAINS_NEIGHBOURS_REGARDLESS_OF_DISTANCE, type = "adr")
 class ClusteringTest {
 
+    /** The number of neighbours the application ships (vespera.clustering.neighbours). */
+    private static final int NEIGHBOURS = 15;
+
+    /** The resolution the application ships (vespera.clustering.resolution). */
+    private static final double RESOLUTION = 1.0;
+
+    /** A run and a seed no statement reaches: the two numbers are refused before anything is read or written. */
+    private static final RunId NO_RUN = new RunId("no-run");
+
+    private static final OccurrenceId NO_SEED = new OccurrenceId(1);
+
     private static final String MODEL = "qwen3-embedding:0.6b";
     private static final String CHUNKER_IDENTITY = "docling-hybrid-chunker-v1";
     private static final String CHUNKING_RULE_IDENTITY = "words-512-v1";
@@ -62,6 +74,26 @@ class ClusteringTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    /** A graph of no neighbours, or a partition divided at no resolution, builds nothing (ADR-330 §9). */
+    @Test
+    @Story("A value no run can be made under stops the invocation")
+    @DisplayName("No neighbours, or a resolution that is no finite number above 0, are refused before anything is read")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void noNeighboursOrNoResolutionIsRefused() {
+        Clustering clustering = ClusteringBeans.real(jdbcTemplate);
+
+        claim("no neighbours are refused",
+                () -> assertThatThrownBy(() -> clustering.clusterAndRecord(
+                                NO_RUN, NO_SEED, Map.of(), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, 0, RESOLUTION))
+                        .isInstanceOf(IllegalArgumentException.class));
+        for (double noResolution : List.of(0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY)) {
+            claim("and so is a resolution of " + noResolution,
+                    () -> assertThatThrownBy(() -> clustering.clusterAndRecord(
+                                    NO_RUN, NO_SEED, Map.of(), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, noResolution))
+                            .isInstanceOf(IllegalArgumentException.class));
+        }
+    }
 
     @Test
     @Story("Every survivor lands in exactly one cluster")
@@ -77,7 +109,7 @@ class ClusteringTest {
         partition.putAll(insertCluster(walkId, run, seed, "unalike", 1));
 
         clustering.clusterAndRecord(
-                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY);
+                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, RESOLUTION);
 
         Map<OccurrenceId, Integer> ordinals = ordinalsOf(clusters, run);
         claim(
@@ -118,7 +150,7 @@ class ClusteringTest {
         Map<OccurrenceId, String> partition = insertCluster(walkId, run, seed, "solitary", 0, 1);
 
         clustering.clusterAndRecord(
-                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY);
+                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, RESOLUTION);
 
         claim(
                 "the one document is a cluster of one rather than a document belonging to nothing: a"
@@ -144,10 +176,10 @@ class ClusteringTest {
                 insertMutuallyDistant(distantWalk, distantRun, distantSeed, CLUSTER_SIZE);
 
         RetainedEdgeSpread alikeSpread = clustering
-                .clusterAndRecord(alikeRun, alikeSeed, alike, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY)
+                .clusterAndRecord(alikeRun, alikeSeed, alike, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, RESOLUTION)
                 .orElseThrow();
         RetainedEdgeSpread distantSpread = clustering
-                .clusterAndRecord(distantRun, distantSeed, distant, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, identityOfDimension(CLUSTER_SIZE))
+                .clusterAndRecord(distantRun, distantSeed, distant, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, identityOfDimension(CLUSTER_SIZE), NEIGHBOURS, RESOLUTION)
                 .orElseThrow();
 
         claim(
@@ -166,7 +198,7 @@ class ClusteringTest {
                         + " three hundred entries their lists hold, because a mutual pair is one edge",
                 () -> assertThat(alikeSpread.edgeCount())
                         .isGreaterThan(CLUSTER_SIZE)
-                        .isLessThan(CLUSTER_SIZE * Clustering.NEIGHBOURS));
+                        .isLessThan(CLUSTER_SIZE * NEIGHBOURS));
     }
 
     @Test
@@ -181,7 +213,7 @@ class ClusteringTest {
         Map<OccurrenceId, String> partition = insertMutuallyDistant(walkId, run, seed, CLUSTER_SIZE);
 
         clustering.clusterAndRecord(
-                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, identityOfDimension(CLUSTER_SIZE));
+                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, identityOfDimension(CLUSTER_SIZE), NEIGHBOURS, RESOLUTION);
 
         claim(
                 "every document is still recorded, so nothing was dropped for resembling nothing:"
@@ -221,8 +253,8 @@ class ClusteringTest {
         partition.putAll(insertCluster(walkId, first, seed, "unalike", 1));
         partition.keySet().forEach(member -> insertScore(second, member, seed));
 
-        clustering.clusterAndRecord(first, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY);
-        clustering.clusterAndRecord(second, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY);
+        clustering.clusterAndRecord(first, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, RESOLUTION);
+        clustering.clusterAndRecord(second, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, RESOLUTION);
 
         claim(
                 "every document landed on the same ordinal both times, not merely in the same company:"

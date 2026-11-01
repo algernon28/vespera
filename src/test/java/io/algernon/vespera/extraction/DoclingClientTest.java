@@ -100,11 +100,14 @@ class DoclingClientTest {
             """;
 
     /**
-     * The OCR engine this client pins rather than leaving to the sidecar (ADR-090). {@code rapidocr}
-     * is what the sidecar's own {@code auto} already resolves to in the pinned image, so naming it
-     * changes nothing about what is extracted — only about what the identity can honestly claim.
+     * The OCR engine the application ships for this client to name rather than leaving to the sidecar (ADR-090,
+     * ADR-330). {@code rapidocr} is what the sidecar's own {@code auto} already resolves to in the pinned image, so
+     * naming it changes nothing about what is extracted — only about what the identity can honestly claim.
      */
-    private static final String PINNED_OCR_PRESET = "rapidocr";
+    private static final String SHIPPED_OCR_PRESET = "rapidocr";
+
+    /** An OCR preset other than the shipped one, which a machine's own configuration may name (ADR-330 §8). */
+    private static final String ANOTHER_OCR_PRESET = "easyocr";
 
     /**
      * What an occurrence the bytes called plain text, with no subtype the filename could add, is
@@ -283,7 +286,7 @@ class DoclingClientTest {
         service.expect(requestTo(CONVERT_ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
-        DoclingClient client = new DoclingClient(builder.build());
+        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
 
         DoclingResponse response = client.convert(aDocument(dir), AS_DETECTED, NO_SUBTYPE);
 
@@ -331,7 +334,7 @@ class DoclingClientTest {
         MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
         service.expect(requestTo(CONVERT_ENDPOINT))
                 .andRespond(withException(new HttpTimeoutException("request timed out")));
-        DoclingClient client = new DoclingClient(builder.build());
+        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
         Path document = aDocument(dir);
 
         claim(
@@ -357,7 +360,7 @@ class DoclingClientTest {
                 .andRespond(withSuccess(RESPONSE_REPORTING_A_TIMEOUT_CATEGORY, MediaType.APPLICATION_JSON));
         service.expect(requestTo(CONVERT_ENDPOINT))
                 .andRespond(withException(new HttpTimeoutException("request timed out")));
-        DoclingClient client = new DoclingClient(builder.build());
+        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
         Path document = aDocument(dir);
 
         DoclingResponse response = client.convert(document, AS_DETECTED, NO_SUBTYPE);
@@ -400,7 +403,7 @@ class DoclingClientTest {
                         .body(TASK_RESULT_NOT_FOUND));
         service.expect(requestTo(CONVERT_ENDPOINT))
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR).body(A_LONG_ERROR_BODY));
-        DoclingClient client = new DoclingClient(builder.build());
+        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
         Path document = aDocument(dir);
 
         claim(
@@ -440,7 +443,7 @@ class DoclingClientTest {
                         .body(CONVERSION_IS_TAKING_TOO_LONG));
         service.expect(requestTo(CONVERT_ENDPOINT))
                 .andRespond(withStatus(HttpStatus.GATEWAY_TIMEOUT).body(ANOTHER_GATEWAYS_TIMEOUT));
-        DoclingClient client = new DoclingClient(builder.build());
+        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
         Path document = aDocument(dir);
 
         claim(
@@ -469,7 +472,7 @@ class DoclingClientTest {
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
         MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
         service.expect(requestTo(CONVERT_ENDPOINT)).andRespond(withException(new IOException(NO_BYTES_RECEIVED)));
-        DoclingClient client = new DoclingClient(builder.build());
+        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
         Path document = aDocument(dir);
 
         claim(
@@ -497,7 +500,7 @@ class DoclingClientTest {
         service.expect(requestTo(VERSION_ENDPOINT))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(VERSION_RESPONSE, MediaType.APPLICATION_JSON));
-        DoclingClient client = new DoclingClient(builder.build());
+        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
 
         Map<String, String> version = client.version();
 
@@ -526,9 +529,9 @@ class DoclingClientTest {
         service.expect(requestTo(CONVERT_ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().string(containsString("name=\"ocr_preset\"")))
-                .andExpect(content().string(containsString(PINNED_OCR_PRESET)))
+                .andExpect(content().string(containsString(SHIPPED_OCR_PRESET)))
                 .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
-        DoclingClient client = new DoclingClient(builder.build());
+        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
 
         client.convert(aDocument(dir), AS_DETECTED, NO_SUBTYPE);
 
@@ -538,6 +541,67 @@ class DoclingClientTest {
                         + " the machine, and the same document converts differently elsewhere with nothing"
                         + " recording that it did",
                 () -> assertThatCode(service::verify).doesNotThrowAnyException());
+    }
+
+    /**
+     * The preset leaves the client's code and is given to it (ADR-330 §8, §14): what it is given is what the request
+     * names, for one conversion as for every other, since each goes through the one method.
+     */
+    @Test
+    @Story("The conversion pins what it asks for")
+    @DisplayName("Converting names the OCR engine the client was given, and no other")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void theRequestNamesThePresetTheClientIsGiven(@TempDir Path dir) throws IOException {
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
+        StringBuilder sent = new StringBuilder();
+        service.expect(requestTo(CONVERT_ENDPOINT))
+                .andExpect(request -> sent.append(request.getBody().toString()))
+                .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
+
+        new DoclingClient(builder.build(), ANOTHER_OCR_PRESET).convert(aDocument(dir), AS_DETECTED, NO_SUBTYPE);
+
+        claim("the form field ocr_preset holds the preset the client was given, " + ANOTHER_OCR_PRESET,
+                () -> assertThat(partOf(sent, "ocr_preset")).contains(ANOTHER_OCR_PRESET));
+        claim("and the shipped one is named nowhere in the request",
+                () -> assertThat(sent.toString()).doesNotContain(SHIPPED_OCR_PRESET));
+    }
+
+    /**
+     * The client cannot refuse a name as it is built, since a bad preset stops neither `vespera label` nor `vespera
+     * publish`; the rule of what is a preset's name is still this class's, and the start of a run asks it (ADR-330 §9).
+     * `auto` is what ADR-090 ended, and the identity is text of pairs joined by a semicolon.
+     */
+    @Test
+    @Story("The conversion pins what it asks for")
+    @DisplayName("What the converter would resolve for itself, and a name that would misread in the identity, are no preset's name")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void autoAndANameThatWouldMisreadAreNoPresetsName() {
+        List<String> names = List.of("rapidocr", "easyocr", "a-b_c.D9", "autoocr", "", "   ", "auto", "AUTO", "Auto",
+                "a;b", "a=b", "a b");
+
+        claim("of these, a name of letters, digits, '-', '_' and '.', other than auto in any case, is a preset's, and"
+                        + " holding the word auto inside it is no matter",
+                () -> assertThat(names.stream().filter(DoclingClient::isOnePresetsName).toList())
+                        .containsExactly("rapidocr", "easyocr", "a-b_c.D9", "autoocr"));
+    }
+
+    /**
+     * The identity names what is sent: the same text but for the name, so a preset one machine names is an extractor of
+     * its own and the shipped one's text is what it was (ADR-330 §9).
+     */
+    @Test
+    @Story("The conversion pins what it asks for")
+    @DisplayName("The options the identity names say the OCR engine the client was given")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void theOptionsNameThePresetTheClientIsGiven() {
+        String underAnother = new DoclingClient(RestClient.create(), ANOTHER_OCR_PRESET).sentOptions();
+
+        claim("the options sent under another preset are those of the shipped one with that name in its place",
+                () -> assertThat(underAnother).isEqualTo(sentOptions()
+                        .replace(";ocr_preset=" + SHIPPED_OCR_PRESET + ";", ";ocr_preset=" + ANOTHER_OCR_PRESET + ";")));
+        claim("and they name it as the identity's other options are named",
+                () -> assertThat(underAnother).contains(";ocr_preset=" + ANOTHER_OCR_PRESET + ";"));
     }
 
     @Test
@@ -551,7 +615,7 @@ class DoclingClientTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().string(containsString("filename=\"" + MARKDOWN_PART_NAME + "\"")))
                 .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
-        DoclingClient client = new DoclingClient(builder.build());
+        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
         Path onDisk = Files.writeString(dir.resolve("notes"), "prose that no extension describes");
 
         client.convert(onDisk, DetectedFormat.PLAIN_TEXT, null);
@@ -590,7 +654,7 @@ class DoclingClientTest {
                 "and so the options the conversion cache is keyed by still name version "
                         + NAMING_SCHEME_VERSION + " of the naming scheme: no name changed, so no conversion"
                         + " already cached has to be made again",
-                () -> assertThat(DoclingClient.sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
+                () -> assertThat(sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
     }
 
     /**
@@ -617,7 +681,7 @@ class DoclingClientTest {
                 "and so the options the conversion cache is keyed by still name version "
                         + NAMING_SCHEME_VERSION + " of the naming scheme: no name changed, so no conversion"
                         + " already cached has to be made again",
-                () -> assertThat(DoclingClient.sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
+                () -> assertThat(sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
     }
 
     /**
@@ -671,7 +735,7 @@ class DoclingClientTest {
         claim(
                 "so the options the conversion cache is keyed by still name version " + NAMING_SCHEME_VERSION
                         + " of the naming scheme",
-                () -> assertThat(DoclingClient.sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
+                () -> assertThat(sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
     }
 
     @Test
@@ -753,14 +817,14 @@ class DoclingClientTest {
                         + " which scheme produced it, as version " + NAMING_SCHEME_VERSION + ": without that,"
                         + " a response minted under one table is served for a call the current table would"
                         + " make differently, and nothing in the key notices",
-                () -> assertThat(DoclingClient.sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
+                () -> assertThat(sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
         claim(
                 "and the options are stated whole rather than summarised, the rule for cutting a large text"
                         + " into parts last among them, so an option added to the request without being added"
                         + " here fails this claim rather than silently keying new responses under an identity"
                         + " that predates it",
-                () -> assertThat(DoclingClient.sentOptions())
-                        .isEqualTo("to_formats=json;ocr_preset=" + PINNED_OCR_PRESET + ";image_export_mode="
+                () -> assertThat(sentOptions())
+                        .isEqualTo("to_formats=json;ocr_preset=" + SHIPPED_OCR_PRESET + ";image_export_mode="
                                 + PICTURE_EXPORT_MODE + ";naming=" + NAMING_SCHEME_VERSION
                                 + ";text_parts=v1,over=16000000,upto=64000000,part=8000000"));
     }
@@ -874,7 +938,7 @@ class DoclingClientTest {
                 .andExpect(request -> sent.append(request.getBody().toString()))
                 .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
 
-        new DoclingClient(builder.build()).convert(file, format, subtype.orElse(null));
+        new DoclingClient(builder.build(), SHIPPED_OCR_PRESET).convert(file, format, subtype.orElse(null));
 
         Matcher filename = Pattern.compile("filename=\"([^\"]+)\"").matcher(sent);
         return filename.find() ? filename.group(1) : "no filename was sent at all";
@@ -889,7 +953,7 @@ class DoclingClientTest {
                 .andExpect(request -> sent.append(request.getBody().toString()))
                 .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
 
-        new DoclingClient(builder.build()).convert(file, format, subtype.orElse(null));
+        new DoclingClient(builder.build(), SHIPPED_OCR_PRESET).convert(file, format, subtype.orElse(null));
 
         return sent.toString();
     }
@@ -900,10 +964,20 @@ class DoclingClientTest {
      */
     private static Optional<String> sentPart(
             Path file, DetectedFormat format, Optional<DetectedSubtype> subtype, String name) {
+        return partOf(sentBody(file, format, subtype), name);
+    }
+
+    /** The value of the form field {@code name} in a multipart body, or empty where no such field is in it. */
+    private static Optional<String> partOf(CharSequence body, String name) {
         Matcher part = Pattern.compile(
                         "name=\"" + Pattern.quote(name) + "\"\\r?\\n(?:[^\\r\\n]+\\r?\\n)*\\r?\\n([^\\r\\n]*)\\r?\\n")
-                .matcher(sentBody(file, format, subtype));
+                .matcher(body);
         return part.find() ? Optional.of(part.group(1)) : Optional.empty();
+    }
+
+    /** The options a client given the shipped preset names, as the identity carries them. */
+    private static String sentOptions() {
+        return new DoclingClient(RestClient.create(), SHIPPED_OCR_PRESET).sentOptions();
     }
 
     @Test
@@ -914,7 +988,7 @@ class DoclingClientTest {
     void asksAfterHealthOnAShortClockOfItsOwn() throws IOException {
         try (ServerSocket acceptsAndSaysNothing = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             DoclingClient client = new DoclingClient(
-                    "http://127.0.0.1:" + acceptsAndSaysNothing.getLocalPort(), A_SHORT_HEALTH_WAIT);
+                    "http://127.0.0.1:" + acceptsAndSaysNothing.getLocalPort(), SHIPPED_OCR_PRESET, A_SHORT_HEALTH_WAIT);
 
             long started = System.nanoTime();
             boolean healthy = client.isHealthy();

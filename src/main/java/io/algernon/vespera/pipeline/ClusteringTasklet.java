@@ -119,6 +119,8 @@ class ClusteringTasklet implements Tasklet {
 
         RunId scoring = stageRuns.embeddingScoring();
         String modelName = stageRuns.embeddingModelName();
+        int clusterNeighbours = stageRuns.clusterNeighbours();
+        double clusterResolution = stageRuns.clusterResolution();
 
         // relevance-scoring and relevance-floor, which share this run, are not asked -- each step
         // answers only for itself. The empty-partition check sits between the finished check and the
@@ -203,6 +205,10 @@ class ClusteringTasklet implements Tasklet {
                                 chunkerIdentity,
                                 chunkingRuleIdentity,
                                 embedderIdentity,
+                                // The two numbers the scoring run was minted under, so the partition is divided
+                                // as the run that names it says (ADR-330 section 9, ADR-117).
+                                clusterNeighbours,
+                                clusterResolution,
                                 blocksOfPartition(partition + 1, partitions.size()));
                         // Read back rather than returned from the pass: a cluster exists as the set of
                         // rows carrying its identity, so the sizes a reader is shown are the rows, not

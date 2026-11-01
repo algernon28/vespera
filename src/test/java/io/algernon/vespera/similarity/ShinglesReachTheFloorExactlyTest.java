@@ -47,6 +47,9 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-074", url = Adr.STAGE_3_MEASURES_SHINGLE_DOCUMENT_FREQUENCY, type = "adr")
 class ShinglesReachTheFloorExactlyTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
     /** The largest corpus the properties below run over. */
     private static final int LARGEST_CORPUS = 500;
 
@@ -233,7 +236,7 @@ class ShinglesReachTheFloorExactlyTest {
 
     /** The floor as the profile's text, read as {@code NumericValue} reads it (ADR-120). */
     private Set<Long> resolve(RunId census, String floor) {
-        return new BoilerplateShingles(jdbcTemplate).resolve(census, Double.parseDouble(floor));
+        return new BoilerplateShingles(jdbcTemplate).resolve(census, Double.parseDouble(floor), FIVE_WORD_SHINGLES);
     }
 
     /** A stage-3 run over {@code n} shingled documents, carrying one hash per document count from 2 to n. */
@@ -246,11 +249,11 @@ class ShinglesReachTheFloorExactlyTest {
                 "INSERT INTO shingle_corpus_size (run_id, shingle_parameter_identity, shingled_document_count)"
                         + " VALUES (?, ?, ?)",
                 census.value(),
-                ShingleParameters.DEFAULT.identity(),
+                FIVE_WORD_SHINGLES.identity(),
                 n);
         List<Object[]> rows = new ArrayList<>();
         for (long count = 2; count <= n; count++) {
-            rows.add(new Object[] {census.value(), ShingleParameters.DEFAULT.identity(), count, count, count});
+            rows.add(new Object[] {census.value(), FIVE_WORD_SHINGLES.identity(), count, count, count});
         }
         jdbcTemplate.batchUpdate(
                 "INSERT INTO shingle_document_frequency"

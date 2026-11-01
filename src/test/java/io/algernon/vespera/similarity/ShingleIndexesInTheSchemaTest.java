@@ -74,6 +74,9 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
 @Link(name = "ADR-219", url = Adr.STAGE_3S_GROUPING_IS_PINNED_TO_THE_INDEX_ON_THE_RUN, type = "adr")
 class ShingleIndexesInTheSchemaTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
     /** The index containment retrieval reads, under the name ADR-081 gave it; its columns are ADR-221's. */
     private static final String BY_HASH = "shingle_by_hash";
 
@@ -290,7 +293,7 @@ class ShingleIndexesInTheSchemaTest {
     @Story("When the index on word-sequence hashes exists")
     @DisplayName("Looking for documents that contain another is answered through the hash index once it is built for that run's rows, in order and with nothing sorted, and cannot be without it or with another run's")
     void containmentRetrievalNeedsTheIndexOnTheHash() throws SQLException {
-        Object[] arguments = {ShingleParameters.DEFAULT.identity(), ANY, ANY};
+        Object[] arguments = {FIVE_WORD_SHINGLES.identity(), ANY, ANY};
         try (Statement statement = connection.createStatement()) {
             statement.executeUpdate("DROP INDEX IF EXISTS " + BY_HASH);
         }
@@ -376,13 +379,13 @@ class ShingleIndexesInTheSchemaTest {
             statement.executeUpdate(BUILD_BY_HASH);
         }
         String unnamed = A_DISTINCT_READ_OF_ONE_OCCURRENCE.replace("SELECT DISTINCT", "SELECT");
-        String left = planOf(unnamed, ANY, A_RUN, ShingleParameters.DEFAULT.identity());
+        String left = planOf(unnamed, ANY, A_RUN, FIVE_WORD_SHINGLES.identity());
         String named = planOf(
                 unnamed.replace("FROM shingle WHERE", THE_OCCURRENCES_INDEX_NAMED),
                 ANY,
                 A_RUN,
-                ShingleParameters.DEFAULT.identity());
-        String distinct = planOf(A_DISTINCT_READ_OF_ONE_OCCURRENCE, ANY, A_RUN, ShingleParameters.DEFAULT.identity());
+                FIVE_WORD_SHINGLES.identity());
+        String distinct = planOf(A_DISTINCT_READ_OF_ONE_OCCURRENCE, ANY, A_RUN, FIVE_WORD_SHINGLES.identity());
 
         claim(
                 "the read as it ships, naming the index on the document, goes through that index: \"" + named

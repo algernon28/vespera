@@ -34,7 +34,7 @@ import org.springframework.core.env.PropertySource;
  * <p>{@code vespera run} and {@code vespera label} write it once the working-directory lock is held and past the last
  * refusal of their start, before their first step; {@code vespera publish} writes none. It is written whole to a
  * {@code .part} file and moved over the target, and one that cannot be written is logged at WARN and fails nothing. It
- * is never deleted. The presets of ADR-330 §8 join the list when {@code application.yaml} ships them.
+ * is never deleted. The sixteen presets of ADR-330 §9 are on the list, the resolution under the profile's own name, {@code clusterResolution}.
  */
 final class EffectiveValuesFile {
 
@@ -55,7 +55,24 @@ final class EffectiveValuesFile {
         SidecarStartSettings.START_PROPERTY,
         SidecarStartSettings.WAIT_AT_MOST_PROPERTY,
         "vespera.progress-interval",
-        "vespera.open-browser"
+        "vespera.open-browser",
+        // The presets of ADR-330 §9, in the order of its table: the neighbours first, then the fourteen from the OCR
+        // preset to the sample's number from each band. The resolution is said under the profile's own name, above.
+        Presets.NEIGHBOURS_OF_A_DOCUMENT,
+        Presets.OCR_PRESET,
+        Presets.TIMEOUTS_IN_A_ROW,
+        Presets.SHINGLE_WORDS,
+        Presets.PERMUTATIONS,
+        Presets.BANDS_OF_A_SIGNATURE,
+        Presets.ROWS_PER_BAND,
+        Presets.SEED,
+        Presets.NEAR_DUPLICATE_JACCARD,
+        Presets.CONTAINMENT_INDEX,
+        Presets.RARE_SHINGLE_SAMPLE,
+        Presets.RARE_SHINGLE_HITS,
+        Presets.TOP_SIMILARITIES,
+        Presets.BANDS_IN_THE_SAMPLE,
+        Presets.DOCUMENTS_FROM_EACH_BAND
     };
 
     private final Environment environment;
@@ -101,6 +118,8 @@ final class EffectiveValuesFile {
         named(values, "generationModel", GENERATION_MODEL);
         values.put("generationContextWindow", new String[] {String.valueOf(ClusterSynthesis.CONTEXT_WINDOW), "code"});
         values.put("deliverableLanguage", new String[] {DeliverableLanguage.DEFAULT.code(), "code"});
+        // What applies where the profile's clusterResolution names none: the preset as configuration resolves it.
+        named(values, "clusterResolution", Presets.RESOLUTION);
         for (String key : AS_THE_APPLICATION_RESOLVES_THEM) {
             named(values, key, key);
         }

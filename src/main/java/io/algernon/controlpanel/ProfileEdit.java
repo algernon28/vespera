@@ -300,6 +300,8 @@ public final class ProfileEdit {
                     : Optional.of(quoted + " is not en or it");
             case PREFERRED_LANGUAGES -> areLanguages(value) ? Optional.empty()
                     : Optional.of(quoted + " is not a list of two-letter language codes");
+            case CLUSTER_RESOLUTION -> number(value).filter(number -> number > 0).isPresent() ? Optional.empty()
+                    : Optional.of(quoted + " is not a number above 0");
             default -> number(value).isPresent() ? Optional.empty() : Optional.of(quoted + " is not a number");
         };
     }

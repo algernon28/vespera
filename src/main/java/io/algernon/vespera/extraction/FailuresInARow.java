@@ -9,6 +9,11 @@ import java.util.List;
  * row that dropped the connection twice. With what follows from each: carry on, send the control
  * conversion, or stop (ADR-184 section 2).
  *
+ * <p>The count of timeouts in a row that flips a timeout from the document's verdict to the converter's fault is
+ * not held here: it is the preset {@code vespera.docling.timeouts-in-a-row}, shipped as 3 and held to 2 to 4
+ * (ADR-071, amended by ADR-330 §8), and {@link OccurrenceJudge} is handed the number stage 2's run was minted under.
+ * The count of five and the dropped-twice count stay in code.
+ *
  * <p>Plain on purpose (ADR-140 section 3): not final, so that {@code pipeline} can scope it to the step;
  * not thread-safe; touched on the step thread only. The counts have to survive a chunk boundary, which
  * is why the instance lives as long as the step does.
@@ -20,9 +25,6 @@ import java.util.List;
  * not outlive its occurrence: {@link #occurrenceStarted()} forgets it.
  */
 public class FailuresInARow {
-
-    /** ADR-071: three timeouts in a row flip the reading of a timeout from the document's to the converter's. */
-    public static final int CONSECUTIVE_TIMEOUT_COUNT = 3;
 
     /** ADR-071: higher than the timeout count, because this one has to fire on a mix of categories. */
     public static final int CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT = 5;

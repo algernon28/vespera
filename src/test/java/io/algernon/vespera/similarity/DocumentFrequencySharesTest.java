@@ -46,6 +46,9 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-074", url = Adr.STAGE_3_MEASURES_SHINGLE_DOCUMENT_FREQUENCY, type = "adr")
 class DocumentFrequencySharesTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
     /** The largest corpus the properties below run over. */
     private static final int LARGEST_CORPUS = 300;
 
@@ -62,7 +65,7 @@ class DocumentFrequencySharesTest {
     @DisplayName("Each line is a share rounded down to the hundredth, with its passages and the fewest documents")
     void eachLineIsAShareRoundedDownWithItsPassagesAndTheFewestDocuments() {
         RunId census = census(200);
-        frequencies(census, ShingleParameters.DEFAULT.identity(), 2, 2, 2, 3, 133, 133, 200);
+        frequencies(census, FIVE_WORD_SHINGLES.identity(), 2, 2, 2, 3, 133, 133, 200);
         jdbcTemplate.update(
                 "INSERT INTO shingle_corpus_size (run_id, shingle_parameter_identity, shingled_document_count)"
                         + " VALUES (?, ?, ?)",
@@ -142,7 +145,7 @@ class DocumentFrequencySharesTest {
             RunId census = corpus(n);
             for (DocumentFrequency.ShareLine line : sharesOf(census).lines()) {
                 String floor = line.share().toPlainString();
-                Set<Long> boilerplate = new BoilerplateShingles(jdbcTemplate).resolve(census, Double.parseDouble(floor));
+                Set<Long> boilerplate = new BoilerplateShingles(jdbcTemplate).resolve(census, Double.parseDouble(floor), FIVE_WORD_SHINGLES);
                 Set<Long> expected = LongStream.rangeClosed(line.fewestDocuments(), n)
                         .boxed()
                         .collect(TreeSet::new, Set::add, Set::addAll);
@@ -169,7 +172,7 @@ class DocumentFrequencySharesTest {
     }
 
     private DocumentFrequency.Shares sharesOf(RunId census) {
-        return new DocumentFrequency(jdbcTemplate, new Ledger(jdbcTemplate)).shares(census);
+        return new DocumentFrequency(jdbcTemplate, new Ledger(jdbcTemplate)).shares(census, FIVE_WORD_SHINGLES);
     }
 
     /**
@@ -180,7 +183,7 @@ class DocumentFrequencySharesTest {
         RunId census = census(n);
         List<Object[]> rows = new ArrayList<>();
         for (long count = 2; count <= n; count++) {
-            rows.add(new Object[] {census.value(), ShingleParameters.DEFAULT.identity(), count, count, count});
+            rows.add(new Object[] {census.value(), FIVE_WORD_SHINGLES.identity(), count, count, count});
         }
         jdbcTemplate.batchUpdate(
                 "INSERT INTO shingle_document_frequency"
@@ -204,7 +207,7 @@ class DocumentFrequencySharesTest {
                     "INSERT INTO shingle_corpus_size (run_id, shingle_parameter_identity, shingled_document_count)"
                             + " VALUES (?, ?, ?)",
                     census.value(),
-                    ShingleParameters.DEFAULT.identity(),
+                    FIVE_WORD_SHINGLES.identity(),
                     n);
         }
         return census;

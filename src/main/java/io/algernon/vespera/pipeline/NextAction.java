@@ -599,8 +599,30 @@ class NextAction {
                 .or(() -> thePreferredLanguagesUnreadable(profile)
                         .map(line -> runWanting(line, "preferredLanguages")))
                 .or(() -> theExtractionAttemptIgnored(profile)
-                        .map(line -> runWanting(line, ExtractionAttempt.KEY)));
+                        .map(line -> runWanting(line, ExtractionAttempt.KEY)))
+                .or(() -> theClusterResolutionIgnored(profile)
+                        .map(line -> runWanting(line, "clusterResolution")));
         return unreadable;
+    }
+
+    /**
+     * The line for {@code clusterResolution} (ADR-330 §9), where it holds something that is no finite number above 0
+     * -- a text, or a number written by hand such as {@code 0}, {@code -1}, {@code NaN} or {@code Infinity}, which a
+     * run ignores in the same way -- empty otherwise. Unset and blank are not reported: the preset applies, as
+     * configuration resolves it. Named after {@code extractionAttempt}, in the order of ADR-294 §2's row.
+     */
+    private static Optional<String> theClusterResolutionIgnored(Profile profile) {
+        NumericValue.Reading reading = profile.clusterResolution().reading();
+        boolean ignored = reading instanceof NumericValue.Unreadable
+                || (reading instanceof NumericValue.Answered answered
+                        && !(Double.isFinite(answered.number()) && answered.number() > 0));
+        if (!ignored) {
+            return Optional.empty();
+        }
+        return Optional.of("Every run value is set, but clusterResolution reads "
+                + quoted(profile.clusterResolution().value().strip()) + ", which is not a number above 0, so this run"
+                + " ignored it and divided the documents at the resolution configuration names. Next: write a number"
+                + " above 0 into clusterResolution in " + PROFILE + ", or remove it, and run again.");
     }
 
     // The line for translationSimilarityFloor (ADR-271 section 8), in the shape of logTimestampShareFloor's:

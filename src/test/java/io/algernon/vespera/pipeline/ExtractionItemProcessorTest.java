@@ -363,6 +363,7 @@ class ExtractionItemProcessorTest {
                 null,
                 null,
                 null,
+                PresetsFixture.shipped(),
                 root,
                 invocation);
         stageRuns.extraction();

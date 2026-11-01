@@ -54,7 +54,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-184", url = Adr.FIVE_FAILURES_IN_A_ROW_STOP_STAGE_2_ONLY_AFTER_A_FAILED_CONTROL_CONVERSION, type = "adr")
 class FailuresInARowTest {
 
-    /** How many timeouts in a row are read as the converter's, written out rather than read off the class. */
+    /** How many timeouts in a row the application ships as the converter's, handed to the judge (ADR-330 §8). */
     private static final int THREE_TIMEOUTS = 3;
 
     /** How many set-aside occurrences in a row send the control conversion, written out. */
@@ -77,11 +77,8 @@ class FailuresInARowTest {
 
     @Test
     @Story("Every count keeps its number")
-    @DisplayName("Three timeouts in a row, five set-aside files in a row and five files that each dropped the connection twice are the counts")
-    void theCountsAreThreeFiveAndFive() {
-        claim(
-                "three timeouts in a row are read as the converter's rather than any one file's",
-                () -> assertThat(FailuresInARow.CONSECUTIVE_TIMEOUT_COUNT).isEqualTo(THREE_TIMEOUTS));
+    @DisplayName("Five set-aside files in a row and five files that each dropped the connection twice are the counts kept in the code")
+    void theCountsKeptInTheCodeAreFiveAndFive() {
         claim(
                 "five files set aside in a row send the control document, and so do five files in a row that"
                         + " each dropped the connection twice -- the same number, so a converter that converts"
@@ -377,7 +374,7 @@ class FailuresInARowTest {
         ScriptedControl control = new ScriptedControl();
         FailuresInARow rows = new FailuresInARow(control);
         OccurrencesUnderARun occurrences = OccurrencesUnderARun.of(jdbcTemplate, FIVE_DROPPED_TWICE);
-        OccurrenceJudge judge = new OccurrenceJudge(metrics(), rows, occurrences.run(), null, null);
+        OccurrenceJudge judge = new OccurrenceJudge(metrics(), rows, occurrences.run(), null, null, THREE_TIMEOUTS);
         // Out of alphabetical order on purpose, so a list that was sorted, or kept in a set, would differ.
         List<String> inTheOrderTheyCame = List.of(
                 "corpus/e.docx", "corpus/c.pdf", "corpus/a.xls", "corpus/d.txt", "corpus/b.pptx");
@@ -602,7 +599,7 @@ class FailuresInARowTest {
             this.control = new ScriptedControl(controlAnswers);
             this.rows = new FailuresInARow(control);
             this.occurrences = OccurrencesUnderARun.of(jdbcTemplate, size);
-            this.judge = new OccurrenceJudge(metrics(), rows, occurrences.run(), null, null);
+            this.judge = new OccurrenceJudge(metrics(), rows, occurrences.run(), null, null, THREE_TIMEOUTS);
         }
 
         Outcome timeout() {

@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.similarity.BoilerplateShingles;
+import io.algernon.vespera.similarity.ShingleParameters;
 import java.util.Set;
 import org.springframework.batch.core.configuration.annotation.JobScope;
 import org.springframework.stereotype.Component;
@@ -36,12 +37,14 @@ class RedundancyBoilerplate {
     RedundancyBoilerplate(BoilerplateShingles boilerplateShingles, StageRuns stageRuns) {
         RunId censusRun = stageRuns.upstream(StageModules.CONTENT_CENSUS);
         double floor = stageRuns.contentRedundancyFloor();
+        // The window stage 2's run was minted under, which names the shingle rows read (ADR-330 section 9).
+        ShingleParameters window = stageRuns.shingleParameters();
         this.hashes = TimedStatement.of(
                 "Stage 4 (content redundancy)",
                 "reading",
                 "read",
                 "the boilerplate shingles",
-                () -> boilerplateShingles.resolve(censusRun, floor));
+                () -> boilerplateShingles.resolve(censusRun, floor, window));
     }
 
     Set<Long> hashes() {

@@ -50,6 +50,15 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
 class ARunReadsTheVectorsOfOneEmbedderIdentityTest {
 
+    /** The number of neighbours the application ships (vespera.clustering.neighbours). */
+    private static final int NEIGHBOURS = 15;
+
+    /** The resolution the application ships (vespera.clustering.resolution). */
+    private static final double RESOLUTION = 1.0;
+
+    /** The number of similarities the application ships (vespera.relevance.top-similarities). */
+    private static final int TOP_SIMILARITIES = 3;
+
     private static final String MODEL = "qwen3-embedding:0.6b";
 
     /** The survivor here is one chunk long, and each identity stores one vector for it. */
@@ -151,7 +160,7 @@ class ARunReadsTheVectorsOfOneEmbedderIdentityTest {
         Map<OccurrenceId, String> partition = new LinkedHashMap<>(alike);
         partition.putAll(unalike);
 
-        clustering.clusterAndRecord(run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER);
+        clustering.clusterAndRecord(run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER, NEIGHBOURS, RESOLUTION);
 
         Map<OccurrenceId, Integer> ordinals = WholeRun.membership(jdbcTemplate, run).stream()
                 .collect(Collectors.toMap(DocumentCluster::occurrenceId, DocumentCluster::clusterOrdinal));
@@ -200,14 +209,14 @@ class ARunReadsTheVectorsOfOneEmbedderIdentityTest {
             }
         }
 
-        clustering.clusterAndRecord(first, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER);
+        clustering.clusterAndRecord(first, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER, NEIGHBOURS, RESOLUTION);
         int document = 0;
         for (String contentHash : partition.values()) {
             float[] earlier = new float[DIMENSION];
             earlier[document++ % 2 == 0 ? 2 : 3] = FAR_LARGER;
             store(contentHash, AN_EARLIER_PULLS_IDENTITY, earlier);
         }
-        clustering.clusterAndRecord(again, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER);
+        clustering.clusterAndRecord(again, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER, NEIGHBOURS, RESOLUTION);
 
         claim(
                 "the first pass grouped all " + partition.size() + " documents",
@@ -231,7 +240,7 @@ class ARunReadsTheVectorsOfOneEmbedderIdentityTest {
         Map<OccurrenceId, List<float[]>> resident =
                 scoring.residentSeedVectors(seeds, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER);
         scoring.scoreAndRecord(
-                survivor, run, "survivor", ONE_CHUNK, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER, resident);
+                survivor, run, "survivor", ONE_CHUNK, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER, resident, TOP_SIMILARITIES);
     }
 
     private double scoreOf(RunId run, OccurrenceId survivor) {

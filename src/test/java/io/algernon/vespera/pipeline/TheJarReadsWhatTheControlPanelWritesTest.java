@@ -76,6 +76,9 @@ class TheJarReadsWhatTheControlPanelWritesTest {
 
     private static final long CHILD_BOUND_SECONDS = 60;
 
+    /** A resolution no sample names, so that the jar's reading it back says the profile's was not the one acted on. */
+    private static final double A_RESOLUTION_ONLY_CONFIGURATION_NAMES = 7.25;
+
     @Test
     @Story("The jar reads what the control panel writes")
     @DisplayName("The control panel's table of keys is the profile's keys and types in order, and its runs are the jar's stages in order")
@@ -163,6 +166,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         refused.put(ProfileKey.DELIVERABLE_LANGUAGE, List.of("fr", "italian", "it, en"));
         refused.put(ProfileKey.ARRANGEMENT_APPROVED, List.of("0123456789AB"));
         refused.put(ProfileKey.SEED_FOLDER, List.of(temp.resolve("absent").toString(), aFile.toString()));
+        refused.put(ProfileKey.CLUSTER_RESOLUTION, List.of("0", "-1", "-0.5", "NaN", "Infinity", "fine", "0,5"));
 
         ProfileStore store = new ProfileStore(workingDirectory);
         for (Map.Entry<ProfileKey, List<String>> samples : refused.entrySet()) {
@@ -377,6 +381,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         samples.put(ProfileKey.PREFERRED_LANGUAGES, List.of("it, en", "EN"));
         samples.put(ProfileKey.CONFIGURATION_SETTING_SHARE_FLOOR, List.of("0.7"));
         samples.put(ProfileKey.DELIVERABLE_LANGUAGE, List.of("it", "EN", " it "));
+        samples.put(ProfileKey.CLUSTER_RESOLUTION, List.of("2.5", "1.0", "0.0001", " 0.5 ", "1e3"));
         return samples;
     }
 
@@ -414,6 +419,10 @@ class TheJarReadsWhatTheControlPanelWritesTest {
                     yield false;
                 }
             }
+            // What the jar acts on is the number it resolves: one the profile holds in place of what configuration names.
+            case CLUSTER_RESOLUTION -> new Presets(PresetsFixture.shippedEnvironment()
+                            .withProperty("vespera.clustering.resolution", String.valueOf(A_RESOLUTION_ONLY_CONFIGURATION_NAMES)))
+                    .clusterResolution(store.load()) != A_RESOLUTION_ONLY_CONFIGURATION_NAMES;
             case CODE_NAME_ENDINGS, OUT_OF_SCOPE_NAME_ENDINGS ->
                     ((NameEndingsValue) loaded).reading() instanceof NameEndingsValue.Answered;
             case PREFERRED_LANGUAGES -> ((LanguagesValue) loaded).reading() instanceof LanguagesValue.Answered;

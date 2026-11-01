@@ -73,6 +73,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class RedundancyResolutionBoundsItsCandidatesTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
+    /** The cuts the application ships: 0.80 and 0.95, over a sample of 32 shingles asking 24 hits. */
+    private static final RedundancyThresholds THE_SHIPPED_THRESHOLDS = new RedundancyThresholds(0.80, 0.95, 32, 24);
+
     /** The most rows one statement takes, and the most occurrences one statement names. */
     private static final int A_PAGE = 1_000;
 
@@ -231,7 +237,7 @@ class RedundancyResolutionBoundsItsCandidatesTest {
         // In one transaction, as the step that resolves runs it (TaskletSteps.taskletStep).
         new TransactionTemplate(new JdbcTransactionManager(log.jdbcTemplate().getDataSource()))
                 .executeWithoutResult(status -> new RedundancyResolution(log.jdbcTemplate(), new Ledger(log.jdbcTemplate()))
-                        .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(log.jdbcTemplate()), counting));
+                        .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(log.jdbcTemplate()), FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS, counting));
         saidInFull = log.said();
         said = saidInFull.stream().distinct().toList();
     }
@@ -553,7 +559,7 @@ class RedundancyResolutionBoundsItsCandidatesTest {
                         for (int time = 0; time < (i == writtenTwice ? 2 : 1); time++) {
                             shingle.setLong(1, ids.get(i));
                             shingle.setString(2, stage2.value());
-                            shingle.setString(3, ShingleParameters.DEFAULT.identity());
+                            shingle.setString(3, FIVE_WORD_SHINGLES.identity());
                             shingle.setLong(4, hash);
                             shingle.addBatch();
                         }

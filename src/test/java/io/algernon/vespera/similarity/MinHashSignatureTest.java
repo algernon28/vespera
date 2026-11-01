@@ -29,6 +29,10 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-081", url = Adr.MINHASH_RETRIEVES_SHINGLE_SETS_JUDGE, type = "adr")
 class MinHashSignatureTest {
 
+    /** The signature the application ships: 128 permutations in 16 bands of 8 rows, and its seed. */
+    private static final MinHashParameters THE_SHIPPED_MINHASH =
+            new MinHashParameters(128, 16, 8, 0x5EED_C0FF_EE12_3456L);
+
     /** Two sets built to overlap in exactly this fraction of their union — a Jaccard of 0.80. */
     private static final int SHARED_ELEMENTS = 800;
 
@@ -61,8 +65,8 @@ class MinHashSignatureTest {
         }
 
         double estimate = agreementRate(
-                MinHashSignature.minima(a, MinHashParameters.DEFAULT),
-                MinHashSignature.minima(b, MinHashParameters.DEFAULT));
+                MinHashSignature.minima(a, THE_SHIPPED_MINHASH),
+                MinHashSignature.minima(b, THE_SHIPPED_MINHASH));
 
         claim(
                 "the fraction of the 128 permutations agreeing on their minimum estimates the true"
@@ -78,8 +82,8 @@ class MinHashSignatureTest {
     void isDeterministicForTheSameSet() {
         Set<Long> hashes = Set.of(11L, 22L, 33L, 44L, 55L);
 
-        int[] first = MinHashSignature.minima(hashes, MinHashParameters.DEFAULT);
-        int[] second = MinHashSignature.minima(hashes, MinHashParameters.DEFAULT);
+        int[] first = MinHashSignature.minima(hashes, THE_SHIPPED_MINHASH);
+        int[] second = MinHashSignature.minima(hashes, THE_SHIPPED_MINHASH);
 
         claim(
                 "the permutations come from a recorded seed rather than from anything ambient, so a"
@@ -91,7 +95,7 @@ class MinHashSignatureTest {
     @Story("A signature survives the round trip through the database")
     @DisplayName("Minima serialise to a 512-byte blob and deserialise back unchanged")
     void serialisesToABlobAndBack() {
-        int[] minima = MinHashSignature.minima(Set.of(7L, 8L, 9L), MinHashParameters.DEFAULT);
+        int[] minima = MinHashSignature.minima(Set.of(7L, 8L, 9L), THE_SHIPPED_MINHASH);
 
         byte[] blob = MinHashSignature.serialize(minima);
 
@@ -109,19 +113,19 @@ class MinHashSignatureTest {
     @DisplayName("A signature yields one band hash per band, and equal signatures share every one")
     void producesOneBandHashPerBand() {
         Set<Long> hashes = Set.of(101L, 202L, 303L);
-        int[] minima = MinHashSignature.minima(hashes, MinHashParameters.DEFAULT);
+        int[] minima = MinHashSignature.minima(hashes, THE_SHIPPED_MINHASH);
 
-        long[] bandHashes = MinHashSignature.bandHashes(minima, MinHashParameters.DEFAULT);
+        long[] bandHashes = MinHashSignature.bandHashes(minima, THE_SHIPPED_MINHASH);
 
         claim(
                 "there are as many band hashes as bands -- 16 rows in signature_band per document",
-                () -> assertThat(bandHashes).hasSize(MinHashParameters.DEFAULT.bandCount()));
+                () -> assertThat(bandHashes).hasSize(THE_SHIPPED_MINHASH.bandCount()));
         claim(
                 "and two documents with the same signature land in the same bucket in every band, which"
                         + " is what makes a shared bucket a candidate rather than a coincidence",
                 () -> assertThat(MinHashSignature.bandHashes(
-                                MinHashSignature.minima(hashes, MinHashParameters.DEFAULT),
-                                MinHashParameters.DEFAULT))
+                                MinHashSignature.minima(hashes, THE_SHIPPED_MINHASH),
+                                THE_SHIPPED_MINHASH))
                         .isEqualTo(bandHashes));
     }
 
@@ -133,7 +137,7 @@ class MinHashSignatureTest {
                 "a document with nothing distinctive left is empty rather than redundant (ADR-080), and"
                         + " gets no signature at all -- so being asked for one is a caller's mistake, not a"
                         + " case with a sensible answer",
-                () -> assertThatThrownBy(() -> MinHashSignature.minima(Set.of(), MinHashParameters.DEFAULT))
+                () -> assertThatThrownBy(() -> MinHashSignature.minima(Set.of(), THE_SHIPPED_MINHASH))
                         .isInstanceOf(IllegalArgumentException.class));
     }
 

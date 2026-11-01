@@ -5,7 +5,9 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.similarity.RedundancyResolution;
+import io.algernon.vespera.similarity.RedundancyThresholds;
 import io.algernon.vespera.similarity.ResolutionProgress;
+import io.algernon.vespera.similarity.ShingleParameters;
 import io.algernon.vespera.similarity.SimilarityStatement;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -90,6 +92,10 @@ class RedundancyResolutionTasklet implements Tasklet {
                             STAGE, "counting", "counted", "the survivors it judges",
                             () -> ledger.verdicts().survivorCount(runId)));
                     Set<Long> boilerplateHashes = redundancyBoilerplateProvider.getObject().hashes();
+                    // The window stage 2's run was minted under and the cuts stage 4's run was, so the pairs judged
+                    // are the ones the run names (ADR-330 section 9, ADR-117).
+                    ShingleParameters window = stageRuns.shingleParameters();
+                    RedundancyThresholds cuts = stageRuns.redundancyThresholds();
                     redundancyResolution.resolve(
                             runId,
                             stage3RunId,
@@ -97,6 +103,8 @@ class RedundancyResolutionTasklet implements Tasklet {
                             boilerplateHashes,
                             // extraction reads its own table and hands the counts over (ADR-209 section 3.2).
                             extractionMetrics::alphanumericCharCounts,
+                            window,
+                            cuts,
                             resolutionProgress());
                     LOG.info("Stage 4b (redundancy resolution) finished under run {}", runId.value());
                     return true;

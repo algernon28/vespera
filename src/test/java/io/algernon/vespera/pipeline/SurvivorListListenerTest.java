@@ -540,7 +540,7 @@ class SurvivorListListenerTest {
 
     private static StageRuns stageRuns(Ledger ledger, Path root, java.util.function.Supplier<RunId> extraction) {
         return new StageRuns(
-                ledger, new ImplementationVersions(), null, null, null, null, null, null, null, null, null, null, root,
+                ledger, new ImplementationVersions(), null, null, null, null, null, null, null, null, null, null, PresetsFixture.shipped(), root,
                 new ExecutionContext()) {
             @Override
             RunId extraction() {

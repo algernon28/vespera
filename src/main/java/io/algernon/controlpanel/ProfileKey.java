@@ -71,7 +71,10 @@ public enum ProfileKey {
             "The share of a text file that must be a program's configuration for it to be taken for one."),
     DELIVERABLE_LANGUAGE("deliverableLanguage", Kind.TEXT, Run.GENERATION,
             "which language the people reading the pages read: en or it", "",
-            "The language the pages are written in, en or it.");
+            "The language the pages are written in, en or it."),
+    CLUSTER_RESOLUTION("clusterResolution", Kind.NUMBER, Run.EMBEDDING_SCORING,
+            "how finely the documents under each exemplar divide into groups", "2.5",
+            "How finely the documents under each exemplar divide into groups, a higher number making more, smaller ones.");
 
     /** The type of a key's value, which is how the jar reads it. */
     public enum Kind { TEXT, NUMBER, NAME_ENDINGS, LANGUAGES }
@@ -150,12 +153,13 @@ public enum ProfileKey {
 
     /**
      * Whether the jar has a value beneath the profile's for this key, which {@code effective-values.properties} says
-     * where the profile names none (ADR-330 §1, §2): the two models, the generation window and the deliverable's
-     * language.
+     * where the profile names none (ADR-330 §1, §2): the two models, the generation window, the deliverable's
+     * language and the cluster resolution.
      */
     public boolean hasAValueBeneath() {
         return switch (this) {
-            case EMBEDDING_MODEL, GENERATION_MODEL, GENERATION_CONTEXT_WINDOW, DELIVERABLE_LANGUAGE -> true;
+            case EMBEDDING_MODEL, GENERATION_MODEL, GENERATION_CONTEXT_WINDOW, DELIVERABLE_LANGUAGE,
+                    CLUSTER_RESOLUTION -> true;
             default -> false;
         };
     }

@@ -35,6 +35,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -322,8 +323,8 @@ class ExtractionWithTheSidecarDownTest {
     static class UnreachableSidecarBeans {
 
         @Bean
-        DoclingClient doclingClient() {
-            return new DoclingClient(SIDECAR);
+        DoclingClient doclingClient(@Value("${vespera.docling.ocr-preset}") String ocrPreset) {
+            return new DoclingClient(SIDECAR, ocrPreset);
         }
 
         @Bean

@@ -211,6 +211,9 @@ class ProfileStoreTest {
             deliverableLanguage:
               value: "it"
               provenance: "the readers read Italian"
+            clusterResolution:
+              value: "2.5"
+              provenance: "read off the group sizes"
             """;
 
     @Test

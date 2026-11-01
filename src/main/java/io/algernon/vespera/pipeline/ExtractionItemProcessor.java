@@ -173,7 +173,10 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                 failuresInARow,
                 extractionRun,
                 confidenceFloor.value(),
-                wordFloor.isPresent() ? wordFloor.getAsLong() : null);
+                wordFloor.isPresent() ? wordFloor.getAsLong() : null,
+                // The count stage 2's run was minted under, so the number that names the run is the number that
+                // decides a timeout (ADR-330 section 9, ADR-117).
+                stageRuns.timeoutsInARow());
         // One wait to the operator, so one timed span over the whole expression: the count of the survivors
         // still to read, made by the ledger where the run recorded nothing and by going through the survivors
         // a page at a time, asking which of each page were recorded, where it did (ADR-220 section 2). Neither
@@ -381,7 +384,11 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         }
         return switch (decision) {
             case OccurrenceDecision.Converted converted -> {
-                shingler.write(occurrenceId, stageRuns.extraction(), DoclingDocumentTexts.lines(response.rawResponse()));
+                shingler.write(
+                        occurrenceId,
+                        stageRuns.extraction(),
+                        DoclingDocumentTexts.lines(response.rawResponse()),
+                        stageRuns.shingleParameters());
                 yield converted.degenerateReason()
                         .map(reason -> new ExtractionOutcome(occurrenceId, VerdictKind.DEGENERATE_OUTPUT, reason))
                         .orElse(null);
