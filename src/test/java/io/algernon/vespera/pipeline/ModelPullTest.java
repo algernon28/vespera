@@ -23,8 +23,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -43,7 +46,8 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>Ollama is a {@link StubOllama} on the loopback address, answering {@code /api/show} and {@code /api/pull} as
  * Ollama's source at {@code v0.33.2} reads; the client asking it is the production {@link OllamaClient}, and the
  * check asked before and after the pull the production one. The bound on a pull that has stopped moving is one second,
- * so the tests of it end in a few; each that a pull which never ends could hold is cut by a timeout of its own, so it
+ * and two in the one test that measures a late status and a stalled body as sharing it, so the tests of it end in a
+ * few; each that a pull which never ends could hold is cut by a timeout of its own, so it
  * fails rather than hangs.
  */
 @Epic("Relevance")
@@ -67,6 +71,30 @@ class ModelPullTest {
 
     /** What a test allows past the bound for the connection to be closed and the reason composed. */
     private static final Duration MARGIN = Duration.ofSeconds(5);
+
+    /**
+     * A bound of two seconds, for the one test that measures the status and the body of a refusal as sharing it: long
+     * enough for the status to come well inside it and the body's wait still to fit.
+     */
+    private static final Duration TWO_SECOND_BOUND = Duration.ofSeconds(2);
+
+    /** That bound in the whole seconds a reason states. */
+    private static final long TWO_SECOND_BOUND_SECONDS = 2;
+
+    /** When the status of a refusal comes, under the two-second bound: three quarters of the way into it. */
+    private static final Duration LATE_STATUS = Duration.ofMillis(1_500);
+
+    /**
+     * What that test allows past the bound, half of it: a fresh bound for the body after a status three quarters of
+     * the way in would end half a bound later than that, at three and a half seconds.
+     */
+    private static final Duration HALF_A_BOUND = Duration.ofSeconds(1);
+
+    /** The words of a refusal that Ollama sends for a name it cannot parse. */
+    private static final String INVALID_NAME = "{\"error\":\"invalid model name\"}";
+
+    /** How many bytes of a refusal's body come before the rest never does, or the connection is dropped. */
+    private static final int BYTES_BEFORE_IT_STOPS = 10;
 
     /** The shipped embedding model. */
     private static final String MODEL = "bge-m3:latest";
@@ -410,19 +438,73 @@ class ModelPullTest {
     @Story("A pull that has stopped moving is given up")
     @DisplayName("A refusal whose body stops coming after the status is given up once the bound has passed")
     void aRefusalWhoseBodyStallsIsGivenUp() {
-        ollama.pulls(MODEL, new StubOllama.RefusedThenSilent(400, "{\"error\":\"invalid model name\"}", 10));
+        ollama.pulls(MODEL, new StubOllama.RefusedThenSilent(400, INVALID_NAME, BYTES_BEFORE_IT_STOPS));
 
         long started = System.nanoTime();
         Optional<String> refusal = pull.refusalOf(STAGE, MODEL);
         Duration took = Duration.ofNanos(System.nanoTime() - started);
 
         claim(
-                "the reason says the pull stalled for the bound's " + BOUND_SECONDS + " seconds: a body that stops"
-                        + " coming is under the same bound as the lines",
-                () -> assertThat(refusal).contains(stalled()));
+                "the reason keeps the 400 Ollama sent and says the rest of its answer had not come the bound's "
+                        + BOUND_SECONDS + " seconds after the pull was asked for: a body that stops coming is under the"
+                        + " same bound as the lines, and the refusal still points at the name",
+                () -> assertThat(refusal)
+                        .contains(refusedAndThen(400, "had not come " + BOUND_SECONDS
+                                + " seconds after the pull was asked for")));
         claim(
                 "and it was given up no sooner than the bound and within it and a margin",
                 () -> assertThat(took).isGreaterThanOrEqualTo(BOUND).isLessThan(BOUND.plus(MARGIN)));
+    }
+
+    @Test
+    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @Story("A pull that has stopped moving is given up")
+    @DisplayName("A refusal whose status comes late and whose body then stops coming is given up one bound after the pull was asked for, not two")
+    void aLateRefusalWhoseBodyStallsIsGivenUpWithinOneBound() {
+        ModelPull underTwoSeconds = new ModelPull(
+                new ModelPullSettings(true, ollama.baseUrl(), TWO_SECOND_BOUND),
+                new OllamaClient(ollama.baseUrl().toString()));
+        ollama.pulls(MODEL, new StubOllama.RefusedThenSilent(400, INVALID_NAME, BYTES_BEFORE_IT_STOPS, LATE_STATUS));
+
+        long started = System.nanoTime();
+        Optional<String> refusal = underTwoSeconds.refusalOf(STAGE, MODEL);
+        Duration took = Duration.ofNanos(System.nanoTime() - started);
+
+        claim(
+                "the reason keeps the 400 Ollama sent and says the rest of its answer had not come the bound's "
+                        + TWO_SECOND_BOUND_SECONDS + " seconds after the pull was asked for",
+                () -> assertThat(refusal)
+                        .contains(refusedAndThen(400, "had not come " + TWO_SECOND_BOUND_SECONDS
+                                + " seconds after the pull was asked for")));
+        claim(
+                "and it was given up no sooner than the bound of " + TWO_SECOND_BOUND_SECONDS + " seconds and within"
+                        + " it and half of it, although the status came only 1.5 seconds in: the status and the body"
+                        + " share one bound counted from the request, and a fresh bound for the body would end at 3.5"
+                        + " seconds",
+                () -> assertThat(took)
+                        .isGreaterThanOrEqualTo(TWO_SECOND_BOUND)
+                        .isLessThan(TWO_SECOND_BOUND.plus(HALF_A_BOUND)));
+    }
+
+    @Test
+    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @Story("A pull that cannot be made stops the step in one line")
+    @DisplayName("A refusal whose body the connection drops keeps its status, and quotes the failure as the transport reported it")
+    void aRefusalWhoseBodyIsCutOffKeepsItsStatus() {
+        ollama.pulls(MODEL, new StubOllama.RefusedThenDropped(400, INVALID_NAME, BYTES_BEFORE_IT_STOPS));
+
+        Optional<String> refusal = pull.refusalOf(STAGE, MODEL);
+
+        String whatHappened = asTheTransportReportedIt(failureOfAPullTo(ollama.baseUrl()));
+        claim(
+                "the reason keeps the 400 Ollama sent and quotes the innermost cause of the transport's failure to"
+                        + " read the rest, its message or else its class's simple name: " + whatHappened,
+                () -> assertThat(refusal).contains(refusedAndThen(400, "could not be read: " + whatHappened)));
+        claim(
+                "and never what a wrapper or an absent message says",
+                () -> assertThat(refusal).hasValueSatisfying(reason -> assertThat(reason)
+                        .doesNotContain(": null)")
+                        .doesNotContain(": closed)")));
     }
 
     @Test
@@ -537,6 +619,15 @@ class ModelPullTest {
                 + " on Ollama's drive or restore its network, as Ollama's words say, and run the same command again";
     }
 
+    /**
+     * The reason for a refusal whose status came and whose body then did not: the status kept, and the remedy the
+     * refusal's own.
+     */
+    private static String refusedAndThen(int status, String whatWentWrong) {
+        return "Ollama would not pull " + MODEL + " (it answered " + status + ", and the rest of its answer "
+                + whatWentWrong + "), so nothing of it was pulled; correct the name and run the same command again";
+    }
+
     private static String stoppedAnswering(String whatHappened) {
         return "Ollama stopped answering while pulling " + MODEL + " (" + whatHappened + "); " + NOTHING_SERVED
                 + " Run the same command again once Ollama answers";
@@ -544,11 +635,14 @@ class ModelPullTest {
 
     /**
      * What ADR-329 §8 quotes of a transport's failure: the message of its innermost cause, or that cause's class's
-     * simple name where it has no message.
+     * simple name where it has no message. The walk stops at a cause already passed, so a chain that leads back into
+     * itself ends at the last cause before the loop.
      */
     private static String asTheTransportReportedIt(Throwable failure) {
+        Set<Throwable> passed = Collections.newSetFromMap(new IdentityHashMap<>());
         Throwable innermost = failure;
-        while (innermost.getCause() != null && innermost.getCause() != innermost) {
+        passed.add(innermost);
+        while (innermost.getCause() != null && passed.add(innermost.getCause())) {
             innermost = innermost.getCause();
         }
         String message = innermost.getMessage();
