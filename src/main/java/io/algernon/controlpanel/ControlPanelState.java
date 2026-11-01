@@ -2,6 +2,7 @@ package io.algernon.controlpanel;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -15,10 +16,12 @@ import java.util.stream.Stream;
 /**
  * What the control panel holds between requests (ADR-302 §2): the launch values, the one child it started and how that
  * child ended, and the line each page is to show once. The pages read and change it only through this class, and the
- * checks that stand before an invocation starts (ADR-302 §2's three lines) are made here, so that Run, Label,
+ * checks that stand before an invocation starts (ADR-302 §2's lines, ADR-331 §6's two among them) are made here, so that Run, Label,
  * {@code save-then-run}, {@code save-then-label} and {@code label-auto} start a child by the same checks. Every write
  * of a working directory's file goes through {@link #write}, one at a time with every start (ADR-295 §1). As the
- * control panel's process ends, {@link #endWithTheControlPanel} ends the child with it (ADR-307 §1).
+ * control panel's process ends, {@link #endWithTheControlPanel} ends the child with it (ADR-307 §1). It also holds,
+ * in memory, the forms an operator pressed Browse on ({@link #heldForm}, ADR-331 §5) and the answers the sidecars
+ * last gave the launch page ({@link #lastChecks}, ADR-331 §3).
  *
  * <p>The class holds no connection to {@code vespera.db} (ADR-278 §3) and writes no file but the launch values'
  * (ADR-292 §2), as an invocation starts.
@@ -58,7 +61,12 @@ final class ControlPanelState {
     private final List<String> notes = new ArrayList<>();
     private final Map<String, String> outcomes = new HashMap<>();
 
+    private final Map<String, Map<String, String>> heldForms = new HashMap<>();
+
     private volatile LaunchValues values;
+    private volatile SidecarChecks.Checks lastChecks = new SidecarChecks.Checks(
+            new SidecarChecks.Check(SidecarChecks.Result.NOT_CHECKED),
+            new SidecarChecks.Check(SidecarChecks.Result.NOT_CHECKED));
     private Child child;
     private String childCommand = "";
     private Ending ending;
@@ -87,12 +95,12 @@ final class ControlPanelState {
         try {
             if (now.deliverableRoot() != null && !now.deliverableRoot().isBlank()) {
                 return Files.isRegularFile(
-                        Path.of(now.deliverableRoot().strip()).resolve(RENDERING).resolve(PAGE_LIST));
+                        Path.of(now.deliverableRoot().stripTrailing()).resolve(RENDERING).resolve(PAGE_LIST));
             }
             if (now.workingDirectory() == null || now.workingDirectory().isBlank()) {
                 return false;
             }
-            Path trees = Path.of(now.workingDirectory().strip()).resolve("deliverable");
+            Path trees = Path.of(now.workingDirectory().stripTrailing()).resolve("deliverable");
             if (!Files.isDirectory(trees)) {
                 return false;
             }
@@ -106,6 +114,38 @@ final class ControlPanelState {
 
     void hold(LaunchValues replacement) {
         this.values = replacement;
+    }
+
+    /**
+     * What the launch page was last told by the sidecars, {@code not-checked} for each until it has asked: only the
+     * launch page asks, and the other pages show these answers (ADR-331 §3).
+     */
+    SidecarChecks.Checks lastChecks() {
+        return lastChecks;
+    }
+
+    void keepChecks(SidecarChecks.Checks asked) {
+        this.lastChecks = asked;
+    }
+
+    /** What the form {@code form} held as an operator pressed its Browse, by control name; empty where it holds none (ADR-331 §5). */
+    synchronized Map<String, String> heldForm(String form) {
+        return Map.copyOf(heldForms.getOrDefault(form, Map.of()));
+    }
+
+    /** Holds {@code fields} for {@code form} in memory, in place of what it held, until {@link #letGoOfForm}. */
+    synchronized void holdForm(String form, Map<String, String> fields) {
+        heldForms.put(form, new HashMap<>(fields));
+    }
+
+    /** Puts {@code value} in the control {@code name} of the held form {@code form}, the rest as it was held. */
+    synchronized void holdField(String form, String name, String value) {
+        heldForms.computeIfAbsent(form, ignored -> new HashMap<>()).put(name, value);
+    }
+
+    /** Lets go of what {@code form} held: it is saved, and its page shows what the files say again. */
+    synchronized void letGoOfForm(String form) {
+        heldForms.remove(form);
     }
 
     /** The lines the launch values' file gave as it was loaded. */
@@ -126,7 +166,16 @@ final class ControlPanelState {
     /** The working directory held, empty where none is named. */
     Optional<Path> workingDirectory() {
         String named = values.workingDirectory();
-        return named.isEmpty() ? Optional.empty() : Optional.of(Path.of(named));
+        return named.isEmpty() ? Optional.empty() : pathOf(named);
+    }
+
+    /** {@code text} as a path, empty where the system refuses it: a value it refuses names no folder (ADR-331 §6). */
+    private static Optional<Path> pathOf(String text) {
+        try {
+            return Optional.of(Path.of(text));
+        } catch (InvalidPathException refused) {
+            return Optional.empty();
+        }
     }
 
     synchronized void say(String page, String line) {
@@ -149,7 +198,8 @@ final class ControlPanelState {
         Optional<String> working = workingDirectory()
                 .flatMap(folder -> heldByAnother(folder.resolve(WorkingDirectoryWrite.LOCK_FILE_NAME)));
         Optional<String> root = values.corpusRoot().isEmpty() ? Optional.empty()
-                : held(CorpusRootLockFile.in(corpusRootLockFolder, Path.of(values.corpusRoot())));
+                : pathOf(values.corpusRoot())
+                        .flatMap(corpus -> held(CorpusRootLockFile.in(corpusRootLockFolder, corpus)));
         return new Holders(working, root);
     }
 
@@ -226,8 +276,9 @@ final class ControlPanelState {
     }
 
     /**
-     * Starts the invocation as ADR-302 §2 does, or gives the line that refuses it: the launch values' own refusal,
-     * then the control panel's own child, {@code vespera.lock}, the corpus-root lock. The file of launch values is
+     * Starts the invocation as ADR-302 §2 does, or gives the line that refuses it: the launch values' own refusal, a
+     * folder the system cannot hold or a working directory that is no folder (ADR-331 §6), then the control panel's
+     * own child, {@code vespera.lock}, the corpus-root lock. The file of launch values is
      * stored as it starts (ADR-292 §2); a line it gives is returned in {@code stored}.
      *
      * @return the refusal, empty where the child was started
@@ -241,6 +292,17 @@ final class ControlPanelState {
         if (refusal.isPresent()) {
             return refusal;
         }
+        for (String[] field : new String[][] {{now.corpusRoot(), "the corpus root"},
+                {now.workingDirectory(), "the working directory"}, {now.deliverableRoot(), "the output folder"}}) {
+            if (field[0] != null && !field[0].isBlank() && pathOf(field[0].stripTrailing()).isEmpty()) {
+                return Optional.of(kind.name + " is not started: " + field[1] + " is no path this system can hold");
+            }
+        }
+        if (now.workingDirectory() != null && !now.workingDirectory().isBlank()
+                && !Files.isDirectory(Path.of(now.workingDirectory().stripTrailing()))) {
+            return Optional.of(kind.name + " is not started: the working directory " + now.workingDirectory()
+                    + " is no folder that is there");
+        }
         if (childRuns()) {
             return Optional.of(kind.name + " is not started while the invocation the control panel started runs");
         }
@@ -253,12 +315,18 @@ final class ControlPanelState {
             return Optional.of(kind.name + " is not started: the corpus root " + now.corpusRoot()
                     + " is held by another Vespera invocation (" + holders.corpusRoot().get() + ")");
         }
-        ChildCommand command = switch (kind) {
-            case RUN -> ChildCommand.run(runtime.java(), runtime.jar(), now);
-            case LABEL -> ChildCommand.label(runtime.java(), runtime.jar(), false, now);
-            case LABEL_AUTO -> ChildCommand.label(runtime.java(), runtime.jar(), true, now);
-            case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now);
-        };
+        ChildCommand command;
+        try {
+            command = switch (kind) {
+                case RUN -> ChildCommand.run(runtime.java(), runtime.jar(), now);
+                case LABEL -> ChildCommand.label(runtime.java(), runtime.jar(), false, now);
+                case LABEL_AUTO -> ChildCommand.label(runtime.java(), runtime.jar(), true, now);
+                case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now);
+            };
+        } catch (RuntimeException notBuilt) {
+            return Optional.of(kind.name + " is not started: " + (notBuilt.getMessage() == null
+                    ? notBuilt.getClass().getSimpleName() : notBuilt.getMessage()));
+        }
         now.store(launchValuesFile, userName, stored::add);
         try {
             child = Child.start(command.processBuilder());

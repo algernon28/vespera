@@ -359,7 +359,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
     /** The samples §4 saves for each key; the seed folder is a folder that exists. */
     private static Map<ProfileKey, List<String>> acceptedSamples(Path seeds) {
         Map<ProfileKey, List<String>> samples = new LinkedHashMap<>();
-        samples.put(ProfileKey.SEED_FOLDER, List.of(seeds.toString(), " " + seeds + " "));
+        samples.put(ProfileKey.SEED_FOLDER, List.of(seeds.toString(), seeds + " "));
         samples.put(ProfileKey.DEGENERATE_OUTPUT_CONFIDENCE_FLOOR, List.of("0.4", "0"));
         samples.put(ProfileKey.DEGENERATE_OUTPUT_WORD_FLOOR, List.of("0", "30", "2.0", "2147483647"));
         samples.put(ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR, List.of("0.8", "1.5"));

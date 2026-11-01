@@ -11,8 +11,8 @@ import java.util.Map;
 
 /**
  * The control panel's pages by path, for {@code ControlPanelServer.start} (ADR-302 §10): the launch page, the
- * invocation page and Stop's confirmation, the sixteen reports, and the next act, the questions, the code sets and the
- * profile, with the paths their forms post to. The pages start the child, write files and read the sidecars; the
+ * folder page, the invocation page and Stop's confirmation, the sixteen reports, and the next act, the questions, the
+ * code sets and the profile, with the paths their forms post to. The pages start the child, write files and read the sidecars; the
  * server's classes do none of these (ADR-291 §8). They link no class of the jar (ADR-285 §3).
  */
 public final class ControlPanelPages {
@@ -45,6 +45,7 @@ public final class ControlPanelPages {
         Map<String, HttpHandler> pages = new HashMap<>();
         NextPages next = new NextPages(state);
         new LaunchPages(state).register(pages);
+        new FolderPages(state).register(pages);
         new InvocationPages(state).register(pages);
         new ReportPages(state).register(pages);
         next.register(pages);

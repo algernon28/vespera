@@ -2313,6 +2313,16 @@ public final class Adr {
     public static final String THE_CONFLUENCE_RENDERING_IS_ONE_TREE_UPDATED_IN_PLACE_WITH_NO_RUN_ID = FILE
             + "0328-the-confluence-rendering-is-one-tree-updated-in-place-by-each-publish-its-pages-keyed-and-titled-by-their-place-with-no-run-id-and-a-page-it-no-longer-has-moved-to-the-trash.md";
 
+    /**
+     * ADR-331 -- the control panel opens a window of its own where a Chromium browser is found, its pages stand as a
+     * cockpit of a sidebar, a top row, tiles and cards, and its fields carry a folder page or a native control where one
+     * can be written, an example and a hint (amends ADR-288 §3 and its tests, ADR-291 §6 and its known limits, ADR-295 §3
+     * and §7, ADR-302 §1, §2, §4, §5, §6, §8, §9, §11 and what it does not decide, and ADR-325 §3, §7, §8 and its
+     * consequences).
+     */
+    public static final String THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT = FILE
+            + "0331-the-control-panel-opens-a-window-of-its-own-and-its-pages-are-a-cockpit-with-a-picker-an-example-and-a-hint-on-its-fields.md";
+
     private Adr() {
     }
 }

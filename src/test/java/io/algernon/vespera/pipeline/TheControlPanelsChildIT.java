@@ -86,8 +86,12 @@ class TheControlPanelsChildIT {
     /** The lines the control panel writes as it starts serving: what it will start, and the address to open. */
     private static final int TWO_LINES = 2;
 
-    /** The second line: the root of 127.0.0.1 at the port the system picked, with no query (ADR-302 §11, ADR-325 §2). */
-    private static final String OPEN_THE_ADDRESS = "open http://127\\.0\\.0\\.1:[0-9]{1,5}/ in your browser";
+    /**
+     * The second line: that the control panel is opening, with the root of 127.0.0.1 at the port the system picked, and
+     * no query, for where nothing appears (ADR-325 §2, ADR-331 §2).
+     */
+    private static final String OPEN_THE_ADDRESS =
+            "opening the control panel; if nothing appears, go to http://127\\.0\\.0\\.1:[0-9]{1,5}/ in your browser";
 
     /** The control panel's exit code where it finds no jar beside its own. */
     private static final int REFUSED = 1;

@@ -1,5 +1,7 @@
 # ADR-295 — The control panel writes profile values, label answers and code-set names holding the working-directory lock, one operator action at a time
 
+> **Partly amended — see [ADR-331](0331-the-control-panel-opens-a-window-of-its-own-and-its-pages-are-a-cockpit-with-a-picker-an-example-and-a-hint-on-its-fields.md).** Of §3: `seedFolder`'s value loses its trailing white space alone, every other key's both ends. Of §7: before these refusals, a Save at `/code-sets` refuses a `new-folder` that is absolute, holds a `..` element or holds a backslash, with one line, and nothing is written. `CodeSetRenames.render`'s refusals stand as the jar's `CodeSetNames` gives them, and a saved row's folder is written back as the file holds it. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-061](0061-the-profile-is-yaml-typed-java-records-one-object-per-value.md), [ADR-062](0062-census-merges-new-profile-keys-and-never-touches-an-existing-value.md) and [ADR-120](0120-a-profile-values-type-is-its-keys-and-an-unreadable-value-is-a-third-state-beside-unset.md): a profile value is `value`, `provenance` and `measurement` under its key; a key the file does not hold is unset at the next load; a value the key cannot use is unreadable, a state beside unset. The control panel writes no unreadable value (§4) and keeps `measurement` as it is (§3).

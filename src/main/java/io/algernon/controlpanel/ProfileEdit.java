@@ -50,9 +50,14 @@ public final class ProfileEdit {
     private ProfileEdit() {
     }
 
+    /** The value without the white space around it; a seed folder keeps what precedes it (ADR-331). */
+    private static String trimmed(ProfileKey key, String value) {
+        return key == ProfileKey.SEED_FOLDER ? value.stripTrailing() : value.strip();
+    }
+
     /** §4's line for a value the jar would read as unreadable, ignore or stop on, or for no provenance; else empty. */
     public static Optional<String> refusalOf(ProfileKey key, String value, String provenance) {
-        String typed = value == null ? "" : value.strip();
+        String typed = value == null ? "" : trimmed(key, value);
         if (typed.chars().anyMatch(c -> c < 0x20)) {
             return said(key, "a value is one line");
         }
@@ -75,7 +80,7 @@ public final class ProfileEdit {
         if (refusal.isPresent()) {
             throw new IllegalArgumentException(refusal.get());
         }
-        String valueLine = "  value: " + scalarOf(value == null ? "" : value.strip());
+        String valueLine = "  value: " + scalarOf(value == null ? "" : trimmed(key, value));
         String provenanceLine = "  provenance: " + YamlScalars.write(provenance);
         if (current.isEmpty()) {
             return "---\n" + block(key, valueLine, provenanceLine, "\n");
