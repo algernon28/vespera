@@ -1,0 +1,536 @@
+<!doctype html>
+<!--
+  PROTOTYPE, throw me away. Three variants of the control panel, switchable via ?variant=A|B|C, served by Serve.java.
+  Question: what should the control panel look like, with pickers and example hints?
+  Real: folder listing, Windows folder dialog, Ollama's model list. Simulated: every run, save, check and report.
+  The numeric ranges of the sliders are guesses for the look of it, not decisions.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vespera</title>
+<style>
+:root { color-scheme: light dark;
+  --bg:#f5f4f1; --panel:#ffffff; --panel2:#efedf3; --ink:#1e1b2e; --dim:#67637a; --rule:#dfdce6;
+  --accent:#4c3fb1; --accent-ink:#fff; --accent-soft:#e9e6f9; --sun:#e0752c; --sun-ink:#fff;
+  --ok:#17794f; --ok-soft:#dcf3e7; --warn:#9a5b00; --warn-soft:#fbeed4; --bad:#b3282d; --bad-soft:#fbe3e3;
+  --shadow:0 1px 2px rgba(30,27,46,.06),0 8px 24px rgba(30,27,46,.07); --r:12px; }
+@media (prefers-color-scheme: dark) { :root {
+  --bg:#14121d; --panel:#1e1b2b; --panel2:#272338; --ink:#ece9f6; --dim:#a29db8; --rule:#352f49;
+  --accent:#a99cff; --accent-ink:#17132b; --accent-soft:#2c2750; --sun:#f0914f; --sun-ink:#231003;
+  --ok:#5fd6a0; --ok-soft:#173428; --warn:#f0b45a; --warn-soft:#3a2b12; --bad:#ff8c8c; --bad-soft:#3f1d20;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.3); } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; padding-bottom:84px; }
+h1,h2,h3 { line-height:1.2; margin:0; font-weight:650; letter-spacing:-.01em; }
+a { color:var(--accent); }
+code,.mono { font-family:"Cascadia Code",Consolas,monospace; font-size:.9em; }
+.dim { color:var(--dim); } .small { font-size:13px; }
+.brand { font-weight:700; letter-spacing:-.02em; font-size:18px; display:flex; gap:8px; align-items:center; }
+.brand i { width:22px; height:22px; border-radius:50%; background:linear-gradient(145deg,var(--sun),var(--accent)); display:inline-block; }
+.card { background:var(--panel); border:1px solid var(--rule); border-radius:var(--r); box-shadow:var(--shadow); padding:20px; }
+.card h2 { font-size:16px; margin-bottom:12px; }
+
+/* fields */
+.f { margin-bottom:18px; }
+.f > label { display:block; font-weight:600; margin-bottom:4px; }
+.row { display:flex; gap:8px; align-items:center; }
+.row > input { flex:1; min-width:0; }
+input[type=text],input[type=number],select { width:100%; padding:9px 11px; font:inherit; color:inherit; background:var(--panel); border:1px solid var(--rule); border-radius:8px; }
+input::placeholder { color:var(--dim); opacity:.75; }
+input:focus-visible,button:focus-visible,select:focus-visible,a:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+input[type=range] { flex:1; accent-color:var(--accent); }
+.hint { color:var(--dim); font-size:13px; margin-top:5px; }
+.status { font-size:13px; margin-top:5px; min-height:20px; }
+button { font:inherit; color:inherit; cursor:pointer; border-radius:8px; border:1px solid var(--rule); background:var(--panel); padding:8px 14px; white-space:nowrap; }
+button:hover { border-color:var(--accent); }
+button.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600; }
+button.go { background:var(--sun); color:var(--sun-ink); border-color:var(--sun); font-weight:700; }
+button.ghost { background:transparent; border-color:transparent; color:var(--accent); }
+button.ghost:hover { background:var(--accent-soft); }
+button.danger { color:var(--bad); border-color:var(--bad); }
+.chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; align-items:center; }
+.chip { font-size:13px; padding:3px 10px; border-radius:99px; background:var(--panel2); border:1px solid transparent; }
+.chip:hover { border-color:var(--accent); }
+.chip.on { background:var(--accent); color:var(--accent-ink); }
+.tag { font-size:13px; padding:3px 4px 3px 10px; border-radius:99px; background:var(--accent-soft); display:inline-flex; gap:4px; align-items:center; }
+.tag button { border:0; background:none; padding:0 6px; }
+.seg { display:inline-flex; border:1px solid var(--rule); border-radius:8px; overflow:hidden; }
+.seg button { border:0; border-radius:0; padding:7px 14px; background:var(--panel); }
+.seg button.on { background:var(--accent); color:var(--accent-ink); }
+.pill { display:inline-flex; gap:6px; align-items:center; font-size:13px; padding:2px 10px; border-radius:99px; font-weight:500; }
+.pill::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; }
+.ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
+.pill.ok { background:var(--ok-soft); } .pill.warn { background:var(--warn-soft); } .pill.bad { background:var(--bad-soft); } .pill.idle { background:var(--panel2); color:var(--dim); }
+.check { list-style:none; padding:0; margin:0; }
+.check li { display:flex; gap:10px; padding:9px 0; border-bottom:1px solid var(--rule); align-items:baseline; }
+.check li:last-child { border-bottom:0; }
+.check b { font-weight:600; }
+.progress { height:10px; border-radius:99px; background:var(--panel2); overflow:hidden; }
+.progress i { display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--sun)); transition:width .4s; }
+pre.log { background:#15131f; color:#d9d6e8; border-radius:10px; padding:12px 14px; max-height:280px; overflow:auto; font:12.5px/1.55 "Cascadia Code",Consolas,monospace; margin:0; white-space:pre-wrap; }
+.lede { font-size:16px; color:var(--dim); }
+
+/* modal */
+#modal:empty { display:none; }
+.scrim { position:fixed; inset:0; background:rgba(15,12,30,.45); display:flex; align-items:center; justify-content:center; padding:16px; z-index:40; }
+.dialog { background:var(--panel); border-radius:14px; box-shadow:var(--shadow); width:min(620px,100%); max-height:82vh; display:flex; flex-direction:column; border:1px solid var(--rule); }
+.dialog header,.dialog footer { padding:14px 18px; display:flex; gap:8px; align-items:center; }
+.dialog header { border-bottom:1px solid var(--rule); justify-content:space-between; }
+.dialog footer { border-top:1px solid var(--rule); justify-content:flex-end; flex-wrap:wrap; }
+.dialog .inner { padding:14px 18px; overflow:auto; flex:1; }
+.dirs { list-style:none; padding:0; margin:8px 0 0; }
+.dirs button { width:100%; text-align:left; border:0; background:none; border-radius:6px; padding:6px 8px; }
+.dirs button:hover { background:var(--accent-soft); }
+.crumb { font-family:"Cascadia Code",Consolas,monospace; font-size:13px; overflow-wrap:anywhere; }
+
+/* switcher: deliberately not part of any design */
+#bar { position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:60; background:#000; color:#fff; border-radius:99px; display:flex; gap:4px; align-items:center; padding:5px 8px; font:13px system-ui; box-shadow:0 4px 18px rgba(0,0,0,.45); white-space:nowrap; }
+#bar button { background:none; color:#fff; border:0; padding:3px 10px; border-radius:99px; }
+#bar button:hover { background:#333; }
+#state { position:fixed; right:14px; bottom:62px; width:min(380px,calc(100vw - 28px)); max-height:60vh; overflow:auto; background:#000; color:#b9f6ca; font:12px/1.4 Consolas,monospace; padding:10px; border-radius:10px; z-index:59; margin:0; }
+#toast { position:fixed; left:50%; bottom:66px; transform:translateX(-50%); z-index:70; background:var(--ink); color:var(--bg); padding:9px 16px; border-radius:10px; box-shadow:var(--shadow); max-width:90vw; }
+#toast:empty { display:none; }
+
+/* A: guided */
+.a-wrap { max-width:680px; margin:0 auto; padding:24px 16px; }
+.a-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:26px; flex-wrap:wrap; gap:8px; }
+.stepper { display:flex; gap:0; margin-bottom:26px; list-style:none; padding:0; }
+.stepper li { flex:1; position:relative; text-align:center; font-size:13px; color:var(--dim); }
+.stepper li::before { content:attr(data-n); display:block; width:30px; height:30px; line-height:28px; margin:0 auto 5px; border-radius:50%; border:2px solid var(--rule); background:var(--panel); font-weight:600; position:relative; z-index:1; }
+.stepper li::after { content:""; position:absolute; top:14px; left:-50%; width:100%; height:2px; background:var(--rule); }
+.stepper li:first-child::after { display:none; }
+.stepper li.now { color:var(--ink); font-weight:600; }
+.stepper li.now::before { border-color:var(--accent); background:var(--accent); color:var(--accent-ink); }
+.stepper li.done::before { border-color:var(--accent); color:var(--accent); content:"\2713"; }
+.a-q { font-size:24px; margin-bottom:4px; }
+.a-nav { display:flex; justify-content:space-between; margin-top:20px; }
+details.acc { border-bottom:1px solid var(--rule); padding:10px 0; }
+details.acc summary { cursor:pointer; font-weight:600; display:flex; justify-content:space-between; gap:12px; }
+details.acc > div { padding-top:14px; }
+
+/* B: cockpit */
+.b { display:grid; grid-template-columns:210px 1fr; min-height:100vh; }
+.b aside { background:var(--panel); border-right:1px solid var(--rule); padding:18px 12px; position:sticky; top:0; height:100vh; display:flex; flex-direction:column; gap:3px; }
+.b aside .brand { padding:0 10px 16px; }
+.b aside button { border:0; background:none; text-align:left; padding:8px 12px; display:flex; justify-content:space-between; }
+.b aside button:hover { background:var(--panel2); }
+.b aside button.on { background:var(--accent-soft); color:var(--accent); font-weight:600; }
+.b main { padding:0 24px 24px; min-width:0; }
+.b-top { position:sticky; top:0; z-index:5; background:var(--bg); padding:16px 0 12px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+.b-top h1 { font-size:22px; }
+.tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin-bottom:16px; }
+.tile { background:var(--panel); border:1px solid var(--rule); border-radius:10px; padding:10px 14px; }
+.tile .dim { font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+.tile b { display:block; font-size:15px; margin-top:2px; }
+.b-grid { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(250px,1fr); gap:16px; align-items:start; }
+.b-grid > div { display:grid; gap:16px; min-width:0; }
+.md { display:grid; grid-template-columns:270px 1fr; gap:16px; align-items:start; }
+.md-list { max-height:72vh; overflow:auto; padding:8px; }
+.md-list button { display:block; width:100%; border:0; background:none; text-align:left; padding:7px 10px; }
+.md-list button.on { background:var(--accent-soft); }
+.md-list button small { display:block; color:var(--dim); }
+
+/* C: one sentence */
+.c-top { display:flex; justify-content:space-between; align-items:center; padding:16px 24px; }
+.c-hero { max-width:900px; margin:5vh auto 0; padding:0 24px; text-align:center; }
+.c-sentence { font-size:clamp(22px,3.2vw,34px); line-height:1.75; font-weight:400; letter-spacing:-.01em; }
+.tok { font:inherit; padding:0 12px; border:0; border-bottom:3px solid var(--accent); border-radius:6px 6px 0 0; background:var(--accent-soft); color:var(--accent); font-weight:600; white-space:normal; overflow-wrap:anywhere; }
+.tok.empty { border-color:var(--sun); background:transparent; color:var(--sun); border-style:dashed; border-width:0 0 3px; }
+.c-run { width:132px; height:132px; border-radius:50%; font-size:24px; margin:36px auto 10px; display:block; box-shadow:0 10px 30px color-mix(in srgb,var(--sun) 45%,transparent); }
+.track { display:flex; margin:44px auto 0; max-width:820px; padding:0 24px; gap:6px; }
+.track div { flex:1; text-align:left; padding:10px 12px; border-top:3px solid var(--rule); font-size:13px; }
+.track div.now { border-color:var(--sun); }
+.track div b { display:block; }
+.c-more { display:flex; gap:8px; justify-content:center; margin-top:20px; flex-wrap:wrap; }
+.drawer { position:fixed; top:0; right:0; bottom:0; width:min(520px,100%); background:var(--panel); border-left:1px solid var(--rule); box-shadow:var(--shadow); z-index:30; display:flex; flex-direction:column; }
+.drawer header { padding:16px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--rule); }
+.drawer .inner { padding:6px 20px 90px; overflow:auto; flex:1; }
+.tl { list-style:none; padding:0; margin:0 auto; max-width:620px; text-align:left; }
+.tl li { padding:3px 0 3px 26px; position:relative; color:var(--dim); font-size:14px; }
+.tl li::before { content:""; position:absolute; left:6px; top:10px; width:9px; height:9px; border-radius:50%; background:var(--rule); }
+.tl li.done { color:var(--ink); } .tl li.done::before { background:var(--accent); }
+.tl li.now { color:var(--sun); font-weight:600; } .tl li.now::before { background:var(--sun); box-shadow:0 0 0 4px color-mix(in srgb,var(--sun) 25%,transparent); }
+
+@media (max-width:820px) {
+  .b { grid-template-columns:1fr; } .b aside { position:static; height:auto; flex-direction:row; flex-wrap:wrap; } .b aside .brand { width:100%; padding-bottom:6px; }
+  .b-grid,.md { grid-template-columns:1fr; } .b main { padding:0 16px 16px; } .track { flex-direction:column; }
+}
+</style>
+</head>
+<body>
+<div id="app"></div><div id="modal"></div><div id="toast" role="status"></div>
+<pre id="state" hidden></pre>
+<div id="bar" role="toolbar" aria-label="Prototype variant switcher">
+  <button data-act="prev" aria-label="Previous variant">&#8592;</button><span id="barLabel"></span>
+  <button data-act="next" aria-label="Next variant">&#8594;</button><button data-act="toggleState">state</button>
+</div>
+<script>
+'use strict';
+const VARIANTS = { A:'Guided', B:'Cockpit', C:'One sentence' };
+const IMAGES = [
+  ['GPU (cu128)', 'vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0-r2'],
+  ['CPU', 'vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2'] ];
+const STEPS = ['census','byte-level-reduction','extraction','content-census','redundancy-signature','content-redundancy','seed-extraction','seed-corpus-comparison','embedding-scoring','translation','relevance-scoring','relevance-floor','clustering','relevance-report','arrangement','generation'];
+const CASCADE = ['byte-level-reduction','extraction','content-census','content-redundancy','seed-measurement','embedding-scoring','arrangement','generation'];
+// the real eighteen keys of ProfileKey; "group", the sliders' ranges and the examples are the prototype's
+const KEYS = [
+ {k:'seedFolder',t:'folder',g:'Relevance',run:'seed-measurement',why:'Documents you already know are good: the rest is scored against them.',ex:'D:\\archive\\exemplars'},
+ {k:'relevanceScoreFloor',t:'range',min:0,max:1,step:.01,g:'Relevance',run:'embedding-scoring',why:'What each possible cut would cost you, in documents.',ex:'0.62',rep:['relevance-labelling.html','cluster-sizes.html','seed-corpus-comparison.html']},
+ {k:'embeddingModel',t:'model',g:'Relevance',run:'embedding-scoring',why:'Any model you can serve locally. Unset means bge-m3:latest.',ex:'bge-m3:latest'},
+ {k:'boilerplateDocumentFrequencyFloor',t:'range',min:0,max:1,step:.01,g:'Duplicates',run:'content-redundancy',why:'How many documents share the same passages.',ex:'0.4',rep:['document-frequency.html']},
+ {k:'translationSimilarityFloor',t:'range',min:0,max:1,step:.01,g:'Duplicates',run:'embedding-scoring',why:'How alike two documents in different languages must be to count as one.',ex:'0.85',rep:['translations.html']},
+ {k:'preferredLanguages',t:'langs',g:'Duplicates',run:'embedding-scoring',why:'Which copy you keep of a document held in several languages. First wins.',ex:'it, en',rep:['translations.html']},
+ {k:'degenerateOutputConfidenceFloor',t:'range',min:0,max:1,step:.01,g:'Extraction',run:'extraction',why:'How well the text extraction went.',ex:'0.5',rep:['confidence-distribution.html']},
+ {k:'degenerateOutputWordFloor',t:'range',min:0,max:500,step:1,g:'Extraction',run:'extraction',why:'Words a file must hold once its text was extracted.',ex:'20',rep:['word-count-distribution.html']},
+ {k:'extractionAttempt',t:'stepper',min:1,max:10,g:'Extraction',run:'extraction',why:'Raise it to ask the converter again about files it did not answer on.',ex:'2',rep:['extraction-failures.html']},
+ {k:'logTimestampShareFloor',t:'range',min:0,max:1,step:.01,g:'File kinds',run:'byte-level-reduction',why:'How much of a text file begins with a date or a time.',ex:'0.7',rep:['format-mix.html']},
+ {k:'configurationSettingShareFloor',t:'range',min:0,max:1,step:.01,g:'File kinds',run:'byte-level-reduction',why:'How much of a text file is settings.',ex:'0.8',rep:['format-mix.html']},
+ {k:'codeNameEndings',t:'tags',sug:['.java','.sql','.py','.js','.cs','.xml','.sh'],g:'File kinds',run:'byte-level-reduction',why:'Files that are code by the ending of their name, kept apart from the documents.',ex:'.java .sql',rep:['format-mix.html']},
+ {k:'outOfScopeNameEndings',t:'tags',sug:['.ok','.lck','.tmp','.bak','.log'],g:'File kinds',run:'byte-level-reduction',why:'Files you know are not documents by the ending of their name.',ex:'.ok .tmp',rep:['format-mix.html']},
+ {k:'arrangementApproved',t:'approve',g:'Writing',run:'generation',why:'Whether the groups formed are worth writing over. Auto writes every arrangement unread.',ex:'auto',rep:['arrangement.html']},
+ {k:'generationModel',t:'model',g:'Writing',run:'generation',why:'Any model you can serve locally. Unset means qwen3:8b.',ex:'qwen3:8b'},
+ {k:'generationContextWindow',t:'presets',opts:[8192,16384,32768,65536],g:'Writing',run:'generation',why:'How much your own machine can read in one go.',ex:'32768'},
+ {k:'deliverableLanguage',t:'seg',opts:['en','it'],g:'Writing',run:'generation',why:'The language the people reading the pages read.',ex:'en'},
+ {k:'clusterPageByteCeiling',t:'presets',opts:[1048576,5242880,10485760,26214400],fmt:'bytes',g:'Writing',run:null,why:'How large a group\'s page may be when written whole. Past it, the page is split.',ex:'5242880',rep:['cluster-page-sizes.html']},
+];
+const REPORTS = ['progress.html','format-mix.html','confidence-distribution.html','word-count-distribution.html','document-frequency.html','relevance-labelling.html','cluster-sizes.html','arrangement.html','translations.html'];
+const QUESTIONS = ['manuali/guida-operativa.pdf','processi/flusso-ordini.docx','verbali/2024-03-riunione.docx','export/tabella-codici.xlsx','manuali/architettura.pptx'];
+
+const S = {
+  variant: new URLSearchParams(location.search).get('variant') in VARIANTS ? new URLSearchParams(location.search).get('variant') : 'A',
+  page:'launch', step:0, corpusRoot:'', workingDir:'', deliverableRoot:'',
+  doclingImage:IMAGES[0][1], doclingUrl:'http://localhost:5001', ollamaUrl:'http://localhost:11434', labelModel:'',
+  profile:{ preferredLanguages:[], codeNameEndings:[], outOfScopeNameEndings:[] }, provenance:{}, saved:{},
+  folder:{}, models:[], modelSource:'…', run:null, selected:'relevanceScoreFloor', answers:{}, codeSets:[{folder:'src/legacy',name:'Legacy billing'}], drawer:null };
+const FIELD_TEXT = {
+  corpusRoot:['Corpus root','The folder of documents Vespera reads. It is never changed.','D:\\archive\\corpus'],
+  workingDir:['Working directory','Where the database, the reports and profile.yaml live. Needs room to spare; created if missing.','D:\\vespera\\work'],
+  deliverableRoot:['Deliverable root','Where the finished pages go. Leave empty to use the working directory.','D:\\vespera\\deliverable'] };
+
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $ = (q, r=document) => r.querySelector(q);
+const $$ = (q, r=document) => [...r.querySelectorAll(q)];
+const get = p => p.split('.').reduce((o,k)=>o?.[k], S);
+function set(p,v){ const ks=p.split('.'); const l=ks.pop(); ks.reduce((o,k)=>o[k],S)[l]=v; }
+const gib = b => b < 0 ? '?' : (b/1073741824).toFixed(b>1e11?0:1)+' GiB';
+const human = n => n>=1048576 ? (n/1048576)+' MiB' : n;
+let toastTimer; function toast(m){ $('#toast').textContent=m; clearTimeout(toastTimer); toastTimer=setTimeout(()=>$('#toast').textContent='',3200); }
+
+/* ---------- the widgets ---------- */
+function folderField(key, compact){
+  const [label,hint,ex]=FIELD_TEXT[key];
+  return `<div class="f"><label for="f-${key}">${label}</label>
+   <div class="row"><input type="text" id="f-${key}" data-bind="${key}" data-folder="${key}" value="${esc(get(key))}" placeholder="e.g. ${esc(ex)}" spellcheck="false">
+   <button data-act="browse" data-key="${key}">Browse…</button></div>
+   ${compact?'':`<div class="hint">${hint}</div>`}<div class="status" data-live="fs-${key}">${folderStatus(key)}</div></div>`;
+}
+function folderStatus(key){
+  const v=get(key), st=S.folder[key];
+  if(!v) return key==='deliverableRoot' ? '<span class="pill idle">will use the working directory</span>' : '<span class="pill idle">not chosen yet</span>';
+  if(!st) return '<span class="pill idle">checking…</span>';
+  if(st.exists) return `<span class="pill ok">folder found${st.free>=0?' · '+gib(st.free)+' free':''}</span>`;
+  return key==='corpusRoot' ? '<span class="pill bad">no such folder</span>' : '<span class="pill warn">will be created</span>';
+}
+function modelField(bind,label,hint){
+  const chips=S.models.map(m=>`<button class="chip" data-act="fill" data-bind="${bind}" data-val="${esc(m)}">${esc(m)}</button>`).join('');
+  return `<div class="f"><label for="f-${bind}">${label}</label><input type="text" id="f-${bind}" data-bind="${bind}" value="${esc(get(bind)??'')}" placeholder="e.g. qwen3:8b" spellcheck="false">
+   ${hint?`<div class="hint">${hint}</div>`:''}<div class="chips"><span class="dim small">${S.modelSource==='ollama'?'Served by Ollama:':'Examples (Ollama not answering):'}</span>${chips}</div></div>`;
+}
+function imageField(){
+  return `<div class="f"><label for="f-img">Docling image</label><input type="text" id="f-img" data-bind="doclingImage" value="${esc(S.doclingImage)}" spellcheck="false" class="mono">
+   <div class="chips">${IMAGES.map(([n,v])=>`<button class="chip ${S.doclingImage===v?'on':''}" data-act="fill" data-bind="doclingImage" data-val="${esc(v)}">${n}</button>`).join('')}</div>
+   <div class="hint">The converter. Use the GPU image if this machine has one: the CPU image is far slower.</div></div>`;
+}
+function urlField(bind,label,ex,hint){
+  return `<div class="f"><label for="f-${bind}">${label}</label><div class="row"><input type="text" id="f-${bind}" data-bind="${bind}" value="${esc(get(bind))}" placeholder="e.g. ${ex}" spellcheck="false"><button data-act="testUrl" data-bind="${bind}">Test</button></div>
+   <div class="hint">${hint}</div></div>`;
+}
+function profileControl(K){
+  const b='profile.'+K.k, v=S.profile[K.k]??'';
+  switch(K.t){
+   case 'folder': return `<div class="row"><input type="text" id="p-${K.k}" data-bind="${b}" value="${esc(v)}" placeholder="e.g. ${esc(K.ex)}"><button data-act="browse" data-key="${b}">Browse…</button></div>`;
+   case 'range': return `<div class="row"><input type="range" data-bind="${b}" min="${K.min}" max="${K.max}" step="${K.step}" value="${esc(v===''?K.ex:v)}" aria-label="${K.k}"><input type="number" style="width:96px;flex:none" data-bind="${b}" min="${K.min}" max="${K.max}" step="${K.step}" value="${esc(v)}" placeholder="${esc(K.ex)}" aria-label="${K.k} value"></div>`;
+   case 'stepper': return `<input type="number" style="width:110px" id="p-${K.k}" data-bind="${b}" min="${K.min}" max="${K.max}" value="${esc(v)}" placeholder="e.g. ${K.ex}">`;
+   case 'model': return modelField(b,'','').replace('<label for="f-'+b+'"></label>','').replace('class="f"','');
+   case 'seg': return `<div class="seg">${K.opts.map(o=>`<button class="${v===o?'on':''}" data-act="seg" data-bind="${b}" data-val="${o}">${o}</button>`).join('')}</div>`;
+   case 'approve': return `<div class="seg">${[['auto','Auto: write every arrangement'],['','Ask me each time']].map(([o,n])=>`<button class="${v===o?'on':''}" data-act="seg" data-bind="${b}" data-val="${o}">${n}</button>`).join('')}</div>`;
+   case 'presets': return `<div class="row"><input type="number" style="width:150px;flex:none" id="p-${K.k}" data-bind="${b}" value="${esc(v)}" placeholder="e.g. ${K.ex}"><span class="chips" style="margin:0">${K.opts.map(o=>`<button class="chip" data-act="fill" data-bind="${b}" data-val="${o}">${K.fmt?human(o):o}</button>`).join('')}</span></div>`;
+   case 'tags': return `<div class="chips" data-live="tags-${K.k}" style="margin-top:0">${tagsHtml(K)}</div>
+     <input type="text" style="margin-top:7px" data-tagadd="${K.k}" placeholder="Type an ending and press Enter, e.g. ${esc(K.ex.split(' ')[0])}">
+     <div class="chips">${K.sug.map(s=>`<button class="chip" data-act="tagadd" data-key="${K.k}" data-val="${s}">+ ${s}</button>`).join('')}</div>`;
+   case 'langs': return `<div class="chips" style="margin-top:0" data-live="langs">${langsHtml()}</div>`;
+  }
+}
+const tagsHtml = K => (S.profile[K.k]||[]).map(t=>`<span class="tag">${esc(t)}<button data-act="tagdel" data-key="${K.k}" data-val="${esc(t)}" aria-label="Remove ${esc(t)}">×</button></span>`).join('') || '<span class="dim small">none yet</span>';
+const langsHtml = () => ['it','en','de','fr','es'].map(l=>{ const i=S.profile.preferredLanguages.indexOf(l); return `<button class="chip ${i>=0?'on':''}" data-act="lang" data-val="${l}">${i>=0?(i+1)+'. ':''}${l}</button>`; }).join('');
+function costText(K){
+  if(!K.run) return 'Saving this makes no run again.';
+  const runs=CASCADE.slice(CASCADE.indexOf(K.run));
+  return `Saving this re-makes ${runs.length} of ${CASCADE.length} steps, from ${K.run}${runs.includes('arrangement')?', and an approved arrangement is asked for again':''}${K.k==='seedFolder'?'. The label file is refused until you run again':''}.`;
+}
+function profileEditor(K){
+  return `<p style="margin:0 0 12px">${esc(K.why)}</p><div class="f">${profileControl(K)}</div>
+   <div class="f"><label for="pv-${K.k}">Why this value?</label><input type="text" id="pv-${K.k}" data-bind="provenance.${K.k}" value="${esc(S.provenance[K.k]||'')}" placeholder="e.g. ${K.rep?'read off '+K.rep[0]+' on 31 Oct: keeps 90% of the labelled documents':'the operator\'s own knowledge of the archive'}">
+   <div class="hint">Required. Written beside the value in profile.yaml.</div></div>
+   ${K.rep?`<div class="chips" style="margin-bottom:12px"><span class="dim small">Decide from:</span>${K.rep.map(r=>`<button class="chip" data-act="report" data-val="${r}">${r}</button>`).join('')}</div>`:''}
+   <p class="small warn" style="margin:0 0 12px">${esc(costText(K))}</p>
+   <button class="primary" data-act="saveKey" data-key="${K.k}">Save</button> ${S.saved[K.k]?'<span class="pill ok">saved</span>':''}`;
+}
+const keyValue = K => { const v=S.profile[K.k]; return Array.isArray(v) ? v.join(' ') : v; };
+
+/* ---------- derived state ---------- */
+function preflight(){
+  const st=S.folder.corpusRoot, out=[];
+  out.push(!S.corpusRoot?['bad','Corpus root','Not chosen yet']:st&&!st.exists?['bad','Corpus root','No such folder']:['ok','Corpus root',S.corpusRoot]);
+  out.push(!S.workingDir?['bad','Working directory','Not chosen yet']:['ok','Working directory',S.workingDir+(S.folder.workingDir?.exists===false?' (will be created)':'')]);
+  out.push(/cu128/.test(S.doclingImage)?['ok','Docling','Answers at '+S.doclingUrl+' (simulated)']:['warn','Docling','CPU image: extraction is far slower (simulated)']);
+  out.push(S.modelSource==='ollama'?['ok','Ollama','Serves '+S.models.length+' models']:['warn','Ollama','Not answering at '+S.ollamaUrl]);
+  out.push(S.profile.seedFolder?['ok','Seed folder',S.profile.seedFolder]:['warn','Seed folder','Not set: asked for after the first run']);
+  return out;
+}
+const checkList = () => `<ul class="check">${preflight().map(([c,l,t])=>`<li><span class="pill ${c}" aria-label="${c}"></span><span><b>${l}</b><br><span class="dim small" style="overflow-wrap:anywhere">${esc(t)}</span></span></li>`).join('')}</ul>`;
+const blocked = () => preflight().find(([c])=>c==='bad');
+const runState = () => !S.run ? 'idle' : S.run.ended ? (S.run.stopped?'stopped':'ended') : 'running';
+const pct = () => S.run ? Math.round((S.run.step/STEPS.length)*100) : 0;
+function runHeadline(){ const r=runState(); return r==='running'?`Running: ${STEPS[S.run.step]||'finishing'}`:r==='ended'?'Finished':r==='stopped'?'Stopped by you':'Nothing running'; }
+const logHtml = () => `<pre class="log" data-scroll>${esc((S.run?.log||['no output yet']).join('\n'))}</pre>`;
+
+const LIVE = {
+  preflight: checkList,
+  bprogress: () => `<div class="row" style="justify-content:space-between"><b>${esc(runHeadline())}</b><span class="dim">${pct()}%</span></div><div class="progress" style="margin:10px 0 14px"><i style="width:${pct()}%"></i></div>${logHtml()}`,
+  atiles: () => runTiles(),
+  sentence: () => sentenceHtml(),
+  timeline: () => STEPS.map((s,i)=>`<li class="${!S.run?'':i<S.run.step?'done':(i===S.run.step&&!S.run.ended?'now':'')}">${s}</li>`).join(''),
+  clog: () => logHtml(),
+  chead: () => `<h1 style="font-size:28px">${esc(runHeadline())}</h1><div class="progress" style="margin:16px auto;max-width:520px"><i style="width:${pct()}%"></i></div>`,
+  langs: langsHtml,
+};
+function refresh(){
+  $$('[data-live]').forEach(n=>{
+    const k=n.dataset.live; let h;
+    if(k.startsWith('fs-')) h=folderStatus(k.slice(3));
+    else if(k.startsWith('tags-')) h=tagsHtml(KEYS.find(K=>K.k===k.slice(5)));
+    else if(LIVE[k]) h=LIVE[k]();
+    if(h!==undefined && n.innerHTML!==h){ n.innerHTML=h; }
+  });
+  $$('[data-scroll]').forEach(n=>n.scrollTop=n.scrollHeight);
+  const st=$('#state'); if(!st.hidden){ const {models,...shown}=S; st.textContent=JSON.stringify(shown,(k,v)=>k==='log'?`[${v.length} lines]`:v,1); }
+}
+const LIVE_HTML = k => `<div data-live="${k}">${LIVE[k]()}</div>`;
+
+/* ---------- shared bits of a page ---------- */
+function questionsBody(){
+  return `<p class="dim" style="margin-top:0">Is each sample a document for the deliverable? On-topic operational records (.OK flows, lookup tables) are <b>not relevant</b>.</p>
+   ${QUESTIONS.map(q=>`<div class="row" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--rule);flex-wrap:wrap"><code style="overflow-wrap:anywhere">${esc(q)}</code>
+     <div class="seg">${[['true','Relevant'],['false','Not relevant']].map(([v,n])=>`<button class="${S.answers[q]===v?'on':''}" data-act="seg" data-bind="answers.${esc(q)}" data-plain="${esc(q)}" data-val="${v}">${n}</button>`).join('')}</div></div>`).join('')}
+   <div style="margin-top:14px" class="row"><button class="primary" data-act="sim" data-val="Answers saved (simulated)">Save</button><button data-act="start" data-val="label">Save, then Label</button><button class="ghost" data-act="sim" data-val="The local model would answer (simulated)">Have the local model answer</button></div>`;
+}
+function codeSetsBody(){
+  return `<p class="dim" style="margin-top:0">Give a set of code a readable name in the deliverable.</p>
+   ${S.codeSets.map(c=>`<div class="row" style="margin-bottom:8px"><code style="flex:1;overflow-wrap:anywhere">${esc(c.folder)}</code><input type="text" style="flex:1" value="${esc(c.name)}" aria-label="Name"></div>`).join('')}
+   <div class="f" style="margin-top:14px"><label>Add a folder</label><div class="row"><input type="text" placeholder="e.g. src/billing (from the corpus root)"><button data-act="sim" data-val="Would browse inside the corpus root">Browse…</button></div></div>
+   <div class="f"><label>Name</label><input type="text" placeholder="e.g. Billing engine"></div><button class="primary" data-act="sim" data-val="Names saved (simulated)">Save</button>`;
+}
+function nextBody(){
+  if(runState()!=='ended') return `<p class="dim" style="margin:0">Known once a run has finished well: it says what the next run wants from you.</p>`;
+  const K=KEYS.find(K=>K.k==='relevanceScoreFloor');
+  return `<p style="margin-top:0"><b>The next run wants a relevance floor.</b></p>${profileEditor(K)}<div style="margin-top:12px"><button class="go" data-act="start" data-val="run">Save, then Run</button></div>`;
+}
+const reportChips = () => `<div class="chips" style="margin:0">${REPORTS.map(r=>`<button class="chip" data-act="report" data-val="${r}">${r.replace('.html','')}</button>`).join('')}</div>`;
+function runTiles(){
+  const r=runState();
+  return `<div class="tiles" style="margin-bottom:0">
+   <div class="tile"><span class="dim">Docling</span><b class="${/cu128/.test(S.doclingImage)?'ok':'warn'}">${/cu128/.test(S.doclingImage)?'GPU image':'CPU image'}</b></div>
+   <div class="tile"><span class="dim">Ollama</span><b class="${S.modelSource==='ollama'?'ok':'warn'}">${S.modelSource==='ollama'?S.models.length+' models':'Not answering'}</b></div>
+   <div class="tile"><span class="dim">Free on work drive</span><b>${S.folder.workingDir?.free>=0?gib(S.folder.workingDir.free):'—'}</b></div>
+   <div class="tile"><span class="dim">Invocation</span><b class="${r==='running'?'warn':''}">${r==='running'?pct()+'% · '+STEPS[S.run.step]:r}</b></div></div>`;
+}
+
+/* ---------- A: guided ---------- */
+function viewA(){
+  const more = [['launch','Start'],['profile','Settings'],['questions','Questions'],['codesets','Code sets']];
+  const head = `<div class="a-head"><div class="brand"><i></i>Vespera</div><div class="row" style="flex-wrap:wrap">${more.map(([p,n])=>`<button class="ghost" data-act="page" data-val="${p}" ${S.page===p?'style="font-weight:700"':''}>${n}</button>`).join('')}</div></div>`;
+  let body;
+  if(S.page==='profile'){
+    const groups=[...new Set(KEYS.map(K=>K.g))];
+    body=`<h1 class="a-q">Settings</h1><p class="lede">Vespera asks for these when it needs them. Change one only when a report tells you to.</p><div class="card" style="padding:6px 20px">
+     ${groups.map(g=>`<h3 style="margin:16px 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.05em" class="dim">${g}</h3>${KEYS.filter(K=>K.g===g).map(K=>`<details class="acc" ${S.selected===K.k?'open':''} data-select="${K.k}"><summary><span>${K.k}</span><span class="dim small" style="font-weight:400;overflow-wrap:anywhere;text-align:right">${esc(keyValue(K)||'not set')}</span></summary><div>${profileEditor(K)}</div></details>`).join('')}`).join('')}</div>`;
+  } else if(S.page==='questions'){ body=`<h1 class="a-q">Questions</h1><div class="card" style="margin-top:14px">${questionsBody()}</div>`;
+  } else if(S.page==='codesets'){ body=`<h1 class="a-q">Code sets</h1><div class="card" style="margin-top:14px">${codeSetsBody()}</div>`;
+  } else {
+    const names=['Where','Services','Check','Run'], step=S.run?3:S.step;
+    const stepper=`<ol class="stepper">${names.map((n,i)=>`<li data-n="${i+1}" class="${i===step?'now':i<step?'done':''}">${n}</li>`).join('')}</ol>`;
+    const nav=(b,n)=>`<div class="a-nav">${b?`<button data-act="stepTo" data-val="${step-1}">← Back</button>`:'<span></span>'}${n||''}</div>`;
+    if(step===0) body=`${stepper}<h1 class="a-q">Where are your documents?</h1><p class="lede">Choose the folders. Nothing in the corpus is ever changed.</p><div class="card" style="margin-top:14px">${folderField('corpusRoot')}${folderField('workingDir')}${folderField('deliverableRoot')}</div>${nav(false,`<button class="primary" data-act="stepTo" data-val="1">Next: services →</button>`)}`;
+    if(step===1) body=`${stepper}<h1 class="a-q">Which services should it use?</h1><p class="lede">The defaults work when the sidecars run on this machine.</p><div class="card" style="margin-top:14px">${imageField()}${urlField('doclingUrl','Docling address','http://localhost:5001','Where the converter answers.')}${urlField('ollamaUrl','Ollama address','http://localhost:11434','Where the local models answer.')}${modelField('labelModel','Label model','Answers the relevance questions when you ask the local model to.')}</div>${nav(true,`<button class="primary" data-act="stepTo" data-val="2">Next: check →</button>`)}`;
+    if(step===2) body=`${stepper}<h1 class="a-q">Ready?</h1><p class="lede">Red stops the run. Amber will not.</p><div class="card" style="margin-top:14px">${LIVE_HTML('preflight')}</div>${nav(true,`<div class="row"><button data-act="start" data-val="label">Label only</button><button class="go" data-act="start" data-val="run" style="padding:10px 26px">Run</button></div>`)}`;
+    if(step===3) body=`${stepper}<div class="card">${LIVE_HTML('bprogress')}<div class="row" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap"><button class="ghost" data-act="report" data-val="progress.html">Open progress page ↗</button>${runState()==='running'?'<button class="danger" data-act="stop">Stop…</button>':'<button data-act="reset">Back to start</button>'}</div></div>
+      ${runState()==='ended'?`<div class="card" style="margin-top:14px"><h2>What next</h2>${nextBody()}</div><div class="card" style="margin-top:14px"><h2>Reports</h2>${reportChips()}</div>`:''}`;
+  }
+  return `<div class="a-wrap">${head}${body}</div>`;
+}
+
+/* ---------- B: cockpit ---------- */
+function viewB(){
+  const nav=[['launch','Launch'],['invocation','Invocation'],['next','Next'],['questions','Questions'],['codesets','Code sets'],['profile','Profile']];
+  const r=runState();
+  const actions=`<div class="row">${r==='running'?'<button class="danger" data-act="stop">Stop…</button>':`<button data-act="sim" data-val="Sidecars re-checked (simulated)">Check</button><button data-act="start" data-val="label">Label</button><button class="go" data-act="start" data-val="run" style="padding:8px 26px">Run</button>`}</div>`;
+  let body, title=nav.find(n=>n[0]===S.page)?.[1]||'Launch';
+  if(S.page==='invocation') body=`<div data-live="atiles">${runTiles()}</div><div class="card" style="margin-top:16px">${LIVE_HTML('bprogress')}<button class="ghost" style="margin-top:10px" data-act="report" data-val="progress.html">Open progress page ↗</button></div><div class="card" style="margin-top:16px"><h2>Reports</h2>${reportChips()}</div>`;
+  else if(S.page==='next') body=`<div class="card">${nextBody()}</div>`;
+  else if(S.page==='questions') body=`<div class="card">${questionsBody()}</div>`;
+  else if(S.page==='codesets') body=`<div class="card">${codeSetsBody()}</div>`;
+  else if(S.page==='profile'){
+    const K=KEYS.find(K=>K.k===S.selected);
+    body=`<div class="md"><div class="card md-list">${KEYS.map(k=>`<button class="${k.k===S.selected?'on':''}" data-act="pick" data-val="${k.k}">${k.k}<small>${esc(keyValue(k)||'not set')}</small></button>`).join('')}</div>
+      <div class="card"><h2>${K.k}</h2>${profileEditor(K)}</div></div>`;
+  } else body=`<div data-live="atiles">${runTiles()}</div><div class="b-grid" style="margin-top:16px"><div>
+      <div class="card"><h2>Folders</h2>${folderField('corpusRoot',true)}${folderField('workingDir',true)}${folderField('deliverableRoot',true)}</div>
+      <div class="card"><h2>Services</h2>${imageField()}${urlField('doclingUrl','Docling address','http://localhost:5001','Where the converter answers.')}${urlField('ollamaUrl','Ollama address','http://localhost:11434','Where the local models answer.')}${modelField('labelModel','Label model')}</div>
+     </div><div><div class="card"><h2>Preflight</h2>${LIVE_HTML('preflight')}</div>
+      <div class="card"><h2>Reports</h2>${reportChips()}</div></div></div>`;
+  return `<div class="b"><aside><div class="brand"><i></i>Vespera</div>${nav.map(([p,n])=>`<button class="${S.page===p?'on':''}" data-act="page" data-val="${p}">${n}${p==='invocation'&&r==='running'?'<span class="pill warn" aria-label="running"></span>':''}</button>`).join('')}</aside>
+    <main><div class="b-top"><h1>${title}</h1>${actions}</div>${body}</main></div>`;
+}
+
+/* ---------- C: one sentence ---------- */
+const tok = (key,empty) => `<button class="tok ${get(key)?'':'empty'}" data-act="editTok" data-val="${key}">${esc(short(get(key))||empty)}</button>`;
+const short = v => { if(!v) return ''; const p=v.split(/[\\/]/).filter(Boolean); return p.length>2 ? '…\\'+p.slice(-2).join('\\') : v; };
+function sentenceHtml(){
+  return `Read the documents in ${tok('corpusRoot','choose a folder')}, keep the work in ${tok('workingDir','choose a folder')}, and write the pages to ${S.deliverableRoot?tok('deliverableRoot',''):`<button class="tok empty" data-act="editTok" data-val="deliverableRoot">the same place</button>`}, with <button class="tok" data-act="editTok" data-val="services">${/cu128/.test(S.doclingImage)?'the GPU converter':'the CPU converter'}</button>.`;
+}
+function viewC(){
+  const r=runState();
+  const top=`<div class="c-top"><div class="brand"><i></i>Vespera</div><div class="row"><button class="ghost" data-act="drawer" data-val="profile">Tune</button><button class="ghost" data-act="drawer" data-val="questions">Questions</button><button class="ghost" data-act="drawer" data-val="codesets">Code sets</button><button class="ghost" data-act="drawer" data-val="reports">Reports</button></div></div>`;
+  let body;
+  if(r==='idle'){
+    const path=[['1','Survey','Counts, kinds, extraction'],['2','Score','Against your seed folder'],['3','Answer','Sixty questions'],['4','Cut','Your floor applies'],['5','Write','The finished tree']];
+    body=`<div class="c-hero"><div class="c-sentence" data-live="sentence">${sentenceHtml()}</div><button class="go c-run" data-act="start" data-val="run">Run</button><div class="dim small" data-live="cfoot">${''}</div>
+      <div class="c-more"><button class="ghost" data-act="start" data-val="label">Label instead</button></div></div>
+      <div class="track">${path.map(([n,a,b],i)=>`<div class="${i===0?'now':''}"><b>${n}. ${a}</b><span class="dim">${b}</span></div>`).join('')}</div>`;
+  } else {
+    body=`<div class="c-hero" style="margin-top:2vh"><div data-live="chead">${LIVE.chead()}</div>
+      <div class="row" style="justify-content:center;margin-bottom:22px">${r==='running'?'<button class="danger" data-act="stop">Stop…</button>':'<button data-act="reset">Done</button>'}<button class="ghost" data-act="report" data-val="progress.html">Progress page ↗</button></div>
+      ${r==='ended'?`<div class="card" style="text-align:left;margin-bottom:20px">${nextBody()}</div>`:''}
+      <div style="display:grid;grid-template-columns:minmax(180px,240px) minmax(0,1fr);gap:20px;text-align:left"><ol class="tl" data-live="timeline" style="margin:0">${LIVE.timeline()}</ol><div data-live="clog">${logHtml()}</div></div></div>`;
+  }
+  let drawer='';
+  if(S.drawer){
+    const titles={profile:'Tune',questions:'Questions',codesets:'Code sets',reports:'Reports'};
+    const inner=S.drawer==='profile'?KEYS.map(K=>`<details class="acc" data-select="${K.k}" ${S.selected===K.k?'open':''}><summary><span>${K.k}</span><span class="dim small" style="font-weight:400">${esc(keyValue(K)||'')}</span></summary><div>${profileEditor(K)}</div></details>`).join(''):S.drawer==='questions'?'<div style="padding-top:14px">'+questionsBody()+'</div>':S.drawer==='codesets'?'<div style="padding-top:14px">'+codeSetsBody()+'</div>':'<div style="padding-top:14px">'+reportChips()+'</div>';
+    drawer=`<div class="drawer"><header><h2 style="font-size:18px">${titles[S.drawer]}</h2><button class="ghost" data-act="drawer" data-val="">Close</button></header><div class="inner">${inner}</div></div>`;
+  }
+  return top+body+drawer;
+}
+
+/* ---------- render and actions ---------- */
+const VIEWS={A:viewA,B:viewB,C:viewC};
+function render(){
+  $('#app').innerHTML=VIEWS[S.variant]();
+  $('#barLabel').textContent=`PROTOTYPE · ${S.variant} (${VARIANTS[S.variant]})`;
+  $$('[data-folder]').forEach(n=>checkFolder(n.dataset.folder));
+  refresh();
+}
+function setVariant(v){ S.variant=v; const u=new URL(location); u.searchParams.set('variant',v); history.replaceState(null,'',u); render(); }
+function cycle(d){ const ks=Object.keys(VARIANTS); setVariant(ks[(ks.indexOf(S.variant)+d+ks.length)%ks.length]); }
+
+const pending={};
+function checkFolder(key){
+  const v=get(key); if(!v){ delete S.folder[key]; return; }
+  if(S.folder[key]?.path===v) return;
+  clearTimeout(pending[key]);
+  pending[key]=setTimeout(async()=>{
+    const d=await (await fetch('/api/list?path='+encodeURIComponent(v))).json();
+    S.folder[key]={exists:d.exists,free:d.free??-1,path:v}; refresh();
+  },250);
+}
+function setValue(bind,val){
+  if(bind.startsWith('answers.')) { S.answers[bind.slice(8)]=val; return; }
+  set(bind,val);
+  $$(`[data-bind="${CSS.escape(bind)}"]`).forEach(n=>{ if(n.tagName==='INPUT'&&n.value!==val) n.value=val; });
+  if(FIELD_TEXT[bind]){ delete S.folder[bind]; checkFolder(bind); }
+  refresh();
+}
+function startRun(kind){
+  if(kind==='run'&&blocked()){
+    S.page='launch'; S.step=0; render();
+    const b=blocked(); toast(`${b[1]}: ${b[2].toLowerCase()}`);
+    const key=b[1]==='Corpus root'?'corpusRoot':'workingDir'; if(S.variant==='C') edit(key); else $('#f-'+key)?.focus(); return;
+  }
+  clearInterval(S._t);
+  S.run={kind,step:0,log:[`vespera ${kind}`],ended:false}; S.step=3; if(S.variant==='B') S.page='invocation'; else S.page='launch'; S.drawer=null;
+  const names=kind==='run'?STEPS:['label'];
+  Object.defineProperty(S,'_t',{value:setInterval(()=>{
+    const r=S.run; if(!r||r.ended) return clearInterval(S._t);
+    r.log.push(`${new Date().toLocaleTimeString()}  ${names[Math.min(r.step,names.length-1)]}: done (simulated)`);
+    r.step+= kind==='run'?1:STEPS.length; if(r.step>=STEPS.length){ r.step=STEPS.length; r.ended=true; r.log.push('ended, exit code 0'); clearInterval(S._t); render(); return; }
+    refresh();
+  },1100),writable:true,configurable:true,enumerable:false});
+  render();
+}
+function modal(html){ $('#modal').innerHTML=`<div class="scrim" data-act="closeOnScrim">${html}</div>`; }
+function closeModal(){ $('#modal').innerHTML=''; }
+let roots=null, target=null;
+async function browse(key,path){
+  target=key; roots=roots||await (await fetch('/api/roots')).json();
+  const start=path||get(key)||roots.home;
+  let d=await (await fetch('/api/list?path='+encodeURIComponent(start))).json();
+  if(!d.exists) d=await (await fetch('/api/list?path='+encodeURIComponent(roots.home))).json();
+  modal(`<div class="dialog" role="dialog" aria-modal="true" aria-label="Choose a folder"><header><h2 style="font-size:16px">Choose a folder</h2><button class="ghost" data-act="close">Close</button></header>
+    <div class="inner"><div class="chips" style="margin:0 0 10px">${roots.roots.map(r=>`<button class="chip" data-act="nav" data-val="${esc(r)}">${esc(r)}</button>`).join('')}<button class="chip" data-act="nav" data-val="${esc(roots.home)}">Home</button></div>
+    <div class="crumb">${esc(d.path)}</div>${d.unreadable?'<p class="bad small">This folder cannot be read.</p>':''}
+    <ul class="dirs">${d.parent?`<li><button data-act="nav" data-val="${esc(d.parent)}">↰ Up</button></li>`:''}${d.dirs.map(n=>`<li><button data-act="nav" data-val="${esc(d.path.replace(/[\\/]$/,'')+(d.path.includes('\\')?'\\':'/')+n)}">▸ ${esc(n)}</button></li>`).join('')||'<li class="dim small" style="padding:6px 8px">No folders inside</li>'}</ul></div>
+    <footer><button class="ghost" data-act="nativePick">Use the Windows dialog…</button><button class="primary" data-act="useFolder" data-val="${esc(d.path)}">Use this folder</button></footer></div>`);
+}
+function edit(key){
+  const inner = key==='services' ? imageField()+urlField('doclingUrl','Docling address','http://localhost:5001','Where the converter answers.')+urlField('ollamaUrl','Ollama address','http://localhost:11434','Where the local models answer.')+modelField('labelModel','Label model') : folderField(key);
+  modal(`<div class="dialog" role="dialog" aria-modal="true"><div class="inner">${inner}</div><footer><button class="primary" data-act="closeRender">Done</button></footer></div>`);
+  refresh();
+  if(FIELD_TEXT[key]) checkFolder(key);
+}
+const ACTIONS = {
+  prev:()=>cycle(-1), next:()=>cycle(1),
+  toggleState(){ const s=$('#state'); s.hidden=!s.hidden; refresh(); },
+  browse:d=>browse(d.key), nav:d=>browse(target,d.val), close:closeModal,
+  closeOnScrim(d,n,e){ if(e.target===n) closeModal(); },
+  closeRender(){ closeModal(); render(); },
+  useFolder(d){ closeModal(); setValue(target,d.val); if(target.startsWith('profile.')) render(); },
+  async nativePick(){ toast('The Windows folder dialog is open: it may be behind this window'); const d=await (await fetch('/api/pick-folder')).json(); if(d.path){ closeModal(); setValue(target,d.path); } },
+  fill(d,n){ setValue(d.bind,d.val); $$('.chip',n.parentElement).forEach(c=>c.classList.toggle('on',c===n&&d.bind==='doclingImage')); },
+  seg(d,n){ setValue(d.bind,d.val); $$('button',n.parentElement).forEach(b=>b.classList.toggle('on',b===n)); },
+  testUrl:d=>toast(`${get(d.bind)} would be asked now (simulated)`),
+  sim:d=>toast(d.val), report:d=>toast(`${d.val} would open in a tab of its own (simulated)`),
+  page(d){ S.page=d.val; if(d.val==='launch'&&!S.run) S.step=S.step; render(); },
+  pick(d){ S.selected=d.val; render(); },
+  stepTo(d){ S.step=+d.val; if(S.step===1&&!S.corpusRoot) toast('You can come back for the folders: Run will remind you'); render(); },
+  start:d=>startRun(d.val),
+  stop(){ modal(`<div class="dialog" role="alertdialog" aria-modal="true"><div class="inner"><h2 style="margin-bottom:8px">Stop this run?</h2><p>At <b>${esc(STEPS[S.run.step])}</b>, a stop loses only the work since the last save. Starting again picks up from there.</p></div><footer><button data-act="close">Keep running</button><button class="danger" data-act="stopNow">Stop</button></footer></div>`); },
+  stopNow(){ closeModal(); clearInterval(S._t); S.run.ended=true; S.run.stopped=true; S.run.log.push('stopped by the control panel'); render(); },
+  reset(){ S.run=null; S.step=0; S.page='launch'; render(); },
+  editTok:d=>edit(d.val),
+  drawer(d){ S.drawer=d.val||null; render(); },
+  lang(d){ const a=S.profile.preferredLanguages, i=a.indexOf(d.val); i>=0?a.splice(i,1):a.push(d.val); refresh(); },
+  tagadd:d=>addTag(d.key,d.val),
+  tagdel(d){ S.profile[d.key]=S.profile[d.key].filter(t=>t!==d.val); refresh(); },
+  saveKey(d){ const K=KEYS.find(K=>K.k===d.key); if(!(S.provenance[K.k]||'').trim()){ toast('Say why first: the value is saved with its reason'); $('#pv-'+K.k)?.focus(); return; } S.saved[K.k]=true; S.selected=K.k; toast(`${K.k} saved (simulated). ${costText(K)}`); render(); },
+};
+function addTag(k,v){ v=v.trim(); if(!v) return; if(!v.startsWith('.')) v='.'+v; const a=S.profile[k]; if(!a.includes(v)) a.push(v); refresh(); }
+document.addEventListener('click',e=>{ const n=e.target.closest('[data-act]'); if(n) { if(n.tagName==='BUTTON') e.preventDefault(); ACTIONS[n.dataset.act]?.(n.dataset,n,e); } });
+document.addEventListener('input',e=>{ const b=e.target.dataset.bind; if(b){ setValue(b,e.target.value); } });
+document.addEventListener('keydown',e=>{
+  const typing=e.target.matches('input,textarea,select,[contenteditable]');
+  if(e.target.dataset.tagadd&&e.key==='Enter'){ addTag(e.target.dataset.tagadd,e.target.value); e.target.value=''; return; }
+  if(e.key==='Escape') closeModal();
+  if(typing) return;
+  if(e.key==='ArrowLeft') cycle(-1);
+  if(e.key==='ArrowRight') cycle(1);
+});
+document.addEventListener('toggle',e=>{ if(e.target.dataset?.select&&e.target.open) S.selected=e.target.dataset.select; },true);
+
+fetch('/api/models').then(r=>r.json()).then(d=>{ S.models=d.models; S.modelSource=d.source; render(); });
+render();
+</script>
+</body>
+</html>
