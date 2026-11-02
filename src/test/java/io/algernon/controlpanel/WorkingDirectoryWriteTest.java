@@ -264,6 +264,24 @@ class WorkingDirectoryWriteTest {
         claim("and nothing was written", () -> assertThat(namesIn(workingDirectory)).isEmpty());
     }
 
+    @Test
+    @Story("The control panel writes into a working directory")
+    @DisplayName("A repair's copy is never made over an earlier one, whichever second each is made in")
+    void aRepairsCopyIsNeverMadeOverAnEarlierOne(@TempDir Path workingDirectory) throws IOException {
+        Files.writeString(workingDirectory.resolve(PROFILE), "the first text", UTF_8);
+        String first = WorkingDirectoryWrite.keepCopyBeforeRepair(workingDirectory, PROFILE);
+        Files.writeString(workingDirectory.resolve(PROFILE), "the second text", UTF_8);
+        String second = WorkingDirectoryWrite.keepCopyBeforeRepair(workingDirectory, PROFILE);
+
+        claim("each copy is under a name of its own, beginning with what it is a copy of",
+                () -> assertThat(List.of(first, second)).doesNotHaveDuplicates()
+                        .allMatch(name -> name.startsWith(PROFILE + ".before-repair-")));
+        claim("the first copy still holds the text it was made of",
+                () -> assertThat(workingDirectory.resolve(first)).hasContent("the first text"));
+        claim("the second holds the text it was made of",
+                () -> assertThat(workingDirectory.resolve(second)).hasContent("the second text"));
+    }
+
     private static Optional<String> writeWhileHeld(Path workingDirectory, Path lockFile) throws IOException {
         try (FileChannel channel = FileChannel.open(lockFile, StandardOpenOption.WRITE);
                 FileLock lock = channel.tryLock(LOCKED_BYTE, 1, false)) {

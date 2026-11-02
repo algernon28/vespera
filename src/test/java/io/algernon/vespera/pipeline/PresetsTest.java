@@ -152,6 +152,21 @@ class PresetsTest {
                 () -> assertThat(naming(key, value).refusal(NOTHING_NAMED)).contains(line));
     }
 
+    @Test
+    @Story("A value no run can be made under stops the invocation")
+    @DisplayName("A value naming a placeholder nothing resolves is refused in one line, and not by a stack trace")
+    void aValueNamingAPlaceholderNothingResolvesIsRefusedInOneLine() {
+        String placeholder = "${NOTHING_NAMES_THIS}";
+
+        claim("configuration naming it is refused with the key's line, which says the placeholder",
+                () -> assertThat(naming(NEIGHBOURS, placeholder).refusal(NOTHING_NAMED)).hasValueSatisfying(line ->
+                        assertThat(line)
+                                .startsWith(NEIGHBOURS + " is ")
+                                .contains(placeholder)
+                                .endsWith(": a whole number from 1 to 2147483647")
+                                .doesNotContain("\n")));
+    }
+
     @ParameterizedTest(name = "{0} permutations in {1} bands of {2} rows")
     @CsvSource({"128,16,7", "128,8,8", "64,16,8", "131073,65537,65537"})
     @Story("A value no run can be made under stops the invocation")

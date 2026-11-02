@@ -22,7 +22,7 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * <p>It names the run, the embedder identity and the seed set it was generated under. That is not
  * provenance for its own sake: it is what lets a completed file offered against a different sample be
  * refused outright rather than partially matched, which ingestion does (#111, and #354 for the seed
- * set). Sixty answers about documents nobody was asked about is worse than no answers, because nothing
+ * set). A sample's answers about documents nobody was asked about is worse than no answers, because nothing
  * about it looks wrong.
  *
  * <p>The score and the winning seed travel beside each question as the context that was on screen

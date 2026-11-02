@@ -5,6 +5,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -18,6 +20,7 @@ import java.nio.file.attribute.AclFileAttributeView;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -48,7 +51,7 @@ public final class WorkingDirectoryWrite {
     /** The file the lock is taken on, which the jar's invocations take too. */
     public static final String LOCK_FILE_NAME = "vespera.lock";
 
-    /** The three files of a working directory the control panel writes, and no other. */
+    /** The three files of a working directory the control panel writes whole; a repair's copy is the one other. */
     public static final Set<String> FILES = Set.of("profile.yaml", "relevance-labels.yaml", "code-set-names.yaml");
 
     /** The one file whose save makes a working directory that is not there (ADR-330 §7). */
@@ -163,16 +166,6 @@ public final class WorkingDirectoryWrite {
     }
 
     /**
-     * Makes the working directory a save of {@code profile.yaml} finds missing, each folder it makes born the user's
-     * alone (ADR-330 §7): by {@code rwx------} on POSIX permissions, and on a volume with access control lists by one
-     * entry for this user, inherited by what is made below, so that no moment lies between the folder and its rule. On a
-     * volume with neither it is made as the volume makes it. The change is asked first, of an absent file, so that a
-     * value it refuses makes no folder. Once made the folder is checked as an existing one is, by its real path, and its
-     * entry is read back and must be that one alone.
-     *
-     * @return the line that stopped it, empty where the folder is there
-     */
-    /**
      * Copies {@code fileName} whole to {@code <fileName>.before-repair-<yyyyMMdd-HHmmss>} beside it, never over an
      * earlier copy (a number is added to the name instead). For a change that runs under the lock.
      *
@@ -180,14 +173,13 @@ public final class WorkingDirectoryWrite {
      * @throws IllegalArgumentException with the line that stops the repair where no copy can be made
      */
     static String keepCopyBeforeRepair(Path folder, String fileName) {
-        String stamp = java.time.LocalDateTime.now()
-                .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         for (int n = 1; ; n++) {
             String name = fileName + ".before-repair-" + stamp + (n == 1 ? "" : "-" + n);
             try {
                 Files.copy(folder.resolve(fileName), folder.resolve(name));
                 return name;
-            } catch (java.nio.file.FileAlreadyExistsException taken) {
+            } catch (FileAlreadyExistsException taken) {
                 continue;
             } catch (IOException e) {
                 throw new IllegalArgumentException("the control panel could not keep a copy of " + fileName
@@ -197,6 +189,16 @@ public final class WorkingDirectoryWrite {
         }
     }
 
+    /**
+     * Makes the working directory a save of {@code profile.yaml} finds missing, each folder it makes born the user's
+     * alone (ADR-330 §7): by {@code rwx------} on POSIX permissions, and on a volume with access control lists by one
+     * entry for this user, inherited by what is made below, so that no moment lies between the folder and its rule. On a
+     * volume with neither it is made as the volume makes it. The change is asked first, of an absent file, so that a
+     * value it refuses makes no folder. Once made the folder is checked as an existing one is, by its real path, and its
+     * entry is read back and must be that one alone.
+     *
+     * @return the line that stopped it, empty where the folder is there
+     */
     private Optional<String> makeFolder(Path workingDirectory, String fileName, Function<Optional<String>, String> change) {
         try {
             change.apply(Optional.empty());
@@ -207,7 +209,7 @@ public final class WorkingDirectoryWrite {
         try {
             UserPrincipal user = null;
             FileAttribute<?>[] attributes = new FileAttribute<?>[0];
-            java.nio.file.FileStore volume = Files.getFileStore(nearestThatExists(folder));
+            FileStore volume = Files.getFileStore(nearestThatExists(folder));
             if (volume.supportsFileAttributeView("posix")) {
                 attributes = new FileAttribute<?>[] {
                     PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"))};

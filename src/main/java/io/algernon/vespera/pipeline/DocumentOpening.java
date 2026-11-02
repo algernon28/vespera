@@ -30,7 +30,7 @@ final class DocumentOpening {
 
     /**
      * How much of a document's opening is shown on the page. Long enough to recognise what a document
-     * is, short enough that sixty of them stay readable in one sitting.
+     * is, short enough that the sixty a shipped sample asks about stay readable in one sitting.
      */
     static final int TEXT_OPENING_CHARACTERS = 400;
 

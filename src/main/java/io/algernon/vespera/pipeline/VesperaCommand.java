@@ -372,7 +372,7 @@ public class VesperaCommand implements Callable<Integer> {
      * itself wrote, under a name it chose, in a directory the operator configured.
      *
      * <p>Nothing here prompts. ADR-047's "the pipeline never blocks" is what makes the labelling loop
-     * resumable across days, and a terminal walking a person through sixty documents is a session
+     * resumable across days, and a terminal walking a person through the shipped sixty documents is a session
      * that has to be finished or lost.
      */
     @Component

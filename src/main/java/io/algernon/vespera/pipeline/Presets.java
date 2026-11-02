@@ -239,10 +239,17 @@ class Presets {
         throw new PresetRefusedException(key + " is " + raw + ": a number above 0 and at most 1");
     }
 
-    /** What configuration names, as written: none named reads as nothing, which every check above refuses. */
+    /**
+     * What configuration names, as written: none named reads as nothing, and a placeholder nothing resolves as what
+     * says so, each of which every check above refuses, so that it is a line and not a stack trace.
+     */
     private String text(String key) {
-        String named = environment.getProperty(key);
-        return named == null ? "" : named;
+        try {
+            String named = environment.getProperty(key);
+            return named == null ? "" : named;
+        } catch (IllegalArgumentException nothingResolvesIt) {
+            return nothingResolvesIt.getMessage();
+        }
     }
 
     /** A value of §9's table that no run can be made under, with the one line that says so. */
