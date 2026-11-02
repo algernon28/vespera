@@ -4,6 +4,10 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.pipeline.NextInvocationFile.Contents;
 import io.algernon.vespera.pipeline.NextInvocationFile.Invocation;
@@ -28,6 +32,7 @@ import java.util.TreeMap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
 
 /**
  * The file the jar writes beside the closing line for the control panel (ADR-294 §1, §3): {@code
@@ -193,6 +198,35 @@ class NextInvocationFileTest {
                 () -> assertThat(thrown).isNull());
         claim("and the folder is left a folder",
                 () -> assertThat(inTheWay).isDirectory());
+    }
+
+    /**
+     * A file that cannot be written is said at WARN, naming the file, so the operator learns why the control panel offers
+     * no next act; the caller prints the closing line after {@code write} returns, so the warning comes before it
+     * (ADR-294 §3).
+     */
+    @Test
+    @Story("The jar writes what the next invocation wants")
+    @DisplayName("A file that cannot be written is said in one warning naming the file")
+    void aFileThatCannotBeWrittenIsLoggedAtWarn(@TempDir Path workingDirectory) throws IOException {
+        Files.createDirectory(workingDirectory.resolve(FILE_NAME));
+        Logger logger = (Logger) LoggerFactory.getLogger(NextInvocationFile.class);
+        ListAppender<ILoggingEvent> logged = new ListAppender<>();
+        logged.start();
+        logger.addAppender(logged);
+        try {
+            NextInvocationFile.write(workingDirectory,
+                    new Contents(Invocation.LABEL, List.of(), true, Optional.empty()));
+        } finally {
+            logger.detachAppender(logged);
+        }
+        List<Level> levels = logged.list.stream().map(ILoggingEvent::getLevel).toList();
+        List<String> lines = logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+
+        claim("writing where a folder stands at the file's place is said in exactly one line, at WARN",
+                () -> assertThat(levels).containsExactly(Level.WARN));
+        claim("and that line names the file that could not be written",
+                () -> assertThat(lines.getFirst()).contains(workingDirectory.resolve(FILE_NAME).toString()));
     }
 
     @Test

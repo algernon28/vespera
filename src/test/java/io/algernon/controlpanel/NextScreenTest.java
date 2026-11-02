@@ -71,6 +71,9 @@ class NextScreenTest {
             arrangement=%s
             """.formatted(ARRANGEMENT);
 
+    /** The code a run that failed or was refused ends with: 1, not 0. */
+    private static final int FAILED_OR_REFUSED = 1;
+
     @TempDir
     Path folder;
 
@@ -189,6 +192,26 @@ class NextScreenTest {
                                     byId(page, "arrangement-file").text()))
                             .containsExactly(List.of("/report/arrangement.html"),
                                     workingDirectory.resolve("arrangement.html").toAbsolutePath().toString()));
+        }
+    }
+
+    /**
+     * The file is read only after the control panel's own child ended with 0 (ADR-294 §4, ADR-302 §8): a child that
+     * ended with any other code leaves whatever file stands there unread, here one the child did not delete.
+     */
+    @Test
+    @Story("The operator writes the values the next invocation wants")
+    @DisplayName("After a run that ended with a code other than 0, no next act is offered, whatever the working directory holds")
+    void aChildThatEndedWithAnotherCodeOffersNoNextAct() throws IOException, InterruptedException {
+        Path workingDirectory = workingDirectoryWanting(SEED_AND_FLOOR);
+        ScreenServer.childWill(workingDirectory, "exit " + FAILED_OR_REFUSED + " the closing line");
+        try (ScreenServer screens = ScreenServer.start(folder, values(workingDirectory))) {
+            Page page = screens.afterARunHasEnded().go("/next").page();
+
+            claim("the next act is not known, though a file wanting two values stands in the working directory",
+                    () -> assertThat(byId(page, "next-invocation").attr("data-invocation")).isEqualTo("unknown"));
+            claim("and no value is asked for",
+                    () -> assertThat(page.document().select("form[name=next]")).isEmpty());
         }
     }
 

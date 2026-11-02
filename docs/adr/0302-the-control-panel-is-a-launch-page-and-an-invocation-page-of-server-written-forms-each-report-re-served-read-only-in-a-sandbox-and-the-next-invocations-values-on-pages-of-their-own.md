@@ -368,6 +368,7 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves, a
 | `controlpanel.NextScreenTest.theWantedValuesAreSavedIntoTheProfile` | `save` writes both keys with their provenance (§8) |
 | `controlpanel.NextScreenTest.answersWantedLeadToTheQuestionsAndToLabelAuto` | `answer=true`: `labels-link` to `/labels`, `label-auto`, and no `next` (§8) |
 | `controlpanel.NextScreenTest.theArrangementToApproveIsOfferedByItsName` | `arrangementApproved` filled with the file's `arrangement`, its report linked and `arrangement-file` shown (§3, §8) |
+| `controlpanel.NextScreenTest.aChildThatEndedWithAnotherCodeOffersNoNextAct` | a child ending with 1 beside a file wanting two keys: `next-invocation` reads `unknown`, and no `next` (§8) (#680) |
 | `controlpanel.LabelsScreenTest.eachQuestionIsAnsweredByItsPathAndTheAnswersAreWritten` | `labels` with a path and a select per question, the file's answers selected; `save` writes the answers given (§8) |
 | `controlpanel.CodeSetsScreenTest.aCodeSetIsRenamedAndOneAddedAndTheListWritten` | `code-sets` lists the file's entries; one renamed and one added are written in order (§8) |
 | `controlpanel.ProfileScreenTest.everyKeyHasAFormOfItsOwnWithItsCostAndOneIsSaved` | with no next act read, a form per `ProfileKey`, iterated, in its order, each with its cost; `save` writes one key (§8) |
