@@ -93,6 +93,9 @@ class SeedExtractionInvocationTest {
      */
     private static final int SEEDS_IN_THIS_FOLDER = 2;
 
+    /** The seed files the fixture moves away as seed extraction reads them: the one it is armed for. */
+    private static final int SEED_FILES_THAT_WOULD_NOT_OPEN = 1;
+
     @DynamicPropertySource
     static void workingDirectory(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
@@ -232,6 +235,47 @@ class SeedExtractionInvocationTest {
                 "and stage 5 carried on in the same invocation, the comparison included",
                 () -> assertThat(ledger.runs().stepFinished(measurementRun, "seed-corpus-comparison"))
                         .isTrue());
+    }
+
+    /**
+     * After writing, the unfinished branch of seed extraction logs one summary warning: how many seed
+     * files could not be opened, that the step is not recorded as finished and stage 5 goes no further,
+     * and to release them and run again (ADR-155 section 4, its second paragraph).
+     */
+    @Test
+    @Story("A seed file that will not open stops stage 5 without failing the invocation")
+    @DisplayName("When a seed file will not open, one warning counts the files, says the step is not finished, and says to release them and run again")
+    @Issue("291")
+    @Link(name = "ADR-155", url = Adr.A_SEED_FILE_THAT_WILL_NOT_OPEN_IS_RECORDED_UNDER_A_REASON_OF_ITS_OWN, type = "adr")
+    void aSeedFileThatWillNotOpenIsCountedInOneWarningThatSaysToReleaseIt(
+            @TempDir Path root, @TempDir Path seeds, @TempDir Path elsewhere) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document that opens, for the summary warning's test");
+        Files.writeString(
+                seeds.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ),
+                "a seed document that is moved away when read, for the summary warning's test");
+        profile(seeds);
+        SeedScriptedExtractionBeans.moveAwayWhenReadInto(elsewhere);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the fixture really did take the file away when seed extraction read it",
+                () -> assertThat(elsewhere.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ)).exists());
+        claim(
+                "exactly one warning sums up the seed files that would not open: it counts "
+                        + SEED_FILES_THAT_WOULD_NOT_OPEN + " -- the one file moved away, of the "
+                        + SEEDS_IN_THIS_FOLDER + " seeds -- says seed extraction is not recorded as finished"
+                        + " and stage 5 goes no further, and says to release them and run the same command again",
+                () -> assertThat(warnings().stream()
+                                .filter(line -> line.contains("seed file(s) could not be opened"))
+                                .toList())
+                        .singleElement()
+                        .satisfies(line -> assertThat(line)
+                                .startsWith(SEED_FILES_THAT_WOULD_NOT_OPEN + " seed file(s) could not be opened")
+                                .contains("is not recorded as finished")
+                                .contains("stage 5 goes no further in this invocation")
+                                .contains("Release them and run the same command again")));
     }
 
     @Test

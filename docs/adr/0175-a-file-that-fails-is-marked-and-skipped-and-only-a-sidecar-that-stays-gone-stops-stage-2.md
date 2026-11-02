@@ -146,6 +146,7 @@ When stage 2 ends, `ReviewListListener` writes `extraction-failures.html` beside
 
 - **`ReviewListThatCannotBeWrittenTest`**: with the page's name taken by a folder, one ERROR line says how many files could not be read and where the page should have gone, nothing is thrown from the end of the step, and the step completes ([#392](https://github.com/algernon28/vespera/issues/392)).
 - **`ExtractionFailuresOfARunTest`**: `Ledger.extractionFailures` at the ledger's own seam returns a run's failed conversions in path order, and none of another kind or another run (#392).
+- **`SeedExtractionWhenTheSidecarDropsItsConnectionTest.aSeedWhoseCallDropsTwiceStopsSeedExtractionAndIsNamed`**: a seed whose call drops twice is posted twice and no more, the step fails, the operator's line names the seed as one that could not be converted, and no measurement run is minted (§6) (#680).
 
 ## What this does not decide
 

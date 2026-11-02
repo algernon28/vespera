@@ -187,6 +187,44 @@ class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
                 () -> assertThat(measurementRunsOver(root)).isEmpty());
     }
 
+    /**
+     * A seed is an input the operator chose, so a seed whose call drops, and whose one retry drops again,
+     * stops the step with the seed named, rather than being skipped as a corpus document would be, or
+     * asked about a third time (ADR-175 section 6: the first seed that drops twice stops the step).
+     */
+    @Test
+    @Story("A converter that drops the connection under a seed twice")
+    @DisplayName("When the document converter drops the connection under one seed twice, seed extraction fails and the operator is told which seed")
+    void aSeedWhoseCallDropsTwiceStopsSeedExtractionAndIsNamed(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus file, for the seed that drops twice");
+        writeSeeds(seeds, "drops twice");
+        profile(seeds);
+        sidecar.dropping(THE_FAILING_SEED, (int) TWICE);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation failed: a seed whose call dropped, and whose one retry dropped again,"
+                        + " stops the step",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim(
+                "a line says that seed extraction failed and names seed " + THE_FAILING_SEED + " by its"
+                        + " file as one that could not be converted",
+                () -> assertThat(operatorLines())
+                        .anyMatch(line -> line.contains("seed extraction")
+                                && line.contains("failed")
+                                && line.contains(nameOf(THE_FAILING_SEED))
+                                && line.contains("could not be converted")));
+        claim(
+                "seed " + THE_FAILING_SEED + " was posted " + TWICE + " times, the dropped call and one"
+                        + " retry, and not a third time",
+                () -> assertThat(sidecar.callsPerDocument()).containsEntry(THE_FAILING_SEED, TWICE));
+        claim(
+                "and no measurement run was minted, because nothing saw the whole seed folder",
+                () -> assertThat(measurementRunsOver(root)).isEmpty());
+    }
+
     /** {@link #SEEDS} seeds, each with text of its own so that none is a cache hit for another. */
     private static void writeSeeds(Path seeds, String test) throws IOException {
         for (int seed = 1; seed <= SEEDS; seed++) {
