@@ -59,6 +59,9 @@ class WorkingDirectoryLockTest {
     /** The holder's line: who holds it, since when, and with what command. */
     private static final Pattern HOLDER_LINE = Pattern.compile("pid=(\\d+) started=(\\S+) command=(.*)");
 
+    /** The nanoseconds of a time written to the whole second. */
+    private static final int NO_FRACTION_OF_A_SECOND = 0;
+
     /** How long the second process gets to start a JVM and take the lock. */
     private static final long HOLDER_START_BOUND_SECONDS = 60;
 
@@ -96,6 +99,24 @@ class WorkingDirectoryLockTest {
                 () -> assertThat(catchThrowable(() -> OffsetDateTime.parse(holder.group(2)))).isNull());
         claim("and the command the invocation was started with, its arguments joined by spaces",
                 () -> assertThat(holder.group(3)).isEqualTo(String.join(" ", ARGUMENTS)));
+    }
+
+    /**
+     * ADR-177 §1: the holder's line gives the start "to the second", so it carries no fraction of a second.
+     * A clock finer than a second would leave one there almost always.
+     */
+    @Test
+    @Story("An invocation holds its working directory until it ends")
+    @DisplayName("The holder's start time is written to the whole second, with no fraction")
+    void theStartIsWrittenToTheSecond(@TempDir Path workingDirectory) throws IOException {
+        new WorkingDirectoryLock().onApplicationEvent(prepared(workingDirectory, ARGUMENTS));
+
+        Matcher holder = HOLDER_LINE.matcher(holderLine(workingDirectory));
+        claim("the holder's line has the shape pid=<process id> started=<date and time> command=<arguments>",
+                () -> assertThat(holder.matches()).isTrue());
+        OffsetDateTime started = OffsetDateTime.parse(holder.group(2));
+        claim("and its start time has no part of a second below the whole second",
+                () -> assertThat(started.getNano()).isEqualTo(NO_FRACTION_OF_A_SECOND));
     }
 
     @Test
