@@ -171,6 +171,7 @@ The writer reads the usable space of **the tree's file store**, `usableBytesAt(t
 | `deliverable.DeliverableRootTest.aNamedRootIsTheTreeItself` | §1: a named root, stripped, is the tree, absolute, for any generation run |
 | `deliverable.DeliverableRootTest.refusesARootThatIsTheCorpusRootInsideItOrAboveIt` | §2: the three relations to the corpus root, each its whole line, and the check makes no folder |
 | `deliverable.DeliverableRootTest.refusesARootThatIsTheSeedFolderInsideItOrAboveIt` | §2: the three relations to the seed folder, each its whole line |
+| `deliverable.DeliverableRootTest.aRootOverBothIsRefusedByTheCorpusRootFirst` | §2: the corpus root is compared before the seed folder: a root that is a seed folder inside the corpus root is refused as inside the corpus root (#680) |
 | `deliverable.DeliverableRootTest.acceptsARootBesideTheCorpusRootOrTheSeedFolderOrInsideTheWorkingDirectory` | §2: `archive-copies` beside `archive`, a sibling of the seed folder sharing its name's start, and a root inside the working directory, each accepted, none made |
 | `deliverable.DeliverableRootTest.aRootReachedThroughALinkIsComparedWhereTheLinkLeads` | §2: a root beneath a link to the corpus root is inside it; aborts where no link can be made |
 | `deliverable.DeliverableRootTest.onWindowsANameIsComparedWithoutRegardToCase` | §2, Windows only: a root under a seed folder spelled in another case, neither yet made, is inside it |

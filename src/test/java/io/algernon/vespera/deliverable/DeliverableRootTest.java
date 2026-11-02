@@ -156,6 +156,25 @@ class DeliverableRootTest {
                         .contains(overlap(library.toRealPath(), "above the seed folder", seedsReal)));
     }
 
+    /**
+     * ADR-276 §2: the corpus root is compared first, then the seed folder. Where the seed folder lies inside the
+     * corpus root, a root that is the seed folder stands in a relation to both, and the line names the first.
+     */
+    @Test
+    @Story("A folder over the archive is refused before anything is walked")
+    @DisplayName("A folder over both the corpus root and a seed folder inside it is refused by the corpus root")
+    void aRootOverBothIsRefusedByTheCorpusRootFirst() throws IOException {
+        Path seedsInsideTheArchive = Files.createDirectories(archive.resolve("seeds"));
+        Path archiveReal = archive.toRealPath();
+
+        claim(
+                "a root that is a seed folder lying inside the corpus root is refused as inside the corpus root, not as"
+                        + " the seed folder: the corpus root is compared before the seed folder",
+                () -> assertThat(DeliverableRoot.named(seedsInsideTheArchive)
+                                .refusalAtTheStart(work, archive, Optional.of(seedsInsideTheArchive)))
+                        .contains(overlap(archiveReal.resolve("seeds"), "inside the corpus root", archiveReal)));
+    }
+
     @Test
     @Story("A folder over the archive is refused before anything is walked")
     @DisplayName("A folder beside the corpus root or the seed folder, or inside the working directory, is accepted")

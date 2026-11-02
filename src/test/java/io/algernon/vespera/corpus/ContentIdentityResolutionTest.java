@@ -100,6 +100,36 @@ class ContentIdentityResolutionTest {
                 });
     }
 
+    /**
+     * ADR-069: the representative is the earliest created, and {@code last_modified} plays no role. Every other
+     * fixture here records one instant as both times, so reading the modification time in place of the creation
+     * time would pass them all; here the two disagree, and the path and the recording order point the other way too.
+     */
+    @Test
+    @Story("Which file occurrence is left standing")
+    @DisplayName("Of two identical files, the one created first is left standing even though it was modified last")
+    void theModificationTimeHasNoSayInWhichIsLeftStanding(@TempDir Path root) throws Exception {
+        Corpus corpus = new Corpus(root);
+        // a.txt is recorded first and its path sorts first, so neither the order nor the path favours b.txt.
+        OccurrenceId createdLastModifiedFirst = corpus.occurrence("a.txt", THREE_TIMES, LATER, EARLIER);
+        OccurrenceId createdFirstModifiedLast = corpus.occurrence("b.txt", THREE_TIMES, EARLIER, LATER);
+        RunId run = corpus.run();
+
+        corpus.resolution().resolve(run, root, new RecordedHashing());
+
+        claim(
+                "b.txt, created before a.txt but modified after it, is left standing and carries no verdict",
+                () -> assertThat(verdictsOf(createdFirstModifiedLast)).isEmpty());
+        claim(
+                "and a.txt, created after b.txt though modified before it, is verdicted superseded-by, naming b.txt,"
+                        + " and recorded as superseded by it",
+                () -> {
+                    assertThat(verdictsOf(createdLastModifiedFirst))
+                            .containsExactly("SUPERSEDED_BY: superseded by the representative at b.txt");
+                    assertThat(representativesOf(createdLastModifiedFirst, run)).containsExactly(createdFirstModifiedLast);
+                });
+    }
+
     @Test
     @Story("Which file occurrences are hashed")
     @DisplayName("A file sharing a size with another is hashed; a file of a size of its own is never hashed")
@@ -270,9 +300,14 @@ class ContentIdentityResolutionTest {
         }
 
         OccurrenceId occurrence(String name, String content, Instant created) throws IOException {
+            return occurrence(name, content, created, created);
+        }
+
+        /** As above, with a modification time of its own, which the resolution must not read. */
+        OccurrenceId occurrence(String name, String content, Instant created, Instant lastModified) throws IOException {
             Path file = root.resolve(name);
             Files.writeString(file, content);
-            ledger.occurrences().fileOccurrence(walk, new OccurrencePath(name), Files.size(file), created, created);
+            ledger.occurrences().fileOccurrence(walk, new OccurrencePath(name), Files.size(file), lastModified, created);
             return ledger.occurrences().occurrenceId(walk, new OccurrencePath(name)).orElseThrow();
         }
 
