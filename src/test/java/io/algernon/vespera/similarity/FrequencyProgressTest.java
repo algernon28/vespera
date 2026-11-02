@@ -56,6 +56,12 @@ class FrequencyProgressTest {
     /** The two documents of the collection, one page of them. */
     private static final int TWO_OCCURRENCES = 2;
 
+    /** The most documents one page of the check holds. */
+    private static final int A_FULL_PAGE = 1_000;
+
+    /** The documents past the first full page: the second page holds this many. */
+    private static final int PAST_THE_FIRST_PAGE = 1;
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -84,6 +90,37 @@ class FrequencyProgressTest {
                                 Integer.class,
                                 stage3.value()))
                         .isEqualTo(FIVE_SHARED_HASHES));
+    }
+
+    /**
+     * ADR-211 section 3: {@code occurrencesChecked} is called once after each page of 1,000, with that page's
+     * number, not once at the end with the walk's whole number.
+     */
+    @Test
+    @Story("Measuring document frequency tells its caller how many documents it has checked")
+    @DisplayName("Over more documents than one page holds, each page is reported as checked when it is, with its own number")
+    void eachPageOfOccurrencesIsReportedWithItsOwnCount() {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-frequency-pages"));
+        RunId stage2 = ledger.runs().startRun("extraction", "abc125", "{}", walk, List.of());
+        RunId stage3 = ledger.runs().startRun("content-census", "def458", "{}", walk, List.of(stage2));
+        document(ledger, walk, stage2, "a.txt", 0, 10);
+        document(ledger, walk, stage2, "b.txt", 5, 10);
+        for (int unshingled = TWO_OCCURRENCES; unshingled < A_FULL_PAGE + PAST_THE_FIRST_PAGE; unshingled++) {
+            ledger.occurrences()
+                    .fileOccurrence(walk, new OccurrencePath("plain-" + unshingled + ".txt"), 1, Instant.EPOCH, Instant.EPOCH);
+        }
+        List<String> events = new ArrayList<>();
+
+        new DocumentFrequency(jdbcTemplate, ledger).measure(stage3, stage2, recording(events));
+
+        claim(
+                "the collection holds " + (A_FULL_PAGE + PAST_THE_FIRST_PAGE) + " documents, one more than a page of "
+                        + A_FULL_PAGE + ", so two calls are made: the full page's " + A_FULL_PAGE
+                        + " when it is checked, then the last page's " + PAST_THE_FIRST_PAGE
+                        + ", and not one call with the whole number at the end",
+                () -> assertThat(events)
+                        .containsExactly("checked " + A_FULL_PAGE, "checked " + PAST_THE_FIRST_PAGE));
     }
 
     @Test
