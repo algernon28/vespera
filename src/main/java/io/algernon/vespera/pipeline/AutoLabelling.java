@@ -164,14 +164,16 @@ class AutoLabelling {
         RunId extractionRun = extractionRunUpstreamOf(run);
         WalkId walk = ledger.runs().walkOf(run)
                 .orElseThrow(() -> new IllegalStateException("run " + run.value() + " has no walk recorded"));
-        // The identity this invocation composes must be the one the run was converted under, or every opening is a
-        // miss in extraction_cache and every question would go to the model blank (ADR-332 section 1).
+        // The identity this invocation composes must be the one the run was converted under, or the conversions the
+        // run read are out of reach: a question would go to the model blank, or over text the run did not score
+        // (ADR-332 section 1).
         ExtractorIdentity composedNow = extractorIdentity.getObject();
         String convertedUnder = extractorIdentityOf(extractionRun);
         if (!composedNow.value().equals(convertedUnder)) {
             return Outcome.refused("the label file's run was converted under the"
                     + " extractor identity " + convertedUnder + ", and this invocation composes " + composedNow.value()
-                    + ", so no opening can be read under it. Nothing was asked. Name what the run was converted under,"
+                    + ", so none of the run's openings can be read under it. Nothing was asked. Name what the run was"
+                    + " converted under,"
                     + " or run vespera under this one.");
         }
         DocumentOpening documentOpening = new DocumentOpening(extractor, composedNow, hybridChunker, cacheKeys);

@@ -40,11 +40,11 @@
 
 **Where the extractor identity it composes now is not the one its label file's run was converted under, `vespera label --auto` is refused in one line and a non-zero exit, and nothing is asked.** No labeller is put a question, no answer is recorded, the label file is not rewritten, and no floor is set. The identity it was converted under is the `extractorIdentity` of the stage-2 run `extractionRunUpstreamOf` finds; the comparison is of the two texts, whole.
 
-**One rule covers another preset, a refused preset and any other change of identity**, another image and another `/version` map among them, since each is the same miss in `extraction_cache`. A preset §9 of ADR-330 refuses composes an identity like any other, so `--auto` reads no preset for this.
+**One rule covers another preset, a refused preset and any other change of identity**, another image and another `/version` map among them, since under each the conversions the run read cannot be read. A preset §9 of ADR-330 refuses composes an identity like any other, so `--auto` reads no preset for this.
 
 The line, through `AutoLabelling.Outcome.refused` and what `VesperaCommand.Label` opens every such refusal with, on standard error:
 
-`vespera label --auto recorded nothing: the label file's run was converted under the extractor identity <then>, and this invocation composes <now>, so no opening can be read under it. Nothing was asked. Name what the run was converted under, or run vespera under this one.`
+`vespera label --auto recorded nothing: the label file's run was converted under the extractor identity <then>, and this invocation composes <now>, so none of the run's openings can be read under it. Nothing was asked. Name what the run was converted under, or run vespera under this one.`
 
 **It stands in `AutoLabelling.run` where the identity is asked for now**, past the labeller's refusal and the refusals of the label file, of its run, of its seed set and of answers typed and not yet recorded, and ahead of the first question. Each of those says something the operator would meet next, and none needs the converter.
 
@@ -84,13 +84,14 @@ ADR-330 §9's *"Each is refused by the type of the module that uses it, and the 
 - "One line on standard error" is of the jar's own lines: the JDK's four stand beside it (Context).
 - On Linux a FAT mount's `FileStore` answers `posix`, so a folder is made and then possibly refused, where ADR-330 §7 says it goes on.
 - A sidecar running another image than the one named, or not answering, stops `vespera label --auto` where the identity is asked for, as ADR-179 has it, and §1's line is not said: there is then no identity to name.
+- `--auto` is refused under another identity even where `extraction_cache` also holds a conversion under the identity composed now, as on a machine that has run under both: an opening could be read there, but it would not be what the run scored.
 - A module of the four `Presets` neither builds nor asks, `Clustering`, `OccurrenceJudge`, `RelevanceScorer` and `RelevanceDistribution`, tightened alone, is seen by no test of `Presets`: a value it then refuses still passes the start, and stops the stage that hands it down.
 - That `vespera publish` goes on past a rendering found under a bad preset is shown by no test: past that, it reads the Confluence variables of the machine running the test and sends to the site they name. What is shown is that it reaches its own refusal of nothing drawn.
 
 ## Alternatives refused
 
 - **Going on with a WARN for each document, as it did.** A normal exit over answers that are all blank says the local model looked at the sample and had nothing to say, and nothing tells the operator why no floor came of it.
-- **Asking `Presets.refusal` at the start of `--auto`.** It sees a refused preset alone, and neither another preset nor another image, each of which misses as surely.
+- **Asking `Presets.refusal` at the start of `--auto`.** It sees a refused preset alone, and neither another preset nor another image, under each of which the run's conversions are out of reach as surely.
 - **Catching the refusal where the context fails, in a failure analyser.** One line, and `vespera label` and `vespera publish` still stopped by a value they do not use, which ADR-330 §9 refuses.
 - **The module's refusal as the only one, its message the line.** A module does not know the key configuration named its number by, and `Presets` cannot word a key's line from a refusal that does not say which it was.
 - **Keeping `Presets`' catches for a bound a type may gain.** The line they gave named no key's value, and a type tightened alone is better seen as a failing test than heard of as a line.
@@ -99,7 +100,7 @@ ADR-330 §9's *"Each is refused by the type of the module that uses it, and the 
 
 - An operator who changes the OCR preset, the image or the converter after a scoring run, and asks the local model, is told in one line that nothing was asked and which two identities differ.
 - A label file cannot be answered blank by a model for this reason, so a blank `--auto` leaves is one where no conversion was on record under the run's own identity, or the model gave no answer.
-- A placeholder in the OCR preset costs the operator one line at the start of `vespera run`, and costs `vespera label` and `vespera publish` nothing but the WARN of §2's limit.
+- A placeholder in the OCR preset costs the operator one line at the start of `vespera run`, and costs `vespera publish` nothing, and `vespera label` nothing but the WARN of Known limits.
 
 ## Tests
 

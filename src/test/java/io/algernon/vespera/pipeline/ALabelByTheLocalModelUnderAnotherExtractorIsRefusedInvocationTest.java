@@ -48,8 +48,9 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * {@code vespera label --auto} reads each opening from the conversion on record under the extractor identity it composes
- * now, so under any other identity than the one the label file's run was converted under no opening could be read, and
- * a labeller left with none answers blank (ADR-332 §1). It is refused in one line before a question is asked.
+ * now, so under any other identity than the one the label file's run was converted under none of the run's openings can
+ * be read, and a labeller left with none answers blank (ADR-332 §1). It is refused in one line before a question is
+ * asked, even where the cache also holds a conversion under the identity composed now: that is not what the run scored.
  *
  * <p>The application's identity is one bean built once, and a jar makes one invocation; here a context makes several. So
  * a bean of this class stands over it, built again each time it is asked for, through the application's own composition
@@ -264,8 +265,8 @@ class ALabelByTheLocalModelUnderAnotherExtractorIsRefusedInvocationTest {
     /** The record's line, word for word, with the two identities in its order. */
     private static String theLine(String then, String now) {
         return "vespera label --auto recorded nothing: the label file's run was converted under the extractor identity "
-                + then + ", and this invocation composes " + now + ", so no opening can be read under it. Nothing was"
-                + " asked. Name what the run was converted under, or run vespera under this one.";
+                + then + ", and this invocation composes " + now + ", so none of the run's openings can be read under"
+                + " it. Nothing was asked. Name what the run was converted under, or run vespera under this one.";
     }
 
     /** Through the application's own composition, for a sidecar running the image named. */
