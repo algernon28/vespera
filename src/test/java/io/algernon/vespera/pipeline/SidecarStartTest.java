@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -24,6 +27,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 
 /**
@@ -106,6 +110,16 @@ class SidecarStartTest {
     /** The last line Compose prints where the GPU file asks for a device the machine does not have. */
     private static final String COMPOSE_REFUSAL =
             "Error response from daemon: could not select device driver \"nvidia\" with capabilities: [[gpu]]";
+
+    /** Checks docling-serve fails after up before both sidecars answer: more than one, so a line per check would show. */
+    private static final int SIDECAR_CHECKS_FAILED = 3;
+
+    /** Two lines Compose prints while it brings the sidecars up. */
+    private static final String UP_FIRST_LINE = " Container vespera-docling-serve-1 Created";
+
+    private static final String UP_LAST_LINE = " Container vespera-docling-serve-1 Started";
+
+    private static final String UP_PRINTS = UP_FIRST_LINE + "\n" + UP_LAST_LINE + "\n";
 
     /** The Docling image each compose file builds, read from the files as they stand. */
     private static String cpuImage;
@@ -438,6 +452,54 @@ class SidecarStartTest {
 
         claim("sidecars.lock lies in the lock folder", () -> assertThat(lockFolder.resolve("sidecars.lock"))
                 .isRegularFile());
+    }
+
+    /**
+     * ADR-323 §3 steps 7 and 8, and §5: what {@code up} prints goes to the log at INFO, line by line, and each wait,
+     * for the engine and for the sidecars, says at INFO when it begins and when it ends, and nothing per check.
+     */
+    @Test
+    @Story("The log says what the start did, and nothing per check")
+    @DisplayName("Starting the engine and the sidecars logs, at INFO, every line up printed and one line at the start and end of each wait, and nothing for each check")
+    void theLogCarriesUpsLinesAndOneLineAtEachEndOfEachWait() {
+        ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
+        ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
+                .answering(SYSTEMCTL_START, 0, "")
+                .upAnswering(0, UP_PRINTS)
+                .whenUpSucceeds(() -> health.answeringAfter(SIDECAR_CHECKS_FAILED));
+        ListAppender<ILoggingEvent> logged = new ListAppender<>();
+        logged.start();
+        ch.qos.logback.classic.Logger starterLog =
+                (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(SidecarStarter.class);
+        starterLog.addAppender(logged);
+        try {
+            starter(settings(cpuImage), docker, health, HostSystem.LINUX).ensureRunning();
+        } finally {
+            starterLog.detachAppender(logged);
+            logged.stop();
+        }
+        List<ILoggingEvent> events = List.copyOf(logged.list);
+
+        claim("the engine was checked " + ENGINE_CHECKS_FAILED + " times without an answer and once more when it"
+                        + " answered, so its wait checked more than once",
+                () -> assertThat(docker.commands().stream().filter(ScriptedDocker.ENGINE_CHECK::equals).count())
+                        .isEqualTo(ENGINE_CHECKS_FAILED + 1L));
+        claim("every line the start logged is at INFO",
+                () -> assertThat(events).extracting(ILoggingEvent::getLevel).containsOnly(Level.INFO));
+        claim("the log is exactly: the engine wait beginning and ending, the up as run, each line up printed in order,"
+                        + " and the sidecars' wait beginning and ending, the seconds aside; no line for any one check",
+                () -> assertThat(events.stream()
+                                .map(event -> event.getFormattedMessage().replaceAll("after \\d+ seconds", "after N seconds"))
+                                .toList())
+                        .containsExactly(
+                                "Waiting up to " + WAIT_AT_MOST.toSeconds() + " seconds for the Docker engine to answer",
+                                "The Docker engine answers after N seconds",
+                                "Starting the sidecars: " + String.join(" ", up(COMPOSE_FILE)),
+                                UP_FIRST_LINE,
+                                UP_LAST_LINE,
+                                "Waiting up to " + WAIT_AT_MOST.toSeconds() + " seconds for docling-serve and Ollama to"
+                                        + " answer",
+                                "docling-serve and Ollama answer after N seconds"));
     }
 
     @Test
