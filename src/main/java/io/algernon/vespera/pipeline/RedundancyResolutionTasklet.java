@@ -94,7 +94,7 @@ class RedundancyResolutionTasklet implements Tasklet {
                     Set<Long> boilerplateHashes = redundancyBoilerplateProvider.getObject().hashes();
                     // The window stage 2's run was minted under and the cuts stage 4's run was, so the pairs judged
                     // are the ones the run names (ADR-330 section 9, ADR-117).
-                    ShingleParameters window = stageRuns.shingleParameters();
+                    ShingleParameters window = stageRuns.shingleWindow();
                     RedundancyThresholds cuts = stageRuns.redundancyThresholds();
                     redundancyResolution.resolve(
                             runId,

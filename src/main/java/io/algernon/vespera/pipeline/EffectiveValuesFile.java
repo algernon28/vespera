@@ -26,15 +26,19 @@ import org.springframework.core.env.PropertySource;
  * came from, written beside {@code vespera.db} for the control panel to read (ADR-330 §1).
  *
  * <p>The file is {@code java.util.Properties} in UTF-8 and holds a closed list of keys, each with its
- * {@code <key>.source} beside it, and nothing else: a key nothing names, or one bound blank, is left out with its
- * source, so the file never says an empty value. Its values are model names, an image's name, numbers, durations,
- * booleans and two addresses cut to scheme, host and port, so no secret, path or text of a document reaches it. It is
- * never a filter over what the process holds.
+ * {@code <key>.source} beside it, and nothing else. A key of the application's own file that nothing names, or one
+ * bound blank, is left out with its source; a missing or blank address is instead the code's own, with the source
+ * {@code code}, and is left out only where the address named has no host; and the context window and the language of
+ * the deliverable are always written, as the code's own, with the source {@code code}. So the file never says an
+ * empty value. Its values are model names, an image's name, numbers, durations, booleans and two addresses cut to
+ * scheme, host and port, so no secret, path or text of a document reaches it. It is never a filter over what the
+ * process holds.
  *
  * <p>{@code vespera run} and {@code vespera label} write it once the working-directory lock is held and past the last
  * refusal of their start, before their first step; {@code vespera publish} writes none. It is written whole to a
  * {@code .part} file and moved over the target, and one that cannot be written is logged at WARN and fails nothing. It
- * is never deleted. The sixteen presets of ADR-330 §9 are on the list, the resolution under the profile's own name, {@code clusterResolution}.
+ * is never deleted. The sixteen presets of ADR-330 §9 are on the list, the resolution under the profile's own name,
+ * {@code clusterResolution}.
  */
 final class EffectiveValuesFile {
 
@@ -128,7 +132,10 @@ final class EffectiveValuesFile {
         return values;
     }
 
-    /** {@code key} as the application resolves {@code property}, with the source that names it; left out when blank or unnamed. */
+    /**
+     * {@code key} as the application resolves {@code property}, with the source that names it; left out when blank or
+     * unnamed.
+     */
     private void named(Map<String, String[]> values, String key, String property) {
         String value = environment.getProperty(property);
         if (value == null || value.isBlank()) {
@@ -153,7 +160,10 @@ final class EffectiveValuesFile {
         }
     }
 
-    /** The address as its scheme, host and port alone, so that a user, a password, a path and a query do not reach the file; {@code null} where it has no host. */
+    /**
+     * The address as its scheme, host and port alone, so that a user, a password, a path and a query do not reach the
+     * file; {@code null} where it has no host.
+     */
     private static String schemeHostAndPortOf(String address) {
         try {
             URI uri = URI.create(address.strip());

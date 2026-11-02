@@ -388,7 +388,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                         occurrenceId,
                         stageRuns.extraction(),
                         DoclingDocumentTexts.lines(response.rawResponse()),
-                        stageRuns.shingleParameters());
+                        stageRuns.shingleWindow());
                 yield converted.degenerateReason()
                         .map(reason -> new ExtractionOutcome(occurrenceId, VerdictKind.DEGENERATE_OUTPUT, reason))
                         .orElse(null);

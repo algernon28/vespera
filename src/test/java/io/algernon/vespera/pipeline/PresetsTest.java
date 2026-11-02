@@ -13,6 +13,7 @@ import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.mock.env.MockEnvironment;
 
 /**
@@ -71,6 +74,28 @@ class PresetsTest {
     private static final Profile NOTHING_NAMED = ProfileFixture.profile().build();
 
     private static final String WHY = "set by this test";
+
+    /** A rare-shingle sample below the shipped 24 hits. */
+    private static final String A_SAMPLE_OF_TWELVE = "12";
+
+    /** Hits below the shipped ones and still more than that sample holds. */
+    private static final String SIXTEEN_HITS = "16";
+
+    /** A sample of no shingles. */
+    private static final String A_SAMPLE_OF_NONE = "0";
+
+    /**
+     * The presets read from {@code application.yaml} itself, its keys alone being in the environment, so that what a
+     * test of what ships holds is the file and not {@link PresetsFixture}'s copy of it, and no value of the machine
+     * running the test stands over one.
+     */
+    private static Presets theShippedFile() throws IOException {
+        MockEnvironment environment = new MockEnvironment();
+        new YamlPropertySourceLoader()
+                .load("the shipped file", new ClassPathResource("application.yaml"))
+                .forEach(environment.getPropertySources()::addLast);
+        return new Presets(environment);
+    }
 
     private static Presets naming(String key, String value) {
         return new Presets(PresetsFixture.shippedEnvironment().withProperty(key, value));
@@ -185,12 +210,13 @@ class PresetsTest {
     @Story("A value no run can be made under stops the invocation")
     @DisplayName("The hits are held to the sample configuration names, and the line says that sample")
     void theHitsAreHeldToTheSampleNamed() {
-        claim("sixteen hits are too many of a sample of twelve",
-                () -> assertThat(naming(Map.of(RARE_SAMPLE, "12", RARE_HITS, "16")).refusal(NOTHING_NAMED))
-                        .contains(theHits("16", "12")));
-        claim("and a sample of no shingles is refused for itself, ahead of the hits it leaves too many",
-                () -> assertThat(naming(RARE_SAMPLE, "0").refusal(NOTHING_NAMED))
-                        .contains(aWholeNumber(RARE_SAMPLE, "0")));
+        claim(SIXTEEN_HITS + " hits are too many of a sample of " + A_SAMPLE_OF_TWELVE + ", which the line says",
+                () -> assertThat(naming(Map.of(RARE_SAMPLE, A_SAMPLE_OF_TWELVE, RARE_HITS, SIXTEEN_HITS))
+                                .refusal(NOTHING_NAMED))
+                        .contains(theHits(SIXTEEN_HITS, A_SAMPLE_OF_TWELVE)));
+        claim("and a sample of " + A_SAMPLE_OF_NONE + " shingles is refused for itself, ahead of the hits it leaves too many",
+                () -> assertThat(naming(RARE_SAMPLE, A_SAMPLE_OF_NONE).refusal(NOTHING_NAMED))
+                        .contains(aWholeNumber(RARE_SAMPLE, A_SAMPLE_OF_NONE)));
     }
 
     /** The values nearest each bound, each of which a run can be made under. */
@@ -238,9 +264,11 @@ class PresetsTest {
     @Test
     @Story("A value no run can be made under stops the invocation")
     @DisplayName("What ships is refused by no line")
-    void whatShipsIsAllowed() {
-        claim("the sixteen values the application ships are ones a run can be made under",
-                () -> assertThat(PresetsFixture.shipped().refusal(NOTHING_NAMED)).isEmpty());
+    void whatShipsIsAllowed() throws IOException {
+        Presets presets = theShippedFile();
+
+        claim("the sixteen values application.yaml holds are ones a run can be made under",
+                () -> assertThat(presets.refusal(NOTHING_NAMED)).isEmpty());
     }
 
     @Test
@@ -324,9 +352,9 @@ class PresetsTest {
         claim("the converter's two",
                 () -> assertThat(List.of(presets.ocrPreset(), presets.timeoutsInARow())).containsExactly("easyocr", 2));
         claim("the shingle window",
-                () -> assertThat(presets.shingleParameters()).isEqualTo(new ShingleParameters(6)));
+                () -> assertThat(presets.shingleWindow()).isEqualTo(new ShingleParameters(6)));
         claim("the signature's four, the seed a negative long as a long holds it",
-                () -> assertThat(presets.minHashParameters()).isEqualTo(new MinHashParameters(64, 8, 8, -1L)));
+                () -> assertThat(presets.minHash()).isEqualTo(new MinHashParameters(64, 8, 8, -1L)));
         claim("the two cuts and the containment path's two counts",
                 () -> assertThat(presets.redundancyThresholds()).isEqualTo(new RedundancyThresholds(0.9, 0.99, 16, 12)));
         claim("and the number of similarities, the bands and the number from each, each to its own",
@@ -342,13 +370,13 @@ class PresetsTest {
     @Test
     @Story("A machine may name another value of a preset")
     @DisplayName("What ships reads as the numbers and identities every earlier run was minted under")
-    void whatShipsReadsAsWhatEveryEarlierRunWasMintedUnder() {
-        Presets presets = PresetsFixture.shipped();
+    void whatShipsReadsAsWhatEveryEarlierRunWasMintedUnder() throws IOException {
+        Presets presets = theShippedFile();
 
         claim("the shingle window's identity",
-                () -> assertThat(presets.shingleParameters().identity()).isEqualTo("word:5"));
+                () -> assertThat(presets.shingleWindow().identity()).isEqualTo("word:5"));
         claim("the signature's, its seed in decimal",
-                () -> assertThat(presets.minHashParameters().identity())
+                () -> assertThat(presets.minHash().identity())
                         .isEqualTo("perms:128;bands:16;rows:8;seed:6840335614489015382"));
         claim("the cuts', the shipped 0.80 written as Java writes it",
                 () -> assertThat(presets.redundancyThresholds().identity())

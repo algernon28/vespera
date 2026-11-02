@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.HttpClientSettings;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.core.env.Environment;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.MultipartBodyBuilder;
@@ -168,15 +169,36 @@ public class DoclingClient {
      *     {@code auto} resolves to in the pinned image and whose models ship inside it (ADR-090, ADR-330 §8). It is
      *     sent as {@code ocr_preset} rather than {@code ocr_engine}, which docling-serve deprecated in favour of
      *     it. A preset is a name the sidecar resolves, so an administrator redefining it is still invisible here.
-     *     This constructor does not refuse a name: a bean that did would stop the context, and {@code vespera
-     *     label} and {@code vespera publish} run under it. The rule lies in {@link #isOnePresetsName}, and {@code
+     *     This constructor does not refuse a name either: the rule lies in {@link #isOnePresetsName}, and {@code
      *     pipeline} applies it at the start of {@code vespera run} (ADR-330 §9).
      */
-    @Autowired
-    public DoclingClient(
-            @Value("${vespera.docling.base-url}") String baseUrl,
-            @Value("${vespera.docling.ocr-preset}") String ocrPreset) {
+    public DoclingClient(String baseUrl, String ocrPreset) {
         this(baseUrl, ocrPreset, HEALTH_CHECK_TIMEOUT);
+    }
+
+    /**
+     * The constructor Spring calls (ADR-332 §2). It reads {@code vespera.docling.ocr-preset} from {@code environment}
+     * as it is built, and not by {@code @Value}, which fails the context ahead of every command on a placeholder
+     * nothing resolves, and {@code vespera label} and {@code vespera publish} run under that context. Where the key
+     * holds such a placeholder it holds the {@link IllegalArgumentException}'s sentence, as {@code pipeline}'s
+     * {@code Presets} reads it, and where the key is unnamed it holds nothing. It refuses no name: {@link
+     * #sentOptions()} names what is held, so {@code vespera label --auto} composes an identity no run was converted
+     * under and is refused for that, and {@code vespera run} is stopped by {@code Presets} before a conversion is sent.
+     *
+     * @param baseUrl the sidecar's address, {@code vespera.docling.base-url}
+     */
+    @Autowired
+    public DoclingClient(@Value("${vespera.docling.base-url}") String baseUrl, Environment environment) {
+        this(baseUrl, presetNamedIn(environment), HEALTH_CHECK_TIMEOUT);
+    }
+
+    private static String presetNamedIn(Environment environment) {
+        try {
+            String named = environment.getProperty("vespera.docling.ocr-preset");
+            return named == null ? "" : named;
+        } catch (IllegalArgumentException nothingResolvesIt) {
+            return nothingResolvesIt.getMessage();
+        }
     }
 
     /** The seam a test needs to ask a sidecar that never answers, on a clock short enough to run. */

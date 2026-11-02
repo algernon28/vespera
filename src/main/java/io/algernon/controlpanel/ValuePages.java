@@ -412,7 +412,7 @@ final class ValuePages {
 
     /**
      * What the page holds in place of the forms where the file is not in the form the jar writes it (ADR-330 §6): the
-     * first line that is not, the file's text, and, where the three changes of the repair are all that is wrong, what
+     * first line that is not, the file's text, and, where what the repair changes is all that is wrong, what
      * each does and the form that makes them.
      */
     private static String formProblem(String text, ProfileRepair.Analysis analysis) {

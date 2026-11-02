@@ -176,7 +176,7 @@ class ContentCensusTasklet implements Tasklet {
                     log.info("Stage 3 (content census) is reading the shares of the documents");
                     long readStarted = System.nanoTime();
                     // The window stage 2's run was minted under, which names the shingle rows read (ADR-330 section 9).
-                    ShingleParameters window = stageRuns.shingleParameters();
+                    ShingleParameters window = stageRuns.shingleWindow();
                     DocumentFrequency.Shares shares = documentFrequency.shares(runId, window);
                     log.info(
                             "Stage 3 (content census) read the shares of the documents in {} s",

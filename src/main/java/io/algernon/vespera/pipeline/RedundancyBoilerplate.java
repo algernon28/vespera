@@ -38,7 +38,7 @@ class RedundancyBoilerplate {
         RunId censusRun = stageRuns.upstream(StageModules.CONTENT_CENSUS);
         double floor = stageRuns.contentRedundancyFloor();
         // The window stage 2's run was minted under, which names the shingle rows read (ADR-330 section 9).
-        ShingleParameters window = stageRuns.shingleParameters();
+        ShingleParameters window = stageRuns.shingleWindow();
         this.hashes = TimedStatement.of(
                 "Stage 4 (content redundancy)",
                 "reading",

@@ -61,8 +61,8 @@ class RedundancySignatureItemWriter implements ItemWriter<OccurrenceId> {
     public void write(Chunk<? extends OccurrenceId> chunk) {
         // The numbers the runs were minted under, so the signature written is the one the run is named by
         // (ADR-330 section 9, ADR-117): the window of stage 2's run and the permutations of stage 4's.
-        ShingleParameters window = stageRuns.shingleParameters();
-        MinHashParameters permutations = stageRuns.minHashParameters();
+        ShingleParameters window = stageRuns.shingleWindow();
+        MinHashParameters permutations = stageRuns.minHash();
         for (OccurrenceId occurrenceId : chunk) {
             redundancySignatures.write(
                     occurrenceId,

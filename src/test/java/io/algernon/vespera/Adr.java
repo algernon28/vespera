@@ -2348,6 +2348,16 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT = FILE
             + "0331-the-control-panel-opens-a-window-of-its-own-and-its-pages-are-a-cockpit-with-a-picker-an-example-and-a-hint-on-its-fields.md";
 
+    /**
+     * ADR-332 -- {@code vespera label --auto} is refused in one line where the extractor identity it composes is not the
+     * one its label file's run was converted under; a placeholder nothing resolves in {@code vespera.docling.ocr-preset}
+     * stops {@code vespera run} in the one line of ADR-330 §9 and neither {@code vespera label} nor {@code vespera
+     * publish}, the client reading it from the environment; {@code Presets} checks each bound first and the module again
+     * (amends ADR-330 §9 and its Known limits).
+     */
+    public static final String THE_LOCAL_MODEL_LABELS_ONLY_UNDER_THE_EXTRACTOR_ITS_RUN_WAS_CONVERTED_UNDER = FILE
+            + "0332-vespera-label-auto-is-refused-under-another-extractor-identity-than-its-run-was-converted-under-and-a-placeholder-in-the-ocr-preset-stops-only-a-run.md";
+
     private Adr() {
     }
 }

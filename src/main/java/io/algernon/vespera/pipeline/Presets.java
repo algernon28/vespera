@@ -25,8 +25,10 @@ import org.springframework.stereotype.Component;
  * <p><b>It reads lazily, and a bad value does not stop the context.</b> Nothing is parsed when it is built and nothing
  * is injected as a number: {@code vespera label} and {@code vespera publish} run under the same context and read no
  * preset, so a value they do not use must not stop them (ADR-330 §9). The refusal is {@link #refusal}, asked at the
- * start of {@code vespera run}; an accessor asked of a value that is refused throws {@link PresetRefusedException} with the same
- * line. What bounds a value belongs to the type of the module that uses it, which refuses it again when it is built.
+ * start of {@code vespera run}; an accessor asked of a value that is refused throws {@link PresetRefusedException} with
+ * the same line. This class holds the lines and checks each bound first, so that a line can name the key; the type or
+ * method of the module that uses the value refuses it again when built or called, for a caller that is not this class
+ * (ADR-332 §3).
  */
 @Component
 class Presets {
@@ -69,8 +71,8 @@ class Presets {
             clusterNeighbours();
             ocrPreset();
             timeoutsInARow();
-            shingleParameters();
-            minHashParameters();
+            shingleWindow();
+            minHash();
             redundancyThresholds();
             topSimilarities();
             sampleBands();
@@ -146,17 +148,12 @@ class Presets {
     }
 
     /** The shingle window. */
-    ShingleParameters shingleParameters() {
-        int words = wholeNumber(SHINGLE_WORDS);
-        try {
-            return new ShingleParameters(words);
-        } catch (IllegalArgumentException refusedByTheType) {
-            throw new PresetRefusedException(SHINGLE_WORDS + " is " + words + ": " + refusedByTheType.getMessage());
-        }
+    ShingleParameters shingleWindow() {
+        return new ShingleParameters(wholeNumber(SHINGLE_WORDS));
     }
 
     /** The signature's permutations, bands, rows and seed, in the order of §9's table. */
-    MinHashParameters minHashParameters() {
+    MinHashParameters minHash() {
         int permutations = wholeNumber(PERMUTATIONS);
         int bands = wholeNumber(BANDS_OF_A_SIGNATURE);
         int rows = wholeNumber(ROWS_PER_BAND);
@@ -171,9 +168,6 @@ class Presets {
         } catch (NumberFormatException notALong) {
             throw new PresetRefusedException(SEED + " is " + rawSeed
                     + ": a whole number from -9223372036854775808 to 9223372036854775807");
-        } catch (IllegalArgumentException refusedByTheType) {
-            // a bound the type holds that this class does not repeat still reaches the operator as a line
-            throw new PresetRefusedException("vespera.redundancy.minhash: " + refusedByTheType.getMessage());
         }
     }
 
@@ -190,9 +184,6 @@ class Presets {
             }
         } catch (NumberFormatException notANumber) {
             // refused below
-        } catch (IllegalArgumentException refusedByTheType) {
-            // a bound the type holds that this class does not repeat still reaches the operator as a line
-            throw new PresetRefusedException("vespera.redundancy: " + refusedByTheType.getMessage());
         }
         throw new PresetRefusedException(RARE_SHINGLE_HITS + " is " + rawHits
                 + ": a whole number from 1 to vespera.redundancy.rare-shingle-sample, " + sample);

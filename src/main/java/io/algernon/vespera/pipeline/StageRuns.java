@@ -107,11 +107,11 @@ class StageRuns {
     private RunId extraction;
     private OptionalLong degenerateOutputWordFloor;
     private int timeoutsInARow;
-    private ShingleParameters shingleParameters;
+    private ShingleParameters shingleWindow;
     private RunId contentCensus;
     private RunId contentRedundancy;
     private double contentRedundancyFloor;
-    private MinHashParameters minHashParameters;
+    private MinHashParameters minHash;
     private RedundancyThresholds redundancyThresholds;
     private double clusterResolution;
     private int clusterNeighbours;
@@ -185,7 +185,7 @@ class StageRuns {
             // The two presets stage 2's run is minted under, read here as the run is, and kept to be handed to the
             // steps that use them (ADR-330 section 9, ADR-117).
             int timeouts = presets.timeoutsInARow();
-            ShingleParameters window = presets.shingleParameters();
+            ShingleParameters window = presets.shingleWindow();
             extraction = runMint.mint(
                     StageModules.EXTRACTION,
                     new ExtractionConfigConsumed(
@@ -203,7 +203,7 @@ class StageRuns {
                     ? OptionalLong.of(floor.words())
                     : OptionalLong.empty();
             timeoutsInARow = timeouts;
-            shingleParameters = window;
+            shingleWindow = window;
         }
         return extraction;
     }
@@ -221,9 +221,9 @@ class StageRuns {
      * The shingle window stage 2's run was minted under, which mints that run if it has not yet been: the window of
      * the shingles written under it, and so of every later stage that reads them (ADR-330 section 9).
      */
-    ShingleParameters shingleParameters() {
+    ShingleParameters shingleWindow() {
         extraction();
-        return shingleParameters;
+        return shingleWindow;
     }
 
     /**
@@ -264,7 +264,7 @@ class StageRuns {
             WalkId walk = runMint.finishedWalk(canonicalRoot, "stage 4");
             RunId contentCensusRunId = upstream(StageModules.CONTENT_CENSUS);
             // The signature's numbers and the cuts, read as the run is minted and kept for the steps (ADR-330 section 9).
-            MinHashParameters permutations = presets.minHashParameters();
+            MinHashParameters permutations = presets.minHash();
             RedundancyThresholds cuts = presets.redundancyThresholds();
             contentRedundancy = runMint.mint(
                     StageModules.CONTENT_REDUNDANCY,
@@ -279,16 +279,16 @@ class StageRuns {
                     walk,
                     Optional.of(contentCensusRunId));
             contentRedundancyFloor = floor;
-            minHashParameters = permutations;
+            minHash = permutations;
             redundancyThresholds = cuts;
         }
         return contentRedundancy;
     }
 
     /** The signature's numbers stage 4's run was minted under, which mints that run if it has not yet been. */
-    MinHashParameters minHashParameters() {
+    MinHashParameters minHash() {
         contentRedundancy();
-        return minHashParameters;
+        return minHash;
     }
 
     /** The cuts stage 4's run was minted under, which mints that run if it has not yet been. */

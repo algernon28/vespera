@@ -10,12 +10,14 @@ import java.util.regex.Pattern;
 
 /**
  * What can be made of a {@code profile.yaml} that is not in the form {@link ProfileEdit} reads (ADR-330 §6): the first
- * line that is not in it, and, where nothing else is wrong, the three changes that put it there and the text they make.
- * The three are a comment removed, whether a whole line's, one after a key or one after a scalar on its line, a
- * measurement's lines among them; a scalar of {@code value} or {@code provenance} written as ADR-295 §3 writes one; and
- * a plain or single-quoted scalar over several lines joined with one space, as YAML folds them.
+ * line that is not in it, and, where nothing else is wrong, the two changes that put it there and the text they make.
+ * The two are a comment removed, whether a whole line's, one after a key or one after a scalar on its line, a
+ * measurement's lines among them; and a plain or single-quoted scalar over several lines joined with one space, as
+ * YAML folds them. A scalar that loses a comment or is joined is written as ADR-295 §3 writes one, but a scalar is
+ * never rewritten as a change of its own: none that keeps its comment and its line is touched, and no {@link Change}
+ * records such a rewrite.
  *
- * <p>Every other byte is kept, line ends included, and a value is never changed. What the three cannot put in form is
+ * <p>Every other byte is kept, line ends included, and a value is never changed. What the two cannot put in form is
  * left to the operator: a key the profile does not hold, a key twice, a flow mapping, a block scalar, a tab in an
  * indent, a key written flat. Whether the repaired text is in form is decided by the reader that refuses the original,
  * so a repair offered is one the writes of ADR-295 will accept. {@link ProfileEdit#rewrite} is not changed.
@@ -30,7 +32,7 @@ final class ProfileRepair {
      * What a file not in form comes to.
      *
      * @param firstLine the first line, from 1, that is not in the form
-     * @param repairable whether the three changes alone put it in form
+     * @param repairable whether the two changes alone put it in form
      * @param changes what the repair would do, in the file's order; empty where it cannot be made
      * @param repaired the text the repair makes; empty where it cannot be made
      */
