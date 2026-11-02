@@ -267,6 +267,7 @@ class WorkingDirectoryWriteTest {
     @Test
     @Story("The control panel writes into a working directory")
     @DisplayName("A repair's copy is never made over an earlier one, whichever second each is made in")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     void aRepairsCopyIsNeverMadeOverAnEarlierOne(@TempDir Path workingDirectory) throws IOException {
         Files.writeString(workingDirectory.resolve(PROFILE), "the first text", UTF_8);
         String first = WorkingDirectoryWrite.keepCopyBeforeRepair(workingDirectory, PROFILE);
