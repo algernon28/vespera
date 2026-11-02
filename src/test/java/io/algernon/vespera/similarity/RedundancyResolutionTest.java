@@ -102,6 +102,28 @@ class RedundancyResolutionTest {
     /** Not a real floor: no test here strips anything, so every shingle stays distinctive. */
     private static final double NO_BOILERPLATE_FLOOR = 0.9;
 
+    /** Shingles a pair at the near-duplicate cut shares: 80 of the 100 between them, each holding 10 of its own. */
+    private static final int SHARED_AT_THE_CUT = 80;
+
+    private static final int OWN_AT_THE_CUT = 10;
+
+    /** The Jaccard of that pair, 80/100: the shipped near-duplicate cut exactly. */
+    private static final double JACCARD_AT_THE_CUT = 0.80;
+
+    /** Shingles a pair just below the cut shares: 79 of the 100 between them, one more of its own on one side. */
+    private static final int SHARED_JUST_BELOW = 79;
+
+    /** A document measured against the containment cut: 100 shingles, some of them in a far larger one. */
+    private static final int SMALL_DOCUMENT_SHINGLES = 100;
+
+    /** How many of its 100 the larger one holds at the containment cut, 95/100 = 0.95, and just below it. */
+    private static final int HELD_AT_THE_CUT = 95;
+
+    private static final int HELD_JUST_BELOW = 94;
+
+    /** The containment of that document, 95/100: the shipped containment cut exactly. */
+    private static final double CONTAINMENT_AT_THE_CUT = 0.95;
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -365,6 +387,99 @@ class RedundancyResolutionTest {
                 () -> assertThat(redundantWithVerdictCount()).isZero());
     }
 
+    /**
+     * The near-duplicate cut is 0.80, judged at or above (ADR-079, ADR-081): a pair scoring exactly 80 shared of 100
+     * is removed, one scoring 79 of 100 is not. Raising the cut, judging strictly above it, or lowering it by a
+     * hundredth each turns this red. Both pairs are retrieved by the shipped signature and seed; a pair at the cut is
+     * retrieved about 19 times in 20 over all seeds (ADR-081), so a change of seed that loses one is seen here as a
+     * failure of the first claim, never as a silent pass.
+     */
+    @Test
+    @Story("A pair is near-identical from the cut up, and not below it")
+    @DisplayName("Two documents sharing 80 of the 100 shingles between them are judged near-identical, and two sharing 79 are not")
+    void aPairAtTheNearDuplicateCutIsJudgedAndAPairJustBelowItIsNot() {
+        Fixture fixture = fixture();
+        OccurrenceId atTheCut = fixture.document(
+                "at-the-cut.pdf", union(shingles(0, SHARED_AT_THE_CUT), shingles(1_000, OWN_AT_THE_CUT)), THINNER_TEXT,
+                Instant.parse("2021-01-01T00:00:00Z"));
+        OccurrenceId atTheCutKept = fixture.document(
+                "at-the-cut-kept.pdf", union(shingles(0, SHARED_AT_THE_CUT), shingles(2_000, OWN_AT_THE_CUT)), FULLER_TEXT,
+                Instant.parse("2022-01-01T00:00:00Z"));
+        OccurrenceId justBelow = fixture.document(
+                "just-below.pdf",
+                union(shingles(50_000, SHARED_JUST_BELOW), shingles(51_000, OWN_AT_THE_CUT + 1)),
+                THINNER_TEXT, Instant.parse("2021-01-01T00:00:00Z"));
+        OccurrenceId justBelowOther = fixture.document(
+                "just-below-other.pdf", union(shingles(50_000, SHARED_JUST_BELOW), shingles(52_000, OWN_AT_THE_CUT)),
+                FULLER_TEXT, Instant.parse("2022-01-01T00:00:00Z"));
+
+        fixture.resolve();
+
+        claim(
+                "the pair sharing 80 of the 100 shingles between them scores exactly 0.80, the cut itself, and the"
+                        + " thinner of the two is removed in favour of the fuller: the cut is met from 0.80 up",
+                () -> assertThat(redundantWith(atTheCut)).isEqualTo(atTheCutKept.value()));
+        claim(
+                "the stored relation names near-duplication",
+                () -> assertThat(relationOf(atTheCut)).isEqualTo("near-duplicate"));
+        claim(
+                "and the stored score is that exact 0.80",
+                () -> assertThat(scoreOf(atTheCut)).isEqualTo(JACCARD_AT_THE_CUT));
+        claim(
+                "the pair sharing 79 of the 100 shingles between them scores 0.79, a hundredth below the cut, and"
+                        + " neither of the two is removed",
+                () -> assertThat(List.of(redundantWith(justBelow) == null, redundantWith(justBelowOther) == null))
+                        .containsExactly(true, true));
+    }
+
+    /**
+     * The containment cut is 0.95, judged at or above (ADR-079, ADR-081): a 100-shingle document holding 95 of its
+     * shingles in a far larger one is removed as inside it, one holding 94 is not. Raising the cut, judging strictly
+     * above it, or lowering it by a hundredth each turns this red. Each small document's 32 rarest shingles are its
+     * own few plus shared ones enough that its container holds at least the 24 retrieval asks for, so both pairs are
+     * measured and the cut alone decides them.
+     */
+    @Test
+    @Story("A document is inside another from the cut up, and not below it")
+    @DisplayName("A document with 95 of its 100 shingles in a far larger one is judged inside it, and one with 94 is not")
+    void aDocumentAtTheContainmentCutIsJudgedAndOneJustBelowItIsNot() {
+        Fixture fixture = fixture();
+        OccurrenceId atTheCut = fixture.document(
+                "at-the-cut.pdf",
+                union(shingles(0, HELD_AT_THE_CUT), shingles(1_000, SMALL_DOCUMENT_SHINGLES - HELD_AT_THE_CUT)),
+                THINNER_TEXT, Instant.parse("2021-01-01T00:00:00Z"));
+        OccurrenceId atTheCutContainer = fixture.document(
+                "at-the-cut-container.pdf",
+                union(shingles(0, HELD_AT_THE_CUT), shingles(10_000, CONTAINER_EXTRA_SHINGLES)),
+                FULLER_TEXT, Instant.parse("2022-01-01T00:00:00Z"));
+        OccurrenceId justBelow = fixture.document(
+                "just-below.pdf",
+                union(shingles(50_000, HELD_JUST_BELOW), shingles(51_000, SMALL_DOCUMENT_SHINGLES - HELD_JUST_BELOW)),
+                THINNER_TEXT, Instant.parse("2021-01-01T00:00:00Z"));
+        OccurrenceId justBelowContainer = fixture.document(
+                "just-below-container.pdf",
+                union(shingles(50_000, HELD_JUST_BELOW), shingles(60_000, CONTAINER_EXTRA_SHINGLES)),
+                FULLER_TEXT, Instant.parse("2022-01-01T00:00:00Z"));
+
+        fixture.resolve();
+
+        claim(
+                "the document with 95 of its 100 shingles in the larger one is inside it at exactly 0.95, the cut"
+                        + " itself, and is removed as inside it: the cut is met from 0.95 up",
+                () -> assertThat(redundantWith(atTheCut)).isEqualTo(atTheCutContainer.value()));
+        claim(
+                "the stored relation names containment",
+                () -> assertThat(relationOf(atTheCut)).isEqualTo("contained-in"));
+        claim(
+                "and the stored score is that exact 0.95",
+                () -> assertThat(scoreOf(atTheCut)).isEqualTo(CONTAINMENT_AT_THE_CUT));
+        claim(
+                "the document with 94 of its 100 shingles in the larger one is inside it at 0.94, a hundredth below"
+                        + " the cut, and neither it nor the larger one is removed",
+                () -> assertThat(List.of(redundantWith(justBelow) == null, redundantWith(justBelowContainer) == null))
+                        .containsExactly(true, true));
+    }
+
     @Test
     @Story("No pointer names a document the same pass removed")
     @DisplayName("Of a document inside a second that is inside a third, no document is left pointing at one that was itself removed")
@@ -548,6 +663,15 @@ class RedundancyResolutionTest {
     }
 
     /** {@code count} consecutive shingle hashes from {@code from} — an explicit set, so overlaps are exact. */
+    @SafeVarargs
+    private static Set<Long> union(Set<Long>... parts) {
+        Set<Long> hashes = new LinkedHashSet<>();
+        for (Set<Long> part : parts) {
+            hashes.addAll(part);
+        }
+        return hashes;
+    }
+
     private static Set<Long> shingles(long from, int count) {
         Set<Long> hashes = new LinkedHashSet<>();
         for (long i = 0; i < count; i++) {
