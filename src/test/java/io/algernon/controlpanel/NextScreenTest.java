@@ -179,7 +179,8 @@ class NextScreenTest {
             Page page = screens.afterARunHasEnded().go("/next").page();
             Element next = form(page, "next");
 
-            claim("the approval is asked for, filled with the name of the arrangement to approve, its provenance empty",
+            claim("the approval is asked for, filled with the name of the arrangement to approve, its provenance empty"
+                            + " since no profile states one",
                     () -> assertThat(List.of(next.select("[name=arrangementApproved]").val(),
                                     next.select("[name='arrangementApproved.provenance']").val()))
                             .containsExactly(ARRANGEMENT, ""));

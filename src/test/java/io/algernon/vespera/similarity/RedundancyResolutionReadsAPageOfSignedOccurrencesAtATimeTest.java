@@ -63,6 +63,16 @@ import org.springframework.transaction.support.TransactionTemplate;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
+    /** The signature the application ships: 128 permutations in 16 bands of 8 rows, and its seed. */
+    private static final MinHashParameters THE_SHIPPED_MINHASH =
+            new MinHashParameters(128, 16, 8, 0x5EED_C0FF_EE12_3456L);
+
+    /** The cuts the application ships: 0.80 and 0.95, over a sample of 32 shingles asking 24 hits. */
+    private static final RedundancyThresholds THE_SHIPPED_THRESHOLDS = new RedundancyThresholds(0.80, 0.95, 32, 24);
+
     /** Documents that resemble nothing, each of its own 20 shingles. */
     private static final int ALONE = 2_400;
 
@@ -160,7 +170,7 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
                     for (long hash : shingleSets.get(i)) {
                         shingle.setLong(1, ids.get(i));
                         shingle.setString(2, stage2.value());
-                        shingle.setString(3, ShingleParameters.DEFAULT.identity());
+                        shingle.setString(3, FIVE_WORD_SHINGLES.identity());
                         shingle.setLong(4, hash);
                         shingle.addBatch();
                     }
@@ -183,7 +193,7 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
             new DocumentFrequency(jdbcTemplate, ledger).measure(stage3, stage2);
             RedundancySignatures signatures = new RedundancySignatures(jdbcTemplate);
             for (Long id : ids) {
-                signatures.write(new OccurrenceId(id), stage4, stage2, Set.of(), NO_BOILERPLATE_FLOOR);
+                signatures.write(new OccurrenceId(id), stage4, stage2, Set.of(), NO_BOILERPLATE_FLOOR, FIVE_WORD_SHINGLES, THE_SHIPPED_MINHASH);
             }
         });
         // The statement ADR-221 section 1 builds it with, for the run stage 4b reads.
@@ -191,7 +201,7 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
 
         StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
         new RedundancyResolution(log.jdbcTemplate(), new Ledger(log.jdbcTemplate()))
-                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(log.jdbcTemplate()));
+                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(log.jdbcTemplate()), FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS);
         said = log.said();
     }
 

@@ -49,6 +49,7 @@ class ProfileScreenTest {
     @Test
     @Story("The operator writes a profile value")
     @DisplayName("Every profile value has a form of its own, in order, with its cost, and saving one writes it with its provenance")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     void everyKeyHasAFormOfItsOwnWithItsCostAndOneIsSaved() throws IOException {
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         List<String> keys = Arrays.stream(ProfileKey.values()).map(ProfileKey::key).toList();
@@ -59,10 +60,11 @@ class ProfileScreenTest {
 
             claim("with no next act read, the page holds a form for every profile value, named by it, in its order",
                     () -> assertThat(page.document().select("form").eachAttr("name")).containsExactlyElementsOf(keys));
-            claim("each form holds the value's name, its value and its provenance, and one Save",
+            claim("each form holds the value's name, the digest of what the page drew it from, its value and its"
+                            + " provenance, and one Save",
                     () -> assertThat(keys.stream().map(key -> List.of(controlNames(form(page, key)),
                                     buttonNames(form(page, key)))))
-                            .containsOnly(List.of(List.of("key", "value", "provenance"), List.of("save"))));
+                            .containsOnly(List.of(List.of("key", "drawn", "value", "provenance"), List.of("save"))));
             claim("each value's cost is said beside its form",
                     () -> assertThat(keys.stream().map(key -> byId(page, "cost-" + key).text().isBlank()))
                             .containsOnly(false));

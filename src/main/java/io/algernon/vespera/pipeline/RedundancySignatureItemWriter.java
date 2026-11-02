@@ -3,7 +3,9 @@ package io.algernon.vespera.pipeline;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.similarity.MinHashParameters;
 import io.algernon.vespera.similarity.RedundancySignatures;
+import io.algernon.vespera.similarity.ShingleParameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -57,9 +59,19 @@ class RedundancySignatureItemWriter implements ItemWriter<OccurrenceId> {
 
     @Override
     public void write(Chunk<? extends OccurrenceId> chunk) {
+        // The numbers the runs were minted under, so the signature written is the one the run is named by
+        // (ADR-330 section 9, ADR-117): the window of stage 2's run and the permutations of stage 4's.
+        ShingleParameters window = stageRuns.shingleWindow();
+        MinHashParameters permutations = stageRuns.minHash();
         for (OccurrenceId occurrenceId : chunk) {
             redundancySignatures.write(
-                    occurrenceId, runId, extractionRunId, redundancyBoilerplate.hashes(), stageRuns.contentRedundancyFloor());
+                    occurrenceId,
+                    runId,
+                    extractionRunId,
+                    redundancyBoilerplate.hashes(),
+                    stageRuns.contentRedundancyFloor(),
+                    window,
+                    permutations);
             log.info("[redundancy-signature] finished {}", occurrenceId.value());
             progress.itemDone();
         }

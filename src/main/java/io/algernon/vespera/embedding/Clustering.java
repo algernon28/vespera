@@ -31,13 +31,6 @@ import org.springframework.stereotype.Component;
 public class Clustering {
 
     /**
-     * ADR-087's k, floored to one less than the partition by {@link NearestNeighbourGraph}. An
-     * operational number rather than a corpus judgement, which is why it is a code default and not a
-     * profile key (ADR-082's precedent).
-     */
-    static final int NEIGHBOURS = 15;
-
-    /**
      * How many documents a block holds at most, and the count ADR-087's own table is worked in.
      *
      * <p>ADR-087 leaves the number open — the hand-off spec's arithmetic uses 4,096 illustratively and
@@ -133,6 +126,14 @@ public class Clustering {
      * catch-all would be a page no document belongs to (ADR-022's unattributed bucket sits at the top
      * level, for documents with no winning seed, which is a different condition with a different
      * cause).
+     *
+     * <p>{@code neighbours} is ADR-087's k, the preset {@code vespera.clustering.neighbours} (shipped as 15), and
+     * {@code resolution} the one {@code vespera.clustering.resolution} or the profile's {@code clusterResolution}
+     * gives (shipped as 1.0; ADR-330 §8, §9). Both are the numbers the scoring run was minted under, handed down by
+     * it, and neither is held by a constant here.
+     *
+     * @throws IllegalArgumentException for {@code neighbours} below 1, or a {@code resolution} that is not a finite
+     *     number above 0, whatever the partition holds
      */
     public Optional<RetainedEdgeSpread> clusterAndRecord(
             RunId runId,
@@ -140,7 +141,9 @@ public class Clustering {
             Map<OccurrenceId, String> contentHashesByOccurrence,
             String chunkerIdentity,
             String chunkingRuleIdentity,
-            String embedderIdentity) {
+            String embedderIdentity,
+            int neighbours,
+            double resolution) {
         return clusterAndRecord(
                 runId,
                 winningSeed,
@@ -148,11 +151,13 @@ public class Clustering {
                 chunkerIdentity,
                 chunkingRuleIdentity,
                 embedderIdentity,
+                neighbours,
+                resolution,
                 ClusteringProgress.NONE);
     }
 
     /**
-     * As {@link #clusterAndRecord(RunId, OccurrenceId, Map, String, String, String)}, telling {@code
+     * As {@link #clusterAndRecord(RunId, OccurrenceId, Map, String, String, String, int, double)}, telling {@code
      * progress} how many pairs of blocks the partition's pass compares and each pair as it is done (ADR-192
      * section 5). A partition with no member returns before the pass and calls neither method.
      */
@@ -163,7 +168,15 @@ public class Clustering {
             String chunkerIdentity,
             String chunkingRuleIdentity,
             String embedderIdentity,
+            int neighbours,
+            double resolution,
             ClusteringProgress progress) {
+        if (neighbours < 1) {
+            throw new IllegalArgumentException("a graph keeps at least one neighbour, not " + neighbours);
+        }
+        if (!(resolution > 0) || Double.isInfinite(resolution)) {
+            throw new IllegalArgumentException("the resolution must be a finite number above 0, not " + resolution);
+        }
         List<OccurrenceId> members = List.copyOf(contentHashesByOccurrence.keySet());
         if (members.isEmpty()) {
             return Optional.empty();
@@ -171,8 +184,8 @@ public class Clustering {
         StoredMeanVectors vectors = new StoredMeanVectors(
                 List.copyOf(contentHashesByOccurrence.values()), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
         NearestNeighbourGraph.Graph graph =
-                NearestNeighbourGraph.build(vectors, NEIGHBOURS, blockSizeFor(vectors.dimension()), progress);
-        int[] ordinals = Communities.of(graph, Communities.DEFAULT_RESOLUTION);
+                NearestNeighbourGraph.build(vectors, neighbours, blockSizeFor(vectors.dimension()), progress);
+        int[] ordinals = Communities.of(graph, resolution);
         for (int document = 0; document < members.size(); document++) {
             documentClusters.record(runId, members.get(document), winningSeed, ordinals[document]);
         }

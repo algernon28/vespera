@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -61,7 +60,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("awaits the writer of the values file")
 class TheJarWritesItsEffectiveValuesInvocationTest {
 
     /** The file's name, beside the database file. */
@@ -223,7 +221,6 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
     }
 
     @Test
-    @Disabled("awaits the presets in the shipped application file")
     @Story("The jar says what it would use")
     @DisplayName("The presets the application ships are in the file at the values the shipped file holds")
     void thePresetsAreWrittenAsTheShippedFileHoldsThem() throws IOException {

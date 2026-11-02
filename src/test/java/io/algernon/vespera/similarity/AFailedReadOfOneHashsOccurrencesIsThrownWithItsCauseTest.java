@@ -55,6 +55,16 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Link(name = "ADR-237", url = Adr.THE_READ_OF_ONE_HASHS_OCCURRENCES_IS_PREPARED_ONCE_A_PASS, type = "adr")
 class AFailedReadOfOneHashsOccurrencesIsThrownWithItsCauseTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
+    /** The signature the application ships: 128 permutations in 16 bands of 8 rows, and its seed. */
+    private static final MinHashParameters THE_SHIPPED_MINHASH =
+            new MinHashParameters(128, 16, 8, 0x5EED_C0FF_EE12_3456L);
+
+    /** The cuts the application ships: 0.80 and 0.95, over a sample of 32 shingles asking 24 hits. */
+    private static final RedundancyThresholds THE_SHIPPED_THRESHOLDS = new RedundancyThresholds(0.80, 0.95, 32, 24);
+
     /** The contained document's shingles, every one of which the container holds too. */
     private static final int CONTAINED_SHINGLES = 40;
 
@@ -98,12 +108,12 @@ class AFailedReadOfOneHashsOccurrencesIsThrownWithItsCauseTest {
                 .executeWithoutResult(status -> new DocumentFrequency(jdbcTemplate, ledger).measure(stage3, stage2));
         RedundancySignatures signatures = new RedundancySignatures(jdbcTemplate);
         for (OccurrenceId occurrence : List.of(chapter, volume)) {
-            signatures.write(occurrence, stage4, stage2, Set.of(), NO_BOILERPLATE_FLOOR);
+            signatures.write(occurrence, stage4, stage2, Set.of(), NO_BOILERPLATE_FLOOR, FIVE_WORD_SHINGLES, THE_SHIPPED_MINHASH);
         }
         JdbcTemplate refusing = new JdbcTemplate(refusingTheReadOfOneHash(jdbcTemplate.getDataSource()));
 
         Throwable thrown = catchThrowable(() -> new RedundancyResolution(refusing, new Ledger(refusing))
-                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(refusing)));
+                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(refusing), FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS));
 
         claim(
                 "what is thrown is a failure of the database, and not a failure of the program to say one: no"
@@ -129,7 +139,7 @@ class AFailedReadOfOneHashsOccurrencesIsThrownWithItsCauseTest {
                 "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash) VALUES (?, ?, ?, ?)",
                 occurrence.value(),
                 stage2.value(),
-                ShingleParameters.DEFAULT.identity(),
+                FIVE_WORD_SHINGLES.identity(),
                 hash));
         jdbcTemplate.update(
                 "INSERT INTO extraction_metric"

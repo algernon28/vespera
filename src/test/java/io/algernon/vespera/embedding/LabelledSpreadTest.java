@@ -36,6 +36,9 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-088", url = Adr.RELEVANCE_THRESHOLD_IS_SIXTY_LABELS, type = "adr")
 class LabelledSpreadTest {
 
+    /** The bands the application ships (vespera.relevance.sample.bands). */
+    private static final int BANDS = 5;
+
     /** A score that is exactly the fourth of five bands' lower edge over 0.0 to 0.5, as a person reads it. */
     private static final double ON_THE_FOURTH_BANDS_LOWER_EDGE = 0.3;
 
@@ -201,14 +204,14 @@ class LabelledSpreadTest {
 
     /** A distribution over the given range, with the five bands ADR-088 fixes. */
     private static RelevanceDistribution.Distribution aDistributionFrom(double lowest, double highest) {
-        double width = (highest - lowest) / RelevanceDistribution.BANDS;
+        double width = (highest - lowest) / BANDS;
         List<RelevanceDistribution.Band> bands = new java.util.ArrayList<>();
-        for (int ordinal = 0; ordinal < RelevanceDistribution.BANDS; ordinal++) {
+        for (int ordinal = 0; ordinal < BANDS; ordinal++) {
             double lowerBound = lowest + ordinal * width;
             bands.add(new RelevanceDistribution.Band(
                     ordinal,
                     lowerBound,
-                    ordinal == RelevanceDistribution.BANDS - 1 ? highest : lowerBound + width,
+                    ordinal == BANDS - 1 ? highest : lowerBound + width,
                     0,
                     0,
                     0));

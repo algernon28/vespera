@@ -32,13 +32,26 @@ public final class OccurrenceJudge {
     private final RunId extractionRun;
     private final Double confidenceFloor;
     private final Long wordFloor;
+    private final int timeoutsInARow;
 
+    /**
+     * @param timeoutsInARow how many timeouts in a row flip a timeout from the document's verdict to the converter's
+     *     fault: the preset {@code vespera.docling.timeouts-in-a-row}, shipped as 3, which stage 2's run was minted
+     *     under (ADR-071, ADR-330 §9)
+     * @throws IllegalArgumentException outside 2 to 4: a count of 1 would set aside every timeout, so that one slow
+     *     document could never earn {@code extraction-failed}, and ADR-071 keeps the breaker of five higher
+     */
     public OccurrenceJudge(
             ExtractionMetrics metrics,
             FailuresInARow failuresInARow,
             RunId extractionRun,
             Double confidenceFloor,
-            Long wordFloor) {
+            Long wordFloor,
+            int timeoutsInARow) {
+        if (timeoutsInARow < 2 || timeoutsInARow > 4) {
+            throw new IllegalArgumentException("timeouts in a row are held to 2 to 4, not " + timeoutsInARow);
+        }
+        this.timeoutsInARow = timeoutsInARow;
         this.metrics = metrics;
         this.failuresInARow = failuresInARow;
         this.extractionRun = extractionRun;
@@ -142,15 +155,15 @@ public final class OccurrenceJudge {
     }
 
     /**
-     * ADR-071: a timeout is document scope while it is isolated, and flips to the converter's once three
-     * land in a row. {@code response} is {@code null} for a call that brought none; non-null for a
+     * ADR-071: a timeout is document scope while it is isolated, and flips to the converter's once the preset's
+     * count (three as shipped) land in a row. {@code response} is {@code null} for a call that brought none; non-null for a
      * timeout the converter reported, which earns a metric row like any other document-scoped failure.
      * The set-aside carries {@code detail} unchanged: the streak is a fact about this pass, not about the
      * document, so it is not spliced into the message.
      */
     private OccurrenceDecision timeout(OccurrenceId occurrence, String detail, DoclingResponse response) {
         int row = failuresInARow.timedOut();
-        if (row >= FailuresInARow.CONSECUTIVE_TIMEOUT_COUNT) {
+        if (row >= timeoutsInARow) {
             return new OccurrenceDecision.SetAside("timeout", detail);
         }
         if (response != null) {

@@ -10,7 +10,6 @@ import io.qameta.allure.Story;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
@@ -27,7 +26,6 @@ import org.springframework.core.io.ClassPathResource;
 @Epic("Architecture")
 @Feature("Shipped configuration")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("awaits the presets in the shipped application file")
 class TheShippedPresetsTest {
 
     /** The file the application ships with. */

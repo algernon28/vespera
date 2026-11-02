@@ -17,7 +17,7 @@ import java.util.Map;
  * <p><b>Counted in documents, never in statistics vocabulary.</b> The trade an operator is making is
  * "this many go, and of the ones I read, this many were worth keeping" — so the numbers that reach
  * the page are counts, and the proportions are stated as one number out of another rather than as a
- * rate. Twelve labels per band is a thin measurement, and "9 in 12" says so where "75%" does not.
+ * rate. A dozen labels per band (twelve as shipped) is a thin measurement, and "9 in 12" says so where "75%" does not.
  */
 public final class LabelledSpread {
 

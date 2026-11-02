@@ -16,7 +16,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -45,7 +44,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Epic("Relevance")
 @Feature("Relevance scoring")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("awaits the number of similarities in the step that scores")
 class AScoreIsTheMeanOfTheNumberConfiguredInvocationTest {
 
     /** Named by configuration, in place of the shipped 3. */

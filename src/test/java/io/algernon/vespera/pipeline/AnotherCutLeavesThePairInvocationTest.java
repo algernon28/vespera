@@ -11,7 +11,6 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Path;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -30,7 +29,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Epic("Pipeline")
 @Feature("What a piece of work is identified by")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("awaits the similarity cuts in the step that judges")
 class AnotherCutLeavesThePairInvocationTest {
 
     /** Above the pair's Jaccard of about 0.81, where the shipped 0.80 is below it. */

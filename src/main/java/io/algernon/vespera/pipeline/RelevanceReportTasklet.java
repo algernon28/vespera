@@ -45,7 +45,7 @@ import org.springframework.stereotype.Component;
  * threshold, and no choice of its own.
  *
  * <p>Two files beside the database and the profile, never inside the corpus (ADR-054): a page
- * showing how the scores are spread and which sixty documents to judge, and a label file with one
+ * showing how the scores are spread and which documents to judge (sixty as shipped), and a label file with one
  * answer per document, blank unless an answer is already recorded for the seed set (ADR-169). The
  * profile's threshold key is pointed at the page, and left unset —
  * ADR-088 is explicit that nothing writes the value, because a threshold guessed by the engine is
@@ -154,7 +154,7 @@ class RelevanceReportTasklet implements Tasklet {
         RelevanceDistribution.Distribution distribution;
         TimedStatement.Started readingTheScores = TimedStatement.begin(STAGE, "reading", "read", "the scores");
         try {
-            distribution = relevanceDistribution.measure(scoring);
+            distribution = relevanceDistribution.measure(scoring, stageRuns.sampleBands(), stageRuns.sampledPerBand());
             readingTheScores.end();
         } catch (java.util.NoSuchElementException nothingScored) {
             // The read finished and found no score: that is the gate's answer, not a statement that failed.
@@ -200,16 +200,19 @@ class RelevanceReportTasklet implements Tasklet {
                         TimedStatement.of(
                                 STAGE, "reading", "read",
                                 "the scores against the answers",
-                                () -> relevanceDistribution.spreadOf(scoring, answers)),
+                                () -> relevanceDistribution.spreadOf(
+                                        scoring, answers, stageRuns.sampleBands(), stageRuns.sampledPerBand())),
                         ignoredFloor().orElse(null)));
         write(
                 RelevanceLabelFile.FILE_NAME,
                 RelevanceLabelFile.render(
                         scoring.value(),
-                        TimedStatement.of(
+                        // The scale the answers are recorded under: the embedder identity, and the number of
+                        // similarities after it where that is not the shipped 3 (ADR-330 section 9).
+                        stageRuns.relevanceScale(TimedStatement.of(
                                         STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(
                                                 modelName, stageRuns.embeddingModelArtefact()))
-                                .orElse(modelName),
+                                .orElse(modelName)),
                         // The preamble's seed-walk gate is open, and SeedGate opens it only for a seed
                         // folder the profile names and that canonicalises, so this is always present
                         // (ADR-169 §4).
@@ -238,8 +241,9 @@ class RelevanceReportTasklet implements Tasklet {
      */
     private Optional<RelevanceLabellingReport.IgnoredFloor> ignoredFloor() {
         String modelName = stageRuns.embeddingModelName();
-        Optional<String> currentIdentity = TimedStatement.of(
-                STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName, stageRuns.embeddingModelArtefact()));
+        Optional<String> currentIdentity = TimedStatement.<Optional<String>>of(
+                STAGE, "reading", "read", "the embedder identities", () -> relevanceDistribution.embedderIdentityFor(modelName, stageRuns.embeddingModelArtefact()))
+                .map(stageRuns::relevanceScale);
         if (currentIdentity.isEmpty()) {
             return Optional.empty();
         }

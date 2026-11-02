@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -20,7 +21,6 @@ import java.util.Map;
 import java.util.Properties;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -50,7 +50,6 @@ import org.yaml.snakeyaml.Yaml;
 @Epic("Relevance")
 @Feature("Clustering")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("awaits clusterResolution in the profile and in the scoring run's identity")
 class TheClusteringPresetsInvocationTest {
 
     private static final int DOCUMENTS = 3;
@@ -112,6 +111,8 @@ class TheClusteringPresetsInvocationTest {
     void aProfileValueOtherThanTheShippedOneNamesAnotherScoringRun() throws IOException {
         cli.run("run", root.toString());
         List<String> namingNone = theScoringRuns();
+        claim("the invocation naming none is found among the scoring runs, so that what follows compares something",
+                () -> assertThat(namingNone).isNotEmpty());
 
         theProfileAlsoNamesTheResolution("1.0");
         cli.run("run", root.toString());
@@ -126,7 +127,7 @@ class TheClusteringPresetsInvocationTest {
                 () -> assertThat(cli.getExitCode()).isZero());
         List<Map<String, Object>> named = jdbcTemplate.queryForList(
                 "SELECT id, config_consumed FROM run WHERE stage = 'embedding-scoring' AND config_consumed LIKE ? AND config_consumed LIKE ?",
-                "%\"clusterResolution\"%", "%" + root.toString().replace("\\", "\\\\") + "%");
+                "%\"clusterResolution\"%", theRootAsAConfigurationHoldsIt());
         claim("it is one more scoring run, whose recorded configuration ends with the resolution",
                 () -> assertThat(named).singleElement().satisfies(run -> assertThat(run.get("config_consumed").toString())
                         .endsWith(THE_MEMBER)));
@@ -259,7 +260,15 @@ class TheClusteringPresetsInvocationTest {
     /** The scoring runs of the class's shared corpus root, which is in each one's configuration. */
     private List<String> theScoringRuns() {
         return jdbcTemplate.queryForList("SELECT id FROM run WHERE stage = 'embedding-scoring' AND config_consumed LIKE ? ORDER BY id",
-                String.class, "%" + root.toString().replace("\\", "\\\\") + "%");
+                String.class, theRootAsAConfigurationHoldsIt());
+    }
+
+    /**
+     * The pattern of the corpus root in a run's configuration: canonicalised, as a run names it, which is another
+     * spelling where the temporary folder's path is not its real one, as a Windows runner's short name is; and in JSON.
+     */
+    private static String theRootAsAConfigurationHoldsIt() {
+        return "%" + Walk.canonicalRoot(root).toString().replace("\\", "\\\\") + "%";
     }
 
     private int answersRecorded() {

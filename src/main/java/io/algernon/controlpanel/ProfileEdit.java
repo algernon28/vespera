@@ -3,11 +3,15 @@ package io.algernon.controlpanel;
 import io.algernon.controlpanel.YamlLines.Line;
 import io.algernon.controlpanel.YamlLines.NotInFormException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +23,10 @@ import java.util.regex.Pattern;
  * they stand, every other byte of {@code profile.yaml} kept, in a file read only in the form the jar writes it and
  * the README and ADR-284 §9 show; and each value checked by the rule the jar applies to it, in {@code java.base},
  * before anything is written. A refusal is an {@link IllegalArgumentException} whose message is the one line.
+ *
+ * <p>It also reads what a page shows of a value (ADR-330): whether the value is one the jar can read, the measurement
+ * a key points at, the digest a form carries as {@code drawn} and the two checks a save makes against the file
+ * before the checks of the value (§5).
  */
 public final class ProfileEdit {
 
@@ -126,6 +134,143 @@ public final class ProfileEdit {
         return stated;
     }
 
+    /** What a key's {@code measurement} points at: where it lies and when it was last looked at, as the file holds them. */
+    public record Measurement(String source, String refreshedAt) {
+    }
+
+    /**
+     * The measurement the file holds under each key, read to be shown (ADR-330 §4): its {@code source} and
+     * {@code refreshedAt} lines. A key whose measurement is {@code null}, or whose lines are not those two, has none
+     * here; the bytes are kept as they are either way.
+     */
+    public static Map<ProfileKey, Measurement> measurementsOf(String text) {
+        Parsed parsed = parse(text);
+        Map<ProfileKey, Measurement> found = new EnumMap<>(ProfileKey.class);
+        parsed.blocks().forEach((key, block) -> measurementOf(parsed.lines(), block)
+                .ifPresent(measurement -> found.put(key, measurement)));
+        return found;
+    }
+
+    private static Optional<Measurement> measurementOf(List<Line> lines, Block block) {
+        if (block.measurementFirst() < 0) {
+            return Optional.empty();
+        }
+        String source = null;
+        String refreshedAt = null;
+        try {
+            for (int n = block.measurementFirst(); n <= block.measurementLast(); n++) {
+                String line = lines.get(n).text();
+                if (YamlLines.blank(line)) {
+                    continue;
+                }
+                int indent = YamlLines.indentOf(line);
+                String entry = line.substring(indent);
+                int colon = entry.indexOf(':');
+                if (colon < 0) {
+                    return Optional.empty();
+                }
+                YamlScalars.Scalar scalar = YamlScalars.read(lines, n, entry.substring(colon + 1), indent + 2);
+                n = scalar.lastLine();
+                String read = scalar.plain() && scalar.text().equals("null") ? null : scalar.text();
+                switch (entry.substring(0, colon)) {
+                    case "source" -> {
+                        if (source != null) {
+                            return Optional.empty();
+                        }
+                        source = read;
+                    }
+                    case "refreshedAt" -> {
+                        if (refreshedAt != null) {
+                            return Optional.empty();
+                        }
+                        refreshedAt = read;
+                    }
+                    default -> {
+                        return Optional.empty();
+                    }
+                }
+            }
+        } catch (NotInFormException unreadable) {
+            return Optional.empty();
+        }
+        return source == null || refreshedAt == null ? Optional.empty() : Optional.of(new Measurement(source, refreshedAt));
+    }
+
+    /**
+     * Whether the jar can read {@code value} as the key's own (ADR-330 §2): the checks of §4 on the value alone,
+     * whatever its provenance. A seed folder is text the jar reads whether or not the folder is still there, so that is
+     * no check of reading.
+     */
+    public static boolean isReadable(ProfileKey key, String value) {
+        String typed = value == null ? "" : trimmed(key, value);
+        if (typed.chars().anyMatch(c -> c < 0x20)) {
+            return false;
+        }
+        return typed.isEmpty() || key == ProfileKey.SEED_FOLDER || reasonForValue(key, typed).isEmpty();
+    }
+
+    /**
+     * The digest a form carries as {@code drawn} (ADR-330 §5): the hexadecimal SHA-256 of the value as read from what
+     * is posted, its white space lost as §3 and ADR-331 §6 lose it and a list's pieces joined by one space, a NUL, and
+     * the provenance, the value and the provenance each with any line feed or carriage return removed as a text
+     * control removes it.
+     */
+    public static String drawnOf(ProfileKey key, String value, String provenance) {
+        return sha256((normalized(key, value) + '\0' + withoutBreaks(provenance == null ? "" : provenance))
+                .getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** The hexadecimal SHA-256 of {@code text}, which the repair's form carries as {@code drawn} (ADR-330 §6). */
+    public static String digestOf(String text) {
+        return sha256(text.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * §5's second step for one value, before anything is written: the line refusing it where the file moved since the
+     * page was drawn, where the value changed and its provenance did not, or by §4's checks; empty where it may be
+     * written.
+     *
+     * @param inFile what the file states for the key now, empty where it states none
+     * @param drawn what the form carried as {@code drawn}, empty where it carried none
+     */
+    public static Optional<String> refusalOfSave(ProfileKey key, String value, String provenance,
+            Optional<Stated> inFile, Optional<String> drawn) {
+        Stated now = inFile.orElse(new Stated(null, null));
+        if (drawn.isPresent() && !drawnOf(key, now.value(), now.provenance()).equals(drawn.get())) {
+            return said(key, "profile.yaml has changed this value since the page was drawn; look at it and save again");
+        }
+        String stated = withoutBreaks(now.provenance() == null ? "" : now.provenance());
+        boolean valueChanged = !normalized(key, value).equals(normalized(key, now.value()));
+        if (valueChanged && !stated.isBlank()
+                && withoutBreaks(provenance == null ? "" : provenance).equals(stated)) {
+            return said(key, "its value changed and its provenance did not; write how you arrived at the new value");
+        }
+        return refusalOf(key, value, provenance);
+    }
+
+    /** Throws {@link NotInFormException} naming the first line, from 1, where {@code text} leaves the form of §3. */
+    static void requireForm(String text) {
+        parseForm(text);
+    }
+
+    private static String normalized(ProfileKey key, String value) {
+        String typed = trimmed(key, withoutBreaks(value == null ? "" : value));
+        return key.kind() == ProfileKey.Kind.NAME_ENDINGS || key.kind() == ProfileKey.Kind.LANGUAGES
+                ? String.join(" ", piecesOf(typed)) : typed;
+    }
+
+    private static String withoutBreaks(String text) {
+        return text.replace("\n", "").replace("\r", "");
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("every Java runtime has SHA-256", e);
+        }
+    }
+
     private static Optional<String> said(ProfileKey key, String reason) {
         return Optional.of(key.key() + " is not saved: " + reason);
     }
@@ -155,6 +300,8 @@ public final class ProfileEdit {
                     : Optional.of(quoted + " is not en or it");
             case PREFERRED_LANGUAGES -> areLanguages(value) ? Optional.empty()
                     : Optional.of(quoted + " is not a list of two-letter language codes");
+            case CLUSTER_RESOLUTION -> number(value).filter(number -> number > 0).isPresent() ? Optional.empty()
+                    : Optional.of(quoted + " is not a number above 0");
             default -> number(value).isPresent() ? Optional.empty() : Optional.of(quoted + " is not a number");
         };
     }
@@ -233,7 +380,8 @@ public final class ProfileEdit {
     private record Replacement(Entry entry, String text) {
     }
 
-    private record Block(int keyLine, Entry value, Entry provenance) {
+    /** A key's block: its lines, and the first and last line of its measurement's own lines, {@code -1} where it has none. */
+    private record Block(int keyLine, Entry value, Entry provenance, int measurementFirst, int measurementLast) {
     }
 
     private record Parsed(List<Line> lines, Map<ProfileKey, Block> blocks) {
@@ -262,72 +410,86 @@ public final class ProfileEdit {
         int keyLine = -1;
         Entry value = null;
         Entry provenance = null;
+        int measurementFirst = -1;
+        int measurementLast = -1;
         boolean measurementSeen = false;
         boolean inMeasurement = false;
         for (; i < lines.size(); i++) {
-            String line = lines.get(i).text();
-            if (YamlLines.blank(line)) {
-                continue;
-            }
-            int indent = YamlLines.indentOf(line);
-            if (indent == 0) {
-                if (key != null) {
-                    blocks.put(key, new Block(keyLine, value, provenance));
+            int at = i;
+            try {
+                String line = lines.get(i).text();
+                if (YamlLines.blank(line)) {
+                    continue;
                 }
-                if (!line.endsWith(":")) {
+                int indent = YamlLines.indentOf(line);
+                if (indent == 0) {
+                    if (key != null) {
+                        blocks.put(key, new Block(keyLine, value, provenance, measurementFirst, measurementLast));
+                    }
+                    if (!line.endsWith(":")) {
+                        throw new NotInFormException();
+                    }
+                    key = ProfileKey.named(line.substring(0, line.length() - 1)).orElseThrow(NotInFormException::new);
+                    if (blocks.containsKey(key)) {
+                        throw new NotInFormException();
+                    }
+                    keyLine = i;
+                    value = null;
+                    provenance = null;
+                    measurementFirst = -1;
+                    measurementLast = -1;
+                    measurementSeen = false;
+                    inMeasurement = false;
+                } else if (key == null || line.charAt(indent) == '\t') {
+                    throw new NotInFormException();
+                } else if (indent == 2) {
+                    inMeasurement = false;
+                    String entry = line.substring(2);
+                    int colon = entry.indexOf(':');
+                    String name = colon < 0 ? "" : entry.substring(0, colon);
+                    String afterColon = colon < 0 ? "" : entry.substring(colon + 1);
+                    switch (name) {
+                        case "value" -> {
+                            if (value != null) {
+                                throw new NotInFormException();
+                            }
+                            value = entryAt(lines, i, afterColon);
+                            i = value.last();
+                        }
+                        case "provenance" -> {
+                            if (provenance != null) {
+                                throw new NotInFormException();
+                            }
+                            provenance = entryAt(lines, i, afterColon);
+                            i = provenance.last();
+                        }
+                        case "measurement" -> {
+                            if (measurementSeen) {
+                                throw new NotInFormException();
+                            }
+                            measurementSeen = true;
+                            if (YamlLines.blank(afterColon)) {
+                                inMeasurement = true;
+                            } else if (!afterColon.startsWith(" ") || !afterColon.strip().equals("null")) {
+                                throw new NotInFormException();
+                            }
+                        }
+                        default -> throw new NotInFormException();
+                    }
+                } else if (indent >= 4 && inMeasurement) {
+                    if (measurementFirst < 0) {
+                        measurementFirst = i;
+                    }
+                    measurementLast = i;
+                } else {
                     throw new NotInFormException();
                 }
-                key = ProfileKey.named(line.substring(0, line.length() - 1)).orElseThrow(NotInFormException::new);
-                if (blocks.containsKey(key)) {
-                    throw new NotInFormException();
-                }
-                keyLine = i;
-                value = null;
-                provenance = null;
-                measurementSeen = false;
-                inMeasurement = false;
-            } else if (key == null || line.charAt(indent) == '\t') {
-                throw new NotInFormException();
-            } else if (indent == 2) {
-                inMeasurement = false;
-                String entry = line.substring(2);
-                int colon = entry.indexOf(':');
-                String name = colon < 0 ? "" : entry.substring(0, colon);
-                String afterColon = colon < 0 ? "" : entry.substring(colon + 1);
-                switch (name) {
-                    case "value" -> {
-                        if (value != null) {
-                            throw new NotInFormException();
-                        }
-                        value = entryAt(lines, i, afterColon);
-                        i = value.last();
-                    }
-                    case "provenance" -> {
-                        if (provenance != null) {
-                            throw new NotInFormException();
-                        }
-                        provenance = entryAt(lines, i, afterColon);
-                        i = provenance.last();
-                    }
-                    case "measurement" -> {
-                        if (measurementSeen) {
-                            throw new NotInFormException();
-                        }
-                        measurementSeen = true;
-                        if (YamlLines.blank(afterColon)) {
-                            inMeasurement = true;
-                        } else if (!afterColon.startsWith(" ") || !afterColon.strip().equals("null")) {
-                            throw new NotInFormException();
-                        }
-                    }
-                    default -> throw new NotInFormException();
-                }
-            } else if (!(indent >= 4 && inMeasurement)) {
-                throw new NotInFormException();
+            } catch (NotInFormException other) {
+                throw new NotInFormException(at + 1);
             }
         }
         if (key != null) {
-            blocks.put(key, new Block(keyLine, value, provenance));
+            blocks.put(key, new Block(keyLine, value, provenance, measurementFirst, measurementLast));
         }
         return new Parsed(lines, blocks);
     }

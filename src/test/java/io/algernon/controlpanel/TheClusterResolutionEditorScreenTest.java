@@ -18,23 +18,20 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.jsoup.nodes.Element;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * {@code clusterResolution} on {@code /profile} (ADR-330 §3, §8, §9): the key Part B adds, apart from {@code
- * ProfileEditorScreenTest} because Part A's page holds the eighteen keys and {@code ProfileKey} names no nineteenth until
- * this part lands (§10).
+ * {@code clusterResolution} on {@code /profile} (ADR-330 §3, §8, §9): the key the presets add, apart from {@code
+ * ProfileEditorScreenTest}, which holds what every key's form does, because this holds what this key's own does.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("awaits clusterResolution in the profile and on its page")
 class TheClusterResolutionEditorScreenTest {
 
-    /** The new key, which {@code ProfileKey} does not name yet. */
+    /** The key, as {@code profile.yaml} spells it. */
     private static final String CLUSTER_RESOLUTION = "clusterResolution";
 
     @TempDir
@@ -110,6 +107,19 @@ class TheClusterResolutionEditorScreenTest {
                     () -> assertThat(Files.readString(work.resolve(ProfileEdit.FILE_NAME), UTF_8))
                             .contains(CLUSTER_RESOLUTION + ":\n  value: \"2.5\"\n"
                                     + "  provenance: \"read off cluster-sizes.html: the pages run too long\"\n"));
+        }
+    }
+
+    /** It is a key with a value beneath it, the preset, so a page that has not been told it says so (ADR-330 §1, §2, §14). */
+    @Test
+    @Story("The operator sets how finely documents are grouped")
+    @DisplayName("With nothing yet said by the jar, how finely documents are grouped is not known, which is not the same as unset")
+    void withNoFileTheResolutionIsNotKnown() throws IOException {
+        try (ScreenServer screens = start(workingDirectory())) {
+            Page page = screens.browser().go("/profile").page();
+
+            claim("the page has no value to show and says it does not know one, and not that none is set",
+                    () -> assertThat(inUse(page)).containsExactly("", "not-known"));
         }
     }
 

@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.HttpClientSettings;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.core.env.Environment;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.MultipartBodyBuilder;
@@ -96,25 +97,6 @@ public class DoclingClient {
             new ParameterizedTypeReference<>() {};
 
     /**
-     * The OCR engine every conversion names, rather than leaving the sidecar's {@code auto} to pick
-     * one (ADR-090). Left unnamed, the engine is resolved from whichever models are cached on the
-     * machine and reported in no response, so the same document converts differently elsewhere with
-     * nothing recording that it did.
-     *
-     * <p>{@code rapidocr} specifically, because it is what {@code auto} already resolves to in the
-     * pinned image and its models ship inside it: naming it makes the identity honest without
-     * changing what any corpus extracts to, and without a first-use model download that could fail
-     * offline. It is sent as {@code ocr_preset} rather than {@code ocr_engine}, which docling-serve
-     * deprecated in favour of it.
-     *
-     * <p>A preset is a name the sidecar resolves, so an administrator redefining it is still
-     * invisible here. That gap is narrower than the one this closes, and it is the strongest pin
-     * available without a non-default sidecar: {@code ocr_custom_config}, which would carry the
-     * configuration itself, is refused unless the server opts in.
-     */
-    static final String PINNED_OCR_PRESET = "rapidocr";
-
-    /**
      * The stem every posted filename carries (ADR-100). Fixed, and nothing of the path survives into
      * it: the point of sending a name is to make the conversion a function of the detected format,
      * and a stem read off disk would leave one thread of the filename still steering it.
@@ -175,13 +157,52 @@ public class DoclingClient {
 
     private final JsonMapper jsonMapper;
 
+    /**
+     * The OCR preset every conversion names, rather than leaving the sidecar's {@code auto} to pick one (ADR-090). Left
+     * unnamed, the engine is resolved from whichever models are cached on the machine and reported in no response,
+     * so the same document converts differently elsewhere with nothing recording that it did.
+     */
+    private final String ocrPreset;
+
+    /**
+     * @param ocrPreset the preset {@code vespera.docling.ocr-preset} names, shipped as {@code rapidocr}, the engine
+     *     {@code auto} resolves to in the pinned image and whose models ship inside it (ADR-090, ADR-330 §8). It is
+     *     sent as {@code ocr_preset} rather than {@code ocr_engine}, which docling-serve deprecated in favour of
+     *     it. A preset is a name the sidecar resolves, so an administrator redefining it is still invisible here.
+     *     This constructor does not refuse a name either: the rule lies in {@link #isOnePresetsName}, and {@code
+     *     pipeline} applies it at the start of {@code vespera run} (ADR-330 §9).
+     */
+    public DoclingClient(String baseUrl, String ocrPreset) {
+        this(baseUrl, ocrPreset, HEALTH_CHECK_TIMEOUT);
+    }
+
+    /**
+     * The constructor Spring calls (ADR-332 §2). It reads {@code vespera.docling.ocr-preset} from {@code environment}
+     * as it is built, and not by {@code @Value}, which fails the context ahead of every command on a placeholder
+     * nothing resolves, and {@code vespera label} and {@code vespera publish} run under that context. Where the key
+     * holds such a placeholder it holds the {@link IllegalArgumentException}'s sentence, as {@code pipeline}'s
+     * {@code Presets} reads it, and where the key is unnamed it holds nothing. It refuses no name: {@link
+     * #sentOptions()} names what is held, so {@code vespera label --auto} composes an identity no run was converted
+     * under and is refused for that, and {@code vespera run} is stopped by {@code Presets} before a conversion is sent.
+     *
+     * @param baseUrl the sidecar's address, {@code vespera.docling.base-url}
+     */
     @Autowired
-    public DoclingClient(@Value("${vespera.docling.base-url}") String baseUrl) {
-        this(baseUrl, HEALTH_CHECK_TIMEOUT);
+    public DoclingClient(@Value("${vespera.docling.base-url}") String baseUrl, Environment environment) {
+        this(baseUrl, presetNamedIn(environment), HEALTH_CHECK_TIMEOUT);
+    }
+
+    private static String presetNamedIn(Environment environment) {
+        try {
+            String named = environment.getProperty("vespera.docling.ocr-preset");
+            return named == null ? "" : named;
+        } catch (IllegalArgumentException nothingResolvesIt) {
+            return nothingResolvesIt.getMessage();
+        }
     }
 
     /** The seam a test needs to ask a sidecar that never answers, on a clock short enough to run. */
-    DoclingClient(String baseUrl, Duration healthCheckTimeout) {
+    DoclingClient(String baseUrl, String ocrPreset, Duration healthCheckTimeout) {
         this(
                 RestClient.builder()
                         .baseUrl(baseUrl)
@@ -190,17 +211,19 @@ public class DoclingClient {
                 RestClient.builder()
                         .baseUrl(baseUrl)
                         .requestFactory(requestFactory(healthCheckTimeout, healthCheckTimeout))
-                        .build());
+                        .build(),
+                ocrPreset);
     }
 
     /** The seam a test needs: a {@link RestClient} pointed at a stub, or at a real Testcontainers sidecar. */
-    DoclingClient(RestClient restClient) {
-        this(restClient, restClient);
+    DoclingClient(RestClient restClient, String ocrPreset) {
+        this(restClient, restClient, ocrPreset);
     }
 
-    private DoclingClient(RestClient restClient, RestClient healthClient) {
+    private DoclingClient(RestClient restClient, RestClient healthClient, String ocrPreset) {
         this.restClient = restClient;
         this.healthClient = healthClient;
+        this.ocrPreset = ocrPreset;
         // Unlike ProfileStore's strict reader (a person-edited file, where an unknown key is a typo
         // worth failing on): this is an external service's response, most of which this module does
         // not model at all (the exported document, timings) — reading only the fields it needs and
@@ -261,7 +284,29 @@ public class DoclingClient {
     }
 
     /**
+     * Whether {@code name} is one OCR preset's name a conversion may be sent under (ADR-330 §9): not blank, not {@code
+     * auto} in any case, which the converter resolves where nothing records it (ADR-090), and made only of letters,
+     * digits, {@code -}, {@code _} and {@code .}. The extractor identity is text of {@code key=value} pairs joined by
+     * {@code ;}, so a name holding {@code ;} or {@code =} would write an identity that reads as other options.
+     */
+    public static boolean isOnePresetsName(String name) {
+        if (name == null || name.isBlank() || "auto".equalsIgnoreCase(name)) {
+            return false;
+        }
+        return name.chars()
+                .allMatch(c -> (c >= 'a' && c <= 'z')
+                        || (c >= 'A' && c <= 'Z')
+                        || (c >= '0' && c <= '9')
+                        || c == '-'
+                        || c == '_'
+                        || c == '.');
+    }
+
+    /**
      * The options every conversion sends, as a stable string for the extractor identity (ADR-090).
+     *
+     * <p>Names the preset this client was given and sends, shipped as {@code rapidocr} (ADR-330 §8), for every
+     * conversion and the control conversion alike.
      *
      * <p>Lives here rather than at the composing site so that it cannot drift from {@link #convert}:
      * an identity naming an option this client does not send, or silent about one it does, would be a
@@ -270,8 +315,8 @@ public class DoclingClient {
      * <p>Ends with the rule for cutting a large text into parts (ADR-178): how a file is sent changes
      * what comes back, though no request carries it.
      */
-    public static String sentOptions() {
-        return "to_formats=" + REQUESTED_EXPORT_FORMAT + ";ocr_preset=" + PINNED_OCR_PRESET
+    public String sentOptions() {
+        return "to_formats=" + REQUESTED_EXPORT_FORMAT + ";ocr_preset=" + ocrPreset
                 + ";image_export_mode=" + PICTURE_EXPORT_MODE + ";naming=" + NAMING_SCHEME_VERSION
                 + ";text_parts=" + TextParts.RULE;
     }
@@ -383,7 +428,7 @@ public class DoclingClient {
         MultipartBodyBuilder body = new MultipartBodyBuilder();
         body.part("files", new FileSystemResource(file)).filename(partName);
         body.part("to_formats", REQUESTED_EXPORT_FORMAT);
-        body.part("ocr_preset", PINNED_OCR_PRESET);
+        body.part("ocr_preset", ocrPreset);
         body.part("image_export_mode", PICTURE_EXPORT_MODE);
 
         String rawResponse;

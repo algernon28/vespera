@@ -28,6 +28,9 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-020", url = Adr.RELEVANCE_SCORING_FUNCTION, type = "adr")
 class RelevanceScorerTest {
 
+    /** The mean ADR-020 chose, which is what the application ships (vespera.relevance.top-similarities). */
+    private static final int TOP_THREE = 3;
+
     private static final OccurrenceId SEED_A = new OccurrenceId(1L);
     private static final OccurrenceId SEED_B = new OccurrenceId(2L);
 
@@ -45,7 +48,7 @@ class RelevanceScorerTest {
         List<float[]> seedB = List.of(unit(0.80f), unit(0.79f), unit(0.78f));
         List<float[]> survivorChunks = List.of(axisAligned());
 
-        RelevanceScore result = scorer.score(survivorChunks, Map.of(SEED_A, seedA, SEED_B, seedB));
+        RelevanceScore result = scorer.score(survivorChunks, Map.of(SEED_A, seedA, SEED_B, seedB), TOP_THREE);
 
         claim(
                 "the single best chunk across both seeds is seed A's 0.99 similarity, but the winner is"
@@ -67,7 +70,7 @@ class RelevanceScorerTest {
         List<float[]> seed = List.of(unit(0.9f), unit(0.8f), unit(0.7f), unit(0.1f));
         List<float[]> survivorChunks = List.of(axisAligned());
 
-        RelevanceScore result = scorer.score(survivorChunks, Map.of(SEED_A, seed));
+        RelevanceScore result = scorer.score(survivorChunks, Map.of(SEED_A, seed), TOP_THREE);
 
         claim(
                 "the score is the top-3 mean of 0.8, not the four-similarity mean of 0.625 a whole-set"
@@ -84,8 +87,50 @@ class RelevanceScorerTest {
         claim(
                 "an empty seed map has no maximum for ADR-020's argmax to take, so the call fails rather"
                         + " than silently returning a score against nothing",
-                () -> assertThatThrownBy(() -> scorer.score(survivorChunks, Map.of()))
+                () -> assertThatThrownBy(() -> scorer.score(survivorChunks, Map.of(), TOP_THREE))
                         .isInstanceOf(IllegalStateException.class));
+    }
+
+    /** No mean can be taken of no similarities, and it is this module's to refuse (ADR-330 §9). */
+    @Test
+    @Story("The score is the mean of as many similarities as it is asked for")
+    @DisplayName("A score of no similarities is refused")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void aScoreOfNoSimilaritiesIsRefused() {
+        List<float[]> seed = List.of(unit(0.9f));
+        List<float[]> survivorChunks = List.of(axisAligned());
+
+        for (int noSimilarities : List.of(0, -1)) {
+            claim("asked for " + noSimilarities + " similarities, it refuses rather than answering with no mean",
+                    () -> assertThatThrownBy(() -> scorer.score(survivorChunks, Map.of(SEED_A, seed), noSimilarities))
+                            .isInstanceOf(IllegalArgumentException.class));
+        }
+    }
+
+    /**
+     * The number is what is given and not a constant of the class (ADR-330 §8): the same chunks, the same seed, a mean
+     * of one and a mean of two, so a scorer that ignored its number would give each the top-three mean.
+     */
+    @Test
+    @Story("The score is the mean of as many similarities as it is asked for")
+    @DisplayName("Asked for another number of similarities, the score is the mean of that many")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void theMeanIsOfTheNumberItIsGiven() {
+        List<float[]> seed = List.of(unit(0.9f), unit(0.8f), unit(0.7f), unit(0.1f));
+        List<float[]> survivorChunks = List.of(axisAligned());
+
+        claim(
+                "asked for the top one, the score is the single best similarity, 0.9",
+                () -> assertThat(scorer.score(survivorChunks, Map.of(SEED_A, seed), 1).score())
+                        .isCloseTo(0.9, offset(1e-6)));
+        claim(
+                "asked for the top two, it is the mean of 0.9 and 0.8, 0.85",
+                () -> assertThat(scorer.score(survivorChunks, Map.of(SEED_A, seed), 2).score())
+                        .isCloseTo(0.85, offset(1e-6)));
+        claim(
+                "asked for more than there are pairs, it is the mean of all four, 0.625, and not a mean over empty places",
+                () -> assertThat(scorer.score(survivorChunks, Map.of(SEED_A, seed), 9).score())
+                        .isCloseTo(0.625, offset(1e-6)));
     }
 
     /**

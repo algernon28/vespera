@@ -25,10 +25,10 @@ record SidecarStartSettings(
      */
     static final String DEFAULT_WAIT_AT_MOST = "180s";
 
-    private static final String DEFAULT_DOCLING = "http://localhost:5001";
+    static final String DEFAULT_DOCLING = "http://localhost:5001";
 
     /** Spring AI's own default for Ollama. */
-    private static final String DEFAULT_OLLAMA = "http://localhost:11434";
+    static final String DEFAULT_OLLAMA = "http://localhost:11434";
 
     static SidecarStartSettings from(Environment environment) {
         return new SidecarStartSettings(

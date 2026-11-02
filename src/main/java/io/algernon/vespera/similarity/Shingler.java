@@ -40,13 +40,11 @@ public class Shingler {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    /** Computes and stores {@code text}'s shingle hashes under today's default granularity. */
-    public void write(OccurrenceId occurrenceId, RunId runId, String text) {
-        write(occurrenceId, runId, text, ShingleParameters.DEFAULT);
-    }
-
-    /** As {@link #write(OccurrenceId, RunId, String)}, under an explicitly named granularity. */
-    void write(OccurrenceId occurrenceId, RunId runId, String text, ShingleParameters parameters) {
+    /**
+     * Computes and stores {@code text}'s shingle hashes under the granularity {@code parameters} names: the window
+     * the extraction run was minted under (ADR-330 §9), handed down by it and held by no constant here.
+     */
+    public void write(OccurrenceId occurrenceId, RunId runId, String text, ShingleParameters parameters) {
         List<Long> hashes = hashesOf(text, parameters);
         if (hashes.isEmpty()) {
             return;

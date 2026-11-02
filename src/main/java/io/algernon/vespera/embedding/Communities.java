@@ -36,14 +36,11 @@ final class Communities {
     private Communities() {}
 
     /**
-     * ADR-087's default resolution. Higher values find smaller communities; this is deliberately not
-     * a profile key, because cluster granularity is a preference about page size, discoverable only
-     * from output that does not exist yet — a key would ship unset, gate nothing, and be
-     * unanswerable.
+     * Which cluster each document belongs to, numbered from zero in order of first appearance. {@code resolution}
+     * is handed down by the scoring run (ADR-330 §9: the preset {@code vespera.clustering.resolution}, shipped as
+     * 1.0, which the profile's {@code clusterResolution} overrides), and no value of it lives here. Higher values
+     * find smaller communities.
      */
-    static final double DEFAULT_RESOLUTION = 1.0;
-
-    /** Which cluster each document belongs to, numbered from zero in order of first appearance. */
     static int[] of(NearestNeighbourGraph.Graph graph, double resolution) {
         int count = graph.size();
         if (count == 0) {

@@ -246,7 +246,7 @@ class ReviewListThatFailsPartwayLeavesThePreviousOneTest {
         StageRuns stageRuns =
                 new StageRuns(
                         ledger, new ImplementationVersions(), null, null, null, null, null, null, null, null, null,
-                        null, root, new ExecutionContext()) {
+                        null, PresetsFixture.shipped(), root, new ExecutionContext()) {
                     @Override
                     RunId extraction() {
                         return STAGE_TWO_RUN;

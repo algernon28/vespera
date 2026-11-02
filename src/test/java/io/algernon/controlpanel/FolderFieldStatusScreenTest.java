@@ -420,18 +420,22 @@ class FolderFieldStatusScreenTest {
         }
     }
 
-    /** The field's hint and the page's status tell the operator the same thing of a folder that is not there. */
+    /**
+     * A save of {@code profile.yaml} makes a working directory that is not there (ADR-330 §7, amending ADR-331 §8), and
+     * the hint says so. No start makes one, so the page's status goes on saying there is no such folder until it exists.
+     */
     @Test
     @Story("The operator sees whether a folder will do")
-    @DisplayName("The working directory's hint asks for the folder to be created first, and says nothing of its being created for them")
-    void theWorkingDirectorysHintAsksForItToBeCreatedFirst() throws IOException {
+    @DisplayName("The working directory's hint says the first value saved makes the folder if it is not there yet")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void theWorkingDirectorysHintSaysTheFirstValueSavedMakesIt() throws IOException {
         try (ScreenServer screens = ScreenServer.start(folder, LaunchValues.none())) {
             Page page = screens.browser().page();
             String tiedTo = form(page, "launch").select("[name='" + WORKING_DIRECTORY + "']").attr("aria-describedby");
 
             claim("the hint tied to the field is the one the record gives",
-                    () -> assertThat(byId(page, tiedTo).text()).isEqualTo(
-                            "Where the database, the reports and profile.yaml live. Create it if it is not there yet."));
+                    () -> assertThat(byId(page, tiedTo).text()).isEqualTo("Where the database, the reports and"
+                            + " profile.yaml live. The first value saved makes it if it is not there yet."));
         }
     }
 

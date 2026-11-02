@@ -45,8 +45,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.jsoup.nodes.Attribute;
 import org.jsoup.nodes.Element;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -66,7 +66,6 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-@Disabled("awaits the profile page's values in use and filled fields, what a save checks, the repair, and the folder a save makes")
 class ProfileEditorScreenTest {
 
     /** The file the jar writes for the control panel, in the working directory. */
@@ -174,6 +173,34 @@ class ProfileEditorScreenTest {
                     () -> assertThat(inUse(page, "generationContextWindow")).containsExactly("8192", "code"));
             claim("and a floor nothing names is unset, with no value in use",
                     () -> assertThat(inUse(page, "relevanceScoreFloor")).containsExactly("", "unset"));
+        }
+    }
+
+    /**
+     * A source is text of a file the control panel reads (ADR-330 §1), so the page writes it as it writes every other
+     * text of a file (ADR-302). This one would close its attribute, add another and open an element, each seen below.
+     */
+    @Test
+    @Story("The operator sees the value in use and where it came from")
+    @DisplayName("A source holding a quotation mark reads back whole, and breaks nothing around it")
+    void aSourceHoldingAQuotationMarkReadsBackWhole() throws IOException {
+        String aSource = "shipped\" data-stray=\"1\"><b id=\"a-stray-element\">";
+        Path work = workingDirectory();
+        theJarSaid(work, Map.of("embeddingModel", SHIPPED_EMBEDDING_MODEL, "embeddingModel.source", aSource));
+        try (ScreenServer screens = start(work)) {
+            Page page = screens.browser().go("/profile").page();
+            Element inUse = byId(page, "in-use-embeddingModel");
+
+            claim("the source reads back whole, and the value beside it is still the jar's",
+                    () -> assertThat(inUse(page, "embeddingModel")).containsExactly(SHIPPED_EMBEDDING_MODEL, aSource));
+            claim("the element carries its four attributes and no other",
+                    () -> assertThat(inUse.attributes().asList().stream().map(Attribute::getKey).toList())
+                            .containsExactlyInAnyOrder("id", "data-value", "data-source", "data-fresh"));
+            claim("and no element was opened by it, in that element or anywhere on the page",
+                    () -> {
+                        assertThat(inUse.children()).isEmpty();
+                        assertThat(page.document().getElementById("a-stray-element")).isNull();
+                    });
         }
     }
 
@@ -784,8 +811,9 @@ class ProfileEditorScreenTest {
                     () -> assertThat(profileText(work)).isEqualTo(behindThePage));
             claim("no copy is made",
                     () -> assertThat(aRepairsCopies(work)).isEmpty());
-            claim("and the page says why",
-                    () -> assertThat(byId(landed, "outcome").text()).isNotBlank());
+            claim("and the page says why, in the record's words",
+                    () -> assertThat(byId(landed, "outcome").text())
+                            .contains("profile.yaml has changed since this page was drawn, so it was not repaired"));
         }
     }
 

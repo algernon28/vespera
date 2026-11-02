@@ -16,13 +16,13 @@ public final class LoseNoDocumentationFloor {
     private LoseNoDocumentationFloor() {}
 
     /**
-     * The lowest score among the labels that say relevant and were given under {@code embedderIdentity}.
-     * Empty where none does.
+     * The lowest score among the labels that say relevant and were given under {@code scale}, the {@link
+     * RelevanceScale} of the run (ADR-330 section 9). Empty where none does.
      */
-    public static Optional<Double> over(List<RelevanceLabel> labels, String embedderIdentity) {
+    public static Optional<Double> over(List<RelevanceLabel> labels, String scale) {
         return labels.stream()
                 .filter(RelevanceLabel::relevant)
-                .filter(label -> label.embedderIdentity().equals(embedderIdentity))
+                .filter(label -> label.embedderIdentity().equals(scale))
                 .map(RelevanceLabel::scoreShown)
                 .min(Double::compare);
     }

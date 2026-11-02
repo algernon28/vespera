@@ -23,7 +23,8 @@ public record ExtractorIdentity(String value) {
 
     /**
      * {@code "docling-serve;image=" + image + ";"}, then every reported entry as {@code key=value}, sorted
-     * by key and joined by {@code ";"}, then {@code ";"} and {@link DoclingClient#sentOptions()}. Checks
+     * by key and joined by {@code ";"}, then {@code ";"} and {@code sentOptions}, the text {@link
+     * DoclingClient#sentOptions()} gives for the OCR preset the client was handed (ADR-330 §9). Checks
      * nothing and calls nothing: the caller has already established that the sidecar runs the image.
      *
      * <p>Two parts, and between them they cover what a conversion depends on (ADR-090). The sidecar's whole
@@ -33,12 +34,12 @@ public record ExtractorIdentity(String value) {
      * and convert some files differently. Entries are sorted, so an identity never varies with map
      * iteration order.
      */
-    public static ExtractorIdentity composedOf(String image, Map<String, String> reported) {
+    public static ExtractorIdentity composedOf(String image, Map<String, String> reported, String sentOptions) {
         String versions = reported.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .map(component -> component.getKey() + "=" + component.getValue())
                 .collect(Collectors.joining(";"));
         return new ExtractorIdentity(
-                "docling-serve;image=" + image + ";" + versions + ";" + DoclingClient.sentOptions());
+                "docling-serve;image=" + image + ";" + versions + ";" + sentOptions);
     }
 }

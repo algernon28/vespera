@@ -40,8 +40,9 @@ class RelevanceFloor {
     }
 
     /**
-     * What the floor lets the step asked for do, for the scoring run whose vectors carry {@code
-     * currentEmbedderIdentity}, by {@code floor}, the number that run was minted under and not the profile's
+     * What the floor lets the step asked for do, for the scoring run whose scores are on {@code currentScale} (the
+     * embedder identity its vectors carry and, where its number of similarities is not 3, {@code ;top:<n>} after it,
+     * as {@code RelevanceScale} composes it: ADR-330 section 9), by {@code floor}, the number that run was minted under and not the profile's
      * now, which an operator may have saved since (ADR-117, ADR-228). A value in the profile that is not a
      * number was minted as unset ({@link RelevanceScoreFloorValue}), so it removes nothing rather than failing
      * the run (ADR-120).
@@ -52,9 +53,9 @@ class RelevanceFloor {
      * Stage 5e (relevance floor)} or {@code Stage 5 (relevance report)} (ADR-193, ADR-204 section 3). It is
      * issued only where there is an identity, a number and a seed set is named.
      */
-    FloorReach reachFor(Optional<String> currentEmbedderIdentity, String stage, OptionalDouble floor) {
+    FloorReach reachFor(Optional<String> currentScale, String stage, OptionalDouble floor) {
         return FloorReach.of(
-                currentEmbedderIdentity,
+                currentScale,
                 floor,
                 () -> {
                     // The answers recorded for the seed set, none where no seed folder is named.
@@ -65,7 +66,7 @@ class RelevanceFloor {
                     // Timed: the read has no run, so no span (ADR-193 section 6).
                     return TimedStatement.of(
                             stage, "reading", "read", "the recorded answers",
-                            () -> relevanceLabels.forSeedSet(seedSet.get(), currentEmbedderIdentity.orElseThrow()));
+                            () -> relevanceLabels.forSeedSet(seedSet.get(), currentScale.orElseThrow()));
                 });
     }
 

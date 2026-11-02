@@ -30,15 +30,17 @@ final class DocumentOpening {
 
     /**
      * How much of a document's opening is shown on the page. Long enough to recognise what a document
-     * is, short enough that sixty of them stay readable in one sitting.
+     * is, short enough that the sixty a shipped sample asks about stay readable in one sitting.
      */
     static final int TEXT_OPENING_CHARACTERS = 400;
 
     /**
      * What a sampled survivor's preview shows when the extraction cache holds no conversion under the
      * key recorded for it and the extractor identity now in use (ADR-206 section 5). Inside the job that
-     * never happens; under {@code vespera label --auto} it does when the Docling image was changed after
-     * the run the label file names. The claim is only about the cache, which is all this step knows.
+     * never happens. {@code vespera label --auto} is refused before it asks anything where the identity it
+     * composes is not the one the run was converted under (ADR-332 section 1), so there it happens only where
+     * the cache holds no row for that document under the run's own identity. The claim is only about the
+     * cache, which is all this step knows.
      */
     static final String NO_CONVERSION_ON_RECORD_FALLBACK =
             "(no conversion is on record for this document, so its opening is not shown)";

@@ -19,6 +19,11 @@ import java.util.Optional;
  * does not hold (ADR-295 §1 to §5). Every save is one of {@link WorkingDirectoryWrite}'s writes, answers a {@code 303}
  * to its page with the outcome, and is refused while the control panel's child runs; a {@code GET} writes nothing
  * (ADR-302 §1).
+ *
+ * <p>{@code /profile} edits every value as ADR-330 has it: each key's form is filled from what the file states and
+ * carries the value in use and its source, a line saying what the key is and the measurement it points at; a save
+ * of a value left alone writes nothing; and a file not in the form {@link ProfileEdit} reads is shown with its
+ * first line out of form and repaired, where the repair loses nothing, at {@code /profile-repair} (§2 to §6).
  */
 final class ValuePages {
 
@@ -34,6 +39,7 @@ final class ValuePages {
         pages.put("/labels", this::labels);
         pages.put("/code-sets", this::codeSets);
         pages.put("/profile", this::profile);
+        pages.put("/profile-repair", this::profileRepair);
     }
 
     private Optional<String> read(String fileName) throws IOException {
@@ -271,17 +277,28 @@ final class ValuePages {
         }
         String pending = state.takeOutcome("/profile");
         String problem = null;
-        Map<ProfileKey, ProfileEdit.Stated> stated = Map.of();
-        if (state.workingDirectory().isEmpty()) {
+        String text = null;
+        Optional<Path> folder = state.workingDirectory();
+        if (folder.isEmpty()) {
             problem = NO_WORKING_DIRECTORY;
         } else {
             try {
-                stated = read(ProfileEdit.FILE_NAME).map(ProfileEdit::read).orElse(Map.of());
-            } catch (IllegalArgumentException | IOException unreadable) {
+                text = read(ProfileEdit.FILE_NAME).orElse(null);
+            } catch (IOException unreadable) {
                 problem = unreadable.getMessage();
             }
         }
         StringBuilder body = new StringBuilder(ControlPanelPage.outcome(pending != null ? pending : problem));
+        folder.ifPresent(where -> body.append(profileFile(where)));
+        Optional<ProfileRepair.Analysis> notInForm = text == null ? Optional.empty() : ProfileRepair.analyse(text);
+        if (notInForm.isPresent()) {
+            body.append(formProblem(text, notInForm.get()));
+            Exchanges.page(exchange, ControlPanelPage.render(exchange, "Profile", 0, body.toString()));
+            return;
+        }
+        Map<ProfileKey, ProfileEdit.Stated> stated = text == null ? Map.of() : ProfileEdit.read(text);
+        Map<ProfileKey, ProfileEdit.Measurement> measured = text == null ? Map.of() : ProfileEdit.measurementsOf(text);
+        Optional<EffectiveValues> effective = state.effectiveValues();
         List<ProfileKey> asked = next.wanted();
         List<ProfileKey> shown = new ArrayList<>();
         StringBuilder list = new StringBuilder("<ul id=\"profile-list\">\n");
@@ -292,6 +309,8 @@ final class ValuePages {
             }
             shown.add(key);
             ProfileEdit.Stated held = stated.get(key);
+            String fileValue = held == null || held.value() == null ? "" : held.value();
+            String fileProvenance = held == null || held.provenance() == null ? "" : held.provenance();
             String current = held == null || held.value() == null ? "not set"
                     : held.value() + (held.provenance() == null ? "" : " (" + held.provenance() + ")");
             list.append("<li><a href=\"#key-").append(key.key()).append("\">").append(key.key())
@@ -301,20 +320,24 @@ final class ValuePages {
             Map<String, String> typed = state.heldForm(key.key());
             boolean seedFolder = key == ProfileKey.SEED_FOLDER;
             String forName = FolderPages.Target.PROFILE_SEED_FOLDER.forName();
-            String filled = key == ProfileKey.DELIVERABLE_LANGUAGE && held != null && held.value() != null
-                    ? held.value() : "";
-            String value = typed.getOrDefault("value", filled);
+            String value = typed.getOrDefault("value", fileValue);
             sections.append("<section class=\"card\" id=\"key-").append(key.key()).append("\">\n")
                     .append("<form name=\"").append(key.key()).append("\" method=\"post\" action=\"/profile\">\n")
                     .append("<h2>").append(key.key()).append("</h2>\n")
                     .append("<input type=\"hidden\" name=\"key\" value=\"").append(key.key()).append("\">\n")
+                    .append("<input type=\"hidden\" name=\"drawn\" value=\"")
+                    .append(ProfileEdit.drawnOf(key, fileValue, fileProvenance)).append("\">\n")
+                    .append(ControlPanelPage.text("p", "about-" + key.key(), key.about())).append('\n')
+                    .append(inUse(key, held, effective)).append('\n')
                     .append(ControlPanelPage.text("p", "current-" + key.key(), current)).append('\n')
+                    .append(measurement(key, measured.get(key)))
                     .append(ControlPanelPage.keyControl(key, "value", "f-" + key.key() + "-value", "Value", value,
                             seedFolder ? forName : "",
                             seedFolder ? FolderPages.statusElement(forName, FolderPages.statusOf(value, false)) : ""))
                     .append(ControlPanelPage.provenance("provenance", "f-" + key.key() + "-provenance",
-                            "Why this value?", typed.getOrDefault("provenance", ""), "hint-" + key.key() + "-provenance"))
-                    .append(ControlPanelPage.text("p", "cost-" + key.key(), ControlPanelPage.cost(key))).append('\n')
+                            "Why this value?", typed.getOrDefault("provenance", fileProvenance),
+                            "hint-" + key.key() + "-provenance"))
+                    .append(ControlPanelPage.costElement(key)).append('\n')
                     .append(NextPages.reportsOf(key.key()))
                     .append(ControlPanelPage.button("save", "Save", false)).append("\n</form>\n</section>\n");
         }
@@ -322,6 +345,97 @@ final class ValuePages {
                 .append(sections).append("</div>\n</div>\n")
                 .append(ControlPanelPage.listsFor(shown, state.lastChecks().ollama().models()));
         Exchanges.page(exchange, ControlPanelPage.render(exchange, "Profile", 0, body.toString()));
+    }
+
+    /** {@code profile-file}: whether the file and its folder are there, and where the first save will make the file (ADR-330 §7). */
+    private static String profileFile(Path workingDirectory) {
+        boolean fileThere = Files.isRegularFile(workingDirectory.resolve(ProfileEdit.FILE_NAME));
+        boolean folderThere = Files.isDirectory(workingDirectory);
+        String path = workingDirectory.resolve(ProfileEdit.FILE_NAME).toAbsolutePath().toString();
+        String words = fileThere ? "profile.yaml is edited where it stands, at " + path + "."
+                : folderThere ? "There is no profile.yaml yet: the first value saved makes it at " + path + "."
+                : "There is no profile.yaml yet, and no working directory: the first value saved makes both, the file at "
+                        + path + ".";
+        return "<p id=\"profile-file\" data-file=\"" + (fileThere ? "present" : "absent") + "\" data-folder=\""
+                + (folderThere ? "present" : "absent") + "\" data-path=\"" + ControlPanelPage.escape(path) + "\">"
+                + ControlPanelPage.escape(words) + "</p>\n";
+    }
+
+    /**
+     * {@code in-use-<key>} (ADR-330 §2): the value in use and where it came from. The profile's value where it names
+     * one, whatever its provenance, and {@code unreadable} where the jar cannot read it; else what the jar's file says
+     * lies beneath, marked fresh or stale; else {@code not-known} for a key with a value beneath it when the jar has not
+     * said, and {@code unset}.
+     */
+    private static String inUse(ProfileKey key, ProfileEdit.Stated held, Optional<EffectiveValues> effective) {
+        String stated = held == null || held.value() == null ? "" : held.value();
+        String value;
+        String source;
+        String fresh = "";
+        String words;
+        Optional<EffectiveValues.Value> beneath = effective.flatMap(said -> said.named(key.key()));
+        if (!stated.isBlank()) {
+            boolean readable = ProfileEdit.isReadable(key, stated);
+            value = stated;
+            source = readable ? "profile" : "unreadable";
+            words = readable ? "In use: " + stated + ", from profile.yaml."
+                    : "profile.yaml states " + stated + ", which the jar cannot read; fix it here.";
+        } else if (beneath.isPresent()) {
+            value = beneath.get().value();
+            source = beneath.get().source();
+            fresh = effective.get().stale() ? "stale" : "fresh";
+            words = "In use: " + value + ", from " + source + "."
+                    + (effective.get().stale() ? " The jar that said so may have been replaced since." : "");
+        } else {
+            value = "";
+            source = effective.isEmpty() && key.hasAValueBeneath() ? "not-known" : "unset";
+            words = source.equals("not-known")
+                    ? "The jar has not said yet what it would use; run an invocation to see it."
+                    : "Nothing sets this value.";
+        }
+        return "<p id=\"in-use-" + ControlPanelPage.escape(key.key()) + "\" data-value=\"" + ControlPanelPage.escape(value)
+                + "\" data-source=\"" + ControlPanelPage.escape(source) + "\"" + (fresh.isEmpty() ? "" : " data-fresh=\"" + fresh + "\"") + ">"
+                + ControlPanelPage.escape(words) + "</p>";
+    }
+
+    /** {@code measurement-<key>}: where the file's measurement of the key lies and when it was last looked at; none where it has none. */
+    private static String measurement(ProfileKey key, ProfileEdit.Measurement measured) {
+        if (measured == null) {
+            return "";
+        }
+        return "<p id=\"measurement-" + ControlPanelPage.escape(key.key()) + "\" data-source=\""
+                + ControlPanelPage.escape(measured.source()) + "\" data-refreshed-at=\""
+                + ControlPanelPage.escape(measured.refreshedAt()) + "\">Measured from "
+                + ControlPanelPage.escape(measured.source()) + ", last looked at "
+                + ControlPanelPage.escape(measured.refreshedAt()) + ".</p>\n";
+    }
+
+    /**
+     * What the page holds in place of the forms where the file is not in the form the jar writes it (ADR-330 §6): the
+     * first line that is not, the file's text, and, where what the repair changes is all that is wrong, what
+     * each does and the form that makes them.
+     */
+    private static String formProblem(String text, ProfileRepair.Analysis analysis) {
+        StringBuilder html = new StringBuilder("<p id=\"form-problem\" data-line=\"").append(analysis.firstLine())
+                .append("\" data-repairable=\"").append(analysis.repairable()).append("\">")
+                .append(ControlPanelPage.escape("profile.yaml is not in the form the control panel edits, from line "
+                        + analysis.firstLine() + ". "
+                        + (analysis.repairable() ? "The changes below put it in form and lose no value or provenance."
+                                : "Fix it by hand: no change the control panel may make puts it in form.")
+                        + " The jar reads the file in whatever form, and writes it back in its own at the next census."))
+                .append("</p>\n<pre id=\"profile-text\">\n").append(ControlPanelPage.escape(text)).append("</pre>\n");
+        if (analysis.repairable()) {
+            html.append("<h2>Changes the repair makes</h2>\n<ul id=\"repair-changes\">\n");
+            for (ProfileRepair.Change change : analysis.changes()) {
+                html.append("<li data-line=\"").append(change.line()).append("\">Line ").append(change.line()).append(": ")
+                        .append(ControlPanelPage.escape(change.words())).append("</li>\n");
+            }
+            html.append("</ul>\n<form name=\"repair\" method=\"post\" action=\"/profile-repair\">\n")
+                    .append("<input type=\"hidden\" name=\"drawn\" value=\"").append(ProfileEdit.digestOf(text))
+                    .append("\">\n").append(ControlPanelPage.button("repair", "Repair", false))
+                    .append("\n</form>\n");
+        }
+        return html.toString();
     }
 
     private void saveProfile(HttpExchange exchange) throws IOException {
@@ -340,16 +454,89 @@ final class ValuePages {
         } else if (key.isEmpty()) {
             state.say("/profile", "the profile has no value named " + fields.getOrDefault("key", ""));
         } else {
-            String value = fields.getOrDefault("value", "");
-            String provenance = fields.getOrDefault("provenance", "");
-            Optional<String> refusal = state.write(folder.get(), ProfileEdit.FILE_NAME,
-                    current -> ProfileEdit.rewrite(current, key.get(), value, provenance));
-            if (refusal.isEmpty()) {
-                state.letGoOfForm(key.get().key());
-            }
-            state.say("/profile", refusal.orElse(key.get().key() + " is saved in "
-                    + folder.get().resolve(ProfileEdit.FILE_NAME)));
+            state.say("/profile", saveOne(folder.get(), key.get(), fields));
         }
         Exchanges.redirect(exchange, key.map(each -> "/profile#key-" + each.key()).orElse("/profile"));
+    }
+
+    /**
+     * A save of one value, in ADR-330 §5's order: compared with what the page was drawn from, so that a value left alone
+     * writes nothing and takes no lock; checked against the file and by §4; written. A refusal keeps what was typed
+     * until the value is written or typed back to what the file states.
+     *
+     * @return the line the page shows
+     */
+    private String saveOne(Path folder, ProfileKey key, Map<String, String> fields) {
+        String value = fields.getOrDefault("value", "");
+        String provenance = fields.getOrDefault("provenance", "");
+        Optional<String> drawn = Optional.ofNullable(fields.get("drawn"));
+        if (drawn.isPresent() && ProfileEdit.drawnOf(key, value, provenance).equals(drawn.get())) {
+            state.letGoOfForm(key.key());
+            return key.key() + " is as profile.yaml states it: nothing was written";
+        }
+        Optional<String> refusal = ProfileEdit.refusalOfSave(key, value, provenance, statedIn(folder, key), drawn);
+        if (refusal.isEmpty()) {
+            refusal = state.write(folder, ProfileEdit.FILE_NAME,
+                    current -> ProfileEdit.rewrite(current, key, value, provenance));
+        }
+        if (refusal.isPresent()) {
+            state.holdForm(key.key(), fields);
+            return refusal.get();
+        }
+        state.letGoOfForm(key.key());
+        return key.key() + " is saved in " + folder.resolve(ProfileEdit.FILE_NAME);
+    }
+
+    /** What the file states for {@code key} now; empty where it states none or cannot be read in the form. */
+    private static Optional<ProfileEdit.Stated> statedIn(Path folder, ProfileKey key) {
+        try {
+            Path file = folder.resolve(ProfileEdit.FILE_NAME);
+            return Files.isRegularFile(file)
+                    ? Optional.ofNullable(ProfileEdit.read(Files.readString(file, StandardCharsets.UTF_8)).get(key))
+                    : Optional.empty();
+        } catch (IOException | RuntimeException unreadable) {
+            return Optional.empty();
+        }
+    }
+
+    // ---- /profile-repair
+
+    /** The repair's address: a {@code POST} repairs the file; a {@code GET} changes nothing and lands on {@code /profile}. */
+    private void profileRepair(HttpExchange exchange) throws IOException {
+        if (Exchanges.isRead(exchange)) {
+            Exchanges.redirect(exchange, "/profile");
+            return;
+        }
+        Map<String, String> fields = Exchanges.form(exchange);
+        Optional<Path> folder = state.workingDirectory();
+        if (folder.isEmpty()) {
+            state.say("/profile", NO_WORKING_DIRECTORY);
+        } else {
+            String drawn = fields.getOrDefault("drawn", "");
+            String[] copyMade = {""};
+            Optional<String> refusal = state.write(folder.get(), ProfileEdit.FILE_NAME,
+                    current -> repaired(folder.get(), current, drawn, copyMade));
+            state.say("/profile", refusal.orElse("profile.yaml is repaired; the file as it stood is kept as " + copyMade[0]));
+        }
+        Exchanges.redirect(exchange, "/profile");
+    }
+
+    /**
+     * The repaired text, worked out again from the file under the lock (ADR-330 §6): refused where the file is not the
+     * one the page showed or no repair puts it right, and only once a copy of it whole lies beside it, never over an
+     * earlier one.
+     */
+    private static String repaired(Path folder, Optional<String> current, String drawn, String[] copyMade) {
+        String text = current.orElseThrow(() -> new IllegalArgumentException(
+                ProfileEdit.FILE_NAME + " is not there, so there is nothing to repair"));
+        if (!ProfileEdit.digestOf(text).equals(drawn)) {
+            throw new IllegalArgumentException(
+                    ProfileEdit.FILE_NAME + " has changed since this page was drawn, so it was not repaired");
+        }
+        ProfileRepair.Analysis analysis = ProfileRepair.analyse(text).filter(ProfileRepair.Analysis::repairable)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        ProfileEdit.FILE_NAME + " is in no form that the repair can put right, so it was not repaired"));
+        copyMade[0] = WorkingDirectoryWrite.keepCopyBeforeRepair(folder, ProfileEdit.FILE_NAME);
+        return analysis.repaired();
     }
 }

@@ -49,8 +49,11 @@ final class LaunchPages {
         ControlPanelState.Holders holders = state.holders();
         boolean disabled = holders.any() || state.childRuns();
         List<String> models = modelsNamed(values);
-        SidecarChecks.Checks checks = SidecarChecks.ask(values.doclingBaseUrl(), values.doclingImage(),
-                values.ollamaBaseUrl(), models);
+        Optional<EffectiveValues> effective = state.effectiveValues();
+        SidecarChecks.Checks checks = SidecarChecks.ask(
+                namedOrSaid(values.doclingBaseUrl(), effective, "vespera.docling.base-url"),
+                namedOrSaid(values.doclingImage(), effective, "vespera.docling.image"),
+                namedOrSaid(values.ollamaBaseUrl(), effective, "spring.ai.ollama.base-url"), models);
         state.keepChecks(checks);
         List<String> warnings = new ArrayList<>(state.notes());
         warnings.addAll(values.warningsToRun());
@@ -65,7 +68,7 @@ final class LaunchPages {
         body.append(ControlPanelPage.tiles(checks, FolderPages.freeSpaceOf(values.workingDirectory()), how,
                 InvocationPages.words(state, how)));
         body.append(foldersCard(values));
-        body.append(servicesCard(values));
+        body.append(servicesCard(values, checks, effective));
         body.append("</form>\n");
         body.append(seedFolderCard(values));
         body.append(preflightCard(values, holders, warnings, checks));
@@ -86,7 +89,8 @@ final class LaunchPages {
                         "The folder of documents Vespera reads. It is never changed.", false)
                 + folder(FolderPages.Target.WORKING_DIRECTORY, "Working directory", values.workingDirectory(),
                         "D:\\vespera\\work",
-                        "Where the database, the reports and profile.yaml live. Create it if it is not there yet.", false)
+                        "Where the database, the reports and profile.yaml live. The first value saved makes it if it is not"
+                                + " there yet.", false)
                 + folder(FolderPages.Target.DELIVERABLE_ROOT, "Output folder", values.deliverableRoot(),
                         "D:\\vespera\\deliverable",
                         "Where the finished pages go. Leave it empty to keep them in the working directory.", true)
@@ -103,13 +107,56 @@ final class LaunchPages {
                 .html();
     }
 
-    private String servicesCard(LaunchValues values) {
+    /**
+     * The keys of {@code application.yaml} the control panel shows and does not edit, in the order ADR-330 §12 gives:
+     * the application's own five, then the presets of the converter, of redundancy and of relevance.
+     */
+    private static final List<String> MACHINE_VALUES = List.of("vespera.sidecars.start", "vespera.sidecars.wait-at-most",
+            "vespera.progress-interval", "vespera.open-browser", "vespera.clustering.neighbours",
+            "vespera.docling.ocr-preset", "vespera.docling.timeouts-in-a-row", "vespera.redundancy.shingle-words",
+            "vespera.redundancy.minhash.permutations", "vespera.redundancy.minhash.bands",
+            "vespera.redundancy.minhash.rows-per-band", "vespera.redundancy.minhash.seed",
+            "vespera.redundancy.near-duplicate-jaccard", "vespera.redundancy.containment-index",
+            "vespera.redundancy.rare-shingle-sample", "vespera.redundancy.rare-shingle-hits",
+            "vespera.relevance.top-similarities", "vespera.relevance.sample.bands",
+            "vespera.relevance.sample.per-band");
+
+    /** The launch value where one is named, else what the jar's file says it last used for {@code key}, else empty (ADR-330 §3, §11). */
+    private static String namedOrSaid(String launchValue, Optional<EffectiveValues> effective, String key) {
+        if (!launchValue.isBlank()) {
+            return launchValue;
+        }
+        return effective.flatMap(said -> said.named(key)).map(EffectiveValues.Value::value).orElse("");
+    }
+
+    /** {@code machine-values}: what the jar's file says of the keys above, with where each came from and no control (ADR-330 §12). */
+    private static String machineValues(Optional<EffectiveValues> effective) {
+        StringBuilder items = new StringBuilder();
+        for (String key : MACHINE_VALUES) {
+            effective.flatMap(said -> said.named(key)).ifPresent(value -> items.append("<li data-key=\"")
+                    .append(ControlPanelPage.escape(key)).append("\" data-value=\"")
+                    .append(ControlPanelPage.escape(value.value())).append("\" data-source=\"")
+                    .append(ControlPanelPage.escape(value.source())).append("\">")
+                    .append(ControlPanelPage.escape(key + ": " + value.value() + " (" + value.source() + ")"))
+                    .append("</li>\n"));
+        }
+        return "<h2>What this machine runs with</h2>\n<p class=\"hint\">The application's own values: shown as the jar last"
+                + " said them, and changed where the machine's configuration is, not here.</p>\n<ul id=\"machine-values\">\n"
+                + items + "</ul>\n";
+    }
+
+    private String servicesCard(LaunchValues values, SidecarChecks.Checks checks, Optional<EffectiveValues> effective) {
+        String running = checks.docling().running();
         return "<section class=\"card\" id=\"card-services\" data-column=\"left\">\n<h2>Services</h2>\n"
                 + ControlPanelPage.Field.of("vespera.docling.image", "Docling image").value(values.doclingImage())
                         .example(ControlPanelPage.DOCLING_IMAGE_CPU).list("docling-images")
                         .hint("hint-vespera.docling.image",
                                 "The image the converter runs from. The two offered are the ones this build knows.")
                         .html()
+                + "<p id=\"docling-running\" data-image=\"" + ControlPanelPage.escape(running) + "\">"
+                + ControlPanelPage.escape(running.isEmpty() ? "The converter has not said which image it runs."
+                        : "The converter says it runs " + running + ".")
+                + "</p>\n"
                 + ControlPanelPage.Field.of("vespera.docling.base-url", "Docling address")
                         .value(values.doclingBaseUrl()).example("http://localhost:5001")
                         .hint("hint-vespera.docling.base-url", "Where the converter answers.").html()
@@ -121,6 +168,7 @@ final class LaunchPages {
                         .hint("hint-vespera.label.model",
                                 "The local model that answers the questions when you ask it to.")
                         .html()
+                + machineValues(effective)
                 + "</section>\n";
     }
 
@@ -140,7 +188,7 @@ final class LaunchPages {
                         .html()
                 + ControlPanelPage.provenance("provenance", "f-provenance", "Why this value?",
                         held.getOrDefault("provenance", ""), "hint-provenance")
-                + ControlPanelPage.text("p", "cost-seedFolder", ControlPanelPage.cost(ProfileKey.SEED_FOLDER)) + "\n"
+                + ControlPanelPage.costElement(ProfileKey.SEED_FOLDER) + "\n"
                 + ControlPanelPage.button("save", "Save", false) + "\n</form>\n</section>\n";
     }
 

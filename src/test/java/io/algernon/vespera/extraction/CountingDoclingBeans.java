@@ -40,9 +40,11 @@ public class CountingDoclingBeans {
             "{\"document\":{\"json_content\":{\"texts\":[{\"text\":\"stubbed but real content\"}]}}}";
 
     @Bean
-    DoclingClient doclingClient(@Value("${vespera.docling.image}") String configuredImage) {
+    DoclingClient doclingClient(
+            @Value("${vespera.docling.image}") String configuredImage,
+            @Value("${vespera.docling.ocr-preset}") String ocrPreset) {
         CONVERSIONS.set(0);
-        return new DoclingClient("unused") {
+        return new DoclingClient("unused", ocrPreset) {
 
             @Override
             public void checkHealth() {}

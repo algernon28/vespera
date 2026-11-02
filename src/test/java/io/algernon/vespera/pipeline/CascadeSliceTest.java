@@ -113,6 +113,7 @@ import org.springframework.transaction.annotation.Transactional;
     RecordingPageOpener.class,
     // Every stage from 2 on asks for its run through one holder (ADR-157).
     StageRuns.class,
+    Presets.class,
     // Stage 0: census.
     CensusTasklet.class,
     WalkRecorder.class,

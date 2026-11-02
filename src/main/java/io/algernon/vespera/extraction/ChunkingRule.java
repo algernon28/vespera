@@ -12,7 +12,7 @@ package io.algernon.vespera.extraction;
  *
  * <p>{@link #DEFAULT} is a code default, ADR-082's precedent, and openly unmeasured: with a 32k
  * context window against 512 words the model's limit constrains nothing, and the two reasons that do
- * constrain it — one vector per chunk discriminates less the more it spans, and ADR-020's top-3 mean
+ * constrain it — one vector per chunk discriminates less the more it spans, and ADR-020's mean of the top three, as shipped,
  * needs more than three chunks to mean anything — need a real corpus. A budget varying by document
  * kind is a second rule, not a migration: it mints its own identity beside this one.
  */

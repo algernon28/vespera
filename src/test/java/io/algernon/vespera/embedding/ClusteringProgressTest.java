@@ -54,7 +54,11 @@ class ClusteringProgressTest {
     private static final String EMBEDDER_IDENTITY =
             "model=" + MODEL + ";digest=d34db33f;dtype=F16;dimension=" + DIMENSION + ";instruction=none";
 
+    /** The number of neighbours the application ships (vespera.clustering.neighbours). */
     private static final int NEIGHBOURS = 15;
+
+    /** The resolution the application ships (vespera.clustering.resolution). */
+    private static final double RESOLUTION = 1.0;
 
     /** Five documents in blocks of two: three blocks, so three pairs of a block with itself and three across. */
     private static final int FIVE_DOCUMENTS = 5;
@@ -110,8 +114,8 @@ class ClusteringProgressTest {
         Map<OccurrenceId, String> second = partition(walkId, run, secondSeed, "second", THREE_DOCUMENTS);
         List<String> events = new ArrayList<>();
 
-        clustering.clusterAndRecord(run, firstSeed, first, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, recording(events));
-        clustering.clusterAndRecord(run, secondSeed, second, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, recording(events));
+        clustering.clusterAndRecord(run, firstSeed, first, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, RESOLUTION, recording(events));
+        clustering.clusterAndRecord(run, secondSeed, second, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, RESOLUTION, recording(events));
 
         claim(
                 "each partition's pass is announced once with its own total and reports its own pair: the caller"
@@ -130,7 +134,7 @@ class ClusteringProgressTest {
         List<String> events = new ArrayList<>();
 
         clustering.clusterAndRecord(
-                run, seed, new LinkedHashMap<>(), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, recording(events));
+                run, seed, new LinkedHashMap<>(), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, RESOLUTION, recording(events));
 
         claim(
                 "no member means no vector width to size a block by: the pass is not reached, so it is not"

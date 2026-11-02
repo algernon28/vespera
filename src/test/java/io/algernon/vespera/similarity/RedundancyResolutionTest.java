@@ -52,6 +52,16 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-082", url = Adr.STAGE_4_JUDGES_ON_ITS_FIRST_RUN, type = "adr")
 class RedundancyResolutionTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
+    /** The signature the application ships: 128 permutations in 16 bands of 8 rows, and its seed. */
+    private static final MinHashParameters THE_SHIPPED_MINHASH =
+            new MinHashParameters(128, 16, 8, 0x5EED_C0FF_EE12_3456L);
+
+    /** The cuts the application ships: 0.80 and 0.95, over a sample of 32 shingles asking 24 hits. */
+    private static final RedundancyThresholds THE_SHIPPED_THRESHOLDS = new RedundancyThresholds(0.80, 0.95, 32, 24);
+
     /** Shingles two near-duplicate documents share: 99 of each document's 100, a Jaccard of 99/101. */
     private static final int SHARED_SHINGLES = 99;
 
@@ -330,7 +340,7 @@ class RedundancyResolutionTest {
                         (resultSet, rowNumber) -> resultSet.getString("detail"),
                         1L,
                         stage2Run.value(),
-                        ShingleParameters.DEFAULT.identity()));
+                        FIVE_WORD_SHINGLES.identity()));
     }
 
     @Test
@@ -614,7 +624,7 @@ class RedundancyResolutionTest {
                                 + " VALUES (?, ?, ?, ?)",
                         occurrenceId.value(),
                         stage2RunId.value(),
-                        ShingleParameters.DEFAULT.identity(),
+                        FIVE_WORD_SHINGLES.identity(),
                         hash);
             }
             jdbcTemplate.update(
@@ -646,10 +656,10 @@ class RedundancyResolutionTest {
             for (Long occurrenceId : jdbcTemplate.queryForList(
                     "SELECT DISTINCT occurrence_id FROM shingle WHERE run_id = ?", Long.class, stage2RunId.value())) {
                 signatures.write(
-                        new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR);
+                        new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR, FIVE_WORD_SHINGLES, THE_SHIPPED_MINHASH);
             }
             new RedundancyResolution(jdbcTemplate, ledger)
-                    .resolve(stage4RunId, stage3RunId, stage2RunId, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate));
+                    .resolve(stage4RunId, stage3RunId, stage2RunId, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS);
         }
 
         /** The same pass, telling {@code progress} about its loops. */
@@ -662,6 +672,7 @@ class RedundancyResolutionTest {
                             stage2RunId,
                             Set.of(),
                             RecordedAlphanumericCounts.over(jdbcTemplate),
+                            FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS,
                             progress);
         }
 
@@ -672,14 +683,14 @@ class RedundancyResolutionTest {
             for (Long occurrenceId : jdbcTemplate.queryForList(
                     "SELECT DISTINCT occurrence_id FROM shingle WHERE run_id = ?", Long.class, stage2RunId.value())) {
                 signatures.write(
-                        new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR);
+                        new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR, FIVE_WORD_SHINGLES, THE_SHIPPED_MINHASH);
             }
         }
 
         /** Resolution alone, over what {@link #signAndMeasure} wrote. */
         void resolveSigned() {
             new RedundancyResolution(jdbcTemplate, ledger)
-                    .resolve(stage4RunId, stage3RunId, stage2RunId, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate));
+                    .resolve(stage4RunId, stage3RunId, stage2RunId, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS);
         }
 
         /** The same pass, with resolution reading the store through {@code resolutionTemplate}. */
@@ -694,10 +705,10 @@ class RedundancyResolutionTest {
             for (Long occurrenceId : jdbcTemplate.queryForList(
                     "SELECT DISTINCT occurrence_id FROM shingle WHERE run_id = ?", Long.class, stage2RunId.value())) {
                 signatures.write(
-                        new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR);
+                        new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR, FIVE_WORD_SHINGLES, THE_SHIPPED_MINHASH);
             }
             new RedundancyResolution(resolutionTemplate, ledger)
-                    .resolve(stage4RunId, stage3RunId, stage2RunId, Set.of(), RecordedAlphanumericCounts.over(resolutionTemplate));
+                    .resolve(stage4RunId, stage3RunId, stage2RunId, Set.of(), RecordedAlphanumericCounts.over(resolutionTemplate), FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS);
         }
     }
 

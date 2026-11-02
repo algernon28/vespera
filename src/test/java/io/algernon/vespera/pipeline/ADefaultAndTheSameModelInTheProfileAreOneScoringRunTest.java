@@ -136,6 +136,7 @@ class ADefaultAndTheSameModelInTheProfileAreOneScoringRunTest {
                 null,
                 null,
                 servingTheModel(),
+                PresetsFixture.shipped(),
                 root,
                 invocation);
         return stageRuns.embeddingScoring();

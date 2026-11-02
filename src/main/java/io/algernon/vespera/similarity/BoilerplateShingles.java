@@ -30,7 +30,8 @@ public class BoilerplateShingles {
 
     /**
      * The shingle hashes whose {@code document_count} under {@code stage3RunId} (matched on {@link
-     * ShingleParameters#DEFAULT}'s identity, the same granularity every stage-4 pass reads) is at
+     * ShingleParameters}' identity, the window the extraction run was minted under, which ADR-330 §9 has that run
+     * hand down and every stage-4 pass read) is at
      * least {@code ceil(floor * shingled_document_count)}, taken in exact decimal arithmetic (ADR-260)
      * — {@code shingle_corpus_size}'s own denominator for that run and parameter identity.
      *
@@ -38,8 +39,8 @@ public class BoilerplateShingles {
      * identity is the correct answer, not a defect: it means stage 3 measured zero shingled documents,
      * so nothing can have reached any floor.
      */
-    public Set<Long> resolve(RunId stage3RunId, double floor) {
-        String shingleParameterIdentity = ShingleParameters.DEFAULT.identity();
+    public Set<Long> resolve(RunId stage3RunId, double floor, ShingleParameters parameters) {
+        String shingleParameterIdentity = parameters.identity();
         Long shingledDocumentCount = jdbcTemplate.query(
                 "SELECT shingled_document_count FROM shingle_corpus_size"
                         + " WHERE run_id = ? AND shingle_parameter_identity = ?",

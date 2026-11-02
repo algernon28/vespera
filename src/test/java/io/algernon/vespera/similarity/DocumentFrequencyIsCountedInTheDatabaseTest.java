@@ -64,6 +64,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Link(name = "ADR-074", url = Adr.STAGE_3_MEASURES_SHINGLE_DOCUMENT_FREQUENCY, type = "adr")
 class DocumentFrequencyIsCountedInTheDatabaseTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
     /** Two full pages of 1,000 and a short third, once the ruled-out ones are counted in. */
     private static final int SURVIVORS = 2_500;
 
@@ -209,7 +212,7 @@ class DocumentFrequencyIsCountedInTheDatabaseTest {
                 for (long id : ids) {
                     row.setLong(1, id);
                     row.setString(2, anEarlierStage2.value());
-                    row.setString(3, ShingleParameters.DEFAULT.identity());
+                    row.setString(3, FIVE_WORD_SHINGLES.identity());
                     row.setLong(4, ONE_RULED_OUT_ALONE);
                     row.addBatch();
                 }
@@ -217,7 +220,7 @@ class DocumentFrequencyIsCountedInTheDatabaseTest {
                     for (long[] shingle : written) {
                         row.setLong(1, shingle[0]);
                         row.setString(2, stage2.value());
-                        row.setString(3, ShingleParameters.DEFAULT.identity());
+                        row.setString(3, FIVE_WORD_SHINGLES.identity());
                         row.setLong(4, shingle[1]);
                         row.addBatch();
                     }
@@ -294,7 +297,7 @@ class DocumentFrequencyIsCountedInTheDatabaseTest {
                 () -> assertThat(written.keySet()).containsExactlyInAnyOrderElementsOf(expected.keySet()));
         claim(
                 "and every row is under the granularity the surviving documents carry",
-                () -> assertThat(granularitiesWritten).containsOnly(ShingleParameters.DEFAULT.identity()));
+                () -> assertThat(granularitiesWritten).containsOnly(FIVE_WORD_SHINGLES.identity()));
         claim(
                 "each row counts the surviving documents that carry its passage, and how many times in all: the"
                         + " second copy in one document in seven included, the ruled-out documents' copies, each"
@@ -311,7 +314,7 @@ class DocumentFrequencyIsCountedInTheDatabaseTest {
                                         + " FROM shingle_corpus_size WHERE run_id = ?",
                                 (resultSet, rowNumber) -> resultSet.getString(1),
                                 stage3.value()))
-                        .containsExactly(ShingleParameters.DEFAULT.identity() + " " + SURVIVORS));
+                        .containsExactly(FIVE_WORD_SHINGLES.identity() + " " + SURVIVORS));
 
         List<String> said = log.said();
         claim(

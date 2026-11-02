@@ -5,9 +5,9 @@ import java.util.Arrays;
 import java.util.Set;
 
 /**
- * MinHash's pure arithmetic (ADR-081): the 128 minima computed over a boilerplate-stripped shingle-hash
- * set, their serialisation to and from the 512-byte blob {@code minhash_signature.signature} stores,
- * and the 16 band hashes {@code signature_band} indexes on. No database anywhere in this class — the
+ * MinHash's pure arithmetic (ADR-081): the minima (128 as shipped) computed over a boilerplate-stripped shingle-hash
+ * set, their serialisation to and from the blob (512 bytes as shipped) {@code minhash_signature.signature} stores,
+ * and the band hashes (16 as shipped) {@code signature_band} indexes on. No database anywhere in this class — the
  * same seam {@code extraction.DegeneracyFloor} is tested at — so the estimator can be pinned against
  * known inputs and outputs independent of how (or whether) a row is ever stored.
  *

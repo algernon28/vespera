@@ -170,8 +170,9 @@ public class RelevanceLabels {
     }
 
     /**
-     * Every answer given against {@code seedSet} under {@code embedderIdentity}, the scale a scoring run's
-     * scores are on, or, where none was, every answer given against it (ADR-244, applying ADR-228 section 5).
+     * Every answer given against {@code seedSet} under {@code scale}, the {@link RelevanceScale} a scoring run's
+     * scores are on (the embedder identity, and {@code ;top:<n>} after it where the number of similarities is not 3,
+     * ADR-330 section 9), or, where none was, every answer given against it (ADR-244, applying ADR-228 section 5).
      *
      * <p>An answer recorded under a run's identity was given from a label file a run of that scale wrote,
      * whichever run it was: the floor joins a run's identity (ADR-117), so a floor set from one run's report is
@@ -181,10 +182,10 @@ public class RelevanceLabels {
      * every answer is read, as {@link #forSeedSet(String)} reads, and those of another scale keep the floor from
      * applying (ADR-088 section 3, ADR-226 section 3).
      */
-    public List<RelevanceLabel> forSeedSet(String seedSet, String embedderIdentity) {
+    public List<RelevanceLabel> forSeedSet(String seedSet, String scale) {
         List<RelevanceLabel> all = forSeedSet(seedSet);
         List<RelevanceLabel> onThisScale =
-                all.stream().filter(answer -> answer.embedderIdentity().equals(embedderIdentity)).toList();
+                all.stream().filter(answer -> answer.embedderIdentity().equals(scale)).toList();
         return onThisScale.isEmpty() ? all : onThisScale;
     }
 

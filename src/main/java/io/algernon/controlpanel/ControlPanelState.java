@@ -169,6 +169,14 @@ final class ControlPanelState {
         return named.isEmpty() ? Optional.empty() : pathOf(named);
     }
 
+    /**
+     * What the jar last said it would use where the profile names nothing, read at each request that shows it
+     * (ADR-330 §1); empty where no working directory is held or the file is absent or cannot be read.
+     */
+    Optional<EffectiveValues> effectiveValues() {
+        return EffectiveValues.read(workingDirectory(), runtime.jar());
+    }
+
     /** {@code text} as a path, empty where the system refuses it: a value it refuses names no folder (ADR-331 §6). */
     private static Optional<Path> pathOf(String text) {
         try {

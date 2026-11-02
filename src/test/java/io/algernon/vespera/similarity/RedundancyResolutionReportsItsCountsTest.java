@@ -56,6 +56,16 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
 class RedundancyResolutionReportsItsCountsTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
+    /** The signature the application ships: 128 permutations in 16 bands of 8 rows, and its seed. */
+    private static final MinHashParameters THE_SHIPPED_MINHASH =
+            new MinHashParameters(128, 16, 8, 0x5EED_C0FF_EE12_3456L);
+
+    /** The cuts the application ships: 0.80 and 0.95, over a sample of 32 shingles asking 24 hits. */
+    private static final RedundancyThresholds THE_SHIPPED_THRESHOLDS = new RedundancyThresholds(0.80, 0.95, 32, 24);
+
     private static final double NO_BOILERPLATE_FLOOR = 0.9;
 
     private static final String SCORE = "to-score ";
@@ -356,7 +366,7 @@ class RedundancyResolutionReportsItsCountsTest {
                                 + " VALUES (?, ?, ?, ?)",
                         occurrenceId.value(),
                         stage2RunId.value(),
-                        ShingleParameters.DEFAULT.identity(),
+                        FIVE_WORD_SHINGLES.identity(),
                         hash);
             }
             jdbcTemplate.update(
@@ -377,7 +387,7 @@ class RedundancyResolutionReportsItsCountsTest {
             RedundancySignatures signatures = new RedundancySignatures(jdbcTemplate);
             for (Long occurrenceId : jdbcTemplate.queryForList(
                     "SELECT DISTINCT occurrence_id FROM shingle WHERE run_id = ?", Long.class, stage2RunId.value())) {
-                signatures.write(new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR);
+                signatures.write(new OccurrenceId(occurrenceId), stage4RunId, stage2RunId, Set.of(), NO_BOILERPLATE_FLOOR, FIVE_WORD_SHINGLES, THE_SHIPPED_MINHASH);
             }
             new RedundancyResolution(jdbcTemplate, ledger)
                     .resolve(
@@ -386,6 +396,7 @@ class RedundancyResolutionReportsItsCountsTest {
                             stage2RunId,
                             Set.of(),
                             RecordedAlphanumericCounts.over(jdbcTemplate),
+                            FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS,
                             progress);
         }
 

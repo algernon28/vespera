@@ -226,14 +226,15 @@ public class DocumentFrequency {
 
     /**
      * The lines of the page the boilerplate floor is read off (ADR-262), over {@code stage3RunId}'s rows of
-     * {@link ShingleParameters#DEFAULT}, the granularity stage 4 reads, in ascending order of share. No line
+     * the {@link ShingleParameters} given, the window the extraction run was minted under and stage 4 reads (ADR-330
+     * §9), in ascending order of share. No line
      * and 0 documents where {@code shingle_corpus_size} has no row for them.
      *
      * <p>Sorts nothing (ADR-218): the run's rows are read in the order of the primary key and counted in the
      * heap by {@code document_count}, of which there are at most N.
      */
-    public Shares shares(RunId stage3RunId) {
-        String granularity = ShingleParameters.DEFAULT.identity();
+    public Shares shares(RunId stage3RunId, ShingleParameters parameters) {
+        String granularity = parameters.identity();
         Long documents = jdbcTemplate.query(
                 "SELECT shingled_document_count FROM shingle_corpus_size"
                         + " WHERE run_id = ? AND shingle_parameter_identity = ?",

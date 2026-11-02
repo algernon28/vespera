@@ -4,6 +4,7 @@ import io.algernon.vespera.confluence.Publisher;
 import io.algernon.vespera.deliverable.DeliverableRoot;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.Runs;
+import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.TextValue;
 import java.nio.file.Files;
@@ -23,6 +24,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -144,6 +146,8 @@ public class VesperaCommand implements Callable<Integer> {
         private final ProfileStore profileStore;
         private CorpusRootLock corpusRootLock;
         private SidecarStarter sidecarStarter;
+        private EffectiveValuesFile effectiveValues;
+        private Presets presets;
         private String[] arguments = new String[0];
 
         @Parameters(
@@ -218,6 +222,24 @@ public class VesperaCommand implements Callable<Integer> {
             this.sidecarStarter = sidecarStarter;
         }
 
+        /**
+         * What the jar would use where the profile names nothing is written for the control panel (ADR-330 §1); a
+         * command built with no environment, as some tests build it, writes none.
+         */
+        @Autowired(required = false)
+        void sayWhatLiesBeneathTheProfileWith(Environment environment) {
+            this.effectiveValues = new EffectiveValuesFile(environment, workingDirectoryInUse);
+        }
+
+        /**
+         * The presets a run is minted under, checked at the start (ADR-330 §9); a command built without them, as some
+         * tests build it, checks none.
+         */
+        @Autowired(required = false)
+        void refusePresetsNoRunCanBeMadeUnderWith(Presets presets) {
+            this.presets = presets;
+        }
+
         @Override
         public Integer call() throws Exception {
             String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
@@ -240,6 +262,17 @@ public class VesperaCommand implements Callable<Integer> {
                 System.err.println(misplacedDeliverableRoot.get());
                 return CommandLine.ExitCode.SOFTWARE;
             }
+            // A preset no run can be made under, named by configuration, in one line and no stack trace: before the
+            // corpus-root lock is taken, the sidecars started and the job started, so that nothing is walked, no run is
+            // minted and the file of ADR-330 §1 is not written (ADR-330 §9). vespera label and vespera publish, which
+            // read no preset, are not stopped by one.
+            if (presets != null) {
+                Optional<String> unmakeableRun = presets.refusal(profileToReadThePresetsOver());
+                if (unmakeableRun.isPresent()) {
+                    System.err.println(unmakeableRun.get());
+                    return CommandLine.ExitCode.SOFTWARE;
+                }
+            }
             if (corpusRootLock != null) {
                 try {
                     corpusRootLock.take(corpusRoot, workingDirectoryInUse, arguments);
@@ -257,6 +290,10 @@ public class VesperaCommand implements Callable<Integer> {
                     return CommandLine.ExitCode.SOFTWARE;
                 }
             }
+            // Past the last refusal of the start and before the first step: an invocation refused above writes none (ADR-330 §1).
+            if (effectiveValues != null) {
+                effectiveValues.write();
+            }
             log.info("Progress page: {}", ProgressPage.pathIn(workingDirectoryInUse));
             log.info(
                     "Walking {}, named {}",
@@ -273,6 +310,23 @@ public class VesperaCommand implements Callable<Integer> {
             }
             log.info("{}", nextAction.line(corpusRoot, new InvocationRuns(execution.getExecutionContext())));
             return CommandLine.ExitCode.OK;
+        }
+
+        /**
+         * The profile the presets are checked over: whether its {@code clusterResolution} stands in place of the
+         * configured one. A profile that cannot be read, or none to read, names nothing, and is left to the job's own
+         * refusal of it.
+         */
+        private Profile profileToReadThePresetsOver() {
+            if (profileStore != null) {
+                try {
+                    return profileStore.load();
+                } catch (RuntimeException unreadable) {
+                    // names nothing here
+                }
+            }
+            return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                    null, null, null, null);
         }
 
         /**
@@ -318,7 +372,7 @@ public class VesperaCommand implements Callable<Integer> {
      * itself wrote, under a name it chose, in a directory the operator configured.
      *
      * <p>Nothing here prompts. ADR-047's "the pipeline never blocks" is what makes the labelling loop
-     * resumable across days, and a terminal walking a person through sixty documents is a session
+     * resumable across days, and a terminal walking a person through the shipped sixty documents is a session
      * that has to be finished or lost.
      */
     @Component
@@ -333,6 +387,7 @@ public class VesperaCommand implements Callable<Integer> {
         private final Path workingDirectoryInUse;
         private final ObjectProvider<AutoLabelling> autoLabelling;
         private SidecarStarter sidecarStarter;
+        private EffectiveValuesFile effectiveValues;
 
         @Option(
                 names = "--auto",
@@ -382,6 +437,12 @@ public class VesperaCommand implements Callable<Integer> {
             this.sidecarStarter = sidecarStarter;
         }
 
+        /** As {@link Run#sayWhatLiesBeneathTheProfileWith}: a label that has started has written the file (ADR-330 §1). */
+        @Autowired(required = false)
+        void sayWhatLiesBeneathTheProfileWith(Environment environment) {
+            this.effectiveValues = new EffectiveValuesFile(environment, workingDirectoryInUse);
+        }
+
         /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
         void forgetPreviousInvocation() {
             file = null;
@@ -407,6 +468,10 @@ public class VesperaCommand implements Callable<Integer> {
                 System.err.println("vespera label --auto takes no file: it works on the label file the last run"
                         + " wrote in the working directory. Give either --auto or a file, not both.");
                 return CommandLine.ExitCode.USAGE;
+            }
+            // Past a misnamed --db-dir and --auto given a file, as the progress page is written (ADR-330 §1).
+            if (effectiveValues != null) {
+                effectiveValues.write();
             }
             log.info("Progress page: {}", ProgressPage.pathIn(workingDirectoryInUse));
             progressPage.commandStarts(auto ? "vespera label --auto" : "vespera label");

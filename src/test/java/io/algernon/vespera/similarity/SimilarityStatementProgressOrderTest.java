@@ -57,6 +57,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Link(name = "ADR-204", url = Adr.PART_B_OF_THE_STATEMENTS_WRITTEN_OUT, type = "adr")
 class SimilarityStatementProgressOrderTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
+    /** The signature the application ships: 128 permutations in 16 bands of 8 rows, and its seed. */
+    private static final MinHashParameters THE_SHIPPED_MINHASH =
+            new MinHashParameters(128, 16, 8, 0x5EED_C0FF_EE12_3456L);
+
+    /** The cuts the application ships: 0.80 and 0.95, over a sample of 32 shingles asking 24 hits. */
+    private static final RedundancyThresholds THE_SHIPPED_THRESHOLDS = new RedundancyThresholds(0.80, 0.95, 32, 24);
+
     private static final double NO_BOILERPLATE_FLOOR = 0.9;
 
     /** Measuring reports one statement, started once and ended once: two callbacks about statements. */
@@ -154,7 +164,7 @@ class SimilarityStatementProgressOrderTest {
                 for (int row = 1; row <= MANY; row++) {
                     insert.setLong(1, AN_OCCURRENCE_NO_WALK_HOLDS);
                     insert.setString(2, stage2.value());
-                    insert.setString(3, ShingleParameters.DEFAULT.identity());
+                    insert.setString(3, FIVE_WORD_SHINGLES.identity());
                     insert.setLong(4, row);
                     insert.addBatch();
                 }
@@ -205,7 +215,7 @@ class SimilarityStatementProgressOrderTest {
         long signatureRows = spanOf("minhash_signature", stage4);
         Recorder recorder = new Recorder();
 
-        new RedundancyResolution(jdbcTemplate, ledger).resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), recorder);
+        new RedundancyResolution(jdbcTemplate, ledger).resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS, recorder);
 
         claim(
                 "two reads are reported, once each, in the order resolution makes them: the count of the signed"
@@ -240,7 +250,7 @@ class SimilarityStatementProgressOrderTest {
     void withNothingSignedOnlyTheFirstReadIsReported() {
         Recorder recorder = new Recorder();
 
-        new RedundancyResolution(jdbcTemplate, ledger).resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), recorder);
+        new RedundancyResolution(jdbcTemplate, ledger).resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS, recorder);
 
         claim(
                 "the one read is started with an empty total and ended, and resolution returns: no later read is"
@@ -282,7 +292,7 @@ class SimilarityStatementProgressOrderTest {
         };
 
         assertThatThrownBy(() -> new RedundancyResolution(jdbcTemplate, ledger)
-                        .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), recorder))
+                        .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS, recorder))
                 .isInstanceOf(StoppedByTheTest.class);
 
         claim(
@@ -356,7 +366,7 @@ class SimilarityStatementProgressOrderTest {
         claim(
                 "resolution fails as the template reports any statement's failure, once the table is gone",
                 () -> assertThatThrownBy(() -> new RedundancyResolution(jdbcTemplate, ledger)
-                                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), recorder))
+                                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS, recorder))
                         .isInstanceOf(DataAccessException.class));
         claim(
                 "the caller was told the read was starting, over the " + ONE_ROW + " row the run held, and never"
@@ -389,7 +399,7 @@ class SimilarityStatementProgressOrderTest {
         claim(
                 "resolution fails as the template reports any statement's failure, once the table is gone",
                 () -> assertThatThrownBy(() -> new RedundancyResolution(jdbcTemplate, ledger)
-                                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), recorder))
+                                .resolve(stage4, stage3, stage2, Set.of(), RecordedAlphanumericCounts.over(jdbcTemplate), FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS, recorder))
                         .isInstanceOf(DataAccessException.class));
         claim(
                 "the caller was told the count of the signed documents started and ended, and that the loop over"
@@ -558,7 +568,7 @@ class SimilarityStatementProgressOrderTest {
                             + " VALUES (?, ?, ?, ?)",
                     occurrence,
                     stage2.value(),
-                    ShingleParameters.DEFAULT.identity(),
+                    FIVE_WORD_SHINGLES.identity(),
                     hash);
         }
         jdbcTemplate.update(
@@ -574,7 +584,7 @@ class SimilarityStatementProgressOrderTest {
         RedundancySignatures signatures = new RedundancySignatures(jdbcTemplate);
         for (Long occurrence : jdbcTemplate.queryForList(
                 "SELECT DISTINCT occurrence_id FROM shingle WHERE run_id = ?", Long.class, stage2.value())) {
-            signatures.write(new OccurrenceId(occurrence), stage4, stage2, Set.of(), NO_BOILERPLATE_FLOOR);
+            signatures.write(new OccurrenceId(occurrence), stage4, stage2, Set.of(), NO_BOILERPLATE_FLOOR, FIVE_WORD_SHINGLES, THE_SHIPPED_MINHASH);
         }
     }
 
