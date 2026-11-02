@@ -40,6 +40,10 @@ import tools.jackson.databind.json.JsonMapper;
  * its place, so a question asked once the client has read that line finds it served, as a real pull's written
  * manifest is.
  *
+ * <p><b>Any other path</b>, {@code /api/delete}, {@code /api/copy}, {@code /api/create} or {@code /api/push} among
+ * them, is recorded as well and answered 404, so a test can claim the whole set of requests a pull sent and see one
+ * that should never have been.
+ *
  * <p>Every request is recorded with its path and body, in the order they arrived. Requests are answered on threads of
  * their own, so an answer kept open holds no other question up; {@link #close} stops them. Where an answer that
  * writes finds the client gone, the name is recorded as one whose client went away.
@@ -109,6 +113,7 @@ final class StubOllama implements AutoCloseable {
         server.setExecutor(threads);
         server.createContext("/api/show", this::show);
         server.createContext("/api/pull", this::pull);
+        server.createContext("/", this::anyOtherPath);
         server.start();
     }
 
@@ -203,6 +208,11 @@ final class StubOllama implements AutoCloseable {
         } else {
             answer(exchange, 404, "{\"error\":\"model '" + name + "' not found\"}");
         }
+    }
+
+    private void anyOtherPath(HttpExchange exchange) throws IOException {
+        recorded(exchange);
+        answer(exchange, 404, "{\"error\":\"the stub answers only /api/show and /api/pull\"}");
     }
 
     private void pull(HttpExchange exchange) throws IOException {

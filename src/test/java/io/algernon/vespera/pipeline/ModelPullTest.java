@@ -126,6 +126,12 @@ class ModelPullTest {
     private static final String NOTHING_SERVED = "it serves nothing of it until a pull ends, and the next pull resumes"
             + " what was downloaded.";
 
+    /**
+     * Every request a pull of a model Ollama does not serve sends, in order: whether Ollama serves it, asked by the
+     * check and again before pulling, then the one pull.
+     */
+    private static final List<String> WHAT_A_PULL_SENDS = List.of("/api/show", "/api/show", "/api/pull");
+
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private StubOllama ollama;
@@ -600,6 +606,75 @@ class ModelPullTest {
                 () -> assertThat(refusal).hasValueSatisfying(reason -> assertThat(reason)
                         .doesNotContain("(null)")
                         .doesNotContain("(closed)")));
+    }
+
+    /**
+     * A pull given up as stalled sends Ollama nothing but the questions and the pull, and asks it to remove nothing
+     * (ADR-329 §4).
+     */
+    @Test
+    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @Story("A pull that cannot be made removes nothing from Ollama")
+    @DisplayName("A pull given up as stalled asks Ollama only whether it serves the model and to pull it, and removes nothing")
+    void aStalledPullSendsOnlyTheQuestionsAndThePull() {
+        ollama.pulls(MODEL, new StubOllama.Repeated(layerAt(10_000_000L), Duration.ofMillis(100)));
+
+        Optional<String> refusal = pull.refusalOf(STAGE, MODEL);
+
+        claim("the pull was given up as stalled", () -> assertThat(refusal).contains(stalled()));
+        claimOnlyTheQuestionsAndThePullWereSent();
+    }
+
+    /**
+     * A pull whose connection is dropped sends Ollama nothing but the questions and the pull, and asks it to remove
+     * nothing (ADR-329 §4).
+     */
+    @Test
+    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @Story("A pull that cannot be made removes nothing from Ollama")
+    @DisplayName("A pull whose connection is dropped asks Ollama only whether it serves the model and to pull it, and removes nothing")
+    void aDroppedPullSendsOnlyTheQuestionsAndThePull() {
+        ollama.pulls(MODEL, new StubOllama.Dropped(StubOllama.lines(MANIFEST, layerAt(10_000_000L))));
+
+        Optional<String> refusal = pull.refusalOf(STAGE, MODEL);
+
+        claim(
+                "the pull was stopped as Ollama having stopped answering",
+                () -> assertThat(refusal).hasValueSatisfying(reason -> assertThat(reason)
+                        .startsWith("Ollama stopped answering while pulling " + MODEL + " (")));
+        claimOnlyTheQuestionsAndThePullWereSent();
+    }
+
+    /**
+     * A pull Ollama refuses sends Ollama nothing but the questions and the pull, and asks it to remove nothing
+     * (ADR-329 §4).
+     */
+    @Test
+    @Story("A pull that cannot be made removes nothing from Ollama")
+    @DisplayName("A pull Ollama refuses asks Ollama only whether it serves the model and to pull it, and removes nothing")
+    void aRefusedPullSendsOnlyTheQuestionsAndThePull() {
+        ollama.pulls(MODEL, new StubOllama.Refused(400, INVALID_NAME));
+
+        Optional<String> refusal = pull.refusalOf(STAGE, MODEL);
+
+        claim(
+                "the pull was refused with Ollama's status and words",
+                () -> assertThat(refusal).hasValueSatisfying(reason -> assertThat(reason)
+                        .startsWith("Ollama would not pull " + MODEL + " (400: invalid model name)")));
+        claimOnlyTheQuestionsAndThePullWereSent();
+    }
+
+    /**
+     * The whole of what a pull that did not end sent, in order: the check's question, the pull's own question, and the
+     * one pull; no delete, copy, create or push, and no second pull.
+     */
+    private void claimOnlyTheQuestionsAndThePullWereSent() {
+        List<String> paths = ollama.requests().stream().map(StubOllama.Request::path).toList();
+        claim(
+                "Ollama was sent exactly three requests, in this order: whether it serves the model, asked by the check"
+                        + " and again before pulling, then the one pull; nothing that deletes, copies, creates or"
+                        + " pushes a model, and no second pull",
+                () -> assertThat(paths).isEqualTo(WHAT_A_PULL_SENDS));
     }
 
     /** An error line after the manifest is asked for: the reason quotes it whole. */
