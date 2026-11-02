@@ -265,6 +265,9 @@ Every file is built in the test, and every profile is YAML the test writes, the 
 | `…aFileThePassCannotReadIsLeftAsItWas` | a file gone after detection carries no verdict, is logged once with §4's line, and the next is left out |
 | `…theFormatMixPageCountsWhatThePassFound` | §8's counts, sentences and rows |
 | `…anUnreadableFloorFindsNothingAndIsRecordedAsNull` | `0,8` records `null` and removes nothing |
+| `…aConfigurationFileOutsideEveryCodeSetIsLoggedAsLeftOut` | a file of settings in no set is logged once with §4's out-of-scope line, whole (#680) |
+| `…theFormatMixPageSaysWhatTheRuleIsInWholeSentences` | with the floor set, §8's out-of-scope sentence and count, code sets' sentence, the settings section's opening and answered paragraphs, word for word, the leftover-backup example, and no file or folder named (#680) |
+| `…withNoFloorSetThePageSaysWhatSettingItWouldDo` | unset, §8's paragraph word for word (#680) |
 | `profile.ConfigurationSettingShareFloorInTheProfileTest` | census writes the key unset as the last key; a value is kept as written; `0,8` loads |
 | `pipeline.NextActionTest.anUnreadableConfigurationFloorIsReported` | the closing line names the key, says nothing was found, and quotes the value, in one line |
 | `pipeline.RunIdentityGoldenTest.byteLevelReduction` | §10's configuration consumed, word for word |

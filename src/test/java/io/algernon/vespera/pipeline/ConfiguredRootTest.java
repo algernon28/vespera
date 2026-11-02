@@ -3,6 +3,8 @@ package io.algernon.vespera.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.Ledger;
@@ -15,9 +17,11 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.job.Job;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -148,6 +152,59 @@ class ConfiguredRootTest {
                 "the invocation reports a usage error rather than censusing whatever tree it happened to"
                         + " start in, since a census of the wrong tree reports success",
                 () -> assertThat(run.call()).isEqualTo(CommandLine.ExitCode.USAGE));
+    }
+
+    /**
+     * The resolved root, and on whose word it is walked, are logged before the job starts (ADR-066): a configured
+     * root is a path nobody typed this invocation, and this line is the whole of what tells the operator which
+     * archive is about to be walked.
+     */
+    @Test
+    @Story("Where the root comes from")
+    @DisplayName("An invocation naming no root says, before it walks, which root it walks and that configuration named it")
+    void saysWhichRootItWalksAndThatConfigurationNamedIt() {
+        List<String> logged = invocationLogging("run");
+
+        claim(
+                "the invocation logs, once, the whole line naming the configured root and the property in"
+                        + " configuration that named it",
+                () -> assertThat(logged).containsOnlyOnce(
+                        "Walking " + configuredRoot + ", named by " + VesperaCommand.Run.ROOT_PROPERTY
+                                + " in configuration"));
+    }
+
+    /** The other half of {@link #saysWhichRootItWalksAndThatConfigurationNamedIt} (ADR-066). */
+    @Test
+    @Story("Where the root comes from")
+    @DisplayName("An invocation naming a root says, before it walks, which root it walks and that the command line named it")
+    void saysWhichRootItWalksAndThatTheCommandLineNamedIt(@TempDir Path namedRoot) throws IOException {
+        Files.writeString(namedRoot.resolve("named.txt"), "n");
+
+        List<String> logged = invocationLogging("run", namedRoot.toString());
+
+        claim(
+                "the invocation logs, once, the whole line naming the root the argument gave and saying the command"
+                        + " line named it",
+                () -> assertThat(logged).containsOnlyOnce("Walking " + namedRoot + ", named on the command line"));
+        claim(
+                "and it does not say configuration named it, since configuration was not consulted",
+                () -> assertThat(logged).noneMatch(line -> line.contains(" in configuration")));
+    }
+
+    /** What the run command logs while the invocation of {@code arguments} runs, in order. */
+    private List<String> invocationLogging(String... arguments) {
+        ListAppender<ILoggingEvent> logged = new ListAppender<>();
+        logged.start();
+        ch.qos.logback.classic.Logger commandLogger =
+                (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(VesperaCommand.Run.class);
+        commandLogger.addAppender(logged);
+        try {
+            cli.run(arguments);
+        } finally {
+            commandLogger.detachAppender(logged);
+            logged.stop();
+        }
+        return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
     }
 
     /**
