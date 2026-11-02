@@ -69,12 +69,6 @@ class RelevanceReportInvocationTest {
      */
     private static final String BATCH_LOGGER = "org.springframework.batch";
 
-    /** A floor of 1.0 opens stage 4's gate, the way the sibling invocation tests do. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model this fixture names, so gate 3 and the steps behind it open. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
-
     /** The corpus document the tests below keep from being opened, or change underneath the run. */
     private static final String HELD_DOCUMENT = "held-document.txt";
 
@@ -125,6 +119,22 @@ class RelevanceReportInvocationTest {
     static void workingDirectory(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
     }
+
+    /** The corpus root of the one invocation the three tests about a whole run read, built once for the class. */
+    @TempDir
+    static Path theRoot;
+
+    /** The seed folder of that invocation. */
+    @TempDir
+    static Path theSeeds;
+
+    /**
+     * What that invocation left in the working directory, read as soon as it ended: the working directory
+     * outlives each test, and a later test writes the page and the label file again (#678).
+     */
+    private record Labelled(int exitCode, List<String> besideTheDatabase, String page, String labels, Profile profile) {}
+
+    private static final Once<Labelled> labelled = new Once<>();
 
     @Autowired
     private VesperaCli cli;
@@ -202,70 +212,78 @@ class RelevanceReportInvocationTest {
                         .anyMatch(line -> line.contains("relevance-report step is gated")));
     }
 
+    /**
+     * One corpus document, one seed, and every gate up to the approval open: a whole invocation, run the
+     * first time one of the three tests below asks, after clearing whatever an earlier test left here.
+     */
+    private Labelled labelled() {
+        return labelled.get(() -> {
+            Files.writeString(theRoot.resolve("corpus.txt"), "a corpus document");
+            Files.writeString(theSeeds.resolve("seed.txt"), "a seed document");
+            profile(theSeeds);
+            whateverAnotherTestLeftHere();
+
+            cli.run("run", theRoot.toString());
+
+            List<String> besideTheDatabase;
+            try (java.util.stream.Stream<Path> listed = Files.list(workingDirectory)) {
+                besideTheDatabase = listed.filter(Files::isRegularFile)
+                        .map(file -> file.getFileName().toString())
+                        .toList();
+            }
+            return new Labelled(cli.getExitCode(), besideTheDatabase, page(), labelFile(), profileStore.load());
+        });
+    }
+
     @Test
     @Story("The two files land where the operator will look for them")
     @DisplayName("A whole invocation leaves the page and the label file beside the database, and inside no corpus")
-    void leavesBothFilesBesideTheDatabase(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
+    void leavesBothFilesBesideTheDatabase() throws IOException {
+        Labelled labelled = labelled();
 
-        cli.run("run", root.toString());
-
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim("the invocation reports success", () -> assertThat(labelled.exitCode()).isZero());
         claim(
                 "the page a person reads before choosing a cut is written where the database and the"
                         + " profile already live, which is the one place an operator has been told to look",
-                () -> assertThat(workingDirectory.resolve("relevance-labelling.html")).exists());
+                () -> assertThat(labelled.besideTheDatabase()).contains("relevance-labelling.html"));
         claim(
                 "and so is the file they write their answers into, beside the page that poses the"
                         + " questions rather than somewhere they have to be told about separately",
-                () -> assertThat(workingDirectory.resolve("relevance-labels.yaml")).exists());
+                () -> assertThat(labelled.besideTheDatabase()).contains("relevance-labels.yaml"));
+        List<Path> leftInTheFolders = filesUnder(theRoot, theSeeds);
         claim(
                 "and neither is written into the corpus or the seed folder: both hold exactly the files"
                         + " this test put in them, because a curation tool that leaves its own paperwork"
                         + " among the documents has changed the thing it was asked to describe",
-                () -> assertThat(filesUnder(root, seeds))
-                        .containsExactlyInAnyOrder(root.resolve("corpus.txt"), seeds.resolve("seed.txt")));
+                () -> assertThat(leftInTheFolders)
+                        .containsExactlyInAnyOrder(theRoot.resolve("corpus.txt"), theSeeds.resolve("seed.txt")));
     }
 
     @Test
     @Story("The two files land where the operator will look for them")
     @DisplayName("The page reports the spread and the label file names the run, so the two can be matched later")
-    void thePageAndTheLabelFileAgreeOnWhatTheyWereGeneratedFrom(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
+    void thePageAndTheLabelFileAgreeOnWhatTheyWereGeneratedFrom() {
+        Labelled labelled = labelled();
 
-        cli.run("run", root.toString());
-
-        String page = Files.readString(workingDirectory.resolve("relevance-labelling.html"));
-        String labels = Files.readString(workingDirectory.resolve("relevance-labels.yaml"));
         claim(
                 "the page shows the bands it cut, so a reader can see the shape rather than be handed a"
                         + " verdict about it",
-                () -> assertThat(page).contains("Band 1"));
+                () -> assertThat(labelled.page()).contains("Band 1"));
         claim(
                 "the label file names the run it was generated under, which is what lets a completed file"
                         + " offered against a different sample be refused rather than partially matched",
-                () -> assertThat(labels).contains("generatedUnderRun"));
+                () -> assertThat(labelled.labels()).contains("generatedUnderRun"));
         claim(
                 "and it asks about the document that was scored, with the answer left blank for a person",
-                () -> assertThat(labels).contains("corpus.txt").contains("relevant:"));
+                () -> assertThat(labelled.labels()).contains("corpus.txt").contains("relevant:"));
     }
 
     @Test
     @Story("The threshold is pointed at, never answered")
     @DisplayName("The profile gains a pointer to the page and no threshold value")
-    void pointsTheThresholdKeyAtThePageWithoutAnsweringIt(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
+    void pointsTheThresholdKeyAtThePageWithoutAnsweringIt() {
+        Profile profile = labelled().profile();
 
-        cli.run("run", root.toString());
-
-        Profile profile = profileStore.load();
         claim(
                 "the threshold key names the page its value is meant to be read off, so an operator"
                         + " opening the profile is told where the number comes from",
@@ -703,7 +721,7 @@ class RelevanceReportInvocationTest {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
                 .degenerateOutputConfidenceFloor(loaded.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .build());
     }
 
@@ -782,8 +800,8 @@ class RelevanceReportInvocationTest {
         Profile loaded = profileStore.load();
         profileStore.save(ProfileFixture.profile()
                 .degenerateOutputConfidenceFloor(loaded.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so the model gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so the model gate is open")
                 .build());
     }
 
@@ -805,12 +823,6 @@ class RelevanceReportInvocationTest {
 
     /** The seed folder named, stage 4's gate open, and gate 3 open too. */
     private void profile(Path seeds) {
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 }

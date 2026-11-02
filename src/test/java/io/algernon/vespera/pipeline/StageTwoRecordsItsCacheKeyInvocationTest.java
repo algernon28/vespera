@@ -5,8 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -62,8 +60,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * timeout on, which is measured too and is never kept in the cache (ADR-183); and one the converter
  * fails on while blaming itself, which is set aside as a fault and has no metric row (ADR-139).
  *
- * <p>Each test walks folders of its own, so each reads its own runs out of the database the class
- * shares. Every claim about the key table fails until the table exists, by a statement SQLite refuses.
+ * <p>One invocation, over folders of the class's own, serves every test: each claims something
+ * different about the same work, so it runs once, the first time a test asks (#678). Every claim about the key table fails until the table exists, by a statement SQLite refuses.
  */
 @CascadeSliceTest
 @Import({SeedScriptedExtractionBeans.class, StageTwoRecordsItsCacheKeyInvocationTest.KeyWriteProbe.class})
@@ -72,9 +70,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Issue("349")
 @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
 class StageTwoRecordsItsCacheKeyInvocationTest {
-
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** Two documents of one size and different bytes: stage 1 hashes both, and neither is a copy. */
     private static final String SAME_SIZE_A = "same-size-a.txt";
@@ -200,6 +195,22 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
         registry.add("vespera.working-dir", workingDirectory::toString);
     }
 
+    /** The corpus root of the one invocation every test here reads, built once for the class. */
+    @TempDir
+    static Path theRoot;
+
+    /** The seed folder of that invocation. */
+    @TempDir
+    static Path theSeeds;
+
+    /**
+     * What the one invocation left that the database does not keep: how it ended, the thread it was
+     * invoked on, and what the probe saw of the writes to the key table while it ran (#678).
+     */
+    private record Ran(int exitCode, String invokedOn, int keyWrites, Set<String> threadsThatWroteAKey) {}
+
+    private static final Once<Ran> ran = new Once<>();
+
     @Autowired
     private VesperaCli cli;
 
@@ -214,15 +225,33 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
         KeyWriteProbe.forget();
     }
 
+    /**
+     * The one invocation over {@link #theRoot}, run the first time a test asks for it: every test here
+     * claims something different about the same invocation, so running it again for each would be the
+     * same work five times. The probe's sightings are copied out before anything else can write a key.
+     */
+    private Ran ran() {
+        return ran.get(() -> {
+            aCorpusAndItsSeeds(theRoot, theSeeds);
+            KeyWriteProbe.forget();
+            String invokedOn = Thread.currentThread().getName();
+            cli.run("run", theRoot.toString());
+            return new Ran(
+                    cli.getExitCode(),
+                    invokedOn,
+                    KeyWriteProbe.KEY_WRITES.get(),
+                    Set.copyOf(KeyWriteProbe.THREADS_THAT_WROTE_A_KEY));
+        });
+    }
+
     @Test
     @Story("Each document's cache key is on record")
     @DisplayName("The key recorded for a converted document is the SHA-256 of its file, and a key the conversions are kept under")
-    void recordsTheKeyEachConversionIsKeptUnder(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpusAndItsSeeds(root, seeds);
+    void recordsTheKeyEachConversionIsKeptUnder() throws IOException {
+        Ran ran = ran();
+        Path root = theRoot;
 
-        cli.run("run", root.toString());
-
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim("the invocation reports success", () -> assertThat(ran.exitCode()).isZero());
         claim(
                 "the precondition: the first stage hashed the two documents that share a size and no"
                         + " other, so the claims below cover a key the converting stage took from that"
@@ -246,12 +275,11 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
     @Test
     @Story("Each document's cache key is on record")
     @DisplayName("A key is recorded for every document that was measured, and for no other")
-    void recordsAKeyWhereverAMeasurementIsRecorded(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpusAndItsSeeds(root, seeds);
+    void recordsAKeyWhereverAMeasurementIsRecorded() throws IOException {
+        Ran ran = ran();
+        Path root = theRoot;
 
-        cli.run("run", root.toString());
-
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim("the invocation reports success", () -> assertThat(ran.exitCode()).isZero());
         claim(
                 "the precondition: the converting stage measured the three documents it converted, the"
                         + " one the converter refused and the one it reported a timeout on, each of which"
@@ -286,12 +314,11 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
     @Test
     @Story("Each document's cache key is on record")
     @DisplayName("Seed extraction records each converted seed's key too, under its own run")
-    void recordsEachSeedsKeyUnderTheMeasurementRun(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpusAndItsSeeds(root, seeds);
+    void recordsEachSeedsKeyUnderTheMeasurementRun() throws IOException {
+        Ran ran = ran();
+        Path seeds = theSeeds;
 
-        cli.run("run", root.toString());
-
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim("the invocation reports success", () -> assertThat(ran.exitCode()).isZero());
         claim(
                 "the precondition: seed extraction measured both seeds, the one with text and the one"
                         + " the converter found no text in",
@@ -311,36 +338,32 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
     @Story("One thread writes everything the converting stage records")
     @DisplayName("Every key is written by the thread the command was invoked on, and by no conversion worker")
     @Link(name = "ADR-140", url = Adr.STAGE_2_CONVERTS_EIGHT_AT_A_TIME, type = "adr")
-    void writesEveryKeyOnTheThreadTheCommandWasInvokedOn(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpusAndItsSeeds(root, seeds);
-        String invokedOn = Thread.currentThread().getName();
+    void writesEveryKeyOnTheThreadTheCommandWasInvokedOn() throws IOException {
+        Ran ran = ran();
 
-        cli.run("run", root.toString());
-
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim("the invocation reports success", () -> assertThat(ran.exitCode()).isZero());
         claim(
                 "keys were written while this test watched, so the next claim is not about an empty set",
-                () -> assertThat(KeyWriteProbe.KEY_WRITES.get()).isPositive());
+                () -> assertThat(ran.keyWrites()).isPositive());
         claim(
                 "every statement that wrote a key was issued from one thread, the one the command was"
                         + " invoked on: conversions run on threads of their own, and a write from one of"
                         + " them would need a second connection while the step holds the only writer's",
-                () -> assertThat(KeyWriteProbe.THREADS_THAT_WROTE_A_KEY).containsExactly(invokedOn));
+                () -> assertThat(ran.threadsThatWroteAKey()).containsExactly(ran.invokedOn()));
         claim(
                 "and none of them is a conversion worker, by name",
-                () -> assertThat(KeyWriteProbe.THREADS_THAT_WROTE_A_KEY)
+                () -> assertThat(ran.threadsThatWroteAKey())
                         .noneMatch(thread -> thread.startsWith(A_CONVERSION_WORKER)));
     }
 
     @Test
     @Story("What is already recorded keeps its names")
     @DisplayName("The runs and the converting stage's finished step are recorded under the names they had")
-    void keepsTheRecordedNames(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpusAndItsSeeds(root, seeds);
+    void keepsTheRecordedNames() throws IOException {
+        Ran ran = ran();
+        Path root = theRoot;
 
-        cli.run("run", root.toString());
-
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim("the invocation reports success", () -> assertThat(ran.exitCode()).isZero());
         claim(
                 "the " + THE_STAGES_AS_RECORDED.size() + " kinds of run this invocation mints are recorded"
                         + " under the names they have always had, letter for letter: recording a key"
@@ -410,13 +433,7 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
         Files.writeString(root.resolve(TIMED_OUT), "a file the converter says it ran out of time on, here in the folder " + stamp);
         Files.writeString(seeds.resolve(USABLE_SEED), "a seed document with text of its own, for " + stamp);
         Files.writeString(seeds.resolve(SEED_WITH_NO_TEXT), "an intact file the converter finds no text in, for " + stamp);
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 
     /** The SHA-256 of {@code file}'s bytes as lowercase hexadecimal, computed with the JDK alone. */

@@ -4,9 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -63,6 +61,10 @@ import org.springframework.test.context.DynamicPropertySource;
  * GenerationInvocationTest} is about what happens when everything answers; this is about what happens
  * when something does not.
  *
+ * <p><b>Two pairs of invocations serve the six tests</b> (#678). The four claims about what the record holds
+ * read one invocation that writes, its window set, since each holds of the same record; the two about a stop
+ * read one invocation that stops. Each pair runs over folders of its own, once, the first time a test asks.
+ *
  * <p><b>The report says <em>group</em> and the code says <em>cluster</em></b> (ADR-122), for the
  * reason {@link GenerationInvocationTest} states at length. Do not reconcile the two by changing
  * either side.
@@ -76,12 +78,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-114", url = Adr.THE_GENERATION_MODEL_IS_CONFIGURATION_WITH_A_DEFAULT, type = "adr")
 @Link(name = "ADR-126", url = Adr.THE_GENERATOR_IDENTITYS_WIRING_IS_PINNED_AT_THE_INVOCATION, type = "adr")
 class GenerationIdentityInvocationTest {
-
-    /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The embedding model this fixture names, so gate 3 and everything behind it open. */
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
     /**
      * The model this archive is written under, named in the profile so the claims below rest on a name
@@ -112,10 +108,38 @@ class GenerationIdentityInvocationTest {
     @TempDir
     static Path workingDirectory;
 
+    /** The corpus root of the invocation that writes under {@link #THE_WRITING_MODEL}, built once for the class. */
+    @TempDir
+    static Path theWrittenRoot;
+
+    @TempDir
+    static Path theWrittenSeeds;
+
+    /** The corpus root of the invocation that names {@link #A_MODEL_NOTHING_HAS_EVER_BEEN_GIVEN}, built once for the class. */
+    @TempDir
+    static Path theRefusedRoot;
+
+    @TempDir
+    static Path theRefusedSeeds;
+
     @DynamicPropertySource
     static void workingDirectory(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
     }
+
+    /**
+     * What the invocation that wrote under {@link #THE_WRITING_MODEL}, through a window of {@link
+     * #A_WINDOW_OTHER_THAN_THE_DEFAULT} tokens, left: the arrangement its approval named and the record of
+     * its work. The four tests about what the record holds read this one invocation (#678).
+     */
+    private record Written(RunId approved, String theRecordOfTheWork) {}
+
+    /** What the invocation that named a model the runtime was never given left: how it ended, and its records. */
+    private record Refused(int exitCode, List<String> theRecordsOfTheWork) {}
+
+    private static final Once<Written> written = new Once<>();
+
+    private static final Once<Refused> refused = new Once<>();
 
     @Autowired
     private VesperaCli cli;
@@ -139,53 +163,89 @@ class GenerationIdentityInvocationTest {
         EmbeddingScriptedBeans.servesEveryModel();
     }
 
+    /**
+     * One invocation to arrange, then the approval of that arrangement under {@link #THE_WRITING_MODEL} with
+     * the window set, and a second invocation that writes: done once, for the four tests that read it.
+     */
+    private Written written() {
+        return written.get(() -> {
+            aCorpus(theWrittenRoot, theWrittenSeeds);
+            cli.run("run", theWrittenRoot.toString());
+            RunsOver runs = new RunsOver(jdbcTemplate, theWrittenRoot);
+            RunId approved = runs.latest("arrangement");
+            EveryGateOpen.approve(profileStore, ArrangementGate.shortNameOf(approved), THE_WRITING_MODEL);
+            profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                    .generationContextWindow(A_WINDOW_OTHER_THAN_THE_DEFAULT, "set by this test")
+                    .build());
+            cli.run("run", theWrittenRoot.toString());
+            List<String> records = runs.configConsumed("generation");
+            return new Written(approved, records.isEmpty() ? "" : records.getFirst());
+        });
+    }
+
+    /**
+     * One invocation to arrange, then the approval under a model the runtime was never given, and a second
+     * invocation that stops: done once, for the two tests that read it. The runtime serves every model again
+     * however the invocation ended.
+     */
+    private Refused refused() {
+        return refused.get(() -> {
+            aCorpus(theRefusedRoot, theRefusedSeeds);
+            cli.run("run", theRefusedRoot.toString());
+            RunsOver runs = new RunsOver(jdbcTemplate, theRefusedRoot);
+            EveryGateOpen.approve(
+                    profileStore,
+                    ArrangementGate.shortNameOf(runs.latest("arrangement")),
+                    A_MODEL_NOTHING_HAS_EVER_BEEN_GIVEN);
+            EmbeddingScriptedBeans.hasNeverPulled(A_MODEL_NOTHING_HAS_EVER_BEEN_GIVEN);
+            try {
+                cli.run("run", theRefusedRoot.toString());
+                return new Refused(cli.getExitCode(), runs.configConsumed("generation"));
+            } finally {
+                EmbeddingScriptedBeans.servesEveryModel();
+            }
+        });
+    }
+
     @Test
     @Story("The record of a piece of work says which weights actually did it")
     @DisplayName("What is written down names the weights the serving runtime reported, not the model's name twice")
-    void recordsTheWeightsTheRuntimeReported(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        cli.run("run", root.toString());
-        approveGeneratingUnder(ArrangementGate.shortNameOf(theLatestArrangement(root)), THE_WRITING_MODEL);
-
-        cli.run("run", root.toString());
+    void recordsTheWeightsTheRuntimeReported() {
+        String theRecordOfTheWork = written().theRecordOfTheWork();
 
         claim(
                 "the work was recorded at all, which is what the claims below are about -- asserted first"
                         + " and separately, so a step that never ran fails saying so rather than failing"
                         + " while reaching for something that is not there",
-                () -> assertThat(theRecordOfTheWork(root)).isNotEmpty());
+                () -> assertThat(theRecordOfTheWork).isNotEmpty());
         claim(
                 "the model's name is in what was written down, because two models write different"
                         + " documents over one group and a record that cannot tell them apart claims one"
                         + " wrote the other's",
-                () -> assertThat(theRecordOfTheWork(root)).contains(THE_WRITING_MODEL));
+                () -> assertThat(theRecordOfTheWork).contains(THE_WRITING_MODEL));
         claim(
                 "and beside it, exactly what the serving runtime said it was holding under that name --"
                         + " a name can be re-used over different weights, so a record composed from the"
                         + " name alone would file two different pieces of work under one heading and"
                         + " nobody could tell afterwards which weights wrote which",
-                () -> assertThat(theRecordOfTheWork(root)).contains(EmbeddingScriptedBeans.DIGEST));
+                () -> assertThat(theRecordOfTheWork).contains(EmbeddingScriptedBeans.DIGEST));
     }
 
     @Test
     @Story("The record of a piece of work says which weights actually did it")
     @DisplayName("What is written down carries no trace of where the model was reached")
-    void recordsNoTraceOfWhereTheModelWasReached(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        cli.run("run", root.toString());
-        approveGeneratingUnder(ArrangementGate.shortNameOf(theLatestArrangement(root)), THE_WRITING_MODEL);
-
-        cli.run("run", root.toString());
+    void recordsNoTraceOfWhereTheModelWasReached() {
+        String theRecordOfTheWork = written().theRecordOfTheWork();
 
         claim(
                 "the work was recorded at all, so the claim below is about something that exists",
-                () -> assertThat(theRecordOfTheWork(root)).isNotEmpty());
+                () -> assertThat(theRecordOfTheWork).isNotEmpty());
         claim(
                 "and nothing in it says where the model was reached -- not the address and not the port "
                         + THE_PORT_A_RUNTIME_LISTENS_ON + " a runtime listens on by default. Two"
                         + " deployments answering alike are one instrument and moving a port is not a"
                         + " change, so a record carrying the address would count the same work twice",
-                () -> assertThat(theRecordOfTheWork(root))
+                () -> assertThat(theRecordOfTheWork)
                         .doesNotContain(THE_PORT_A_RUNTIME_LISTENS_ON)
                         .doesNotContain("localhost"));
     }
@@ -193,82 +253,57 @@ class GenerationIdentityInvocationTest {
     @Test
     @Story("The record of a piece of work says which weights actually did it")
     @DisplayName("What is written down carries how much each call was allowed to read, as the operator set it")
-    void recordsTheReadingWindowTheOperatorSet(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        cli.run("run", root.toString());
-        approveGeneratingUnder(ArrangementGate.shortNameOf(theLatestArrangement(root)), THE_WRITING_MODEL);
-        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
-                .generationContextWindow(A_WINDOW_OTHER_THAN_THE_DEFAULT, "set by this test")
-                .build());
-
-        cli.run("run", root.toString());
+    void recordsTheReadingWindowTheOperatorSet() {
+        String theRecordOfTheWork = written().theRecordOfTheWork();
 
         claim(
                 "the work was recorded at all, so the claim below is about something that exists",
-                () -> assertThat(theRecordOfTheWork(root)).isNotEmpty());
+                () -> assertThat(theRecordOfTheWork).isNotEmpty());
         claim(
                 "and it carries the window of " + A_WINDOW_OTHER_THAN_THE_DEFAULT + " tokens this test set"
                         + " rather than the one the tool ships with: how much each call could read is part"
                         + " of what was asked, and the same archive read through a narrower window is"
                         + " written from fewer documents, which is different work and has to be recorded"
                         + " as different work rather than as the same work twice",
-                () -> assertThat(theRecordOfTheWork(root))
+                () -> assertThat(theRecordOfTheWork)
                         .contains("\"contextWindow\":" + A_WINDOW_OTHER_THAN_THE_DEFAULT + ","));
     }
 
     @Test
     @Story("The record of a piece of work says which weights actually did it")
     @DisplayName("What is written down names the arrangement the approval named")
-    void recordsTheApprovedArrangement(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        cli.run("run", root.toString());
-        RunId approved = theLatestArrangement(root);
-        approveGeneratingUnder(ArrangementGate.shortNameOf(approved), THE_WRITING_MODEL);
-
-        cli.run("run", root.toString());
+    void recordsTheApprovedArrangement() {
+        Written written = written();
 
         claim(
                 "the work was recorded at all, so the claim below is about something that exists",
-                () -> assertThat(theRecordOfTheWork(root)).isNotEmpty());
+                () -> assertThat(written.theRecordOfTheWork()).isNotEmpty());
         claim(
                 "and it names, in full, the arrangement the approval named, as well as reading it: a"
                         + " re-arrangement then changes what the work is recorded as, and so the directory"
                         + " the archive is written into, without anyone having to remember to change it",
-                () -> assertThat(theRecordOfTheWork(root)).contains("\"arrangementRunId\":\"" + approved.value() + "\""));
+                () -> assertThat(written.theRecordOfTheWork())
+                        .contains("\"arrangementRunId\":\"" + written.approved().value() + "\""));
     }
 
     @Test
     @Story("Nothing is written over the archive under weights nobody can name")
     @DisplayName("With the model named never having been given to the runtime, the invocation stops")
-    void stopsWhenTheRuntimeCannotSayWhatItHoldsUnderThatName(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpus(root, seeds);
-        cli.run("run", root.toString());
-        approveGeneratingUnder(
-                ArrangementGate.shortNameOf(theLatestArrangement(root)), A_MODEL_NOTHING_HAS_EVER_BEEN_GIVEN);
-        EmbeddingScriptedBeans.hasNeverPulled(A_MODEL_NOTHING_HAS_EVER_BEEN_GIVEN);
-
-        cli.run("run", root.toString());
+    void stopsWhenTheRuntimeCannotSayWhatItHoldsUnderThatName() {
+        Refused refused = refused();
 
         claim(
                 "the invocation stopped rather than writing anything: a model the runtime has never been"
                         + " given cannot be described, and writing an archive under a description nobody"
                         + " can check is worse than not writing it",
-                () -> assertThat(cli.getExitCode()).isNotZero());
+                () -> assertThat(refused.exitCode()).isNotZero());
     }
 
     @Test
     @Story("Nothing is written over the archive under weights nobody can name")
     @DisplayName("Stopping for that reason leaves nothing half written down")
-    void leavesNothingHalfWrittenDownWhenItStopsForThatReason(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpus(root, seeds);
-        cli.run("run", root.toString());
-        approveGeneratingUnder(
-                ArrangementGate.shortNameOf(theLatestArrangement(root)), A_MODEL_NOTHING_HAS_EVER_BEEN_GIVEN);
-        EmbeddingScriptedBeans.hasNeverPulled(A_MODEL_NOTHING_HAS_EVER_BEEN_GIVEN);
-
-        cli.run("run", root.toString());
+    void leavesNothingHalfWrittenDownWhenItStopsForThatReason() {
+        Refused refused = refused();
 
         claim(
                 "there are " + NO_RECORD_AT_ALL + " records of this work: a step that stopped takes back"
@@ -276,61 +311,13 @@ class GenerationIdentityInvocationTest {
                         + " got as far as naming the work and no further -- a record left behind by one"
                         + " reads afterwards as a pass that found nothing rather than as work that never"
                         + " happened",
-                () -> assertThat(theRecordsOfTheWork(root)).hasSize(NO_RECORD_AT_ALL));
+                () -> assertThat(refused.theRecordsOfTheWork()).hasSize(NO_RECORD_AT_ALL));
     }
 
     /** One corpus document and one exemplar, with every gate before this one open. */
     private void aCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
-    }
-
-    /** Writes the approval and the model to write under, leaving every other key as the fixture left it. */
-    private void approveGeneratingUnder(String approval, String model) {
-        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
-                .arrangementApproved(approval, "read by this test")
-                .generationModel(model, "set by this test")
-                .build());
-    }
-
-    /** The arrangement the most recent invocation over {@code root} recorded — the one its page names. */
-    private RunId theLatestArrangement(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
-    }
-
-    /**
-     * What this step wrote down about itself over {@code root}: the configuration its record of the
-     * work was derived from, which is where the generator identity is kept.
-     *
-     * <p>Scoped to the walk of this corpus rather than read off the table, for {@link
-     * GenerationInvocationTest}'s reason: one working directory serves the whole class and the database
-     * outlives each method, so anything unscoped would be a claim about every corpus any method here
-     * ever walked.
-     */
-    private String theRecordOfTheWork(Path root) {
-        List<String> records = theRecordsOfTheWork(root);
-        return records.isEmpty() ? "" : records.getFirst();
-    }
-
-    /** The same, as many as there are, oldest first — so a step that never ran answers with none. */
-    private List<String> theRecordsOfTheWork(Path root) {
-        return jdbcTemplate.queryForList(
-                "SELECT r.config_consumed FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid",
-                String.class,
-                "generation",
-                Walk.canonicalRoot(root).toString());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 }
