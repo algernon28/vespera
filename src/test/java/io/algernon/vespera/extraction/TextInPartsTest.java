@@ -607,6 +607,72 @@ class TextInPartsTest {
                 () -> assertCovers(parts, text.length(), limit));
     }
 
+    /**
+     * A fence line is a run of backticks or tildes after at most three spaces (ADR-178 section 2.2).
+     * Each fenced block holds a blank line that lies in the first window past its midpoint, so the first
+     * part ends after that blank line only where the opening line is not taken for a fence.
+     */
+    @Test
+    @Story("Where a part ends")
+    @DisplayName("Tildes open a fenced block as backticks do, and so does a fence after up to three spaces but not four")
+    void aFenceIsBackticksOrTildesAfterAtMostThreeSpaces(@TempDir Path dir) throws IOException {
+        claim(
+                "a block fenced by tildes keeps the first part from ending at its blank line: the part ends at byte "
+                        + FENCE_OPENING.length() + ", after the blank line before the block",
+                () -> assertThat(firstEndOfAFencedBlock(dir, "tildes.md", "~~~", "", "~~~"))
+                        .isEqualTo(FENCE_OPENING.length()));
+        claim(
+                "so does a block whose backtick fence is indented by three spaces, the most a fence may be",
+                () -> assertThat(firstEndOfAFencedBlock(dir, "three-spaces.md", "   ```", "", "```"))
+                        .isEqualTo(FENCE_OPENING.length()));
+        claim(
+                "but backticks indented by four spaces open no fence, so the part ends after the blank line that"
+                        + " follows them",
+                () -> assertThat(firstEndOfAFencedBlock(dir, "four-spaces.md", "    ```", "", "```"))
+                        .isEqualTo(blankLineEndOfAFencedBlock("    ```", "")));
+    }
+
+    /** A fenced block is closed only by a fence line of the character that opened it (ADR-178 section 2.2). */
+    @Test
+    @Story("Where a part ends")
+    @DisplayName("A fenced block opened by backticks is not closed by a line of tildes")
+    void aFenceIsClosedOnlyByItsOwnCharacter(@TempDir Path dir) throws IOException {
+        claim(
+                "the blank line after a line of tildes is still inside the block the backticks opened, so the"
+                        + " first part ends at byte " + FENCE_OPENING.length() + ", after the blank line before the"
+                        + " block",
+                () -> assertThat(firstEndOfAFencedBlock(dir, "tildes-inside-backticks.md", "```", "~~~\n", "```"))
+                        .isEqualTo(FENCE_OPENING.length()));
+    }
+
+    /** A paragraph and the blank line after it, before the fenced block of the fence tests. */
+    private static final String FENCE_OPENING = "first paragraph line\nfirst paragraph line\nfirst paragraph line\n\n";
+
+    /** How far past the blank line inside the fenced block the first window reaches: into the next line. */
+    private static final long WINDOW_PAST_THE_BLANK_LINE = "code".length();
+
+    /** A paragraph, then a block from {@code open} to {@code close} holding {@code beforeTheBlankLine} and a blank line. */
+    private static String aFencedBlock(String open, String beforeTheBlankLine, String close) {
+        return FENCE_OPENING + open + "\ncode line\n" + beforeTheBlankLine + "\ncode line\n" + close + "\n"
+                + "after the fence\n".repeat(5);
+    }
+
+    /** The byte just after the blank line inside the block {@link #aFencedBlock} writes. */
+    private static long blankLineEndOfAFencedBlock(String open, String beforeTheBlankLine) {
+        return (FENCE_OPENING + open + "\ncode line\n" + beforeTheBlankLine + "\n").length();
+    }
+
+    /** Where the first part of {@link #aFencedBlock} ends, at a limit reaching just past the blank line inside it. */
+    private static long firstEndOfAFencedBlock(Path dir, String name, String open, String beforeTheBlankLine, String close)
+            throws IOException {
+        String text = aFencedBlock(open, beforeTheBlankLine, close);
+        long limit = blankLineEndOfAFencedBlock(open, beforeTheBlankLine) + WINDOW_PAST_THE_BLANK_LINE;
+        Path file = Files.writeString(dir.resolve(name), text, StandardCharsets.UTF_8);
+        List<TextParts.Part> parts = TextParts.cut(file, limit);
+        assertCovers(parts, text.length(), limit);
+        return parts.getFirst().end();
+    }
+
     @Test
     @Story("The answers are merged into one document")
     @DisplayName("Merged pages follow on from the part before, and the merged confidence is the lowest any part reports")

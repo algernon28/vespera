@@ -138,6 +138,7 @@ An occurrence removed by tier 3 is not a survivor of stage 2 and is never a memb
 | `extraction.AWordIsWhatStageTwoCountsTest.aYearAloneIsOneWord` | `2026` alone is one word, stored and judged, under a floor of 2 |
 | `extraction.AWordIsWhatStageTwoCountsTest.wordsWithoutALatinVowelAreWords` | `Привет мир` is two words and clears a floor of 2, though the vowelless counter counts both |
 | `extraction.AWordIsWhatStageTwoCountsTest.theWordsOfPageHeadersAndFootersCount` | a one-word body under a three-word header holds four words and clears a floor of 2 |
+| `extraction.AWordIsWhatStageTwoCountsTest.oneCharacterWordsAreWords` | `I a` is two words and clears a floor of 2, though the one-character counter counts both (#680) |
 | `extraction.WordCountDistributionTest.theBandsAndTheCandidateFloorsAreTheRecordedOnes` | `BANDS` and `CANDIDATE_FLOORS` as §4 lists them |
 | `extraction.WordCountDistributionTest.eachSurvivorIsCountedInItsBandUnderItsDetectedFormat` | survivors of three formats each in their band, formats in declaration order |
 | `extraction.WordCountDistributionTest.aFloorRemovesTheSurvivorsWithFewerWordsThanItInEachFormat` | `removedBy` for each candidate floor and format, and summed |
