@@ -9,7 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.FileSystems;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.AclEntry;
 import java.nio.file.attribute.AclEntryFlag;
@@ -40,7 +39,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * {@link IllegalArgumentException} whose message is the line. Taking the lock links no class of the jar (ADR-285 §3).
  *
  * <p>A save of {@code profile.yaml} makes the working directory where it is not there, each folder born the user's
- * alone, and a folder that exists is checked by its owner on a file system with no POSIX permissions (ADR-330 §7).
+ * alone, and a folder that exists is checked by its owner on a file system with no POSIX permissions (ADR-330 §7). The
+ * copy a repair of {@code profile.yaml} keeps of the file as it stood is made here too, called from inside the change
+ * so that it is made under the lock and before the repaired text is written (ADR-330 §6, §13).
  */
 public final class WorkingDirectoryWrite {
 
@@ -171,6 +172,31 @@ public final class WorkingDirectoryWrite {
      *
      * @return the line that stopped it, empty where the folder is there
      */
+    /**
+     * Copies {@code fileName} whole to {@code <fileName>.before-repair-<yyyyMMdd-HHmmss>} beside it, never over an
+     * earlier copy (a number is added to the name instead). For a change that runs under the lock.
+     *
+     * @return the copy's name
+     * @throws IllegalArgumentException with the line that stops the repair where no copy can be made
+     */
+    static String keepCopyBeforeRepair(Path folder, String fileName) {
+        String stamp = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        for (int n = 1; ; n++) {
+            String name = fileName + ".before-repair-" + stamp + (n == 1 ? "" : "-" + n);
+            try {
+                Files.copy(folder.resolve(fileName), folder.resolve(name));
+                return name;
+            } catch (java.nio.file.FileAlreadyExistsException taken) {
+                continue;
+            } catch (IOException e) {
+                throw new IllegalArgumentException("the control panel could not keep a copy of " + fileName
+                        + " beside it, so it was not repaired: " + (e.getMessage() == null
+                                ? e.getClass().getSimpleName() : e.getClass().getSimpleName() + ": " + e.getMessage()));
+            }
+        }
+    }
+
     private Optional<String> makeFolder(Path workingDirectory, String fileName, Function<Optional<String>, String> change) {
         try {
             change.apply(Optional.empty());
@@ -181,10 +207,11 @@ public final class WorkingDirectoryWrite {
         try {
             UserPrincipal user = null;
             FileAttribute<?>[] attributes = new FileAttribute<?>[0];
-            if (FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
+            java.nio.file.FileStore volume = Files.getFileStore(nearestThatExists(folder));
+            if (volume.supportsFileAttributeView("posix")) {
                 attributes = new FileAttribute<?>[] {
                     PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"))};
-            } else if (Files.getFileStore(nearestThatExists(folder)).supportsFileAttributeView("acl")) {
+            } else if (volume.supportsFileAttributeView("acl")) {
                 user = folder.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(userName);
                 attributes = new FileAttribute<?>[] {onlyThisUser(user)};
             }

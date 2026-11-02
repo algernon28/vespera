@@ -397,7 +397,7 @@ final class ValuePages {
                     : "Nothing sets this value.";
         }
         return "<p id=\"in-use-" + ControlPanelPage.escape(key.key()) + "\" data-value=\"" + ControlPanelPage.escape(value)
-                + "\" data-source=\"" + source + "\"" + (fresh.isEmpty() ? "" : " data-fresh=\"" + fresh + "\"") + ">"
+                + "\" data-source=\"" + ControlPanelPage.escape(source) + "\"" + (fresh.isEmpty() ? "" : " data-fresh=\"" + fresh + "\"") + ">"
                 + ControlPanelPage.escape(words) + "</p>";
     }
 
@@ -539,20 +539,7 @@ final class ValuePages {
         ProfileRepair.Analysis analysis = ProfileRepair.analyse(text).filter(ProfileRepair.Analysis::repairable)
                 .orElseThrow(() -> new IllegalArgumentException(
                         ProfileEdit.FILE_NAME + " is in no form that the repair can put right, so it was not repaired"));
-        String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-        for (int n = 1; copyMade[0].isEmpty(); n++) {
-            String name = ProfileEdit.FILE_NAME + ".before-repair-" + stamp + (n == 1 ? "" : "-" + n);
-            try {
-                Files.copy(folder.resolve(ProfileEdit.FILE_NAME), folder.resolve(name));
-                copyMade[0] = name;
-            } catch (FileAlreadyExistsException taken) {
-                // an earlier copy is never written over; the next name is tried
-            } catch (IOException e) {
-                throw new IllegalArgumentException("the control panel could not keep a copy of " + ProfileEdit.FILE_NAME
-                        + " beside it, so it was not repaired: " + (e.getMessage() == null
-                                ? e.getClass().getSimpleName() : e.getClass().getSimpleName() + ": " + e.getMessage()));
-            }
-        }
+        copyMade[0] = WorkingDirectoryWrite.keepCopyBeforeRepair(folder, ProfileEdit.FILE_NAME);
         return analysis.repaired();
     }
 }

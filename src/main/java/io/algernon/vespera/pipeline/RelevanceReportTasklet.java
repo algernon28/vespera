@@ -45,7 +45,7 @@ import org.springframework.stereotype.Component;
  * threshold, and no choice of its own.
  *
  * <p>Two files beside the database and the profile, never inside the corpus (ADR-054): a page
- * showing how the scores are spread and which sixty documents to judge, and a label file with one
+ * showing how the scores are spread and which documents to judge (sixty as shipped), and a label file with one
  * answer per document, blank unless an answer is already recorded for the seed set (ADR-169). The
  * profile's threshold key is pointed at the page, and left unset —
  * ADR-088 is explicit that nothing writes the value, because a threshold guessed by the engine is

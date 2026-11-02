@@ -202,7 +202,7 @@ class RelevanceDistributionTest {
      * five bands of twelve, divided otherwise, so a class ignoring either would draw the shipped shape.
      */
     @Test
-    @Story("Sixty documents, chosen the same way every time")
+    @Story("The sample takes the shape it is asked for")
     @DisplayName("Asked for another shape of sample, it cuts that many bands and draws that many from each, and says what each lacked of that many")
     @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     void theBandsAndTheNumberFromEachAreWhatItIsGiven() {
@@ -231,7 +231,7 @@ class RelevanceDistributionTest {
 
     /** A sample of no bands or of none from each divides nothing and asks nothing (ADR-330 §9). */
     @Test
-    @Story("Sixty documents, chosen the same way every time")
+    @Story("The sample takes the shape it is asked for")
     @DisplayName("A sample of no bands, or of no document from each, is refused")
     @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     void aSampleOfNoBandsOrNoneFromEachIsRefused() {

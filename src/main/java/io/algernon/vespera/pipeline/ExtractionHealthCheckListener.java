@@ -15,8 +15,8 @@ import org.springframework.web.client.ResourceAccessException;
  * Checks {@code docling-serve}'s health once, immediately before stage 2's step processes its first
  * occurrence (ADR-071), waiting for a converter that gives no answer yet (ADR-323 §7) — not at job start, since census and stage 1 never touch the sidecar, and not
  * before every call, since a sidecar that dies later fails the call itself. What that failure earns
- * depends on how the call failed (ADR-175): a failure the sidecar answers with, or three timeouts in a
- * row, is skipped and counted by the breaker; a dropped connection is waited out by {@link
+ * depends on how the call failed (ADR-175): a failure the sidecar answers with, or the timeouts in a
+ * row that the preset sets aside (three as shipped), is skipped and counted by the breaker; a dropped connection is waited out by {@link
  * SidecarRecovery} and the call placed once more.
  *
  * <p>Also carries stage 2's own step start/end logging (ADR-093): the natural place, since it already

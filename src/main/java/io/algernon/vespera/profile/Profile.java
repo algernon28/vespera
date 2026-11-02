@@ -59,7 +59,7 @@ package io.algernon.vespera.profile;
  *     ADR-020's function produces, below which a scored survivor is {@code below-threshold}. Ships
  *     unset, per <b>observe before enforce</b>, and an unset floor does not stop the run — stage 5
  *     scores every survivor, clusters every partition and writes its reports regardless, removing
- *     nothing. The value is meant to be read off a stratified sample of sixty labelled documents, so
+ *     nothing. The value is meant to be read off a stratified sample of labelled documents (sixty as shipped), so
  *     it carries a {@link Measurement} pointer at the labelling report the way {@code
  *     degenerateOutputConfidenceFloor} points at the confidence distribution (ADR-075's shape).
  *     Nothing checks that a threshold was ever labelled: the floor is an ordinary profile value and
@@ -133,7 +133,7 @@ package io.algernon.vespera.profile;
  *     blank is English, and it is not a gate. Any other answer stops the invocation where the generation run is
  *     minted. It enters the generation run's identity. No {@link Measurement} pointer: no pass over the corpus
  *     informs who reads the deliverable.
- * @param clusterResolution how finely the documents under each exemplar divide into groups (ADR-330 §9): a finite
+ * @param clusterResolution how finely the documents under each exemplar divide into clusters (ADR-330 §9): a finite
  *     number above 0 that overrides the preset {@code vespera.clustering.resolution}. Ships unset; unset, blank,
  *     unreadable or a number that is none of that, the preset applies as configuration resolves it, and no provenance
  *     is written when it does (ADR-298 §4). Not a gate. It enters the embedding-scoring run's identity where it is not

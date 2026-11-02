@@ -40,7 +40,7 @@ import org.springframework.stereotype.Component;
  * <p><b>The seed side is loaded once and held resident; the corpus side is read one survivor at a
  * time and discarded before the next (ADR-085).</b> No pairwise matrix is ever materialised — {@link
  * RelevanceScoring#scoreAndRecord} reads exactly one survivor's own chunk vectors per call, and {@link
- * io.algernon.vespera.embedding.RelevanceScorer} keeps only a fixed-size top-3 heap while scanning
+ * io.algernon.vespera.embedding.RelevanceScorer} keeps only a fixed-size heap of the top similarities (3 as shipped) while scanning
  * that survivor against one resident seed document at a time.
  *
  * <p>Nothing here re-chunks or re-embeds: gate 3's step already wrote every vector this step reads,

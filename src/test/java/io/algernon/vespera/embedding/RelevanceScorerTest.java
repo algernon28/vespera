@@ -93,7 +93,7 @@ class RelevanceScorerTest {
 
     /** No mean can be taken of no similarities, and it is this module's to refuse (ADR-330 §9). */
     @Test
-    @Story("The score is the mean of the top 3, not the top 1 or the whole set")
+    @Story("The score is the mean of as many similarities as it is asked for")
     @DisplayName("A score of no similarities is refused")
     @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     void aScoreOfNoSimilaritiesIsRefused() {
@@ -112,7 +112,7 @@ class RelevanceScorerTest {
      * of one and a mean of two, so a scorer that ignored its number would give each the top-three mean.
      */
     @Test
-    @Story("The score is the mean of the top 3, not the top 1 or the whole set")
+    @Story("The score is the mean of as many similarities as it is asked for")
     @DisplayName("Asked for another number of similarities, the score is the mean of that many")
     @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     void theMeanIsOfTheNumberItIsGiven() {

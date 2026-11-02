@@ -613,9 +613,9 @@ class NextAction {
      */
     private static Optional<String> theClusterResolutionIgnored(Profile profile) {
         NumericValue.Reading reading = profile.clusterResolution().reading();
-        boolean ignored = reading instanceof NumericValue.Unreadable
-                || (reading instanceof NumericValue.Answered answered
-                        && !(Double.isFinite(answered.number()) && answered.number() > 0));
+        // The one test of what a run acts on is Presets': anything set that it does not act on is ignored.
+        boolean ignored = (reading instanceof NumericValue.Unreadable || reading instanceof NumericValue.Answered)
+                && Presets.ownResolution(profile).isEmpty();
         if (!ignored) {
             return Optional.empty();
         }

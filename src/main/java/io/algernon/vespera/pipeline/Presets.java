@@ -92,7 +92,7 @@ class Presets {
     }
 
     /** The profile's own resolution, where there is one that can be acted on. */
-    private static OptionalDouble ownResolution(Profile profile) {
+    static OptionalDouble ownResolution(Profile profile) {
         if (profile.clusterResolution().reading() instanceof NumericValue.Answered answered
                 && Double.isFinite(answered.number())
                 && answered.number() > 0) {
@@ -147,7 +147,12 @@ class Presets {
 
     /** The shingle window. */
     ShingleParameters shingleParameters() {
-        return new ShingleParameters(wholeNumber(SHINGLE_WORDS));
+        int words = wholeNumber(SHINGLE_WORDS);
+        try {
+            return new ShingleParameters(words);
+        } catch (IllegalArgumentException refusedByTheType) {
+            throw new PresetRefusedException(SHINGLE_WORDS + " is " + words + ": " + refusedByTheType.getMessage());
+        }
     }
 
     /** The signature's permutations, bands, rows and seed, in the order of §9's table. */
@@ -166,6 +171,9 @@ class Presets {
         } catch (NumberFormatException notALong) {
             throw new PresetRefusedException(SEED + " is " + rawSeed
                     + ": a whole number from -9223372036854775808 to 9223372036854775807");
+        } catch (IllegalArgumentException refusedByTheType) {
+            // a bound the type holds that this class does not repeat still reaches the operator as a line
+            throw new PresetRefusedException("vespera.redundancy.minhash: " + refusedByTheType.getMessage());
         }
     }
 
@@ -182,6 +190,9 @@ class Presets {
             }
         } catch (NumberFormatException notANumber) {
             // refused below
+        } catch (IllegalArgumentException refusedByTheType) {
+            // a bound the type holds that this class does not repeat still reaches the operator as a line
+            throw new PresetRefusedException("vespera.redundancy: " + refusedByTheType.getMessage());
         }
         throw new PresetRefusedException(RARE_SHINGLE_HITS + " is " + rawHits
                 + ": a whole number from 1 to vespera.redundancy.rare-shingle-sample, " + sample);
