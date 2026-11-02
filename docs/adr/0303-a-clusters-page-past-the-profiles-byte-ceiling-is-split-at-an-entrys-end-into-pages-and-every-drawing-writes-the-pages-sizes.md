@@ -178,12 +178,16 @@ ADR-149 §6's ten pictures a document shows and ADR-274 §2.5's gibibyte left fr
 | `…theFurtherPagesAreMovedIntoPlaceBeforeTheFirst` | §4: `index-2.html`, `index-3.html`, then `index.html`, and no `.part` left |
 | `…aPageAnEarlierDrawingWrotePastTheLastIsCountedAndKept` | §4: a planted `index-7.html` beside three pages counts 1; a redrawing unset counts the two earlier further pages; a redrawing split counts 0; none is deleted |
 | `…eachEntryAndEachClusterIsToldOnceWhetherOrNotItIsSplit` | §3: the progress hears every entry once and every cluster once with a ceiling of 1 |
+| `…aFirstPageCitingAnotherPageIsWithinATightCeiling` | §3, §6: at the smallest ceiling putting two entries on the first page, that page, its writing citing an entry of the second page forty times, is within the ceiling (#680) |
 | `deliverable.ACitationLinksToThePageItsEntryIsOnTest` | §6: `ProseHtml.of` with the page of each number: `#document-1` on this page, `./index-2.html#document-3` on another; the one-argument form unchanged; and on a drawn first page, each citation to its entry's page |
 | `deliverable.TheTreeIsHtmlTest.everyLinkOfASplitClusterLandsOnASiblingPageAndAnIdOnIt` | §6, ADR-286 §5: a tree split at a ceiling of 1, every link a fragment on its page, a file in the tree, or a sibling page with a fragment naming an `id` on it, and each cluster folder its pages and its copies |
 | `deliverable.TheClusterPageSizesReportTest.theReportStatesTheSizesTheMarksAndTheTenLargestInNumbersAlone` | §8: unset; groups, largest, 95th percentile and median by nearest rank, the four marks and the ten largest, read against the pages on disk; no label, title, seed or path on it, nor the tree's, the working directory's or the run folder's path, nor a path separator in its text |
 | `…aSetCeilingIsStatedWithWhatItSplit` | §8: the ceiling's bytes, groups split, pages written and pages over the ceiling, against the tree |
 | `…anIgnoredCeilingIsStatedAsIgnoredAndNotQuoted` | §8: `ignored`, no table of what was split |
 | `…aTreeWithNoClusterStatesNone` | §8: `0` groups, `none` for the three sizes, no row of the ten largest |
+| `…theReportIsMovedIntoPlaceAfterTheIndex` | §8: the report moved from its `.part` by the drawing's move, after the tree's index, no `.part` left (#680) |
+| `…aReportThatCannotBeMovedFailsNothingAndLeavesNoPart` | §8: its move refused, the drawing throws nothing, the index stands, no report and no `.part` (#680) |
+| `…aDrawingThatFailsWritesNoReport` | §8: the tree's index refused, the drawing fails and no report or `.part` is written (#680) |
 | `pipeline.ClusterPageByteCeilingTest` | §2: the key's name; unset; whole numbers from 1 to `Long.MAX_VALUE` read exactly; `0`, `-1`, `1.5`, `NaN`, infinities, text and `9223372036854775808` ignored with their text; `forTheTree` |
 | `pipeline.TheClosingLineNamesAnIgnoredPageCeilingTest` | §2.1: the clause with the text quoted, before the last full stop, one line, nothing wanted; no clause unset, set, or with no tree |
 | `profile.ClusterPageByteCeilingInTheProfileTest` | §2: after `generationContextWindow`; unset in a fresh profile and in `profile.yaml`; written back as written; on the index's keys |
