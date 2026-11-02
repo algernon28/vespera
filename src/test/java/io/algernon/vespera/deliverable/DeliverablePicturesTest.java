@@ -670,6 +670,37 @@ class DeliverablePicturesTest {
                 () -> assertThat(written).containsExactly(shown(diagram)));
     }
 
+    /**
+     * ADR-150 §3(c): the two pictures of a near-copy "can be in the same document or in different ones".
+     * Neither picture carries a place, so the same-place rule cannot be what removes them.
+     */
+    @Test
+    @Story("A picture repeated as a near-copy is furniture and is left out")
+    @DisplayName("Two crops of one emblem inside one document, two pixels apart in size and two bits apart, are both left out")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    void leavesOutANearCopyOneDocumentCarries(@TempDir Path workingDirectory) throws IOException {
+        byte[] logo = aPictureHashing(A_LOGO, 100, 50);
+        byte[] theSameLogoCroppedElsewhere = aPictureHashing(
+                A_LOGO ^ bitsFlipped(NEAR_COPY_BITS), 100 + NEAR_COPY_PIXELS, 50 + NEAR_COPY_PIXELS);
+        byte[] diagram = aPictureHashing(A_DIAGRAM, 400, 240);
+        Map<OccurrenceId, List<ListedPicture>> pictures = Map.of(
+                new OccurrenceId(10), List.of(png(logo), png(diagram), png(theSameLogoCroppedElsewhere)));
+
+        Path tree = writeOneCluster(
+                workingDirectory, null, List.of(aMember(10, "reports/v1.pdf", A_HIGH_SCORE)), pictures);
+        List<String> written = shownAnywhere(tree);
+
+        claim(
+                "the emblem and its crop are different bytes in one document, with no place on the page"
+                        + " given for either; being exactly " + NEAR_COPY_PIXELS + " pixels apart in width and"
+                        + " in height and exactly " + NEAR_COPY_BITS + " bits apart in their hash, both are"
+                        + " left out, as they would be if two documents carried them",
+                () -> assertThat(written).doesNotContain(shown(logo), shown(theSameLogoCroppedElsewhere)));
+        claim(
+                "while the diagram the same document carries, like neither of them, is still written",
+                () -> assertThat(written).containsExactly(shown(diagram)));
+    }
+
     @Test
     @Story("A picture repeated as a near-copy is furniture and is left out")
     @DisplayName("Pictures one bit too far apart, or a pixel too different in size, are both still shown")

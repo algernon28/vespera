@@ -94,6 +94,33 @@ class DifferenceHashTest {
     /** The PNG colour type of an image stored as indices into a palette. */
     private static final int PNG_PALETTE = 3;
 
+    /** The PNG colour type of an image stored as one grey sample per pixel. */
+    private static final int PNG_GREY = 0;
+
+    /** Only the top row's eight bits set: the first row read is the most significant byte. */
+    private static final long RISING_IN_THE_TOP_ROW_ONLY = 0xff00000000000000L;
+
+    /** Only the second row's eight bits set. */
+    private static final long RISING_IN_THE_SECOND_ROW_ONLY = 0x00ff000000000000L;
+
+    /** Only the bottom row's eight bits set: the last row read is the least significant byte. */
+    private static final long RISING_IN_THE_BOTTOM_ROW_ONLY = 0x00000000000000ffL;
+
+    /** A picture height at which a row's boundary falls between two lines, as {@code 100 / 8} is not whole. */
+    private static final int TALL = 100;
+
+    /** On a {@value #TALL}-pixel-tall picture, the last line of the first row (12 · 8 / 100 = 0). */
+    private static final int LAST_LINE_OF_THE_FIRST_ROW = 12;
+
+    /** And the first line of the second (13 · 8 / 100 = 1). */
+    private static final int FIRST_LINE_OF_THE_SECOND_ROW = 13;
+
+    /**
+     * The darkest of nine grey levels one apart: high enough that red's weight alone, 299 over 1000,
+     * rounds two neighbouring levels to the same value (101 and 102 both to 30).
+     */
+    private static final int GREY_STEPS_FROM = 100;
+
     @Test
     @Story("A picture's difference hash is the same wherever it is computed")
     @DisplayName("A picture brightening left to right sets every bit, and one darkening sets none")
@@ -210,6 +237,71 @@ class DifferenceHashTest {
                         .isEqualTo(RISING_AND_FALLING_BY_TURNS));
     }
 
+    /**
+     * ADR-150 §3, step 3: the 64 bits are read row by row, top to bottom, the first bit the most
+     * significant. Every other picture here repeats one row eight times, so reading the rows in any
+     * order would give the same number.
+     */
+    @Test
+    @Story("A picture's difference hash is the same wherever it is computed")
+    @DisplayName("The top row of the grid gives the hash's most significant eight bits, and the bottom row its least")
+    void readsTheRowsTopToBottom() {
+        claim(
+                "a picture that brightens left to right in its top tenth only and is flat black below sets"
+                        + " the first eight bits, 0xff00000000000000, because the top row is read first and"
+                        + " its first bit is the most significant",
+                () -> assertThat(bitsOf(grey(WIDTH, HEIGHT, (x, y) -> y < HEIGHT / ROWS ? x * 255 / (WIDTH - 1) : 0)))
+                        .isEqualTo(RISING_IN_THE_TOP_ROW_ONLY));
+        claim(
+                "and the same ramp in its bottom tenth only sets the last eight, 0x00000000000000ff",
+                () -> assertThat(bitsOf(grey(
+                                WIDTH, HEIGHT, (x, y) -> y >= HEIGHT - HEIGHT / ROWS ? x * 255 / (WIDTH - 1) : 0)))
+                        .isEqualTo(RISING_IN_THE_BOTTOM_ROW_ONLY));
+    }
+
+    /**
+     * ADR-150 §3, step 2: pixel {@code (x, y)} belongs to row {@code y · 8 / height}, in integer division.
+     */
+    @Test
+    @Story("A picture's difference hash is the same wherever it is computed")
+    @DisplayName("A pixel belongs to the row its position divides into, in whole numbers")
+    void assignsAPixelToItsRowByIntegerDivision() {
+        claim(
+                "on a " + TALL + "-pixel-tall picture, a single line brightening left to right at y = "
+                        + LAST_LINE_OF_THE_FIRST_ROW + " falls in the first of the eight rows (12 times 8 is"
+                        + " 96, and 96 over 100 is 0), so only the top row's eight bits are set,"
+                        + " 0xff00000000000000",
+                () -> assertThat(bitsOf(grey(WIDTH, TALL, (x, y) -> y == LAST_LINE_OF_THE_FIRST_ROW ? x * 255 / (WIDTH - 1) : 0)))
+                        .isEqualTo(RISING_IN_THE_TOP_ROW_ONLY));
+        claim(
+                "while the same line at y = " + FIRST_LINE_OF_THE_SECOND_ROW + " falls in the second (104 over"
+                        + " 100 is 1), so only the second row's bits are set, 0x00ff000000000000",
+                () -> assertThat(bitsOf(grey(WIDTH, TALL, (x, y) -> y == FIRST_LINE_OF_THE_SECOND_ROW ? x * 255 / (WIDTH - 1) : 0)))
+                        .isEqualTo(RISING_IN_THE_SECOND_ROW_ONLY));
+    }
+
+    /**
+     * ADR-150 §3, step 1: a grey image's sample is its R, G and B alike, read with no colour-space
+     * conversion. The other pictures here are stored as full colour or a palette, so none is the grey case.
+     */
+    @Test
+    @Story("A picture's difference hash is the same wherever it is computed")
+    @DisplayName("A picture stored in shades of grey reads each sample as red, green and blue alike")
+    void readsAGreySampleAsRedGreenAndBlueAlike() {
+        byte[] steps = png(greyscale(WIDTH, HEIGHT, (x, y) -> GREY_STEPS_FROM + x / 10));
+
+        claim(
+                "the picture is stored as a grey PNG, colour type 0, so the fixture is the grey case",
+                () -> assertThat(colourTypeOf(steps)).isEqualTo(PNG_GREY));
+        claim(
+                "and its nine columns, each one level of grey brighter than the last from "
+                        + GREY_STEPS_FROM + ", set all 64 bits: a sample read as red, green and blue alike"
+                        + " weighs 299 + 587 + 114 over 1000, the level itself, so one level apart stays one"
+                        + " apart, where reading it as red alone, or shifting it on the way to another colour"
+                        + " space, would round neighbouring columns to the same value",
+                () -> assertThat(DifferenceHash.of(steps).orElseThrow().bits()).isEqualTo(ALL_RISING));
+    }
+
     @Test
     @Story("A picture's difference hash is the same wherever it is computed")
     @DisplayName("A picture smaller than the grid, or one that cannot be read as an image, has no hash")
@@ -261,6 +353,20 @@ class DifferenceHashTest {
             int v = level.applyAsInt(x, y);
             return (v << 16) | (v << 8) | v;
         });
+    }
+
+    /**
+     * A picture stored with one grey sample per pixel, the sample written straight into its raster so no
+     * colour conversion moves it.
+     */
+    private static BufferedImage greyscale(int width, int height, IntBinaryOperator level) {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                image.getRaster().setSample(x, y, 0, level.applyAsInt(x, y));
+            }
+        }
+        return image;
     }
 
     private static BufferedImage rgb(int width, int height, IntBinaryOperator colour) {
