@@ -128,6 +128,7 @@ The account is an extra output. No existing log call is edited, `logback-spring.
 
 - **`InvocationAccountInvocationTest`** runs whole invocations over a marked fixture and holds the marker's absence, the steps, the counts, the progress lines and a failure by type.
 - **`InvocationAccountTest`** holds the writer alone: a withheld progress line, a run line, an unknown stored value written as `other`, the `-2` suffix, a write that fails without failing the invocation, and an unset or enclosed folder writing nothing.
+- **`InvocationAccountTest`** also holds §2's `unknown` and §5's types: `aStepNotAmongThePipelinesStepsIsWrittenAsUnknown`, `aRunOfAStageNotAmongThePipelinesIsWrittenAsUnknown` and `aRunIdThatIsNotADigestIsWrittenAsUnknown`, and `aFailureIsWrittenAsTypesAlone`, an exception and at most three causes written by type, with no message and an unknown step name as `unknown` (#680).
 - **`StageProgressLabelsAreConstantsTest`** reads `src/main` and holds that every progress label is literal text, with `stage` allowed only in `RedundancyResolutionTasklet` and `place` and `of` only in `ClusteringTasklet`. It has to pass: it holds the premise §4 rests on.
 
 ## Points settled

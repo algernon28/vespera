@@ -63,6 +63,12 @@ class InvocationAccountTest {
     /** A run id is a 64-character hexadecimal digest. */
     private static final String A_RUN_ID = "0123456789abcdef".repeat(4);
 
+    /** What the account writes in place of a step name, a stage or a run id that is not one it knows. */
+    private static final String UNKNOWN = "unknown";
+
+    /** How many causes beneath a failed step's exception the account names; a deeper one is left out. */
+    private static final int MOST_CAUSES = 3;
+
     private static final String PROGRESS_LOGGER_NAME = StageProgress.class.getName();
 
     /** The folder of the working directory every log is written in, the account among them (ADR-270 section 1). */
@@ -229,6 +235,117 @@ class InvocationAccountTest {
                 () -> assertThat(logged)
                         .containsExactly(THE_SETTING_IS_NO_LONGER_READ
                                 + workingDirectory.toAbsolutePath().resolve(LOGS)));
+    }
+
+    /**
+     * A step whose name is not one the pipeline declares is written as {@value #UNKNOWN}, so a name built
+     * from anything else never reaches the file (ADR-198 section 2).
+     */
+    @Test
+    @Story("A name outside the pipeline's own steps and stages is never written")
+    @DisplayName("A step whose name is not one of the pipeline's steps is written as unknown, and its name is not")
+    void aStepNotAmongThePipelinesStepsIsWrittenAsUnknown() throws IOException {
+        InvocationAccount account = anAccount();
+        JobExecution job = aJob();
+        StepExecution step = new StepExecution(MARKER + "-step", job);
+        step.setStatus(BatchStatus.COMPLETED);
+        job.addStepExecutions(List.of(step));
+
+        account.beforeJob(job);
+        account.afterJob(job);
+
+        String text = theOneAccount();
+        claim(
+                "the step is written, under the name unknown",
+                () -> assertThat(text).contains(" step name=" + UNKNOWN + " status=COMPLETED "));
+        claim("and the name it was given is nowhere, in any letter case", () -> assertThat(text)
+                .doesNotContainIgnoringCase(MARKER));
+    }
+
+    /**
+     * A run recorded under a stage the pipeline does not declare is written with the stage {@value #UNKNOWN}
+     * (ADR-198 section 2).
+     */
+    @Test
+    @Story("A name outside the pipeline's own steps and stages is never written")
+    @DisplayName("A run recorded under a stage that is not one of the pipeline's is written with the stage unknown")
+    void aRunOfAStageNotAmongThePipelinesIsWrittenAsUnknown() throws IOException {
+        InvocationAccount account = anAccount();
+        JobExecution job = aJob();
+        new InvocationRuns(job.getExecutionContext()).record(MARKER + "-stage", new RunId(A_RUN_ID));
+
+        account.beforeJob(job);
+        account.afterJob(job);
+
+        String text = theOneAccount();
+        claim(
+                "the run is written with the stage unknown and its digest",
+                () -> assertThat(text).contains(" run stage=" + UNKNOWN + " id=" + A_RUN_ID));
+        claim("and the stage it was recorded under is nowhere, in any letter case", () -> assertThat(text)
+                .doesNotContainIgnoringCase(MARKER));
+    }
+
+    /**
+     * A run id that is not a hexadecimal digest is written as {@value #UNKNOWN}, so a value that is not what
+     * a run is minted under never reaches the file (ADR-198 section 2).
+     */
+    @Test
+    @Story("An account says which runs the invocation arrived at")
+    @DisplayName("A run id that is not a hexadecimal digest is written as unknown, and its text is not")
+    void aRunIdThatIsNotADigestIsWrittenAsUnknown() throws IOException {
+        InvocationAccount account = anAccount();
+        JobExecution job = aJob();
+        new InvocationRuns(job.getExecutionContext()).record(StageModules.EXTRACTION.stage(), new RunId(MARKER));
+
+        account.beforeJob(job);
+        account.afterJob(job);
+
+        String text = theOneAccount();
+        claim(
+                "the run is written under its stage with the id unknown",
+                () -> assertThat(text).contains(" run stage=extraction id=" + UNKNOWN));
+        claim("and the id's own text is nowhere, in any letter case", () -> assertThat(text)
+                .doesNotContainIgnoringCase(MARKER));
+    }
+
+    /**
+     * A failed step is written as the class names of its exception and of at most {@value #MOST_CAUSES} causes,
+     * never a message, and a step name the pipeline does not declare is written as {@value #UNKNOWN}
+     * (ADR-198 sections 2 and 5).
+     */
+    @Test
+    @Story("A failed step is named by the type of what failed, and its message stays in the operator's log")
+    @DisplayName("A failed step is written as its exception's type and its first three causes' types, with no message")
+    void aFailureIsWrittenAsTypesAlone() throws IOException {
+        InvocationAccount account = anAccount();
+        JobExecution job = aJob();
+        StepExecution step = new StepExecution(MARKER + "-step", job);
+        step.setStatus(BatchStatus.FAILED);
+        job.addStepExecutions(List.of(step));
+        step.addFailureException(new IllegalStateException(MARKER + " failed", new IOException(MARKER + " one",
+                new IllegalArgumentException(MARKER + " two", new UnsupportedOperationException(MARKER + " three",
+                        new ArithmeticException(MARKER + " four"))))));
+
+        account.beforeJob(job);
+        account.afterJob(job);
+
+        String text = theOneAccount();
+        claim(
+                "the failure line names the step unknown, the exception's type and the types of its first "
+                        + MOST_CAUSES + " causes, and ends there, so the cause beneath those is not written",
+                () -> assertThat(linesOf(text))
+                        .anyMatch(line -> line.endsWith(" failure step=" + UNKNOWN
+                                + " type=java.lang.IllegalStateException cause=java.io.IOException"
+                                + " cause=java.lang.IllegalArgumentException"
+                                + " cause=java.lang.UnsupportedOperationException")));
+        claim("and the type of the cause beneath those is nowhere", () -> assertThat(text)
+                .doesNotContain("ArithmeticException"));
+        claim("and no message, nor the step's own name, is anywhere, in any letter case", () -> assertThat(text)
+                .doesNotContainIgnoringCase(MARKER));
+    }
+
+    private static List<String> linesOf(String text) {
+        return text.lines().toList();
     }
 
     private InvocationAccount anAccount() {
