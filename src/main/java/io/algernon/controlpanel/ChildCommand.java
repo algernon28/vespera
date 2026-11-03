@@ -21,30 +21,22 @@ public final class ChildCommand {
 
     /** Every option and positional argument of {@code vespera} and of each of its commands, each once (ADR-336 §2). */
     public static final List<Argument> ARGUMENTS = List.of(
-            new Argument("vespera", longOption("help"), "",
+            new Argument("vespera", "help", "",
                     "Never passed (ADR-278 §1): it boots the context and takes the working directory's lock, and prints"
                             + " nothing the control panel reads."),
-            new Argument("vespera", longOption("version"), "",
+            new Argument("vespera", "version", "",
                     "Never passed (ADR-278 §1): it boots the context, takes the lock and prints no version."),
             new Argument("run", "<root>", "vespera.corpus-root", "The corpus root field, made absolute."),
-            new Argument("run", "--db-dir", "vespera.working-dir",
+            new Argument("run", "db-dir", "vespera.working-dir",
                     "The working directory field, made absolute; also the child's current directory."),
-            new Argument("label", "--auto", "label-auto",
+            new Argument("label", "auto", "label-auto",
                     "Passed by Have the local model answer, here and on the next page; Label passes none."),
             new Argument("label", "<file>", "",
                     "Never passed: label reads the label file the last run wrote in the working directory, which the"
                             + " Relevance page answers."),
-            new Argument("label", "--db-dir", "vespera.working-dir", "As for run."),
-            new Argument("publish", "--db-dir", "vespera.working-dir",
+            new Argument("label", "db-dir", "vespera.working-dir", "As for run."),
+            new Argument("publish", "db-dir", "vespera.working-dir",
                     "As for run; Publish stands on the invocation page."));
-
-    /**
-     * An option's name made at run time: no class of the control panel holds the text of the two options that boot the
-     * jar's context (ADR-278 §1), though the table names them to say they are never passed.
-     */
-    private static String longOption(String word) {
-        return "-".repeat(2) + word;
-    }
 
     private final List<String> command;
     private final Path directory;
