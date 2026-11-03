@@ -205,8 +205,9 @@ class OccurrenceJudgeTest {
 
         claim(
                 "a response that also says the converter itself is at fault is about the converter, so the"
-                        + " file is set aside unjudged, exactly as a refusal reported beside the same fault is",
-                () -> assertThat(decision).isInstanceOf(OccurrenceDecision.SetAside.class));
+                        + " file is set aside unjudged under that fault, internal, with the converter's message,"
+                        + " exactly as a refusal reported beside a fault of the converter is",
+                () -> assertThat(decision).isEqualTo(new OccurrenceDecision.SetAside("internal", ERROR_MESSAGE)));
     }
 
     /**
@@ -231,9 +232,7 @@ class OccurrenceJudgeTest {
                         + FailuresInARow.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT + " set-aside"
                         + " documents that stop the step -- is recorded against itself, so a folder of files"
                         + " the converter cannot open costs those files and nothing else",
-                () -> assertThat(decisions)
-                        .hasSize(UNOPENABLE_FILES_IN_A_ROW)
-                        .containsOnly(OccurrenceDecision.Failed.class));
+                () -> assertThat(decisions).containsOnly(OccurrenceDecision.Failed.class));
     }
 
     @Test

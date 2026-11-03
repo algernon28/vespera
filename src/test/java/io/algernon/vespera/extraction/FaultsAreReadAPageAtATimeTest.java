@@ -39,9 +39,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>The read is reported by the rows it has read, the paged form ADR-211 section 9 gave three reads, and not
  * by SQLite's steps: each page is a statement of its own. The fault rows are written in the reverse of their
  * occurrences' order, so a page that came by occurrence and not in the order the rows were written would show.
- * Another run's fault rows sit after them in the same table.
- *
- * <p>It names a method ADR-220 adds, so the test tree does not compile until that method exists.
+ * Another run's fault rows sit after them in the same table, and one more of that run's sits among them, so a
+ * total counted where it should be the span of the run's rows would show.
  */
 @Epic("Extraction")
 @Feature("Stage 2 step")
@@ -58,6 +57,12 @@ class FaultsAreReadAPageAtATimeTest {
 
     /** The fault rows another run of the same step left in the table, after this run's. */
     private static final int ANOTHER_RUNS_FAULTS = 100;
+
+    /**
+     * The total the read is started with: the span of the run's rowids, from its first row to its last, which
+     * takes in the one row of the other run written among them, so one more than the run's own rows.
+     */
+    private static final long THE_SPAN_OF_THE_RUNS_ROWS = 2_501;
 
     private static final String PAGE = "a page of the run's fault rows";
     private static final String HANDED_OVER = "the page handed to the caller";
@@ -102,6 +107,11 @@ class FaultsAreReadAPageAtATimeTest {
                     "INSERT INTO extraction_fault (occurrence_id, run_id, category, detail)"
                             + " VALUES (?, ?, 'internal', 'set aside by this test')")) {
                 for (Long id : ids) {
+                    if (inTheOrderWritten.size() == FAULTS / 2) {
+                        fault.setLong(1, ids.get(ANOTHER_RUNS_FAULTS));
+                        fault.setString(2, another.value());
+                        fault.addBatch();
+                    }
                     fault.setLong(1, id);
                     fault.setString(2, asked.value());
                     fault.addBatch();
@@ -165,11 +175,13 @@ class FaultsAreReadAPageAtATimeTest {
                                 .anyMatch(detail -> detail.contains("extraction_fault_by_run_id (run_id=? AND rowid>?)"))
                                 .noneMatch(detail -> detail.contains("TEMP B-TREE"))));
         claim(
-                "the caller is told the read is starting, over up to the " + FAULTS + " rows the run holds, then the"
+                "the caller is told the read is starting, over up to " + THE_SPAN_OF_THE_RUNS_ROWS + " rows, the span"
+                        + " from the run's first row to its last and not a count of its " + FAULTS + " rows, then the"
                         + " rows read after each page, then that it ended, and never SQLite's steps",
                 () -> assertThat(progress.calls)
                         .containsExactly(
-                                "statementStarting(FAULTED_OCCURRENCES, " + OptionalLong.of(FAULTS) + ")",
+                                "statementStarting(FAULTED_OCCURRENCES, " + OptionalLong.of(THE_SPAN_OF_THE_RUNS_ROWS)
+                                        + ")",
                                 "rowsRead(FAULTED_OCCURRENCES, 1000)",
                                 "rowsRead(FAULTED_OCCURRENCES, 2000)",
                                 "rowsRead(FAULTED_OCCURRENCES, 2500)",

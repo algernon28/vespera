@@ -193,7 +193,7 @@ Every file is a few bytes built in the test.
 | `corpus.OutOfScopeTest.keepsWhatCarriesNoSignatureOfAKindLeftOut` | `OLE_COMPOUND` with no subtype, `ZIP_CONTAINER` and `UNRECOGNISED` have no reason |
 | `pipeline.ByteLevelReductionTaskletTest.removesCompiledCodeFontsCertificatesDatabasesAndEmailsAsOutOfScope` | in stage 1, two identical object files, a font, a certificate, a database, a `.msg` and an `.eml` each earn `OUT_OF_SCOPE` with their reason and none is hashed; a project plan, a note and a binary file with no signature carry no verdict; the page counts seven left out, none of them as a log or as text left out for its size, counts one text file of fewer than ten lines, the note and not the `.eml`, says *"Each text file not left out for its kind was read from its start and its end"*, gives each format its row and each subtype its label, and carries §6's sentence |
 | `pipeline.ByteLevelReductionTaskletTest.removesVideosAsOutOfScope` | the page carries §6's sentence |
-| `extraction.DoclingClientTest.postsTheKindsAdr252TellsApartUnderTheNamesTheyHadBefore` | the four formats and `OUTLOOK_MESSAGE` are posted as `document.bin`, `RFC822_MESSAGE` as `document.md` and cut in parts over the ceiling as text with no subtype is, and the options still say `naming=1` |
+| `extraction.DoclingClientTest.postsTheKindsAdr252TellsApartUnderTheNamesTheyHadBefore` | the four formats and `OUTLOOK_MESSAGE` are posted as `document.bin`, `RFC822_MESSAGE` as `document.md` and cut in parts over the ceiling as text with no subtype is; that the options still say `naming=1` is `extraction.DoclingClientTest.namesTheNamingSchemeAmongTheOptionsItSends` (#681) |
 
 ## What this does not decide
 

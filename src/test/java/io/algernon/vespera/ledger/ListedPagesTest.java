@@ -10,6 +10,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -97,17 +98,18 @@ class ListedPagesTest {
     @Story("A list of keys is cut once")
     @DisplayName("A collection that is not a list is cut in the order it iterates, and the caller's collection is not held")
     void aCollectionIsCutInItsOwnOrderAndNotHeld() {
-        List<Integer> given = new ArrayList<>(List.of(1, 2, 3));
+        Set<Integer> given = new LinkedHashSet<>(List.of(3, 1, 2));
         List<List<Integer>> pages = new ArrayList<>();
 
-        ListedPages.each(given, page -> {
-            pages.add(page);
+        ListedPages.each(given, 2, page -> {
+            pages.add(List.copyOf(page));
             given.clear();
         });
 
         claim(
-                "the page handed over is the keys as they stood when the cut began, whatever the caller does to"
-                        + " its collection while it goes through the pages",
-                () -> assertThat(pages).containsExactly(List.of(1, 2, 3)));
+                "a set that keeps the order 3, 1, 2 is handed over in pages of two as 3 and 1, then 2: the order it"
+                        + " iterates, not the order of its values; and the second page is the keys as they stood when"
+                        + " the cut began, though the caller emptied its collection on the first",
+                () -> assertThat(pages).containsExactly(List.of(3, 1), List.of(2)));
     }
 }

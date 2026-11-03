@@ -163,12 +163,16 @@ class DoclingClientIT {
     @Test
     @Story("One call converts one document")
     @DisplayName("A real PDF converted by the running document service comes back readable, content and all")
+    @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
     void convertsARealPdf(@TempDir Path dir) throws IOException {
         DoclingResponse response = client.convert(aRealPdf(dir.resolve("one-page.pdf")), DetectedFormat.PDF, null);
 
         claim(
                 "the service reports the conversion succeeded, which is the only status a well-formed"
-                        + " one-page document should ever produce",
+                        + " one-page document should ever produce; and since the request names the OCR engine,"
+                        + " it is the running service that accepts that engine, which no stub built from the"
+                        + " same beliefs as the code can say: a refused engine arrives as a status code whose"
+                        + " reason appears only in the service's own log",
                 () -> assertThat(response.status()).isEqualTo(ConversionStatus.SUCCESS));
         claim(
                 "a successful conversion reports no errors at all; anything listed here would be a"
@@ -261,25 +265,6 @@ class DoclingClientIT {
                         + " checked against the one actually running",
                 () -> assertThat(version)
                         .containsEntry(SidecarVersionReport.IMAGE_ENTRY, TestcontainersConfiguration.DOCLING_SERVE_IMAGE));
-    }
-
-    @Test
-    @Story("The conversion pins what it asks for")
-    @DisplayName("The running document service accepts the OCR engine this client names, rather than refusing it")
-    @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
-    void acceptsThePinnedOcrEngine(@TempDir Path dir) throws IOException {
-        DoclingResponse response = client.convert(aRealPdf(dir.resolve("pinned-engine.pdf")), DetectedFormat.PDF, null);
-
-        claim(
-                "naming the OCR engine is a request the service actually honours, and this is the only"
-                        + " test that can say so: a stub built from the same beliefs as the code would accept"
-                        + " an engine the real service refuses, and the refusal arrives as a status code whose"
-                        + " reason appears only in the service's own log",
-                () -> assertThat(response.status()).isEqualTo(ConversionStatus.SUCCESS));
-        claim(
-                "and the document still converts to its own content under that engine, so pinning it"
-                        + " bought identity rather than costing extraction",
-                () -> assertThat(response.rawResponse()).contains(PDF_MARKER_WORD));
     }
 
     /**

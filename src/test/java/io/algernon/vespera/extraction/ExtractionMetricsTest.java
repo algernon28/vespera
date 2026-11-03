@@ -86,7 +86,10 @@ class ExtractionMetricsTest {
 
         DegeneracyVerdict verdict = metrics.writeAndJudge(occurrenceId, runId, response, null, null);
 
-        claim("empty extracted text trips tier 1", () -> assertThat(verdict.degenerate()).isTrue());
+        claim(
+                "empty extracted text trips tier 1, for the reason that there is no letter or digit at all",
+                () -> assertThat(verdict)
+                        .isEqualTo(new DegeneracyVerdict(true, "zero alphanumeric content after whitespace normalisation")));
     }
 
     @Test

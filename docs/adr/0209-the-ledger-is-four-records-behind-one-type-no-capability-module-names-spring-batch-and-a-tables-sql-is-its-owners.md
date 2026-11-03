@@ -199,7 +199,7 @@ The proof of a move is the suite that was green before it.
 - `corpus.ContentIdentityResolutionCountsItsSurvivorsFirstTest` records what is asked of the ledger through a recording `Verdicts` and `Occurrences`.
 - `pipeline.StepCompletionOrderProbe` watches `finishStep` through a probing `Runs`.
 - `pipeline.SurvivalOverAReusedWalkTest` asserts over the survivors themselves, where it emptied them into a set through `ItemStreamReaders`.
-- `ledger.DiscardingAWalkSearchesEveryReferenceTest` says the anomalies' delete goes with the discard, where it said it was the discard's own.
+- `ledger.DiscardingAWalkSearchesEveryReferenceTest` says the anomalies' delete goes with the discard, where it said it was the discard's own; it holds that delete's lookup as the one for `walk_anomaly.walk_id`, among the references to `walk` (#681).
 - `similarity.RedundancyResolutionTest`, `RedundancyResolutionReportsItsCountsTest` and `SimilarityStatementProgressOrderTest`, and `embedding.EmbeddingStatementProgressOrderTest` and `SeedCorpusComparisonTest`, hand the resolution and the comparison their source of metrics, from `RecordedAlphanumericCounts` and `RecordedForms`, two fixtures new to the test tree.
 
 **New**, 15 tests: 14 in six new classes, and one in `corpus.WalkRecorderTest`, whose other edits are the receiver's:

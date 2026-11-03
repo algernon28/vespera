@@ -129,8 +129,7 @@ An occurrence removed by tier 3 is not a survivor of stage 2 and is never a memb
 | Method | What it holds |
 | --- | --- |
 | `extraction.DegeneracyFloorTest.fewerWordsThanTheFloorAreDegenerate` | one word under a floor of 2 is degenerate, with the reason `1 word(s), below the configured word floor 2` |
-| `extraction.DegeneracyFloorTest.asManyWordsAsTheFloorClearIt` | two words under a floor of 2 are not degenerate |
-| `extraction.DegeneracyFloorTest.moreWordsThanTheFloorClearIt` | three words under a floor of 2 are not degenerate |
+| `extraction.DegeneracyFloorTest.asManyWordsAsTheFloorClearIt` | two words, and three, under a floor of 2 are not degenerate (#682) |
 | `extraction.DegeneracyFloorTest.anUnsetWordFloorRemovesNothing` | one word with no floor set is not degenerate |
 | `extraction.DegeneracyFloorTest.noAlphanumericContentIsTheReasonBeforeTooFewWords` | tier 1's reason, not tier 3's, for no letter or digit under a set floor |
 | `extraction.DegeneracyFloorTest.aLowConfidenceIsTheReasonBeforeTooFewWords` | tier 2's reason, not tier 3's, for both at once |

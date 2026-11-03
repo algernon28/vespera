@@ -9,8 +9,13 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * {@code degenerate-output}'s floor (ADR-070): a hard zero-content tier enforced always, a confidence tier
@@ -160,35 +165,27 @@ class DegeneracyFloorTest {
                 () -> assertThat(verdict).isEqualTo(new DegeneracyVerdict(true, ONE_WORD_BELOW_A_FLOOR_OF_TWO)));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("wordCountsThatClearTheFloor")
     @Story("Tier 3 — the word floor, once set")
-    @DisplayName("As many words as the word floor clear it")
+    @DisplayName("As many words as the word floor, or more, clear it")
     @Issue("576")
     @Link(name = "ADR-282", url = Adr.FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT, type = "adr")
-    void asManyWordsAsTheFloorClearIt() {
-        ExtractionMetric metric = metricWithWords(TWO_WORDS, null);
+    void asManyWordsAsTheFloorClearIt(long words) {
+        ExtractionMetric metric = metricWithWords(words, null);
 
         DegeneracyVerdict verdict = DegeneracyFloor.evaluate(metric, null, A_WORD_FLOOR_OF_TWO);
 
         claim(
-                TWO_WORDS + " words meet a floor of " + A_WORD_FLOOR_OF_TWO + ": the floor removes fewer words than"
-                        + " itself, not as many",
+                words + " words meet a floor of " + A_WORD_FLOOR_OF_TWO + ": the floor removes fewer words than"
+                        + " itself, not as many or more",
                 () -> assertThat(verdict).isEqualTo(DegeneracyVerdict.notDegenerate()));
     }
 
-    @Test
-    @Story("Tier 3 — the word floor, once set")
-    @DisplayName("More words than the word floor clear it")
-    @Issue("576")
-    @Link(name = "ADR-282", url = Adr.FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT, type = "adr")
-    void moreWordsThanTheFloorClearIt() {
-        ExtractionMetric metric = metricWithWords(THREE_WORDS, null);
-
-        DegeneracyVerdict verdict = DegeneracyFloor.evaluate(metric, null, A_WORD_FLOOR_OF_TWO);
-
-        claim(
-                THREE_WORDS + " words are above a floor of " + A_WORD_FLOOR_OF_TWO,
-                () -> assertThat(verdict).isEqualTo(DegeneracyVerdict.notDegenerate()));
+    static Stream<Arguments> wordCountsThatClearTheFloor() {
+        return Stream.of(
+                Arguments.of(Named.of("as many words as the floor", TWO_WORDS)),
+                Arguments.of(Named.of("more words than the floor", THREE_WORDS)));
     }
 
     @Test

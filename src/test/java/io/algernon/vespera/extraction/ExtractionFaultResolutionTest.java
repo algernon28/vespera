@@ -36,8 +36,7 @@ import org.springframework.test.context.ActiveProfiles;
  * own transaction stands in for the chunk's here.
  *
  * <p>When it runs, in which transaction, and how the step's exit status is read stay {@code pipeline}'s, in
- * {@code ExtractionFaultRecorder}. It names the methods ADR-220 gives this class, so the test tree does not
- * compile until they exist.
+ * {@code ExtractionFaultRecorder}.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

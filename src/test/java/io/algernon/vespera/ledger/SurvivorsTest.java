@@ -65,11 +65,9 @@ class SurvivorsTest {
         List<OccurrenceId> survivors = drain(ledger.verdicts().survivors(runId));
 
         claim(
-                OCCURRENCES_RECORDED + " occurrences were recorded and one was ruled out, so two survive",
+                OCCURRENCES_RECORDED + " occurrences were recorded and one was ruled out, so two survive: the"
+                        + " occurrence carrying the blocking verdict is the one that is gone",
                 () -> assertThat(survivors).containsExactly(passed, unjudged));
-        claim(
-                "the occurrence carrying the blocking verdict is the one that is gone",
-                () -> assertThat(survivors).doesNotContain(broken));
     }
 
     @Test

@@ -62,8 +62,9 @@ class DocumentPictureTest {
 
     /**
      * Seven pictures. The body reaches picture 1, then picture 0 through a group, then picture 4 (no
-     * image at all), picture 5 (an image only at a remote address) and picture 6 (a JPEG). The furniture
-     * tree reaches picture 2. Nothing reaches picture 3.
+     * image at all), picture 5 (an image only at a remote address) and picture 6 (a JPEG, whose
+     * {@code mimetype} field says PNG where its data URI says JPEG). The furniture tree reaches picture 2.
+     * Nothing reaches picture 3.
      */
     private static final String A_DOCUMENT_WITH_PICTURES = """
             {"document":{"json_content":{
@@ -86,7 +87,7 @@ class DocumentPictureTest {
                   "prov":[{"page_no":1,"bbox":{"l":1,"t":2,"r":3,"b":4}}]},
                 {"content_layer":"body","captions":[],"children":[],
                   "image":{"mimetype":"image/png","uri":"https://example.com/remote.png"}},
-                {"content_layer":"body","captions":[],"children":[],"image":{"mimetype":"image/jpeg","uri":"%s"}}]}}}
+                {"content_layer":"body","captions":[],"children":[],"image":{"mimetype":"image/png","uri":"%s"}}]}}}
             """.formatted(
                     CAPTION_FIRST_PART,
                     CAPTION_SECOND_PART,
@@ -103,14 +104,11 @@ class DocumentPictureTest {
         List<DocumentPicture> pictures = DocumentPicture.allOf(A_DOCUMENT_WITH_PICTURES);
 
         claim(
-                FIVE_WITH_PIXELS + " of the seven pictures come back: the two with no pixels in the response"
-                        + " are left out, one because the converter located it and never cropped it, the other"
-                        + " because its image lives at a remote address, which nothing here follows",
-                () -> assertThat(pictures).hasSize(FIVE_WITH_PIXELS));
-        claim(
-                "and they come back in the document's reading order: the body tree first, a picture inside a"
-                        + " group where the group sits, then the page furniture, then the one picture no tree"
-                        + " reaches, last",
+                FIVE_WITH_PIXELS + " of the seven pictures come back, in the document's reading order: the body"
+                        + " tree first, a picture inside a group where the group sits, then the page furniture,"
+                        + " then the one picture no tree reaches, last; the two with no pixels in the response are"
+                        + " left out, one because the converter located it and never cropped it, the other because"
+                        + " its image lives at a remote address, which nothing here follows",
                 () -> assertThat(pictures)
                         .extracting(picture -> new String(picture.pixels(), StandardCharsets.UTF_8))
                         .containsExactly(
@@ -120,7 +118,8 @@ class DocumentPictureTest {
                                 text(IN_THE_PAGE_FURNITURE),
                                 text(REACHED_BY_NOTHING)));
         claim(
-                "and each carries the media type its data URI declares, the JPEG included",
+                "and each carries the media type its data URI declares, the JPEG included, though the"
+                        + " converter's mimetype field beside it says PNG",
                 () -> assertThat(pictures)
                         .extracting(DocumentPicture::mediaType)
                         .containsExactly(PNG, PNG, JPEG, PNG, PNG));

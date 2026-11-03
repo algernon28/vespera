@@ -124,9 +124,8 @@ class LockedDatabaseFileTest {
         Throwable withNoTranslatorOfOurs = catchThrowable(() -> new JdbcTemplate(dataSource).update(
                 "INSERT INTO schema_version (module, version) VALUES (?, ?)", "written twice", ANY_VERSION));
 
-        claim("a key written twice is not mistaken for a locked database file",
-                () -> assertThat(throughTheShippedTemplate).isNotInstanceOf(DatabaseFileLockedException.class));
-        claim("and fails as the same kind of failure a template with no translator of ours reports",
+        claim("a key written twice is not mistaken for a locked database file: it fails as the same kind of"
+                        + " failure a template with no translator of ours reports",
                 () -> assertThat(throughTheShippedTemplate).hasSameClassAs(withNoTranslatorOfOurs));
     }
 
@@ -176,7 +175,6 @@ class LockedDatabaseFileTest {
                 () -> assertThat(fromPool)
                         .as("what the translator made of a pool that timed out")
                         .isNotNull()
-                        .isNotInstanceOf(DatabaseFileLockedException.class)
                         .hasSameClassAs(fromPoolWithNoTranslatorOfOurs));
     }
 }

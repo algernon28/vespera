@@ -92,17 +92,12 @@ class ExtractionFailuresOfARunTest {
         claim(
                 "the two documents the run failed to convert are returned, each with its path and the reason"
                         + " it was removed for, and the one named first comes first although it was"
-                        + " recorded, and removed, second",
+                        + " recorded, and removed, second; and nothing else, so not the document removed under the"
+                        + " same run for another reason, nor the one that failed to convert under another run",
                 () -> assertThat(failures)
                         .containsExactly(
                                 new RemovedOccurrence(second, RECORDED_SECOND, WHY_THE_SECOND),
                                 new RemovedOccurrence(first, RECORDED_FIRST, WHY_THE_FIRST)));
-        claim(
-                "the document removed under the same run for another reason is not among them, and neither"
-                        + " is the one that failed to convert under another run",
-                () -> assertThat(failures)
-                        .extracting(RemovedOccurrence::path)
-                        .doesNotContain(REMOVED_AS_ANOTHER_KIND, REMOVED_UNDER_ANOTHER_RUN));
         List<RemovedOccurrence> ofTheOtherRun = new ArrayList<>();
         ledger.verdicts().eachExtractionFailure(other, ofTheOtherRun::add);
         claim(
