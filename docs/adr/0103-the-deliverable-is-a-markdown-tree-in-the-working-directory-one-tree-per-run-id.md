@@ -2,7 +2,7 @@
 
 > **Partly amended — see [ADR-286](0286-a-clusters-page-is-one-file-written-an-entry-at-a-time-through-its-part-with-its-pictures-and-a-png-or-jpeg-image-inlined.md).** "Self-contained has a test" is replaced by a stricter test: every `src` and `href` of every page is a fragment on that page, a relative path to a file inside the tree, or, on an `<img>`'s `src` only, a PNG or JPEG `data:` URI whose bytes are of the kind it declares; and each cluster folder holds only its page and its copies. Everything else stands.
 
-> **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Of "Nothing is ever cleaned up": a publish removes from `<working directory>/website/` a file its own previous publish listed and the rendering no longer lists, and nothing else. The rest of this record stands.
+> **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Of "Nothing is ever cleaned up": a publish removes from `<working directory>/website/` a file its own previous publish listed and the rendering no longer lists, and nothing else. "Self-contained has a test", as ADR-286 replaced it, holds of the HTML tree's pages; a page of the website rendering lands inside the website. The rest of this record stands.
 
 - **Date**: 2026-09-12
 - **Status**: accepted
