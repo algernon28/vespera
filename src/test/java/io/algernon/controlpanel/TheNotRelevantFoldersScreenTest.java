@@ -86,6 +86,20 @@ class TheNotRelevantFoldersScreenTest {
               relevant: false
             """.formatted(A_FIRST, A_FLOW, BESIDE_THE_FLOWS);
 
+    /** One question as the jar writes it, in the folder of flows, not answered. */
+    private static final String ONE_QUESTION = """
+            ---
+            generatedUnderRun: "run-of-the-sample"
+            generatedUnderEmbedder: "embedder@digest"
+            generatedUnderSeedSet: "/seeds"
+            documents:
+            - path: "%s"
+              score: 0.5
+              band: 1
+              closestSeed: "seed/one.docx"
+              relevant: null
+            """.formatted(A_FLOW);
+
     /** How many questions the file holds. */
     private static final String THREE = "3";
 
@@ -315,6 +329,63 @@ class TheNotRelevantFoldersScreenTest {
         }
     }
 
+    /**
+     * The same write failing part way where the list was not there before the save: the list already moved over its
+     * target is removed, so the working directory is left as it stood, holding no list (ADR-334 §6, "or removed where it
+     * was not there").
+     */
+    @Test
+    @Story("The operator answers the relevance questions by folder")
+    @DisplayName("A first save whose questions cannot be written leaves no list behind, says so in one line, and keeps what was typed")
+    void aFirstSaveWhoseQuestionsCannotBeWrittenLeavesNoList() throws IOException {
+        Path work = withTheQuestions();
+        Path inTheWay = Files.createDirectories(work.resolve(LabelAnswers.FILE_NAME + ".part"));
+        Files.writeString(inTheWay.resolve("keeps-the-folder-from-being-removed.txt"), "", UTF_8);
+        try (ScreenServer screens = start(work)) {
+            Page landed = screens.browser().go("/labels").press(FORM, "save", Map.of(NEW_FOLDER, "b/flows")).page();
+
+            claim("the list, which was not there before the save, is not there after it, though it is written before the"
+                            + " questions, and no part file of it is left",
+                    () -> {
+                        assertThat(work.resolve(THE_LIST)).doesNotExist();
+                        assertThat(work.resolve(THE_LIST + ".part")).doesNotExist();
+                    });
+            claim("the questions are as they stood",
+                    () -> assertThat(Files.readString(work.resolve(LabelAnswers.FILE_NAME), UTF_8))
+                            .isEqualTo(THREE_QUESTIONS));
+            claim("one line names the questions' file as not written, with why, and says neither file is changed",
+                    () -> assertThat(byId(landed, "outcome").text())
+                            .startsWith("the control panel could not write " + LabelAnswers.FILE_NAME + ": ")
+                            .endsWith(", so neither file is changed"));
+            claim("and the folder typed stands in the field",
+                    () -> assertThat(form(landed, FORM).select("[name=" + NEW_FOLDER + "]").val()).isEqualTo("b/flows"));
+        }
+    }
+
+    /** The words above the form (ADR-334 §6): {@code <n> questions, <k> of them in a folder not relevant.} */
+    @Test
+    @Story("The operator answers the relevance questions by folder")
+    @DisplayName("The page says in words how many questions there are and how many lie in a folder not relevant, one question in the singular")
+    void thePageSaysHowManyQuestionsLieInAFolderNotRelevant() throws IOException {
+        Path work = workingDirectory();
+        Files.writeString(work.resolve(THE_LIST), "---\n- folder: \"b/flows\"\n", UTF_8);
+        try (ScreenServer screens = start(work)) {
+            PanelBrowser browser = screens.browser();
+            String withNone = questionsSaid(browser);
+            Files.writeString(work.resolve(LabelAnswers.FILE_NAME), ONE_QUESTION, UTF_8);
+            String withOne = questionsSaid(browser);
+            Files.writeString(work.resolve(LabelAnswers.FILE_NAME), THREE_QUESTIONS, UTF_8);
+            String withThree = questionsSaid(browser);
+
+            claim("with no question file yet, it says there are none, none in a folder listed",
+                    () -> assertThat(withNone).isEqualTo("0 questions, 0 of them in a folder not relevant."));
+            claim("with one question, below the folder listed, it says so in the singular",
+                    () -> assertThat(withOne).isEqualTo("1 question, 1 of them in a folder not relevant."));
+            claim("and with the three questions, one of them below the folder listed, it counts them all and that one",
+                    () -> assertThat(withThree).isEqualTo("3 questions, 1 of them in a folder not relevant."));
+        }
+    }
+
     /** A folder is given once, its names compared as a question's path is compared with it (ADR-334 §6). */
     @Test
     @EnabledOnOs(OS.WINDOWS)
@@ -356,6 +427,11 @@ class TheNotRelevantFoldersScreenTest {
                         () -> assertThat(work.resolve(THE_LIST)).doesNotExist());
             }
         }
+    }
+
+    /** The words of {@code questions} on {@code /labels}, as drawn now. */
+    private static String questionsSaid(PanelBrowser browser) {
+        return byId(browser.go("/labels").page(), "questions").text();
     }
 
     private static List<LabelAnswers.Question> answers(Path workingDirectory) throws IOException {

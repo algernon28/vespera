@@ -2,6 +2,7 @@ package io.algernon.vespera.corpus;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.junit.jupiter.api.Assumptions.abort;
 
 import io.algernon.vespera.Adr;
@@ -18,7 +19,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Stream;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,6 +34,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.JdbcTransactionManager;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -40,7 +46,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>Like {@code WalkRecorderTest}, a walk is stopped through the traversal seam of {@link WalkRecorder}'s
  * package-private constructor, with a commit interval of one, and stops in the corpus root, before any folder outside
- * it is read.
+ * it is read; or, to stop inside such a folder, which that seam does not reach, through the transaction template the
+ * same constructor takes.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -52,6 +59,9 @@ class TheCodeSetFoldersAreWalkedUnderTheCorpusRootsWalkTest {
 
     /** Checkpoint at every completed directory, so a small fixture is stopped after a checkpoint. */
     private static final int EVERY_DIRECTORY = 1;
+
+    /** The ordinal of the first code set folder a walk reads, the corpus root being {@code 0}. */
+    private static final int THE_FIRST_FOLDER = 1;
 
     /** The looks at the corpus root kept by the test of repetitions: one for each list of folders read. */
     private static final int FOUR_LOOKS = 4;
@@ -99,6 +109,64 @@ class TheCodeSetFoldersAreWalkedUnderTheCorpusRootsWalkTest {
                     assertThat(ledger.walks().foldersOf(resumed))
                             .containsExactly(Walk.canonicalRoot(billing), Walk.canonicalRoot(tools));
                 });
+    }
+
+    /**
+     * A session stopped inside a code set folder, once a checkpoint there is committed, is continued from that
+     * checkpoint (ADR-055; ADR-334 §5.3, "a checkpoint names the folder it lies in by its ordinal"): under the walk's own
+     * id, in that folder, the corpus root not walked again nor what the checkpoint covers. The folders are walked by
+     * {@link Walk#walk} itself, not through the traversal seam, so the session is stopped by the transaction template
+     * the recorder commits through: it throws once the walk row's checkpoint names the first folder, as a machine
+     * stopping there ends the session, every row committed so far kept.
+     */
+    @Test
+    @Story("A walk resumes where it stopped")
+    @DisplayName("A walk that stopped inside a folder outside the corpus root is continued from where it stopped there, under its own id, walking nothing again")
+    @Link(name = "ADR-055", url = Adr.A_WALK_IS_RESUMED_UNDER_ITS_OWN_ID, type = "adr")
+    void aWalkStoppedInsideAFolderIsContinuedFromItsCheckpointThere(@TempDir Path temp) throws IOException {
+        Path root = theCorpusRoot(temp);
+        Path billing = aFolderHolding(temp.resolve("billing"), "pom.xml");
+        aFolderHolding(billing.resolve("lib"), "Lib.java");
+        aFolderHolding(billing.resolve("app"), "App.java");
+        Path tools = aFolderHolding(temp.resolve("tools"), "build.py");
+        String inLib = spelt(billing) + "/lib/Lib.java";
+        String inApp = spelt(billing) + "/app/App.java";
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkRecorder stoppingInTheFirstFolder = new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate),
+                stoppingOnceTheCheckpointLiesIn(THE_FIRST_FOLDER), Walk::walk, EVERY_DIRECTORY);
+
+        Throwable stoppedBy = catchThrowable(() -> stoppingInTheFirstFolder.walk(root, List.of(billing, tools)));
+        Optional<ResumableWalk> unfinished = ledger.walks().unfinishedWalk(Walk.canonicalRoot(root));
+
+        claim("the first session ended inside the first folder outside the corpus root, its walk unfinished and its last"
+                        + " checkpoint led by that folder's ordinal",
+                () -> {
+                    assertThat(stoppedBy).isInstanceOf(MachineStopped.class);
+                    assertThat(unfinished).map(ResumableWalk::checkpointOrdinals)
+                            .hasValueSatisfying(ordinals -> assertThat(ordinals).startsWith("@" + THE_FIRST_FOLDER + ":"));
+                });
+        WalkId stopped = unfinished.orElseThrow().walkId();
+        Map<String, Long> recordedBeforeTheStop = rowsOf(stopped);
+        claim("by then the corpus's files are recorded, and of the folder's two subfolders the file of the one its"
+                        + " checkpoint covers and not the other's, and nothing of the second folder",
+                () -> {
+                    assertThat(recordedBeforeTheStop).containsKeys("one/a.txt", "two/b.txt");
+                    assertThat(Stream.of(inLib, inApp).filter(recordedBeforeTheStop::containsKey)).hasSize(1);
+                    assertThat(recordedBeforeTheStop.keySet()).noneMatch(path -> path.startsWith(spelt(tools)));
+                });
+
+        WalkId resumed = recorder().walk(root, List.of(billing, tools));
+
+        claim("the next session continues the walk under its own id, and finishes it, accounting for every entry",
+                () -> {
+                    assertThat(resumed).isEqualTo(stopped);
+                    assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).contains(resumed);
+                });
+        claim("the walk holds every file of the corpus and of both folders, each once",
+                () -> assertThat(pathsOf(resumed)).containsExactlyInAnyOrder("one/a.txt", "two/b.txt",
+                        spelt(billing) + "/pom.xml", inLib, inApp, spelt(tools) + "/build.py"));
+        claim("and every file recorded before the stop is the same row, so nothing the checkpoint covers was walked again",
+                () -> assertThat(rowsOf(resumed)).containsAllEntriesOf(recordedBeforeTheStop));
     }
 
     @Test
@@ -242,6 +310,41 @@ class TheCodeSetFoldersAreWalkedUnderTheCorpusRootsWalkTest {
     private List<String> pathsOf(WalkId walk) {
         return jdbcTemplate.queryForList(
                 "SELECT path FROM file_occurrence WHERE walk_id = ? ORDER BY path", String.class, walk.value());
+    }
+
+    /** The occurrences {@code walk} recorded, each path's row id by its path. */
+    private Map<String, Long> rowsOf(WalkId walk) {
+        Map<String, Long> rows = new LinkedHashMap<>();
+        jdbcTemplate.query("SELECT id, path FROM file_occurrence WHERE walk_id = ? ORDER BY path",
+                row -> {
+                    rows.put(row.getString("path"), row.getLong("id"));
+                },
+                walk.value());
+        return rows;
+    }
+
+    /**
+     * A transaction template that commits as the recorder's does, then ends the session, as a machine stopping would,
+     * once a walk's checkpoint lies in the folder of {@code ordinal}.
+     */
+    private TransactionTemplate stoppingOnceTheCheckpointLiesIn(int ordinal) {
+        return new TransactionTemplate(new JdbcTransactionManager(dataSource)) {
+            @Override
+            public <T> T execute(TransactionCallback<T> action) {
+                T result = super.execute(action);
+                Integer there = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM walk WHERE checkpoint_ordinals LIKE ?", Integer.class, "@" + ordinal + ":%");
+                if (there != null && there > 0) {
+                    throw new MachineStopped();
+                }
+                return result;
+            }
+        };
+    }
+
+    /** Not an error: the way this test says "the machine stopped here", once the checkpoint was committed. */
+    private static final class MachineStopped extends RuntimeException {
+        private static final long serialVersionUID = 1L;
     }
 
     /** How the walk anomalies {@code walk} recorded are spelt. */
