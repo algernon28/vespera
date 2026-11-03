@@ -197,7 +197,7 @@ public final class WorkingDirectoryWrite {
      * @throws IllegalArgumentException for a name outside {@link #FILES}
      */
     public Optional<String> write(Path workingDirectory, String fileName, Function<Optional<String>, String> change) {
-        if (!FILES.contains(fileName)) {
+        if (!mayBeWritten(fileName)) {
             throw new IllegalArgumentException(fileName + " is not a file the control panel writes");
         }
         if (anInvocationItStartedRuns.getAsBoolean()) {
@@ -210,45 +210,7 @@ public final class WorkingDirectoryWrite {
                 return notMade;
             }
         }
-        Optional<String> refusal = refusalOfFolder(workingDirectory, userName, fileName);
-        if (refusal.isPresent()) {
-            return refusal;
-        }
-        Path folder = realOrGiven(workingDirectory);
-        Path lockFile = folder.resolve(LOCK_FILE_NAME);
-        FileChannel channel;
-        try {
-            channel = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-        } catch (IOException e) {
-            return couldNotWrite(fileName, e);
-        }
-        FileLock lock;
-        try {
-            lock = channel.tryLock(LOCKED_BYTE, LOCKED_LENGTH, false);
-        } catch (OverlappingFileLockException heldInThisJvm) {
-            KEPT_OPEN.add(channel);
-            return Optional.of(held(folder, lockFile, fileName));
-        } catch (IOException e) {
-            closeQuietly(channel);
-            return couldNotWrite(fileName, e);
-        }
-        if (lock == null) {
-            String line = held(folder, lockFile, fileName);
-            closeQuietly(channel);
-            return Optional.of(line);
-        }
-        holdsTheLock = true;
-        try {
-            return writeHolding(channel, folder, fileName, change);
-        } finally {
-            holdsTheLock = false;
-            try {
-                lock.release();
-            } catch (IOException ignored) {
-                // closing the channel releases it all the same
-            }
-            closeQuietly(channel);
-        }
+        return write(workingDirectory, List.of(new Change(fileName, change)));
     }
 
     /** Whether a write is holding the lock now. */
@@ -367,32 +329,6 @@ public final class WorkingDirectoryWrite {
             at = at.getParent();
         }
         return at == null ? folder.getRoot() : at;
-    }
-
-    private Optional<String> writeHolding(FileChannel channel, Path folder, String fileName,
-            Function<Optional<String>, String> change) {
-        Path part = folder.resolve(fileName + ".part");
-        try {
-            writeHolderLine(channel, holderLine(ProcessHandle.current().pid(), OffsetDateTime.now(), fileName));
-            Path file = folder.resolve(fileName);
-            Optional<String> current = Files.exists(file) ? Optional.of(Files.readString(file, UTF_8)) : Optional.empty();
-            String text;
-            try {
-                text = change.apply(current);
-            } catch (IllegalArgumentException refused) {
-                return Optional.of(refused.getMessage());
-            }
-            Files.writeString(part, text, UTF_8);
-            Files.move(part, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            return Optional.empty();
-        } catch (IOException | RuntimeException e) {
-            try {
-                Files.deleteIfExists(part);
-            } catch (IOException ignored) {
-                // nothing more can be done about a part file; the next write writes over it
-            }
-            return couldNotWrite(fileName, e);
-        }
     }
 
     private static void writeHolderLine(FileChannel channel, String line) throws IOException {

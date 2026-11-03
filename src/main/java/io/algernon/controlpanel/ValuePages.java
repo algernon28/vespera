@@ -479,13 +479,13 @@ final class ValuePages {
         LaunchValues values = state.values();
         Path work = state.workingDirectory().orElseThrow();
         ProfileEdit.Stated seed = profileOf(state).get(ProfileKey.SEED_FOLDER);
-        String output = values.deliverableRoot().isBlank() ? work.resolve("deliverable").toString()
+        String deliverableFolder = values.deliverableRoot().isBlank() ? work.resolve("deliverable").toString()
                 : values.deliverableRoot();
         List<CodeSetFolderChecks.Apart> apart = new ArrayList<>(List.of(
                 new CodeSetFolderChecks.Apart("corpus root", values.corpusRoot()),
                 new CodeSetFolderChecks.Apart("working directory", work.toString()),
                 new CodeSetFolderChecks.Apart("seed folder", seed == null || seed.value() == null ? "" : seed.value()),
-                new CodeSetFolderChecks.Apart("output folder", output)));
+                new CodeSetFolderChecks.Apart("output folder", deliverableFolder)));
         for (String listed : stated) {
             apart.add(new CodeSetFolderChecks.Apart("code set folder", listed));
         }

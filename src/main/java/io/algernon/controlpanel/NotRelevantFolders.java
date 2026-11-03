@@ -22,7 +22,7 @@ import java.util.Set;
  */
 final class NotRelevantFolders {
 
-    static final String FILE_NAME = WorkingDirectoryWrite.NOT_RELEVANT_FOLDERS;
+    static final String FILE_NAME = "not-relevant-folders.yaml";
 
     private static final boolean NAMES_IGNORE_CASE =
             System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");

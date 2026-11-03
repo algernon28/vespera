@@ -190,37 +190,6 @@ public record Profile(
     }
 
     /**
-     * The profile as it stood before {@code codeSetFolders} (ADR-334 §5.1): the same keys, that one unset. Kept so
-     * that a caller written for the earlier shape compiles; the canonical constructor is the one Jackson reads.
-     */
-    public Profile(
-        TextValue seedFolder,
-        NumericValue degenerateOutputConfidenceFloor,
-        NumericValue degenerateOutputWordFloor,
-        NumericValue boilerplateDocumentFrequencyFloor,
-        TextValue embeddingModel,
-        NumericValue relevanceScoreFloor,
-        TextValue arrangementApproved,
-        TextValue generationModel,
-        NumericValue generationContextWindow,
-        NumericValue clusterPageByteCeiling,
-        NumericValue logTimestampShareFloor,
-        NumericValue extractionAttempt,
-        NameEndingsValue codeNameEndings,
-        NameEndingsValue outOfScopeNameEndings,
-        NumericValue translationSimilarityFloor,
-        LanguagesValue preferredLanguages,
-        NumericValue configurationSettingShareFloor,
-        TextValue deliverableLanguage,
-        NumericValue clusterResolution) {
-        this(seedFolder, degenerateOutputConfidenceFloor, degenerateOutputWordFloor, boilerplateDocumentFrequencyFloor,
-                embeddingModel, relevanceScoreFloor, arrangementApproved, generationModel, generationContextWindow,
-                clusterPageByteCeiling, logTimestampShareFloor, extractionAttempt, codeNameEndings,
-                outOfScopeNameEndings, translationSimilarityFloor, preferredLanguages, configurationSettingShareFloor,
-                deliverableLanguage, clusterResolution, null);
-    }
-
-    /**
      * Every key of the profile with its value as the operator wrote it (ADR-186, ADR-226 moving ADR-222's
      * rule 7): one entry per record component in declaration order, the component's name being the key as
      * {@code profile.yaml} names it, and {@code ""} where the value is {@code null}, so that no key is

@@ -80,8 +80,11 @@ final class NextPages {
         Optional<Ending> ending = state.ending();
         boolean endedWell = ending.map(each -> each.exitCode() == 0 && each.howItEnded() == HowItEnded.ENDED)
                 .orElse(false);
-        if (folder.isEmpty() || !endedWell) {
+        if (!endedWell) {
             return new Read(Optional.empty(), Optional.empty(), ending.isEmpty() ? NONE_ENDED : ENDED_BADLY);
+        }
+        if (folder.isEmpty()) {
+            return new Read(Optional.empty(), Optional.empty(), SAID_NOTHING);
         }
         try {
             Optional<NextInvocation> next = NextInvocation.read(folder.get());

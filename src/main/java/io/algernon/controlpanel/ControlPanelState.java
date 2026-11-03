@@ -131,13 +131,10 @@ final class ControlPanelState {
             return false;
         }
         try {
-            Path named = Path.of(now.deliverableRoot().stripTrailing()).toAbsolutePath().normalize();
             Path theDefault = Path.of(now.workingDirectory().stripTrailing()).toAbsolutePath().normalize()
                     .resolve("deliverable");
-            return Files.exists(named) && Files.exists(theDefault)
-                    ? Files.isSameFile(named, theDefault)
-                    : named.toString().equalsIgnoreCase(theDefault.toString());
-        } catch (IOException | RuntimeException cannotBeHeld) {
+            return LaunchPages.namesTheSameFolder(now.deliverableRoot(), theDefault.toString());
+        } catch (RuntimeException cannotBeHeld) {
             return false;
         }
     }

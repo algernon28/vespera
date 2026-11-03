@@ -97,9 +97,6 @@ public final class CodeSetRenames {
             below = folder.substring(2);
         } else if (folder.startsWith("/")) {
             below = folder.substring(1);
-            if (!below.contains("/")) {
-                return false;
-            }
         } else if (folder.length() >= 3 && isAsciiLetter(folder.charAt(0)) && folder.startsWith(":/", 1)) {
             below = folder.substring(3);
         } else {

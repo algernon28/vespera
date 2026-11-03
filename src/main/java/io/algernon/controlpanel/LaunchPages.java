@@ -92,7 +92,7 @@ final class LaunchPages {
                         "D:\\vespera\\work",
                         "Where the database, the reports and profile.yaml live. The first value saved makes it if it is not"
                                 + " there yet.", false)
-                + outputFolder(values)
+                + deliverableRootField(values)
                 + freeSpace(values) + "</section>\n";
     }
 
@@ -100,7 +100,7 @@ final class LaunchPages {
      * The Output folder with the folder each run's tree is drawn in where it is left empty as its placeholder, and
      * {@code in-use-vespera.deliverable-root} beside it (ADR-334 §1): no example, which would read as a parent of trees.
      */
-    private static String outputFolder(LaunchValues values) {
+    private static String deliverableRootField(LaunchValues values) {
         FolderPages.Target target = FolderPages.Target.DELIVERABLE_ROOT;
         String name = target.field();
         String working;
@@ -136,7 +136,7 @@ final class LaunchPages {
     }
 
     /** Whether the two name the same folder, compared by their real paths where they exist, as ADR-276 §2 compares. */
-    private static boolean namesTheSameFolder(String typed, String theDefault) {
+    static boolean namesTheSameFolder(String typed, String theDefault) {
         try {
             Path one = Path.of(typed.stripTrailing()).toAbsolutePath().normalize();
             Path other = Path.of(theDefault).toAbsolutePath().normalize();
