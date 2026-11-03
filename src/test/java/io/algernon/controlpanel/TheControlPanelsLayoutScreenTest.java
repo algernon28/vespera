@@ -50,8 +50,8 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-331", url = Adr.THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT, type = "adr")
 class TheControlPanelsLayoutScreenTest {
 
-    /** The six pages of the sidebar, by path and in its order, each with the name it goes by there. */
-    private static final Map<String, String> THE_SIX_PAGES = sixPages();
+    /** The seven pages of the sidebar, by path and in its order, each with the name it goes by there (ADR-335 §1). */
+    private static final Map<String, String> THE_SEVEN_PAGES = sevenPages();
 
     /** The image the launch values name in a test where Docling runs it. */
     private static final String IMAGE = "vespera/docling-serve-cpu-libreoffice:v1";
@@ -70,14 +70,15 @@ class TheControlPanelsLayoutScreenTest {
 
     @Test
     @Story("The control panel's pages share one layout")
-    @DisplayName("Every page has the six pages in a sidebar, in order, in place of a navigation along the top, the page it is marked as the current one")
-    void everyPageHasTheSixPagesInASidebarWithItsOwnMarked() throws IOException {
+    @DisplayName("Every page has the seven pages in a sidebar, in order, in place of a navigation along the top, the page it is marked as the current one")
+    @Link(name = "ADR-335", url = Adr.THE_CONTROL_PANEL_SHOWS_THE_PROGRESS_PAGE_AND_ITS_PAGES_ARE_DRAWN_TO_ONE_COMPACT_SCALE, type = "adr")
+    void everyPageHasTheSevenPagesInASidebarWithItsOwnMarked() throws IOException {
         try (ScreenServer screens = aServer()) {
             PanelBrowser browser = screens.browser();
             Map<String, List<String>> linked = new LinkedHashMap<>();
             Map<String, List<String>> marked = new LinkedHashMap<>();
             Map<String, Integer> navigations = new LinkedHashMap<>();
-            for (String path : THE_SIX_PAGES.keySet()) {
+            for (String path : THE_SEVEN_PAGES.keySet()) {
                 Page page = browser.go(path).page();
                 Element sidebar = byId(page, "sidebar");
                 linked.put(path, sidebar.select("nav a").eachAttr("href"));
@@ -86,16 +87,16 @@ class TheControlPanelsLayoutScreenTest {
             }
             Page folderPage = browser.go("/folders?for=vespera.corpus-root").page();
 
-            claim("each of the six pages links the six, in the sidebar's order",
-                    () -> assertThat(linked.values()).containsOnly(List.copyOf(THE_SIX_PAGES.keySet())));
+            claim("each of the seven pages links the seven, in the sidebar's order, the progress page after the invocation's",
+                    () -> assertThat(linked.values()).containsOnly(List.copyOf(THE_SEVEN_PAGES.keySet())));
             claim("and each marks itself, and no other, as the current page",
                     () -> assertThat(marked).containsExactlyEntriesOf(ownPathOfEach()));
             claim("no page holds a navigation outside its sidebar",
                     () -> assertThat(navigations.values()).containsOnly(0));
-            claim("the folder page, which is none of the six, has the sidebar and marks none as current",
+            claim("the folder page, which is none of the seven, has the sidebar and marks none as current",
                     () -> assertThat(List.of(byId(folderPage, "sidebar").select("nav a").eachAttr("href"),
                                     byId(folderPage, "sidebar").select("nav a[aria-current]").eachAttr("href")))
-                            .containsExactly(List.copyOf(THE_SIX_PAGES.keySet()), List.of()));
+                            .containsExactly(List.copyOf(THE_SEVEN_PAGES.keySet()), List.of()));
         }
     }
 
@@ -107,7 +108,7 @@ class TheControlPanelsLayoutScreenTest {
             PanelBrowser browser = screens.browser();
             Map<String, String> titles = new LinkedHashMap<>();
             List<String> buttonsElsewhere = new ArrayList<>();
-            for (String path : THE_SIX_PAGES.keySet()) {
+            for (String path : THE_SEVEN_PAGES.keySet()) {
                 Page page = browser.go(path).page();
                 titles.put(path, String.join("|", byId(page, "top-row").select("h1").eachText()));
                 if (!path.equals("/")) {
@@ -118,7 +119,7 @@ class TheControlPanelsLayoutScreenTest {
             Page launch = browser.go("/").page();
 
             claim("each page's top row holds one title, the name the sidebar gives that page",
-                    () -> assertThat(titles).containsExactlyEntriesOf(THE_SIX_PAGES));
+                    () -> assertThat(titles).containsExactlyEntriesOf(THE_SEVEN_PAGES));
             claim("on the launch page it holds Run, Label and Check, as buttons of the launch form",
                     () -> assertThat(form(launch, "launch").select("#top-row button").eachAttr("name"))
                             .containsExactly("run", "label", "check"));
@@ -135,15 +136,15 @@ class TheControlPanelsLayoutScreenTest {
             PanelBrowser browser = screens.browser();
             Map<String, String> expected = new LinkedHashMap<>();
             Map<String, String> titles = new LinkedHashMap<>();
-            for (Map.Entry<String, String> sidebarEntry : THE_SIX_PAGES.entrySet()) {
+            for (Map.Entry<String, String> sidebarEntry : THE_SEVEN_PAGES.entrySet()) {
                 expected.put(sidebarEntry.getKey(), sidebarEntry.getValue() + " · Vespera");
                 titles.put(sidebarEntry.getKey(), browser.go(sidebarEntry.getKey()).page().document().title());
             }
             Page folderPage = browser.go("/folders?for=vespera.corpus-root").page();
 
-            claim("each of the six pages is titled with the name the sidebar gives it, then the program's",
+            claim("each of the seven pages is titled with the name the sidebar gives it, then the program's",
                     () -> assertThat(titles).containsExactlyEntriesOf(expected));
-            claim("and the folder page, which is none of the six, with the name its top row gives it, then the program's",
+            claim("and the folder page, which is none of the seven, with the name its top row gives it, then the program's",
                     () -> assertThat(folderPage.document().title())
                             .isEqualTo(byId(folderPage, "top-row").select("h1").text() + " · Vespera"));
         }
@@ -151,15 +152,17 @@ class TheControlPanelsLayoutScreenTest {
 
     @Test
     @Story("The control panel's pages share one layout")
-    @DisplayName("No page fetches a font, a style or a picture: the style is written into the page and names nothing outside it")
+    @DisplayName("No page fetches a font, a style or a picture: the style is written into the page and names nothing outside it, the progress page's one frame apart")
+    @Link(name = "ADR-335", url = Adr.THE_CONTROL_PANEL_SHOWS_THE_PROGRESS_PAGE_AND_ITS_PAGES_ARE_DRAWN_TO_ONE_COMPACT_SCALE, type = "adr")
     void noPageFetchesAFontAStyleOrAPicture() throws IOException {
         try (ScreenServer screens = aServer()) {
             PanelBrowser browser = screens.browser();
             List<String> fetched = new ArrayList<>();
             List<String> outside = new ArrayList<>();
-            for (String path : THE_SIX_PAGES.keySet()) {
+            for (String path : THE_SEVEN_PAGES.keySet()) {
                 Page page = browser.go(path).page();
-                page.document().select("link, img, iframe, object, embed, video, audio, source")
+                page.document().select("link, img, iframe, object, embed, video, audio, source").stream()
+                        .filter(element -> !(path.equals("/progress") && element.id().equals("progress-frame")))
                         .forEach(element -> fetched.add(path + ": " + element.tagName()));
                 String style = styleOf(page);
                 for (String word : List.of("url(", "@import", "@font-face")) {
@@ -169,7 +172,7 @@ class TheControlPanelsLayoutScreenTest {
                 }
             }
 
-            claim("no page holds an element that fetches anything, its one script apart",
+            claim("no page holds an element that fetches anything, its one script and the progress page's frame apart",
                     () -> assertThat(fetched).isEmpty());
             claim("and no page's style names anything to fetch",
                     () -> assertThat(outside).isEmpty());
@@ -549,10 +552,11 @@ class TheControlPanelsLayoutScreenTest {
                 Files.createDirectories(folder.resolve("work"))));
     }
 
-    private static Map<String, String> sixPages() {
+    private static Map<String, String> sevenPages() {
         Map<String, String> pages = new LinkedHashMap<>();
         pages.put("/", "Launch");
         pages.put("/invocation", "Invocation");
+        pages.put("/progress", "Progress");
         pages.put("/next", "Next");
         pages.put("/labels", "Relevance");
         pages.put("/code-sets", "Code sets");
@@ -562,7 +566,7 @@ class TheControlPanelsLayoutScreenTest {
 
     private static Map<String, List<String>> ownPathOfEach() {
         Map<String, List<String>> own = new LinkedHashMap<>();
-        THE_SIX_PAGES.keySet().forEach(path -> own.put(path, List.of(path)));
+        THE_SEVEN_PAGES.keySet().forEach(path -> own.put(path, List.of(path)));
         return own;
     }
 
