@@ -1,4 +1,4 @@
-# ADR-334 — Every claim can fail, a decision is held once, and a record's Tests name tests that exist
+# ADR-337 — Every claim can fail, a decision is held once, and a record's Tests name tests that exist
 
 - **Date**: 2026-11-03
 - **Status**: accepted on 2026-11-03.

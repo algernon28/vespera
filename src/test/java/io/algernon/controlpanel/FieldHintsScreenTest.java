@@ -38,10 +38,15 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>The pages are asked for in the state each shows its most fields: {@code /profile} before any next act is read,
  * {@code /next} after a child ended with 0 beside a file wanting every key, {@code /code-sets} with one entry, and
  * {@code /labels} with one question.
+ *
+ * <p>A field whose value in use the page knows shows that value in place of an example, after {@code in use: }
+ * (ADR-334 §1, §2): the Output folder always, the working directory being named here. Such a placeholder is no example,
+ * so it may hold a folder the page was given.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-331", url = Adr.THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT, type = "adr")
+@Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
 class FieldHintsScreenTest {
 
     /** The operator's guide, at the root of the repository the tests run in. */
@@ -52,6 +57,9 @@ class FieldHintsScreenTest {
 
     /** What every example begins with, so that no example can be read as a value the page holds. */
     private static final String EXAMPLE = "e.g. ";
+
+    /** What a placeholder showing the value in use begins with, in place of an example. */
+    private static final String IN_USE = "in use: ";
 
     private static final List<String> THE_FIELDS_OF_THE_LAUNCH_PAGE = List.of("vespera.corpus-root",
             "vespera.working-dir", "vespera.deliverable-root", "vespera.docling.image", "vespera.docling.base-url",
@@ -91,10 +99,11 @@ class FieldHintsScreenTest {
                 () -> assertThat(read).containsAll(THE_FIELDS_OF_THE_LAUNCH_PAGE.stream().map(name -> "/ " + name).toList()));
         claim("the fields of the code sets, the questions, the profile and the next act's were read too",
                 () -> assertThat(read).contains("/code-sets new-folder", "/code-sets new-name", "/code-sets name-1",
-                        "/labels relevant-1", "/profile value", "/profile provenance", "/next seedFolder",
-                        "/next seedFolder.provenance"));
-        claim("and each field has what it should: an example beginning e.g., which a choice has no room for, a hint it"
-                        + " is tied to, and a label",
+                        "/code-sets new-code-set-folder", "/code-sets codeSetFolders.provenance",
+                        "/labels new-not-relevant-folder", "/profile seedFolder", "/profile seedFolder.provenance",
+                        "/next seedFolder", "/next seedFolder.provenance"));
+        claim("and each field has what it should: an example beginning e.g., or the value in use, which a choice has no"
+                        + " room for, a hint it is tied to, and a label",
                 () -> assertThat(faults).isEmpty());
     }
 
@@ -105,7 +114,7 @@ class FieldHintsScreenTest {
         List<String> examples = pagesWithTheirFields.stream()
                 .flatMap(page -> fieldsOf(page).stream())
                 .map(control -> control.attr("placeholder"))
-                .filter(example -> !example.isEmpty())
+                .filter(example -> example.startsWith(EXAMPLE))
                 .toList();
 
         claim("the pages hold examples, so the next claim is about something",
@@ -193,11 +202,12 @@ class FieldHintsScreenTest {
 
     private static List<String> whatIsMissing(Page page, Element control, String name) {
         List<String> missing = new ArrayList<>();
-        if (control.nameIs("input") && !control.attr("placeholder").startsWith(EXAMPLE)) {
-            missing.add(name + " has no example beginning '" + EXAMPLE + "': '" + control.attr("placeholder") + "'");
+        String placeholder = control.attr("placeholder");
+        if (control.nameIs("input") && !placeholder.startsWith(EXAMPLE) && !placeholder.startsWith(IN_USE)) {
+            missing.add(name + " has no example beginning '" + EXAMPLE + "', nor the value in use: '" + placeholder + "'");
         }
-        if (control.attr("placeholder").equals(EXAMPLE)) {
-            missing.add(name + "'s example says nothing");
+        if (placeholder.equals(EXAMPLE) || placeholder.equals(IN_USE)) {
+            missing.add(name + "'s placeholder says nothing");
         }
         String describedBy = control.attr("aria-describedby");
         Element hint = describedBy.isEmpty() ? null : page.document().getElementById(describedBy);

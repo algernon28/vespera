@@ -55,8 +55,8 @@ final class StubOllama implements AutoCloseable {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
-    /** One request, as it arrived. */
-    record Request(String path, String body) {}
+    /** One request, as it arrived, and the {@link System#nanoTime} at which the stub had read it. */
+    record Request(String path, String body, long readAt) {}
 
     /** One line of a pull's answer, sent {@code after} the line before it. */
     record Line(Duration after, String json) {}
@@ -255,13 +255,16 @@ final class StubOllama implements AutoCloseable {
 
     private void repeat(HttpExchange exchange, String name, Repeated repeated) throws IOException {
         exchange.getResponseHeaders().add("Content-Type", "application/x-ndjson");
-        exchange.sendResponseHeaders(200, 0);
         long until = System.nanoTime() + AT_MOST.toNanos();
-        try (OutputStream body = exchange.getResponseBody()) {
-            while (System.nanoTime() < until && !Thread.currentThread().isInterrupted()) {
-                body.write((repeated.json() + "\n").getBytes(StandardCharsets.UTF_8));
-                body.flush();
-                pause(repeated.every());
+        try {
+            // the status is written in here too: a client that gave up before it came is gone when it is written
+            exchange.sendResponseHeaders(200, 0);
+            try (OutputStream body = exchange.getResponseBody()) {
+                while (System.nanoTime() < until && !Thread.currentThread().isInterrupted()) {
+                    body.write((repeated.json() + "\n").getBytes(StandardCharsets.UTF_8));
+                    body.flush();
+                    pause(repeated.every());
+                }
             }
         } catch (IOException closed) {
             // the client closed the connection, which is how a pull is given up
@@ -312,7 +315,7 @@ final class StubOllama implements AutoCloseable {
 
     private String recorded(HttpExchange exchange) throws IOException {
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-        requests.add(new Request(exchange.getRequestURI().getPath(), body));
+        requests.add(new Request(exchange.getRequestURI().getPath(), body, System.nanoTime()));
         return body;
     }
 

@@ -73,7 +73,8 @@ class CodeSetNamesTest {
         refused.put("a name that is a number", "- folder: a\n  name: 42\n");
         refused.put("a blank name", "- folder: a\n  name: \"  \"\n");
         refused.put("a folder written with a backslash", "- folder: \"a\\\\b\"\n  name: b\n");
-        refused.put("a folder beginning with a slash", "- folder: /a\n  name: b\n");
+        refused.put("an absolute folder with an empty element", "- folder: /a//b\n  name: b\n");
+        refused.put("a drive with no folder below it", "- folder: D:/\n  name: b\n");
         refused.put("a folder ending with a slash", "- folder: a/\n  name: b\n");
         refused.put("a folder with an empty element", "- folder: a//b\n  name: b\n");
         refused.put("a folder given twice", "- folder: a\n  name: b\n- folder: a\n  name: c\n");

@@ -100,6 +100,27 @@ class CodeSetRenamesTest {
         }
     }
 
+    /**
+     * A set below a code set folder outside the corpus root is named by that folder spelt absolute, as {@code code_set}
+     * spells it (ADR-334 §5.5): beginning with {@code /}, with a drive letter, a colon and {@code /}, or with
+     * {@code //}. {@code /shop} is such a folder on POSIX, a code set folder at the top of the file system (§5.1).
+     */
+    @Test
+    @Story("The control panel renames code sets")
+    @DisplayName("A set's folder spelt absolute, below a folder of code outside the corpus root, is written and read back, a folder at the top of the file system among them")
+    @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
+    void aFolderSpeltAbsoluteIsWrittenAndReadBack() {
+        List<Rename> absolute = List.of(
+                new Rename("/shop", "Shop at the top"),
+                new Rename("/srv/code/billing", "Billing"),
+                new Rename("D:/code/billing", "Billing on D"),
+                new Rename("//server/share/billing", "Shared billing"));
+
+        claim("each is written as any folder is, double-quoted, and read back as the same, in the same order",
+                () -> assertThat(CodeSetRenames.read(Optional.of(CodeSetRenames.render(absolute))))
+                        .containsExactlyElementsOf(absolute));
+    }
+
     @Test
     @Story("The control panel renames code sets")
     @DisplayName("A list the jar's reader would refuse is not written, and a file in another form is not read")
@@ -110,7 +131,10 @@ class CodeSetRenamesTest {
         refused.put(List.of(new Rename("lib", "One"), new Rename("lib", "Two")), "the folder \"lib\" is given twice");
         refused.put(List.of(new Rename("lib", " ")), "the name for the folder \"lib\" is blank");
         refused.put(List.of(new Rename("shop\\core", "Shop")), "the folder \"shop\\core\" " + outsideTheRoot);
-        refused.put(List.of(new Rename("/shop", "Shop")), "the folder \"/shop\" " + outsideTheRoot);
+        refused.put(List.of(new Rename("/shop//core", "Shop")), "the folder \"/shop//core\" " + outsideTheRoot);
+        refused.put(List.of(new Rename("D:/", "Shop")), "the folder \"D:/\" " + outsideTheRoot);
+        refused.put(List.of(new Rename("D:\\code\\billing", "Billing")),
+                "the folder \"D:\\code\\billing\" " + outsideTheRoot);
         refused.put(List.of(new Rename("shop/", "Shop")), "the folder \"shop/\" " + outsideTheRoot);
         refused.put(List.of(new Rename("shop//core", "Shop")), "the folder \"shop//core\" " + outsideTheRoot);
 

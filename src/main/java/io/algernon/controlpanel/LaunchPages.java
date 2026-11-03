@@ -2,6 +2,7 @@ package io.algernon.controlpanel;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -52,7 +53,7 @@ final class LaunchPages {
         Optional<EffectiveValues> effective = state.effectiveValues();
         SidecarChecks.Checks checks = SidecarChecks.ask(
                 namedOrSaid(values.doclingBaseUrl(), effective, "vespera.docling.base-url"),
-                namedOrSaid(values.doclingImage(), effective, "vespera.docling.image"),
+                values.doclingImage(),
                 namedOrSaid(values.ollamaBaseUrl(), effective, "spring.ai.ollama.base-url"), models);
         state.keepChecks(checks);
         List<String> warnings = new ArrayList<>(state.notes());
@@ -62,7 +63,9 @@ final class LaunchPages {
         String how = InvocationPages.how(state);
 
         String actions = ControlPanelPage.button("run", "Run", disabled)
-                + ControlPanelPage.button("label", "Label", disabled) + ControlPanelPage.button("check", "Check", false);
+                + ControlPanelPage.button("label", "Label", disabled)
+                + ControlPanelPage.button("label-auto", "Have the local model answer", disabled)
+                + ControlPanelPage.button("check", "Check", false);
         StringBuilder body = new StringBuilder();
         body.append(ControlPanelPage.outcome(state.takeOutcome("/")));
         body.append(ControlPanelPage.tiles(checks, FolderPages.freeSpaceOf(values.workingDirectory()), how,
@@ -91,10 +94,62 @@ final class LaunchPages {
                         "D:\\vespera\\work",
                         "Where the database, the reports and profile.yaml live. The first value saved makes it if it is not"
                                 + " there yet.", false)
-                + folder(FolderPages.Target.DELIVERABLE_ROOT, "Output folder", values.deliverableRoot(),
-                        "D:\\vespera\\deliverable",
-                        "Where the finished pages go. Leave it empty to keep them in the working directory.", true)
+                + deliverableRootField(values)
                 + freeSpace(values) + "</section>\n";
+    }
+
+    /**
+     * The Output folder with the folder each run's tree is drawn in where it is left empty as its placeholder, and
+     * {@code in-use-vespera.deliverable-root} beside it (ADR-334 §1): no example, which would read as a parent of trees.
+     */
+    private static String deliverableRootField(LaunchValues values) {
+        FolderPages.Target target = FolderPages.Target.DELIVERABLE_ROOT;
+        String name = target.field();
+        String working;
+        String theDefault;
+        try {
+            working = values.workingDirectory().isBlank() ? ""
+                    : Path.of(values.workingDirectory().stripTrailing()).toAbsolutePath().normalize().toString();
+            theDefault = working.isEmpty() ? "" : Path.of(working).resolve("deliverable").toString();
+        } catch (RuntimeException cannotBeHeld) {
+            // a working directory the system cannot hold has no folder of trees; the status beside it says so
+            working = values.workingDirectory().stripTrailing();
+            theDefault = "";
+        }
+        String shown = (working.isEmpty() ? "<working directory>" : working) + File.separator + "deliverable"
+                + File.separator + "<run id>";
+        String typed = values.deliverableRoot();
+        boolean isTheDefault = typed.isBlank() || (!theDefault.isEmpty() && namesTheSameFolder(typed, theDefault));
+        String value = isTheDefault ? theDefault : typed;
+        String hint = "Leave it empty to put each run's pages in a folder of their own under the working directory, as"
+                + " shown; a folder named here holds one run's pages, so name an empty one.";
+        return ControlPanelPage.Field.of(name, "Output folder").value(typed).inUse(shown)
+                .hint("hint-" + name, hint).browse(target.forName())
+                .after(FolderPages.statusElement(target.forName(), FolderPages.statusOf(typed, true))
+                        + "<p id=\"in-use-" + name + "\" data-value=\"" + ControlPanelPage.escape(value)
+                        + "\" data-source=\"" + (isTheDefault ? "default" : "launch-value") + "\">"
+                        + ControlPanelPage.escape(isTheDefault
+                                ? "In use: each run's pages go in a folder of their own under "
+                                        + (theDefault.isEmpty() ? "the working directory's deliverable folder" : theDefault)
+                                        + "."
+                                : "In use: " + typed + ", as typed here.")
+                        + "</p>\n")
+                .html();
+    }
+
+    /** Whether the two name the same folder, compared by their real paths where they exist, as ADR-276 §2 compares. */
+    static boolean namesTheSameFolder(String typed, String theDefault) {
+        try {
+            Path one = Path.of(typed.stripTrailing()).toAbsolutePath().normalize();
+            Path other = Path.of(theDefault).toAbsolutePath().normalize();
+            if (Files.exists(one) && Files.exists(other)) {
+                return Files.isSameFile(one, other);
+            }
+            return one.toString().equalsIgnoreCase(other.toString())
+                    && (File.separatorChar == '\\' || one.toString().equals(other.toString()));
+        } catch (IOException | RuntimeException cannotBeHeld) {
+            return false;
+        }
     }
 
     /** A folder field of the launch form with its Browse button, its example, its hint and its status. */
@@ -147,29 +202,77 @@ final class LaunchPages {
 
     private String servicesCard(LaunchValues values, SidecarChecks.Checks checks, Optional<EffectiveValues> effective) {
         String running = checks.docling().running();
+        boolean another = checks.docling().result() == SidecarChecks.Result.ANOTHER_IMAGE && !running.isEmpty();
+        boolean named = state.doclingImageIsNamed();
         return "<section class=\"card\" id=\"card-services\" data-column=\"left\">\n<h2>Services</h2>\n"
                 + ControlPanelPage.Field.of("vespera.docling.image", "Docling image").value(values.doclingImage())
-                        .example(ControlPanelPage.DOCLING_IMAGE_CPU).list("docling-images")
+                        .example(ControlPanelPage.DOCLING_IMAGE_GPU).list("docling-images")
                         .hint("hint-vespera.docling.image",
                                 "The image the converter runs from. The two offered are the ones this build knows.")
+                        .after("<p id=\"in-use-vespera.docling.image\" data-value=\""
+                                + ControlPanelPage.escape(values.doclingImage()) + "\" data-source=\""
+                                + (named ? "launch-value" : "preselected") + "\">"
+                                + ControlPanelPage.escape(named
+                                        ? "In use: " + values.doclingImage() + ", as typed here."
+                                        : "In use: " + values.doclingImage() + ", chosen by the control panel; pick"
+                                                + " the other if this machine has no graphics card.")
+                                + "</p>\n")
                         .html()
                 + "<p id=\"docling-running\" data-image=\"" + ControlPanelPage.escape(running) + "\">"
                 + ControlPanelPage.escape(running.isEmpty() ? "The converter has not said which image it runs."
                         : "The converter says it runs " + running + ".")
                 + "</p>\n"
-                + ControlPanelPage.Field.of("vespera.docling.base-url", "Docling address")
-                        .value(values.doclingBaseUrl()).example("http://localhost:5001")
-                        .hint("hint-vespera.docling.base-url", "Where the converter answers.").html()
-                + ControlPanelPage.Field.of("spring.ai.ollama.base-url", "Ollama address")
-                        .value(values.ollamaBaseUrl()).example("http://localhost:11434")
-                        .hint("hint-spring.ai.ollama.base-url", "Where the local models answer.").html()
-                + ControlPanelPage.Field.of("vespera.label.model", "Label model").value(values.labelModel())
-                        .example("qwen3:8b").list("models")
-                        .hint("hint-vespera.label.model",
-                                "The local model that answers the questions when you ask it to.")
-                        .html()
+                + (another ? ControlPanelPage.button("use-running-image", "Use the image the converter runs", false) + "\n"
+                        : "")
+                + serviceField("vespera.docling.base-url", "Docling address", values.doclingBaseUrl(),
+                        "http://localhost:5001", "Where the converter answers.", "", effective)
+                + serviceField("spring.ai.ollama.base-url", "Ollama address", values.ollamaBaseUrl(),
+                        "http://localhost:11434", "Where the local models answer.", "", effective)
+                + serviceField("vespera.label.model", "Label model", values.labelModel(), "qwen3:8b",
+                        "The local model that answers the questions when you ask it to.", "models", effective)
                 + machineValues(effective)
                 + "</section>\n";
+    }
+
+    /**
+     * A field of the services card, left empty, with the value the jar last said it uses as its placeholder where the
+     * file names it, and {@code in-use-<name>} beside it (ADR-334 §2).
+     */
+    private static String serviceField(String name, String label, String typed, String example, String hint,
+            String list, Optional<EffectiveValues> effective) {
+        Optional<EffectiveValues.Value> said = effective.flatMap(file -> file.named(name));
+        String value;
+        String source;
+        String fresh = "";
+        String words;
+        if (!typed.isEmpty()) {
+            value = typed;
+            source = "launch-value";
+            words = "In use: " + typed + ", as typed here.";
+        } else if (said.isPresent()) {
+            value = said.get().value();
+            source = said.get().source();
+            fresh = effective.get().stale() ? "stale" : "fresh";
+            words = "In use: " + value + ", from " + source + "."
+                    + (effective.get().stale() ? " The jar that said so may have been replaced since." : "");
+        } else {
+            value = "";
+            source = "not-known";
+            words = "The jar has not said yet what it would use; run an invocation to see it.";
+        }
+        ControlPanelPage.Field field = ControlPanelPage.Field.of(name, label).value(typed).hint("hint-" + name, hint);
+        if (typed.isEmpty() && said.isPresent()) {
+            field.inUse(said.get().value());
+        } else {
+            field.example(example);
+        }
+        if (!list.isEmpty()) {
+            field.list(list);
+        }
+        return field.after("<p id=\"in-use-" + name + "\" data-value=\"" + ControlPanelPage.escape(value)
+                + "\" data-source=\"" + ControlPanelPage.escape(source) + "\""
+                + (fresh.isEmpty() ? "" : " data-fresh=\"" + fresh + "\"") + ">" + ControlPanelPage.escape(words)
+                + "</p>\n").html();
     }
 
     private String seedFolderCard(LaunchValues values) {
@@ -204,8 +307,14 @@ final class LaunchPages {
                 "Corpus root: " + corpusRoot.words()));
         card.append(row("working-directory", workingDirectory.attribute().equals("found") ? "ok" : "bad",
                 "Working directory: " + workingDirectory.words()));
-        card.append(row("docling", ControlPanelPage.stateOfCheck(checks.docling().result()),
-                "Docling: " + ControlPanelPage.describe(checks.docling().result())));
+        if (checks.docling().result() == SidecarChecks.Result.ANOTHER_IMAGE) {
+            String running = checks.docling().running().isEmpty() ? "no image" : checks.docling().running();
+            card.append(row("docling", "bad", "Docling: the converter runs " + running + ", and Run would use "
+                    + values.doclingImage() + "; extraction refuses a converter running another image."));
+        } else {
+            card.append(row("docling", ControlPanelPage.stateOfCheck(checks.docling().result()),
+                    "Docling: " + ControlPanelPage.describe(checks.docling().result())));
+        }
         card.append(row("ollama", ControlPanelPage.stateOfCheck(checks.ollama().result()),
                 "Ollama: " + ControlPanelPage.describe(checks.ollama().result())));
         card.append(row("locks", locked ? "bad" : "ok", locked
@@ -287,17 +396,31 @@ final class LaunchPages {
         }
         Map<String, String> fields = Exchanges.form(exchange);
         LaunchValues old = state.values();
+        String image = posted(fields, "vespera.docling.image");
+        if (image.equals(ControlPanelPage.DOCLING_IMAGE_GPU) && !state.doclingImageIsNamed()) {
+            image = ""; // the preselection posted back as the form held it names nothing (ADR-334 §11)
+        }
         state.hold(new LaunchValues(postedFolder(fields, "vespera.corpus-root"), postedFolder(fields, "vespera.working-dir"),
-                postedFolder(fields, "vespera.deliverable-root"), posted(fields, "vespera.docling.image"),
+                postedFolder(fields, "vespera.deliverable-root"), image,
                 posted(fields, "vespera.docling.base-url"), posted(fields, "spring.ai.ollama.base-url"),
                 posted(fields, "vespera.label.model"), old.lastSeedFolder()));
+        if (fields.containsKey("use-running-image")) {
+            // Starts nothing and writes no file: the image the converter runs becomes the launch value (ADR-334 §2).
+            String running = state.lastChecks().docling().running();
+            if (!running.isEmpty()) {
+                state.hold(state.values().withDoclingImage(running));
+            }
+            Exchanges.redirect(exchange, "/");
+            return;
+        }
         Optional<FolderPages.Target> browse = FolderPages.browsed(fields);
         if (browse.isPresent() && browse.get().form().equals("launch")) {
             Exchanges.redirect(exchange, FolderPages.addressOf(browse.get(), postedFolder(fields, browse.get().field())));
             return;
         }
         ControlPanelState.Start kind = fields.containsKey("run") ? ControlPanelState.Start.RUN
-                : fields.containsKey("label") ? ControlPanelState.Start.LABEL : null;
+                : fields.containsKey("label") ? ControlPanelState.Start.LABEL
+                : fields.containsKey("label-auto") ? ControlPanelState.Start.LABEL_AUTO : null;
         if (kind == null) {
             Exchanges.redirect(exchange, "/");
             return;
@@ -326,7 +449,7 @@ final class LaunchPages {
                     current -> ProfileEdit.rewrite(current, ProfileKey.SEED_FOLDER, folder, fields.getOrDefault("provenance", "")));
             if (refusal.isEmpty()) {
                 state.letGoOfForm("seed-folder");
-                LaunchValues held = state.values();
+                LaunchValues held = state.heldValues();
                 state.hold(new LaunchValues(held.corpusRoot(), held.workingDirectory(), held.deliverableRoot(),
                         held.doclingImage(), held.doclingBaseUrl(), held.ollamaBaseUrl(), held.labelModel(), folder));
             }

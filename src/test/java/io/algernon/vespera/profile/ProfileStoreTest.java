@@ -290,6 +290,9 @@ class ProfileStoreTest {
             clusterResolution:
               value: "2.5"
               provenance: "read off the group sizes"
+            codeSetFolders:
+              value: "D:/code/billing"
+              provenance: "the billing engine's checkout, beside the archive"
             """;
 
     /** The value {@link #EVERY_KEY_ANSWERED} writes under each key, copied from it. */

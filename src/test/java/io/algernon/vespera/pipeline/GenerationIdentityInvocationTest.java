@@ -77,7 +77,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-110", url = Adr.PIPELINE_HANDS_SYNTHESIS_ITS_INPUTS, type = "adr")
 @Link(name = "ADR-114", url = Adr.THE_GENERATION_MODEL_IS_CONFIGURATION_WITH_A_DEFAULT, type = "adr")
 @Link(name = "ADR-126", url = Adr.THE_GENERATOR_IDENTITYS_WIRING_IS_PINNED_AT_THE_INVOCATION, type = "adr")
-@Link(name = "ADR-334", url = Adr.EVERY_CLAIM_CAN_FAIL_AND_A_DECISION_IS_HELD_ONCE, type = "adr")
+@Link(name = "ADR-337", url = Adr.EVERY_CLAIM_CAN_FAIL_AND_A_DECISION_IS_HELD_ONCE, type = "adr")
 class GenerationIdentityInvocationTest {
 
     /**

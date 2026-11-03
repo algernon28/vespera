@@ -33,6 +33,22 @@ final class ControlPanelPage {
               var start = body.getAttribute('data-start');
               var seconds = parseInt(body.getAttribute('data-refresh-seconds') || '0', 10);
               var loadedAt = Date.now();
+              var tail = document.getElementById('tail');
+              if (tail) {
+                var kept = null;
+                try { kept = window.sessionStorage.getItem('vespera-tail-scroll'); } catch (ignored) { kept = null; }
+                var place = kept === null ? NaN : parseInt(kept, 10);
+                tail.scrollTop = isNaN(place) ? tail.scrollHeight : place;
+                tail.addEventListener('scroll', function () {
+                  try {
+                    if (tail.scrollTop + tail.clientHeight < tail.scrollHeight - 2) {
+                      window.sessionStorage.setItem('vespera-tail-scroll', String(tail.scrollTop));
+                    } else {
+                      window.sessionStorage.removeItem('vespera-tail-scroll');
+                    }
+                  } catch (ignored) { }
+                });
+              }
               if (!start) { return; }
               function poll() {
                 var reloading = false;
@@ -68,15 +84,18 @@ final class ControlPanelPage {
     /** The words an example begins with, so that none is read as a value a page holds (ADR-331 §8). */
     static final String EXAMPLE = "e.g. ";
 
+    /** The words a placeholder begins with where it shows the value in use, in place of an example (ADR-334 §1, §2). */
+    static final String IN_USE = "in use: ";
+
     /** The example of a reason, for every provenance (ADR-331 §8). */
-    private static final String REASON_EXAMPLE = "read off the report beside it: the cut I can live with";
+    static final String REASON_EXAMPLE = "read off the report beside it: the cut I can live with";
 
     /** The hint of every provenance (ADR-331 §8). */
     private static final String REASON_HINT = "Required. Why you chose this value, in your words. It is written beside"
             + " it in profile.yaml.";
 
     private static final String STYLE = """
-            :root { color-scheme: light dark; --bg: #f5f4f1; --surface: #ffffff; --surface2: #efedf3; --ink: #1e1b2e;
+            :root { --bg: #f5f4f1; --surface: #ffffff; --surface2: #efedf3; --ink: #1e1b2e;
               --dim: #67637a; --rule: #dfdce6; --accent: #4c3fb1; --accent-ink: #fff; --accent-soft: #e9e6f9;
               --sun: #e0752c; --sun-ink: #fff; --ok: #17794f; --ok-soft: #dcf3e7; --warn: #9a5b00;
               --warn-soft: #fbeed4; --bad: #b3282d; --bad-soft: #fbe3e3; }
@@ -84,92 +103,100 @@ final class ControlPanelPage {
               --ink: #ece9f6; --dim: #a29db8; --rule: #352f49; --accent: #a99cff; --accent-ink: #17132b;
               --accent-soft: #2c2750; --sun: #f0914f; --sun-ink: #231003; --ok: #5fd6a0; --ok-soft: #173428;
               --warn: #f0b45a; --warn-soft: #3a2b12; --bad: #ff8c8c; --bad-soft: #3f1d20; } }
+            :root { color-scheme: light dark; accent-color: var(--accent);
+              --space-1: 2px; --space-2: 4px; --space-3: 8px; --space-4: 12px; --space-5: 16px; --space-6: 24px;
+              --text-xs: 11px; --text-sm: 12px; --text-md: 13px; --text-lg: 15px; --text-xl: 18px;
+              --control-height: 28px; --sidebar-width: 176px;
+              --radius-sm: 4px; --radius: 6px; --radius-lg: 8px; --radius-pill: 999px; }
             * { box-sizing: border-box; }
-            body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, "Segoe UI", sans-serif; }
+            body { margin: 0; background: var(--bg); color: var(--ink); font: var(--text-md)/1.4 system-ui, "Segoe UI", sans-serif; }
             a { color: var(--accent); }
-            #shell { display: grid; grid-template-columns: 13rem minmax(0, 1fr); min-height: 100vh; }
-            #sidebar { position: sticky; top: 0; align-self: start; height: 100vh; padding: 1rem .75rem;
+            #shell { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); min-height: 100vh; }
+            #sidebar { position: sticky; top: 0; align-self: start; height: 100vh; padding: var(--space-5) var(--space-3);
               background: var(--surface); border-right: 1px solid var(--rule); }
-            .brand { margin: 0 .6rem 1rem; color: var(--sun); font-weight: 700; letter-spacing: .06em; }
-            #sidebar nav { display: flex; flex-direction: column; gap: .15rem; }
-            #sidebar nav a { padding: .45rem .7rem; border-radius: .5rem; color: var(--ink); text-decoration: none; }
+            .brand { margin: 0 var(--space-3) var(--space-5); color: var(--sun); font-weight: 700; letter-spacing: .06em; }
+            #sidebar nav { display: flex; flex-direction: column; gap: var(--space-1); }
+            #sidebar nav a { padding: var(--space-2) var(--space-3); border-radius: var(--radius); color: var(--ink); text-decoration: none; }
             #sidebar nav a:hover { background: var(--surface2); }
             #sidebar nav a[aria-current=page] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-            main { min-width: 0; padding: 0 1.25rem 3rem; overflow-wrap: anywhere; }
-            main.two-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem;
+            main { min-width: 0; padding: 0 var(--space-5) var(--space-6); overflow-wrap: anywhere; }
+            main.two-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4);
               grid-auto-flow: dense; align-items: start; align-content: start; }
             #top-row { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center;
-              justify-content: space-between; gap: .75rem; padding: .9rem 0; background: var(--bg);
-              border-bottom: 1px solid var(--rule); margin-bottom: 1rem; }
+              justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; background: var(--bg);
+              border-bottom: 1px solid var(--rule); margin-bottom: var(--space-4); }
             form[name=launch] { display: contents; }
             main.two-columns #top-row, main.two-columns #tiles, main.two-columns .outcome { grid-column: 1 / -1; }
             main.two-columns #top-row { margin-bottom: 0; }
             [data-column=left] { grid-column: 1; }
             [data-column=right] { grid-column: 2; }
             #card-preflight { grid-row: span 3; }
-            h1 { margin: 0; font-size: 1.35rem; }
-            h2 { margin: 0 0 .6rem; font-size: 1rem; }
-            .actions { display: flex; flex-wrap: wrap; gap: .5rem; }
-            .card, .tile, fieldset { background: var(--surface); border: 1px solid var(--rule); border-radius: .8rem;
-              padding: 1rem; min-width: 0; }
-            fieldset { margin: 0 0 1rem; }
-            .card { margin-bottom: 1rem; }
+            h1 { margin: 0; font-size: var(--text-xl); }
+            h2 { margin: 0 0 var(--space-3); font-size: var(--text-lg); }
+            .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+            .card, .tile, fieldset { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-lg);
+              padding: var(--space-4); min-width: 0; }
+            fieldset { margin: 0 0 var(--space-4); }
+            .card { margin-bottom: var(--space-4); }
             main.two-columns .card { margin-bottom: 0; }
-            #tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; margin: 1rem 0; }
-            .tile { display: flex; flex-direction: column; padding: .6rem .8rem; border-left: .35rem solid var(--rule); }
-            .tile-name { color: var(--dim); font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; }
+            #tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-4) 0; }
+            .tile { display: flex; flex-direction: column; padding: var(--space-3) var(--space-4); border-left: 4px solid var(--rule); }
+            .tile-name { color: var(--dim); font-size: var(--text-xs); letter-spacing: .06em; text-transform: uppercase; }
             .tile-value { font-weight: 600; }
             [data-state=ok] { --state: var(--ok); --state-soft: var(--ok-soft); }
             [data-state=warn] { --state: var(--warn); --state-soft: var(--warn-soft); }
             [data-state=bad] { --state: var(--bad); --state-soft: var(--bad-soft); }
             [data-state=idle] { --state: var(--dim); --state-soft: var(--surface2); }
             .tile[data-state] { border-left-color: var(--state); }
-            #child { display: inline-block; margin: 0 0 1rem; padding: .25rem .9rem; border-radius: 999px;
+            #child { display: inline-block; margin: 0 0 var(--space-4); padding: var(--space-1) var(--space-4); border-radius: var(--radius-pill);
               background: var(--state-soft); color: var(--state); font-weight: 600; }
-            #preflight { margin: 0 0 1rem; padding: 0; list-style: none; }
-            #preflight li { margin: 0 0 .35rem; padding: .35rem .7rem; border-radius: .5rem;
+            #preflight { margin: 0 0 var(--space-4); padding: 0; list-style: none; }
+            #preflight li { margin: 0 0 var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius);
               background: var(--state-soft); color: var(--state); font-weight: 600; }
-            .field { margin: 0 0 .9rem; }
-            label { display: block; margin: 0 0 .2rem; font-weight: 600; }
-            .control { display: flex; gap: .4rem; }
-            input[type=text], input[type=number], select { width: 100%; min-width: 0; padding: .45rem .6rem;
-              border: 1px solid var(--rule); border-radius: .5rem; background: var(--surface); color: var(--ink);
-              font: inherit; }
+            .field { margin: 0 0 var(--space-3); }
+            label { display: block; margin: 0 0 var(--space-1); font-weight: 600; }
+            .control { display: flex; gap: var(--space-2); }
+            input[type=text], input[type=number], select, button { height: var(--control-height); padding: 0 var(--space-3);
+              border: 1px solid var(--rule); border-radius: var(--radius); font: inherit; }
+            input[type=text], input[type=number], select { width: 100%; min-width: 0; background: var(--surface); color: var(--ink); }
             input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
               outline: 2px solid var(--accent); outline-offset: 1px; }
-            .hint { margin: .25rem 0 0; color: var(--dim); font-size: .85rem; }
-            .status { margin: .2rem 0 0; font-size: .85rem; font-weight: 600; color: var(--dim); }
+            .hint { margin: var(--space-2) 0 0; color: var(--dim); font-size: var(--text-sm); }
+            .status { margin: var(--space-1) 0 0; font-size: var(--text-sm); font-weight: 600; color: var(--dim); }
             .status[data-status=found] { color: var(--ok); }
             .status[data-status=will-be-created] { color: var(--warn); }
             .status[data-status=no-such-folder] { color: var(--bad); }
-            button { padding: .45rem 1rem; border: 1px solid var(--rule); border-radius: .5rem;
-              background: var(--surface2); color: var(--ink); font: inherit; cursor: pointer; }
+            button { padding: 0 var(--space-5); background: var(--surface2); color: var(--ink); cursor: pointer; }
             button[name=run] { border-color: var(--sun); background: var(--sun); color: var(--sun-ink); font-weight: 600; }
             button[name=save], button[name=save-then-run], button[name=save-then-label], button[name=use] {
               border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
             button:disabled { opacity: .5; cursor: not-allowed; }
             .browse { flex: none; }
-            .outcome { margin: 1rem 0; padding: .6rem .9rem; border-radius: .6rem; background: var(--warn-soft);
+            .outcome { margin: var(--space-4) 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius); background: var(--warn-soft);
               color: var(--warn); font-weight: 600; }
-            .warnings { margin: 0 0 1rem; padding-left: 1.2rem; }
+            .warnings { margin: 0 0 var(--space-4); padding-left: var(--space-5); }
             .warnings li { color: var(--warn); }
-            .profile { display: grid; grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr); gap: 1rem;
+            .profile { display: grid; grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr); gap: var(--space-4);
               align-items: start; }
             #profile-list { margin: 0; padding: 0; list-style: none; }
-            #profile-list a { display: block; padding: .4rem .6rem; border-radius: .5rem; color: var(--ink);
+            #profile-list a { display: block; padding: var(--space-2) var(--space-3); border-radius: var(--radius); color: var(--ink);
               text-decoration: none; }
             #profile-list a:hover { background: var(--surface2); }
-            #profile-list .current { display: block; color: var(--dim); font-size: .8rem; }
+            #profile-list .current { display: block; color: var(--dim); font-size: var(--text-xs); }
             .sections > section { display: none; }
             .sections > section:target { display: block; }
             .sections:not(:has(> :target)) > section:first-child { display: block; }
-            #folder-roots, #folder-list { margin: 0 0 1rem; padding: 0; list-style: none; display: flex;
-              flex-wrap: wrap; gap: .4rem; }
-            #folder-roots a, #folder-list a, #folder-up, #folder-back { display: inline-block; padding: .3rem .7rem;
-              border: 1px solid var(--rule); border-radius: .5rem; background: var(--surface2); text-decoration: none; }
-            td, th { padding: .25rem .5rem; border-bottom: 1px solid var(--rule); text-align: left; }
-            pre { overflow-x: auto; padding: .5rem; border: 1px solid var(--rule); border-radius: .5rem;
+            #folder-roots, #folder-list { margin: 0 0 var(--space-4); padding: 0; list-style: none; display: flex;
+              flex-wrap: wrap; gap: var(--space-2); }
+            #folder-roots a, #folder-list a, #folder-up, #folder-back { display: inline-block; padding: var(--space-2) var(--space-3);
+              border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface2); text-decoration: none; }
+            td, th { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--rule); text-align: left; }
+            pre { overflow-x: auto; padding: var(--space-3); border: 1px solid var(--rule); border-radius: var(--radius);
               background: var(--surface2); }
+            #tail { height: 45vh; overflow-y: auto; }
+            #progress-frame { display: block; width: 100%; height: 80vh; border: 1px solid var(--rule);
+              border-radius: var(--radius); background: var(--surface); }
+            #progress-view p { margin: var(--space-3) 0 0; }
             @media (max-width: 800px) {
               #shell { grid-template-columns: 1fr; }
               #sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
@@ -183,8 +210,9 @@ final class ControlPanelPage {
 
     /** The pages the sidebar leads to, by path and name. */
     private static final List<String[]> NAVIGATION = List.of(new String[] {"/", "Launch"},
-            new String[] {"/invocation", "Invocation"}, new String[] {"/next", "Next"},
-            new String[] {"/labels", "Questions"}, new String[] {"/code-sets", "Code sets"},
+            new String[] {"/invocation", "Invocation"}, new String[] {"/progress", "Progress"},
+            new String[] {"/next", "Next"},
+            new String[] {"/labels", "Relevance"}, new String[] {"/code-sets", "Code sets"},
             new String[] {"/profile", "Profile"});
 
     private ControlPanelPage() {
@@ -278,6 +306,7 @@ final class ControlPanelPage {
         private boolean required;
         private String type = "text";
         private String example = "";
+        private String inUse = "";
         private String hintId = "";
         private String hint = "";
         private String list = "";
@@ -328,6 +357,12 @@ final class ControlPanelPage {
             return this;
         }
 
+        /** The value in use shown in the empty control, after {@link #IN_USE}, in place of an example (ADR-334 §1, §2). */
+        Field inUse(String inUse) {
+            this.inUse = inUse;
+            return this;
+        }
+
         /** The id of the {@code <datalist>} the control offers. */
         Field list(String list) {
             this.list = list;
@@ -354,7 +389,9 @@ final class ControlPanelPage {
             if (type.equals("number")) {
                 html.append(" step=\"any\"");
             }
-            if (!example.isEmpty()) {
+            if (!inUse.isEmpty()) {
+                html.append(" placeholder=\"").append(escape(IN_USE + inUse)).append('"');
+            } else if (!example.isEmpty()) {
                 html.append(" placeholder=\"").append(escape(EXAMPLE + example)).append('"');
             }
             if (!list.isEmpty()) {
@@ -392,8 +429,8 @@ final class ControlPanelPage {
                 .append("\">");
         for (String option : options) {
             html.append("<option value=\"").append(escape(option)).append('"')
-                    .append(option.equals(selected) ? " selected" : "").append('>').append(escape(option))
-                    .append("</option>");
+                    .append(option.equals(selected) ? " selected" : "").append('>')
+                    .append(escape(option.isEmpty() ? "not set" : option)).append("</option>");
         }
         return html.append("</select></div>\n<p class=\"hint\" id=\"").append(escape(hintId)).append("\">")
                 .append(escape(hint)).append("</p>\n</div>\n").toString();
@@ -432,10 +469,23 @@ final class ControlPanelPage {
      */
     static String keyControl(ProfileKey key, String name, String id, String label, String value, String browse,
             String after) {
+        return keyControl(key, name, id, label, value, browse, after, false);
+    }
+
+    /**
+     * As {@link #keyControl(ProfileKey, String, String, String, String, String, String)}, with the deliverable's language
+     * offering a first choice of none, {@code not set}, where {@code withNone} is set: the profile page's, so that a save
+     * of other values leaves an unset language unset (ADR-334 §7).
+     */
+    static String keyControl(ProfileKey key, String name, String id, String label, String value, String browse,
+            String after, boolean withNone) {
         String hintId = "hint-" + key.key();
         if (key == ProfileKey.DELIVERABLE_LANGUAGE) {
             List<String> options = value.isEmpty() || LANGUAGES.contains(value) ? LANGUAGES
                     : Stream.concat(LANGUAGES.stream(), Stream.of(value)).toList();
+            if (withNone) {
+                options = Stream.concat(Stream.of(""), options.stream()).toList();
+            }
             return choice(name, id, label, options, value, hintId, hintOf(key));
         }
         Field field = Field.of(name, label).id(id).value(value).example(key.example()).hint(hintId, hintOf(key));
@@ -477,8 +527,8 @@ final class ControlPanelPage {
 
     /** The two Docling images this build knows, each by its label (ADR-331 §7). */
     static String doclingImages() {
-        return "<datalist id=\"docling-images\"><option label=\"CPU\" value=\"" + escape(DOCLING_IMAGE_CPU)
-                + "\"><option label=\"GPU\" value=\"" + escape(DOCLING_IMAGE_GPU) + "\"></datalist>\n";
+        return "<datalist id=\"docling-images\"><option label=\"GPU\" value=\"" + escape(DOCLING_IMAGE_GPU)
+                + "\"><option label=\"CPU\" value=\"" + escape(DOCLING_IMAGE_CPU) + "\"></datalist>\n";
     }
 
     /** A submit button named {@code name}. */

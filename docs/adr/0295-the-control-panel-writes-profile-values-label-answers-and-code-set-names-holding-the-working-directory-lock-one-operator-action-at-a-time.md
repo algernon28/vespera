@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-331](0331-the-control-panel-opens-a-window-of-its-own-and-its-pages-are-a-cockpit-with-a-picker-an-example-and-a-hint-on-its-fields.md).** Of §3: `seedFolder`'s value loses its trailing white space alone, every other key's both ends. Of §7: before these refusals, a Save at `/code-sets` refuses a `new-folder` that is absolute, holds a `..` element or holds a backslash, with one line, and nothing is written. `CodeSetRenames.render`'s refusals stand as the jar's `CodeSetNames` gives them, and a saved row's folder is written back as the file holds it. The rest of this record stands.
 
+> **Partly amended — see [ADR-334](0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md).** Of §2: the files the control panel writes gain `not-relevant-folders.yaml`, one action writing it and the answers it gives. Of §5: the table gains `codeSetFolders`. Of §6: the answers are given by folder. Of §7: a folder may be spelt absolute below a code set folder outside the corpus root. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-061](0061-the-profile-is-yaml-typed-java-records-one-object-per-value.md), [ADR-062](0062-census-merges-new-profile-keys-and-never-touches-an-existing-value.md) and [ADR-120](0120-a-profile-values-type-is-its-keys-and-an-unreadable-value-is-a-third-state-beside-unset.md): a profile value is `value`, `provenance` and `measurement` under its key; a key the file does not hold is unset at the next load; a value the key cannot use is unreadable, a state beside unset. The control panel writes no unreadable value (§4) and keeps `measurement` as it is (§3).
@@ -277,7 +279,7 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves.
 | `controlpanel.WorkingDirectoryWriteTest.aFolderOthersCanWriteInOrAnotherUserOwnsIsNotWrittenIn` | on POSIX, a working directory `rwxrwxrwx`, one refused for another user's name, a missing one and a file in its place, each with §1's line and nothing written (§1) |
 | `controlpanel.WorkingDirectoryWriteTest.theFileIsWrittenWholeByAMoveAndNothingIsLeftBesideIt` | the target holds the new text, no `.part` stays, and a stale `.part` is written over (§2) |
 | `controlpanel.WorkingDirectoryWriteTest.aRefusedChangeWritesNothing` | a file that is not there is given to the change as absent; the change's refusal is the line returned, and no file but `vespera.lock` is written (§2) |
-| `controlpanel.WorkingDirectoryWriteTest.onlyTheThreeFilesAreWritten` | a name outside the three throws, and nothing is written (§2) |
+| `controlpanel.WorkingDirectoryWriteTest.onlyTheFourFilesAreWritten` (#684) | a name outside the three throws, and nothing is written (§2) |
 | `controlpanel.ProfileKeyTest.eachKeyHasItsTypeAndEarliestRun` | the sixteen keys in order, each with §5's type and run (§5) |
 | `controlpanel.ProfileKeyTest.aChangeCostsItsRunAndEveryLaterOne` | the runs of the cost are the earliest and every later one in order; the approval closes for every key whose runs hold the arrangement, and for no other; the labels are refused for `seedFolder` alone (§5) |
 | `controlpanel.ProfileEditTest.oneKeyIsRewrittenAndEveryOtherByteKept` | the file outside the key's `value` and `provenance` lines, `measurement` and line ends included, is byte for byte as it was (§2, §3) |

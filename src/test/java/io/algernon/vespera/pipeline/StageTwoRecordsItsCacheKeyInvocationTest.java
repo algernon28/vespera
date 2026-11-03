@@ -68,7 +68,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Feature("Stage 2 step")
 @Issue("349")
 @Link(name = "ADR-206", url = Adr.STAGE_2_RECORDS_ITS_EXTRACTION_CACHE_KEY, type = "adr")
-@Link(name = "ADR-334", url = Adr.EVERY_CLAIM_CAN_FAIL_AND_A_DECISION_IS_HELD_ONCE, type = "adr")
+@Link(name = "ADR-337", url = Adr.EVERY_CLAIM_CAN_FAIL_AND_A_DECISION_IS_HELD_ONCE, type = "adr")
 class StageTwoRecordsItsCacheKeyInvocationTest {
 
     /** Two documents of one size and different bytes: stage 1 hashes both, and neither is a copy. */

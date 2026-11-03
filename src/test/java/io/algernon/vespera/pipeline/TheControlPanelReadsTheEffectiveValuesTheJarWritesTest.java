@@ -71,6 +71,12 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
 
     private static final String OLLAMA_ADDRESS = "spring.ai.ollama.base-url";
 
+    /** The label model, said under the launch value's own key (ADR-334 §2). */
+    private static final String LABEL_MODEL = "vespera.label.model";
+
+    /** The label model the code holds where configuration names neither it nor the generation model. */
+    private static final String THE_CODES_LABEL_MODEL = "qwen3:8b";
+
     /** One layer of configuration: the name a process gives it, and what it names. */
     private record Layer(String name, Map<String, Object> values) {
 
@@ -80,13 +86,17 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
         }
     }
 
-    /** What every file says though nothing names it: the two values and the two addresses the code holds. */
+    /**
+     * What every file says though nothing names it: the two values, the two addresses and the label model the code
+     * holds, the last since ADR-334 §2.
+     */
     private static Map<String, Said> whatTheCodeHolds() {
         Map<String, Said> said = new LinkedHashMap<>();
         said.put("generationContextWindow", new Said(String.valueOf(ClusterSynthesis.CONTEXT_WINDOW), "code"));
         said.put("deliverableLanguage", new Said(DeliverableLanguage.DEFAULT.code(), "code"));
         said.put(DOCLING_ADDRESS, new Said(SidecarStartSettings.DEFAULT_DOCLING, "code"));
         said.put(OLLAMA_ADDRESS, new Said(SidecarStartSettings.DEFAULT_OLLAMA, "code"));
+        said.put(LABEL_MODEL, new Said(THE_CODES_LABEL_MODEL, "code"));
         return said;
     }
 
@@ -151,7 +161,20 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
                                 WAIT_AT_MOST, new Said("5m", "shipped"),
                                 PROGRESS_INTERVAL, new Said("30s", "shipped"),
                                 OPEN_BROWSER, new Said("true", "shipped"),
-                                DOCLING_ADDRESS, new Said("http://localhost:5001", "shipped"))))),
+                                DOCLING_ADDRESS, new Said("http://localhost:5001", "shipped"),
+                                LABEL_MODEL, new Said("qwen3:8b", "shipped"))))),
+                Arguments.of("the label model named itself, over the generation model it would fall back to",
+                        List.of(theShippedFile(), new Layer(A_SYSTEM_PROPERTY, Map.of(LABEL_MODEL, "a-label-model:4b"))),
+                        whatTheCodeHoldsAnd(thePresetsAnd(Map.of(
+                                "embeddingModel", new Said("bge-m3:latest", "shipped"),
+                                "generationModel", new Said("qwen3:8b", "shipped"),
+                                IMAGE, new Said("vespera/docling:v1.32.0", "shipped"),
+                                START, new Said("true", "shipped"),
+                                WAIT_AT_MOST, new Said("5m", "shipped"),
+                                PROGRESS_INTERVAL, new Said("30s", "shipped"),
+                                OPEN_BROWSER, new Said("true", "shipped"),
+                                DOCLING_ADDRESS, new Said("http://localhost:5001", "shipped"),
+                                LABEL_MODEL, new Said("a-label-model:4b", "environment"))))),
                 Arguments.of("a value of each other source",
                         List.of(new Layer(ANOTHER_FILE, Map.of(EMBEDDING_MODEL, "a-model-of-this-machine")),
                                 new Layer(A_SYSTEM_PROPERTY, Map.of(IMAGE, "an-image-of-this-machine")),
@@ -162,7 +185,8 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
                                 WAIT_AT_MOST, new Said("9s", "command-line")))),
                 Arguments.of("a model bound blank, left out with its source",
                         List.of(new Layer(THE_JARS_OWN_FILE, Map.of(EMBEDDING_MODEL, "  ", GENERATION_MODEL, "qwen3:8b"))),
-                        whatTheCodeHoldsAnd(Map.of("generationModel", new Said("qwen3:8b", "shipped")))),
+                        whatTheCodeHoldsAnd(Map.of("generationModel", new Said("qwen3:8b", "shipped"),
+                                LABEL_MODEL, new Said("qwen3:8b", "shipped")))),
                 Arguments.of("addresses cut to scheme, host and port",
                         List.of(new Layer(ANOTHER_FILE, Map.of(
                                 OLLAMA_ADDRESS, "http://someone:a-password@ollama.example:11434/api?token=a-token",
@@ -181,6 +205,7 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
                         whatTheCodeHoldsAnd(Map.of(
                                 "embeddingModel", new Said("modèllo:latest", "local-file"),
                                 "generationModel", new Said("#a=model:one two", "local-file"),
+                                LABEL_MODEL, new Said("#a=model:one two", "local-file"),
                                 IMAGE, new Said(" registry.example:5000/a\\b!", "local-file")))));
     }
 

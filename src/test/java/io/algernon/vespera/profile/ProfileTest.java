@@ -161,13 +161,14 @@ class ProfileTest {
     private static final int ONE_CONSTRUCTOR = 1;
 
     /**
-     * How many keys the profile carries today, and therefore how many the one constructor takes: 19 since
+     * How many keys the profile carries today, and therefore how many the one constructor takes: 20 since
+     * ADR-334 §5.1 added {@code codeSetFolders}, after
      * ADR-330 §9 added {@code clusterResolution}, after ADR-321 §1 added {@code deliverableLanguage}, ADR-303 §2
      * {@code clusterPageByteCeiling}, ADR-287 §7
      * {@code configurationSettingShareFloor}, ADR-277 §2 {@code codeNameEndings} and ADR-282 §3 {@code
      * degenerateOutputWordFloor}. A new key raises this count; it never earns a second constructor.
      */
-    private static final int EVERY_KEY = 19;
+    private static final int EVERY_KEY = 20;
 
     @Test
     @Story("The profile record has one way in")

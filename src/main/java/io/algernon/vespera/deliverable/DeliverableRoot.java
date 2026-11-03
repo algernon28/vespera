@@ -11,6 +11,9 @@ import java.util.stream.Stream;
 /**
  * Where the tree is drawn, and which places it may not be drawn in (ADR-276).
  *
+ * <p>A named root whose real path is the real path of {@code <working directory>/deliverable} is read as
+ * {@link #UNNAMED} (ADR-334 §1), in {@link #treeOf}, {@link #refusalAtTheStart} and {@link #refusalAtTheDrawing}.
+ *
  * <p>{@link #UNNAMED} draws it at {@code <working directory>/deliverable/<generation run>}, as before a root could be
  * named; a root the operator names is the tree itself (§1). This is the one class that answers where the tree is, so
  * the generation step and the closing line ask it and the path is composed once. It keys no run (§1, §8).
@@ -65,9 +68,30 @@ public final class DeliverableRoot {
 
     /** The tree of {@code generationRun}: the named root, or {@code <workingDirectory>/deliverable/<generationRun>}. */
     public Path treeOf(Path workingDirectory, String generationRun) {
-        return named != null
+        return named != null && !namesTheDefaultFolder(workingDirectory)
                 ? named
                 : workingDirectory.resolve(Deliverable.DIRECTORY_NAME).resolve(generationRun);
+    }
+
+    /**
+     * The folder this root draws in, as named or as the default places it: the root named, or
+     * {@code <working directory>/deliverable} where none is named or the one named is that folder (ADR-334 §1).
+     */
+    public Path folderOf(Path workingDirectory) {
+        return named != null && !namesTheDefaultFolder(workingDirectory)
+                ? named
+                : workingDirectory.resolve(Deliverable.DIRECTORY_NAME);
+    }
+
+    /**
+     * Whether the root named is the real path of {@code <working directory>/deliverable}, which is read as no root
+     * named (ADR-334 §1), compared as ADR-276 §2 compares paths.
+     */
+    private boolean namesTheDefaultFolder(Path workingDirectory) {
+        return named != null
+                && sameName(
+                        realPathOf(named).toString(),
+                        realPathOf(workingDirectory.resolve(Deliverable.DIRECTORY_NAME)).toString());
     }
 
     /**
@@ -84,7 +108,7 @@ public final class DeliverableRoot {
         if (overlap.isPresent()) {
             return overlap;
         }
-        if (named == null || !Files.exists(root)) {
+        if (named == null || namesTheDefaultFolder(workingDirectory) || !Files.exists(root)) {
             return Optional.empty();
         }
         String refused = "vespera run refused the deliverable root " + root + ": ";
@@ -104,7 +128,7 @@ public final class DeliverableRoot {
      * in place. {@link #UNNAMED} is never refused: its folder is named for the generation run.
      */
     public Optional<String> refusalAtTheDrawing(Path workingDirectory, String generationRun) {
-        if (named == null) {
+        if (named == null || namesTheDefaultFolder(workingDirectory)) {
             return Optional.empty();
         }
         Path root = realPathOf(named);

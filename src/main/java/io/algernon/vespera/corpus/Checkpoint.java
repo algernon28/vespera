@@ -31,16 +31,29 @@ import java.util.Optional;
  *
  * @param ordinals the position of the completed directory, one ordinal per level below the root
  * @param pathRendering that directory's root-relative path when the checkpoint was written
+ * @param folder the folder the directory lies in, by its ordinal (ADR-334 section 5.3): {@code 0} for the corpus
+ *     root, and from {@code 1} the folders outside it a walk also reads, in the order it reads them
  */
-record Checkpoint(List<Integer> ordinals, String pathRendering) {
+record Checkpoint(List<Integer> ordinals, String pathRendering, int folder) {
 
     private static final String SEPARATOR = "/";
+
+    /** The mark that begins a stored checkpoint of a folder other than the corpus root: {@code @<folder>:}. */
+    private static final String FOLDER_MARK = "@";
 
     Checkpoint {
         if (ordinals == null || ordinals.isEmpty()) {
             throw new IllegalArgumentException("a checkpoint names a directory below the root, so it has ordinals");
         }
+        if (folder < 0) {
+            throw new IllegalArgumentException("a folder's ordinal is 0 or more");
+        }
         ordinals = List.copyOf(ordinals);
+    }
+
+    /** A checkpoint in the corpus root, folder {@code 0}. */
+    Checkpoint(List<Integer> ordinals, String pathRendering) {
+        this(ordinals, pathRendering, 0);
     }
 
     /**
@@ -53,17 +66,25 @@ record Checkpoint(List<Integer> ordinals, String pathRendering) {
         if (ordinals == null || ordinals.isBlank() || pathRendering == null) {
             return Optional.empty();
         }
+        int folder = 0;
+        String positions = ordinals;
+        if (ordinals.startsWith(FOLDER_MARK)) {
+            int colon = ordinals.indexOf(':');
+            folder = Integer.parseInt(ordinals.substring(FOLDER_MARK.length(), colon).trim());
+            positions = ordinals.substring(colon + 1);
+        }
         List<Integer> parsed = new ArrayList<>();
-        for (String ordinal : ordinals.split(SEPARATOR)) {
+        for (String ordinal : positions.split(SEPARATOR)) {
             parsed.add(Integer.valueOf(ordinal.trim()));
         }
-        return Optional.of(new Checkpoint(parsed, pathRendering));
+        return Optional.of(new Checkpoint(parsed, pathRendering, folder));
     }
 
-    /** The ordinals as one string, for storage. */
+    /** The ordinals as one string, for storage, led by {@code @<folder>:} where the folder is not the corpus root. */
     String encodedOrdinals() {
-        return ordinals.stream().map(String::valueOf).reduce((left, right) -> left + SEPARATOR + right)
+        String positions = ordinals.stream().map(String::valueOf).reduce((left, right) -> left + SEPARATOR + right)
                 .orElseThrow();
+        return folder == 0 ? positions : FOLDER_MARK + folder + ":" + positions;
     }
 
     /**

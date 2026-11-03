@@ -64,6 +64,8 @@ public final class ProfileFixture {
 
     private NumericValue clusterResolution = NumericValue.unset();
 
+    private FoldersValue codeSetFolders = FoldersValue.unset();
+
     private ProfileFixture() {
     }
 
@@ -93,6 +95,8 @@ public final class ProfileFixture {
         fixture.preferredLanguages = existing.preferredLanguages();
         fixture.configurationSettingShareFloor = existing.configurationSettingShareFloor();
         fixture.deliverableLanguage = existing.deliverableLanguage();
+        fixture.clusterResolution = existing.clusterResolution();
+        fixture.codeSetFolders = existing.codeSetFolders();
         return fixture;
     }
 
@@ -263,6 +267,15 @@ public final class ProfileFixture {
         return this;
     }
 
+    /**
+     * The folders outside the corpus root whose code is read with the corpus (ADR-334 §5.1), written as one line, the
+     * folders separated by the system's path separator.
+     */
+    public ProfileFixture codeSetFolders(String value, String provenance) {
+        this.codeSetFolders = new FoldersValue(value, provenance, null);
+        return this;
+    }
+
     /** The profile itself, through the one constructor {@link Profile} has. */
     public Profile build() {
         return new Profile(
@@ -284,6 +297,7 @@ public final class ProfileFixture {
                 preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
-                clusterResolution);
+                clusterResolution,
+                codeSetFolders);
     }
 }

@@ -2359,11 +2359,42 @@ public final class Adr {
             + "0332-vespera-label-auto-is-refused-under-another-extractor-identity-than-its-run-was-converted-under-and-a-placeholder-in-the-ocr-preset-stops-only-a-run.md";
 
     /**
-     * ADR-334: every claim can fail, a decision is held once, the full-run classes share their setup, and a record's
+     * ADR-334 -- the working directory's {@code deliverable} folder named is read as no deliverable root named; an empty
+     * launch field shows the value in use; the next page says why it suggests nothing; a code set's folder may lie
+     * outside the corpus root, named in the profile's {@code codeSetFolders}, walked with the corpus and spelt absolute;
+     * the relevance questions are answered by a list of folders not relevant; and {@code /profile} is one form with Save
+     * and Reset (amends ADR-276 §1 and §3, ADR-051, ADR-054, ADR-284 §2, §7, §8 and §9, ADR-295 §2, §5, §6 and §7, ADR-302
+     * §8, ADR-330 §1 and §5 and ADR-331 §5, §7 and §8).
+     */
+    public static final String THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT =
+            FILE + "0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md";
+
+    /**
+     * ADR-335 -- the control panel shows the progress page on {@code /progress}, the third page of its sidebar, in a
+     * frame of {@code /report/progress.html} that reloads itself, the four tabs answered with {@code frame-ancestors
+     * 'self'}; the invocation page links it in the same window; and every page is drawn to one compact scale of
+     * spaces, type sizes, corners, a control height and a sidebar width (amends ADR-291 §7, ADR-302 §2, §3 and an
+     * alternative it refused, and ADR-331 §3).
+     */
+    public static final String THE_CONTROL_PANEL_SHOWS_THE_PROGRESS_PAGE_AND_ITS_PAGES_ARE_DRAWN_TO_ONE_COMPACT_SCALE =
+            FILE + "0335-the-control-panel-shows-the-progress-page-on-a-page-of-its-own-and-its-pages-are-drawn-to-one-compact-scale.md";
+
+    /**
+     * ADR-336 -- the launch page's form {@code launch} gains {@code label-auto}, Have the local model answer, which
+     * starts {@code label --auto} by Label's checks and is disabled where Label is, {@code /next}'s form staying; and
+     * {@code ChildCommand.ARGUMENTS} accounts for every option and positional argument of picocli's model of {@code
+     * vespera}, each set by a control of the launch form or never passed, with a reason (amends ADR-302 §2, §8 and §9
+     * and ADR-331 §3 and §6).
+     */
+    public static final String THE_LAUNCH_PAGE_STARTS_LABEL_AUTO_AND_EVERY_ARGUMENT_OF_THE_JAR_IS_ACCOUNTED_FOR =
+            FILE + "0336-the-launch-page-starts-label-auto-beside-label-and-every-argument-of-the-commands-the-control-panel-starts-is-set-by-a-control-of-the-launch-page-or-listed-as-never-passed-with-why.md";
+
+    /**
+     * ADR-337 -- every claim can fail, a decision is held once, the full-run classes share their setup, and a record's
      * Tests name tests that exist.
      */
     public static final String EVERY_CLAIM_CAN_FAIL_AND_A_DECISION_IS_HELD_ONCE = FILE
-            + "0334-every-claim-can-fail-a-decision-is-held-once-and-a-records-tests-name-tests-that-exist.md";
+            + "0337-every-claim-can-fail-a-decision-is-held-once-and-a-records-tests-name-tests-that-exist.md";
 
     private Adr() {
     }

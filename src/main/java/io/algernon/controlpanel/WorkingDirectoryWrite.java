@@ -35,7 +35,7 @@ import java.util.function.Function;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
- * Writes one of the three files of a working directory the control panel changes, holding the working-directory lock
+ * Writes one of the four files of a working directory the control panel changes, holding the working-directory lock
  * as the jar takes it, never waiting for it, and only in a folder of the user's own (ADR-295 §1, §2; ADR-177 §1,
  * ADR-291 §8). The file is written whole to a {@code .part} file and moved over the target. Every refusal is one line
  * returned, none thrown; what the change returns is the text, and its own refusal is an
@@ -51,53 +51,43 @@ public final class WorkingDirectoryWrite {
     /** The file the lock is taken on, which the jar's invocations take too. */
     public static final String LOCK_FILE_NAME = "vespera.lock";
 
-    /** The three files of a working directory the control panel writes whole; a repair's copy is the one other. */
+    /**
+     * Three of the four files of a working directory the control panel writes whole, {@link #NOT_RELEVANT_FOLDERS}
+     * the fourth; a repair's copy is the one other.
+     */
     public static final Set<String> FILES = Set.of("profile.yaml", "relevance-labels.yaml", "code-set-names.yaml");
 
-    /** The one file whose save makes a working directory that is not there (ADR-330 §7). */
-    private static final String PROFILE = "profile.yaml";
+    /** The file of the folders not relevant, the fourth the control panel writes (ADR-334 §6), with the answers it gives. */
+    public static final String NOT_RELEVANT_FOLDERS = NotRelevantFolders.FILE_NAME;
 
-    /** The byte the jar locks, far past the end of the holder line. */
-    private static final long LOCKED_BYTE = Long.MAX_VALUE - 1;
-
-    private static final long LOCKED_LENGTH = 1;
-
-    /**
-     * The channels a write could not lock because another channel of this JVM holds the lock. They are kept open, as
-     * the jar keeps its own, because closing a channel may release a lock another channel of the JVM holds
-     * ({@link FileLock}); only a test holds the lock in the JVM the control panel writes from.
-     */
-    private static final List<FileChannel> KEPT_OPEN = new CopyOnWriteArrayList<>();
-
-    private final BooleanSupplier anInvocationItStartedRuns;
-    private final String userName;
-    private volatile boolean holdsTheLock;
-
-    public WorkingDirectoryWrite(BooleanSupplier anInvocationItStartedRuns, String userName) {
-        this.anInvocationItStartedRuns = anInvocationItStartedRuns;
-        this.userName = userName;
+    private static boolean mayBeWritten(String fileName) {
+        return FILES.contains(fileName) || NOT_RELEVANT_FOLDERS.equals(fileName);
     }
 
     /**
-     * Empty when {@code fileName} was written; otherwise the one line. {@code change} is given the file's text, empty
-     * where it is absent, and returns the new text or throws an {@link IllegalArgumentException} whose message is the
-     * line.
-     *
-     * @throws IllegalArgumentException for a name outside {@link #FILES}
+     * One file of an action and what becomes of its text: {@code change} is given the file's text, empty where it is
+     * absent, and returns the new text, or {@code null} to write nothing to that file.
      */
-    public Optional<String> write(Path workingDirectory, String fileName, Function<Optional<String>, String> change) {
-        if (!FILES.contains(fileName)) {
-            throw new IllegalArgumentException(fileName + " is not a file the control panel writes");
+    public record Change(String fileName, Function<Optional<String>, String> change) {
+    }
+
+    /**
+     * One action writing several files under one hold of the lock (ADR-334 §6): every change is asked first, in order,
+     * and none is written if one refuses; then the files are written in order, each whole to a {@code .part} file and
+     * moved over its target. A change returning {@code null} writes nothing to its file.
+     *
+     * @throws IllegalArgumentException for a name the control panel does not write
+     */
+    public Optional<String> write(Path workingDirectory, List<Change> changes) {
+        String fileName = changes.getFirst().fileName();
+        for (Change each : changes) {
+            if (!mayBeWritten(each.fileName())) {
+                throw new IllegalArgumentException(each.fileName() + " is not a file the control panel writes");
+            }
         }
         if (anInvocationItStartedRuns.getAsBoolean()) {
             return Optional.of("the control panel writes nothing into a working directory while the invocation it"
                     + " started runs, so " + fileName + " was not written");
-        }
-        if (fileName.equals(PROFILE) && Files.notExists(workingDirectory, LinkOption.NOFOLLOW_LINKS)) {
-            Optional<String> notMade = makeFolder(workingDirectory, fileName, change);
-            if (notMade.isPresent()) {
-                return notMade;
-            }
         }
         Optional<String> refusal = refusalOfFolder(workingDirectory, userName, fileName);
         if (refusal.isPresent()) {
@@ -128,7 +118,7 @@ public final class WorkingDirectoryWrite {
         }
         holdsTheLock = true;
         try {
-            return writeHolding(channel, folder, fileName, change);
+            return writeAllHolding(channel, folder, changes);
         } finally {
             holdsTheLock = false;
             try {
@@ -138,6 +128,140 @@ public final class WorkingDirectoryWrite {
             }
             closeQuietly(channel);
         }
+    }
+
+    private Optional<String> writeAllHolding(FileChannel channel, Path folder, List<Change> changes) {
+        String fileName = changes.getFirst().fileName();
+        List<Path> parts = new java.util.ArrayList<>();
+        try {
+            writeHolderLine(channel, holderLine(ProcessHandle.current().pid(), OffsetDateTime.now(), fileName));
+            List<String> texts = new java.util.ArrayList<>();
+            List<Optional<String>> asRead = new java.util.ArrayList<>();
+            for (Change each : changes) {
+                Path file = folder.resolve(each.fileName());
+                Optional<String> current = Files.exists(file) ? Optional.of(Files.readString(file, UTF_8)) : Optional.empty();
+                asRead.add(current);
+                try {
+                    texts.add(each.change().apply(current));
+                } catch (IllegalArgumentException refused) {
+                    return Optional.of(refused.getMessage());
+                }
+            }
+            List<Integer> moved = new java.util.ArrayList<>();
+            for (int i = 0; i < changes.size(); i++) {
+                if (texts.get(i) == null) {
+                    continue;
+                }
+                try {
+                    Path part = folder.resolve(changes.get(i).fileName() + ".part");
+                    parts.add(part);
+                    Files.writeString(part, texts.get(i), UTF_8);
+                    Files.move(part, folder.resolve(changes.get(i).fileName()), StandardCopyOption.ATOMIC_MOVE,
+                            StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException | RuntimeException failed) {
+                    deleteParts(parts);
+                    if (moved.isEmpty()) {
+                        return couldNotWrite(changes.get(i).fileName(), failed);
+                    }
+                    return Optional.of(putBack(folder, changes, asRead, moved, changes.get(i).fileName(), failed));
+                }
+                moved.add(i);
+            }
+            return Optional.empty();
+        } catch (IOException | RuntimeException e) {
+            deleteParts(parts);
+            return couldNotWrite(fileName, e);
+        }
+    }
+
+    private static void deleteParts(List<Path> parts) {
+        for (Path part : parts) {
+            try {
+                Files.deleteIfExists(part);
+            } catch (IOException ignored) {
+                // nothing more can be done about a part file; the next write writes over it
+            }
+        }
+    }
+
+    /**
+     * Puts each file already moved back as it was read, or removes it where it was not there (ADR-334 §6), and returns
+     * the one line: neither file is changed, or the file that could not be put back and why.
+     */
+    private static String putBack(Path folder, List<Change> changes, List<Optional<String>> asRead, List<Integer> moved,
+            String failedFile, Exception failed) {
+        String refusal = couldNotWrite(failedFile, failed).orElseThrow();
+        StringBuilder notBack = new StringBuilder();
+        for (int index : moved) {
+            String name = changes.get(index).fileName();
+            try {
+                if (asRead.get(index).isPresent()) {
+                    Path part = folder.resolve(name + ".part");
+                    try {
+                        Files.writeString(part, asRead.get(index).get(), UTF_8);
+                        Files.move(part, folder.resolve(name), StandardCopyOption.ATOMIC_MOVE,
+                                StandardCopyOption.REPLACE_EXISTING);
+                    } finally {
+                        Files.deleteIfExists(part);
+                    }
+                } else {
+                    Files.deleteIfExists(folder.resolve(name));
+                }
+            } catch (IOException | RuntimeException e) {
+                notBack.append(notBack.length() == 0 ? "" : "; ").append("could not put ").append(name)
+                        .append(" back as it stood: ").append(e.getMessage() == null
+                                ? e.getClass().getSimpleName() : e.getClass().getSimpleName() + ": " + e.getMessage());
+            }
+        }
+        return notBack.length() == 0 ? refusal + ", so neither file is changed" : refusal + ", and " + notBack;
+    }
+
+    /** The one file whose save makes a working directory that is not there (ADR-330 §7). */
+    private static final String PROFILE = "profile.yaml";
+
+    /** The byte the jar locks, far past the end of the holder line. */
+    private static final long LOCKED_BYTE = Long.MAX_VALUE - 1;
+
+    private static final long LOCKED_LENGTH = 1;
+
+    /**
+     * The channels a write could not lock because another channel of this JVM holds the lock. They are kept open, as
+     * the jar keeps its own, because closing a channel may release a lock another channel of the JVM holds
+     * ({@link FileLock}); only a test holds the lock in the JVM the control panel writes from.
+     */
+    private static final List<FileChannel> KEPT_OPEN = new CopyOnWriteArrayList<>();
+
+    private final BooleanSupplier anInvocationItStartedRuns;
+    private final String userName;
+    private volatile boolean holdsTheLock;
+
+    public WorkingDirectoryWrite(BooleanSupplier anInvocationItStartedRuns, String userName) {
+        this.anInvocationItStartedRuns = anInvocationItStartedRuns;
+        this.userName = userName;
+    }
+
+    /**
+     * Empty when {@code fileName} was written; otherwise the one line. {@code change} is given the file's text, empty
+     * where it is absent, and returns the new text or throws an {@link IllegalArgumentException} whose message is the
+     * line.
+     *
+     * @throws IllegalArgumentException for a name outside {@link #FILES} and {@link #NOT_RELEVANT_FOLDERS}
+     */
+    public Optional<String> write(Path workingDirectory, String fileName, Function<Optional<String>, String> change) {
+        if (!mayBeWritten(fileName)) {
+            throw new IllegalArgumentException(fileName + " is not a file the control panel writes");
+        }
+        if (anInvocationItStartedRuns.getAsBoolean()) {
+            return Optional.of("the control panel writes nothing into a working directory while the invocation it"
+                    + " started runs, so " + fileName + " was not written");
+        }
+        if (fileName.equals(PROFILE) && Files.notExists(workingDirectory, LinkOption.NOFOLLOW_LINKS)) {
+            Optional<String> notMade = makeFolder(workingDirectory, fileName, change);
+            if (notMade.isPresent()) {
+                return notMade;
+            }
+        }
+        return write(workingDirectory, List.of(new Change(fileName, change)));
     }
 
     /** Whether a write is holding the lock now. */
@@ -256,32 +380,6 @@ public final class WorkingDirectoryWrite {
             at = at.getParent();
         }
         return at == null ? folder.getRoot() : at;
-    }
-
-    private Optional<String> writeHolding(FileChannel channel, Path folder, String fileName,
-            Function<Optional<String>, String> change) {
-        Path part = folder.resolve(fileName + ".part");
-        try {
-            writeHolderLine(channel, holderLine(ProcessHandle.current().pid(), OffsetDateTime.now(), fileName));
-            Path file = folder.resolve(fileName);
-            Optional<String> current = Files.exists(file) ? Optional.of(Files.readString(file, UTF_8)) : Optional.empty();
-            String text;
-            try {
-                text = change.apply(current);
-            } catch (IllegalArgumentException refused) {
-                return Optional.of(refused.getMessage());
-            }
-            Files.writeString(part, text, UTF_8);
-            Files.move(part, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            return Optional.empty();
-        } catch (IOException | RuntimeException e) {
-            try {
-                Files.deleteIfExists(part);
-            } catch (IOException ignored) {
-                // nothing more can be done about a part file; the next write writes over it
-            }
-            return couldNotWrite(fileName, e);
-        }
     }
 
     private static void writeHolderLine(FileChannel channel, String line) throws IOException {
