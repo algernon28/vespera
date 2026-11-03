@@ -45,7 +45,7 @@ class EveryPluginDrawsOnEveryDrawingTest {
         ScriptedPlugin alpha = new ScriptedPlugin("alpha", heard);
         ScriptedPlugin zulu = new ScriptedPlugin("zulu", heard);
 
-        TwoGroupsWithPictures.draw(base, List.of(zulu, alpha), DeliverableProgress.NONE);
+        TwoClustersWithPictures.draw(base, List.of(zulu, alpha), DeliverableProgress.NONE);
 
         claim(
                 "each plugin opens its drawing, hears the seed partition start, each group's entries opened, every"
@@ -53,24 +53,24 @@ class EveryPluginDrawsOnEveryDrawingTest {
                         + " entries it opened, the seed partition end and the finish once documents.csv stands, and"
                         + " closes",
                 () -> {
-                    assertThat(TwoGroupsWithPictures.withoutEntriesClosed(alpha.calls()))
+                    assertThat(TwoClustersWithPictures.withoutEntriesClosed(alpha.calls()))
                             .as("what alpha heard")
-                            .containsExactlyElementsOf(TwoGroupsWithPictures.EVERY_CALL);
-                    assertThat(TwoGroupsWithPictures.withoutEntriesClosed(zulu.calls()))
+                            .containsExactlyElementsOf(TwoClustersWithPictures.EVERY_CALL);
+                    assertThat(TwoClustersWithPictures.withoutEntriesClosed(zulu.calls()))
                             .as("what zulu heard")
-                            .containsExactlyElementsOf(TwoGroupsWithPictures.EVERY_CALL);
+                            .containsExactlyElementsOf(TwoClustersWithPictures.EVERY_CALL);
                 });
         claim(
                 "every call up to the finish is made to alpha and then to zulu before the drawing goes on, though zulu"
                         + " was handed in first: the plugins are called in the order of their names",
                 () -> {
                     List<String> interleaved = new ArrayList<>();
-                    for (String call : TwoGroupsWithPictures.EVERY_CALL.subList(
-                            0, TwoGroupsWithPictures.EVERY_CALL.size() - 1)) {
+                    for (String call : TwoClustersWithPictures.EVERY_CALL.subList(
+                            0, TwoClustersWithPictures.EVERY_CALL.size() - 1)) {
                         interleaved.add("alpha:" + call);
                         interleaved.add("zulu:" + call);
                     }
-                    assertThat(TwoGroupsWithPictures.withoutEntriesClosed(heard).stream()
+                    assertThat(TwoClustersWithPictures.withoutEntriesClosed(heard).stream()
                                     .filter(call -> !call.endsWith(":" + ScriptedPlugin.CLOSE))
                                     .toList())
                             .containsExactlyElementsOf(interleaved);
@@ -85,7 +85,7 @@ class EveryPluginDrawsOnEveryDrawingTest {
         ScriptedPlugin alpha = new ScriptedPlugin("alpha", heard);
         ScriptedPlugin zulu = new ScriptedPlugin("zulu", heard);
 
-        Path tree = TwoGroupsWithPictures.draw(base, List.of(alpha, zulu), DeliverableProgress.NONE);
+        Path tree = TwoClustersWithPictures.draw(base, List.of(alpha, zulu), DeliverableProgress.NONE);
 
         claim(
                 "each drawing is opened on the tree being drawn, for its generation run, in the deliverable language,"
@@ -124,7 +124,7 @@ class EveryPluginDrawsOnEveryDrawingTest {
             }
         };
 
-        TwoGroupsWithPictures.draw(base, List.of(new ScriptedPlugin("alpha", new ArrayList<>())), hearing);
+        TwoClustersWithPictures.draw(base, List.of(new ScriptedPlugin("alpha", new ArrayList<>())), hearing);
 
         claim(
                 "a first drawing with a plugin counts no folder left by an earlier drawing: the plugin's folder is"
@@ -136,7 +136,7 @@ class EveryPluginDrawsOnEveryDrawingTest {
     @Story("Every plugin draws on every drawing")
     @DisplayName("A drawing handed no plugin draws the tree alone and makes no plugin's folder")
     void aDrawingHandedNoPluginDrawsTheTreeAlone(@TempDir Path base) throws IOException {
-        Path tree = TwoGroupsWithPictures.draw(base, List.of(), DeliverableProgress.NONE);
+        Path tree = TwoClustersWithPictures.draw(base, List.of(), DeliverableProgress.NONE);
 
         claim(
                 "the tree's top holds the index, the manifest, the marker and the seed partition's folder, and no"

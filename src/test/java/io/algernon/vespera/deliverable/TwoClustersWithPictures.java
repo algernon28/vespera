@@ -18,13 +18,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * One seed partition of two groups, drawn so that every call a plugin's drawing can hear is heard (ADR-333 §2): the
+ * One seed partition of two clusters, drawn so that every call a plugin's drawing can hear is heard (ADR-333 §2): the
  * first written over its two documents, the first of them an image whose copy its entry shows, carrying a picture it
  * shows and one it cannot, so that its entry tells of a copy shown, a picture and a picture not shown; the second
  * unwritten, its answer turned down for its shape. Every fixture is synthetic: an archive written here, a run id of
  * the ledger's shape.
  */
-final class TwoGroupsWithPictures {
+final class TwoClustersWithPictures {
 
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
 
@@ -43,7 +43,7 @@ final class TwoGroupsWithPictures {
     /** Bytes that are no PNG, under a PNG's type: the entry counts the picture as not shown (ADR-286 §1). */
     private static final byte[] NOT_A_PICTURE = "not a picture".getBytes(StandardCharsets.UTF_8);
 
-    private TwoGroupsWithPictures() {}
+    private TwoClustersWithPictures() {}
 
     /** The fixture drawn under {@code base}, with {@code plugins} drawing beside the tree, {@code progress} told. */
     static Path draw(Path base, List<Plugin> plugins, DeliverableProgress progress) throws IOException {

@@ -77,17 +77,17 @@ class APluginsFailedDrawingStopsItAloneTest {
     @DisplayName("A plugin that throws at a call of its drawing stops alone: the tree is drawn as with none, the other plugin whole, its state failed, and drawn after the next drawing")
     void aPluginThatThrowsStopsAlone(String call, ScriptedPlugin.Failure failure, @TempDir Path base)
             throws IOException {
-        Path alone = TwoGroupsWithPictures.draw(base, List.of(), DeliverableProgress.NONE);
+        Path alone = TwoClustersWithPictures.draw(base, List.of(), DeliverableProgress.NONE);
         Map<String, byte[]> theTreeWithNoPlugin = everyFileOf(alone);
 
         List<String> heard = new ArrayList<>();
         ScriptedPlugin failing = new ScriptedPlugin(FAILING, heard).failingAt(call, failure);
         ScriptedPlugin whole = new ScriptedPlugin(WHOLE, heard);
         List<List<String>> told = new ArrayList<>();
-        Path tree = TwoGroupsWithPictures.draw(base, List.of(failing, whole), hearing(told));
+        Path tree = TwoClustersWithPictures.draw(base, List.of(failing, whole), hearing(told));
         Map<String, byte[]> theTreeWithTheTwo = everyFileOf(tree);
         String stateAfterTheFailure = stateOf(tree, FAILING);
-        List<String> failingHeard = TwoGroupsWithPictures.withoutEntriesClosed(failing.calls());
+        List<String> failingHeard = TwoClustersWithPictures.withoutEntriesClosed(failing.calls());
 
         claim(
                 "the drawing went to its end at the same tree, and every file of it outside the plugins' folders is"
@@ -102,8 +102,8 @@ class APluginsFailedDrawingStopsItAloneTest {
         claim(
                 "the other plugin heard every call of the drawing, in order, and went to its end",
                 () -> {
-                    assertThat(TwoGroupsWithPictures.withoutEntriesClosed(whole.calls()))
-                            .containsExactlyElementsOf(TwoGroupsWithPictures.EVERY_CALL);
+                    assertThat(TwoClustersWithPictures.withoutEntriesClosed(whole.calls()))
+                            .containsExactlyElementsOf(TwoClustersWithPictures.EVERY_CALL);
                     assertThat(stateOf(tree, WHOLE)).isEqualTo("drawn");
                     assertThat(tree.resolve(WHOLE).resolve(ScriptedPlugin.ITS_FILE)).isRegularFile();
                 });
@@ -129,13 +129,13 @@ class APluginsFailedDrawingStopsItAloneTest {
 
         failing.healthy();
         heard.clear();
-        Path again = TwoGroupsWithPictures.draw(base, List.of(failing, whole), DeliverableProgress.NONE);
+        Path again = TwoClustersWithPictures.draw(base, List.of(failing, whole), DeliverableProgress.NONE);
 
         claim(
                 "the next drawing, in which it throws nothing, draws it whole and its drawing.txt says drawn",
                 () -> {
-                    assertThat(TwoGroupsWithPictures.withoutEntriesClosed(failing.calls()))
-                            .containsExactlyElementsOf(TwoGroupsWithPictures.EVERY_CALL);
+                    assertThat(TwoClustersWithPictures.withoutEntriesClosed(failing.calls()))
+                            .containsExactlyElementsOf(TwoClustersWithPictures.EVERY_CALL);
                     assertThat(stateOf(again, FAILING)).isEqualTo("drawn");
                 });
     }
@@ -150,7 +150,7 @@ class APluginsFailedDrawingStopsItAloneTest {
 
         claim(
                 "the Error leaves the drawing as it was thrown, neither caught nor wrapped",
-                () -> assertThatThrownBy(() -> TwoGroupsWithPictures.draw(
+                () -> assertThatThrownBy(() -> TwoClustersWithPictures.draw(
                                 base, List.of(failing, new ScriptedPlugin(WHOLE, heard)), DeliverableProgress.NONE))
                         .isInstanceOf(ScriptedPlugin.ScriptedError.class));
     }
@@ -165,7 +165,7 @@ class APluginsFailedDrawingStopsItAloneTest {
         Path tree = base.resolve("work").resolve(Deliverable.DIRECTORY_NAME).resolve(ListedTree.RUN_ID);
 
         try {
-            TwoGroupsWithPictures.draw(base, List.of(interrupted), DeliverableProgress.NONE);
+            TwoClustersWithPictures.draw(base, List.of(interrupted), DeliverableProgress.NONE);
         } catch (ScriptedPlugin.ScriptedError | IOException stopped) {
             // What stops the process partway stops it here: nothing after the throw runs.
         }
