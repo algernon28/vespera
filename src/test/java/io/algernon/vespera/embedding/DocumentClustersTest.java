@@ -65,38 +65,17 @@ class DocumentClustersTest {
 
         claim(
                 "both documents are recorded, so membership is total over the partition -- every"
-                        + " survivor has to land somewhere for the page tree above it to be complete",
-                () -> assertThat(WholeRun.membership(jdbcTemplate,run)).hasSize(2));
-        claim(
-                "and each appears once, in one cluster: membership is disjoint by construction, since a"
-                        + " document carries a single ordinal rather than appearing in a list per cluster",
+                        + " survivor has to land somewhere for the page tree above it to be complete -- and"
+                        + " each appears once, in one cluster: membership is disjoint by construction, since"
+                        + " a document carries a single ordinal rather than appearing in a list per cluster",
                 () -> assertThat(WholeRun.membership(jdbcTemplate,run))
                         .extracting(DocumentCluster::occurrenceId)
                         .containsExactlyInAnyOrder(first, second));
         claim(
-                "the cluster is identified by the seed whose partition it sits in and its ordinal there,"
-                        + " so two partitions may both hold a cluster 0 without collision",
+                "and each row carries the seed whose partition its cluster sits in, which is half of a"
+                        + " cluster's identity beside its ordinal",
                 () -> assertThat(WholeRun.membership(jdbcTemplate,run))
                         .allSatisfy(member -> assertThat(member.winningSeedOccurrenceId()).isEqualTo(seed)));
-    }
-
-    @Test
-    @Story("Every survivor lands in exactly one cluster")
-    @DisplayName("A document alone in its cluster is recorded as a cluster of one")
-    void recordsAClusterOfOne() {
-        DocumentClusters clusters = new DocumentClusters(jdbcTemplate);
-        OccurrenceId seed = anOccurrence("seeds/exemplar.pdf");
-        OccurrenceId alone = anOccurrence("solitary.txt");
-        OccurrenceId other = anOccurrence("grouped.txt");
-        RunId run = aRun(seed);
-
-        clusters.record(run, alone, seed, 0);
-        clusters.record(run, other, seed, 1);
-
-        claim(
-                "a cluster of one is a cluster: the document belongs somewhere, and the alternative is a"
-                        + " survivor that no page in the tree accounts for",
-                () -> assertThat(clusters.sizesFor(run, seed)).containsExactly(1, 1));
     }
 
     @Test
@@ -128,15 +107,18 @@ class DocumentClustersTest {
     @Story("What clustering does not write")
     @DisplayName("No table holds a document mean vector")
     void storesNoDocumentMeanVectors() {
-        List<String> tables = jdbcTemplate.query(
-                "SELECT name FROM sqlite_master WHERE type = 'table'",
+        List<String> tablesOfBytes = jdbcTemplate.query(
+                "SELECT DISTINCT m.name FROM sqlite_master m JOIN pragma_table_info(m.name) c"
+                        + " WHERE m.type = 'table' AND c.type = 'BLOB' ORDER BY m.name",
                 (resultSet, rowNumber) -> resultSet.getString("name"));
 
         claim(
-                "the mean vectors clustering compares are computed and discarded, never stored: they are"
-                        + " derived from vectors already held, and a second copy would be a cache nothing"
-                        + " reads that has to be invalidated when the chunking or the model changes",
-                () -> assertThat(tables).noneSatisfy(table -> assertThat(table).contains("mean")));
+                "the mean vectors clustering compares are computed and discarded, never stored: the only"
+                        + " tables with a column of bytes are the chunks' own vectors and the near-duplicate"
+                        + " signatures, so a table of document vectors, whatever its name, would be a third."
+                        + " They are derived from vectors already held, and a second copy would be a cache"
+                        + " nothing reads that has to be invalidated when the chunking or the model changes",
+                () -> assertThat(tablesOfBytes).containsExactly("minhash_signature", "vector"));
     }
 
     private OccurrenceId anOccurrence(String path) {

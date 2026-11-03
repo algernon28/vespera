@@ -78,6 +78,12 @@ class AModelNameMatchesOnlyItselfTest {
     private static final String DIGEST = "7f9c2ba4e88f827d616045507605853ed73b8093f6efbc88eb1a6eacfa66ef26";
     private static final String DTYPE = "F16";
 
+    /**
+     * A digest stored under one weight format only, so that a percent sign read as a pattern would find that
+     * one format and name its identity, where under {@link #DIGEST} it would find several and name none.
+     */
+    private static final String ONE_FORMAT_DIGEST = "0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e";
+
     /** A weight dtype as Ollama reports one for quantized weights: its underscores are part of it. */
     private static final String AN_UNDERSCORED_DTYPE = "Q4_K_M";
 
@@ -217,9 +223,10 @@ class AModelNameMatchesOnlyItselfTest {
         for (String digest : new String[] {"a_b", "axb", "c\\d", "cd"}) {
             cache.put(CONTENT_HASH, CHUNKER, CHUNKING_RULE, 0, identityOf(digest, DTYPE), UNDERSCORED_VECTOR);
         }
-        for (String dtype : new String[] {"e\\f", "ef", "Q8"}) {
+        for (String dtype : new String[] {"e\\f", "ef"}) {
             cache.put(CONTENT_HASH, CHUNKER, CHUNKING_RULE, 0, identityOf(DIGEST, dtype), LOOKALIKE_VECTOR);
         }
+        cache.put(CONTENT_HASH, CHUNKER, CHUNKING_RULE, 0, identityOf(ONE_FORMAT_DIGEST, "Q8"), LOOKALIKE_VECTOR);
 
         claim(
                 "the digest with an underscore answers its own identity, though a digest with another character"
@@ -232,9 +239,10 @@ class AModelNameMatchesOnlyItselfTest {
                 "the weight format with a backslash answers its own, not that of the same format without it",
                 () -> assertThat(identityFoundFor(UNDERSCORED_MODEL, DIGEST, "e\\f")).contains(identityOf(DIGEST, "e\\f")));
         claim(
-                "and a weight format that is only a percent sign answers nothing, though three formats are"
-                        + " stored under that digest: the sign matched itself and not any format",
-                () -> assertThat(identityFoundFor(UNDERSCORED_MODEL, DIGEST, A_PERCENT_SIGN)).isEmpty());
+                "and a weight format that is only a percent sign answers nothing under a digest stored with one"
+                        + " format only: read as a pattern, the sign would have matched that one format and named it",
+                () -> assertThat(identityFoundFor(UNDERSCORED_MODEL, ONE_FORMAT_DIGEST, A_PERCENT_SIGN))
+                        .isEmpty());
     }
 
     private Optional<String> identityFoundFor(String model, String digest, String dtype) {

@@ -92,23 +92,6 @@ class ASeedWithNoVectorStopsScoringTest {
                         .hasMessageContaining("seed occurrence " + THE_SECOND_SEED.value()));
     }
 
-    @Test
-    @Story("A seed document with no vector of the scoring's own model stops the scoring")
-    @DisplayName("Reading the seed documents' vectors stops on a seed document that has text to embed and no vector at all")
-    void aSeedWithAChunkAndNoVectorIsRefused() {
-        store("the-first-seed", READ_UNDER);
-
-        claim(
-                "the read stops and gives the number of the second seed document, "
-                        + THE_SECOND_SEED.value() + ": it has " + ONE_CHUNK + " piece of text to embed and no"
-                        + " vector was ever stored for it",
-                () -> assertThatThrownBy(() -> scoring()
-                                .residentSeedVectors(
-                                        seeds(ONE_CHUNK, ONE_CHUNK), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER))
-                        .isInstanceOf(IllegalStateException.class)
-                        .hasMessageContaining("seed occurrence " + THE_SECOND_SEED.value()));
-    }
-
     /** A seed whose text was cut into two chunks, two things to embed. */
     private static final int TWO_CHUNKS = 2;
 

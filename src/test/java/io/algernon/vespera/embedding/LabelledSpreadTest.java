@@ -55,20 +55,19 @@ class LabelledSpreadTest {
         LabelledSpread.Spread spread = LabelledSpread.of(aDistributionFrom(0.0, 1.0), tenDocumentsFrom(0.05), noAnswers());
 
         claim(
-                "there are four cuts for five bands: a cut at the lowest bound would discard nothing and"
-                        + " is not a choice anybody is making, so the candidates are the boundaries"
-                        + " between bands",
-                () -> assertThat(spread.cuts()).hasSize(4));
-        claim(
-                "every document is on one side of each cut or the other -- 10 in total, whichever cut is"
-                        + " read, so a reader adding the two columns gets the corpus back",
+                "there are four cuts for five bands, keeping 8, 6, 4 and 2 of the ten documents spread"
+                        + " two to a band: a cut at the lowest bound would discard nothing and is not a choice"
+                        + " anybody is making, so the candidates are the boundaries between bands, and a"
+                        + " higher cut keeps fewer, which is the whole shape of the trade being offered",
                 () -> assertThat(spread.cuts())
-                        .allSatisfy(cut -> assertThat(cut.surviving() + cut.discarded()).isEqualTo(10)));
+                        .extracting(LabelledSpread.CandidateCut::surviving)
+                        .containsExactly(8, 6, 4, 2));
         claim(
-                "and a higher cut discards more than a lower one, which is the whole shape of the trade"
-                        + " being offered",
-                () -> assertThat(spread.cuts().getLast().discarded())
-                        .isGreaterThan(spread.cuts().getFirst().discarded()));
+                "and each discards the rest of the ten, 2, 4, 6 and 8, so a reader adding the two columns"
+                        + " gets the corpus back",
+                () -> assertThat(spread.cuts())
+                        .extracting(LabelledSpread.CandidateCut::discarded)
+                        .containsExactly(2, 4, 6, 8));
     }
 
     @Test
@@ -88,9 +87,6 @@ class LabelledSpreadTest {
                         + " number. If the two disagreed, this page would promise a count the run then"
                         + " contradicts",
                 () -> assertThat(spread.cuts().getFirst().surviving()).isEqualTo(2));
-        claim(
-                "and the one just under it is discarded",
-                () -> assertThat(spread.cuts().getFirst().discarded()).isEqualTo(1));
     }
 
     @Test
@@ -157,24 +153,21 @@ class LabelledSpreadTest {
         Map<OccurrenceId, Boolean> answers = new LinkedHashMap<>();
         answers.put(new OccurrenceId(1), true);
         answers.put(new OccurrenceId(2), false);
+        answers.put(new OccurrenceId(3), true);
 
-        LabelledSpread.Spread spread =
-                LabelledSpread.of(aDistributionFrom(0.0, 1.0), List.of(scored(1, 0.9), scored(2, 0.1)), answers);
+        LabelledSpread.Spread spread = LabelledSpread.of(
+                aDistributionFrom(0.0, 1.0), List.of(scored(1, 0.9), scored(2, 0.1), scored(3, 0.15)), answers);
         LabelledSpread.CandidateCut cut = spread.cuts().getFirst();
 
         claim(
                 "above the cut, one judged and one relevant: the counts travel together so a page can say"
                         + " '1 in 1' rather than '100%', because twelve answers in a band is a thin"
                         + " measurement and a percentage hides how thin",
-                () -> assertThat(cut.labelledAbove()).isEqualTo(1));
+                () -> assertThat(List.of(cut.labelledAbove(), cut.labelledRelevantAbove())).containsExactly(1, 1));
         claim(
-                "and the relevant count beside it",
-                () -> assertThat(cut.labelledRelevantAbove()).isEqualTo(1));
-        claim(
-                "below the cut, one judged and none relevant -- the loss the cut would cause, which is"
-                        + " the number a person is really deciding about",
-                () -> assertThat(cut.labelledBelow()).isEqualTo(1));
-        claim("and none of it was relevant", () -> assertThat(cut.labelledRelevantBelow()).isZero());
+                "below the cut, two judged and one of them relevant -- the loss the cut would cause, which"
+                        + " is the number a person is really deciding about, counted apart from the side above",
+                () -> assertThat(List.of(cut.labelledBelow(), cut.labelledRelevantBelow())).containsExactly(2, 1));
     }
 
     @Test

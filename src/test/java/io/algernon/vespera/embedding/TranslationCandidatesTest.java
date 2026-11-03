@@ -31,11 +31,14 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-087", url = Adr.CLUSTERS_ARE_MODULARITY_COMMUNITIES, type = "adr")
 class TranslationCandidatesTest {
 
-    /** Larger than every fixture below but the last, so a block boundary falls only where a test puts one. */
+    /** Larger than every fixture below, so a block boundary falls only where a test puts one. */
     private static final int ONE_BLOCK = 64;
 
-    /** How far a cosine computed here may lie from the one the pass computes, in floats or in doubles. */
+    /** How far the cosine the pass computes, in floats or in doubles, may lie from one worked by hand. */
     private static final double ROUNDING = 1e-6;
+
+    /** The cosine of (1, 0) and (0.9, 0.1), worked by hand: 0.9 over the square root of 0.82. */
+    private static final double NINE_TENTHS_OVER_THE_ROOT_OF_0_82 = 0.99388373467;
 
     @Test
     @Story("Two copies in different languages are found by their vectors")
@@ -58,10 +61,11 @@ class TranslationCandidatesTest {
                                 org.assertj.core.groups.Tuple.tuple(0, 1),
                                 org.assertj.core.groups.Tuple.tuple(2, 3)));
         claim(
-                "each carries the cosine of its two mean vectors, 0.9 over the square root of 0.82 for both",
+                "each carries the cosine of its two mean vectors, 0.9 over the square root of 0.82 for both,"
+                        + " about 0.99388",
                 () -> assertThat(likenesses)
                         .allSatisfy(likeness -> assertThat(likeness.similarity())
-                                .isCloseTo(cosine(new float[] {1f, 0f}, new float[] {0.9f, 0.1f}), within(ROUNDING))));
+                                .isCloseTo(NINE_TENTHS_OVER_THE_ROOT_OF_0_82, within(ROUNDING))));
     }
 
     @Test
@@ -148,7 +152,7 @@ class TranslationCandidatesTest {
         }
         InMemory vectors = new InMemory(scattered.toArray(Candidate[]::new));
 
-        List<TranslationCandidates.Likeness> inOneBlock = TranslationCandidates.mutualNearest(vectors, ONE_BLOCK + 1);
+        List<TranslationCandidates.Likeness> inOneBlock = TranslationCandidates.mutualNearest(vectors, ONE_BLOCK);
 
         claim(
                 "the " + candidates + " vectors in three languages give some likeness, so the comparison below"
@@ -226,18 +230,6 @@ class TranslationCandidatesTest {
                 () -> assertThat(likenesses)
                         .singleElement()
                         .satisfies(likeness -> assertThat(likeness.similarity()).isCloseTo(-1.0, within(ROUNDING))));
-    }
-
-    private static double cosine(float[] a, float[] b) {
-        double dot = 0;
-        double aa = 0;
-        double bb = 0;
-        for (int i = 0; i < a.length; i++) {
-            dot += (double) a[i] * b[i];
-            aa += (double) a[i] * a[i];
-            bb += (double) b[i] * b[i];
-        }
-        return dot / Math.sqrt(aa * bb);
     }
 
     /** A candidate as a test writes it: the language stage 2 stored for it, or none, and its mean vector. */

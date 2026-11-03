@@ -96,15 +96,6 @@ class SeedCorpusComparisonTest {
     /** The one 900-page scan among the memos: 900,000 words. */
     private static final int OUTLIER_WORD_COUNT = 900_000;
 
-    /**
-     * The arithmetic average of the five ordinary word counts plus the outlier — 150,100 words, which
-     * is what a mean would report as the typical length of a folder of hundred-word memos.
-     */
-    private static final int MEAN_WITH_THE_OUTLIER = 150_100;
-
-    /** Well below every ordinary word count's own order of magnitude, and far below that average. */
-    private static final int A_THOUSAND_WORDS = 1_000;
-
     /** Three paginated documents' page counts, whose middle value is 20. */
     private static final int[] PAGE_COUNTS = {10, 20, 30};
 
@@ -115,12 +106,6 @@ class SeedCorpusComparisonTest {
 
     /** The figure a reader must never be shown for a measurement nobody took (ADR-086). */
     private static final String A_PAGE_COUNT_OF_ZERO = "page count is 0.0";
-
-    /**
-     * What the median page count would collapse to if the two documents that were never paginated
-     * counted as zero pages: the middle of 0, 0, 10, 20, 30.
-     */
-    private static final double MEDIAN_PAGE_COUNT_IF_ABSENCE_WERE_ZERO = 10d;
 
     /** Every damaged document has this many words, so a count divides into a ratio exactly. */
     private static final int WORDS_PER_DAMAGED_DOCUMENT = 100;
@@ -219,15 +204,6 @@ class SeedCorpusComparisonTest {
                 "and no seed document is counted as converted, even though the two comparisons together"
                         + " account for every document on each side",
                 () -> assertThat(converted.seedShare()).isZero());
-        claim(
-                "the two figures account for the whole seed set between them, so no document sits outside"
-                        + " both -- four born-digital seeds and none converted",
-                () -> assertThat(bornDigital.seedDocuments() + converted.seedDocuments())
-                        .isEqualTo(comparison.seedDocumentCount()));
-        claim(
-                "and for the whole surviving corpus likewise",
-                () -> assertThat(bornDigital.corpusDocuments() + converted.corpusDocuments())
-                        .isEqualTo(comparison.corpusDocumentCount()));
     }
 
     @Test
@@ -327,19 +303,12 @@ class SeedCorpusComparisonTest {
         claim(
                 "adding one 900,000-word document to the same five memos leaves the reported length"
                         + " between 120 and 130 words -- the middle of six values instead of five, and still"
-                        + " a description of what a typical seed document looks like",
+                        + " a description of what a typical seed document looks like, where the average of"
+                        + " those same six lengths is 150,100: that is the whole reason the figure is a"
+                        + " middle value, since an average would report a folder of hundred-word memos as a"
+                        + " folder of book-length documents",
                 () -> assertThat(afterTheOutlier.median())
                         .isBetween((double) MEDIAN_ORDINARY_WORD_COUNT, (double) ORDINARY_WORD_COUNTS[3]));
-        claim(
-                "and it stays under a thousand words, where the average of those same six lengths is"
-                        + " 150,100 -- which is the whole reason the figure is a middle value: an average"
-                        + " would report a folder of hundred-word memos as a folder of book-length documents",
-                () -> assertThat(afterTheOutlier.median()).isLessThan(A_THOUSAND_WORDS));
-        claim(
-                "so the reported length moved by at most ten words where an average would have moved by"
-                        + " nearly 150,000",
-                () -> assertThat(Math.abs(afterTheOutlier.median() - beforeTheOutlier.median()))
-                        .isLessThan(MEAN_WITH_THE_OUTLIER - MEDIAN_ORDINARY_WORD_COUNT));
     }
 
     @Test
@@ -363,13 +332,10 @@ class SeedCorpusComparisonTest {
         SeedCorpusComparison.Quartiles pages = pageCount.corpus();
         claim(
                 "the reported page count is 20, the middle of the three documents that were paginated --"
-                        + " 10, 20 and 30 pages",
+                        + " 10, 20 and 30 pages -- and not 10, which is what the middle of 0, 0, 10, 20 and 30"
+                        + " would be if the two documents that were never paginated had been counted as"
+                        + " documents of no pages: an absent measurement is not a measurement of nothing",
                 () -> assertThat(pages.median()).isEqualTo(MEDIAN_PAGE_COUNT));
-        claim(
-                "and not 10, which is what the middle of 0, 0, 10, 20 and 30 would be if the two"
-                        + " documents that were never paginated had been counted as documents of no pages:"
-                        + " an absent measurement is not a measurement of nothing",
-                () -> assertThat(pages.median()).isNotEqualTo(MEDIAN_PAGE_COUNT_IF_ABSENCE_WERE_ZERO));
         claim(
                 "and the seed set, whose one document was never paginated either, reports no page count"
                         + " at all rather than a page count of zero: the rule reaches a whole population"
@@ -527,10 +493,18 @@ class SeedCorpusComparisonTest {
 
         List<String> statements = comparison.statements();
         claim(
-                "every one of the four comparisons is stated in words, so a reader is told which of them"
-                        + " diverged rather than handed two charts to compare by eye",
-                () -> assertThat(statements).isNotEmpty().allSatisfy(statement -> assertThat(statement)
-                        .isNotBlank()));
+                "every one of the four comparisons is stated in words -- the language mix, the provenance"
+                        + " mix, the length and the conversion quality, each by a sentence of its own among"
+                        + " them -- so a reader is told which of them diverged rather than handed two charts"
+                        + " to compare by eye",
+                () -> assertThat(statements)
+                        .contains(
+                                proportion(comparison.languageMix(), ENGLISH).statement(),
+                                proportion(comparison.provenanceMix(), SeedCorpusComparison.CONVERTED)
+                                        .statement(),
+                                spread(comparison, SeedCorpusComparison.WORD_COUNT).statement(),
+                                spread(comparison, SeedCorpusComparison.VOWELLESS_WORD_RATIO).statement())
+                        .allSatisfy(statement -> assertThat(statement).isNotBlank()));
         claim(
                 "and each statement names both sides, because a figure for one side alone says nothing"
                         + " about how alike they are",

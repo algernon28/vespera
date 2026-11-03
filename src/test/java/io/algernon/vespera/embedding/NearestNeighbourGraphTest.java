@@ -2,9 +2,9 @@ package io.algernon.vespera.embedding;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import io.algernon.vespera.Adr;
-import java.util.Comparator;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -40,6 +40,15 @@ class NearestNeighbourGraphTest {
 
     /** Small enough that the block boundaries fall inside both partitions below. */
     private static final int BLOCK_SIZE = 8;
+
+    /** The cosine of the angle between two of {@link PointsOnALine}'s twelve documents one step apart, cos(pi/48). */
+    private static final double ONE_STEP_ALONG_THE_LINE = 0.9978589232;
+
+    /** The same two steps apart, cos(pi/24). */
+    private static final double TWO_STEPS_ALONG_THE_LINE = 0.9914448614;
+
+    /** How far a cosine of the line's float vectors may lie from one worked in decimals. */
+    private static final double ROUNDING = 1e-6;
 
     /** A partition small enough to check by hand. */
     private static final int A_SMALL_PARTITION = 40;
@@ -117,16 +126,19 @@ class NearestNeighbourGraphTest {
                         + " to whichever neighbour happened to line up with them",
                 () -> assertThat(graph.similaritiesOf(5)).hasSameSizeAs(graph.neighboursOf(5)));
         claim(
-                "the values are similarities rather than distances -- nothing downstream converts one"
-                        + " into the other, so a cosine that arrived negated would read as documents"
-                        + " being unalike when they are alike",
-                () -> assertThat(boxed(graph.similaritiesOf(5)))
-                        .allMatch(similarity -> similarity >= -1.0 && similarity <= 1.0));
+                "the values are similarities rather than distances: the first document's two neighbours lie"
+                        + " one and two steps along the line, at the cosines of those angles, "
+                        + ONE_STEP_ALONG_THE_LINE + " and " + TWO_STEPS_ALONG_THE_LINE + ", nearest first --"
+                        + " nothing downstream converts one into the other, so a cosine that arrived negated"
+                        + " would read as documents being unalike when they are alike",
+                () -> assertThat(boxed(graph.similaritiesOf(0))).satisfiesExactly(
+                        nearest -> assertThat(nearest).isCloseTo(ONE_STEP_ALONG_THE_LINE, within(ROUNDING)),
+                        next -> assertThat(next).isCloseTo(TWO_STEPS_ALONG_THE_LINE, within(ROUNDING))));
         claim(
-                "and they are in the order the indices are, which is nearest first: the heaps keep the"
-                        + " best at the front while choosing, and handing the two halves back in"
-                        + " different orders would pair each edge with another edge's similarity",
-                () -> assertThat(boxed(graph.similaritiesOf(5))).isSortedAccordingTo(Comparator.reverseOrder()));
+                "and the indices are in the same order, nearest first: the heaps keep the best at the front"
+                        + " while choosing, and handing the two halves back in different orders would pair each"
+                        + " edge with another edge's similarity",
+                () -> assertThat(graph.neighboursOf(0)).containsExactly(1, 2));
     }
 
     @Test

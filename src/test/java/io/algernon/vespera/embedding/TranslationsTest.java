@@ -126,14 +126,18 @@ class TranslationsTest {
                 member(7, "en/y.html", "ENGLISH"),
                 member(8, "zh/sub/y.html", "CHINESE"),
                 member(9, "en/de/z.html", "ENGLISH"),
-                member(10, "zh/de/z.html", "CHINESE"));
+                member(10, "zh/de/z.html", "CHINESE"),
+                member(11, "en/de/w.html", "GERMAN"),
+                member(12, "en/fr/w.html", "FRENCH"));
 
         Translations.Resolution resolution = Translations.resolve(members, List.of(), NO_FLOOR, List.of("en"));
 
         claim(
                 "IT and HR are in capitals; en and zh in docs are the files' own names; v1 and v2 make two"
-                        + " segments differ; y.html lies at two depths; and en/de and zh/de each hold a second"
-                        + " language folder -- so no two of the ten are translations by their paths",
+                        + " segments differ; y.html lies at two depths; and en/de, zh/de and en/fr each hold a"
+                        + " second language folder -- en/de/w.html and en/fr/w.html would be one folder apart"
+                        + " if only the last language folder were read -- so no two of the twelve are"
+                        + " translations by their paths",
                 () -> assertThat(resolution.removals()).isEmpty());
         claim(
                 "and there is no set at all",
