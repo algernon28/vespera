@@ -5,8 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -49,12 +47,6 @@ import picocli.CommandLine;
 @Issue("310")
 @Link(name = "ADR-054", url = Adr.CORPUS_IS_ITS_ROOT_PATH, type = "adr")
 class LabelInAMovedWorkingDirectoryTest {
-
-    /** A floor of 1.0 opens stage 4's gate, the way every stage-5 invocation fixture does. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model this fixture names, so gate 3 and the steps behind it open. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** The file the scoring run writes for a person to answer. */
     private static final String LABEL_FILE = "relevance-labels.yaml";
@@ -149,13 +141,7 @@ class LabelInAMovedWorkingDirectoryTest {
     private void aScoredCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString(), "--db-dir=" + workingDirectory);
         claim(
                 "the run in the moved directory reports success, so a label file is there to answer",

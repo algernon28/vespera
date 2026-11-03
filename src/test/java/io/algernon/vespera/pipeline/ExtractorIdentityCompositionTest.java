@@ -46,6 +46,12 @@ class ExtractorIdentityCompositionTest {
             "docling", "2.124.0",
             "docling-core", "2.93.0");
 
+    /**
+     * The configured image's segment as it opens, its separator included: the reported vespera-image entry
+     * ends in "image=" too, so a claim on the bare "image=" would hold of the reported entry alone.
+     */
+    private static final String CONFIGURED_IMAGE_SEGMENT = ";image=";
+
     private static final String THE_STOCK_IMAGE = "quay.io/docling-project/docling-serve-cpu:v1.32.0";
 
     private static final String THE_LIBREOFFICE_IMAGE = "vespera/docling-serve-cpu-libreoffice:v1.32.0";
@@ -67,9 +73,9 @@ class ExtractorIdentityCompositionTest {
                         + " -- which is what happened to five PDFs when only the versions were in the key",
                 () -> assertThat(stock).isNotEqualTo(withLibreOffice));
         claim(
-                "and the identity names the image, so an operator reading a cache row can tell which one"
-                        + " made it",
-                () -> assertThat(withLibreOffice.value()).contains("image=" + THE_LIBREOFFICE_IMAGE));
+                "and the identity names the image in a segment of its own, image=, so an operator reading a"
+                        + " cache row can tell which one made it",
+                () -> assertThat(withLibreOffice.value()).contains(CONFIGURED_IMAGE_SEGMENT + THE_LIBREOFFICE_IMAGE + ";"));
         claim(
                 "while the versions and the options the client sends are still in it, as ADR-090 put them",
                 () -> assertThat(withLibreOffice.value())
@@ -87,8 +93,8 @@ class ExtractorIdentityCompositionTest {
                 .extractorIdentity(reporting(versionsFrom(THE_CPU_IMAGE)), THE_CPU_IMAGE);
 
         claim(
-                "the identity names the image as configured, as it always has",
-                () -> assertThat(identity.value()).contains("image=" + THE_CPU_IMAGE));
+                "the identity names the image as configured, in its image= segment, as it always has",
+                () -> assertThat(identity.value()).contains(CONFIGURED_IMAGE_SEGMENT + THE_CPU_IMAGE + ";"));
         claim(
                 "and names it again among the versions the sidecar reported, because the whole report goes in"
                         + " unfiltered",

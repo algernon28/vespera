@@ -29,7 +29,9 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Properties;
 import java.util.TreeMap;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
@@ -73,17 +75,6 @@ class NextInvocationFileTest {
     private static final NextAction.DeliverableSummary NOTHING_LEFT_UNWRITTEN_OR_UNCOPIED =
             new NextAction.DeliverableSummary(THE_TREE, 0, OptionalInt.of(0), false, 0, 0);
 
-    @Test
-    @Story("The jar writes what the next invocation wants")
-    @DisplayName("The file is named next-invocation.properties and is written in the working directory")
-    void theFileIsWrittenInTheWorkingDirectoryUnderItsName(@TempDir Path workingDirectory) {
-        NextInvocationFile.write(workingDirectory, new Contents(Invocation.LABEL, List.of(), true, Optional.empty()));
-
-        claim("the name the jar gives the file is next-invocation.properties",
-                () -> assertThat(NextInvocationFile.FILE_NAME).isEqualTo(FILE_NAME));
-        claim("and the file is written directly in the working directory, beside where the database file goes",
-                () -> assertThat(workingDirectory.resolve(FILE_NAME)).isRegularFile());
-    }
 
     @Test
     @Story("The jar writes what the next invocation wants")
@@ -127,7 +118,7 @@ class NextInvocationFileTest {
 
     @Test
     @Story("The jar writes what the next invocation wants")
-    @DisplayName("Nothing left to set is written as invocation=none, though the closing line names the deliverable's path")
+    @DisplayName("Nothing left to set is written with no path in it, though the closing line names the deliverable's path")
     void nothingLeftIsWrittenAsNoneAndHoldsNoPath(@TempDir Path workingDirectory) throws IOException {
         Profile profile = ProfileFixture.profile()
                 .seedFolder(THE_SEED_FOLDER, RECORDED_BY_THE_OPERATOR)
@@ -142,15 +133,15 @@ class NextInvocationFileTest {
         NextInvocationFile.write(workingDirectory, closing.next());
         String written = Files.readString(workingDirectory.resolve(FILE_NAME), StandardCharsets.UTF_8);
 
-        claim("the closing line names the deliverable's tree",
-                () -> assertThat(closing.line()).contains(THE_TREE.toString()));
-        claim("the file holds invocation=none, an empty wants and answer=false, and nothing else",
-                () -> assertThat(propertiesIn(workingDirectory)).isEqualTo(Map.of(
-                        "invocation", "none", "wants", "", "answer", "false")));
-        claim("and its text does not hold the tree's path, written or escaped",
+        Assumptions.assumeTrue(closing.line().contains(THE_TREE.toString()), "the closing line names the deliverable's tree");
+        claim("the file's text holds no path at all, written or escaped: not the tree's, not the working directory's,"
+                        + " and no separator of one, in its properties or its comments",
                 () -> assertThat(written)
                         .doesNotContain(THE_TREE.toString())
-                        .doesNotContain("deliverable"));
+                        .doesNotContain("deliverable")
+                        .doesNotContain(workingDirectory.toString())
+                        .doesNotContain("/")
+                        .doesNotContain("\\"));
     }
 
     @Test

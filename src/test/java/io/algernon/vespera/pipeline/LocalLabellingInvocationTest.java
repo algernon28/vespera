@@ -55,9 +55,11 @@ import org.springframework.test.context.DynamicPropertySource;
 @ExtendWith(OutputCaptureExtension.class)
 class LocalLabellingInvocationTest {
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
-    private static final String LABEL_FILE = "relevance-labels.yaml";
+    /** The one document of the sample, and so the one answer the file can carry. */
+    private static final long THE_ONE_ANSWER = 1;
+
+    private static final String LABEL_FILE
+ = "relevance-labels.yaml";
     private static final String THE_LABELLER = "scripted-labeller";
     private static final String ONE_DOCUMENT_IN_THE_SAMPLE = "the fixture corpus holds one document";
     private static final Pattern SCORE_IN_FILE = Pattern.compile("score: ([0-9.eE-]+)");
@@ -217,7 +219,7 @@ class LocalLabellingInvocationTest {
 
     @Test
     @Story("The floor is a rule over the labels")
-    @DisplayName("The floor is set to the lowest relevant score, and its provenance names the rule and the model")
+    @DisplayName("The floor is set by the rule to the score of the one relevant document, and its provenance names the rule and the model")
     void setsTheFloorByTheRule(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aScoredCorpus(root, seeds);
 
@@ -273,8 +275,9 @@ class LocalLabellingInvocationTest {
         claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
         claim("the model was not asked about it", () -> assertThat(QUESTIONS.get()).isZero());
         claim(
-                "the person's no stands, unmarked",
+                "the person's no stands, " + THE_ONE_ANSWER + " answer recorded as no, unmarked",
                 () -> {
+                    assertThat(irrelevantAnswers(seeds)).isEqualTo(THE_ONE_ANSWER);
                     assertThat(relevantAnswers(seeds)).isZero();
                     assertThat(labeller(seeds)).isNull();
                 });
@@ -297,8 +300,12 @@ class LocalLabellingInvocationTest {
         cli.run("label");
 
         claim(
-                "the person's answer replaced the model's",
-                () -> assertThat(relevantAnswers(seeds)).isZero());
+                "the person's answer replaced the model's: the " + THE_ONE_ANSWER + " answer recorded is now"
+                        + " a no",
+                () -> {
+                    assertThat(irrelevantAnswers(seeds)).isEqualTo(THE_ONE_ANSWER);
+                    assertThat(relevantAnswers(seeds)).isZero();
+                });
         claim(
                 "and nothing says a model set it any more",
                 () -> assertThat(labeller(seeds)).isNull());
@@ -409,13 +416,7 @@ class LocalLabellingInvocationTest {
     private void aScoredCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
     }
 
@@ -436,6 +437,13 @@ class LocalLabellingInvocationTest {
     private long relevantAnswers(Path seeds) {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM relevance_label WHERE seed_set = ? AND relevant = 1",
+                Long.class,
+                seedSetOf(seeds));
+    }
+
+    private long irrelevantAnswers(Path seeds) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM relevance_label WHERE seed_set = ? AND relevant = 0",
                 Long.class,
                 seedSetOf(seeds));
     }

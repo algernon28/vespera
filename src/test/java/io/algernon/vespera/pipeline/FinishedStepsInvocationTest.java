@@ -5,8 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -55,12 +53,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-116", url = Adr.A_RUNS_COMPLETION_IS_RECORDED_PER_STEP, type = "adr")
 @Link(name = "ADR-157", url = Adr.A_STAGE_ASKS_FOR_ITS_RUN_AFTER_ITS_OWN_GATE, type = "adr")
 class FinishedStepsInvocationTest {
-
-    /** A floor of 1.0 opens stage 4's gate the way every other whole-job test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The embedding model this fixture names, so the embedding-model gate opens. */
-    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 
     /** The writing model this fixture names, so the second invocation writes. */
     private static final String GENERATION_MODEL = "a-named-writing-model:8b";
@@ -124,16 +116,12 @@ class FinishedStepsInvocationTest {
     void everyStepRecordsItsWorkUnderItsOwnRunAndName(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
-        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
-                .arrangementApproved(ArrangementGate.shortNameOf(theArrangementOver(root)), "set by this test")
-                .generationModel(GENERATION_MODEL, "set by this test")
-                .build());
+        EveryGateOpen.approve(
+                profileStore,
+                ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")),
+                GENERATION_MODEL);
 
         cli.run("run", root.toString());
 
@@ -142,18 +130,10 @@ class FinishedStepsInvocationTest {
                 "and the finished work over this corpus is exactly these " + EVERY_FINISHED_STEP.size()
                         + " pieces, each recorded once, each under the run of its own stage and under its"
                         + " own name: the two steps of redundancy under one run, the two of the seed"
-                        + " measurement under another, and three of the scoring steps under a third. A"
+                        + " measurement under another, and four of the scoring steps under a third. A"
                         + " name one character off, or a record under a neighbour's run, would make a"
                         + " later invocation do that work all over again",
                 () -> assertThat(finishedStepsOver(root)).containsExactlyInAnyOrderElementsOf(EVERY_FINISHED_STEP));
-    }
-
-    private RunId theArrangementOver(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id WHERE r.stage = ? AND w.root = ?",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
     }
 
     /** Every {@code finished_step} row over this corpus, as {@code the run's stage / the step's name}. */

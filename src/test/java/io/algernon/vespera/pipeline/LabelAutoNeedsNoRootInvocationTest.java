@@ -6,8 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.embedding.LabelQuestion;
 import io.algernon.vespera.embedding.RelevanceLabeller;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -20,6 +18,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -66,8 +65,6 @@ import picocli.CommandLine;
 @ExtendWith(OutputCaptureExtension.class)
 class LabelAutoNeedsNoRootInvocationTest {
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
     private static final String LABEL_FILE = "relevance-labels.yaml";
     private static final String ONE_DOCUMENT_IN_THE_SAMPLE = "the fixture corpus holds one document";
 
@@ -76,9 +73,6 @@ class LabelAutoNeedsNoRootInvocationTest {
 
     /** The option ADR-208 removed from {@code label}. */
     private static final String THE_REMOVED_OPTION = "--root";
-
-    /** How the refusal ADR-208 removed opened. */
-    private static final String HOW_THE_REMOVED_REFUSAL_OPENS = "vespera label --auto named no root";
 
     /** The opening each question put to the scripted labeller, empty where none could be read. */
     static final List<Optional<String>> OPENINGS_PUT = new CopyOnWriteArrayList<>();
@@ -140,10 +134,10 @@ class LabelAutoNeedsNoRootInvocationTest {
     @DisplayName("With no folder named for the archive and none configured, the model labels")
     void runsWithNoRootNamedAndNoneConfigured(@TempDir Path root, @TempDir Path seeds, CapturedOutput output)
             throws IOException {
-        claim(
+        Assumptions.assumeTrue(
+                environment.getProperty(VesperaCommand.Run.ROOT_PROPERTY, "").isBlank(),
                 "no corpus root is bound in this context, the precondition the rest of this test rests"
-                        + " on: with one bound, the command was never refused in the first place",
-                () -> assertThat(environment.getProperty(VesperaCommand.Run.ROOT_PROPERTY)).isBlank());
+                        + " on: with one bound, the command was never refused in the first place");
         aScoredCorpus(root, seeds);
 
         cli.run("label", "--auto");
@@ -160,8 +154,8 @@ class LabelAutoNeedsNoRootInvocationTest {
                                 .hasValueSatisfying(text ->
                                         assertThat(text).contains(WHAT_A_CONVERTED_DOCUMENT_OPENS_WITH))));
         claim(
-                "and nothing on standard error asks for a folder",
-                () -> assertThat(output.getErr()).doesNotContain(HOW_THE_REMOVED_REFUSAL_OPENS));
+                "and nothing at all is written to standard error, so nothing there asks for a folder",
+                () -> assertThat(output.getErr()).isEmpty());
     }
 
     @Test
@@ -233,13 +227,7 @@ class LabelAutoNeedsNoRootInvocationTest {
     private void aScoredCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
     }
 

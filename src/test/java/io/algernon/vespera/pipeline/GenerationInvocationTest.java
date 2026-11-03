@@ -12,7 +12,6 @@ import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.ListedDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
@@ -80,14 +79,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-099", url = Adr.AN_UPSTREAM_IS_LOOKED_UP_AND_TWO_CANDIDATES_STOP_THE_RUN, type = "adr")
 @Link(name = "ADR-080", url = Adr.THE_BOILERPLATE_FLOOR_IS_A_GATE, type = "adr")
 class GenerationInvocationTest {
-
-    /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The embedding model this fixture names, so gate 3 and everything behind it open. Named for
-     * which model it is because two different ones matter in this class, and the one under test is
-     * the other. */
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** An approval of the right shape that is nobody's arrangement: twelve hexadecimal characters. */
     private static final String NAMES_NOTHING = "0123456789ab";
@@ -187,7 +178,7 @@ class GenerationInvocationTest {
     void opensOnTheArrangementThatWasApproved(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
 
         cli.run("run", root.toString());
 
@@ -198,9 +189,9 @@ class GenerationInvocationTest {
                         + " on work already accounted for",
                 () -> assertThat(generationRuns(root)).hasSize(ONE_RECORD));
         claim(
-                "and what it reads is the very arrangement the approval named, rather than whichever was"
-                        + " arranged most recently -- an approval is of a particular shape of the archive,"
-                        + " and writing over a later one would spend an approval nobody gave",
+                "and what it reads is the very arrangement the approval named, the one run upstream of it"
+                        + " -- an approval is of a particular shape of the archive, and writing over another"
+                        + " would spend an approval nobody gave",
                 () -> assertThat(upstreamOf(generationRuns(root).getFirst()))
                         .containsExactly(theApprovedArrangement(root).value()));
     }
@@ -251,7 +242,7 @@ class GenerationInvocationTest {
     void recordsNoJudgementAgainstAnyDocument(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
 
         cli.run("run", root.toString());
 
@@ -275,7 +266,7 @@ class GenerationInvocationTest {
             throws IOException {
         aCorpus(root, seeds);
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
         cli.run("run", root.toString());
 
         cli.run("run", root.toString());
@@ -301,7 +292,7 @@ class GenerationInvocationTest {
     void writesOnePieceOverEachApprovedCluster(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
 
         cli.run("run", root.toString());
 
@@ -324,10 +315,9 @@ class GenerationInvocationTest {
                     assertThat(doc.doc().documentsSent()).isEqualTo(TWO_DOCUMENTS);
                 }));
         claim(
-                "and which documents those " + TWO_DOCUMENTS + " were, each under the number the model"
-                        + " was given it as, rather than a count of them: the page a reader opens numbers"
-                        + " its list from this, and which number meant which document is knowable only"
-                        + " while the call is being built",
+                "and which documents those " + TWO_DOCUMENTS + " were, kept by name rather than as a count"
+                        + " of them: the page a reader opens numbers its list from this record, and which"
+                        + " documents went into the call is knowable only while the call is being built",
                 () -> assertThat(generatedDocs(root))
                         .singleElement()
                         .satisfies(doc -> assertThat(doc.doc().sent())
@@ -342,14 +332,15 @@ class GenerationInvocationTest {
         GenerationScriptedBeans.answerFor(THE_CLUSTERS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
 
         cli.run("run", root.toString());
 
         claim(
-                "the writing kept against this group is the writing that was produced for this group, not"
-                        + " whatever was produced last: every group gets its own call, and a record that"
-                        + " could hold another group's answer would be a page about the wrong documents",
+                "the writing kept against this group is the answer scripted for this group by its name,"
+                        + " not the answer every other call is given: every group gets its own call, and a"
+                        + " record that could hold another call's answer would be a page about the wrong"
+                        + " documents",
                 () -> assertThat(generatedDocs(root)).singleElement().satisfies(doc -> {
                     assertThat(doc.doc().title()).isEqualTo(ITS_OWN_TITLE);
                     assertThat(doc.doc().prose()).isEqualTo(ITS_OWN_PROSE);
@@ -364,7 +355,7 @@ class GenerationInvocationTest {
             throws IOException {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
         setTheReadingWindowTo(A_WINDOW_WITH_ROOM_FOR_ONE);
 
         cli.run("run", root.toString());
@@ -394,7 +385,7 @@ class GenerationInvocationTest {
             throws IOException {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
         nothingIsOnRecordForEitherDocument(root);
         GenerationScriptedBeans.forgetScriptedAnswers();
 
@@ -434,7 +425,7 @@ class GenerationInvocationTest {
             throws IOException {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
         setTheReadingWindowTo(A_WINDOW_WITH_ROOM_FOR_A_SINGLE_WORD);
         GenerationScriptedBeans.forgetScriptedAnswers();
 
@@ -469,7 +460,7 @@ class GenerationInvocationTest {
             throws IOException {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
         cli.run("run", root.toString());
 
         setTheReadingWindowTo(A_WIDER_WINDOW);
@@ -479,16 +470,15 @@ class GenerationInvocationTest {
                 "the invocation after the change reports success, which the claims below are about",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "the work is recorded " + TWO_RECORDS + " times rather than once: how much of a group one"
-                        + " call may read decides how much of it the writing rests on, so the same archive"
-                        + " read two ways is two pieces of work and neither may be mistaken for the other",
+                "the work is recorded " + TWO_RECORDS + " times rather than once, the second under a name of"
+                        + " its own: how much of a group one call may read decides how much of it the"
+                        + " writing rests on, so the same archive read two ways is two pieces of work -- and"
+                        + " if the number the archive's owner changed did not reach the name this work is"
+                        + " recorded under, the invocation would find the earlier record, decide the work"
+                        + " was done and write nothing, leaving them with writing made under a window they"
+                        + " had stopped using",
                 () -> assertThat(generationRuns(root)).hasSize(TWO_RECORDS));
-        claim(
-                "and the second record is its own name rather than the first one again -- if the number the"
-                        + " archive's owner changed did not reach the name this work is recorded under, the"
-                        + " invocation would find the earlier record, decide the work was done and write"
-                        + " nothing, leaving them with writing made under a window they had stopped using",
-                () -> assertThat(generationRuns(root)).doesNotHaveDuplicates());
+
         claim(
                 "and the second record has writing of its own beneath it, one piece over the group, rather"
                         + " than pointing back at what the first read: a wider window is a different reading"
@@ -513,7 +503,7 @@ class GenerationInvocationTest {
             throws IOException {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
         aClusterNothingCanBeSentFor(theApprovedArrangement(root), root);
         GenerationScriptedBeans.answerFor(THE_CLUSTERS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
         cli.run("run", root.toString());
@@ -558,7 +548,7 @@ class GenerationInvocationTest {
             throws IOException {
         aCorpusOfTwoDocuments(root, seeds);
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
         ConversionOffTheRecordFixture.Held whatWasOnRecord =
                 aClusterNothingCanBeSentFor(theApprovedArrangement(root), root, A_CLUSTER_NO_DOCUMENT_HAS_REACHED_YET);
         GenerationScriptedBeans.answerFor(THE_CLUSTERS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
@@ -760,13 +750,7 @@ class GenerationInvocationTest {
     private void aCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 
     /** Writes the approval, leaving every other key as the fixture left it. */
@@ -775,16 +759,6 @@ class GenerationInvocationTest {
         profileStore.save(ProfileFixture.profileFrom(loaded)
                 .arrangementApproved(approval, approval == null ? null : "read by this test")
                 .build());
-    }
-
-    /** The arrangement the most recent invocation over {@code root} recorded — the one its page names. */
-    private RunId theLatestArrangement(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
     }
 
     /** The arrangement of {@code root} the profile's approval names, whichever invocation recorded it. */

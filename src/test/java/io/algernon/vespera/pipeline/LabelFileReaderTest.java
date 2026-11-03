@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -46,10 +47,11 @@ class LabelFileReaderTest {
     @Story("A file about a different sample is refused whole")
     @DisplayName("A file naming a different run is refused, and nothing in it is applied")
     void refusesAFileNamingADifferentRun() {
-        LabelFileReader.Outcome outcome = LabelFileReader.read(aFileNaming(A_DIFFERENT_RUN), THE_RUN);
+        LabelFileReader.Outcome outcome = LabelFileReader.read(
+                aFileNaming(A_DIFFERENT_RUN).replace("relevant: null", "relevant: true"), THE_RUN);
 
         claim(
-                "the file is refused rather than partly applied: its entries were answered about a"
+                "the file, its one entry answered, is refused rather than applied: it was answered about a"
                         + " different set of documents, and the ones whose paths happen to match would be"
                         + " answers to questions this sample never asked",
                 () -> assertThat(outcome).isInstanceOf(LabelFileReader.Refused.class));
@@ -92,8 +94,11 @@ class LabelFileReaderTest {
                         .extracting(LabelFileReader.Answer::relevant)
                         .containsExactly(true, false));
         claim(
-                "each answer carries the document it is about and the score the person was shown",
-                () -> assertThat(answers.answers().getFirst().path()).isEqualTo("reports/q1.pdf"));
+                "each answer carries the document it is about and the score the person was shown, as the"
+                        + " file wrote them: reports/q1.pdf at 0.42 and notes/meeting.docx at 0.55",
+                () -> assertThat(answers.answers())
+                        .extracting(LabelFileReader.Answer::path, LabelFileReader.Answer::scoreShown)
+                        .containsExactly(tuple("reports/q1.pdf", 0.42), tuple("notes/meeting.docx", 0.55)));
         claim(
                 "and the one still blank is counted rather than dropped: what must never be lost is that"
                         + " the pass was partial, since a threshold read off a partial pass looks exactly"
@@ -108,7 +113,7 @@ class LabelFileReaderTest {
 
     @Test
     @Story("The reader reads what the writer writes")
-    @DisplayName("A file this system generated, answered in place, is read back with its stamps intact")
+    @DisplayName("A file this system generated, answered in place, is read back with its run, embedder and seed-set stamps intact")
     void readsBackAFileThisSystemGenerated() {
         String generated = RelevanceLabelFile.render(THE_RUN, THE_EMBEDDER, THE_SEED_SET, oneQuestion());
         String answered = generated.replace("relevant: null", "relevant: true");
@@ -127,9 +132,13 @@ class LabelFileReaderTest {
                         .singleElement()
                         .satisfies(answer -> assertThat(answer.relevant()).isTrue()));
         claim(
-                "and the stamps the writer put on survive the round trip, which is what a mismatch is"
-                        + " later refused on",
-                () -> assertThat(answers.embedderIdentity()).isEqualTo(THE_EMBEDDER));
+                "and the stamps the writer put on survive the round trip, the embedder and the seed set the"
+                        + " sample was drawn against, which is what a mismatch is later refused on",
+                () -> {
+                    assertThat(answers.embedderIdentity()).isEqualTo(THE_EMBEDDER);
+                    assertThat(LabelFileReader.seedSetNamedBy(answered)).contains(THE_SEED_SET);
+                });
+
     }
 
     private static java.util.List<RelevanceLabelFile.Entry> oneQuestion() {
