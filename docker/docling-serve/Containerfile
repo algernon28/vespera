@@ -17,7 +17,15 @@
 ARG DOCLING_SERVE_BASE=quay.io/docling-project/docling-serve-cpu:v1.32.0
 FROM ${DOCLING_SERVE_BASE}
 USER 0
-RUN dnf -y install --nodocs --setopt=install_weak_deps=False \
+# The three repositories are read from CentOS's primary mirror, not through the metalink: on
+# 2026-11-03 the metalink named a repomd.xml checksum no mirror served, and every build failed.
+# The packages and their versions are the same; only where they are downloaded from changed, so
+# the image's tag stays as it is.
+RUN M=https://mirror.stream.centos.org/9-stream \
+ && dnf -y install --nodocs --setopt=install_weak_deps=False \
+      --setopt=baseos.metalink= --setopt=baseos.baseurl=$M/BaseOS/\$basearch/os/ \
+      --setopt=appstream.metalink= --setopt=appstream.baseurl=$M/AppStream/\$basearch/os/ \
+      --setopt=crb.metalink= --setopt=crb.baseurl=$M/CRB/\$basearch/os/ \
       libreoffice-core libreoffice-writer libreoffice-impress \
  && dnf -y clean all && rm -rf /var/cache/dnf
 USER 1001

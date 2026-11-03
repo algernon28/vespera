@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-295](0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md).** Of §1: the control panel also takes `vespera.lock`, as this record takes it, for the length of one write of `profile.yaml`, `relevance-labels.yaml` or `code-set-names.yaml`, writing the holder line `pid=<pid> started=<date and time> command=control-panel write <file name>`; an invocation started while it holds it is refused by §1's line. The rest of this record stands.
 
+> **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Of §1's "Every invocation takes": `vespera serve` takes no lock and opens no database. The rest of this record stands.
+
 - **Date**: 2026-10-03
 - **Status**: accepted
 - **Settles**: [#364](https://github.com/algernon28/vespera/issues/364).
