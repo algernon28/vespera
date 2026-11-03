@@ -168,7 +168,7 @@ The tags become:
 
 New, under `src/test`:
 
-- **`SidecarsAreStartedByTheOperatorTest`** (unit, no Docker, reads the classpath and `pom.xml`):
+- **`SpringsComposeSupportIsOnNoClasspathTest`** (#684) (unit, no Docker, reads the classpath and `pom.xml`):
   - `anIdeRunStartsNoContainer`: Spring Boot's compose lifecycle (`org.springframework.boot.docker.compose.lifecycle.DockerComposeLifecycleManager`) is not on the classpath the tests run on, which contains the runtime classpath an IDE launches `VesperaApplication` with, optional dependencies included. Spring AI's compose connection details (`org.springframework.ai.docker.compose.service.connection.ollama.OllamaDockerComposeConnectionDetailsFactory`) are not on it either. The test also named the Chroma sibling of that class until Chroma was removed (ADR-214).
   - `thePomDeclaresNoComposeSupport`: `pom.xml` names neither `spring-boot-docker-compose` nor `spring-ai-spring-boot-docker-compose`.
 - **`OllamaKeepsItsModelsTest`** (unit, no Docker, reads the compose files with SnakeYAML, in `SidecarRestartPolicyTest`'s style):

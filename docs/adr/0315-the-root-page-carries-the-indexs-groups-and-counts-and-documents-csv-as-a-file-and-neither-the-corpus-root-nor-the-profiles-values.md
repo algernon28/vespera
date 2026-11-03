@@ -56,7 +56,7 @@ Built by [#620](https://github.com/algernon28/vespera/issues/620).
 
 | Method | What it holds |
 | --- | --- |
-| `…theRootPageNamesNeitherTheCorpusRootNorAProfileValue` | for a fixture whose corpus root and profile values are distinctive strings, the root page's body holds none of them (§1) |
-| `…theRootPageLinksEverySeedPartitionsPageAndEveryClustersPage` | each link names a page the page list lists, by its title (§2) |
-| `…documentsCsvIsAFileOfTheRootPage` | the page list lists it on the root page with the HTML tree's bytes' size and digest (§3) |
-| `…thePageListListsNoMarkerNoCodeAndNothingLeftBehind` | none of them in the page list (§4) |
+| `…nothingNamesTheCorpusRootTheWorkingDirectoryOrAProfileValue` (#684) | for a fixture whose corpus root and profile values are distinctive strings, the root page's body holds none of them (§1) |
+| `…theRootPageLinksEveryPageAndCarriesDocumentsCsv` (#684) | each link names a page the page list lists, by its title (§2) |
+| `…theRootPageLinksEveryPageAndCarriesDocumentsCsv` (#684) | the page list lists it on the root page with the HTML tree's bytes' size and digest (§3) |
+| `…theRootPageLinksEveryPageAndCarriesDocumentsCsv` (#684) | none of them in the page list (§4) |

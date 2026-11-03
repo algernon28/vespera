@@ -115,7 +115,7 @@ Two of ADR-278's tests wait for the screens: Run and Label disabled while a line
 | `controlpanel.ChildCommandTest.runIsTheJarsRunCommandWithBothEncodingFlagsAndAbsolutePaths` | `run`'s command line, whole and in order |
 | `controlpanel.ChildCommandTest.labelIsTheJarsLabelCommandWithAutoOnlyWhenAsked` | `label`'s command line, with and without `--auto` |
 | `controlpanel.ChildCommandTest.theChildHasCiSetToOneAndTheWorkingDirectoryAsItsCurrentDirectory` | `CI=1` and the working directory, absolute, on the process builder |
-| `controlpanel.ChildCommandTest.onlyRunAndLabelCanBeBuilt` | no public constructor, and `run` and `label` the only factories |
+| `controlpanel.ChildCommandTest.onlyRunLabelAndPublishCanBeBuilt` (#684) | no public constructor, and `run` and `label` the only factories |
 | `controlpanel.ChildCommandTest.noClassOfTheControlPanelSpellsVersionOrHelp` | no compiled class of the control panel holds the text `--version` or `--help` |
 | `controlpanel.ChildTest.aChildWritingMoreThanAPipeBufferToStandardErrorAloneEnds` | the stream nobody drains stalls no child |
 | `controlpanel.ChildTest.standardErrorIsMergedIntoOneStreamInTheOrderWritten` | the two streams merged, in the order the child wrote them |

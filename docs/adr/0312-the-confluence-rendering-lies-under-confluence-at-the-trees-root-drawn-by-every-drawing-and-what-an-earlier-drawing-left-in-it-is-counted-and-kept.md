@@ -68,10 +68,10 @@ Built by [#620](https://github.com/algernon28/vespera/issues/620), with the rend
 
 | Method | What it holds |
 | --- | --- |
-| `…theConfluenceRenderingLiesUnderConfluenceAtTheRoot` | a drawing writes `confluence/` at the tree's root, with the root page and the page list directly in it (§1) |
-| `…noSeedPartitionsFolderCanBeCalledConfluence` | a seed partition whose seed's stem is `confluence` is drawn at `<order>-confluence/`, beside `confluence/` (§1) |
-| `…aFolderInConfluenceThisDrawingDidNotWriteIsCountedAsLeftBehind` | one folder in `confluence/` counted, `confluence/` itself not (§4) |
-| `…nothingInConfluenceIsDeleted` | a folder an earlier drawing left in `confluence/` stands after a redrawing (§5) |
+| `…thePageListListsEveryPageParentsFirstAndEveryPathStands` (#684) | a drawing writes `confluence/` at the tree's root, with the root page and the page list directly in it (§1) |
+| `…noSeedPartitionsFolderCanBeCalledConfluence` (not built: no test holds it, #684) | a seed partition whose seed's stem is `confluence` is drawn at `<order>-confluence/`, beside `confluence/` (§1) |
+| `…whatAnEarlierDrawingLeftInConfluenceIsCountedAndKept` (#684) | one folder in `confluence/` counted, `confluence/` itself not (§4) |
+| `…whatAnEarlierDrawingLeftInConfluenceIsCountedAndKept` (#684) | a folder an earlier drawing left in `confluence/` stands after a redrawing (§5) |
 
 ## What this does not decide
 

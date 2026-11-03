@@ -340,7 +340,7 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves, a
 | Method | What it holds |
 | --- | --- |
 | `controlpanel.PanelBrowserTest.aFormIsSentWithOnlyTheButtonPressedAndADisabledOneCannotBePressed` | `press` sends the button pressed, a `button` of type submit, one of no type and a submit input alike, and no other; `submit` sends none; a disabled or absent button fails the test and sends nothing (§9) |
-| `controlpanel.ControlPanelServerTest.theRightTokenIsExchangedForACookieTheBrowserDropsWhenItCloses` | the token is exchanged for `vespera-control-panel=<token>; Path=/; HttpOnly; SameSite=Lax`, on a first exchange and on one by a browser already holding the cookie (§12) |
+| `controlpanel.ControlPanelServerTest.theRightTokenIsExchangedForACookieTheBrowserDropsWhenItCloses` (removed: ADR-325 draws no token, #684) | the token is exchanged for `vespera-control-panel=<token>; Path=/; HttpOnly; SameSite=Lax`, on a first exchange and on one by a browser already holding the cookie (§12) |
 | `controlpanel.ControlPanelServerTest.aPageOpenedFromAnotherSiteIsRefusedButAReportIsNot` | a `GET` sent `Sec-Fetch-Site: cross-site`, `same-site` or `Cross-Site`, holding the cookie, and one holding the token, are answered 403 with ADR-291 §4's line and no `Set-Cookie`, a `HEAD` sent `cross-site` 403, no page's handler run; a `GET` sent `cross-site` to a page at `/report/progress.html` reaches it (§12) |
 | `controlpanel.ControlPanelServerTest.aPageAskedForFromItsOwnPagesTheAddressBarOrWithNoMarkIsServed` | `same-origin`, `none` and no `Sec-Fetch-Site` reach their pages in order, and the token sent `none` is exchanged (§12) |
 

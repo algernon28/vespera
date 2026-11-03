@@ -237,7 +237,7 @@ This changes nothing in #326. It is evidence for it:
 The size tests go through the stage-1 step, and the log tests go through the whole job with `profile.yaml` written as text.
 
 - `ByteLevelReductionTaskletTest`:
-  - `removesATextFileOverTheSizeCeilingAsOutOfScope`: two byte-identical text files of 16,000,001 bytes, and a CSV-named text of 16,000,002 bytes, are each removed as `OUT_OF_SCOPE`, the copies on their own account and never hashed. The reason is exactly the size reason above for 16,000,001. The page counts three left out, three *"text files left out for their size"* and none as logs, and says *"So is a text file over 16,000,000 bytes, because the converter cannot finish one in time"*.
+  - `removesATextFileOverTheLargestSizeConvertedInParts` (#684; ADR-178 moved the ceiling): two byte-identical text files of 16,000,001 bytes, and a CSV-named text of 16,000,002 bytes, are each removed as `OUT_OF_SCOPE`, the copies on their own account and never hashed. The reason is exactly the size reason above for 16,000,001. The page counts three left out, three *"text files left out for their size"* and none as logs, and says *"So is a text file over 16,000,000 bytes, because the converter cannot finish one in time"*.
   - `keepsATextFileAtTheCeilingAndAPdfOverIt`: a text file of exactly 16,000,000 bytes and an intact PDF of 16,000,001 bytes carry no verdict.
   - `keepsALogWhileNoLogFloorIsSet`: with no profile, a twelve-line file whose every line begins with a timestamp carries no verdict. It pins that an unset floor means no log rule.
 - `LogsAreOutOfScopeInvocationTest` (new, the whole job, `logTimestampShareFloor` at 0.9 written into `profile.yaml` before start-up):
