@@ -2358,6 +2358,17 @@ public final class Adr {
     public static final String THE_LOCAL_MODEL_LABELS_ONLY_UNDER_THE_EXTRACTOR_ITS_RUN_WAS_CONVERTED_UNDER = FILE
             + "0332-vespera-label-auto-is-refused-under-another-extractor-identity-than-its-run-was-converted-under-and-a-placeholder-in-the-ocr-preset-stops-only-a-run.md";
 
+    /**
+     * ADR-334 -- the working directory's {@code deliverable} folder named is read as no deliverable root named; an empty
+     * launch field shows the value in use; the next page says why it suggests nothing; a code set's folder may lie
+     * outside the corpus root, named in the profile's {@code codeSetFolders}, walked with the corpus and spelt absolute;
+     * the relevance questions are answered by a list of folders not relevant; and {@code /profile} is one form with Save
+     * and Reset (amends ADR-276 §1 and §3, ADR-051, ADR-054, ADR-284 §2, §7, §8 and §9, ADR-295 §2, §5, §6 and §7, ADR-302
+     * §8, ADR-330 §1 and §5 and ADR-331 §5, §7 and §8).
+     */
+    public static final String THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT =
+            FILE + "0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md";
+
     private Adr() {
     }
 }

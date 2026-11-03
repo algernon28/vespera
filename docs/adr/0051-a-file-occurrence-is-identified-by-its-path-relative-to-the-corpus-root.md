@@ -1,5 +1,7 @@
 # ADR-051 — A file occurrence is identified by its path relative to the corpus root
 
+> **Partly amended — see [ADR-334](0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md).** An occurrence found below a code set folder the profile's `codeSetFolders` names outside the corpus root is spelt by that folder's real path, absolute, and read at its path. The rest of this record stands.
+
 - **Date**: 2026-08-26
 - **Status**: accepted
 

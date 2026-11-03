@@ -526,8 +526,8 @@ class TheControlPanelsLayoutScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder,
                 ScreenServer.values(Files.createDirectories(folder.resolve("corpus")), workingDirectory))) {
             String key = ProfileKey.EXTRACTION_ATTEMPT.key();
-            Page landed = screens.browser().go("/profile").press(key, "save",
-                    Map.of("value", "2", "provenance", "the converter was busy on the first attempt")).page();
+            Page landed = screens.browser().go("/profile").press("profile", "save",
+                    Map.of(key, "2", key + ".provenance", "the converter was busy on the first attempt")).page();
 
             claim("the address lands on the profile page, at the section of the value saved",
                     () -> assertThat(List.of(landed.address().getPath(), String.valueOf(landed.address().getFragment())))
@@ -545,7 +545,7 @@ class TheControlPanelsLayoutScreenTest {
         pages.put("/", "Launch");
         pages.put("/invocation", "Invocation");
         pages.put("/next", "Next");
-        pages.put("/labels", "Questions");
+        pages.put("/labels", "Relevance");
         pages.put("/code-sets", "Code sets");
         pages.put("/profile", "Profile");
         return pages;

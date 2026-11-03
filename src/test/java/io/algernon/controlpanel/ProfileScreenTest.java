@@ -1,9 +1,5 @@
 package io.algernon.controlpanel;
 
-import static io.algernon.controlpanel.ScreenServer.buttonNames;
-import static io.algernon.controlpanel.ScreenServer.byId;
-import static io.algernon.controlpanel.ScreenServer.controlNames;
-import static io.algernon.controlpanel.ScreenServer.form;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -15,11 +11,9 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -29,10 +23,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The profile, {@code /profile} (ADR-302 §8): with no next act read, a form for every profile key, in its order, each
- * with its cost, saving that one key with its provenance.
- *
- * <p>The keys are {@link ProfileKey}'s, iterated rather than listed, so the test holds of a key added to the profile.
+ * The profile, {@code /profile} (ADR-302 §8): each value's section links the reports it is read off. That the page is
+ * one form of every value, with Save and Reset, is {@code TheProfileIsOneFormScreenTest}'s (ADR-334 §7), in place of
+ * the two tests of a form for each value this class held.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -46,71 +39,8 @@ class ProfileScreenTest {
     @TempDir
     Path folder;
 
-    @Test
-    @Story("The operator writes a profile value")
-    @DisplayName("Every profile value has a form of its own, in order, with its cost, and saving one writes it with its provenance")
-    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-    void everyKeyHasAFormOfItsOwnWithItsCostAndOneIsSaved() throws IOException {
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        List<String> keys = Arrays.stream(ProfileKey.values()).map(ProfileKey::key).toList();
-        try (ScreenServer screens = ScreenServer.start(folder,
-                ScreenServer.values(Files.createDirectories(folder.resolve("corpus")), workingDirectory))) {
-            PanelBrowser browser = screens.browser().go("/profile");
-            Page page = browser.page();
-
-            claim("with no next act read, the page holds a form for every profile value, named by it, in its order",
-                    () -> assertThat(page.document().select("form").eachAttr("name")).containsExactlyElementsOf(keys));
-            claim("each form holds the value's name, the digest of what the page drew it from, its value and its"
-                            + " provenance, and one Save",
-                    () -> assertThat(keys.stream().map(key -> List.of(controlNames(form(page, key)),
-                                    buttonNames(form(page, key)))))
-                            .containsOnly(List.of(List.of("key", "drawn", "value", "provenance"), List.of("save"))));
-            claim("each value's cost is said beside its form",
-                    () -> assertThat(keys.stream().map(key -> byId(page, "cost-" + key).text().isBlank()))
-                            .containsOnly(false));
-
-            String key = ProfileKey.EXTRACTION_ATTEMPT.key();
-            Page landed = browser.press(key, "save",
-                    Map.of("value", "2", "provenance", "the converter was busy on the first attempt")).page();
-
-            claim("saving lands back on the profile page",
-                    () -> assertThat(landed.address().getPath()).isEqualTo("/profile"));
-            claim("and the profile holds that value with the provenance given",
-                    () -> assertThat(ProfileEdit.read(Files.readString(workingDirectory.resolve(ProfileEdit.FILE_NAME),
-                                    StandardCharsets.UTF_8)).get(ProfileKey.EXTRACTION_ATTEMPT))
-                            .isEqualTo(new ProfileEdit.Stated("2", "the converter was busy on the first attempt")));
-        }
-    }
-
-    @Test
-    @Story("The operator writes a profile value")
-    @DisplayName("A value the next run wants is asked for on the next act's page, and the profile page holds no form for it")
-    void aKeyTheNextInvocationWantsHasNoFormOfItsOwn() throws IOException, InterruptedException {
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        Files.writeString(workingDirectory.resolve(NextInvocation.FILE_NAME), """
-                invocation=run
-                wants=seedFolder boilerplateDocumentFrequencyFloor
-                answer=false
-                """, StandardCharsets.UTF_8);
-        ScreenServer.childWill(workingDirectory, "exit 0 the closing line");
-        List<String> wanted = List.of(ProfileKey.SEED_FOLDER.key(),
-                ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR.key());
-        List<String> notWanted = Arrays.stream(ProfileKey.values()).map(ProfileKey::key)
-                .filter(key -> !wanted.contains(key))
-                .toList();
-        try (ScreenServer screens = ScreenServer.start(folder,
-                ScreenServer.values(Files.createDirectories(folder.resolve("corpus")), workingDirectory))) {
-            Page page = screens.afterARunHasEnded().go("/profile").page();
-
-            claim("once the next run wants two values, the profile page holds a form for every other value, in the"
-                            + " profile's order, and none for the two",
-                    () -> assertThat(page.document().select("form").eachAttr("name"))
-                            .containsExactlyElementsOf(notWanted));
-        }
-    }
-
     /**
-     * Each key's form on {@code /profile} holds the links to the reports it is read off, from the table {@code /next}
+     * Each key's section on {@code /profile} holds the links to the reports it is read off, from the table {@code /next}
      * shows them from (ADR-306 §3), and {@code clusterPageByteCeiling}, which no run ever wants and so is set here
      * alone, is linked to the report of the cluster pages' sizes (ADR-306 §2).
      */

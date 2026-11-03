@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-295](0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md).** Of What this does not decide: the control panel's write of `code-set-names.yaml` is decided there.
 
+> **Partly amended — see [ADR-334](0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md).** Of §2, §7, §8 and §9: a code set folder outside the corpus root anchors a set as the first folder under the corpus root does, its folder spelt absolute in `code_set`, `code_set_member` and `code-set-names.yaml`, its default name its last element. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Amends**: [ADR-277](0277-code-is-recognised-by-a-name-ending-the-profile-lists-or-by-a-documentation-generators-mark-and-stage-1-takes-it-out-of-the-survivors.md) §1, §3 and §8. Code is also a set's build file and a file of a generated tree (§4, §5), a build file is told by its name alone, whatever its bytes, where it marks a set's folder (§1), and stage 1 writes `code` in a second pass too (§6). ADR-277's two rules, its marks, its verdict and its order in the first pass stand.

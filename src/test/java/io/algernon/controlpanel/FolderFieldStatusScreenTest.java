@@ -574,8 +574,8 @@ class FolderFieldStatusScreenTest {
 
             Page afterTheLaunchPagesSave = browser.press("seed-folder", "save",
                     Map.of("seedFolder", seeds, "provenance", "a reason")).page();
-            Page afterTheProfilePagesSave = browser.go("/profile").press("seedFolder", "save",
-                    Map.of("value", seeds, "provenance", "a reason")).page();
+            Page afterTheProfilePagesSave = browser.go("/profile").press("profile", "save",
+                    Map.of("seedFolder", seeds, "seedFolder.provenance", "a reason")).page();
 
             claim("each save lands back on its page, with its one line",
                     () -> assertThat(List.of(afterTheLaunchPagesSave, afterTheProfilePagesSave))
