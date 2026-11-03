@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.confluence.ConfluencePlugin;
 import io.algernon.vespera.confluence.Publisher;
 import io.algernon.vespera.deliverable.DeliverableRoot;
 import io.algernon.vespera.deliverable.Plugin;
@@ -552,8 +553,10 @@ public class VesperaCommand implements Callable<Integer> {
             + " operator's Confluence Cloud site, as the VESPERA_CONFLUENCE_* variables name it.")
     public static class Publish implements Callable<Integer> {
 
+        private static final String DESTINATION = "confluence";
+
         private final Ledger ledger;
-        private final Publisher publisher;
+        private final Plugin plugin;
         private final Path workingDirectoryInUse;
         private final DeliverableRoot deliverableRoot;
 
@@ -561,15 +564,28 @@ public class VesperaCommand implements Callable<Integer> {
         @Mixin
         private WorkingDirectoryOption databaseDirectory = new WorkingDirectoryOption();
 
+        /**
+         * The plugins in the jar, of which a bare publish takes the one named {@value #DESTINATION}, the only
+         * destination before {@code --to} (ADR-333 §6, §13).
+         */
+        @Autowired
         Publish(
                 Ledger ledger,
-                Publisher publisher,
+                List<Plugin> plugins,
                 @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse,
                 @Value("${" + Run.DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot) {
             this.ledger = ledger;
-            this.publisher = publisher;
+            this.plugin = plugins.stream()
+                    .filter(candidate -> DESTINATION.equals(candidate.name()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("no plugin named " + DESTINATION));
             this.workingDirectoryInUse = workingDirectoryInUse;
             this.deliverableRoot = DeliverableRoot.of(deliverableRoot);
+        }
+
+        /** Publishes to Confluence through the given publisher, as a bare publish does (ADR-333 §13 step 1). */
+        Publish(Ledger ledger, Publisher publisher, Path workingDirectoryInUse, String deliverableRoot) {
+            this(ledger, List.<Plugin>of(new ConfluencePlugin(publisher)), workingDirectoryInUse, deliverableRoot);
         }
 
         /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
@@ -592,13 +608,13 @@ public class VesperaCommand implements Callable<Integer> {
             }
             Path confluence = renderingOf(generation.get());
             if (!drawingFinished(confluence)) {
-                System.err.println("vespera publish sent nothing to " + Publisher.RENDERING_FOLDER + ": the last drawing"
+                System.err.println("vespera publish sent nothing to " + plugin.name() + ": the last drawing"
                         + " of its rendering did not finish. Run vespera run to draw it again, and publish again.");
                 return CommandLine.ExitCode.SOFTWARE;
             }
-            Publisher.Outcome outcome =
-                    publisher.publish(confluence, generation.get(), workingDirectoryInUse, System.out::println);
-            if (!outcome.published()) {
+            Plugin.Delivery outcome =
+                    plugin.deliver(confluence, generation.get(), workingDirectoryInUse, System.out::println);
+            if (!outcome.delivered()) {
                 System.err.println(outcome.closingLine());
                 return CommandLine.ExitCode.SOFTWARE;
             }
@@ -618,7 +634,7 @@ public class VesperaCommand implements Callable<Integer> {
                 Path rendering = renderingOf(listed.id());
                 if (StageModules.GENERATION.stage().equals(listed.stage())
                         && finished.getOrDefault(listed.id(), Set.of()).contains(StepNames.GENERATION)
-                        && (Files.isRegularFile(rendering.resolve(Publisher.PAGE_LIST_FILE_NAME))
+                        && (Files.isRegularFile(rendering.resolve(plugin.listName()))
                                 || Files.isRegularFile(rendering.resolve(Plugin.DRAWING_STATE_FILE_NAME)))) {
                     return Optional.of(listed.id());
                 }
@@ -644,7 +660,7 @@ public class VesperaCommand implements Callable<Integer> {
         }
 
         private Path renderingOf(String generationRun) {
-            return deliverableRoot.treeOf(workingDirectoryInUse, generationRun).resolve(Publisher.RENDERING_FOLDER);
+            return deliverableRoot.treeOf(workingDirectoryInUse, generationRun).resolve(plugin.name());
         }
     }
 }
