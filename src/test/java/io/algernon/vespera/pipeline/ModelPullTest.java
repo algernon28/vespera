@@ -60,7 +60,11 @@ class ModelPullTest {
      */
     private static final String THE_JDK_ON_A_BODY_CUT_OFF = "EOF reached while reading";
 
-    /** What the JDK's HTTP client says when nothing listens at the address, as the innermost cause's message. */
+    /**
+     * How the JDK's HTTP client begins the innermost cause's message when nothing listens at the address: the whole of
+     * it on Linux, while on Windows the client goes on with ": getsockopt". So a claim pins this beginning and leaves
+     * the rest to the system the test runs on.
+     */
     private static final String THE_JDK_ON_A_REFUSED_CONNECTION = "Connection refused";
 
     private static final String STAGE = "Stage 5c (embedding scoring)";
@@ -565,10 +569,16 @@ class ModelPullTest {
         Optional<String> refusal = toNowhere.refusalOf(STAGE, MODEL);
 
         String whatHappened = THE_JDK_ON_A_REFUSED_CONNECTION;
+        String quoted = stoppedAnswering(whatHappened);
+        String beforeTheQuote = quoted.substring(0, quoted.indexOf(whatHappened) + whatHappened.length());
+        String afterTheQuote = quoted.substring(quoted.indexOf(whatHappened) + whatHappened.length());
         claim(
                 "the reason quotes the innermost cause of the transport's failure, its message or else its class's"
-                        + " simple name, which the JDK's HTTP client gives as " + whatHappened,
-                () -> assertThat(refusal).contains(stoppedAnswering(whatHappened)));
+                        + " simple name, which the JDK's HTTP client begins with " + whatHappened + " on every system,"
+                        + " and the sentence around it is the one every stopped pull is given",
+                () -> assertThat(refusal).hasValueSatisfying(reason -> assertThat(reason)
+                        .startsWith(beforeTheQuote)
+                        .endsWith(afterTheQuote)));
         claim(
                 "and never what a wrapper or an absent message says",
                 () -> assertThat(refusal).hasValueSatisfying(reason -> assertThat(reason)
