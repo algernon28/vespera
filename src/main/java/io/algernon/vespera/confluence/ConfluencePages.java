@@ -55,10 +55,10 @@ import tools.jackson.databind.json.JsonMapper;
 final class ConfluencePages implements Drawing {
 
     /** Where the rendering lies, at the tree's root (ADR-312 §1). */
-    static final String DIRECTORY_NAME = "confluence";
+    static final String DIRECTORY_NAME = Publisher.RENDERING_FOLDER;
 
     /** The page list, directly in {@code confluence/} (ADR-316 §1). */
-    static final String PAGE_LIST_FILE_NAME = "pages.json";
+    static final String PAGE_LIST_FILE_NAME = Publisher.PAGE_LIST_FILE_NAME;
 
     /** A page's storage body, or a split cluster's first page's. */
     static final String BODY_NAME = "page.xml";

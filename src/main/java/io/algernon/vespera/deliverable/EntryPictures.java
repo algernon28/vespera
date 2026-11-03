@@ -154,7 +154,7 @@ public final class EntryPictures {
 
     /**
      * As {@link #writeUnder(OutputStream, ListedSurvivor, Optional)}, and the same entry's pictures handed to {@code
-     * also}, the Confluence rendering's (ADR-314 §1): the same pictures from the same bytes, in the same order, with the
+     * also}, every plugin's (ADR-314 §1): the same pictures from the same bytes, in the same order, with the
      * same count of those not shown, from the one answer the source gives here, so no document is asked a third time.
      */
     void writeUnder(OutputStream page, ListedSurvivor member, Optional<Path> copy, Entries also)

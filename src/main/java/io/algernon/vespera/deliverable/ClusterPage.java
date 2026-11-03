@@ -95,7 +95,7 @@ public final class ClusterPage {
      * <p>Tells {@code progress} of each membership entry that carries a document, and of nothing else:
      * the cluster page itself is reported by the caller.
      *
-     * <p>Each entry is also written to {@code confluence}, the Confluence rendering's entries, from the same answer of
+     * <p>Each entry is also written to {@code plugins}, every plugin's entries, from the same answer of
      * {@code pictures} (ADR-314 §1).
      *
      * @param doc the writing, or {@code null} where nothing was written over the cluster
@@ -116,12 +116,12 @@ public final class ClusterPage {
             EntryPictures pictures,
             DeliverableProgress progress,
             LongConsumer entryEnds,
-            Entries confluence,
+            Entries plugins,
             boolean writingFinished,
             DeliverableLanguage language)
             throws IOException {
         emit(out, recorded, doc, why, numbered(doc, members), null, 1, folder, copies, pictures, progress, entryEnds,
-                confluence, writingFinished, language);
+                plugins, writingFinished, language);
     }
 
     /**
@@ -166,7 +166,7 @@ public final class ClusterPage {
             EntryPictures pictures,
             DeliverableProgress progress,
             LongConsumer entryEnds,
-            Entries confluence,
+            Entries plugins,
             boolean writingFinished,
             DeliverableLanguage language)
             throws IOException {
@@ -192,7 +192,7 @@ public final class ClusterPage {
             stream.write(text.toString().getBytes(StandardCharsets.UTF_8));
             text.setLength(0);
             writeMembership(
-                    stream, handedOn, numbered, first, after, folder, copies, pictures, progress, entryEnds, confluence,
+                    stream, handedOn, numbered, first, after, folder, copies, pictures, progress, entryEnds, plugins,
                     language);
             text.append(LIST_CLOSING);
         }
@@ -510,11 +510,11 @@ public final class ClusterPage {
             EntryPictures pictures,
             DeliverableProgress progress,
             LongConsumer entryEnds,
-            Entries confluence,
+            Entries plugins,
             DeliverableLanguage language)
             throws IOException {
         for (int at = first; at < after; at++) {
-            confluence.start(at + 1, entries.get(at));
+            plugins.start(at + 1, entries.get(at));
             StringBuilder page = new StringBuilder();
             page.append("<li id=\"").append(ANCHOR_PREFIX).append(at + 1).append("\">\n");
             if (entries.get(at).isEmpty()) {
@@ -523,7 +523,7 @@ public final class ClusterPage {
                         .append("</em>\n</li>\n");
                 stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
                 endEntry(stream, handedOn, entryEnds);
-                confluence.end();
+                plugins.end();
                 continue;
             }
             ListedSurvivor member = entries.get(at).get();
@@ -541,10 +541,10 @@ public final class ClusterPage {
                 page.append(path).append(" <em>").append(Html.escape(outcome.sentence(language))).append("</em>\n");
             }
             stream.write(page.toString().getBytes(StandardCharsets.UTF_8));
-            pictures.writeUnder(stream, member, copy, confluence);
+            pictures.writeUnder(stream, member, copy, plugins);
             stream.write("</li>\n".getBytes(StandardCharsets.UTF_8));
             endEntry(stream, handedOn, entryEnds);
-            confluence.end();
+            plugins.end();
             progress.membershipEntryWritten();
         }
     }
