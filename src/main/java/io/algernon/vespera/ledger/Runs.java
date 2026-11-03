@@ -52,6 +52,18 @@ public class Runs {
     }
 
     /**
+     * The configuration text a run was minted under, as recorded, for a caller that needs one member of what the run
+     * consumed. {@code ledger} gives the text back and reads nothing out of it: what its members mean belongs to
+     * {@code pipeline} (ADR-040).
+     */
+    public Optional<String> configConsumedOf(RunId runId) {
+        return jdbcTemplate
+                .queryForList("SELECT config_consumed FROM run WHERE id = ?", String.class, runId.value())
+                .stream()
+                .findFirst();
+    }
+
+    /**
      * Mints the identity a stage's run is recorded under, and records what it was derived from
      * (ADR-048) — or carries on under the row already standing for that identity (ADR-115).
      *

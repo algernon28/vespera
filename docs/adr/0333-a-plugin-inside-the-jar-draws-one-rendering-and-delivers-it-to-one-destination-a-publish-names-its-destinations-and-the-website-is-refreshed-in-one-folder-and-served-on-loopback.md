@@ -1,4 +1,4 @@
-# ADR-332 — A plugin inside the jar draws one rendering and delivers it to one destination, a publish names its destinations, and the website is refreshed in one folder and served on loopback
+# ADR-333 — A plugin inside the jar draws one rendering and delivers it to one destination, a publish names its destinations, and the website is refreshed in one folder and served on loopback
 
 - **Date**: 2026-11-02
 - **Status**: accepted on 2026-11-02.

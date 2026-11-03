@@ -40,6 +40,13 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-081", url = Adr.MINHASH_RETRIEVES_SHINGLE_SETS_JUDGE, type = "adr")
 class RedundancySignaturesTest {
 
+    /** The window the application ships: five words (vespera.redundancy.shingle-words). */
+    private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
+
+    /** The signature the application ships: 128 permutations in 16 bands of 8 rows, and its seed. */
+    private static final MinHashParameters THE_SHIPPED_MINHASH =
+            new MinHashParameters(128, 16, 8, 0x5EED_C0FF_EE12_3456L);
+
     /** One row per band: 16 bands of 8 rows over 128 permutations (ADR-081). */
     private static final int EXPECTED_BAND_ROWS = 16;
 
@@ -139,7 +146,7 @@ class RedundancySignaturesTest {
                                 + " VALUES (?, ?, ?, ?)",
                         occurrenceId.value(),
                         stage2RunId.value(),
-                        ShingleParameters.DEFAULT.identity(),
+                        FIVE_WORD_SHINGLES.identity(),
                         hash);
             }
             return occurrenceId;
@@ -147,7 +154,7 @@ class RedundancySignaturesTest {
 
         boolean sign(OccurrenceId occurrenceId, Set<Long> boilerplateHashes) {
             return new RedundancySignatures(jdbcTemplate)
-                    .write(occurrenceId, stage4RunId, stage2RunId, boilerplateHashes, FLOOR);
+                    .write(occurrenceId, stage4RunId, stage2RunId, boilerplateHashes, FLOOR, FIVE_WORD_SHINGLES, THE_SHIPPED_MINHASH);
         }
     }
 }

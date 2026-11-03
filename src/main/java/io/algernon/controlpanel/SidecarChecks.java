@@ -44,16 +44,21 @@ final class SidecarChecks {
     }
 
     /**
-     * One check: its result, the warning it gives where it gives one, and the models Ollama reported, in its order,
-     * which the pages offer (ADR-331 §7); none for a check that is not Ollama's or that got no answer.
+     * One check: its result, the warning it gives where it gives one, the models Ollama reported, in its order, which
+     * the pages offer (ADR-331 §7), and the image Docling said it runs (ADR-330 §11); none for a check that is not the
+     * one asking or that got no answer.
      */
-    record Check(Result result, List<String> warnings, List<String> models) {
+    record Check(Result result, List<String> warnings, List<String> models, String running) {
+        Check(Result result, List<String> warnings, List<String> models) {
+            this(result, warnings, models, "");
+        }
+
         Check(Result result, List<String> warnings) {
-            this(result, warnings, List.of());
+            this(result, warnings, List.of(), "");
         }
 
         Check(Result result) {
-            this(result, List.of(), List.of());
+            this(result, List.of(), List.of(), "");
         }
     }
 
@@ -76,24 +81,32 @@ final class SidecarChecks {
         return new Checks(docling.join(), ollama.join());
     }
 
+    /**
+     * Docling's image, asked of {@code /version} wherever an address is known (ADR-330 §11) and compared with
+     * {@code imageNamed}; with no image to compare it with the answer is shown and the check stays {@code not-checked}.
+     */
     static Check docling(String baseUrl, String imageNamed) {
-        if (baseUrl.isBlank() || imageNamed.isBlank()) {
+        if (baseUrl.isBlank()) {
             return new Check(Result.NOT_CHECKED);
         }
         Object answer;
         try {
             answer = get(baseUrl, "/version");
         } catch (IOException | RuntimeException notAnswering) {
-            return new Check(Result.NOT_ANSWERING);
+            return new Check(imageNamed.isBlank() ? Result.NOT_CHECKED : Result.NOT_ANSWERING);
         }
         Object image = answer instanceof Map<?, ?> members ? members.get("vespera-image") : null;
-        if (image instanceof String run && run.equals(imageNamed)) {
-            return new Check(Result.MATCHES);
+        String running = image instanceof String run ? run : "";
+        if (imageNamed.isBlank()) {
+            return new Check(Result.NOT_CHECKED, List.of(), List.of(), running);
         }
-        String ran = image instanceof String run ? run : "no image";
+        if (running.equals(imageNamed)) {
+            return new Check(Result.MATCHES, List.of(), List.of(), running);
+        }
+        String ran = running.isEmpty() ? "no image" : running;
         return new Check(Result.ANOTHER_IMAGE, List.of("the Docling sidecar at " + baseUrl + " runs " + ran
                 + ", where " + imageNamed + " is named, and the jar stops before it converts anything under another"
-                + " image"));
+                + " image"), List.of(), running);
     }
 
     static Check ollama(String baseUrl, List<String> modelsNamed) {

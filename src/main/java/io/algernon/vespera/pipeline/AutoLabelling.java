@@ -164,8 +164,19 @@ class AutoLabelling {
         RunId extractionRun = extractionRunUpstreamOf(run);
         WalkId walk = ledger.runs().walkOf(run)
                 .orElseThrow(() -> new IllegalStateException("run " + run.value() + " has no walk recorded"));
-        DocumentOpening documentOpening = new DocumentOpening(
-                extractor, extractorIdentity.getObject(), hybridChunker, cacheKeys);
+        // The identity this invocation composes must be the one the run was converted under, or the conversions the
+        // run read are out of reach: a question would go to the model blank, or over text the run did not score
+        // (ADR-332 section 1).
+        ExtractorIdentity composedNow = extractorIdentity.getObject();
+        String convertedUnder = extractorIdentityOf(extractionRun);
+        if (!composedNow.value().equals(convertedUnder)) {
+            return Outcome.refused("the label file's run was converted under the"
+                    + " extractor identity " + convertedUnder + ", and this invocation composes " + composedNow.value()
+                    + ", so none of the run's openings can be read under it. Nothing was asked. Name what the run was"
+                    + " converted under,"
+                    + " or run vespera under this one.");
+        }
+        DocumentOpening documentOpening = new DocumentOpening(extractor, composedNow, hybridChunker, cacheKeys);
         int questions = 0;
         int relevant = 0;
         int notRelevant = 0;
@@ -266,6 +277,14 @@ class AutoLabelling {
         }
         throw new IllegalStateException("run " + scoring.value()
                 + " has no stage-2 run upstream of it, so no extraction cache key can be read for its documents");
+    }
+
+    /** The extractor identity stage 2's run was minted under: the first member of its configuration text. */
+    private String extractorIdentityOf(RunId extractionRun) {
+        String config = ledger.runs()
+                .configConsumedOf(extractionRun)
+                .orElseThrow(() -> new IllegalStateException("run " + extractionRun.value() + " is not recorded"));
+        return YAML.readTree(config).path("extractorIdentity").asString();
     }
 
     /** The label file with every recorded answer in it and who set each one, so a person can read and correct. */

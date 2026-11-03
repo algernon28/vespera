@@ -32,7 +32,8 @@ final class NextPages {
             Map.entry("configurationSettingShareFloor", List.of("format-mix.html")),
             Map.entry("preferredLanguages", List.of("translations.html")),
             Map.entry("translationSimilarityFloor", List.of("translations.html")),
-            Map.entry("clusterPageByteCeiling", List.of("cluster-page-sizes.html")));
+            Map.entry("clusterPageByteCeiling", List.of("cluster-page-sizes.html")),
+            Map.entry("clusterResolution", List.of("cluster-sizes.html")));
 
     /** {@code report-<key>}, the links to the reports §8's table names for the key; empty where it names none. */
     static String reportsOf(String key) {
@@ -122,10 +123,11 @@ final class NextPages {
         for (ProfileKey key : keys) {
             String name = key.key();
             ProfileEdit.Stated stated = profile.get(key);
-            String filled = key == ProfileKey.SEED_FOLDER ? state.values().lastSeedFolder()
+            String fileValue = stated == null || stated.value() == null ? "" : stated.value();
+            String fileProvenance = stated == null || stated.provenance() == null ? "" : stated.provenance();
+            String filled = key == ProfileKey.SEED_FOLDER ? (fileValue.isEmpty() ? state.values().lastSeedFolder() : fileValue)
                     : key == ProfileKey.ARRANGEMENT_APPROVED ? next.arrangement().orElse("")
-                    : key == ProfileKey.DELIVERABLE_LANGUAGE && stated != null && stated.value() != null
-                            ? stated.value() : "";
+                    : fileValue;
             String value = held.getOrDefault(name, filled);
             boolean seedFolder = key == ProfileKey.SEED_FOLDER;
             String forName = FolderPages.Target.NEXT_SEED_FOLDER.forName();
@@ -134,9 +136,9 @@ final class NextPages {
                     seedFolder ? forName : "",
                     seedFolder ? FolderPages.statusElement(forName, FolderPages.statusOf(value, false)) : ""));
             form.append(ControlPanelPage.provenance(name + ".provenance", "f-" + name + ".provenance",
-                    name + ": why this value?", held.getOrDefault(name + ".provenance", ""),
+                    name + ": why this value?", held.getOrDefault(name + ".provenance", fileProvenance),
                     "hint-" + name + "-provenance"));
-            form.append(ControlPanelPage.text("p", "cost-" + name, ControlPanelPage.cost(key))).append('\n');
+            form.append(ControlPanelPage.costElement(key)).append('\n');
             form.append(reportsOf(name));
             form.append("</fieldset>\n");
         }
@@ -163,11 +165,16 @@ final class NextPages {
             return;
         }
         List<String> saved = new ArrayList<>();
+        Map<ProfileKey, ProfileEdit.Stated> inFile = ValuePages.profileOf(state);
         for (ProfileKey key : keys) {
             String value = fields.getOrDefault(key.key(), "");
             String provenance = fields.getOrDefault(key.key() + ".provenance", "");
-            Optional<String> refusal = state.write(folder.get(), ProfileEdit.FILE_NAME,
-                    current -> ProfileEdit.rewrite(current, key, value, provenance));
+            Optional<String> refusal = ProfileEdit.refusalOfSave(key, value, provenance,
+                    Optional.ofNullable(inFile.get(key)), Optional.empty());
+            if (refusal.isEmpty()) {
+                refusal = state.write(folder.get(), ProfileEdit.FILE_NAME,
+                        current -> ProfileEdit.rewrite(current, key, value, provenance));
+            }
             if (refusal.isPresent()) {
                 state.say("/next", refusal.get());
                 Exchanges.redirect(exchange, "/next");

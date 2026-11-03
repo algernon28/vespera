@@ -79,7 +79,8 @@ final class RelevanceLabellingReport {
         }
 
         body.append(ReportPage.heading(2, "How the scores are spread"))
-                .append(ReportPage.paragraph("The range above is divided into five equal bands. They"
+                .append(ReportPage.paragraph("The range above is divided into " + distribution.bands().size()
+                        + " equal bands. They"
                         + " are cut between the lowest and highest score anything actually got, not"
                         + " across every score that was possible, because scores over one archive"
                         + " usually sit in a narrow part of the range and bands cut over the whole of"
@@ -101,7 +102,8 @@ final class RelevanceLabellingReport {
                 .append(ReportPage.paragraph("A band holding fewer documents than were asked for"
                         + " supplies what it has, and the difference is shown above rather than made"
                         + " up from a neighbouring band. A proportion read off four answers is not the"
-                        + " same evidence as one read off twelve, and topping it up from documents"
+                        + " same evidence as one read off " + eachBandWasAskedFor(distribution)
+                        + ", and topping it up from documents"
                         + " that scored differently would hide that."))
                 .append(ReportPage.heading(2, "If the bands look alike"))
                 .append(ReportPage.paragraph("A spread where every band holds much the same documents,"
@@ -145,6 +147,18 @@ final class RelevanceLabellingReport {
         return ReportPage.render("Choosing the relevance cut", body.toString());
     }
 
+    /**
+     * The number of documents each band was asked for, which the sample's preset {@code
+     * vespera.relevance.sample.per-band} gave and the scoring run was minted under (ADR-330 section 9): what a band
+     * supplied and what it fell short by, which is the same in every band.
+     */
+    private static int eachBandWasAskedFor(RelevanceDistribution.Distribution distribution) {
+        return distribution.bands().stream()
+                .findFirst()
+                .map(band -> band.sampledCount() + band.shortfall())
+                .orElse(0);
+    }
+
     /** Scores are shown to two places: more digits than that is precision a reader cannot use. */
     private static String format(double score) {
         return String.format(java.util.Locale.ROOT, "%.2f", score);
@@ -155,7 +169,7 @@ final class RelevanceLabellingReport {
      * ADR-088 asks the engine for, stated in documents rather than in statistics vocabulary.
      *
      * <p>Nothing here recommends a cut. The proportions are written as one number out of another
-     * rather than as a percentage, because twelve answers in a band is a thin measurement and "9 in
+     * rather than as a percentage, because a dozen answers in a band is a thin measurement and "9 in
      * 12" says so where "75%" does not.
      */
     private static String answersSoFar(LabelledSpread.Spread spread) {

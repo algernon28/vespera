@@ -37,6 +37,9 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-147", url = Adr.THE_DOCLING_SIDECAR_IS_A_DERIVED_IMAGE, type = "adr")
 class ExtractorIdentityCompositionTest {
 
+    /** The OCR preset the application ships (vespera.docling.ocr-preset). */
+    private static final String OCR_PRESET = "rapidocr";
+
     /** The versions both images reported on 2026-09-24, word for word. */
     private static final Map<String, String> THE_SAME_VERSIONS = Map.of(
             "docling-serve", "1.32.0",
@@ -71,7 +74,7 @@ class ExtractorIdentityCompositionTest {
                 "while the versions and the options the client sends are still in it, as ADR-090 put them",
                 () -> assertThat(withLibreOffice.value())
                         .contains("docling=2.124.0")
-                        .contains(DoclingClient.sentOptions()));
+                        .contains(reporting(Map.of()).sentOptions()));
     }
 
     @Test
@@ -148,7 +151,7 @@ class ExtractorIdentityCompositionTest {
     }
 
     private static DoclingClient reporting(Map<String, String> versions) {
-        return new DoclingClient("http://unused") {
+        return new DoclingClient("http://unused", OCR_PRESET) {
             @Override
             public Map<String, String> version() {
                 return versions;

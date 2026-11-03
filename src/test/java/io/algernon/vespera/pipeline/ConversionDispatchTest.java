@@ -336,6 +336,7 @@ class ConversionDispatchTest {
                 null,
                 null,
                 null,
+                PresetsFixture.shipped(),
                 root,
                 InvocationRecordFixture.recordOf(step));
         stageRuns.extraction();

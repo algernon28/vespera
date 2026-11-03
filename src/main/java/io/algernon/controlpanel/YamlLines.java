@@ -17,8 +17,20 @@ final class YamlLines {
     /** The text is not in a form the control panel reads; the caller says which file, in the line §2 gives. */
     static final class NotInFormException extends RuntimeException {
 
+        private final int line;
+
         NotInFormException() {
+            this(0);
+        }
+
+        /** @param line the first line of the text, from 1, that is not in the form; 0 where the reader does not say */
+        NotInFormException(int line) {
             super(null, null, false, false);
+            this.line = line;
+        }
+
+        int line() {
+            return line;
         }
     }
 

@@ -62,6 +62,8 @@ public final class ProfileFixture {
 
     private TextValue deliverableLanguage = TextValue.unset();
 
+    private NumericValue clusterResolution = NumericValue.unset();
+
     private ProfileFixture() {
     }
 
@@ -255,6 +257,12 @@ public final class ProfileFixture {
         return this;
     }
 
+    /** How finely the documents under a seed divide into clusters (ADR-330 §9), a number above 0. */
+    public ProfileFixture clusterResolution(String value, String provenance) {
+        this.clusterResolution = aNumber(value, provenance);
+        return this;
+    }
+
     /** The profile itself, through the one constructor {@link Profile} has. */
     public Profile build() {
         return new Profile(
@@ -275,6 +283,7 @@ public final class ProfileFixture {
                 translationSimilarityFloor,
                 preferredLanguages,
                 configurationSettingShareFloor,
-                deliverableLanguage);
+                deliverableLanguage,
+                clusterResolution);
     }
 }

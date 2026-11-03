@@ -71,7 +71,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-075", url = Adr.STAGE_3_WRITES_A_CONFIDENCE_DISTRIBUTION_REPORT, type = "adr")
 class StageThreeWritesTheDocumentFrequencyPageTest {
 
-    /** The granularity stage 2 files its shingles under: {@code ShingleParameters.DEFAULT}'s identity. */
+    /** The granularity stage 2 files its shingles under: the identity of the five-word window the application ships. */
     private static final String FIVE_WORDS = "word:5";
 
     /**
@@ -264,6 +264,7 @@ class StageThreeWritesTheDocumentFrequencyPageTest {
                 null,
                 null,
                 null,
+                PresetsFixture.shipped(),
                 root,
                 invocations.get(root));
     }

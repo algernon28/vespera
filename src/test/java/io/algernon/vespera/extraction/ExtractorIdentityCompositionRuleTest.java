@@ -32,6 +32,9 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-147", url = Adr.THE_DOCLING_SIDECAR_IS_A_DERIVED_IMAGE, type = "adr")
 class ExtractorIdentityCompositionRuleTest {
 
+    /** What the client says it sends, as its own test has it: the identity carries it as given (ADR-090, ADR-330 §9). */
+    private static final String SENT_OPTIONS = "to_formats=json;ocr_preset=rapidocr;naming=1";
+
     private static final String IMAGE = "vespera/docling-serve-cpu-libreoffice:v1.32.0-r2";
 
     @Test
@@ -43,14 +46,14 @@ class ExtractorIdentityCompositionRuleTest {
         reported.put("docling-serve", "1.32.0");
         reported.put("docling", "2.124.0");
 
-        ExtractorIdentity identity = ExtractorIdentity.composedOf(IMAGE, reported);
+        ExtractorIdentity identity = ExtractorIdentity.composedOf(IMAGE, reported, SENT_OPTIONS);
 
         claim(
                 "it reads docling-serve, then the image, then each reported component as name=version in the"
                         + " order of their names, then the options this client sends, all joined by semicolons",
                 () -> assertThat(identity.value())
                         .isEqualTo("docling-serve;image=" + IMAGE + ";docling=2.124.0;docling-serve=1.32.0;vespera-image="
-                                + IMAGE + ";" + DoclingClient.sentOptions()));
+                                + IMAGE + ";" + SENT_OPTIONS));
     }
 
     @Test
@@ -70,7 +73,7 @@ class ExtractorIdentityCompositionRuleTest {
                 "two runs against one unchanged sidecar key the same cached conversions, however its answer"
                         + " happened to list them -- an identity that reshuffled would convert the corpus again"
                         + " for nothing",
-                () -> assertThat(ExtractorIdentity.composedOf(IMAGE, oneOrder))
-                        .isEqualTo(ExtractorIdentity.composedOf(IMAGE, theReverse)));
+                () -> assertThat(ExtractorIdentity.composedOf(IMAGE, oneOrder, SENT_OPTIONS))
+                        .isEqualTo(ExtractorIdentity.composedOf(IMAGE, theReverse, SENT_OPTIONS)));
     }
 }

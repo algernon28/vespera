@@ -52,6 +52,9 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-085", url = Adr.VECTORS_LIVE_IN_SQLITE, type = "adr")
 class RelevanceScoringMemoryCeilingTest {
 
+    /** The number of similarities the application ships (vespera.relevance.top-similarities). */
+    private static final int TOP_SIMILARITIES = 3;
+
     private static final int CORPUS_DOCUMENT_COUNT = 20_000;
     private static final int SEED_DOCUMENT_COUNT = 4;
     private static final int CHUNKS_PER_SEED_DOCUMENT = 10;
@@ -95,7 +98,7 @@ class RelevanceScoringMemoryCeilingTest {
                     CHUNKER_IDENTITY,
                     CHUNKING_RULE_IDENTITY,
                     "model=" + MODEL + EMBEDDER_IDENTITY_SUFFIX,
-                    residentSeedVectors);
+                    residentSeedVectors, TOP_SIMILARITIES);
         }
 
         claim(

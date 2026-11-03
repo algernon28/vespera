@@ -57,6 +57,69 @@ vespera:
     # base's own, docling-parse 7.17.0, because that changes conversions too (ADR-163), and the revision
     # of Vespera's own layers, -r2. Keep in step with compose.yaml and TestcontainersConfiguration.
     image: vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2
+    # The OCR preset every conversion names, never docling-serve's `auto`, which resolves to whichever engine's models
+    # are cached on the machine and is reported in no response (ADR-090, ADR-330). It decides which engine reads the
+    # pictures of a document, and it is the preset in the extractor identity (ocr_preset=...): another one is another
+    # extractor, so it enters the extraction run and every run after it, and every conversion is asked of the sidecar
+    # again. A name of letters, digits, '-', '_' and '.', and never auto; `vespera run` refuses anything else.
+    ocr-preset: rapidocr
+    # How many timeouts in a row make the converter, and not the document, the fault: below it a timeout is the
+    # document's own verdict (extraction-failed), at it the occurrence is set aside and the step stops on the next
+    # (ADR-071, ADR-330). Held to 2 to 4, so that one slow document can still earn its verdict and the count stays
+    # below the five failures in a row that stop the step. It enters the extraction run where it is not 3.
+    timeouts-in-a-row: 3
+  clustering:
+    # How finely the documents under each exemplar divide into groups (ADR-087, ADR-330): the modularity resolution
+    # of the communities, a finite number above 0, higher finding smaller groups. The profile's clusterResolution
+    # overrides it for one corpus. It enters the embedding-scoring run, which the clusters are keyed by, where it is
+    # not 1.0, and `cluster-sizes.html` shows what it did.
+    resolution: 1.0
+    # How many nearest neighbours each document keeps in the graph the groups are found in (ADR-087's k, ADR-330), a
+    # whole number from 1. An operational number and no judgement about a corpus, so it has no profile key. It enters
+    # the embedding-scoring run where it is not 15.
+    neighbours: 15
+  redundancy:
+    # How many words one shingle spans (ADR-073, ADR-330), a whole number from 1. It decides what a passage shared by
+    # two documents is, for stage 3's document frequency and stage 4's signatures and pairs. It enters the extraction
+    # run, as word:<n>, where it is not 5, and every stage after it reads the shingles of that run.
+    shingle-words: 5
+    minhash:
+      # How many minima make one MinHash signature (ADR-081, ADR-330), a whole number from 1; the bands times their rows
+      # must be this number. Together with bands, rows-per-band and seed it enters the content-redundancy run, as the
+      # signature's identity, where it is not the shipped one.
+      permutations: 128
+      # How many bands a signature is split into to retrieve near-duplicate candidates (ADR-081), a whole number from 1.
+      bands: 16
+      # How many minima each band covers (ADR-081), a whole number from 1.
+      rows-per-band: 8
+      # What every permutation is derived from (ADR-081): any whole number a Java long holds, negative ones included.
+      # Only its stability across runs matters. 6840335614489015382 is 0x5EED_C0FF_EE12_3456 in decimal.
+      seed: 6840335614489015382
+    # The Jaccard similarity at or above which two documents are near-duplicates (ADR-079, ADR-081, ADR-330), above 0
+    # and at most 1. It enters the content-redundancy run, as part of its cuts, where any of the four cuts is not the
+    # shipped one, so that a run says which cuts judged it.
+    near-duplicate-jaccard: 0.80
+    # The containment index at or above which a smaller document counts as contained in a larger one (ADR-079,
+    # ADR-081, ADR-330), above 0 and at most 1. It enters the content-redundancy run with the cuts.
+    containment-index: 0.95
+    # How many of a document's rarest shingles seed the search for a document that contains it (ADR-081, ADR-330), a
+    # whole number from 1. It enters the content-redundancy run with the cuts.
+    rare-shingle-sample: 32
+    # How many of those rare shingles a document must hold to be a candidate container (ADR-081, ADR-330), a whole
+    # number from 1 to the sample. It enters the content-redundancy run with the cuts.
+    rare-shingle-hits: 24
+  relevance:
+    # How many of the highest chunk similarities a relevance score is the mean of (ADR-020, ADR-330), a whole number
+    # from 1. It defines the score, so another number is another scale: it enters the embedding-scoring run where it
+    # is not 3, and joins the scale a floor and an answer are compared on as `;top:<n>` after the embedder identity.
+    top-similarities: 3
+    sample:
+      # Into how many equal bands the relevance report divides the scores (ADR-088, ADR-330), a whole number from 1.
+      # It enters the embedding-scoring run where it is not 5, which draws its sample from its own id.
+      bands: 5
+      # How many documents the relevance report asks about from each band (ADR-088, ADR-330), a whole number from 1:
+      # five bands of twelve are the sixty of one sitting. It enters the embedding-scoring run where it is not 12.
+      per-band: 12
 
 spring:
   application:

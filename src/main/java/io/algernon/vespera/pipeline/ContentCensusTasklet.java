@@ -13,6 +13,7 @@ import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.similarity.DocumentFrequency;
 import io.algernon.vespera.similarity.FrequencyProgress;
+import io.algernon.vespera.similarity.ShingleParameters;
 import io.algernon.vespera.similarity.SimilarityStatement;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -174,7 +175,9 @@ class ContentCensusTasklet implements Tasklet {
                     // The read walks the run's rows of shingle_document_frequency, so it states its seconds (ADR-193).
                     log.info("Stage 3 (content census) is reading the shares of the documents");
                     long readStarted = System.nanoTime();
-                    DocumentFrequency.Shares shares = documentFrequency.shares(runId);
+                    // The window stage 2's run was minted under, which names the shingle rows read (ADR-330 section 9).
+                    ShingleParameters window = stageRuns.shingleWindow();
+                    DocumentFrequency.Shares shares = documentFrequency.shares(runId, window);
                     log.info(
                             "Stage 3 (content census) read the shares of the documents in {} s",
                             String.format(Locale.ROOT, "%.1f", (System.nanoTime() - readStarted) / NANOS_PER_SECOND));

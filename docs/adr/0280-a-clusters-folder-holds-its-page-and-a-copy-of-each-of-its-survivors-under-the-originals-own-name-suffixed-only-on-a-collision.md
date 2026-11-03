@@ -4,7 +4,7 @@
 
 > **Partly amended — see [ADR-312](0312-the-confluence-rendering-lies-under-confluence-at-the-trees-root-drawn-by-every-drawing-and-what-an-earlier-drawing-left-in-it-is-counted-and-kept.md).** §4's listing of what an earlier drawing left looks inside `confluence/`, as it looks inside `code/`. The rest of this record stands.
 
-> **Partly amended — see [ADR-332](0332-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** §4's listing of what an earlier drawing left looks inside `website/` as it looks inside `confluence/`. The rest of this record stands.
+> **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** §4's listing of what an earlier drawing left looks inside `website/` as it looks inside `confluence/`. The rest of this record stands.
 
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.

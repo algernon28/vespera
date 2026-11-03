@@ -108,20 +108,31 @@ public class RedundancyResolution {
      * shingle rows and {@code stage3RunId}'s document-frequency measurement, both stripped by {@code
      * boilerplateHashes}, and writes one verdict plus one {@code redundant_with} row per occurrence that
      * loses to another. {@code alphanumericCounts} is how the survivor rule learns how much text each
-     * member of a component holds (ADR-209 section 3.2).
+     * member of a component holds (ADR-209 section 3.2). {@code shingleParameters} is the window stage 2's shingles
+     * were written under and {@code thresholds} the cuts stage 4's run was minted under (ADR-330 §9): handed down
+     * by that run, and held by no constant here.
      */
     public void resolve(
             RunId stage4RunId,
             RunId stage3RunId,
             RunId stage2RunId,
             Set<Long> boilerplateHashes,
-            AlphanumericCounts alphanumericCounts) {
+            AlphanumericCounts alphanumericCounts,
+            ShingleParameters shingleParameters,
+            RedundancyThresholds thresholds) {
         resolve(
-                stage4RunId, stage3RunId, stage2RunId, boilerplateHashes, alphanumericCounts, ResolutionProgress.NONE);
+                stage4RunId,
+                stage3RunId,
+                stage2RunId,
+                boilerplateHashes,
+                alphanumericCounts,
+                shingleParameters,
+                thresholds,
+                ResolutionProgress.NONE);
     }
 
     /**
-     * As {@link #resolve(RunId, RunId, RunId, Set, AlphanumericCounts)}, and tells {@code progress} about each loop (ADR-192
+     * As {@link #resolve(RunId, RunId, RunId, Set, AlphanumericCounts, ShingleParameters, RedundancyThresholds)}, and tells {@code progress} about each loop (ADR-192
      * section 5): once before its first item with its total, zero included, and after each item. It also
      * tells it about the two reads among the loops (ADR-193 section 7, ADR-204 sections 3 and 4, ADR-220
      * section 4), each started once before it and ended once after it, and not ended where it throws: the
@@ -136,16 +147,27 @@ public class RedundancyResolution {
             RunId stage2RunId,
             Set<Long> boilerplateHashes,
             AlphanumericCounts alphanumericCounts,
+            ShingleParameters shingleParameters,
+            RedundancyThresholds thresholds,
             ResolutionProgress progress) {
         long signedOccurrences = countSignedOccurrences(stage4RunId, progress);
         if (signedOccurrences == 0) {
             return;
         }
 
-        ShingleSetCache shingleSets = new ShingleSetCache(stage2RunId, boilerplateHashes);
-        resolveNearDuplicates(stage4RunId, stage2RunId, signedOccurrences, shingleSets, alphanumericCounts, progress);
+        ShingleSetCache shingleSets = new ShingleSetCache(stage2RunId, boilerplateHashes, shingleParameters);
+        resolveNearDuplicates(
+                stage4RunId, stage2RunId, signedOccurrences, shingleSets, alphanumericCounts, thresholds, progress);
         resolveContainment(
-                stage4RunId, stage3RunId, stage2RunId, boilerplateHashes, signedOccurrences, shingleSets, progress);
+                stage4RunId,
+                stage3RunId,
+                stage2RunId,
+                boilerplateHashes,
+                signedOccurrences,
+                shingleSets,
+                shingleParameters,
+                thresholds,
+                progress);
     }
 
     /**
@@ -223,9 +245,8 @@ public class RedundancyResolution {
             long signedOccurrences,
             ShingleSetCache shingleSets,
             AlphanumericCounts alphanumericCounts,
+            RedundancyThresholds thresholds,
             ResolutionProgress progress) {
-        RedundancyThresholds thresholds = RedundancyThresholds.DEFAULT;
-
         UnionFind unionFind = new UnionFind();
         progress.toScorePairs(signedOccurrences);
         eachPageOfSigned(stage4RunId, page -> {
@@ -428,13 +449,14 @@ public class RedundancyResolution {
             Set<Long> boilerplateHashes,
             long signedOccurrences,
             ShingleSetCache shingleSets,
+            ShingleParameters shingleParameters,
+            RedundancyThresholds thresholds,
             ResolutionProgress progress) {
-        RedundancyThresholds thresholds = RedundancyThresholds.DEFAULT;
         progress.toCheckForContainment(signedOccurrences);
 
         // One statement for every read of one hash's occurrences in the pass, where the pass is one transaction
         // (ADR-237).
-        try (OneHashsOccurrences hashReads = new OneHashsOccurrences(stage2RunId)) {
+        try (OneHashsOccurrences hashReads = new OneHashsOccurrences(stage2RunId, shingleParameters)) {
             eachPageOfSigned(stage4RunId, page -> {
                 // Asked of the database, a page at a time, what phase 1 removed (ADR-220 section 4).
                 Set<Long> removedInThePage = removedAmong(stage4RunId, page);
@@ -451,7 +473,12 @@ public class RedundancyResolution {
                     }
                     long[] setA = shingleSets.get(a);
                     List<Long> rareHashes = rarestHashes(
-                            stage3RunId, stage2RunId, a, boilerplateHashes, thresholds.rareShingleSampleSize());
+                            stage3RunId,
+                            stage2RunId,
+                            a,
+                            boilerplateHashes,
+                            thresholds.rareShingleSampleSize(),
+                            shingleParameters);
                     if (rareHashes.isEmpty()) {
                         progress.checkedForContainment();
                         continue;
@@ -534,7 +561,12 @@ public class RedundancyResolution {
      * temporary files are bounded by that one occurrence's rows (section 6).
      */
     private List<Long> rarestHashes(
-            RunId stage3RunId, RunId stage2RunId, long occurrenceId, Set<Long> boilerplateHashes, int sampleSize) {
+            RunId stage3RunId,
+            RunId stage2RunId,
+            long occurrenceId,
+            Set<Long> boilerplateHashes,
+            int sampleSize,
+            ShingleParameters shingleParameters) {
         return jdbcTemplate.query(
                 "SELECT f.shingle_hash FROM shingle s INDEXED BY shingle_by_occurrence JOIN shingle_document_frequency f"
                         + " ON f.run_id = ? AND f.shingle_parameter_identity = s.shingle_parameter_identity"
@@ -554,7 +586,7 @@ public class RedundancyResolution {
                 stage3RunId.value(),
                 occurrenceId,
                 stage2RunId.value(),
-                ShingleParameters.DEFAULT.identity());
+                shingleParameters.identity());
     }
 
     /** Which of {@code occurrences} a signature exists for under {@code stage4RunId}, asked by key. */
@@ -682,11 +714,13 @@ public class RedundancyResolution {
     private final class OneHashsOccurrences implements AutoCloseable {
 
         private final String statement;
+        private final String shingleParameterIdentity;
         private final DataSource dataSource;
         private Connection keptOn;
         private PreparedStatement kept;
 
-        OneHashsOccurrences(RunId stage2RunId) {
+        OneHashsOccurrences(RunId stage2RunId, ShingleParameters shingleParameters) {
+            this.shingleParameterIdentity = shingleParameters.identity();
             this.statement = oneHashsOccurrences(ShingleHashIndex.writtenInto(stage2RunId));
             this.dataSource = jdbcTemplate.getDataSource();
         }
@@ -714,7 +748,7 @@ public class RedundancyResolution {
         }
 
         private List<Long> read(PreparedStatement read, long hash, long after) throws SQLException {
-            read.setString(1, ShingleParameters.DEFAULT.identity());
+            read.setString(1, shingleParameterIdentity);
             read.setLong(2, hash);
             read.setLong(3, after);
             List<Long> occurrences = new ArrayList<>();
@@ -861,12 +895,14 @@ public class RedundancyResolution {
 
         private final RunId stage2RunId;
         private final Set<Long> boilerplateHashes;
+        private final String shingleParameterIdentity;
         private final LinkedHashMap<CacheKey, Object> cache = new LinkedHashMap<>(16, 0.75f, true);
         private long hashesHeld;
 
-        ShingleSetCache(RunId stage2RunId, Set<Long> boilerplateHashes) {
+        ShingleSetCache(RunId stage2RunId, Set<Long> boilerplateHashes, ShingleParameters shingleParameters) {
             this.stage2RunId = stage2RunId;
             this.boilerplateHashes = boilerplateHashes;
+            this.shingleParameterIdentity = shingleParameters.identity();
         }
 
         long[] get(long occurrenceId) {
@@ -903,7 +939,7 @@ public class RedundancyResolution {
                     Integer.class,
                     occurrenceId,
                     stage2RunId.value(),
-                    ShingleParameters.DEFAULT.identity());
+                    shingleParameterIdentity);
             int size = count == null ? 0 : count;
             keep(key, size);
             return size;
@@ -941,7 +977,7 @@ public class RedundancyResolution {
                     },
                     occurrenceId,
                     stage2RunId.value(),
-                    ShingleParameters.DEFAULT.identity());
+                    shingleParameterIdentity);
             long[] sorted = distinctive.toArray();
             Arrays.sort(sorted);
             return withoutRepeats(sorted);

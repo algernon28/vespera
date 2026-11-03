@@ -228,8 +228,8 @@ class DoclingImageCheckInvocationTest {
     static class ReportedImageBeans {
 
         @Bean
-        DoclingClient doclingClient() {
-            return new DoclingClient("unused") {
+        DoclingClient doclingClient(@Value("${vespera.docling.ocr-preset}") String ocrPreset) {
+            return new DoclingClient("unused", ocrPreset) {
                 @Override
                 public void checkHealth() {}
 

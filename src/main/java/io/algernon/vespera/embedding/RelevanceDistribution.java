@@ -15,8 +15,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * How relevance scores are spread across a corpus, and which sixty documents a person is asked to
- * judge (ADR-088).
+ * How relevance scores are spread across a corpus, and which documents a person is asked to
+ * judge (ADR-088): the presets {@code vespera.relevance.sample.bands} and {@code
+ * vespera.relevance.sample.per-band}, shipped as 5 bands and 12 from each, so sixty (ADR-330 §8). The scoring run
+ * was minted under the two numbers it hands down, and no value of either lives in this class.
  *
  * <p><b>The bands are cut over the observed range</b> — the lowest and highest score actually
  * present — and never over 0 to 1. A cosine similarity over one archive usually occupies a narrow
@@ -27,30 +29,19 @@ import org.springframework.stereotype.Component;
  * into a report a person reads: a mechanical shape test would itself be an unmeasured threshold,
  * since a sound seed set very often produces a tight, unimodal distribution.
  *
- * <p><b>The sample is drawn from the run id</b>, so the same run always asks about the same sixty
- * documents. That is what lets the labelling loop span days: a person who answers half of them today
+ * <p><b>The sample is drawn from the run id</b>, so the same run always asks about the same
+ * documents (sixty at the shipped numbers). That is what lets the labelling loop span days: a person who answers half of them today
  * and half tomorrow is answering about the same documents both times, and ADR-047's
  * terminate-and-resume shape needs no state kept between the two sittings.
  *
  * <p><b>Nothing here holds the scored documents of a run (ADR-220 section 13).</b> The scores are read a
- * page at a time; each band counts its documents and keeps the twelve of least key it has met, the key of a
+ * page at a time; each band counts its documents and keeps the least keys it has met, as many as a band is asked for, the key of a
  * document in a band being SplitMix64's finaliser applied to the band's seed exclusive-or the document's
  * number, compared as an unsigned number. That is as uniform and as reproducible for a run as a shuffle
  * seeded from it was, and unlike a shuffle it needs no band held whole.
  */
 @Component
 public class RelevanceDistribution {
-
-    /** ADR-088 fixes five, so one archive is always divided the same number of ways as another. */
-    static final int BANDS = 5;
-
-    /**
-     * ADR-088 fixes twelve from each band. Sixty in total is about two hours at roughly two minutes a
-     * document — the outer edge of one sitting, and the ceiling is the point: an open-ended task gets
-     * abandoned halfway and leaves a threshold calibrated from a partial pass, with nothing recording
-     * that it was partial.
-     */
-    static final int SAMPLED_PER_BAND = 12;
 
     /**
      * How far a score may sit below a band boundary and still be counted as being on it. Subtracting
@@ -81,7 +72,7 @@ public class RelevanceDistribution {
      * @param upperBound the score at which it ends, exclusive except in the highest band, which
      *     takes its own upper bound so the top-scoring document is counted rather than dropped
      * @param documentCount how many scored documents fall in it
-     * @param sampledCount how many of them are put to a person, at most {@link #SAMPLED_PER_BAND}
+     * @param sampledCount how many of them are put to a person, at most the number each band is asked for
      * @param shortfall how many it could not supply, recorded rather than made up from a neighbour —
      *     a reader comparing proportions across bands has to know which of them rests on a handful of
      *     answers
@@ -110,9 +101,10 @@ public class RelevanceDistribution {
      * @param scoredDocumentCount how many documents carry a score at all
      * @param lowestScore the least any document scored, and where the first band starts
      * @param highestScore the most any document scored, and where the last band ends
-     * @param bands the five bands, lowest first
-     * @param sample the documents to be judged, in band order — sixty when every band could supply
-     *     its twelve, and fewer by exactly the recorded shortfalls when one could not
+     * @param bands the bands, lowest first (five at the shipped preset)
+     * @param sample the documents to be judged, in band order — the bands times the number from each when every
+     *     band could supply them (sixty at the shipped numbers), and fewer by exactly the recorded shortfalls when
+     *     one could not
      */
     public record Distribution(
             int scoredDocumentCount,
@@ -129,9 +121,17 @@ public class RelevanceDistribution {
      * relevance_score_by_run_id (run_id=? AND rowid>?)} and sorting nothing. The order the rows come in decides
      * nothing: a document's key depends on the run, its band and its number alone.
      *
+     * @param bands how many bands the observed range is cut into, at least one
+     * @param perBand how many documents each band is asked for, at least one
      * @throws NoSuchElementException where the run scored nothing
+     * @throws IllegalArgumentException where either number is below 1
      */
-    public Distribution measure(RunId scoringRunId) {
+    public Distribution measure(RunId scoringRunId, int bands, int perBand) {
+        if (bands < 1 || perBand < 1) {
+            throw new IllegalArgumentException(
+                    "a sample is of at least one band and at least one document from each, not " + bands + " and "
+                            + perBand);
+        }
         Range range = jdbcTemplate.queryForObject(
                 "SELECT MIN(score), MAX(score), COUNT(*) FROM relevance_score WHERE run_id = ?",
                 (resultSet, rowNumber) ->
@@ -143,30 +143,30 @@ public class RelevanceDistribution {
         double lowest = range.lowest();
         double highest = range.highest();
         long scoredCount = range.count();
-        double width = (highest - lowest) / BANDS;
+        double width = (highest - lowest) / bands;
 
-        long[] bandCounts = new long[BANDS];
-        long[] bandSeeds = new long[BANDS];
+        long[] bandCounts = new long[bands];
+        long[] bandSeeds = new long[bands];
         List<PriorityQueue<Drawn>> leastKeys = new ArrayList<>();
-        for (int ordinal = 0; ordinal < BANDS; ordinal++) {
+        for (int ordinal = 0; ordinal < bands; ordinal++) {
             bandSeeds[ordinal] = seedFor(scoringRunId, ordinal);
             // The greatest key of those kept stands first, so it is the one given up when a lesser comes.
             leastKeys.add(new PriorityQueue<>(
-                    SAMPLED_PER_BAND + 1, Comparator.comparing(Drawn::key, Long::compareUnsigned).reversed()));
+                    (int) Math.min(perBand + 1L, 1024), Comparator.comparing(Drawn::key, Long::compareUnsigned).reversed()));
         }
         for (Scored candidate : scoredUnder(scoringRunId)) {
-            int ordinal = bandOf(candidate.score(), lowest, width, BANDS);
+            int ordinal = bandOf(candidate.score(), lowest, width, bands);
             bandCounts[ordinal]++;
             PriorityQueue<Drawn> kept = leastKeys.get(ordinal);
             kept.add(new Drawn(candidate, keyOf(bandSeeds[ordinal], candidate.occurrenceId())));
-            if (kept.size() > SAMPLED_PER_BAND) {
+            if (kept.size() > perBand) {
                 kept.poll();
             }
         }
 
-        List<Band> bands = new ArrayList<>();
+        List<Band> bandsMeasured = new ArrayList<>();
         List<Sampled> sample = new ArrayList<>();
-        for (int ordinal = 0; ordinal < BANDS; ordinal++) {
+        for (int ordinal = 0; ordinal < bands; ordinal++) {
             List<Drawn> inAscendingKey = new ArrayList<>(leastKeys.get(ordinal));
             inAscendingKey.sort(Comparator.comparing(Drawn::key, Long::compareUnsigned));
             int sampledCount = inAscendingKey.size();
@@ -176,16 +176,17 @@ public class RelevanceDistribution {
             }
 
             double lowerBound = lowest + ordinal * width;
-            double upperBound = ordinal == BANDS - 1 ? highest : lowerBound + width;
-            bands.add(new Band(
+            double upperBound = ordinal == bands - 1 ? highest : lowerBound + width;
+            bandsMeasured.add(new Band(
                     ordinal,
                     lowerBound,
                     upperBound,
                     (int) bandCounts[ordinal],
                     sampledCount,
-                    SAMPLED_PER_BAND - sampledCount));
+                    perBand - sampledCount));
         }
-        return new Distribution((int) scoredCount, lowest, highest, List.copyOf(bands), List.copyOf(sample));
+        return new Distribution(
+                (int) scoredCount, lowest, highest, List.copyOf(bandsMeasured), List.copyOf(sample));
     }
 
     /** The lowest and highest score of a run and how many it holds, from one aggregate statement. */
@@ -237,8 +238,9 @@ public class RelevanceDistribution {
      * do (ADR-088, #112) -- the arithmetic, never the choice. The scores are read a page at a time,
      * once, after the range is measured (ADR-220 section 13).
      */
-    public LabelledSpread.Spread spreadOf(RunId scoringRunId, Map<OccurrenceId, Boolean> answers) {
-        return LabelledSpread.of(measure(scoringRunId), scoredUnder(scoringRunId), answers);
+    public LabelledSpread.Spread spreadOf(
+            RunId scoringRunId, Map<OccurrenceId, Boolean> answers, int bands, int perBand) {
+        return LabelledSpread.of(measure(scoringRunId, bands, perBand), scoredUnder(scoringRunId), answers);
     }
 
     /**

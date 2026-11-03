@@ -40,6 +40,9 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-231", url = Adr.A_PULL_WHILE_THE_EMBEDDING_STEP_RUNS_STOPS_IT_AND_SCORING_REFUSES_A_SEED_WHOSE_CHUNKS_HAVE_NO_VECTOR, type = "adr")
 class ASeedWithNoVectorStopsScoringTest {
 
+    /** The number of similarities the application ships (vespera.relevance.top-similarities). */
+    private static final int TOP_SIMILARITIES = 3;
+
     private static final String MODEL = "qwen3-embedding:0.6b";
     private static final String DTYPE = "F16";
     private static final String CHUNKER_IDENTITY = "docling-hybrid-chunker-v1";
@@ -204,7 +207,7 @@ class ASeedWithNoVectorStopsScoringTest {
                                         CHUNKER_IDENTITY,
                                         CHUNKING_RULE_IDENTITY,
                                         READ_UNDER,
-                                        Map.of()))
+                                        Map.of(), TOP_SIMILARITIES))
                         .isInstanceOf(IllegalStateException.class)
                         .hasMessageContaining("occurrence " + A_CORPUS_DOCUMENT.value())
                         .hasMessageContaining("under embedder identity " + READ_UNDER)

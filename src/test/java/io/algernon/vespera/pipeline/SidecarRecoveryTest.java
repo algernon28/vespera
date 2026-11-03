@@ -31,6 +31,9 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
 class SidecarRecoveryTest {
 
+    /** The OCR preset the application ships (vespera.docling.ocr-preset). */
+    private static final String OCR_PRESET = "rapidocr";
+
     /** How long these tests wait for a converter to come back. */
     private static final Duration WAIT_AT_MOST = Duration.ofSeconds(1);
 
@@ -105,7 +108,7 @@ class SidecarRecoveryTest {
         private final AtomicInteger checks = new AtomicInteger();
 
         private ScriptedHealth(int failing) {
-            super("http://unused.invalid");
+            super("http://unused.invalid", OCR_PRESET);
             this.failing = failing;
         }
 

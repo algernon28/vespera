@@ -2,6 +2,7 @@ package io.algernon.vespera.extraction;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -65,8 +66,8 @@ class OccurrenceJudgeTest {
     /** What the client says when a call brings no answer in time. */
     private static final String NO_ANSWER_IN_TIME = "no response from docling-serve within the call timeout";
 
-    /** How many timeouts in a row are the converter's rather than the file's, read off the counts. */
-    private static final int TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR = FailuresInARow.CONSECUTIVE_TIMEOUT_COUNT;
+    /** How many timeouts in a row the application ships as the converter's rather than the file's (ADR-330 §8). */
+    private static final int TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR = 3;
 
     /** The timeouts before that one, each still a fact about its own file. */
     private static final int TIMEOUTS_STILL_READ_AS_THE_FILES = TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR - 1;
@@ -565,6 +566,51 @@ class OccurrenceJudgeTest {
                 () -> assertThat(judging.metricRowsFor(2)).isZero());
     }
 
+    /**
+     * The count is what the judge is given (ADR-330 §8, §14), at each end of the two to four a run may name: two give the
+     * second timeout to the converter, and four leave the third with its file.
+     */
+    @Test
+    @Story("A converter that stops answering")
+    @DisplayName("A timeout is set aside at the number in a row the judge is given, and is the file's before it")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void aTimeoutIsSetAsideAtTheCountItIsGiven() {
+        Judging atTwo = new Judging(OccurrencesUnderARun.of(jdbcTemplate, 2), 2);
+        OccurrenceDecision firstOfTwo = atTwo.judge.timedOut(atTwo.occurrence(0), NO_ANSWER_IN_TIME);
+        OccurrenceDecision secondOfTwo = atTwo.judge.timedOut(atTwo.occurrence(1), NO_ANSWER_IN_TIME);
+        Judging atFour = new Judging(OccurrencesUnderARun.of(jdbcTemplate, 4), 4);
+        List<OccurrenceDecision> ofFour = new ArrayList<>();
+        for (int index = 0; index < 4; index++) {
+            ofFour.add(atFour.judge.timedOut(atFour.occurrence(index), NO_ANSWER_IN_TIME));
+        }
+
+        claim("given two, the first timeout is its file's",
+                () -> assertThat(firstOfTwo).isEqualTo(new OccurrenceDecision.Failed("timeout: " + NO_ANSWER_IN_TIME)));
+        claim("and the second is the converter's, so it is set aside",
+                () -> assertThat(secondOfTwo).isEqualTo(new OccurrenceDecision.SetAside("timeout", NO_ANSWER_IN_TIME)));
+        claim("given four, the first three are each their file's and only the fourth is set aside",
+                () -> assertThat(ofFour).containsExactly(
+                        new OccurrenceDecision.Failed("timeout: " + NO_ANSWER_IN_TIME),
+                        new OccurrenceDecision.Failed("timeout: " + NO_ANSWER_IN_TIME),
+                        new OccurrenceDecision.Failed("timeout: " + NO_ANSWER_IN_TIME),
+                        new OccurrenceDecision.SetAside("timeout", NO_ANSWER_IN_TIME)));
+    }
+
+    /** Outside two to four a count undoes what ADR-071 keeps: its reasons are this module's to hold (ADR-330 §9). */
+    @Test
+    @Story("A converter that stops answering")
+    @DisplayName("A count of one, which no slow document could survive, and a count of five, which the stop reaches first, are refused")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void aCountOutsideTwoToFourIsRefused() {
+        OccurrencesUnderARun occurrences = OccurrencesUnderARun.of(jdbcTemplate, 1);
+
+        for (int noCount : List.of(1, 5)) {
+            claim("a judge given " + noCount + " timeouts in a row is refused",
+                    () -> assertThatThrownBy(() -> new Judging(occurrences, noCount))
+                            .isInstanceOf(IllegalArgumentException.class));
+        }
+    }
+
     private Judging judging(int occurrences) {
         return new Judging(OccurrencesUnderARun.of(jdbcTemplate, occurrences));
     }
@@ -576,13 +622,18 @@ class OccurrenceJudgeTest {
         final OccurrenceJudge judge;
 
         Judging(OccurrencesUnderARun occurrences) {
+            this(occurrences, TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR);
+        }
+
+        Judging(OccurrencesUnderARun occurrences, int timeoutsInARow) {
             this.occurrences = occurrences;
             this.judge = new OccurrenceJudge(
                     new ExtractionMetrics(jdbcTemplate, new LanguageDetection()),
                     new FailuresInARow(ControlConversion.never()),
                     occurrences.run(),
                     null,
-                    null);
+                    null,
+                    timeoutsInARow);
         }
 
         OccurrenceId occurrence(int index) {

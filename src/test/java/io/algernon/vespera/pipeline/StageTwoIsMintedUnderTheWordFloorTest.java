@@ -202,6 +202,7 @@ class StageTwoIsMintedUnderTheWordFloorTest {
                 null,
                 null,
                 null,
+                PresetsFixture.shipped(),
                 root,
                 invocation);
     }

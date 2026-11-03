@@ -75,6 +75,9 @@ import org.springframework.web.client.RestClient;
 @Link(name = "ADR-143", url = Adr.AN_UNCATEGORISED_FAILURE_IS_A_VERDICT, type = "adr")
 class ServiceScopeAnswersAreNotCachedTest {
 
+    /** The OCR preset the application ships (vespera.docling.ocr-preset). */
+    private static final String OCR_PRESET = "rapidocr";
+
     /** What the documents here are converted as; nothing in this class turns on which format it is. */
     private static final DetectedFormat AS_DETECTED = DetectedFormat.PLAIN_TEXT;
 
@@ -467,7 +470,7 @@ class ServiceScopeAnswersAreNotCachedTest {
 
     /** The real client, pointed at the stub, and the real cache over the test database. */
     private DoclingExtractor extractorAgainst(StubbedService stub) {
-        return new DoclingExtractor(new DoclingClient(stub.restClient()), new ExtractionCache(jdbcTemplate));
+        return new DoclingExtractor(new DoclingClient(stub.restClient(), OCR_PRESET), new ExtractionCache(jdbcTemplate));
     }
 
     private int storedAnswersFor(String contentHash) {

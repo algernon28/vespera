@@ -1,0 +1,5 @@
+# Read by TheJarSaysWhereEachValueCameFromInvocationTest alone, by spring.config.additional-location, as a machine's
+# application-local.yaml is read: another file of application configuration naming a value in place of the shipped one
+# (ADR-330 §1). It lies in a folder of its own so that no other test's context sees it.
+vespera:
+  progress-interval: 9s

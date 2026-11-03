@@ -72,6 +72,12 @@ import tools.jackson.databind.node.ObjectNode;
 @Link(name = "ADR-178", url = Adr.TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS, type = "adr")
 class TextInPartsTest {
 
+    /** The OCR preset the application ships (vespera.docling.ocr-preset). */
+    private static final String OCR_PRESET = "rapidocr";
+
+    /** What a client given it says it sends, which the rule for cutting a text into parts ends. */
+    private static final String SENT_OPTIONS = new DoclingClient(RestClient.create(), OCR_PRESET).sentOptions();
+
     /** The largest part sent, in bytes: half the converter's ceiling. Written out so the test pins it. */
     private static final long PART_BYTES = 8_000_000L;
 
@@ -317,7 +323,7 @@ class TextInPartsTest {
                 ? answerFor(part, ConversionStatus.FAILURE, List.of(error(FailureCategory.CAPACITY, "no room for it")))
                 : answerFor(part, ConversionStatus.SUCCESS, List.of()));
         DoclingExtractor extractor = new DoclingExtractor(client, new ExtractionCache(jdbcTemplate));
-        ExtractorIdentity identity = new ExtractorIdentity("docling-serve;" + DoclingClient.sentOptions());
+        ExtractorIdentity identity = new ExtractorIdentity("docling-serve;" + SENT_OPTIONS);
         String contentHash = extractor.contentHashFor(file);
 
         DoclingResponse answer = extractor.convertUncached(file, DetectedFormat.PLAIN_TEXT, null);
@@ -409,7 +415,7 @@ class TextInPartsTest {
         }
         RecordingClient client = new RecordingClient((part, number) -> aSmallSuccess());
         DoclingExtractor extractor = new DoclingExtractor(client, new ExtractionCache(jdbcTemplate));
-        ExtractorIdentity identity = new ExtractorIdentity("docling-serve;" + DoclingClient.sentOptions());
+        ExtractorIdentity identity = new ExtractorIdentity("docling-serve;" + SENT_OPTIONS);
         String contentHash = extractor.contentHashFor(file);
 
         DoclingResponse answer = extractor.convertUncached(file, DetectedFormat.PLAIN_TEXT, null);
@@ -449,7 +455,7 @@ class TextInPartsTest {
                 ? aSuccessWithNoDocument()
                 : answerFor(part, ConversionStatus.SUCCESS, List.of()));
         DoclingExtractor extractor = new DoclingExtractor(client, new ExtractionCache(jdbcTemplate));
-        ExtractorIdentity identity = new ExtractorIdentity("docling-serve;" + DoclingClient.sentOptions());
+        ExtractorIdentity identity = new ExtractorIdentity("docling-serve;" + SENT_OPTIONS);
         String contentHash = extractor.contentHashFor(file);
 
         DoclingResponse answer = extractor.convertUncached(file, DetectedFormat.PLAIN_TEXT, null);
@@ -761,7 +767,7 @@ class TextInPartsTest {
                 "the options the extraction cache is keyed by end with the rule: its version, the ceiling a text"
                         + " is cut over, the largest text cut, and the largest part -- so a change to any of them"
                         + " keys new answers rather than serving ones cut another way",
-                () -> assertThat(DoclingClient.sentOptions()).endsWith(";text_parts=" + RULE));
+                () -> assertThat(SENT_OPTIONS).endsWith(";text_parts=" + RULE));
         claim(
                 "and the rule is composed from the sizes it names, 8,000,000 bytes a part and 64,000,000 bytes"
                         + " at most",
@@ -788,7 +794,7 @@ class TextInPartsTest {
         private final BiFunction<Path, Integer, DoclingResponse> answers;
 
         RecordingClient(BiFunction<Path, Integer, DoclingResponse> answers) {
-            super(RestClient.create());
+            super(RestClient.create(), OCR_PRESET);
             this.answers = answers;
         }
 

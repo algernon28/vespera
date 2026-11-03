@@ -275,7 +275,9 @@ class ProfileEditTest {
                 new Sample(ProfileKey.CODE_NAME_ENDINGS, ".java"),
                 new Sample(ProfileKey.PREFERRED_LANGUAGES, "it, EN"),
                 new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "it"),
-                new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "EN"));
+                new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "EN"),
+                new Sample(ProfileKey.CLUSTER_RESOLUTION, "2.5"),
+                new Sample(ProfileKey.CLUSTER_RESOLUTION, "0.0001"));
         Map<Sample, String> refused = new LinkedHashMap<>();
         refused.put(new Sample(ProfileKey.SEED_FOLDER, "seeds"), notAFolder("seeds"));
         refused.put(new Sample(ProfileKey.SEED_FOLDER, temp.resolve("absent").toString()),
@@ -316,6 +318,10 @@ class ProfileEditTest {
         refused.put(new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "fr"), "deliverableLanguage is not saved: \"fr\" is not en or it");
         refused.put(new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "italian"),
                 "deliverableLanguage is not saved: \"italian\" is not en or it");
+        for (String noResolution : List.of("0", "-1", "NaN", "Infinity", "fine", "0,5")) {
+            refused.put(new Sample(ProfileKey.CLUSTER_RESOLUTION, noResolution),
+                    "clusterResolution is not saved: \"" + noResolution + "\" is not a number above 0");
+        }
 
         for (Sample sample : accepted) {
             claim(sample.key().key() + " \"" + sample.value() + "\" is saved",

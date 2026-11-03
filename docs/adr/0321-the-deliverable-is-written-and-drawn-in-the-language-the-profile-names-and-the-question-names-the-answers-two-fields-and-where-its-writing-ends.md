@@ -2,7 +2,7 @@
 
 > **Partly amended — see [ADR-328](0328-the-confluence-rendering-is-one-tree-updated-in-place-by-each-publish-its-pages-keyed-and-titled-by-their-place-with-no-run-id-and-a-page-it-no-longer-has-moved-to-the-trash.md).** The Italian form of ADR-310 §2 reads `TEXT (P.C pagina K)`, with no marker. The rest of this record stands.
 
-> **Partly amended — see [ADR-332](0332-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Every fixed word of the website rendering is drawn in the deliverable language too, from the same table. The rest of this record stands.
+> **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Every fixed word of the website rendering is drawn in the deliverable language too, from the same table. The rest of this record stands.
 
 - **Date**: 2026-10-22
 - **Status**: accepted on 2026-10-22.

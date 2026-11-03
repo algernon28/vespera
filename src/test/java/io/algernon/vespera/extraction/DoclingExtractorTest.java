@@ -59,6 +59,9 @@ import org.springframework.web.client.RestClient;
 @Link(name = "ADR-071", url = Adr.DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL, type = "adr")
 class DoclingExtractorTest {
 
+    /** The OCR preset the application ships (vespera.docling.ocr-preset). */
+    private static final String OCR_PRESET = "rapidocr";
+
     /** What the documents here are converted as; nothing in this class turns on which format it is. */
     private static final DetectedFormat AS_DETECTED = DetectedFormat.PLAIN_TEXT;
 
@@ -225,7 +228,7 @@ class DoclingExtractorTest {
 
     /** The real client, pointed at the stub, and the real cache over the test database. */
     private DoclingExtractor extractorAgainst(StubbedService stub) {
-        return new DoclingExtractor(new DoclingClient(stub.restClient()), new ExtractionCache(jdbcTemplate));
+        return new DoclingExtractor(new DoclingClient(stub.restClient(), OCR_PRESET), new ExtractionCache(jdbcTemplate));
     }
 
     private int storedConversionsFor(String contentHash) {
