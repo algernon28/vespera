@@ -111,13 +111,14 @@ All of them are read from the 512 bytes stage 1 already reads, so this costs no 
 
 ## Tests
 
-- `VideoDetectionTest` (in `corpus`), one method per rule:
-  - `anIsoBaseMediaFileIsAVideoWhateverItIsCalled`: an `mp42` file with the 24-byte box of the archive's seven, an `isom` file, a QuickTime `qt  ` file and a `3gp4` file, each named as something else, are `VIDEO`, not broken, with no subtype. An `M4V ` file listing `M4A ` among its compatible brands is `VIDEO`, and so is an `mp42` file whose 24-byte box is followed by bytes spelling `jpeg`: the brands are read to the end of the box, and no further.
-  - `aStillImageOrAnAudioFileInTheSameContainerIsNotAVideo`: HEIC, AVIF, an image sequence whose only image brand is the compatible `msf1`, a CR3, and an `M4A ` file stay `UNRECOGNISED`.
-  - `anFtypBoxTheBytesCannotHoldIsNotAVideo`: `ftyp` at offset 4 of a text file is text, and a binary one whose box size is 8 is `UNRECOGNISED`.
-  - `aQuickTimeFileWithNoFtypIsAVideoAndTextThatLooksLikeOneIsNot`: files opening with a `wide`, `moov`, `mdat` or `pnot` atom are `VIDEO`; one opening with `free` is `UNRECOGNISED`; *"The wide range…"* and *"Get free…"* are text.
-  - `matroskaAndWebmAreVideos`, `anAviIsAVideoAndNoOtherRiffIs` (CorelDRAW `CDRC` and `WAVE` stay `UNRECOGNISED`, WEBP stays `IMAGE`), `anAsfFileIsAVideo`, `anFlvFileIsAVideo` (text opening *"FLV files…"* stays text), `mpegProgramAndElementaryStreamsAreVideos` (a Windows icon, `00 00 01 00`, stays `UNRECOGNISED`), `realMediaAndMxfAreVideosAndTextOpeningLikeRealMediaIsNot`.
-  - `aTransportStreamIsAVideoOnlyWithThreeSyncsAndNoText`: 188- and 192-byte packet streams are `VIDEO`; text with `G` at 0, 188 and 376 is text; a GIF with `47` at 188 and 376 is `IMAGE`; a binary with only two syncs, or too short for the third, is `UNRECOGNISED`.
-  - `anOggFileIsAVideoOnlyWhenItCarriesTheora`: Theora is `VIDEO`; Vorbis and Opus stay `UNRECOGNISED`.
+- `VideoDetectionTest.aVideoIsToldByItsBytes` (in `corpus`), one case per file, each named as something else (#682):
+  - an `mp42` file with the 24-byte box of the archive's seven, an `isom` file, a QuickTime `qt  ` file and a `3gp4` file are `VIDEO`. An `M4V ` file listing `M4A ` among its compatible brands is `VIDEO`, and so is an `mp42` file whose 24-byte box is followed by bytes spelling `jpeg`: the brands are read to the end of the box, and no further.
+  - HEIC, AVIF, an image sequence whose only image brand is the compatible `msf1`, a CR3, and an `M4A ` file stay `UNRECOGNISED`.
+  - `ftyp` at offset 4 of a text file is text, and a binary one whose box size is 8 is `UNRECOGNISED`.
+  - files opening with a `wide`, `moov`, `mdat` or `pnot` atom are `VIDEO`; one opening with `free` is `UNRECOGNISED`; *"The wide range…"* and *"Get free…"* are text.
+  - Matroska and WebM, AVI (CorelDRAW `CDRC` and `WAVE` stay `UNRECOGNISED`, WEBP stays `IMAGE`), ASF, FLV (text opening *"FLV files…"* stays text), MPEG program and elementary streams (a Windows icon, `00 00 01 00`, stays `UNRECOGNISED`), RealMedia and MXF (text opening *".RMF files…"* stays text) are `VIDEO`.
+  - 188- and 192-byte packet streams are `VIDEO`; text with `G` at 0, 188 and 376 is text; a GIF with `47` at 188 and 376 is `IMAGE`; a binary with only two syncs, or too short for the third, is `UNRECOGNISED`.
+  - Theora is `VIDEO`; Vorbis and Opus stay `UNRECOGNISED`.
+- `VideoDetectionTest.recognisingAVideoRemovesNothingByItself`: the `mp42` file is not broken, and has no subtype (#682).
 - `ByteLevelReductionTaskletTest.removesVideosAsOutOfScope`: in stage 1, two byte-identical MP4s are recorded as `VIDEO` and each removed as `OUT_OF_SCOPE` on its own account, with the reason exactly *"a video, and videos are out of scope"*, and neither is hashed. A PNG and a CorelDRAW drawing carry no verdict. The page counts two files left out as out of scope, gives *"Videos"* a row holding 2, and says *"Spreadsheets, BMP images and videos are out of scope, whatever they hold."*
 - `DoclingClientTest.postsAVideoUnderTheNameAnUnrecognisedFileIsPosted`: `VIDEO` is posted as `document.bin`, the name `UNRECOGNISED` is posted as, and the options the identity is built from still say `naming=1`.

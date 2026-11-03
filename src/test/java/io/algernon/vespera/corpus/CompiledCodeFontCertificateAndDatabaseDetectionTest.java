@@ -53,9 +53,6 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-094", url = Adr.FORMAT_IS_DECIDED_FROM_THE_BYTES, type = "adr")
 class CompiledCodeFontCertificateAndDatabaseDetectionTest {
 
-    /** The reason an email's out-of-scope verdict carries, word for word, whichever of the two it is. */
-    private static final String EMAIL_REASON = "an email, and emails are out of scope";
-
     /** Where an MZ header keeps the offset of the PE header, little-endian. */
     private static final int PE_HEADER_OFFSET_FIELD = 60;
 
@@ -537,10 +534,6 @@ class CompiledCodeFontCertificateAndDatabaseDetectionTest {
                         + " label: a saved email is told from a note by its name alone",
                 () -> assertThat(List.of(labelOf(internetMessage), labelOf(sameWordsNamedAsText)))
                         .containsExactly(PLAIN_TEXT + "/" + RFC822_MESSAGE, PLAIN_TEXT + "/"));
-        claim(
-                "both are left out with the one reason an email carries",
-                () -> assertThat(List.of(leftOutReasonOf(outlook), leftOutReasonOf(outlookUpperCase), leftOutReasonOf(internetMessage)))
-                        .containsOnly(EMAIL_REASON));
         claim(
                 "an older Office container named .doc is an older Word file and is not left out: the name .msg is"
                         + " what narrows, not the container",

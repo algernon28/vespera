@@ -122,15 +122,12 @@ class WalkAlgorithmTest {
 
             claim(
                     "the file beside the denied directory was still recorded, so one unreadable entry did"
-                            + " not end the traversal",
+                            + " not end the traversal, and the file behind it was never reached",
                     () -> assertThat(recorder.occurrences).containsExactly("readable.txt"));
             claim(
                     "the denied directory was recorded rather than dropped: one anomaly, kinded as"
                             + " unprocessable",
                     () -> assertThat(recorder.anomalyKinds).containsExactly(WalkAnomalyKind.UNPROCESSABLE));
-            claim(
-                    "the file behind the denied directory was never reached",
-                    () -> assertThat(recorder.occurrences).doesNotContain("denied/unreachable.txt"));
             claim(
                     "every entry met is still accounted for, the denied directory counting as an anomaly"
                             + " rather than as a directory entered",

@@ -18,11 +18,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * What stage 1 decides a file is, and which structural check follows from that (ADR-094), plus what
@@ -56,8 +62,8 @@ class DetectedFormatTest {
     /** The three bytes every JPEG begins with: the start-of-image marker and the next marker's lead. */
     private static final byte[] JPEG_SIGNATURE = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
 
-    /** The name of the detected format a BMP image is recorded as, written as text until it exists. */
-    private static final String BMP_FORMAT = "BMP";
+    /** The detected format a BMP image is recorded as. */
+    private static final DetectedFormat BMP_FORMAT = DetectedFormat.BMP;
 
     /**
      * The length of a BMP's file header, which opens with {@code BM}; the header describing the
@@ -130,62 +136,60 @@ class DetectedFormatTest {
     /** The equivalent entry in a presentation, which is neither a Word document nor a spreadsheet. */
     private static final String PRESENTATION_MAIN_PART = "ppt/presentation.xml";
 
-    @Test
-    @Story("The content decides, not the name")
-    @DisplayName("A PDF saved under a .png name is recognised as a PDF and checked as one")
-    void aPdfNamedAsAnImageIsCheckedAsAPdf(@TempDir Path dir) throws IOException {
-        Path misnamed = Files.write(dir.resolve("holiday-photo.png"), WHOLE_PDF.getBytes(StandardCharsets.US_ASCII));
-
-        claim(
-                "a file whose content begins as a PDF is a PDF, whatever it is called on disk",
-                () -> assertThat(BrokenCheck.check(misnamed).format()).isEqualTo(DetectedFormat.PDF));
-        claim(
-                "this PDF carries both its opening marker and its end marker, so it is intact and is kept",
-                () -> assertThat(BrokenCheck.check(misnamed).broken()).isFalse());
+    /**
+     * Files whose name says one thing and whose content another, each with the format its content makes it and
+     * whether it is damaged: the content decides both.
+     */
+    static Stream<Arguments> filesNamedAsSomethingElse() throws IOException {
+        return Stream.of(
+                Arguments.of(
+                        Named.of(
+                                "a PDF saved under a .png name is a PDF, checked as one, and with both its markers"
+                                        + " it is intact and kept",
+                                "holiday-photo.png"),
+                        WHOLE_PDF.getBytes(StandardCharsets.US_ASCII),
+                        DetectedFormat.PDF,
+                        false),
+                Arguments.of(
+                        Named.of(
+                                "a truncated PDF saved under a .png name is still a PDF, gets the check a PDF gets,"
+                                        + " and stopping before its end marker it is damaged and removed",
+                                "holiday-photo.png"),
+                        PDF_WITHOUT_ITS_TRAILER.getBytes(StandardCharsets.US_ASCII),
+                        DetectedFormat.PDF,
+                        true),
+                Arguments.of(
+                        Named.of(
+                                "a real image saved under a .docx name is an image, never opened as an archive, and"
+                                        + " matching a known image marker is itself the validity check",
+                                "report.docx"),
+                        signed(PNG_SIGNATURE, "image data follows"),
+                        DetectedFormat.IMAGE,
+                        false),
+                Arguments.of(
+                        Named.of(
+                                "plain text saved under a .pdf name matches no known marker and reads cleanly as"
+                                        + " words, so it is text, which has no structure to validate",
+                                "invoice.pdf"),
+                        "Dear Sir,\n\nplease find enclosed.\n".getBytes(StandardCharsets.UTF_8),
+                        DetectedFormat.PLAIN_TEXT,
+                        false));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("filesNamedAsSomethingElse")
     @Story("The content decides, not the name")
-    @DisplayName("A truncated PDF saved under a .png name is caught as damaged, where before it was not checked at all")
-    void aTruncatedPdfNamedAsAnImageIsBroken(@TempDir Path dir) throws IOException {
-        Path misnamed =
-                Files.write(dir.resolve("holiday-photo.png"), PDF_WITHOUT_ITS_TRAILER.getBytes(StandardCharsets.US_ASCII));
+    @DisplayName("A file is checked as what its content is, whatever its name says")
+    void aFileIsCheckedAsWhatItsContentIs(String fileName, byte[] content, DetectedFormat format, boolean damaged,
+            @TempDir Path dir) throws IOException {
+        Path misnamed = Files.write(dir.resolve(fileName), content);
 
         claim(
-                "a truncated PDF is still recognisably a PDF, so it gets the check a PDF gets",
-                () -> assertThat(BrokenCheck.check(misnamed).format()).isEqualTo(DetectedFormat.PDF));
+                "the content makes the file " + format + ", whatever it is called on disk",
+                () -> assertThat(BrokenCheck.check(misnamed).format()).isEqualTo(format));
         claim(
-                "a PDF that stops before its end marker was cut short, so it is damaged and removed",
-                () -> assertThat(BrokenCheck.check(misnamed).broken()).isTrue());
-    }
-
-    @Test
-    @Story("The content decides, not the name")
-    @DisplayName("A real image saved under a .docx name is recognised as an image, not opened as an archive")
-    void anImageNamedAsAWordDocumentIsAnImage(@TempDir Path dir) throws IOException {
-        Path misnamed = Files.write(dir.resolve("report.docx"), signed(PNG_SIGNATURE, "image data follows"));
-
-        claim(
-                "an image is identified by the bytes it opens with, never by what it is called",
-                () -> assertThat(BrokenCheck.check(misnamed).format()).isEqualTo(DetectedFormat.IMAGE));
-        claim(
-                "matching a known image marker is itself the validity check, so a recognised image is"
-                        + " never reported damaged",
-                () -> assertThat(BrokenCheck.check(misnamed).broken()).isFalse());
-    }
-
-    @Test
-    @Story("The content decides, not the name")
-    @DisplayName("Plain text saved under a .pdf name is recognised as text and passes")
-    void textNamedAsAPdfIsText(@TempDir Path dir) throws IOException {
-        Path misnamed = Files.writeString(dir.resolve("invoice.pdf"), "Dear Sir,\n\nplease find enclosed.\n");
-
-        claim(
-                "content that matches no known format marker and reads cleanly as words is text",
-                () -> assertThat(BrokenCheck.check(misnamed).format()).isEqualTo(DetectedFormat.PLAIN_TEXT));
-        claim(
-                "text has no internal structure to validate, so it is never reported damaged",
-                () -> assertThat(BrokenCheck.check(misnamed).broken()).isFalse());
+                damaged ? "and it is damaged, so it is removed" : "and it is intact, so it is kept",
+                () -> assertThat(BrokenCheck.check(misnamed).broken()).isEqualTo(damaged));
     }
 
     @Test
@@ -271,7 +275,7 @@ class DetectedFormatTest {
     /**
      * ADR-167 left BMP images out of scope, so stage 1 has to tell one from every other image, and from
      * its bytes: 224 of the 634 files named {@code .bmp} on the archive it was measured on are not BMP at
-     * all. The value is named by its string so this compiles before it exists.
+     * all.
      */
     @Test
     @Story("The set of recognised images is what the conversion step can read")
@@ -287,10 +291,10 @@ class DetectedFormatTest {
         claim(
                 "a file opening with BM and then the length of the " + BITMAPINFOHEADER_LENGTH + "-byte header"
                         + " almost every BMP carries is a BMP image, although it is named as a PNG",
-                () -> assertThat(BrokenCheck.check(bmp).format().name()).isEqualTo(BMP_FORMAT));
+                () -> assertThat(BrokenCheck.check(bmp).format()).isEqualTo(BMP_FORMAT));
         claim(
                 "and so is one carrying the newest, " + BITMAPV5HEADER_LENGTH + "-byte header",
-                () -> assertThat(BrokenCheck.check(newestBmp).format().name()).isEqualTo(BMP_FORMAT));
+                () -> assertThat(BrokenCheck.check(newestBmp).format()).isEqualTo(BMP_FORMAT));
         claim(
                 "recognising it removes nothing by itself: an intact BMP image is not damaged",
                 () -> assertThat(BrokenCheck.check(bmp).broken()).isFalse());
@@ -330,7 +334,7 @@ class DetectedFormatTest {
         claim(
                 "a file of " + JUST_LONG_ENOUGH_FOR_A_HEADER_LENGTH + " bytes ends right after those four bytes,"
                         + " and a length of " + BITMAPINFOHEADER_LENGTH + " there makes it a BMP image",
-                () -> assertThat(BrokenCheck.check(justLongEnough).format().name()).isEqualTo(BMP_FORMAT));
+                () -> assertThat(BrokenCheck.check(justLongEnough).format()).isEqualTo(BMP_FORMAT));
     }
 
     @Test
@@ -380,69 +384,64 @@ class DetectedFormatTest {
                 () -> assertThat(BrokenCheck.check(renamed).broken()).isFalse());
     }
 
-    @Test
-    @Story("The name may narrow, but it may never cross a boundary the content has drawn")
-    @DisplayName("A PDF named as an old Word document stays a PDF and takes no label from that name")
-    void aNameCannotCarryALabelAcrossIntoAnotherClass(@TempDir Path dir) throws IOException {
-        Path misnamed = Files.write(dir.resolve("minutes.doc"), WHOLE_PDF.getBytes(StandardCharsets.US_ASCII));
-
-        claim(
-                "the content is a PDF, so the file is a PDF, and the name does not get to reopen that",
-                () -> assertThat(BrokenCheck.check(misnamed).format()).isEqualTo(DetectedFormat.PDF));
-        claim(
-                "a name may only choose between members of the class the content already fixed; here it"
-                        + " names a member of a different class, so it is ignored entirely",
-                () -> assertThat(BrokenCheck.check(misnamed).subtype()).isEmpty());
+    /**
+     * Files whose name might narrow what their content makes them, each with that format and the finer label it
+     * ends with, or none: a name may only choose between members of the class the content already fixed.
+     */
+    static Stream<Arguments> namesThatMayNarrow() throws IOException {
+        return Stream.of(
+                Arguments.of(
+                        Named.of(
+                                "a PDF named as an old Word document stays a PDF and takes no label from that name:"
+                                        + " the name names a member of a different class, so it is ignored entirely",
+                                "minutes.doc"),
+                        WHOLE_PDF.getBytes(StandardCharsets.US_ASCII),
+                        DetectedFormat.PDF,
+                        Optional.empty()),
+                Arguments.of(
+                        Named.of(
+                                "Markdown is text by its content and Markdown by its name: nothing in the content of"
+                                        + " any text file distinguishes it, and the conversion step reads it"
+                                        + " structurally",
+                                "release-notes.md"),
+                        "# Release notes\n\n- first change\n".getBytes(StandardCharsets.UTF_8),
+                        DetectedFormat.PLAIN_TEXT,
+                        Optional.of(DetectedSubtype.MARKDOWN)),
+                Arguments.of(
+                        Named.of(
+                                "a web page saved under a .txt name is text that announces itself as a web page in its"
+                                        + " opening bytes, and where the content can answer, the name is not asked",
+                                "saved-page.txt"),
+                        "<!DOCTYPE html>\n<title>Notes</title>\n".getBytes(StandardCharsets.UTF_8),
+                        DetectedFormat.PLAIN_TEXT,
+                        Optional.of(DetectedSubtype.HTML)),
+                Arguments.of(
+                        Named.of(
+                                "text with no extension is text with no finer label, rather than guessed at, and"
+                                        + " travels onward as ordinary text",
+                                "README"),
+                        "Notes on the contents of this folder.\n".getBytes(StandardCharsets.UTF_8),
+                        DetectedFormat.PLAIN_TEXT,
+                        Optional.empty()));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("namesThatMayNarrow")
     @Story("The name may narrow, but it may never cross a boundary the content has drawn")
-    @DisplayName("Markdown is recognised from its name, because nothing in the content of any text file distinguishes it")
-    void markdownIsNarrowedByItsName(@TempDir Path dir) throws IOException {
-        Path markdown = Files.writeString(dir.resolve("release-notes.md"), "# Release notes\n\n- first change\n");
+    @DisplayName("A name narrows a file only within the class its content fixed")
+    void aNameNarrowsOnlyWithinTheClassTheContentFixed(String fileName, byte[] content, DetectedFormat format,
+            Optional<DetectedSubtype> label, @TempDir Path dir) throws IOException {
+        Path file = Files.write(dir.resolve(fileName), content);
 
         claim(
-                "every text file reads the same way as every other, so the content can only say that this"
-                        + " is text",
-                () -> assertThat(BrokenCheck.check(markdown).format()).isEqualTo(DetectedFormat.PLAIN_TEXT));
+                "the content makes the file " + format + ", and the name does not get to reopen that",
+                () -> assertThat(BrokenCheck.check(file).format()).isEqualTo(format));
         claim(
-                "the conversion step reads Markdown structurally rather than as flat words, so which kind of"
-                        + " text this is genuinely matters downstream, and the name is the only thing left"
-                        + " that says",
-                () -> assertThat(BrokenCheck.check(markdown).subtype()).contains(DetectedSubtype.MARKDOWN));
-    }
-
-    @Test
-    @Story("The name may narrow, but it may never cross a boundary the content has drawn")
-    @DisplayName("A web page saved under a .txt name is recognised as a web page, because its opening line says so")
-    void aWebPageIsRecognisedFromItsOpeningLineRatherThanItsName(@TempDir Path dir) throws IOException {
-        Path misnamed = Files.writeString(dir.resolve("saved-page.txt"), "<!DOCTYPE html>\n<title>Notes</title>\n");
-
+                "its finer label is " + label.map(DetectedSubtype::name).orElse("none"),
+                () -> assertThat(BrokenCheck.check(file).subtype()).isEqualTo(label));
         claim(
-                "a web page is still text as far as the content test goes: it reads cleanly as words",
-                () -> assertThat(BrokenCheck.check(misnamed).format()).isEqualTo(DetectedFormat.PLAIN_TEXT));
-        claim(
-                "a web page is the one kind of text that announces itself in its opening bytes, and where"
-                        + " the content can answer, the name is not asked",
-                () -> assertThat(BrokenCheck.check(misnamed).subtype()).contains(DetectedSubtype.HTML));
-    }
-
-    @Test
-    @Story("The name may narrow, but it may never cross a boundary the content has drawn")
-    @DisplayName("Text with no extension is kept as text with no finer label, rather than guessed at")
-    void textWithNoExtensionKeepsNoFinerLabel(@TempDir Path dir) throws IOException {
-        Path unnamed = Files.writeString(dir.resolve("README"), "Notes on the contents of this folder.\n");
-
-        claim(
-                "content that reads cleanly as words is text, whether or not anything names it",
-                () -> assertThat(BrokenCheck.check(unnamed).format()).isEqualTo(DetectedFormat.PLAIN_TEXT));
-        claim(
-                "with no name to narrow it and no content marker to read, no finer label is claimed; the"
-                        + " file is kept and travels onward as ordinary text",
-                () -> assertThat(BrokenCheck.check(unnamed).subtype()).isEmpty());
-        claim(
-                "nothing is removed for carrying no extension",
-                () -> assertThat(BrokenCheck.check(unnamed).broken()).isFalse());
+                "and nothing is removed for what the file is named",
+                () -> assertThat(BrokenCheck.check(file).broken()).isFalse());
     }
 
     @Test

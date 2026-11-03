@@ -16,10 +16,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * How stage 1 tells a video from its bytes, so that it can leave every video out of scope, whatever its
@@ -31,8 +35,7 @@ import org.junit.jupiter.api.io.TempDir;
  * structure as an MP4, a CorelDRAW drawing in the same {@code RIFF} wrapper as an AVI, and a text file that
  * happens to open with the transport stream's sync byte, which is the letter {@code G}.
  *
- * <p>The new value is named by its string, {@value #VIDEO_FORMAT}, so this compiles before it exists. No
- * database and no Spring context, matching {@code DetectedFormatTest}: the seam is one static method over a
+ * <p>No database and no Spring context, matching {@code DetectedFormatTest}: the seam is one static method over a
  * real filesystem path.
  */
 @Epic("Byte-level reduction")
@@ -41,8 +44,8 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-094", url = Adr.FORMAT_IS_DECIDED_FROM_THE_BYTES, type = "adr")
 class VideoDetectionTest {
 
-    /** The name of the detected format a video is recorded as, written as text until it exists. */
-    private static final String VIDEO_FORMAT = "VIDEO";
+    /** The detected format a video is recorded as. */
+    private static final DetectedFormat VIDEO_FORMAT = DetectedFormat.VIDEO;
 
     /** The box every ISO base media file opens with, at offset 4, after the box's own size. */
     private static final String FILE_TYPE_BOX = "ftyp";
@@ -85,291 +88,341 @@ class VideoDetectionTest {
     /** The six bytes a GIF opens with, the image signature the transport stream's sync byte shares a letter with. */
     private static final byte[] GIF89A_SIGNATURE = "GIF89a".getBytes(StandardCharsets.US_ASCII);
 
-    @Test
+    /**
+     * Each file stage 1 is handed, under the name it carries, with the bytes it holds and what the bytes make it:
+     * a video in every container that holds one, and the pictures, recordings and text that share a video's
+     * container or its opening bytes staying what they were.
+     */
+    static Stream<Arguments> filesAndWhatTheirBytesMakeThem() throws IOException {
+        return Stream.of(
+                Arguments.of(
+                        Named.of(
+                                "an MP4 whose 24-byte ftyp box names the mp42 brand, as seven of the eight videos on the"
+                                        + " measured archive did, is a video, although it is named as a PDF",
+                                "Stacco_bianco_e_pressione_tasto_rosso.pdf"),
+                        isoMedia("mp42", "isom", "mp42"),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "an MP4 under the general isom brand is a video",
+                                "PAX_1.0.36.docx"),
+                        isoMedia("isom", "isom", "iso2", "avc1", "mp41"),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "a QuickTime movie is a video",
+                                "demo.txt"),
+                        isoMedia("qt  ", "qt  "),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "a 3GP clip is a video",
+                                "clip.png"),
+                        isoMedia("3gp4", "3gp4", "isom"),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "an iTunes video is a video although it lists the audio brand M4A among its compatible"
+                                        + " brands: only the major brand can say a file holds nothing but sound",
+                                "episode.m4a"),
+                        isoMedia("M4V ", "M4V ", "M4A ", "mp42", "isom"),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "an MP4 whose 24-byte ftyp box is followed by bytes spelling jpeg, a still-image brand,"
+                                        + " is still a video: the brands are read to the end of the box its size declares, and no"
+                                        + " further",
+                                "after.mp4"),
+                        concat(Arrays.copyOf(isoMedia("mp42", "isom", "mp42"), SMALLEST_FILE_TYPE_BOX + 8), box(12, "free", ascii("jpeg")), mediaData()),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "a HEIC picture stays of no known kind: it is a picture in the same box structure as an"
+                                        + " MP4, and the rule is about videos",
+                                "IMG_0001.heic"),
+                        isoMedia("heic", "mif1", "heic"),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "an AVIF picture stays of no known kind too",
+                                "photo.avif"),
+                        isoMedia("avif", "avif", "mif1", "miaf"),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "a HEIF image sequence is one too, although only a compatible brand says so: every HEIF"
+                                        + " file must list one of its structural brands there, whatever its major brand",
+                                "burst.heics"),
+                        isoMedia("iso8", "iso8", "msf1", "hevc"),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "a Canon raw photograph, which is ISO base media too, stays of no known kind",
+                                "IMG_0002.cr3"),
+                        isoMedia("crx ", "crx ", "isom"),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "a recording whose major brand is M4A holds sound and no picture, and audio is not what"
+                                        + " was decided about",
+                                "meeting.m4a"),
+                        isoMedia("M4A ", "M4A ", "mp42", "isom"),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "a text file with ftyp at offset 4 is text: its first four bytes, read as a box size, are"
+                                        + " far larger than the prefix, so they cannot open a video",
+                                "notes.txt"),
+                        text("abcdftypmp42 is how an MP4 opens, written out as words for a reader."),
+                        DetectedFormat.PLAIN_TEXT),
+                Arguments.of(
+                        Named.of(
+                                "a binary whose ftyp box declares only 8 bytes, too few for a major brand, stays of no"
+                                        + " known kind",
+                                "stub.mp4"),
+                        concat(box(BOX_HEADER_LENGTH, FILE_TYPE_BOX, new byte[0]), mediaData()),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "a file opening with a wide atom, as QuickTime wrote them before the ftyp box existed, is"
+                                        + " a video",
+                                "old.mov"),
+                        concat(box(BOX_HEADER_LENGTH, "wide", new byte[0]), mediaData()),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "and so is one opening with a moov atom",
+                                "old movie.bin"),
+                        box(108, "moov", zeros(100)),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "and one opening with an mdat atom",
+                                "raw.mov"),
+                        mediaData(),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "and one opening with a pnot atom",
+                                "preview.dat"),
+                        box(20, "pnot", zeros(64)),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "one opening with a free atom stays of no known kind: any writer of this container may"
+                                        + " lead with padding, a HEIF picture's among them",
+                                "padded.mov"),
+                        concat(box(BOX_HEADER_LENGTH, "free", new byte[0]), mediaData()),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "text with wide as its fifth to eighth letters is text: the rule asks for bytes that do"
+                                        + " not read as text",
+                                "range.txt"),
+                        text("The wide range of terminals is listed below."),
+                        DetectedFormat.PLAIN_TEXT),
+                Arguments.of(
+                        Named.of(
+                                "and so is text with free there",
+                                "support.txt"),
+                        text("Get free support from the help desk."),
+                        DetectedFormat.PLAIN_TEXT),
+                Arguments.of(
+                        Named.of(
+                                "a Matroska file opens with the EBML magic 1A 45 DF A3 and is a video, whatever it is"
+                                        + " named",
+                                "recording.txt"),
+                        ebml("matroska"),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "and so is a WebM file",
+                                "capture.pdf"),
+                        ebml("webm"),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "a RIFF file whose form type is AVI is a video",
+                                "clip.doc"),
+                        riff("AVI "),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "a CorelDRAW drawing, 23 of which sit on the measured archive, stays of no known kind:"
+                                        + " the RIFF wrapper says nothing, the form type after it does",
+                                "logo.cdr"),
+                        riff("CDRC"),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "and so does a WAVE recording",
+                                "beep.wav"),
+                        riff("WAVE"),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "and a WEBP stays an image",
+                                "banner.webp"),
+                        riff("WEBP"),
+                        DetectedFormat.IMAGE),
+                Arguments.of(
+                        Named.of(
+                                "a file opening with the ASF header object's 16-byte GUID is a video",
+                                "presentation.wmv.txt"),
+                        concat(ASF_HEADER_GUID, littleEndianLong(730), zeros(200)),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "a file opening with FLV and the version byte 01 is a video",
+                                "tutorial.pdf"),
+                        concat(new byte[] {'F', 'L', 'V', 0x01, 0x05, 0x00, 0x00, 0x00, 0x09}, zeros(200)),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "text opening with the three letters FLV is text: the version byte is what makes it a"
+                                        + " video",
+                                "formats.txt"),
+                        text("FLV files are what Flash players streamed."),
+                        DetectedFormat.PLAIN_TEXT),
+                Arguments.of(
+                        Named.of(
+                                "a file opening with an MPEG pack header, 00 00 01 BA, is a video",
+                                "VTS_01_1.dat"),
+                        concat(new byte[] {0x00, 0x00, 0x01, (byte) 0xBA, 0x44, 0x00, 0x04, 0x00, 0x04, 0x01}, zeros(200)),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "and so is one opening with a sequence header, 00 00 01 B3",
+                                "track.bin"),
+                        concat(new byte[] {0x00, 0x00, 0x01, (byte) 0xB3, 0x14, 0x00, (byte) 0xF0, 0x13}, zeros(200)),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "a Windows icon, which opens 00 00 01 00, shares the first three bytes and stays of no"
+                                        + " known kind: the fourth byte is what names an MPEG header",
+                                "favicon.ico"),
+                        concat(new byte[] {0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x10, 0x10, 0x00, 0x00, 0x01, 0x00, 0x20, 0x00}, zeros(200)),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "a file with the sync byte 47 at offsets 0, 188 and 376 is a transport stream, and a"
+                                        + " video",
+                                "broadcast.txt"),
+                        transportStream(TRANSPORT_PACKET_LENGTH, 0, 3),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "and so is a Blu-ray stream, whose 192-byte packets carry the sync byte after a 4-byte"
+                                        + " timestamp, at offsets 4, 196 and 388",
+                                "00001.pdf"),
+                        transportStream(TIMESTAMPED_PACKET_LENGTH, TIMESTAMP_LENGTH, 3),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "text with the letter G at those three offsets is text: 47 is G, and the rule asks for"
+                                        + " bytes that do not read as text",
+                                "glossary.txt"),
+                        text(textWithGAt(0, TRANSPORT_PACKET_LENGTH, 2 * TRANSPORT_PACKET_LENGTH)),
+                        DetectedFormat.PLAIN_TEXT),
+                Arguments.of(
+                        Named.of(
+                                "a GIF, which opens with G, stays an image even with 47 at 188 and 376",
+                                "spinner.gif"),
+                        gifWithGAt(TRANSPORT_PACKET_LENGTH, 2 * TRANSPORT_PACKET_LENGTH),
+                        DetectedFormat.IMAGE),
+                Arguments.of(
+                        Named.of(
+                                "a binary with only two of the three syncs stays of no known kind",
+                                "two.bin"),
+                        withoutTheThirdSync(transportStream(TRANSPORT_PACKET_LENGTH, 0, 3)),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "and so does one too short to carry the third",
+                                "short.bin"),
+                        Arrays.copyOf(transportStream(TRANSPORT_PACKET_LENGTH, 0, 3), 300),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "an Ogg file whose prefix holds the Theora identification header, 80 then theora, is a"
+                                        + " video",
+                                "lecture.txt"),
+                        oggFirstPage(concat(new byte[] {(byte) 0x80}, ascii("theora"), new byte[] {3, 2, 1})),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "an Ogg file carrying Vorbis holds only sound, and stays of no known kind",
+                                "song.ogg"),
+                        oggFirstPage(concat(new byte[] {0x01}, ascii("vorbis"), zeros(23))),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "and so does one carrying Opus",
+                                "voice.opus"),
+                        oggFirstPage(concat(ascii("OpusHead"), new byte[] {1, 2, 0x38, 0x01})),
+                        DetectedFormat.UNRECOGNISED),
+                Arguments.of(
+                        Named.of(
+                                "a file opening with .RMF and a header size whose top two bytes are zero is a RealMedia"
+                                        + " video",
+                                "webinar.doc"),
+                        concat(ascii(".RMF"), new byte[] {0x00, 0x00, 0x00, 0x12, 0x00, 0x01}, zeros(200)),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "a file opening with the fourteen fixed bytes of an MXF header partition key is a video",
+                                "camera.bin"),
+                        concat(MXF_HEADER_PARTITION_KEY, new byte[] {0x04, 0x00, (byte) 0x83, 0x00, 0x00, 0x58}, zeros(200)),
+                        VIDEO_FORMAT),
+                Arguments.of(
+                        Named.of(
+                                "text opening with the four letters .RMF is text",
+                                "formats.txt"),
+                        text(".RMF files are what RealPlayer saved."),
+                        DetectedFormat.PLAIN_TEXT));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("filesAndWhatTheirBytesMakeThem")
     @Story("Videos are out of scope, whatever holds them")
-    @DisplayName("An MP4, a QuickTime movie and a 3GP clip are videos, whatever they are called")
-    void anIsoBaseMediaFileIsAVideoWhateverItIsCalled(@TempDir Path dir) throws IOException {
-        Path mp42 = Files.write(dir.resolve("Stacco_bianco_e_pressione_tasto_rosso.pdf"), isoMedia("mp42", "isom", "mp42"));
-        Path isom = Files.write(dir.resolve("PAX_1.0.36.docx"), isoMedia("isom", "isom", "iso2", "avc1", "mp41"));
-        Path quickTime = Files.write(dir.resolve("demo.txt"), isoMedia("qt  ", "qt  "));
-        Path thirdGeneration = Files.write(dir.resolve("clip.png"), isoMedia("3gp4", "3gp4", "isom"));
-        Path iTunesVideo = Files.write(dir.resolve("episode.m4a"), isoMedia("M4V ", "M4V ", "M4A ", "mp42", "isom"));
-        byte[] mp42Box = Arrays.copyOf(isoMedia("mp42", "isom", "mp42"), SMALLEST_FILE_TYPE_BOX + 8);
-        Path stillBrandAfterTheBox = Files.write(
-                dir.resolve("after.mp4"), concat(mp42Box, box(12, "free", ascii("jpeg")), mediaData()));
+    @DisplayName("A video is told by its bytes in every container that holds one, and what only shares its container or opening bytes is not")
+    void aVideoIsToldByItsBytes(String fileName, byte[] bytes, DetectedFormat expected, @TempDir Path dir)
+            throws IOException {
+        Path file = Files.write(dir.resolve(fileName), bytes);
 
         claim(
-                "an MP4 whose " + (SMALLEST_FILE_TYPE_BOX + 8) + "-byte " + FILE_TYPE_BOX + " box names the"
-                        + " mp42 brand, as seven of the eight videos on the measured archive did, is a video,"
-                        + " although it is named as a PDF",
-                () -> assertThat(formatOf(mp42)).isEqualTo(VIDEO_FORMAT));
+                "the bytes make the file " + expected + ", whatever it is called",
+                () -> assertThat(formatOf(file)).isEqualTo(expected));
+    }
+
+    @Test
+    @Story("Videos are out of scope, whatever holds them")
+    @DisplayName("Recognising a video removes nothing by itself, and takes no finer label from its name")
+    void recognisingAVideoRemovesNothingByItself(@TempDir Path dir) throws IOException {
+        Path mp42 = Files.write(dir.resolve("Stacco_bianco_e_pressione_tasto_rosso.pdf"), isoMedia("mp42", "isom", "mp42"));
+
         claim(
-                "and so are one under the general isom brand, a QuickTime movie and a 3GP clip",
-                () -> assertThat(List.of(formatOf(isom), formatOf(quickTime), formatOf(thirdGeneration)))
-                        .containsOnly(VIDEO_FORMAT));
-        claim(
-                "an MP4 whose " + (SMALLEST_FILE_TYPE_BOX + 8) + "-byte " + FILE_TYPE_BOX + " box is followed"
-                        + " by bytes spelling jpeg, a still-image brand, is still a video: the brands are read"
-                        + " to the end of the box its size declares, and no further",
-                () -> assertThat(formatOf(stillBrandAfterTheBox)).isEqualTo(VIDEO_FORMAT));
-        claim(
-                "an iTunes video is a video although it lists the audio brand M4A among its compatible brands:"
-                        + " only the major brand can say a file holds nothing but sound",
-                () -> assertThat(formatOf(iTunesVideo)).isEqualTo(VIDEO_FORMAT));
-        claim(
-                "recognising a video removes nothing by itself: an intact video is not damaged",
+                "an intact video is not damaged, so recognising one removes nothing by itself",
                 () -> assertThat(BrokenCheck.check(mp42).broken()).isFalse());
         claim(
                 "and the name is not consulted, so no finer label is taken from it",
                 () -> assertThat(BrokenCheck.check(mp42).subtype()).isEmpty());
     }
 
-    @Test
-    @Story("Videos are out of scope, whatever holds them")
-    @DisplayName("A HEIC or AVIF picture, a camera's raw file and an M4A recording share the MP4's container and are not videos")
-    void aStillImageOrAnAudioFileInTheSameContainerIsNotAVideo(@TempDir Path dir) throws IOException {
-        Path heic = Files.write(dir.resolve("IMG_0001.heic"), isoMedia("heic", "mif1", "heic"));
-        Path avif = Files.write(dir.resolve("photo.avif"), isoMedia("avif", "avif", "mif1", "miaf"));
-        Path imageSequence = Files.write(dir.resolve("burst.heics"), isoMedia("iso8", "iso8", "msf1", "hevc"));
-        Path cameraRaw = Files.write(dir.resolve("IMG_0002.cr3"), isoMedia("crx ", "crx ", "isom"));
-        Path recording = Files.write(dir.resolve("meeting.m4a"), isoMedia("M4A ", "M4A ", "mp42", "isom"));
-
-        claim(
-                "a HEIC and an AVIF picture stay what they are today, of no known kind: they are pictures in"
-                        + " the same box structure as an MP4, and the rule is about videos",
-                () -> assertThat(List.of(BrokenCheck.check(heic).format(), BrokenCheck.check(avif).format()))
-                        .containsOnly(DetectedFormat.UNRECOGNISED));
-        claim(
-                "a HEIF image sequence is one too, although only a compatible brand says so: every HEIF file"
-                        + " must list one of its structural brands there, whatever its major brand",
-                () -> assertThat(BrokenCheck.check(imageSequence).format()).isEqualTo(DetectedFormat.UNRECOGNISED));
-        claim(
-                "and so is a Canon raw photograph, which is ISO base media too",
-                () -> assertThat(BrokenCheck.check(cameraRaw).format()).isEqualTo(DetectedFormat.UNRECOGNISED));
-        claim(
-                "a recording whose major brand is M4A holds sound and no picture, and audio is not what was"
-                        + " decided about",
-                () -> assertThat(BrokenCheck.check(recording).format()).isEqualTo(DetectedFormat.UNRECOGNISED));
+    /** {@code text} as the bytes a text file holds. */
+    private static byte[] text(String text) {
+        return text.getBytes(StandardCharsets.UTF_8);
     }
 
-    @Test
-    @Story("Videos are out of scope, whatever holds them")
-    @DisplayName("The word ftyp at offset 4 is not enough: the box it names must be able to hold a brand")
-    void anFtypBoxTheBytesCannotHoldIsNotAVideo(@TempDir Path dir) throws IOException {
-        Path prose = Files.writeString(
-                dir.resolve("notes.txt"), "abcdftypmp42 is how an MP4 opens, written out as words for a reader.");
-        Path tooSmall = Files.write(
-                dir.resolve("stub.mp4"),
-                concat(box(BOX_HEADER_LENGTH, FILE_TYPE_BOX, new byte[0]), mediaData()));
-
-        claim(
-                "a text file with " + FILE_TYPE_BOX + " at offset 4 is text: its first four bytes, read as a"
-                        + " box size, are far larger than the prefix, so they cannot open a video",
-                () -> assertThat(BrokenCheck.check(prose).format()).isEqualTo(DetectedFormat.PLAIN_TEXT));
-        claim(
-                "and a binary whose " + FILE_TYPE_BOX + " box declares only " + BOX_HEADER_LENGTH + " bytes,"
-                        + " too few for a major brand, stays of no known kind",
-                () -> assertThat(BrokenCheck.check(tooSmall).format()).isEqualTo(DetectedFormat.UNRECOGNISED));
-    }
-
-    @Test
-    @Story("Videos are out of scope, whatever holds them")
-    @DisplayName("An older QuickTime movie with no ftyp box is a video, and text whose fifth letter starts 'wide' is not")
-    void aQuickTimeFileWithNoFtypIsAVideoAndTextThatLooksLikeOneIsNot(@TempDir Path dir) throws IOException {
-        Path wide = Files.write(dir.resolve("old.mov"), concat(box(BOX_HEADER_LENGTH, "wide", new byte[0]), mediaData()));
-        Path movie = Files.write(dir.resolve("old movie.bin"), box(108, "moov", zeros(100)));
-        Path mediaFirst = Files.write(dir.resolve("raw.mov"), mediaData());
-        Path preview = Files.write(dir.resolve("preview.dat"), box(20, "pnot", zeros(64)));
-        Path padded = Files.write(dir.resolve("padded.mov"), concat(box(BOX_HEADER_LENGTH, "free", new byte[0]), mediaData()));
-        Path wideProse = Files.writeString(dir.resolve("range.txt"), "The wide range of terminals is listed below.");
-        Path freeProse = Files.writeString(dir.resolve("support.txt"), "Get free support from the help desk.");
-
-        claim(
-                "a file opening with a wide, a moov, an mdat or a pnot atom, as QuickTime wrote them before the"
-                        + " ftyp box existed, is a video",
-                () -> assertThat(List.of(formatOf(wide), formatOf(movie), formatOf(mediaFirst), formatOf(preview)))
-                        .containsOnly(VIDEO_FORMAT));
-        claim(
-                "one opening with a free atom stays of no known kind: any writer of this container may lead with"
-                        + " padding, a HEIF picture's among them",
-                () -> assertThat(BrokenCheck.check(padded).format()).isEqualTo(DetectedFormat.UNRECOGNISED));
-        claim(
-                "and text with wide or free as its fifth to eighth letters is text: the rule asks for bytes that"
-                        + " do not read as text",
-                () -> assertThat(List.of(BrokenCheck.check(wideProse).format(), BrokenCheck.check(freeProse).format()))
-                        .containsOnly(DetectedFormat.PLAIN_TEXT));
-    }
-
-    @Test
-    @Story("Videos are out of scope, whatever holds them")
-    @DisplayName("A Matroska and a WebM file are videos, told by the EBML magic they open with")
-    void matroskaAndWebmAreVideos(@TempDir Path dir) throws IOException {
-        Path matroska = Files.write(dir.resolve("recording.txt"), ebml("matroska"));
-        Path webm = Files.write(dir.resolve("capture.pdf"), ebml("webm"));
-
-        claim(
-                "both open with the EBML magic 1A 45 DF A3, and both are videos, whatever they are named",
-                () -> assertThat(List.of(formatOf(matroska), formatOf(webm))).containsOnly(VIDEO_FORMAT));
-    }
-
-    @Test
-    @Story("Videos are out of scope, whatever holds them")
-    @DisplayName("An AVI is a video, and a CorelDRAW drawing or a WAVE recording in the same RIFF wrapper is not")
-    void anAviIsAVideoAndNoOtherRiffIs(@TempDir Path dir) throws IOException {
-        Path avi = Files.write(dir.resolve("clip.doc"), riff("AVI "));
-        Path drawing = Files.write(dir.resolve("logo.cdr"), riff("CDRC"));
-        Path recording = Files.write(dir.resolve("beep.wav"), riff("WAVE"));
-        Path webp = Files.write(dir.resolve("banner.webp"), riff("WEBP"));
-
-        claim(
-                "a RIFF file whose form type is AVI is a video",
-                () -> assertThat(formatOf(avi)).isEqualTo(VIDEO_FORMAT));
-        claim(
-                "a CorelDRAW drawing, 23 of which sit on the measured archive, and a WAVE recording stay of no"
-                        + " known kind: the RIFF wrapper says nothing, the form type after it does",
-                () -> assertThat(List.of(BrokenCheck.check(drawing).format(), BrokenCheck.check(recording).format()))
-                        .containsOnly(DetectedFormat.UNRECOGNISED));
-        claim(
-                "and a WEBP stays an image",
-                () -> assertThat(BrokenCheck.check(webp).format()).isEqualTo(DetectedFormat.IMAGE));
-    }
-
-    @Test
-    @Story("Videos are out of scope, whatever holds them")
-    @DisplayName("A Windows Media file is a video, told by its header object's GUID")
-    void anAsfFileIsAVideo(@TempDir Path dir) throws IOException {
-        Path asf = Files.write(dir.resolve("presentation.wmv.txt"), concat(ASF_HEADER_GUID, littleEndianLong(730), zeros(200)));
-
-        claim(
-                "a file opening with the ASF header object's 16-byte GUID is a video",
-                () -> assertThat(formatOf(asf)).isEqualTo(VIDEO_FORMAT));
-    }
-
-    @Test
-    @Story("Videos are out of scope, whatever holds them")
-    @DisplayName("A Flash video is a video, told by FLV and its version byte")
-    void anFlvFileIsAVideo(@TempDir Path dir) throws IOException {
-        Path flv = Files.write(
-                dir.resolve("tutorial.pdf"),
-                concat(new byte[] {'F', 'L', 'V', 0x01, 0x05, 0x00, 0x00, 0x00, 0x09}, zeros(200)));
-
-        Path prose = Files.writeString(dir.resolve("formats.txt"), "FLV files are what Flash players streamed.");
-
-        claim(
-                "a file opening with FLV and the version byte 01 is a video",
-                () -> assertThat(formatOf(flv)).isEqualTo(VIDEO_FORMAT));
-        claim(
-                "and text opening with the three letters FLV is text: the version byte is what makes it a video",
-                () -> assertThat(BrokenCheck.check(prose).format()).isEqualTo(DetectedFormat.PLAIN_TEXT));
-    }
-
-    @Test
-    @Story("Videos are out of scope, whatever holds them")
-    @DisplayName("An MPEG program stream and an MPEG video elementary stream are videos")
-    void mpegProgramAndElementaryStreamsAreVideos(@TempDir Path dir) throws IOException {
-        Path programStream = Files.write(
-                dir.resolve("VTS_01_1.dat"),
-                concat(new byte[] {0x00, 0x00, 0x01, (byte) 0xBA, 0x44, 0x00, 0x04, 0x00, 0x04, 0x01}, zeros(200)));
-        Path elementaryStream = Files.write(
-                dir.resolve("track.bin"),
-                concat(new byte[] {0x00, 0x00, 0x01, (byte) 0xB3, 0x14, 0x00, (byte) 0xF0, 0x13}, zeros(200)));
-
-        Path icon = Files.write(
-                dir.resolve("favicon.ico"),
-                concat(new byte[] {0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x10, 0x10, 0x00, 0x00, 0x01, 0x00, 0x20, 0x00}, zeros(200)));
-
-        claim(
-                "a file opening with a pack header, 00 00 01 BA, or a sequence header, 00 00 01 B3, is a video",
-                () -> assertThat(List.of(formatOf(programStream), formatOf(elementaryStream)))
-                        .containsOnly(VIDEO_FORMAT));
-        claim(
-                "a Windows icon, which opens 00 00 01 00, shares the first three bytes and stays of no known"
-                        + " kind: the fourth byte is what names an MPEG header",
-                () -> assertThat(BrokenCheck.check(icon).format()).isEqualTo(DetectedFormat.UNRECOGNISED));
-    }
-
-    @Test
-    @Story("Videos are out of scope, whatever holds them")
-    @DisplayName("A transport stream is a video only with three syncs a packet apart and bytes that are not text")
-    void aTransportStreamIsAVideoOnlyWithThreeSyncsAndNoText(@TempDir Path dir) throws IOException {
-        Path transport = Files.write(dir.resolve("broadcast.txt"), transportStream(TRANSPORT_PACKET_LENGTH, 0, 3));
-        Path timestamped = Files.write(
-                dir.resolve("00001.pdf"), transportStream(TIMESTAMPED_PACKET_LENGTH, TIMESTAMP_LENGTH, 3));
-        Path prose = Files.writeString(dir.resolve("glossary.txt"), textWithGAt(0, TRANSPORT_PACKET_LENGTH, 2 * TRANSPORT_PACKET_LENGTH));
-        Path gif = Files.write(dir.resolve("spinner.gif"), gifWithGAt(TRANSPORT_PACKET_LENGTH, 2 * TRANSPORT_PACKET_LENGTH));
-        byte[] twoSyncs = transportStream(TRANSPORT_PACKET_LENGTH, 0, 3);
-        twoSyncs[2 * TRANSPORT_PACKET_LENGTH] = 0x00;
-        Path missingThirdSync = Files.write(dir.resolve("two.bin"), twoSyncs);
-        Path tooShort = Files.write(
-                dir.resolve("short.bin"), Arrays.copyOf(transportStream(TRANSPORT_PACKET_LENGTH, 0, 3), 300));
-
-        claim(
-                "a file with the sync byte 47 at offsets 0, 188 and 376 is a transport stream, and a video",
-                () -> assertThat(formatOf(transport)).isEqualTo(VIDEO_FORMAT));
-        claim(
-                "and so is a Blu-ray stream, whose 192-byte packets carry the sync byte after a 4-byte"
-                        + " timestamp, at offsets 4, 196 and 388",
-                () -> assertThat(formatOf(timestamped)).isEqualTo(VIDEO_FORMAT));
-        claim(
-                "text with the letter G at those three offsets is text: 47 is G, and the rule asks for bytes"
-                        + " that do not read as text",
-                () -> assertThat(BrokenCheck.check(prose).format()).isEqualTo(DetectedFormat.PLAIN_TEXT));
-        claim(
-                "a GIF, which opens with G, stays an image even with 47 at 188 and 376",
-                () -> assertThat(BrokenCheck.check(gif).format()).isEqualTo(DetectedFormat.IMAGE));
-        claim(
-                "a binary with only two of the three syncs, or too short to carry the third, stays of no known"
-                        + " kind",
-                () -> assertThat(List.of(BrokenCheck.check(missingThirdSync).format(), BrokenCheck.check(tooShort).format()))
-                        .containsOnly(DetectedFormat.UNRECOGNISED));
-    }
-
-    @Test
-    @Story("Videos are out of scope, whatever holds them")
-    @DisplayName("An Ogg file is a video when it carries Theora, and not when it carries only sound")
-    void anOggFileIsAVideoOnlyWhenItCarriesTheora(@TempDir Path dir) throws IOException {
-        Path theora = Files.write(
-                dir.resolve("lecture.txt"), oggFirstPage(concat(new byte[] {(byte) 0x80}, ascii("theora"), new byte[] {3, 2, 1})));
-        Path vorbis = Files.write(
-                dir.resolve("song.ogg"), oggFirstPage(concat(new byte[] {0x01}, ascii("vorbis"), zeros(23))));
-        Path opus = Files.write(
-                dir.resolve("voice.opus"), oggFirstPage(concat(ascii("OpusHead"), new byte[] {1, 2, 0x38, 0x01})));
-
-        claim(
-                "an Ogg file whose prefix holds the Theora identification header, 80 then theora, is a video",
-                () -> assertThat(formatOf(theora)).isEqualTo(VIDEO_FORMAT));
-        claim(
-                "one carrying Vorbis or Opus holds only sound, and stays of no known kind",
-                () -> assertThat(List.of(BrokenCheck.check(vorbis).format(), BrokenCheck.check(opus).format()))
-                        .containsOnly(DetectedFormat.UNRECOGNISED));
-    }
-
-    @Test
-    @Story("Videos are out of scope, whatever holds them")
-    @DisplayName("A RealMedia and an MXF file are videos, and text that opens like RealMedia is not")
-    void realMediaAndMxfAreVideosAndTextOpeningLikeRealMediaIsNot(@TempDir Path dir) throws IOException {
-        Path realMedia = Files.write(
-                dir.resolve("webinar.doc"),
-                concat(ascii(".RMF"), new byte[] {0x00, 0x00, 0x00, 0x12, 0x00, 0x01}, zeros(200)));
-        Path mxf = Files.write(
-                dir.resolve("camera.bin"),
-                concat(MXF_HEADER_PARTITION_KEY, new byte[] {0x04, 0x00, (byte) 0x83, 0x00, 0x00, 0x58}, zeros(200)));
-        Path prose = Files.writeString(dir.resolve("formats.txt"), ".RMF files are what RealPlayer saved.");
-
-        claim(
-                "a file opening with .RMF and a header size whose top two bytes are zero is a RealMedia video",
-                () -> assertThat(formatOf(realMedia)).isEqualTo(VIDEO_FORMAT));
-        claim(
-                "a file opening with the fourteen fixed bytes of an MXF header partition key is a video",
-                () -> assertThat(formatOf(mxf)).isEqualTo(VIDEO_FORMAT));
-        claim(
-                "and text opening with the four letters .RMF is text",
-                () -> assertThat(BrokenCheck.check(prose).format()).isEqualTo(DetectedFormat.PLAIN_TEXT));
+    /** A transport stream with its third sync byte overwritten, so only two remain. */
+    private static byte[] withoutTheThirdSync(byte[] stream) {
+        stream[2 * TRANSPORT_PACKET_LENGTH] = 0x00;
+        return stream;
     }
 
     /** The name of the format stage 1 decides {@code file} is, as the text the ledger stores. */
-    private static String formatOf(Path file) {
-        return BrokenCheck.check(file).format().name();
+    private static DetectedFormat formatOf(Path file) {
+        return BrokenCheck.check(file).format();
     }
 
     /**

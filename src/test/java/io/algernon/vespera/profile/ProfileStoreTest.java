@@ -14,10 +14,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The profile as a file a person edits and census merges into (ADR-061, ADR-062).
@@ -40,22 +47,46 @@ class ProfileStoreTest {
     @Test
     @Story("What census writes to the profile")
     @DisplayName("A corpus with no profile yet gets every key the code knows about, all unset")
-    void writesACompleteSkeletonForAFreshCorpus(@TempDir Path workingDirectory) {
+    @Issue("558")
+    @Issue("571")
+    @Issue("575")
+    @Issue("576")
+    @Link(name = "ADR-256", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
+    @Link(name = "ADR-282", url = Adr.FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT, type = "adr")
+    @Link(name = "ADR-287", url = Adr.LOGS_AND_CONFIGURATION_FILES_ARE_TOLD_BY_THEIR_BYTES, type = "adr")
+    @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
+    void writesACompleteSkeletonForAFreshCorpus(@TempDir Path workingDirectory) throws IOException {
         ProfileStore store = new ProfileStore(workingDirectory);
 
         Profile loaded = store.load();
         store.save(loaded);
 
         claim(
-                "the seed-folder key is present rather than missing, and unanswered rather than guessed",
-                () -> assertThat(loaded.seedFolder().isSet()).isFalse());
+                "every key the profile carries is present and unanswered -- no value, no provenance, no pointer --"
+                        + " so no threshold is guessed at, no page is split and nothing is removed until the operator"
+                        + " writes a value. The keys are read off the record, so a key added later is held here too",
+                () -> assertThat(ProfileKeys.valuesOf(loaded))
+                        .allSatisfy((key, value) -> assertThat(
+                                        Arrays.asList(value.value(), value.provenance(), value.measurement()))
+                                .as("%s is unanswered", key)
+                                .containsOnlyNulls()));
         claim(
-                "so is stage 2's tier-2 confidence floor -- unset per observe-before-enforce, not guessed at"
-                        + " (ADR-070)",
-                () -> assertThat(loaded.degenerateOutputConfidenceFloor().isSet()).isFalse());
+                "the deliverable's index states every one of them, empty",
+                () -> assertThat(loaded.keysAsWritten().values()).containsOnly(""));
         claim(
-                "the file now exists, so an operator has something to edit",
-                () -> assertThat(Files.exists(workingDirectory.resolve("profile.yaml"))).isTrue());
+                "and the file census writes names every key, in the record's order, so an operator has each one to"
+                        + " fill in",
+                () -> assertThat(topLevelKeys(Files.readAllLines(store.file())))
+                        .containsExactlyElementsOf(ProfileKeys.everyKey()));
+    }
+
+    /** The keys a {@code profile.yaml} names at its top level, in the order it names them. */
+    private static List<String> topLevelKeys(List<String> lines) {
+        return lines.stream()
+                .filter(line -> line.matches("[A-Za-z]+:.*"))
+                .map(line -> line.substring(0, line.indexOf(':')))
+                .toList();
     }
 
     @Test
@@ -87,22 +118,6 @@ class ProfileStoreTest {
 
     @Test
     @Story("What census writes to the profile")
-    @DisplayName("A key the file predates is added unset, without disturbing the file's answers")
-    void addsAKeyTheFileDoesNotYetMention(@TempDir Path workingDirectory) throws IOException {
-        // A profile written before the seed-folder key existed: no keys at all.
-        Files.writeString(workingDirectory.resolve("profile.yaml"), "{}");
-        ProfileStore store = new ProfileStore(workingDirectory);
-
-        Profile loaded = store.load();
-
-        claim(
-                "the key the code has since learned about is present and unset, which is the same gated"
-                        + " state as a key nobody has answered",
-                () -> assertThat(loaded.seedFolder()).isEqualTo(TextValue.unset()));
-    }
-
-    @Test
-    @Story("What census writes to the profile")
     @DisplayName("A key nobody recognises fails the load rather than being ignored")
     void refusesAKeyTheCodeDoesNotKnow(@TempDir Path workingDirectory) throws IOException {
         Files.writeString(workingDirectory.resolve("profile.yaml"), "seedFolders:\n  value: C:/seeds\n");
@@ -130,25 +145,86 @@ class ProfileStoreTest {
                 () -> assertThat(store.load()).isEqualTo(written));
     }
 
-    @Test
+    /** The words the operator gives for the word floor they wrote. */
+    private static final String WHY_TWO_WORDS = "read off word-count-distribution.html: a floor of 2 removes 40 images";
+
+    /**
+     * One key answered as an operator may write it, each value as a person types it: a trailing nought a
+     * value normalised on its way would lose, endings with their case, spacing and comma, and a floor with
+     * a decimal comma no number is read from, which loads all the same.
+     */
+    static Stream<Arguments> answersAsWritten() {
+        return Stream.of(
+                Arguments.of(
+                        Named.of("the confidence floor", "degenerateOutputConfidenceFloor"),
+                        "0.5",
+                        "matched to Docling's own poor/fair cut-off"),
+                Arguments.of(Named.of("the word floor", "degenerateOutputWordFloor"), "2", WHY_TWO_WORDS),
+                Arguments.of(
+                        Named.of("the page ceiling, with a trailing nought", "clusterPageByteCeiling"),
+                        "300000.0",
+                        "read off cluster-page-sizes.html"),
+                Arguments.of(
+                        Named.of("the name endings kept as code, with their case, spacing and comma", "codeNameEndings"),
+                        ".java  .C, .h",
+                        "the archive holds the code of the terminals"),
+                Arguments.of(
+                        Named.of("the name endings left out, with their case, spacing and comma", "outOfScopeNameEndings"),
+                        ".P3A  .p3l, .DGN",
+                        "the terminal files are not documents"),
+                Arguments.of(
+                        Named.of(
+                                "the floor on the share of settings, with a trailing nought",
+                                "configurationSettingShareFloor"),
+                        "0.80",
+                        "read off the page"),
+                Arguments.of(
+                        Named.of(
+                                "a floor on the share of settings with a decimal comma, from which no number is read",
+                                "configurationSettingShareFloor"),
+                        "0,8",
+                        "typed in a hurry"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("answersAsWritten")
     @Story("What census writes to the profile")
-    @DisplayName("An operator-set tier-2 confidence floor round-trips like any other answered key")
-    void anOperatorSetConfidenceFloorRoundTrips(@TempDir Path workingDirectory) {
+    @DisplayName("An answer the operator writes is read and written back as written, on its own key")
+    @Issue("558")
+    @Issue("571")
+    @Issue("575")
+    @Issue("576")
+    @Link(name = "ADR-256", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
+    @Link(name = "ADR-282", url = Adr.FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT, type = "adr")
+    @Link(name = "ADR-287", url = Adr.LOGS_AND_CONFIGURATION_FILES_ARE_TOLD_BY_THEIR_BYTES, type = "adr")
+    @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
+    void anAnswerIsReadAndWrittenBackAsWritten(String key, String asWritten, String why, @TempDir Path workingDirectory)
+            throws IOException {
         ProfileStore store = new ProfileStore(workingDirectory);
-        Profile written = ProfileFixture.profile()
-                .degenerateOutputConfidenceFloor(new NumericValue(
-                        "0.5", "matched to Docling's own poor/fair cut-off", new Measurement("run 3", FIRST_RUN)))
-                .build();
+        Files.writeString(store.file(), key + ":\n  value: \"" + asWritten + "\"\n  provenance: \"" + why + "\"\n");
 
-        store.save(written);
-        Profile reloaded = store.load();
+        Profile loaded = store.load();
+        store.save(loaded);
+        Profile reloaded = new ProfileStore(workingDirectory).load();
+        ProfileValue answer = ProfileKeys.valuesOf(reloaded).get(key);
 
         claim(
-                "the operator's threshold value survives the round trip",
-                () -> assertThat(reloaded.degenerateOutputConfidenceFloor().value()).isEqualTo("0.5"));
+                "the value and its provenance are the operator's, as written, after a load and a save",
+                () -> assertThat(List.of(answer.value(), answer.provenance())).containsExactly(asWritten, why));
         claim(
-                "and it now reads as set, the same isSet() check every other answered key uses",
-                () -> assertThat(reloaded.degenerateOutputConfidenceFloor().isSet()).isTrue());
+                "and the key reads as answered, the same check every answered key passes",
+                () -> assertThat(answer.isSet()).isTrue());
+        claim(
+                "the deliverable's index states it as written, before the save and after it",
+                () -> assertThat(List.of(loaded.keysAsWritten().get(key), reloaded.keysAsWritten().get(key)))
+                        .containsExactly(asWritten, asWritten));
+        claim(
+                "and every other key is left unanswered: the answer landed on its own key",
+                () -> assertThat(ProfileKeys.valuesOf(reloaded))
+                        .allSatisfy((other, value) -> assertThat(value.isSet())
+                                .as("%s is unanswered", other)
+                                .isEqualTo(other.equals(key))));
     }
 
     /**
@@ -216,6 +292,28 @@ class ProfileStoreTest {
               provenance: "read off the group sizes"
             """;
 
+    /** The value {@link #EVERY_KEY_ANSWERED} writes under each key, copied from it. */
+    private static final Map<String, String> EVERY_KEY_AS_ANSWERED = Map.ofEntries(
+            Map.entry("seedFolder", "C:/seeds"),
+            Map.entry("degenerateOutputConfidenceFloor", "0.51"),
+            Map.entry("degenerateOutputWordFloor", "6"),
+            Map.entry("boilerplateDocumentFrequencyFloor", "0.52"),
+            Map.entry("embeddingModel", "an-embedding-model:0.6b"),
+            Map.entry("relevanceScoreFloor", "0.53"),
+            Map.entry("arrangementApproved", "9f2c41ab77de"),
+            Map.entry("generationModel", "a-generation-model:8b"),
+            Map.entry("generationContextWindow", "4097"),
+            Map.entry("clusterPageByteCeiling", "4098"),
+            Map.entry("logTimestampShareFloor", "0.54"),
+            Map.entry("extractionAttempt", "3"),
+            Map.entry("codeNameEndings", ".C .Java"),
+            Map.entry("outOfScopeNameEndings", ".P3A .DGN"),
+            Map.entry("translationSimilarityFloor", "0.55"),
+            Map.entry("preferredLanguages", "it, en"),
+            Map.entry("configurationSettingShareFloor", "0.56"),
+            Map.entry("deliverableLanguage", "it"),
+            Map.entry("clusterResolution", "2.5"));
+
     @Test
     @Story("What census writes to the profile")
     @DisplayName("A file answering every key loads with every answer on the key that carried it")
@@ -240,32 +338,9 @@ class ProfileStoreTest {
                                 .as("%s is answered", key)
                                 .isTrue()));
         claim(
-                "and each one sits on the key the file wrote it under, so no reader silently shifted the"
-                        + " values along by a position",
-                () -> assertThat(loaded.relevanceScoreFloor().value()).isEqualTo("0.53"));
-        claim(
-                "the attempt carries its own answer",
-                () -> assertThat(loaded.extractionAttempt().value()).isEqualTo("3"));
-        claim(
-                "and so does the word floor, on its own key and not the confidence floor's beside it",
-                () -> assertThat(loaded.degenerateOutputWordFloor().value()).isEqualTo("6"));
-        claim(
-                "the endings kept as code carry theirs, apart from the endings left out beside them",
-                () -> assertThat(loaded.codeNameEndings().value()).isEqualTo(".C .Java"));
-        claim(
-                "and so do the name endings and the key before the last, the similarity floor",
-                () -> assertThat(List.of(
-                                loaded.outOfScopeNameEndings().value(), loaded.translationSimilarityFloor().value()))
-                        .containsExactly(".P3A .DGN", "0.55"));
-        claim(
-                "and so do the preferred languages key and the floor on the share of settings, the two before the last",
-                () -> assertThat(List.of(
-                                loaded.preferredLanguages().value(), loaded.configurationSettingShareFloor().value()))
-                        .containsExactly("it, en", "0.56"));
-        claim(
-                "including the last key, the language the pages are in, which is the one a shorter way in could not"
-                        + " have filled",
-                () -> assertThat(loaded.deliverableLanguage().value()).isEqualTo("it"));
+                "and each one sits on the key the file wrote it under, every value in the file being one no other"
+                        + " key carries, so no reader shifted the values along by a position or swapped two of them",
+                () -> assertThat(loaded.keysAsWritten()).containsAllEntriesOf(EVERY_KEY_AS_ANSWERED));
     }
 
     @Test
@@ -289,12 +364,12 @@ class ProfileStoreTest {
                 () -> assertThat(loaded.seedFolder().value()).isEqualTo("C:/seeds"));
         claim(
                 "and every key written since that file was saved is present and unanswered, rather than"
-                        + " null or missing -- which is the promise a reader has to keep whatever it builds"
+                        + " null, missing or refused -- which is the promise a reader has to keep whatever it builds"
                         + " the record through, and the one thing a shorter way in was ever standing in for",
-                () -> assertThat(loaded.generationModel()).isEqualTo(TextValue.unset()));
-        claim(
-                "so the file still loads at all, on a reader that refuses a key it does not recognise",
-                () -> assertThat(loaded.arrangementApproved()).isEqualTo(TextValue.unset()));
+                () -> assertThat(ProfileKeys.valuesOf(loaded))
+                        .allSatisfy((key, value) -> assertThat(value.isSet())
+                                .as("%s is answered only if it is the key the file answers", key)
+                                .isEqualTo(key.equals("seedFolder"))));
     }
 
     @Test
@@ -315,13 +390,8 @@ class ProfileStoreTest {
         Profile loaded = store.load();
 
         claim(
-                "the file loads rather than the tool refusing to run: a person edits this file by hand"
-                        + " between every invocation, and one mistyped key must not cost them the pass"
-                        + " that was about to tell them what to write",
-                () -> assertThat(loaded).isNotNull());
-        claim(
-                "and the quoted word is read as an answer nothing can act on, carrying back exactly what"
-                        + " was typed -- this is the mistake the file format was chosen to catch, and for"
+                "the file loads rather than the tool refusing to run, and the quoted word is read as an answer"
+                        + " nothing can act on, carrying back exactly what was typed -- this is the mistake the file format was chosen to catch, and for"
                         + " every numeric key it used to arrive at the stages as ordinary text",
                 () -> assertThat(loaded.relevanceScoreFloor().reading())
                         .isEqualTo(new NumericValue.Unreadable("null")));

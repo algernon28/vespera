@@ -2,6 +2,7 @@ package io.algernon.vespera.profile;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 import io.algernon.vespera.Adr;
@@ -13,9 +14,13 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * A {@code profile.yaml} the reader cannot load says which file, which key, and what shape a key
@@ -96,5 +101,34 @@ class ProfileThatDoesNotLoadTest {
                 () -> assertThat(refusal.getMessage()).contains("line " + THE_LINE_THE_PARSER_STOPS_ON));
         claim("and saying what shape a key takes, so the operator rewriting the line writes it in that shape",
                 () -> assertThat(refusal.getMessage()).contains("value:").contains("provenance:"));
+    }
+
+    /** The two keys whose value is a list of name endings, written as one line of text. */
+    static Stream<Named<String>> keysOfNameEndings() {
+        return Stream.of(
+                Named.of("the name endings kept as code", "codeNameEndings"),
+                Named.of("the name endings left out", "outOfScopeNameEndings"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("keysOfNameEndings")
+    @Story("What a profile that does not load says")
+    @DisplayName("A YAML list under the value of a list of name endings is refused, naming the key and the shape it takes")
+    @Issue("558")
+    @Link(name = "ADR-256", url = Adr.NAME_ENDINGS_THE_PROFILE_LISTS_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
+    void aYamlListUnderTheValueIsRefusedNamingTheKey(String key, @TempDir Path workingDirectory) throws IOException {
+        ProfileStore store = new ProfileStore(workingDirectory);
+        Files.writeString(
+                store.file(),
+                key + ":\n  value:\n    - .java\n    - .DGN\n  provenance: \"written as a list\"\n");
+
+        claim(
+                "the load fails with the one line the operator is told, naming the key and saying it is not in the"
+                        + " shape a key takes, which is one line of text under value",
+                () -> assertThatThrownBy(store::load)
+                        .isInstanceOf(MisshapenProfileException.class)
+                        .hasMessageContaining(key)
+                        .hasMessageContaining("is not in the shape a profile key takes"));
     }
 }

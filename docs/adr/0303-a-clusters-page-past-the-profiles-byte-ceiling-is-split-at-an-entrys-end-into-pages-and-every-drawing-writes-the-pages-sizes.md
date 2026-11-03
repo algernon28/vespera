@@ -190,7 +190,7 @@ ADR-149 §6's ten pictures a document shows and ADR-274 §2.5's gibibyte left fr
 | `…aDrawingThatFailsWritesNoReport` | §8: the tree's index refused, the drawing fails and no report or `.part` is written (#680) |
 | `pipeline.ClusterPageByteCeilingTest` | §2: the key's name; unset; whole numbers from 1 to `Long.MAX_VALUE` read exactly; `0`, `-1`, `1.5`, `NaN`, infinities, text and `9223372036854775808` ignored with their text; `forTheTree` |
 | `pipeline.TheClosingLineNamesAnIgnoredPageCeilingTest` | §2.1: the clause with the text quoted, before the last full stop, one line, nothing wanted; no clause unset, set, or with no tree |
-| `profile.ClusterPageByteCeilingInTheProfileTest` | §2: after `generationContextWindow`; unset in a fresh profile and in `profile.yaml`; written back as written; on the index's keys |
+| `profile.ProfileTest.aKeyIsDeclaredBesideTheKeyItIsReadWith`, `profile.ProfileStoreTest.writesACompleteSkeletonForAFreshCorpus`, `profile.ProfileStoreTest.anAnswerIsReadAndWrittenBackAsWritten` | §2: after `generationContextWindow`; unset in a fresh profile and in `profile.yaml`; written back as written; on the index's keys (#682) |
 | `pipeline.RunIdentityGoldenTest.theCeilingEntersNoRunAndTheDrawingStatesIt` | §13, §8: with the ceiling set, every run's text as pinned, no `config_consumed` naming the key, and the report in the working directory stating it |
 | `controlpanel.ProfileKeyTest` | §9: the key in the profile's order with no earliest run, its cost no run, no approval closed, no labels refused |
 
