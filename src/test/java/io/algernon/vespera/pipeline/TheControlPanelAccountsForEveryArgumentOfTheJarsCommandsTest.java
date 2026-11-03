@@ -32,6 +32,10 @@ import picocli.CommandLine.Model.PositionalParamSpec;
  * of its commands, once, by the command's name and the argument's, with the control of the launch form that sets it
  * or none, and why.
  *
+ * <p>The table names an option without its leading {@code --}, {@code help} for {@code --help}, so that no class of the
+ * control panel holds the text of the two options ADR-278 §1's scan forbids it (ADR-336 §2); this test strips the
+ * prefix from picocli's longest name before it compares.
+ *
  * <p>The model is read as the jar builds it, its mixins included, so an option added to a command, a mixin's among
  * them, or a command added with arguments of its own, fails here until the control panel's table says how it is set
  * or that it is never passed. That each control the table names is drawn on the launch form is held by {@code
@@ -75,7 +79,7 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
 
         claim("the model was read through the command's own tree, so the answers below are about the command line an"
                         + " operator types, its mixins included",
-                () -> assertThat(inTheModel).contains("vespera --help", "run <root>", "label --auto", "publish --db-dir"));
+                () -> assertThat(inTheModel).contains("vespera help", "run <root>", "label auto", "publish db-dir"));
         claim("the table names each argument once",
                 () -> assertThat(inTheTable).doesNotHaveDuplicates());
         claim("and it names every option and positional argument of the model, by command and name, and nothing the"
@@ -106,26 +110,32 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
                         + " and --auto by Have the local model answer",
                 () -> assertThat(controls).containsAllEntriesOf(Map.of(
                         "run <root>", "vespera.corpus-root",
-                        "run --db-dir", THE_WORKING_DIRECTORY,
-                        "label --db-dir", THE_WORKING_DIRECTORY,
-                        "publish --db-dir", THE_WORKING_DIRECTORY,
-                        "label --auto", "label-auto")));
-        claim("and the arguments never passed are vespera's --help and --version, and label's file, and no other",
-                () -> assertThat(neverPassed).containsExactlyInAnyOrder("vespera --help", "vespera --version",
+                        "run db-dir", THE_WORKING_DIRECTORY,
+                        "label db-dir", THE_WORKING_DIRECTORY,
+                        "publish db-dir", THE_WORKING_DIRECTORY,
+                        "label auto", "label-auto")));
+        claim("and the arguments never passed are vespera's help and version options, and label's file, and no other",
+                () -> assertThat(neverPassed).containsExactlyInAnyOrder("vespera help", "vespera version",
                         "label <file>"));
     }
 
     /**
-     * Every command under {@code command}, itself included: each of its options by its longest name and each of its
-     * positional arguments by its label, after the command's name and a space, the standard help options among them.
+     * Every command under {@code command}, itself included: each of its options by its longest name without its
+     * leading {@code --} and each of its positional arguments by its label, after the command's name and a space, the
+     * standard help options among them.
      */
     private static void walk(CommandSpec command, List<String> arguments) {
         for (OptionSpec option : command.options()) {
-            arguments.add(command.name() + " " + option.longestName());
+            arguments.add(command.name() + " " + withoutTheLeadingDashes(option.longestName()));
         }
         for (PositionalParamSpec positional : command.positionalParameters()) {
             arguments.add(command.name() + " " + positional.paramLabel());
         }
         command.subcommands().values().forEach(sub -> walk(sub.getCommandSpec(), arguments));
+    }
+
+    /** An option's longest name as the control panel's table names it (ADR-336 §2): {@code db-dir} for {@code --db-dir}. */
+    private static String withoutTheLeadingDashes(String longestName) {
+        return longestName.startsWith("--") ? longestName.substring(2) : longestName;
     }
 }

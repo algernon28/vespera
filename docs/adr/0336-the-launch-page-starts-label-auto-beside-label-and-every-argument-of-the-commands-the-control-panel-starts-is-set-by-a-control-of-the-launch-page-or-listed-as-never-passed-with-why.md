@@ -2,7 +2,7 @@
 
 - **Date**: 2026-11-03
 - **Status**: accepted on 2026-11-03.
-- **Decided**: by the operator, that the control panel sets the options of the jar's commands too, `--auto` named among them. The rest, a button in place of a choice beside Label, its name, its words and where it stands, the table that accounts for every option and positional argument, where it lives and the two tests that hold it, and which arguments stay unpassed, was decided by Claude for the operator, who asked for the feature without naming them.
+- **Decided**: by the operator, that the control panel sets the options of the jar's commands too, `--auto` named among them; that `--auto` is started by a button of its own and not by a choice beside Label (§1); that the button is drawn where the working directory holds no label file (§1); that Publish is not added to the launch page (§3); and that the table names an option without its leading `--`, so that ADR-278 §1's scan of the control panel's texts stands as it is (§2). The rest, the button's name, its words and where it stands, the table that accounts for every option and positional argument, where it lives and the two tests that hold it, and which arguments stay unpassed, was decided by Claude for the operator, who asked for the feature without naming them.
 - **Keeps**: [ADR-197](0197-a-local-model-answers-the-relevance-questions-and-the-floor-is-a-rule-over-the-labels-so-no-document-reaches-a-hosted-model.md) §6: `--auto` is an option of `label`, the deliberate act, and every refusal of it, no label file, answers not yet recorded, a labeller that is not local, is the jar's own, in its own line. [ADR-047](0047-the-pipeline-never-blocks.md): `vespera run` stays unattended and reaches no model through this record.
 - **Keeps**: [ADR-278](0278-the-control-panel-starts-the-jar-as-its-child-reads-its-output-to-the-end-and-stops-only-its-own-child.md) §1: the command lines are `run <corpus root> --db-dir=<working directory>`, `label [--auto] --db-dir=<working directory>` and, by [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md) §6, `publish --db-dir=<working directory>`, never `--help` or `--version`; one child at a time; and the control panel adds no command and no option to the jar. ADR-308 §6: Publish stays on the invocation page, and the five values a publish reads stay the operator's environment's.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the table of §2 is text in a class of the control panel's own, and names no class of the jar. [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md): the seven launch values stay seven, stored as an invocation starts. [ADR-294](0294-the-control-panel-learns-what-the-next-invocation-wants-from-a-file-the-jar-writes-with-the-closing-line.md) §4: `/next` reads the next act as before. [ADR-297](0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md): the screens are tested through the pages served, by names, ids and attributes.
@@ -34,7 +34,7 @@
 
 **It is disabled exactly where `run` and `label` are**: while a holder line is held or the control panel's own child runs (ADR-302 §2, ADR-278 §4). `check` stays enabled.
 
-**It is drawn whatever the working directory holds.** The launch page reads no label file to offer Label either. Where there is no label file, or it holds answers not yet recorded, or the labeller is not local, the jar refuses `--auto` in its own line and exit 1 (ADR-197 §6), which the invocation page shows as `failed-or-refused` with that line.
+**It is drawn whatever the working directory holds**, a working directory with no label file among them. The launch page reads no label file to offer Label either. Where there is no label file, or it holds answers not yet recorded, or the labeller is not local, the jar refuses `--auto` in its own line and exit 1 (ADR-197 §6), which the invocation page shows as `failed-or-refused` with that line.
 
 **`/next`'s form `label-auto` stays**, `POST` to `/label-auto`, offered where answers are wanted, its refusals landing on `/next` (ADR-302 §8, ADR-331 §6). The two buttons start the same child by the same checks; they differ only in the page each stands on and the page a refusal lands on.
 
@@ -52,7 +52,7 @@ public static final List<Argument> ARGUMENTS;
 ```
 
 - **`command`** is the name of the command the argument belongs to as picocli's model names it: `vespera` for the top command, `run`, `label` or `publish`.
-- **`name`** is an option's longest name, `OptionSpec.longestName()`, or a positional argument's label, `PositionalParamSpec.paramLabel()`, as the model gives them.
+- **`name`** is an option's longest name, `OptionSpec.longestName()`, **without its leading `--`**, as `help` for `--help` and `db-dir` for `--db-dir`; or a positional argument's label, `PositionalParamSpec.paramLabel()`, as the model gives it, as `<root>`. Every option of the tree has a long name.
 - **`control`** is the name of the control or submit button of the launch page's form `launch` whose value or press sets the argument; **empty where the control panel never passes it**.
 - **`reason`** is one sentence, never blank, saying how the control sets it or why it is never passed.
 
@@ -60,20 +60,22 @@ The table, in this order:
 
 | `command` | `name` | `control` | `reason` |
 | --- | --- | --- | --- |
-| `vespera` | `--help` | | Never passed (ADR-278 §1): it boots the context and takes the working directory's lock, and prints nothing the control panel reads. |
-| `vespera` | `--version` | | Never passed (ADR-278 §1): it boots the context, takes the lock and prints no version. |
+| `vespera` | `help` | | Never passed (ADR-278 §1): it boots the context and takes the working directory's lock, and prints nothing the control panel reads. |
+| `vespera` | `version` | | Never passed (ADR-278 §1): it boots the context, takes the lock and prints no version. |
 | `run` | `<root>` | `vespera.corpus-root` | The corpus root field, made absolute. |
-| `run` | `--db-dir` | `vespera.working-dir` | The working directory field, made absolute; also the child's current directory. |
-| `label` | `--auto` | `label-auto` | Passed by Have the local model answer, here and on the next page; Label passes none. |
+| `run` | `db-dir` | `vespera.working-dir` | The working directory field, made absolute; also the child's current directory. |
+| `label` | `auto` | `label-auto` | Passed by Have the local model answer, here and on the next page; Label passes none. |
 | `label` | `<file>` | | Never passed: label reads the label file the last run wrote in the working directory, which the Relevance page answers. |
-| `label` | `--db-dir` | `vespera.working-dir` | As for run. |
-| `publish` | `--db-dir` | `vespera.working-dir` | As for run; Publish stands on the invocation page. |
+| `label` | `db-dir` | `vespera.working-dir` | As for run. |
+| `publish` | `db-dir` | `vespera.working-dir` | As for run; Publish stands on the invocation page. |
 
 The words of `reason` are the implementation's, and say what the table says.
 
+**Why `name` drops the `--`.** ADR-278 §1's scan, `ChildCommandTest.noClassOfTheControlPanelSpellsVersionOrHelp`, holds that no string text compiled under `io.algernon.controlpanel` contains `--help` or `--version`, so that no change can pass either to the child by accident. The table names both, to say they are never passed. Named without the prefix, `help` and `version`, the table holds neither text and the scan stands exactly as it is; the jar's-side test strips the prefix from `longestName()` before it compares. The prefix is dropped from every option's name, not from the two alone, so that one rule reads the whole table. The `--auto` and `--db-dir` the command line passes stay where they are, in the code that builds it (ADR-278 §1).
+
 **Two tests hold it.**
 
-- **The jar's side**, `pipeline.TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest`, reads picocli's model of `VesperaCommand`, built without its collaborators as `NothingShippedReachesConfluenceTest` builds it, every command of the tree and every option and positional argument of each, the standard help options included, and holds the set of `command` and `name` equal to the table's, each entry once, every `reason` not blank, and the three entries with no control the three above.
+- **The jar's side**, `pipeline.TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest`, reads picocli's model of `VesperaCommand`, built without its collaborators as `NothingShippedReachesConfluenceTest` builds it, every command of the tree and every option and positional argument of each, the standard help options included, each option by its `longestName()` with the leading `--` stripped, and holds the set of `command` and `name` equal to the table's, each entry once, every `reason` not blank, and the three entries with no control the three above.
 - **The control panel's side**, `controlpanel.TheLaunchPageStartsLabelAutoScreenTest.everyControlTheTableNamesIsOnTheLaunchForm`, holds that each `control` the table names is a control or a submit button of the form `launch` on `/`.
 
 **So no argument is forgotten.** An option or a positional argument added to a command of the jar, or a command added to the tree with arguments of its own, fails the first test until the table holds it, with a control the launch page then draws, which the second test holds, or with none and the reason it is never passed. One removed or renamed fails it too. A control renamed or taken off the launch form fails the second. Either way the decision is written beside the code that builds the command line, in the change that adds the argument, and not left to a later reading of the command's help.
@@ -83,7 +85,7 @@ The words of `reason` are the implementation's, and say what the table says.
 ### 3. No other argument is offered today
 
 - **`run`**: `<root>` and `--db-dir`, each set by a launch field already. Nothing is added.
-- **`publish`**: `--db-dir` alone, set by the working directory field. Nothing is added.
+- **`publish`**: `--db-dir` alone, set by the working directory field. Nothing is added, and **Publish is not added to the launch page**: it stays on the invocation page once a rendering is drawn (ADR-308 §6).
 - **`label`'s `<file>`**: not offered. The file `label` reads where none is given is the one the last run wrote in the working directory, which `/labels` answers by folder (ADR-334 §6) and ADR-295 §6 writes; a file elsewhere is one the operator wrote, given to `vespera label <file>` from a terminal. `--auto` with a file is refused as a usage error (ADR-197 §6), so the one option the launch page adds takes none.
 - **`vespera`'s `--help` and `--version`**: never passed (ADR-278 §1).
 
@@ -111,6 +113,7 @@ In `io.algernon.controlpanel`, linking no class of the jar:
 - **The table in a test alone.** The control panel's code would hold no record of how it sets an argument, and the one place an option is answered for would be a test's list.
 - **The rule left to `NothingShippedReachesConfluenceTest`'s list of options.** It holds that no option names a site, and fails without saying what the control panel owes.
 - **`label`'s `<file>` offered as a field.** It names a file outside what the control panel writes and reads, and `--auto` refuses one (§3).
+- **`name` as picocli gives it, `--help` and `--version` among them.** The table would hold the two texts ADR-278 §1's scan forbids every class of the control panel. Relaxing the scan for `ChildCommand` would leave the class that builds the command line the one class free to spell them; building the two names at run time, from `-` repeated and a word, would keep the scan's letter and defeat its point, as a text could then reach the command line by a change no test reads. Dropping the prefix costs one strip in the jar's-side test.
 
 ## Consequences
 
@@ -122,8 +125,8 @@ In `io.algernon.controlpanel`, linking no class of the jar:
 
 | Method | What it holds |
 | --- | --- |
-| `pipeline.TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest.everyOptionAndPositionalArgumentOfTheCommandTreeIsInTheControlPanelsTableOnce` | picocli's model of `vespera`, every command, option and positional argument, the help options included: the same set of command and name as `ChildCommand.ARGUMENTS`, each entry once (§2) |
-| `pipeline.TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest.eachArgumentIsSetByALaunchControlOrNeverPassedAndSaysWhy` | every `reason` not blank; `<root>` by `vespera.corpus-root`, each `--db-dir` by `vespera.working-dir`, `--auto` by `label-auto`; `--help`, `--version` and `<file>` with no control (§2, §3) |
+| `pipeline.TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest.everyOptionAndPositionalArgumentOfTheCommandTreeIsInTheControlPanelsTableOnce` | picocli's model of `vespera`, every command, option and positional argument, the help options included, each option's longest name without its leading `--`: the same set of command and name as `ChildCommand.ARGUMENTS`, each entry once (§2) |
+| `pipeline.TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest.eachArgumentIsSetByALaunchControlOrNeverPassedAndSaysWhy` | every `reason` not blank; `run <root>` by `vespera.corpus-root`, each `db-dir` by `vespera.working-dir`, `label auto` by `label-auto`; `vespera help`, `vespera version` and `label <file>` with no control, and no other (§2, §3) |
 | `controlpanel.TheLaunchPageStartsLabelAutoScreenTest.theLaunchFormHoldsLabelAutoAfterLabelAndBeforeCheck` | the four buttons in order, in `#top-row`, none disabled with nothing held (§1) |
 | `controlpanel.TheLaunchPageStartsLabelAutoScreenTest.labelAutoStartsLabelWithAutoOnTheWorkingDirectory` | the press lands on `/invocation`; the child's arguments are `label --auto --db-dir=<working directory>`, absolute (§1) |
 | `controlpanel.TheLaunchPageStartsLabelAutoScreenTest.labelAutoIsDisabledWhileTheControlPanelsChildRunsAndRefusedFromAPageDrawnBefore` | a child running: disabled on a page drawn then; pressed on a page drawn before, back on `/` with ADR-302 §2's line, and no second child (§1) |
@@ -131,10 +134,9 @@ In `io.algernon.controlpanel`, linking no class of the jar:
 | `controlpanel.TheLaunchPageStartsLabelAutoScreenTest.theNextPagesLabelAutoStaysAndStartsTheSameCommand` | after a run asking for answers, `/next`'s `label-auto` starts the same command line (§1) |
 | `controlpanel.TheLaunchPageStartsLabelAutoScreenTest.everyControlTheTableNamesIsOnTheLaunchForm` | each `control` of `ChildCommand.ARGUMENTS` a control or a button of `launch` (§2) |
 
-These change with this record, holding what they held otherwise: `controlpanel.LaunchScreenTest.theLaunchFormHoldsTheSevenLaunchValuesByTheirKeysAsLastStarted` reads the four buttons; its `runAndLabelAreDisabledWhileAnotherInvocationHoldsTheWorkingDirectory`, `runAndLabelAreDisabledWhileAnotherInvocationHoldsTheCorpusRoot` and `aSaveOfTheControlPanelsOwnLeavesTheWorkingDirectoryHeldByNobody` read `label-auto` disabled and enabled with `run` and `label`; `controlpanel.TheControlPanelsLayoutScreenTest.everyPageHasATopRowHoldingItsTitleAndTheLaunchPageItsThreeButtons` is `everyPageHasATopRowHoldingItsTitleAndTheLaunchPageItsFourButtons`, reading the four in `#top-row` and none of them in another page's; and `controlpanel.JarForScreenTests` gains `say-the-arguments `, before what the child does, printing its arguments as a line of its own. `NothingShippedReachesConfluenceTest`, `ChildCommandTest`, `NextScreenTest` and `FolderFieldStatusScreenTest.labelAutoRefusesACorpusRootTheSystemCannotHold` stand unchanged.
+These change with this record, holding what they held otherwise: `controlpanel.LaunchScreenTest.theLaunchFormHoldsTheSevenLaunchValuesByTheirKeysAsLastStarted` reads the four buttons; its `runAndLabelAreDisabledWhileAnotherInvocationHoldsTheWorkingDirectory`, `runAndLabelAreDisabledWhileAnotherInvocationHoldsTheCorpusRoot` and `aSaveOfTheControlPanelsOwnLeavesTheWorkingDirectoryHeldByNobody` read `label-auto` disabled and enabled with `run` and `label`; `controlpanel.TheControlPanelsLayoutScreenTest.everyPageHasATopRowHoldingItsTitleAndTheLaunchPageItsThreeButtons` is `everyPageHasATopRowHoldingItsTitleAndTheLaunchPageItsFourButtons`, reading the four in `#top-row` and none of them in another page's; and `controlpanel.JarForScreenTests` gains `say-the-arguments `, before what the child does, printing its arguments as a line of its own. `NothingShippedReachesConfluenceTest`, `ChildCommandTest`, `NextScreenTest` and `FolderFieldStatusScreenTest.labelAutoRefusesACorpusRootTheSystemCannotHold` stand unchanged, `ChildCommandTest.noClassOfTheControlPanelSpellsVersionOrHelp` among them: its scan reads `ChildCommand`'s table and finds neither `--help` nor `--version`, since the table names no option with its `--` (§2).
 
 ## What this does not decide
 
-- **Whether Publish is offered on the launch page.** It stays on the invocation page once a rendering is drawn (ADR-308 §6).
 - **A rule of the same kind for the child's environment**, the launch values and the variables a publish reads (ADR-292, ADR-308 §3).
 - **The words of each `reason`**, beyond what §2's table says.
