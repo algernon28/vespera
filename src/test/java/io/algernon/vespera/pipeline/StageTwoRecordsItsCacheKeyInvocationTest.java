@@ -28,7 +28,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -88,9 +87,6 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
     private static final String USABLE_SEED = "seed.txt";
     private static final String SEED_WITH_NO_TEXT = SeedScriptedExtractionBeans.EMPTY_SEED;
 
-    /** The prefix {@code ConversionDispatch} names its conversion workers with. */
-    private static final String A_CONVERSION_WORKER = "stage-2-conversion-";
-
     /** The seven kinds of run one invocation mints before anything is approved, as the ledger names them. */
     private static final List<String> THE_STAGES_AS_RECORDED = List.of(
             "byte-level-reduction",
@@ -110,11 +106,9 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
     static class KeyWriteProbe {
 
         static final Set<String> THREADS_THAT_WROTE_A_KEY = ConcurrentHashMap.newKeySet();
-        static final AtomicInteger KEY_WRITES = new AtomicInteger();
 
         static void forget() {
             THREADS_THAT_WROTE_A_KEY.clear();
-            KEY_WRITES.set(0);
         }
 
         private static void seen(Object[] arguments) {
@@ -124,7 +118,6 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
             String statement = sql.toLowerCase(Locale.ROOT);
             if (statement.contains("insert") && statement.contains("extraction_cache_key")) {
                 THREADS_THAT_WROTE_A_KEY.add(Thread.currentThread().getName());
-                KEY_WRITES.incrementAndGet();
             }
         }
 
@@ -207,7 +200,7 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
      * What the one invocation left that the database does not keep: how it ended, the thread it was
      * invoked on, and what the probe saw of the writes to the key table while it ran (#678).
      */
-    private record Ran(int exitCode, String invokedOn, int keyWrites, Set<String> threadsThatWroteAKey) {}
+    private record Ran(int exitCode, String invokedOn, Set<String> threadsThatWroteAKey) {}
 
     private static final Once<Ran> ran = new Once<>();
 
@@ -239,7 +232,6 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
             return new Ran(
                     cli.getExitCode(),
                     invokedOn,
-                    KeyWriteProbe.KEY_WRITES.get(),
                     Set.copyOf(KeyWriteProbe.THREADS_THAT_WROTE_A_KEY));
         });
     }
@@ -343,17 +335,11 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
 
         claim("the invocation reports success", () -> assertThat(ran.exitCode()).isZero());
         claim(
-                "keys were written while this test watched, so the next claim is not about an empty set",
-                () -> assertThat(ran.keyWrites()).isPositive());
-        claim(
-                "every statement that wrote a key was issued from one thread, the one the command was"
-                        + " invoked on: conversions run on threads of their own, and a write from one of"
-                        + " them would need a second connection while the step holds the only writer's",
+                "keys were written, and every statement that wrote one was issued from one thread, the one the"
+                        + " command was invoked on, and so from no conversion worker: conversions run on threads of"
+                        + " their own, and a write from one of them would need a second connection while the step"
+                        + " holds the only writer's",
                 () -> assertThat(ran.threadsThatWroteAKey()).containsExactly(ran.invokedOn()));
-        claim(
-                "and none of them is a conversion worker, by name",
-                () -> assertThat(ran.threadsThatWroteAKey())
-                        .noneMatch(thread -> thread.startsWith(A_CONVERSION_WORKER)));
     }
 
     @Test

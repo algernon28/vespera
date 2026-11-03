@@ -13,6 +13,9 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.List;
+import java.util.Locale;
+import java.util.stream.LongStream;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,8 +28,8 @@ import org.slf4j.LoggerFactory;
  * is a multiple of {@code max(1,000, 10^(floor(log10 N) - 1))}: every 1,000 below 100,000, every 10,000 from
  * there, and so on.
  *
- * <p><b>Part (a) of ADR-192.</b> Does not compile until {@code StageProgress.running} exists; part (a) moves
- * it into {@code src/test}. No clock is read: the counter is driven to its count.
+ * <p>No clock is read: the counter is driven to its count. The expected lines are written out, not worked
+ * out by the rule under test (#681).
  */
 @Epic("Pipeline")
 @Feature("Progress reporting")
@@ -36,14 +39,17 @@ class StageProgressRunningCountTest {
 
     private static final String LABEL = "Stage 1 (byte-level reduction, duplicates recorded)";
 
-    /** Fewer than the first line's count. */
-    private static final long JUST_UNDER_A_THOUSAND = 999L;
+    /** The step below 100,000, and the first line's count. */
+    private static final long A_THOUSAND = 1_000L;
+
+    /** The thousands from 1,000 to 99,000, each a line. */
+    private static final long NINETY_NINE = 99L;
+
+    /** Where the step widens tenfold, to 10,000. */
+    private static final long A_HUNDRED_THOUSAND = 100_000L;
 
     /** Past the point where the step widens tenfold, by one step of the wider kind. */
     private static final long A_HUNDRED_AND_TEN_THOUSAND = 110_000L;
-
-    /** 1,000 to 99,000 is ninety-nine lines; 100,000 and 110,000 are two more. */
-    private static final int LINES_TO_A_HUNDRED_AND_TEN_THOUSAND = 101;
 
     private ListAppender<ILoggingEvent> logged;
     private Logger progressLogger;
@@ -64,33 +70,19 @@ class StageProgressRunningCountTest {
 
     @Test
     @Story("A loop with no total says how many it has done so far")
-    @DisplayName("A running count writes nothing before its thousandth item")
-    void writesNothingBeforeTheThousandth() {
-        countTo(JUST_UNDER_A_THOUSAND);
-
-        claim("no line is written after 999 items", () -> assertThat(messages()).isEmpty());
-    }
-
-    @Test
-    @Story("A loop with no total says how many it has done so far")
     @DisplayName("A running count writes every 1,000 to 99,000, then every 10,000, and states no total")
     void writesEveryThousandThenEveryTenThousand() {
         countTo(A_HUNDRED_AND_TEN_THOUSAND);
 
         claim(
-                "a hundred and one lines: one at each thousand to 99,000, then one at 100,000 and one at 110,000,"
-                        + " and none between them",
+                "a hundred and one lines: one at each thousand from 1,000 to 99,000, then one at 100,000 and one at"
+                        + " 110,000, none between them, none before the thousandth, and none naming a total or a share",
                 () -> assertThat(messages())
-                        .hasSize(LINES_TO_A_HUNDRED_AND_TEN_THOUSAND)
-                        .startsWith(LABEL + ": 1,000 so far", LABEL + ": 2,000 so far")
-                        .endsWith(LABEL + ": 99,000 so far", LABEL + ": 100,000 so far", LABEL + ": 110,000 so far"));
-        claim(
-                "and they are exactly the lines the rule written out in the test helper gives",
-                () -> assertThat(messages())
-                        .containsExactlyElementsOf(ProgressLines.expectedRunning(LABEL, A_HUNDRED_AND_TEN_THOUSAND)));
-        claim(
-                "no line names a total or a share, because there is none",
-                () -> assertThat(messages()).noneMatch(line -> line.contains(" of ") || line.contains("%")));
+                        .containsExactlyElementsOf(Stream.concat(
+                                        LongStream.rangeClosed(1, NINETY_NINE).map(k -> k * A_THOUSAND).boxed(),
+                                        Stream.of(A_HUNDRED_THOUSAND, A_HUNDRED_AND_TEN_THOUSAND))
+                                .map(count -> String.format(Locale.ROOT, "%s: %,d so far", LABEL, count))
+                                .toList()));
     }
 
     private void countTo(long items) {

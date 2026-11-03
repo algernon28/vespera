@@ -12,9 +12,8 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,7 +29,7 @@ import org.slf4j.LoggerFactory;
  * with the rows read so far. A line falls when they have gone at least ADR-192 section 8's interval over N
  * beyond the last line. N is the span of the run's rowids, a bound: the read goes through the survivors'
  * rows alone, so it may end below a hundred percent, and it never writes a build's line that its rows are
- * gone through. {@link #expected} restates the rule and does not read it off the class.
+ * gone through. The expected lines are written out, not worked out by a copy of the rule (#681).
  *
  * <p>It was parked under {@code docs/adr/0211/tests/} until the two methods ADR-211 adds to {@code
  * StatementProgress} existed, since it names them and would have stopped the test tree compiling, and came
@@ -103,18 +102,13 @@ class StatementProgressOfRowsReadTest {
         for (long rows = A_PAGE; rows <= FOUR_HUNDRED_THOUSAND; rows += A_PAGE) {
             progress.rowsRead(rows);
         }
-        List<String> lines = lines();
 
         claim(
-                "told after each of its four hundred pages, it writes exactly the lines the rule gives: one"
-                        + " every 4,000 rows",
-                () -> assertThat(lines).containsExactlyElementsOf(expected(LABEL, FOUR_HUNDRED_THOUSAND, A_PAGE)));
-        claim(
-                "no more than " + AT_MOST_A_HUNDRED_LINES + " of them, the last at a hundred percent",
-                () -> {
-                    assertThat(lines).hasSizeLessThanOrEqualTo(AT_MOST_A_HUNDRED_LINES);
-                    assertThat(lines.getLast()).isEqualTo(LABEL + ": about 100% of 400,000 rows");
-                });
+                "told after each of its four hundred pages, it writes a line every 4,000 rows, each a whole percent"
+                        + " of four hundred thousand: a hundred lines, 1 to 100 percent, and no more",
+                () -> assertThat(lines()).containsExactlyElementsOf(IntStream.rangeClosed(1, AT_MOST_A_HUNDRED_LINES)
+                        .mapToObj(share -> LABEL + ": about " + share + "% of 400,000 rows")
+                        .toList()));
     }
 
     @Test
@@ -188,23 +182,5 @@ class StatementProgressOfRowsReadTest {
 
     private List<String> lines() {
         return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
-    }
-
-    /** The rule restated: the lines of a read over {@code total} rows told after every {@code page} rows. */
-    private static List<String> expected(String label, long total, long page) {
-        List<String> lines = new ArrayList<>();
-        long interval = ProgressLines.intervalOver(total);
-        long reportedAt = 0;
-        for (long rows = page; rows <= total; rows += page) {
-            if (rows - reportedAt >= interval) {
-                lines.add(label + ": about " + rows * 100 / total + "% of " + grouped(total) + " rows");
-                reportedAt = rows;
-            }
-        }
-        return lines;
-    }
-
-    private static String grouped(long value) {
-        return String.format(Locale.ROOT, "%,d", value);
     }
 }

@@ -124,8 +124,12 @@ class StageThreeWritesTheDocumentFrequencyPageTest {
                 "it names the content census it was written for, as stage 3's line in the output names it",
                 () -> assertThat(html).withFailMessage("the page does not name run %s", run).contains(run));
         claim(
-                "it is a whole page through ReportPage, reaching for no other file",
-                () -> assertThat(html).contains("<!DOCTYPE html>").contains("</html>").doesNotContain("<script"));
+                "it is a whole page, from its doctype to its closing tag, reaching for no other file: no script,"
+                        + " no linked stylesheet, nothing loaded from a source and no url in its style",
+                () -> assertThat(html)
+                        .startsWith("<!DOCTYPE html>")
+                        .contains("</html>")
+                        .doesNotContain("<script", "<link", " src=", "url("));
         claim(
                 "it has one row per share rounded down to the hundredth, in ascending order: 0.66 for the two"
                         + " passages in 2 of the 3 documents, and 1.00 for the one in all 3; each row gives the"

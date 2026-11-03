@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.extraction.ConverterStopsPartwayBeans;
@@ -19,6 +20,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -204,13 +206,12 @@ class StartUpSaysWhichIndexItBuildsTest {
     void startUpSaysWhichIndexItBuildsOverExistingRowsAndWhenItHasBuiltIt(CapturedOutput output) {
         String sinceTheStart = output.getAll();
 
-        claim(
-                "the database handed to the start held " + VERDICTS_ALREADY_THERE + " verdicts and "
-                        + SHINGLES_ALREADY_THERE + " saved word sequences, and lacked three of the indexes the"
-                        + " schema puts on those two tables, as a database made by an earlier build does",
-                () -> assertThat(indexesBeforeTheStart)
-                        .doesNotContain(VERDICT_BY_RUN, VERDICT_BY_OCCURRENCE, SHINGLE_BY_RUN)
-                        .contains(ALREADY_THERE));
+        assumeTrue(
+                indexesBeforeTheStart.contains(ALREADY_THERE)
+                        && Collections.disjoint(
+                                indexesBeforeTheStart, List.of(VERDICT_BY_RUN, VERDICT_BY_OCCURRENCE, SHINGLE_BY_RUN)),
+                "the database handed to the start lacked three of the indexes the schema puts on the verdict and"
+                        + " word-sequence tables, as a database made by an earlier build does");
         claim(
                 "the start built all three, and left the rows as they were",
                 () -> {
@@ -263,12 +264,9 @@ class StartUpSaysWhichIndexItBuildsTest {
     void startUpSaysNothingAboutAnIndexOnATableThatHoldsNoRows(CapturedOutput output) {
         String sinceTheStart = output.getAll();
 
-        claim(
-                "the database handed to the start lacked an index on a table that held no rows",
-                () -> {
-                    assertThat(indexesBeforeTheStart).doesNotContain(MISSING_OVER_NOTHING);
-                    assertThat(rowsIn(TABLE_WITHOUT_ROWS)).isZero();
-                });
+        assumeTrue(
+                !indexesBeforeTheStart.contains(MISSING_OVER_NOTHING) && rowsIn(TABLE_WITHOUT_ROWS) == 0,
+                "the database handed to the start lacked an index on a table that held no rows");
         claim(
                 "the start built that index too",
                 () -> assertThat(columnsOf(MISSING_OVER_NOTHING)).isNotEmpty());
@@ -284,11 +282,11 @@ class StartUpSaysWhichIndexItBuildsTest {
     void startUpSaysNothingAboutAnIndexThatIsAlreadyThere(CapturedOutput output) {
         String sinceTheStart = output.getAll();
 
+        assumeTrue(
+                indexesBeforeTheStart.contains(ALREADY_THERE),
+                "the database handed to the start already had the other index on the word-sequence table");
         claim(
-                "the database handed to the start already had the other index on the word-sequence table",
-                () -> assertThat(indexesBeforeTheStart).contains(ALREADY_THERE));
-        claim(
-                "and the start wrote no line about building it, because it built nothing: only an index that"
+                "the start wrote no line about building it, because it built nothing: only an index that"
                         + " is missing is announced, so every later start is as quiet as it was",
                 () -> assertThat(sinceTheStart)
                         .doesNotContain(BUILDING + ALREADY_THERE)

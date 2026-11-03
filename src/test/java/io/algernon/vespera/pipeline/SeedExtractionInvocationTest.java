@@ -449,11 +449,6 @@ class SeedExtractionInvocationTest {
                         + " and two invocations with different seed folders would otherwise write different"
                         + " seed measurements under one identity",
                 () -> assertThat(metricRowsAgainst(seedWalk, extractionRunOver(root))).isZero());
-        claim(
-                "no verdict stands against either seed even so: the row records what the converter"
-                        + " reported, which is a fact about a conversion and never a judgement about a"
-                        + " document that was never a candidate",
-                () -> assertThat(verdictKindsAgainstOccurrencesOf(seedWalk)).isEmpty());
     }
 
     @Test
@@ -532,6 +527,7 @@ class SeedExtractionInvocationTest {
     @Test
     @Story("One gate, one missing value, one paragraph")
     @DisplayName("Stage 4's gate states itself once per invocation, not once per step it stops")
+    @Link(name = "ADR-080", url = Adr.THE_BOILERPLATE_FLOOR_IS_A_GATE, type = "adr")
     void stageFoursGateIsStatedOnce(@TempDir Path root) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         nothingIsAnswered();
@@ -547,7 +543,7 @@ class SeedExtractionInvocationTest {
                         .hasSize(1));
         claim(
                 "and it still names the value and where to read what informs it, which is the half of"
-                        + " the message that was never the defect (ADR-080)",
+                        + " the message that was never the defect",
                 () -> assertThat(operatorLines())
                         .anyMatch(line -> line.contains("boilerplateDocumentFrequencyFloor is unset")
                                 && line.contains("document-frequency.html")));

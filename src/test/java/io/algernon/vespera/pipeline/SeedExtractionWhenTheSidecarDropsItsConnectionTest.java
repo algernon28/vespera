@@ -72,6 +72,12 @@ class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
     /** How often a seed is posted when its first call was dropped: the call, and the one retry. */
     private static final long TWICE = 2;
 
+    /** The health checks an invocation over this corpus makes when no call drops: the one before stage 2. */
+    private static final int HEALTH_CHECKS_WITH_NO_RECOVERY = 1;
+
+    /** And one more, the check the step waits on after a dropped call and before its retry. */
+    private static final int HEALTH_CHECKS_WITH_ONE_RECOVERY = 2;
+
     /** The status docling-serve answers a job that failed inside its worker with. */
     private static final int NOT_FOUND = 404;
 
@@ -148,6 +154,11 @@ class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
                         assertThat(sidecar.callsPerDocument()).containsEntry(seed, seed == THE_FAILING_SEED ? TWICE : ONCE);
                     }
                 });
+        claim(
+                "between the dropped call and its retry the converter was asked whether it was healthy again: "
+                        + HEALTH_CHECKS_WITH_ONE_RECOVERY + " checks in all, one more than the "
+                        + HEALTH_CHECKS_WITH_NO_RECOVERY + " an invocation makes before stage 2",
+                () -> assertThat(sidecar.healthChecks()).isEqualTo(HEALTH_CHECKS_WITH_ONE_RECOVERY));
         claim(
                 "and seed extraction is recorded as finished under the one measurement run over this corpus",
                 () -> assertThat(measurementRunsOver(root))

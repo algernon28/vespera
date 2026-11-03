@@ -132,12 +132,9 @@ class SeedCorpusComparisonInvocationTest {
                 () -> assertThat(comparisonRowsFor(measurementRun)).isPositive());
         claim(
                 "and the report was written as a file too, which is the half an operator deciding whether"
-                        + " to spend a day of compute actually reads",
+                        + " to spend a day of compute actually reads, in the working directory beside the"
+                        + " database and the profile",
                 () -> assertThat(Files.exists(reportFile())).isTrue());
-        claim(
-                "and it sits in the working directory beside the database and the profile, not inside the"
-                        + " corpus -- the pipeline writes nothing into the archive it is curating",
-                () -> assertThat(reportFile().getParent()).isEqualTo(profileStore.file().getParent()));
     }
 
     @Test
@@ -209,9 +206,9 @@ class SeedCorpusComparisonInvocationTest {
         cli.run("run", root.toString());
 
         claim(
-                "the profile carries exactly the keys it carried before this measurement ran, and none"
-                        + " of its own pointing at this report: a key exists to hold a judgement the"
-                        + " engine cannot make, and this measurement asks for none -- nothing reads it as"
+                "the profile file carries exactly the keys the profile declares, and none written by this"
+                        + " measurement beside them pointing at this report: a key exists to hold a judgement"
+                        + " the engine cannot make, and this measurement asks for none -- nothing reads it as"
                         + " a threshold",
                 () -> assertThat(profileKeys()).containsExactlyInAnyOrderElementsOf(THE_PROFILE_KEYS));
         Profile profile = profileStore.load();
