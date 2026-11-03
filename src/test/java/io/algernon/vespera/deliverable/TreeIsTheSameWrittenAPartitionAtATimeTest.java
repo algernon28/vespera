@@ -44,6 +44,10 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p>Pure: no database. The survivors are handed over two at a time, so a page of them never falls on a
  * partition's edge by design.
+ *
+ * <p><b>The HTML tree alone.</b> These writings go through the ways in that take no plugin, which draw none, since
+ * {@code deliverable} names no plugin (ADR-333 §1). That the Confluence rendering is the same written a partition at a
+ * time is held in {@code confluence.TheConfluenceRenderingIsTheSameWrittenAPartitionAtATimeTest}, over the same lists.
  */
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
@@ -57,7 +61,7 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
     private static final int TWO_SURVIVORS_IN_A_PAGE = 2;
 
     /** The files of the tree: the index, the listing, a page for each of the six groups and the marker. */
-    private static final int TWENTY_FILES = 20;
+    private static final int NINE_FILES = 9;
 
     /**
      * The marker at the top of every tree, naming the working directory that drew it (ADR-276 §3): the two writings
@@ -102,13 +106,23 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
         Map<String, String> expected = filesOf(whole);
 
         claim(
-                "the tree holds the same " + TWENTY_FILES + " files and nothing else: the index, the listing, a page"
-                        + " for each of the six groups under its exemplar's directory and the marker, and under"
-                        + " confluence/ the root page, the page list and a page for each of the three seed partitions"
-                        + " and the six groups, with no file left half written beside any of them",
+                "the tree holds the same " + NINE_FILES + " files and nothing else: the index, the listing, a page"
+                        + " for each of the six groups under its exemplar's directory and the marker, with no file left"
+                        + " half written beside any of them",
                 () -> {
-                    assertThat(expected).hasSize(TWENTY_FILES).containsKey(MARKER);
+                    assertThat(expected).hasSize(NINE_FILES).containsKey(MARKER);
                     assertThat(written.keySet()).containsExactlyElementsOf(expected.keySet());
+                });
+        claim(
+                "and neither writing holds a plugin's folder: no confluence/ and no drawing.txt, since a way in that"
+                        + " is handed no plugin draws none",
+                () -> {
+                    for (Path tree : List.of(paged, whole)) {
+                        assertThat(tree.resolve("confluence")).as("confluence/ in %s", tree).doesNotExist();
+                        assertThat(filesOf(tree).keySet())
+                                .as("the files of %s", tree)
+                                .noneMatch(name -> name.endsWith(Plugin.DRAWING_STATE_FILE_NAME));
+                    }
                 });
         for (Map.Entry<String, String> file : expected.entrySet()) {
             if (file.getKey().equals(MARKER)) {

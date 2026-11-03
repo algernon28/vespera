@@ -523,6 +523,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "deliverable.ListedPicturePlace",
                             "deliverable.ListedSurvivor",
                             "deliverable.NamedValue",
+                            // ADR-333 §1: the plugin beans, handed to Deliverable.writeTo unread.
+                            "deliverable.Plugin",
                             "deliverable.SurvivorPictures",
                             // ADR-303: the page ceiling's value, handed to ClusterPageByteCeiling's reading.
                             "profile.NumericValue",

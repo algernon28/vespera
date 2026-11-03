@@ -16,9 +16,12 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
+import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -40,6 +43,7 @@ import org.junit.jupiter.api.Test;
 @Issue("472")
 @Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")
 @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
+@Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
 class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
 
     private static final String DELIVERABLE = "io.algernon.vespera.deliverable.";
@@ -76,8 +80,9 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
     @DisplayName("The tree, the index, the listing and the pictures are written from a source asked a part at a time, never from lists of everything")
     void nothingThatWritesIsHandedAListOfEverything() throws ClassNotFoundException {
         claim(
-                "the tree's writer has one way in, and it takes a source it asks one exemplar at a time: none"
-                        + " of its ways in takes a list",
+                "the tree's writer takes a source it asks one exemplar at a time: none of its ways in takes a"
+                        + " list, but for the plugin beans one of them is handed, which are the plugins compiled into"
+                        + " the jar and not a run's rows (ADR-220, ADR-333 §1)",
                 () -> assertThat(methodsNamed(Deliverable.class, "writeTo"))
                         .as("the ways into the tree's writer")
                         .isNotEmpty()
@@ -141,9 +146,10 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
     @DisplayName("A way in that takes a whole run in any kind of collection is caught, not only one that takes a list")
     void aWayInTakingAnyCollectionIsCaught() {
         claim(
-                "each way in of the stand-in below takes a whole run as something other than a list -- a"
-                        + " collection, a set, an iterable, a stream, an array, an array list or a map -- and the"
-                        + " check the claims above make finds every one of them",
+                "each way in of the stand-in below takes a whole run as a list or as something other than a"
+                        + " list -- a collection, a set, an iterable, a stream, an array, an array list or a map --"
+                        + " and the check the claims above make finds every one of them: only a list of plugins is"
+                        + " passed over",
                 () -> assertThat(Arrays.stream(WaysInThatTakeAWholeRun.class.getDeclaredMethods())
                                 .filter(method -> !method.isSynthetic()))
                         .hasSize(WAYS_IN_THAT_TAKE_A_WHOLE_RUN)
@@ -153,11 +159,13 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
     }
 
     /** How many ways in {@link WaysInThatTakeAWholeRun} declares. */
-    private static final int WAYS_IN_THAT_TAKE_A_WHOLE_RUN = 7;
+    private static final int WAYS_IN_THAT_TAKE_A_WHOLE_RUN = 8;
 
     /** A stand-in with one way in for each kind of collection a whole run could be handed as. */
     @SuppressWarnings("unused")
     private static final class WaysInThatTakeAWholeRun {
+        void list(List<Object> all) {}
+
         void collection(java.util.Collection<Object> all) {}
 
         void set(java.util.Set<Object> all) {}
@@ -176,15 +184,28 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
     /**
      * Whether {@code method} takes anything a whole run could be handed in: a list, and as much any other
      * collection, iterable, stream, map or array, which a form put back to take a run would reach for as
-     * readily.
+     * readily. A {@code List<Plugin>} is passed over: those are the plugin beans {@code pipeline} hands the
+     * tree's writer, compiled into the jar and no run's rows (ADR-220, ADR-333 §1).
      */
     private static boolean takesAList(Method method) {
-        return Arrays.stream(method.getParameterTypes())
+        Class<?>[] types = method.getParameterTypes();
+        Type[] generic = method.getGenericParameterTypes();
+        return IntStream.range(0, types.length)
+                .filter(i -> generic.length != types.length || !isThePluginBeans(generic[i]))
+                .mapToObj(i -> types[i])
                 .anyMatch(type -> type.isArray()
                         // A path is iterable over its names, and is no run.
                         || (Iterable.class.isAssignableFrom(type) && !java.nio.file.Path.class.isAssignableFrom(type))
                         || java.util.Map.class.isAssignableFrom(type)
                         || java.util.stream.BaseStream.class.isAssignableFrom(type));
+    }
+
+    /** Whether {@code type} is {@code List<io.algernon.vespera.deliverable.Plugin>}, and nothing wider. */
+    private static boolean isThePluginBeans(Type type) {
+        return type instanceof ParameterizedType parameterized
+                && parameterized.getRawType() == List.class
+                && parameterized.getActualTypeArguments().length == 1
+                && parameterized.getActualTypeArguments()[0].getTypeName().equals(DELIVERABLE + "Plugin");
     }
 
     private static List<String> namesOf(Method[] methods) {
