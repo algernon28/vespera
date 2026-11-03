@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** Of the Decision as ADR-301 rewrote it: `vespera publish` sends the Confluence rendering, and nothing else, to the operator's Confluence Cloud site; the run still ends at stage 6b, and the publish is not a stage. The rest of this record stands.
 
+> **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Of the Decision as ADR-301 and ADR-308 rewrote it: `vespera publish` delivers a plugin's rendering to each destination it names, and the Confluence rendering alone to the Confluence destination. The run still ends at stage 6b, and the publish is not a stage. The rest of this record stands.
+
 - **Date**: 2026-09-11
 - **Status**: accepted
 - **Supersedes**: [ADR-002](0002-confluence-is-the-publication-target.md) — Confluence is not the publication target, because there is no publication target
