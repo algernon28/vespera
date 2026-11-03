@@ -1,5 +1,7 @@
 package io.algernon.vespera.pipeline;
 
+import org.opentest4j.TestAbortedException;
+
 /**
  * Work a whole test class shares, done the first time a test asks for it and never again: the value it
  * produced, or the failure it ended in, is handed to every test that asks afterwards (#678).
@@ -28,18 +30,25 @@ final class Once<T> {
     }
 
     private T value;
-    private Exception failure;
+    private Throwable failure;
     private boolean done;
 
-    /** What the work left, doing it now if no test has asked before. */
+    /**
+     * What the work left, doing it now if no test has asked before. Whatever the work threw is kept, an error as
+     * much as an exception, so no later test meets a value that was never made. An assumption the work found false
+     * is thrown again as it was, so every test that reads the work is aborted with it rather than failed.
+     */
     T get(Work<T> work) {
         if (!done) {
             done = true;
             try {
                 value = work.run();
-            } catch (Exception thrown) {
+            } catch (Throwable thrown) {
                 failure = thrown;
             }
+        }
+        if (failure instanceof TestAbortedException aborted) {
+            throw aborted;
         }
         if (failure != null) {
             throw new IllegalStateException("the work this class shares failed, so nothing it would have left can be read", failure);

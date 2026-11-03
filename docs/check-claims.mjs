@@ -666,13 +666,14 @@ function markerPattern(source, whole = false) {
 // the names listed with it, is deleted, dropped, retired, removed, renamed or not built; or "is", "is now", "is
 // renamed", "becomes" or "moves to" and the name it became follow it; or "Retired:" stands right before it. That is a
 // record's own account of the tests it retired or renamed, and how a record whose test went with nothing to hold its
-// claim says so, "(removed: why, #N)". The second is a record no test links through `Adr` yet: a decision not yet
-// built, whose section names the tests its building writes. What of it is missing is printed as not checked, every
-// run, so that it is seen once the record is built and still names it.
+// claim says so, "(removed: why, #N)". The second is a record named in NOT_YET_BUILT: a decision accepted before its
+// code, whose section names the tests its building writes. What of it is missing is printed as not checked, every run,
+// and the record leaves the set in the change that builds it.
 {
   const NAME = "the tests the decision records name";
   const FIRST = 50;
-  const ADR_LINKS = TEST + "/io/algernon/vespera/Adr.java";
+  // Accepted records whose code is not built yet. A number leaves this set in the change that builds its record.
+  const NOT_YET_BUILT = new Set([333]);
   const testFiles = new Map();
   (function walk(dir) {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -688,9 +689,12 @@ function markerPattern(source, whole = false) {
   const sources = new Map();
   const source = (path) => sources.get(path) ?? sources.set(path, readFileSync(path, "utf8")).get(path);
   const NOT_A_TYPE = new Set(["return", "new", "throw", "else", "case", "yield", "assert"]);
-  // A declaration, not a call: a type, or `void`, then the name, then its parameters.
-  const declares = (path, method) => [...source(path).matchAll(new RegExp(`([\\w$>\\]]+)\\s+${method}\\s*\\(`, "g"))]
-    .some((m) => !NOT_A_TYPE.has(m[1]));
+  // A declaration, not a call or a word of prose: a line of code, not a comment's, holding only annotations and
+  // modifiers before a return type or `void`, then the name, then its parameters.
+  const DECLARATION = (method) => new RegExp(
+    "^[ \\t]*(?:@[\\w.]+(?:\\([^)]*\\))?\\s+)*(?:(?:public|protected|private|static|final|abstract|synchronized|default)\\s+)*"
+      + `(?:<[^>]*>\\s*)?([\\w$.]+(?:<[^;(){}]*>)?(?:\\[\\])*)\\s+${method}\\s*\\(`, "gm");
+  const declares = (path, method) => [...source(path).matchAll(DECLARATION(method))].some((m) => !NOT_A_TYPE.has(m[1]));
   const looksLikeATest = (simple) => /.(?:Test|IT)$/.test(simple) || testFiles.has(simple);
   /** The test files a class may be, its package's tail matched where it has one. */
   const filesOf = (pkg, simple) => (testFiles.get(simple) ?? []).filter((p) => !pkg || p.endsWith(`/${pkg.replaceAll(".", "/")}/${simple}.java`));
@@ -699,12 +703,11 @@ function markerPattern(source, whole = false) {
   const QUALIFIED = /^((?:[a-z][a-z0-9]*\.)*)([A-Z][A-Za-z0-9]*[a-z][A-Za-z0-9]*)((?:\.[A-Z][a-z][A-Za-z0-9]*)*)(?:\.(\w+))?(?:\([^)]*\))?$/;
   const METHOD = /^[a-z][A-Za-z0-9]*$/;
   // What follows a name the section itself says is gone: deleted, dropped, retired or removed, or renamed to another.
-  const GONE = /^\**,?\s*(?:(?:are |is )?\(?(?:removed|deleted|dropped|retired|renamed|not built)\b|(?:is (?:now |renamed )?|becomes |moves to )`)/;
+  const GONE = /^\**,?\s*(?:(?:are |is )?\(?(?:removed|deleted|dropped|retired|renamed(?! from)|not built)\b|(?:is (?:now |renamed )?|becomes |moves to )`)/;
   // Names listed together before the word: "`A` and `B` are deleted", "**`A`** and **`B`**, dropped".
   const ALONG = /^(?:\**(?:,| and|, and)\s*\**`[^`\n]+`)*/;
   // Or the label right before it: "Retired: `Name`", "**Deleted**: `Name`".
   const GONE_BEFORE = /\b(?:Retired|Deleted|Removed|Dropped)\**:\s*\**$/;
-  const linked = existsSync(ADR_LINKS) ? source(ADR_LINKS) : "";
 
   const missing = [];
   const unbuilt = [];
@@ -718,7 +721,7 @@ function markerPattern(source, whole = false) {
     const end = rest.findIndex((l) => /^#{1,2} /.test(l));
     const section = end < 0 ? rest : rest.slice(0, end);
     const adr = `ADR-${String(number).padStart(3, "0")}`;
-    const built = linked.includes(`"${file.slice(0, 5)}`);
+    const built = !NOT_YET_BUILT.has(number);
     const said = (what) => (built ? missing : unbuilt).push(`${adr} names ${what}, which does not exist`);
     let last = null; // the class the last qualified name of the section named, for `…method`
     let bullet = null; // the class a top-level bullet names first, for the bare methods nested under it
@@ -759,7 +762,7 @@ function markerPattern(source, whole = false) {
   }
   if (unbuilt.length) {
     const records = [...new Set(unbuilt.map((u) => u.slice(0, 7)))];
-    skip(`${NAME}, by records no test links yet`, `${unbuilt.length} not under ${TEST}, of ${records.join(", ")}: ${unbuilt.slice(0, 2).join("; ")}; …`);
+    skip(`${NAME}, by records not yet built`, `${unbuilt.length} not under ${TEST}, of ${records.join(", ")}: ${unbuilt.slice(0, 2).join("; ")}; …`);
   }
   if (missing.length) fail(NAME, `${missing.length} of ${checked}: ${missing.join("; ")}`);
   else pass(NAME, `${checked} names of test classes and methods, in the Tests sections from ADR-0${FIRST} on, every one under ${TEST}`);

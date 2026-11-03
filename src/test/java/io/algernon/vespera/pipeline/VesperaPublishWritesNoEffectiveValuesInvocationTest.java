@@ -2,7 +2,6 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -51,8 +50,8 @@ class VesperaPublishWritesNoEffectiveValuesInvocationTest {
     void aPublishRefusedBeforeItSendsWritesNoFile() {
         cli.run("publish");
 
-        assumeTrue(cli.getExitCode() != 0,
-                "the publish was refused, nothing being drawn to send, as this test's slice means it to be");
+        claim("the publish was refused, nothing being drawn to send",
+                () -> assertThat(cli.getExitCode()).isNotZero());
         claim("no file of what the jar would use is in the working folder",
                 () -> assertThat(workingDirectory.resolve("effective-values.properties")).doesNotExist());
     }

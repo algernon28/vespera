@@ -2358,6 +2358,13 @@ public final class Adr {
     public static final String THE_LOCAL_MODEL_LABELS_ONLY_UNDER_THE_EXTRACTOR_ITS_RUN_WAS_CONVERTED_UNDER = FILE
             + "0332-vespera-label-auto-is-refused-under-another-extractor-identity-than-its-run-was-converted-under-and-a-placeholder-in-the-ocr-preset-stops-only-a-run.md";
 
+    /**
+     * ADR-334: every claim can fail, a decision is held once, the full-run classes share their setup, and a record's
+     * Tests name tests that exist.
+     */
+    public static final String EVERY_CLAIM_CAN_FAIL_AND_A_DECISION_IS_HELD_ONCE = FILE
+            + "0334-every-claim-can-fail-a-decision-is-held-once-and-a-records-tests-name-tests-that-exist.md";
+
     private Adr() {
     }
 }

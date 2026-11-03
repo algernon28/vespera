@@ -59,6 +59,7 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
 @Feature("Labelling")
 @Issue("110")
 @Link(name = "ADR-088", url = Adr.RELEVANCE_THRESHOLD_IS_SIXTY_LABELS, type = "adr")
+@Link(name = "ADR-334", url = Adr.EVERY_CLAIM_CAN_FAIL_AND_A_DECISION_IS_HELD_ONCE, type = "adr")
 class RelevanceReportInvocationTest {
 
     /** The logger every operator-facing line in this application is written through. */

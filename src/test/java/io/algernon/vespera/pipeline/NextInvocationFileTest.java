@@ -29,7 +29,6 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Properties;
 import java.util.TreeMap;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 
 import org.junit.jupiter.api.Test;
@@ -133,7 +132,8 @@ class NextInvocationFileTest {
         NextInvocationFile.write(workingDirectory, closing.next());
         String written = Files.readString(workingDirectory.resolve(FILE_NAME), StandardCharsets.UTF_8);
 
-        Assumptions.assumeTrue(closing.line().contains(THE_TREE.toString()), "the closing line names the deliverable's tree");
+        claim("the closing line names the deliverable's tree, so the file could have carried it",
+                () -> assertThat(closing.line()).contains(THE_TREE.toString()));
         claim("the file's text holds no path at all, written or escaped: not the tree's, not the working directory's,"
                         + " and no separator of one, in its properties or its comments",
                 () -> assertThat(written)

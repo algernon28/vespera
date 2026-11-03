@@ -2,7 +2,6 @@ package io.algernon.vespera;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.ledger.SchemaVersionGuard;
 import io.qameta.allure.Epic;
@@ -81,7 +80,7 @@ class SchemaVersionDeclarationTest {
         while (owner.find()) {
             owningTables.add(owner.group(1));
         }
-        assumeTrue(!owningTables.isEmpty(), "the schema names the owner of its tables");
+        claim("the schema names the owner of its tables", () -> assertThat(owningTables).isNotEmpty());
 
         claim(
                 "the modules that recorded a version are exactly the modules that own tables — a name"

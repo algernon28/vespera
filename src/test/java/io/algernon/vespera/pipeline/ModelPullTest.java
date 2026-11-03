@@ -24,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
@@ -533,7 +532,7 @@ class ModelPullTest {
 
         Optional<String> refusal = pull.refusalOf(STAGE, MODEL);
 
-        Assumptions.assumeTrue(stalled().equals(refusal.orElse(null)), "the pull was given up as stalled");
+        claim("the pull was given up as stalled", () -> assertThat(refusal).contains(stalled()));
         claim(
                 "Ollama, still sending, found the connection closed at the other end within the margin: a"
                         + " connection left open would hold Ollama's answer for nothing",

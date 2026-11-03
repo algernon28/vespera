@@ -28,7 +28,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
@@ -791,9 +790,10 @@ class GenerationFaultInvocationTest {
 
         cli.run("run", root.toString());
 
-        Assumptions.assumeTrue(
-                !writingKept(root).isEmpty() && !reasonsKept(root).isEmpty(),
-                "the run kept both writing and a reason, so the two can be compared at all");
+        claim(
+                "the run kept writing for one group and a reason for another, so the two can be compared at all",
+                () -> assertThat(List.of(writingKept(root).isEmpty(), reasonsKept(root).isEmpty()))
+                        .containsExactly(false, false));
         claim(
                 "no group has both writing kept for it and a reason it was left unwritten: those two"
 
