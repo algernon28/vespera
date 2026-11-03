@@ -255,7 +255,7 @@ public final class ProfileEdit {
 
     private static String normalized(ProfileKey key, String value) {
         String typed = trimmed(key, withoutBreaks(value == null ? "" : value));
-        if (key == ProfileKey.CODE_SET_FOLDERS) {
+        if (key.kind() == ProfileKey.Kind.FOLDERS) {
             return String.join(java.io.File.pathSeparator, foldersOf(typed));
         }
         return key.kind() == ProfileKey.Kind.NAME_ENDINGS || key.kind() == ProfileKey.Kind.LANGUAGES

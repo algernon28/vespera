@@ -35,7 +35,7 @@ import java.util.function.Function;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
- * Writes one of the three files of a working directory the control panel changes, holding the working-directory lock
+ * Writes one of the four files of a working directory the control panel changes, holding the working-directory lock
  * as the jar takes it, never waiting for it, and only in a folder of the user's own (ADR-295 §1, §2; ADR-177 §1,
  * ADR-291 §8). The file is written whole to a {@code .part} file and moved over the target. Every refusal is one line
  * returned, none thrown; what the change returns is the text, and its own refusal is an
@@ -51,11 +51,14 @@ public final class WorkingDirectoryWrite {
     /** The file the lock is taken on, which the jar's invocations take too. */
     public static final String LOCK_FILE_NAME = "vespera.lock";
 
-    /** The three files of a working directory the control panel writes whole; a repair's copy is the one other. */
+    /**
+     * Three of the four files of a working directory the control panel writes whole, {@link #NOT_RELEVANT_FOLDERS}
+     * the fourth; a repair's copy is the one other.
+     */
     public static final Set<String> FILES = Set.of("profile.yaml", "relevance-labels.yaml", "code-set-names.yaml");
 
     /** The file of the folders not relevant, the fourth the control panel writes (ADR-334 §6), with the answers it gives. */
-    public static final String NOT_RELEVANT_FOLDERS = "not-relevant-folders.yaml";
+    public static final String NOT_RELEVANT_FOLDERS = NotRelevantFolders.FILE_NAME;
 
     private static boolean mayBeWritten(String fileName) {
         return FILES.contains(fileName) || NOT_RELEVANT_FOLDERS.equals(fileName);
@@ -194,7 +197,7 @@ public final class WorkingDirectoryWrite {
      * where it is absent, and returns the new text or throws an {@link IllegalArgumentException} whose message is the
      * line.
      *
-     * @throws IllegalArgumentException for a name outside {@link #FILES}
+     * @throws IllegalArgumentException for a name outside {@link #FILES} and {@link #NOT_RELEVANT_FOLDERS}
      */
     public Optional<String> write(Path workingDirectory, String fileName, Function<Optional<String>, String> change) {
         if (!mayBeWritten(fileName)) {

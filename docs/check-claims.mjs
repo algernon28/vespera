@@ -434,7 +434,7 @@ function readmeSection(heading, name) {
           for (const f of readFileSync(join(dir, e.name), "utf8").matchAll(/FILE_NAME = "([^"]+)"/g)) real.push(f[1]);
         }
       }
-    })(MAIN);
+    })("src/main/java/io/algernon");
     // The database is named by the datasource URL rather than by a constant.
     for (const d of readFileSync(APPLICATION_YAML, "utf8").matchAll(/jdbc:sqlite:[^"]*?\/([\w.-]+\.db)/g)) real.push(d[1]);
     const wrong = [];
