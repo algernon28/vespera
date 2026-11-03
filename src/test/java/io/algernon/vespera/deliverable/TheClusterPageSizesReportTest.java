@@ -158,6 +158,9 @@ class TheClusterPageSizesReportTest {
         Path tree = drawTheFixture(base.resolve("split"), new ClusterPageCeiling.Bytes(A_CEILING));
         List<Drawn> drawn = withThePagesOf(whole, drawnIn(tree));
         String report = Files.readString(base.resolve("split").resolve("work").resolve(THE_REPORT), StandardCharsets.UTF_8);
+        List<Row> rowsWithNoCeiling = labelledRowsOf(
+                Files.readString(base.resolve("whole").resolve("work").resolve(THE_REPORT), StandardCharsets.UTF_8));
+        List<Row> sizeRowsWithNoCeiling = rowsWithNoCeiling.subList(1, rowsWithNoCeiling.size());
         long pagesWritten = everyPageOf(tree).size();
         long pagesLarger = everyPageOf(tree).stream().filter(page -> sizeOf(page) > A_CEILING).count();
         long largestClustersPages = drawn.stream().mapToLong(Drawn::pages).max().orElseThrow();
@@ -170,14 +173,15 @@ class TheClusterPageSizesReportTest {
         claim(
                 "the report states the ceiling, the sizes the groups' pages take written whole, the same as with no"
                         + " ceiling, and then the groups it split, the pages written in all and those larger than it",
-                () -> assertThat(labelledRowsOf(report)).containsSubsequence(
-                        new Row("clusterPageByteCeiling", String.valueOf(A_CEILING)),
-                        new Row("Groups", String.valueOf(EVERY_CLUSTER)),
-                        new Row("Largest, in bytes", String.valueOf(
-                                whole.stream().mapToLong(Drawn::onePageSize).max().orElseThrow())),
-                        new Row("Groups split", "1"),
-                        new Row("Pages written", String.valueOf(pagesWritten)),
-                        new Row("Pages larger than the ceiling", String.valueOf(pagesLarger))));
+                () -> {
+                    List<Row> expected = new ArrayList<>();
+                    expected.add(new Row("clusterPageByteCeiling", String.valueOf(A_CEILING)));
+                    expected.addAll(sizeRowsWithNoCeiling);
+                    expected.add(new Row("Groups split", "1"));
+                    expected.add(new Row("Pages written", String.valueOf(pagesWritten)));
+                    expected.add(new Row("Pages larger than the ceiling", String.valueOf(pagesLarger)));
+                    assertThat(labelledRowsOf(report)).containsExactlyElementsOf(expected);
+                });
         claim(
                 "the largest ranks first with the " + largestClustersPages + " pages it was written as, and every other of"
                         + " the ten with one",
@@ -207,8 +211,8 @@ class TheClusterPageSizesReportTest {
 
     @Test
     @Story("Every drawing reports how large the groups' pages are")
-    @DisplayName("A ceiling that is ignored is stated as ignored, its text not quoted, and nothing is said of splitting")
-    void anIgnoredCeilingIsStatedAsIgnoredAndNotQuoted(@TempDir Path base) throws IOException {
+    @DisplayName("A ceiling that is ignored is stated as ignored, and nothing is said of splitting")
+    void anIgnoredCeilingIsStatedAsIgnored(@TempDir Path base) throws IOException {
         drawTheFixture(base, new ClusterPageCeiling.Ignored());
         String report = Files.readString(base.resolve("work").resolve(THE_REPORT), StandardCharsets.UTF_8);
 

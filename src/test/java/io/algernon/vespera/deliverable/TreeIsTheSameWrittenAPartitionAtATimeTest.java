@@ -56,7 +56,11 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
     /** How many survivors the source hands over at once: fewer than any partition here holds. */
     private static final int TWO_SURVIVORS_IN_A_PAGE = 2;
 
-    /** The files of the tree: the index, the listing, a page for each of the six groups and the marker. */
+    /**
+     * The files of the tree: the index, the listing, a page for each of the six groups and the marker, nine; and the
+     * eleven of the Confluence rendering under {@code confluence/}, its root page, {@code pages.json}, a page for each
+     * of the three partitions and one for each of the six groups.
+     */
     private static final int TWENTY_FILES = 20;
 
     /**

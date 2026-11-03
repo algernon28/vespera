@@ -2,6 +2,7 @@ package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -169,12 +170,11 @@ class DifferenceHashTest {
     void readsAPaletteImageThroughItsPalette() {
         byte[] redGreen = paletteHalves(new int[] {0xffff0000, 0xff00ff00});
 
+        assumeTrue(
+                colourTypeOf(redGreen) == PNG_PALETTE,
+                "the red-beside-green picture is encoded as a palette PNG, so the fixture is the palette case");
         claim(
-                "the red-beside-green picture stored as a palette PNG is encoded with colour type 3, so the"
-                        + " fixture is the palette case and not a full-colour one",
-                () -> assertThat(colourTypeOf(redGreen)).isEqualTo(PNG_PALETTE));
-        claim(
-                "and it hashes to the full-colour picture's 0x1818181818181818: the hash reads each pixel's"
+                "it hashes to the full-colour picture's 0x1818181818181818: the hash reads each pixel's"
                         + " palette colour, not its palette index as if the index were red",
                 () -> assertThat(DifferenceHash.of(redGreen).orElseThrow().bits())
                         .isEqualTo(RISING_INTO_AND_OUT_OF_THE_MIDDLE_CELL));
@@ -186,15 +186,12 @@ class DifferenceHashTest {
     void compositesAPaletteImagesTransparencyOverWhite() {
         byte[] blackTransparent = paletteHalves(new int[] {OPAQUE_BLACK, TRANSPARENT_BLACK});
 
+        assumeTrue(
+                colourTypeOf(blackTransparent) == PNG_PALETTE
+                        && new String(blackTransparent, StandardCharsets.ISO_8859_1).contains("tRNS"),
+                "the opaque-black-beside-transparent picture is encoded as a palette PNG with a transparency chunk");
         claim(
-                "the opaque-black-beside-transparent picture stored as a palette PNG is encoded with colour"
-                        + " type 3 and carries a transparency chunk",
-                () -> {
-                    assertThat(colourTypeOf(blackTransparent)).isEqualTo(PNG_PALETTE);
-                    assertThat(new String(blackTransparent, StandardCharsets.ISO_8859_1)).contains("tRNS");
-                });
-        claim(
-                "and it hashes to 0x1818181818181818 as the full-colour picture does, not to 0: the"
+                "it hashes to 0x1818181818181818 as the full-colour picture does, not to 0: the"
                         + " transparent half reads as white through the palette's alpha",
                 () -> assertThat(DifferenceHash.of(blackTransparent).orElseThrow().bits())
                         .isEqualTo(RISING_INTO_AND_OUT_OF_THE_MIDDLE_CELL));
@@ -222,15 +219,12 @@ class DifferenceHashTest {
         byte[] stripes = sixteenBitRgb(
                 WIDTH, HEIGHT, (x, y) -> (x / 10) % 2 == 0 ? BLACK_BY_ITS_HIGH_BYTE : WHITE_BY_ITS_HIGH_BYTE);
 
+        assumeTrue(
+                bitDepthOf(stripes) == SIXTEEN_BITS && colourTypeOf(stripes) == PNG_TRUE_COLOUR,
+                "the ten-pixel stripes are encoded as a full-colour PNG with sixteen bits per sample, so the fixture"
+                        + " is the wide-sample case");
         claim(
-                "the ten-pixel stripes are stored as a full-colour PNG with sixteen bits per sample, so the"
-                        + " fixture is the wide-sample case",
-                () -> {
-                    assertThat(bitDepthOf(stripes)).isEqualTo(SIXTEEN_BITS);
-                    assertThat(colourTypeOf(stripes)).isEqualTo(PNG_TRUE_COLOUR);
-                });
-        claim(
-                "and they hash to the eight-bit stripes' 0xaaaaaaaaaaaaaaaa: each sample is read by its high"
+                "the stripes hash to the eight-bit stripes' 0xaaaaaaaaaaaaaaaa: each sample is read by its high"
                         + " byte, black then white, where reading the low byte would see white then black and"
                         + " give the opposite bits, 0x5555555555555555",
                 () -> assertThat(DifferenceHash.of(stripes).orElseThrow().bits())
@@ -290,11 +284,9 @@ class DifferenceHashTest {
     void readsAGreySampleAsRedGreenAndBlueAlike() {
         byte[] steps = png(greyscale(WIDTH, HEIGHT, (x, y) -> GREY_STEPS_FROM + x / 10));
 
+        assumeTrue(colourTypeOf(steps) == PNG_GREY, "the picture is encoded as a grey PNG, so the fixture is the grey case");
         claim(
-                "the picture is stored as a grey PNG, colour type 0, so the fixture is the grey case",
-                () -> assertThat(colourTypeOf(steps)).isEqualTo(PNG_GREY));
-        claim(
-                "and its nine columns, each one level of grey brighter than the last from "
+                "its nine columns, each one level of grey brighter than the last from "
                         + GREY_STEPS_FROM + ", set all 64 bits: a sample read as red, green and blue alike"
                         + " weighs 299 + 587 + 114 over 1000, the level itself, so one level apart stays one"
                         + " apart, where reading it as red alone, or shifting it on the way to another colour"

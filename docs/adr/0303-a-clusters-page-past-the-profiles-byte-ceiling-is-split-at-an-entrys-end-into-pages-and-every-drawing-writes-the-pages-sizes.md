@@ -183,7 +183,7 @@ ADR-149 §6's ten pictures a document shows and ADR-274 §2.5's gibibyte left fr
 | `deliverable.TheTreeIsHtmlTest.everyLinkOfASplitClusterLandsOnASiblingPageAndAnIdOnIt` | §6, ADR-286 §5: a tree split at a ceiling of 1, every link a fragment on its page, a file in the tree, or a sibling page with a fragment naming an `id` on it, and each cluster folder its pages and its copies |
 | `deliverable.TheClusterPageSizesReportTest.theReportStatesTheSizesTheMarksAndTheTenLargestInNumbersAlone` | §8: unset; groups, largest, 95th percentile and median by nearest rank, the four marks and the ten largest, read against the pages on disk; no label, title, seed or path on it, nor the tree's, the working directory's or the run folder's path, nor a path separator in its text |
 | `…aSetCeilingIsStatedWithWhatItSplit` | §8: the ceiling's bytes, groups split, pages written and pages over the ceiling, against the tree |
-| `…anIgnoredCeilingIsStatedAsIgnoredAndNotQuoted` | §8: `ignored`, no table of what was split |
+| `…anIgnoredCeilingIsStatedAsIgnored` (#681) | §8: `ignored`, no table of what was split |
 | `…aTreeWithNoClusterStatesNone` | §8: `0` groups, `none` for the three sizes, no row of the ten largest |
 | `…theReportIsMovedIntoPlaceAfterTheIndex` | §8: the report moved from its `.part` by the drawing's move, after the tree's index, no `.part` left (#680) |
 | `…aReportThatCannotBeMovedFailsNothingAndLeavesNoPart` | §8: its move refused, the drawing throws nothing, the index stands, no report and no `.part` (#680) |

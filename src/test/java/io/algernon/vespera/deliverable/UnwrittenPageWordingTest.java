@@ -23,8 +23,9 @@ import org.junit.jupiter.api.Test;
  * cannot break a rule the invocation tests would only meet on the page it lands on. The sentences are written by
  * {@code deliverable}'s {@link UnwrittenSentences} since ADR-274 §4; {@code Unwritten} stays a reason with no words.
  *
- * <p>These hold today and are meant to: they guard the wording, while {@code GenerationFaultInvocationTest} and
- * {@code GenerationBreakerInvocationTest} are where the page is held to it.
+ * <p>The rules are held over the code's own sentences, and {@link #theCodeSaysWhatTheRecordSays} holds those to the
+ * record's; {@code GenerationFaultInvocationTest} and {@code GenerationBreakerInvocationTest} are where the page is
+ * held to them.
  *
  * <p><b>Three words are refused because a re-run can make them false</b> (ADR-174 §5, ADR-111): the page is written
  * again by every invocation that reaches the writing, so a sentence about this run is replaced by the writing once a
@@ -46,10 +47,15 @@ class UnwrittenPageWordingTest {
     /** How many cases the record gives a sentence: four kinds of fault, and three cases with no row. */
     private static final int SEVEN_CASES = 7;
 
-    private static final List<String> EVERY_SENTENCE = UnwrittenSentencesOnRecord.EVERY_SENTENCE;
-
     /** The deliverable's language whose sentences ADR-174 and ADR-319 fix word for word; Italian's are ADR-321's. */
     private static final DeliverableLanguage ENGLISH = DeliverableLanguage.ENGLISH;
+
+    /**
+     * Every sentence the code writes in place of writing, one for each reason: the rules below are held over these, the
+     * code's own, so a sentence reworded in the code against a rule turns them red.
+     */
+    private static final List<String> EVERY_SENTENCE =
+            Arrays.stream(Unwritten.values()).map(why -> UnwrittenSentences.of(why, ENGLISH)).toList();
 
     @Test
     @Story("A page with nothing written on it says why, in words a reader of the tree can follow")
@@ -61,10 +67,10 @@ class UnwrittenPageWordingTest {
                         + " to tell which case it was without the database",
                 () -> assertThat(EVERY_SENTENCE).hasSize(SEVEN_CASES).doesNotHaveDuplicates());
         claim(
-                "and every way an answer can be turned down has one of the four that say so",
-                () -> assertThat(Arrays.stream(ClusterFaultKind.values()).map(UnwrittenSentencesOnRecord::forKind))
-                        .doesNotHaveDuplicates()
-                        .allSatisfy(sentence -> assertThat(EVERY_SENTENCE).contains(sentence)));
+                "and every way an answer can be turned down has a sentence of its own",
+                () -> assertThat(Arrays.stream(ClusterFaultKind.values())
+                                .map(kind -> UnwrittenSentences.of(Unwritten.of(kind), ENGLISH)))
+                        .doesNotHaveDuplicates());
     }
 
     @Test
@@ -89,8 +95,8 @@ class UnwrittenPageWordingTest {
                 });
         claim(
                 "and the code has no sentence the record does not",
-                () -> assertThat(Arrays.stream(Unwritten.values()).map(why -> UnwrittenSentences.of(why, ENGLISH)))
-                        .containsExactlyInAnyOrderElementsOf(EVERY_SENTENCE));
+                () -> assertThat(EVERY_SENTENCE)
+                        .containsExactlyInAnyOrderElementsOf(UnwrittenSentencesOnRecord.EVERY_SENTENCE));
     }
 
     @Test
@@ -134,7 +140,7 @@ class UnwrittenPageWordingTest {
     @DisplayName("The line saying a group stands without writing keeps every rule the reasons keep")
     @Link(name = "ADR-319", url = Adr.A_CLUSTER_TURNED_DOWN_THE_LAST_TWO_TIMES_STANDS_WITHOUT_WRITING, type = "adr")
     void theStandingLineKeepsTheRulesEverySentenceKeeps() {
-        String standing = UnwrittenSentencesOnRecord.STANDS_WITHOUT_WRITING;
+        String standing = UnwrittenSentences.standing(Unwritten.FAULT_SCHEMA_VIOLATION, true, ENGLISH).orElseThrow();
         claim(
                 "it is none of the seven reasons, so a reader meeting it beneath one is told something the reason"
                         + " did not say",

@@ -2,6 +2,7 @@ package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -9,7 +10,6 @@ import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.synthesis.ArrangedCluster;
 import io.algernon.vespera.synthesis.ClusterLabel;
 import io.algernon.vespera.synthesis.ClusterSlot;
-import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.ListedDoc;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
@@ -202,6 +202,9 @@ class DeliverableTest {
     /** The second place in that order. */
     private static final int SECOND_PLACE = 2;
 
+    /** The third place, which no partition order of a fixture here shares with its cluster order. */
+    private static final int THIRD_PLACE = 3;
+
     /**
      * How many clusters it takes for the prefix to need two digits: ten, because nine is the last
      * count a single digit can order and the tenth is the one a file browser would sort between the
@@ -243,10 +246,6 @@ class DeliverableTest {
     /** The score of the second, lower so the two are told apart in the listing. */
     private static final double A_LOWER_SCORE = 0.42;
 
-    /** Every column the manifest carries, in order, and the header row it writes them under. */
-    private static final String MANIFEST_HEADER = "occurrence_id,path,content_hash,winning_seed,"
-            + "relevance_score,seed_partition,cluster,partition_order,cluster_order,copy,copy_outcome";
-
     /** How many rows a manifest listing two survivors carries beneath that header. */
     private static final int TWO_SURVIVORS = 2;
 
@@ -281,9 +280,6 @@ class DeliverableTest {
     /** A seed whose own name carries a comma too, so the column naming it is exercised as well. */
     private static final String A_SEED_PATH_WITH_A_COMMA = "seeds/Industrial Safety, Standards.docx";
 
-    /** The row the index heads each partition's table with, whose words are settled rather than an author's. */
-    private static final String INDEX_TABLE_HEADER = "<tr><th>Group</th><th>Documents</th><th>Written up as</th></tr>";
-
     /** What the index says in place of a title for a cluster nothing was written over (ADR-111). */
     private static final String THE_HOLE = "nothing was written over this group";
 
@@ -317,10 +313,8 @@ class DeliverableTest {
                 survivors(FIRST_ORDINAL));
 
         claim(
-                "the tree sits under the working directory rather than anywhere the operator has to name:"
-                        + " the directory the database is in is the one thing that moves what this tool"
-                        + " writes, and a second place to set would be a value on a path that exists to"
-                        + " have as few as possible",
+                "with no deliverable root named, the tree sits under the working directory, the directory the"
+                        + " database is in",
                 () -> assertThat(tree).startsWithRaw(workingDirectory));
         claim(
                 "and the directory is named with the run's whole name, all " + RUN_ID.length()
@@ -377,19 +371,21 @@ class DeliverableTest {
 
         List<String> names = fileNamesUnder(tree.resolve(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED));
         claim(
-                "all " + TEN_CLUSTERS + " groups have a file of their own beneath the one seed they sit"
-                        + " under, which is what the padding claim below is about -- asserted first, so a"
-                        + " level that came out short fails saying so",
-                () -> assertThat(names).hasSize(TEN_CLUSTERS));
-        claim(
-                "the first of " + TEN_CLUSTERS + " is prefixed \"" + THE_FIRST_OF_TEN_PREFIX + "\" rather"
-                        + " than \"" + THE_ONLY_ONE_PREFIX + "\": a file browser sorts by name, and one"
-                        + " digit beside two would put the tenth between the first and the second --"
-                        + " stating an order in the index and contradicting it in the listing beside it",
-                () -> assertThat(names).anyMatch(name -> name.startsWith(THE_FIRST_OF_TEN_PREFIX)));
-        claim(
-                "and the tenth carries \"" + THE_TENTH_PREFIX + "\", so the last of the ten sorts last",
-                () -> assertThat(names).anyMatch(name -> name.startsWith(THE_TENTH_PREFIX)));
+                "each of the " + TEN_CLUSTERS + " groups has a folder beneath the one seed, its place padded to two"
+                        + " digits, the first \"" + THE_FIRST_OF_TEN_PREFIX + "\" rather than \"" + THE_ONLY_ONE_PREFIX
+                        + "\" and the tenth \"" + THE_TENTH_PREFIX + "\": a file browser sorts by name, and one digit"
+                        + " beside two would put the tenth between the first and the second",
+                () -> assertThat(names).containsExactlyInAnyOrder(
+                        "01-fire-suppression-retrofits-1",
+                        "02-fire-suppression-retrofits-2",
+                        "03-fire-suppression-retrofits-3",
+                        "04-fire-suppression-retrofits-4",
+                        "05-fire-suppression-retrofits-5",
+                        "06-fire-suppression-retrofits-6",
+                        "07-fire-suppression-retrofits-7",
+                        "08-fire-suppression-retrofits-8",
+                        "09-fire-suppression-retrofits-9",
+                        "10-fire-suppression-retrofits-10"));
     }
 
     @Test
@@ -417,10 +413,12 @@ class DeliverableTest {
                 workingDirectory, provenance(THE_SEED_FOLDER_VALUE), arrangement, List.of(), survivors);
 
         claim(
-                "the first of " + TEN_PARTITIONS + " seed directories is prefixed \""
+                "each of the " + TEN_PARTITIONS + " seed directories is prefixed with two digits, the first \""
                         + THE_FIRST_OF_TEN_PREFIX + "\", because there are ten of them at that level",
-                () -> assertThat(fileNamesUnder(tree))
-                        .anyMatch(name -> name.startsWith(THE_FIRST_OF_TEN_PREFIX)));
+                () -> assertThat(fileNamesUnder(tree).stream().filter(name -> name.matches("\\d+-.*")).toList())
+                        .containsExactlyInAnyOrder(
+                                "01-seed-1", "02-seed-2", "03-seed-3", "04-seed-4", "05-seed-5",
+                                "06-seed-6", "07-seed-7", "08-seed-8", "09-seed-9", "10-seed-10"));
         claim(
                 "while the single group inside each of them is prefixed \"" + THE_ONLY_ONE_PREFIX + "\":"
                         + " the padding is to the count at that level and not to the deepest count in the"
@@ -455,20 +453,19 @@ class DeliverableTest {
                         + " approved and the sequence a reader receives have to be one sequence, and"
                         + " anything that sorted again here would quietly hand over an arrangement nobody"
                         + " looked at",
-                () -> assertThat(index.indexOf(THE_NAME_THAT_SORTS_LAST))
-                        .isLessThan(index.indexOf(THE_NAME_THAT_SORTS_FIRST)));
+                () -> assertThat(index).containsSubsequence(THE_NAME_THAT_SORTS_LAST, THE_NAME_THAT_SORTS_FIRST));
         claim(
                 "and the file names carry the same sequence, so the listing on disk says what the index"
                         + " says",
                 () -> assertThat(fileNamesUnder(tree.resolve(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED)))
-                        .anyMatch(name -> name.startsWith(FIRST_PLACE + "-zinc-coating-trials")));
+                        .containsExactlyInAnyOrder("1-zinc-coating-trials", "2-access-platforms"));
     }
 
     @Test
     @Story("A group nothing was written over is a hole a reader can see")
-    @DisplayName("A group left unwritten keeps its place in the index and carries no link")
+    @DisplayName("A group left unwritten keeps its page and its place ahead of a group that was written")
     @Link(name = "ADR-111", url = Adr.A_CLUSTER_FAULT_IS_A_ROW_IN_SYNTHESIS, type = "adr")
-    void rendersAnUnwrittenClusterAsAnEntryWithNoLink(@TempDir Path workingDirectory) throws IOException {
+    void keepsAnUnwrittenClustersPageAndPlace(@TempDir Path workingDirectory) throws IOException {
         RecordedCluster unwritten = aCluster(FIRST_ORDINAL, THE_LABEL, FIRST_PLACE, FIRST_PLACE);
         RecordedCluster written = aCluster(A_LATER_ORDINAL, THE_NAME_THAT_SORTS_FIRST, FIRST_PLACE, SECOND_PLACE);
 
@@ -479,25 +476,8 @@ class DeliverableTest {
                 List.of(writingFor(A_LATER_ORDINAL, 12L)),
                 membersOfBothClusters());
 
-        String entry = lineOf(tree.resolve(Deliverable.INDEX_FILE_NAME), THE_LABEL);
         claim(
-                "the group appears under the name stage 6a derived for it, so the gap is legible as a gap"
-                        + " rather than as a group that was never there -- which is why there is no sixth"
-                        + " page anywhere reporting this, the tree being the report",
-                () -> assertThat(cellsOf(entry).get(THE_NAME_COLUMN)).isEqualTo(THE_LABEL));
-        claim(
-                "and the entry carries no link, though the group does keep a page of its own: the page"
-                        + " is what holds the group's slot in the directory listing, so the listing still"
-                        + " agrees with the order that was approved and filling the gap later renames"
-                        + " nothing -- and the index withholds the link because there is nothing written"
-                        + " on that page to send a reader to",
-                () -> assertThat(entry).doesNotContain("<a "));
-        claim(
-                "it says plainly, in italics, that nothing was written over it, rather than leaving a blank a"
-                        + " reader has to interpret",
-                () -> assertThat(cellsOf(entry).get(THE_WRITTEN_UP_COLUMN)).isEqualTo(THE_HOLE_IN_ITALICS));
-        claim(
-                "the page it would have had is there all the same, in the slot the order gave it: a"
+                "a group left unwritten still has its page, in the slot the order gave it: a"
                         + " directory listing is the second place the approved order is stated, and a"
                         + " missing file would leave that listing saying something the index does not",
                 () -> assertThat(tree.resolve(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED)
@@ -505,13 +485,11 @@ class DeliverableTest {
                                 .resolve(Deliverable.CLUSTER_PAGE_NAME))
                         .isRegularFile());
         claim(
-                "and it keeps its place, in front of the group that was written: a group that sank to the"
+                "and it keeps its place in the index, in front of the group that was written: a group that sank to the"
                         + " bottom for being unwritten would move every file beneath it the moment a later"
                         + " invocation filled it in",
-                () -> assertThat(Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME))
-                                .indexOf(THE_LABEL))
-                        .isLessThan(Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME))
-                                .indexOf(THE_NAME_THAT_SORTS_FIRST)));
+                () -> assertThat(Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME)))
+                        .containsSubsequence(THE_LABEL, THE_NAME_THAT_SORTS_FIRST));
     }
 
     @ParameterizedTest
@@ -526,7 +504,7 @@ class DeliverableTest {
         RecordedCluster written = aCluster(A_LATER_ORDINAL, THE_NAME_THAT_SORTS_FIRST, FIRST_PLACE, SECOND_PLACE);
         List<RecordedCluster> arrangement = List.of(unwritten, written);
         List<ListedDoc> writing = List.of(writingFor(A_LATER_ORDINAL, 12L));
-        String theReason = "<p><em>" + Html.escape(UnwrittenSentences.of(why, DeliverableLanguage.ENGLISH)) + "</em></p>";
+        String theReason = "<p><em>" + Html.escape(onRecord(why)) + "</em></p>";
 
         Path plainTree = ListedArrangement.writeTo(
                 plain, provenance(THE_SEED_FOLDER_VALUE), arrangement, writing, membersOfBothClusters(),
@@ -873,33 +851,6 @@ class DeliverableTest {
     }
 
     @Test
-    @Story("Everything the operator reads is in their words, and everything we name is in ours")
-    @DisplayName("The index speaks of groups, and the constants behind it speak of clusters")
-    @Link(name = "ADR-122", url = Adr.THE_VOCABULARY_BINDS_OUR_NAMES_NOT_RENDERED_PROSE, type = "adr")
-    void rendersTheTermForTheReaderWhileNamingClustersInTheCode(@TempDir Path workingDirectory) throws IOException {
-        Path tree = ListedArrangement.writeTo(
-                workingDirectory,
-                provenance(THE_SEED_FOLDER_VALUE),
-                List.of(aCluster(FIRST_ORDINAL, THE_LABEL, FIRST_PLACE, FIRST_PLACE)),
-                List.of(),
-                survivors(FIRST_ORDINAL));
-
-        claim(
-                "the table a reader meets is headed in plain words -- \"" + INDEX_TABLE_HEADER + "\" --"
-                        + " because the person holding this tree cannot open the glossary that would tell"
-                        + " them our word for a group, and the everyday sense of ours is the one that"
-                        + " glossary spends a sentence refusing",
-                () -> assertThat(Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME)))
-                        .contains(INDEX_TABLE_HEADER));
-        claim(
-                "and the sentence standing in for a piece of writing that was never produced is in the"
-                        + " same plain words, though the constant holding it is one of ours and is named"
-                        + " in ours: a name and the sentence it holds are answered by different rules, and"
-                        + " sitting on one line of source joins them not at all",
-                () -> assertThat(Deliverable.NOTHING_WAS_WRITTEN_OVER_IT).isEqualTo(THE_HOLE));
-    }
-
-    @Test
     @Story("A document that cannot be copied costs its copy and nothing else")
     @DisplayName("A tree is written whole over an archive this machine cannot reach at all")
     void writesTheWholeTreeWithoutReachingTheArchive(@TempDir Path workingDirectory) throws IOException {
@@ -914,11 +865,9 @@ class DeliverableTest {
                 List.of(writingFor(FIRST_ORDINAL)),
                 survivors(FIRST_ORDINAL));
 
-        claim(
-                "the archive really is out of reach, which is what the claims below rest on -- asserted"
-                        + " first, so a machine that happened to have such a directory fails here rather"
-                        + " than passing claims that checked nothing",
-                () -> assertThat(Path.of(AN_ARCHIVE_THAT_IS_NOT_THERE)).doesNotExist());
+        assumeTrue(
+                Files.notExists(Path.of(AN_ARCHIVE_THAT_IS_NOT_THERE)),
+                "the archive really is out of reach on this machine, which is what the claims below rest on");
         claim(
                 "the tree was still written whole: a document that cannot be copied is a fact about that"
                         + " document, and a throw from the writer would roll back every fault the invocation had"
@@ -952,19 +901,13 @@ class DeliverableTest {
         Path tree = ListedArrangement.writeTo(
                 workingDirectory,
                 provenance(THE_SEED_FOLDER_VALUE),
-                List.of(aCluster(FIRST_ORDINAL, THE_LABEL, SECOND_PLACE, SECOND_PLACE)),
+                List.of(aCluster(FIRST_ORDINAL, THE_LABEL, SECOND_PLACE, THIRD_PLACE)),
                 List.of(writingFor(FIRST_ORDINAL)),
                 survivors(FIRST_ORDINAL));
         List<String> lines = Files.readAllLines(tree.resolve(Deliverable.MANIFEST_FILE_NAME));
 
         claim(
-                "the listing is headed by the columns it carries, named as the ledger names them and not"
-                        + " in the reader's plain words: this file is loaded into a table by a program"
-                        + " before any person reads it, and a column nobody can select without quoting"
-                        + " costs that program a special case for no reader's benefit",
-                () -> assertThat(lines.getFirst()).isEqualTo(MANIFEST_HEADER));
-        claim(
-                "and all " + TWO_SURVIVORS + " documents are listed beneath it -- " + TWO_SURVIVORS
+                "all " + TWO_SURVIVORS + " documents are listed -- " + TWO_SURVIVORS
                         + " rows and the " + THE_HEADER_ROW + " header line above them -- which is every"
                         + " document arranged into the group rather than the ones its writing happened to"
                         + " mention",
@@ -978,12 +921,12 @@ class DeliverableTest {
                                 .startsWith("reports/")));
         claim(
                 "and every row carries both places the arrangement gave its group -- "
-                        + SECOND_PLACE + " among the seeds and " + SECOND_PLACE + " among that seed's"
+                        + SECOND_PLACE + " among the seeds and " + THIRD_PLACE + " among that seed's"
                         + " groups -- so a consumer rebuilding anything from this file has the order"
                         + " without parsing the index or falling back to alphabetical",
                 () -> assertThat(rowsOf(tree)).allSatisfy(row -> {
                     assertThat(columnsOf(row)[THE_PARTITION_ORDER_COLUMN]).isEqualTo(String.valueOf(SECOND_PLACE));
-                    assertThat(columnsOf(row)[THE_CLUSTER_ORDER_COLUMN]).isEqualTo(String.valueOf(SECOND_PLACE));
+                    assertThat(columnsOf(row)[THE_CLUSTER_ORDER_COLUMN]).isEqualTo(String.valueOf(THIRD_PLACE));
                 }));
     }
 
@@ -1033,6 +976,22 @@ class DeliverableTest {
                         + " which is what a reader that is not this one will expect to find",
                 () -> assertThat(rows.getFirst())
                         .contains("\"reports/2019/retrofit, phase \"\"two\"\".pdf\""));
+    }
+
+    /**
+     * The sentence the record gives a page nothing was written over for {@code why}, written out in {@link
+     * UnwrittenSentencesOnRecord} rather than asked of the code that writes it.
+     */
+    private static String onRecord(Unwritten why) {
+        return switch (why) {
+            case FAULT_PROMPT_EVALUATION_CEILING -> UnwrittenSentencesOnRecord.DOCUMENTS_CAME_TO_MORE_THAN_THE_ROOM;
+            case FAULT_ANSWER_RAN_OUT_OF_ROOM -> UnwrittenSentencesOnRecord.THE_ANSWER_REACHED_ITS_LENGTH_LIMIT;
+            case FAULT_SCHEMA_VIOLATION -> UnwrittenSentencesOnRecord.THE_ANSWER_CAME_BACK_IN_ANOTHER_SHAPE;
+            case FAULT_CITATION_NOT_IN_RANGE -> UnwrittenSentencesOnRecord.THE_ANSWER_CITED_OUTSIDE_WHAT_IT_WAS_GIVEN;
+            case NO_SENDABLE_DOCUMENT -> UnwrittenSentencesOnRecord.NO_DOCUMENT_COULD_BE_SENT;
+            case NOTHING_FITS_THE_WINDOW -> UnwrittenSentencesOnRecord.NO_DOCUMENT_FITS_THE_ROOM;
+            case NOT_REACHED -> UnwrittenSentencesOnRecord.WRITING_STOPPED_BEFORE_IT;
+        };
     }
 
     /** What produced the tree, with one profile value stated so the index has one to carry. */

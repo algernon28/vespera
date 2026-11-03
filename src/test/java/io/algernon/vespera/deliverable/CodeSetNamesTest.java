@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,8 +23,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * The operator's renames of code sets, read from {@code code-set-names.yaml} beside the database (ADR-284 §9): the
  * file's entries as written, and the refusal of a file that is not a list of folders and names. Applying them is
- * the drawing's (#573). {@code CodeSetNames} is reached through {@link CodeSetNamesByItsName}, so this compiles
- * before it is built and fails, until it is, on the class being absent.
+ * the drawing's (#573).
  */
 @Epic("The deliverable")
 @Feature("Names of code sets")
@@ -38,24 +38,28 @@ class CodeSetNamesTest {
     @DisplayName("The file of renames beside the database is read entry by entry, in its order, the set at the archive's root by an empty folder; an absent or empty file renames nothing")
     void theEntriesAreReadAsWritten(@TempDir Path workingDirectory) throws Exception {
         String yaml = "- folder: shop/core\n  name: Shop core\n- folder: \"\"\n  name: Archivio\n- folder: tools\n  name: \"tools, old\"\n";
+        List<CodeSetNames.Entry> asWritten = List.of(
+                new CodeSetNames.Entry("shop/core", "Shop core"),
+                new CodeSetNames.Entry("", "Archivio"),
+                new CodeSetNames.Entry("tools", "tools, old"));
 
         claim(
                 "the file is named code-set-names.yaml",
-                () -> assertThat(CodeSetNamesByItsName.fileName()).isEqualTo(FILE_NAME));
+                () -> assertThat(CodeSetNames.FILE_NAME).isEqualTo(FILE_NAME));
         claim(
                 "its three entries are read as written, in its order",
-                () -> assertThat(CodeSetNamesByItsName.parse(yaml))
-                        .containsExactly("shop/core=Shop core", "=Archivio", "tools=tools, old"));
+                () -> assertThat(CodeSetNames.parse(yaml)).containsExactlyElementsOf(asWritten));
         claim(
-                "with no file beside the database there is no entry, and the file once written is read",
+                "with no file beside the database there is no entry, and the file once written is read to the same"
+                        + " entries",
                 () -> {
-                    assertThat(CodeSetNamesByItsName.read(workingDirectory)).isEmpty();
+                    assertThat(CodeSetNames.read(workingDirectory)).isEmpty();
                     Files.writeString(workingDirectory.resolve(FILE_NAME), yaml, StandardCharsets.UTF_8);
-                    assertThat(CodeSetNamesByItsName.read(workingDirectory)).hasSize(3);
+                    assertThat(CodeSetNames.read(workingDirectory)).containsExactlyElementsOf(asWritten);
                 });
         claim(
                 "a file holding nothing has no entry",
-                () -> assertThat(CodeSetNamesByItsName.parse("")).isEmpty());
+                () -> assertThat(CodeSetNames.parse("")).isEmpty());
     }
 
     @Test
@@ -77,7 +81,7 @@ class CodeSetNamesTest {
 
         refused.forEach((what, yaml) -> claim(
                 "a file holding " + what + " is refused, the refusal naming the file",
-                () -> assertThatThrownBy(() -> CodeSetNamesByItsName.parse(yaml))
+                () -> assertThatThrownBy(() -> CodeSetNames.parse(yaml))
                         .isInstanceOf(IllegalArgumentException.class)
                         .hasMessageContaining(FILE_NAME)));
     }

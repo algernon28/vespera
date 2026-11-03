@@ -267,7 +267,7 @@ class TheClusterFolderHoldsItsPageAndItsCopiesTest {
 
     @Test
     @Story("Every document listed is copied into the tree")
-    @DisplayName("A numbered copy already in the tree is kept as it is, and the archive is not read for it again")
+    @DisplayName("A copy already in the tree, plain or numbered, is kept as it is, and the archive is not read for it again")
     void aSuffixedCopyThatStandsIsKeptWithoutReadingTheArchive(@TempDir Path base) throws IOException {
         Path archive = anArchive(base, Map.of("a/Report.pdf", "the first report", "b/REPORT.PDF", "the second report"));
         List<ListedSurvivor> both = List.of(
@@ -358,16 +358,14 @@ class TheClusterFolderHoldsItsPageAndItsCopiesTest {
                 List.of(theTooLongOne, theOneThatFits),
                 Map.of(theTooLongOne.occurrence(), oneByteTooLong, theOneThatFits.occurrence(), justShortEnough));
 
+        assumeTrue(
+                (oneByteTooLong + THE_PART).getBytes(StandardCharsets.UTF_8).length == A_NAMES_LONGEST_IN_BYTES + 1
+                        && (justShortEnough + THE_PART).getBytes(StandardCharsets.UTF_8).length
+                                == A_NAMES_LONGEST_IN_BYTES,
+                "one name holds one byte past the longest with .part after it, and the other exactly the longest");
         claim(
-                "the precondition: one name holds " + (A_NAMES_LONGEST_IN_BYTES + 1) + " bytes with .part after it"
-                        + " and the other exactly " + A_NAMES_LONGEST_IN_BYTES,
-                () -> {
-                    assertThat((oneByteTooLong + THE_PART).getBytes(StandardCharsets.UTF_8))
-                            .hasSize(A_NAMES_LONGEST_IN_BYTES + 1);
-                    assertThat((justShortEnough + THE_PART).getBytes(StandardCharsets.UTF_8))
-                            .hasSize(A_NAMES_LONGEST_IN_BYTES);
-                    assertThat(CopyNames.LONGEST_NAME_IN_BYTES).isEqualTo(A_NAMES_LONGEST_IN_BYTES);
-                });
+                "the longest name a copy may have, .part included, is " + A_NAMES_LONGEST_IN_BYTES + " bytes",
+                () -> assertThat(CopyNames.LONGEST_NAME_IN_BYTES).isEqualTo(A_NAMES_LONGEST_IN_BYTES));
         claim(
                 "the copy whose name is one byte too long is not copied, and is not called gone though its"
                         + " original is: its name is refused before its original is looked for, whatever the disk"

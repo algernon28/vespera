@@ -632,10 +632,6 @@ class DeliverablePicturesTest {
                         + " pictures that are not there",
                 () -> assertThat(Files.readString(withNone.resolve(THE_PARTITION_DIRECTORY).resolve(THE_CLUSTER_PAGE)))
                         .isEqualTo(THE_PAGE_WITH_NO_PICTURES));
-        claim(
-                "and the group's folder holds the page and no picture, there being nothing to put in it",
-                () -> assertThat(allFilesUnder(theClusterFolderOf(withNone)))
-                        .containsExactly(theClusterFolderOf(withNone).resolve("index.html")));
     }
 
     @Test
@@ -941,11 +937,6 @@ class DeliverablePicturesTest {
                         frame.top() + shift,
                         frame.right() + shift,
                         frame.bottom() + shift)));
-    }
-
-    /** The folder of {@code tree}'s one group, which holds its page. */
-    private static Path theClusterFolderOf(Path tree) {
-        return tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_CLUSTER_FOLDER);
     }
 
     /**

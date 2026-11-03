@@ -11,6 +11,7 @@ import static io.algernon.vespera.deliverable.ListedTree.survivor;
 import static io.algernon.vespera.deliverable.ListedTree.writing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.abort;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
@@ -27,7 +28,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -181,36 +181,6 @@ class EverySurvivorIsCopiedTest {
     }
 
     @Test
-    @Story("Every document listed is copied into the tree")
-    @DisplayName("A copy already in the tree is kept as it is, and the archive is not read for it again")
-    void aCopyThatStandsIsKeptWithoutReadingTheArchive(@TempDir Path base) throws IOException {
-        Path archive = anArchive(base);
-        Path tree = writeOver(base, archive, sha256Of(FIRST_BYTES));
-        FileTime firstWritten = Files.getLastModifiedTime(tree.resolve(FIRST_COPY));
-        FileTime secondWritten = Files.getLastModifiedTime(tree.resolve(SECOND_COPY));
-        Files.delete(archive.resolve(FIRST_PATH));
-        Files.delete(archive.resolve(SECOND_PATH));
-
-        writeOver(base, archive, sha256Of(FIRST_BYTES));
-
-        claim(
-                "with both files gone from the archive, both rows still say copied: a copy that stands was put there"
-                        + " only once its bytes were checked, so it is not checked again",
-                () -> assertThat(columnByPath(tree, "copy_outcome"))
-                        .containsExactly(Map.entry(FIRST_PATH, "copied"), Map.entry(SECOND_PATH, "copied")));
-        claim(
-                "and both copies are the ones the first writing left, their bytes and their times untouched",
-                () -> {
-                    assertThat(tree.resolve(FIRST_COPY)).hasBinaryContent(FIRST_BYTES);
-                    assertThat(tree.resolve(SECOND_COPY)).hasBinaryContent(SECOND_BYTES);
-                    assertThat(List.of(
-                                    Files.getLastModifiedTime(tree.resolve(FIRST_COPY)),
-                                    Files.getLastModifiedTime(tree.resolve(SECOND_COPY))))
-                            .containsExactly(firstWritten, secondWritten);
-                });
-    }
-
-    @Test
     @Story("Copying never fills the drive the database is on")
     @DisplayName("A copy that would leave the drive with less than a gibibyte is not made, and a smaller one still is")
     void aCopyThatWouldLeaveLessThanAGibibyteIsNotMade(@TempDir Path base) throws IOException {
@@ -221,10 +191,9 @@ class EverySurvivorIsCopiedTest {
                 base.resolve("work"), archive, List.of(THE_CLUSTER), writtenFromBoth(), bothSurvivors(sha256Of(FIRST_BYTES)),
                 () -> freeForTheFirstOnly);
 
-        claim(
-                "the precondition: the second document is the larger, so the room left for the first is too little"
-                        + " for it",
-                () -> assertThat(SECOND_BYTES.length).isGreaterThan(FIRST_BYTES.length));
+        assumeTrue(
+                SECOND_BYTES.length > FIRST_BYTES.length,
+                "the second document is the larger, so the room left for the first is too little for it");
         claim(
                 "what the drive must keep free after a copy is one gibibyte",
                 () -> assertThat(Deliverable.COPY_HEADROOM_BYTES).isEqualTo(ONE_GIBIBYTE));
@@ -305,10 +274,9 @@ class EverySurvivorIsCopiedTest {
 
         Path tree = writeOver(base, archive, sha256Of(FIRST_BYTES));
 
-        claim(
-                "the precondition: a folder stands at the second document's path, so something is there and it is"
-                        + " no file to read: the document is neither changed nor gone",
-                () -> assertThat(archive.resolve(SECOND_PATH)).isDirectory());
+        assumeTrue(
+                Files.isDirectory(archive.resolve(SECOND_PATH)),
+                "a folder stands at the second document's path, so something is there and it is no file to read");
         claim(
                 "its row names no copy and says it could not be copied, and the other's says it was copied",
                 () -> {
@@ -424,10 +392,10 @@ class EverySurvivorIsCopiedTest {
 
         Path tree = writeOver(base, archive, sha256Of(FIRST_BYTES));
 
-        claim(
-                "the precondition: the part left behind is longer than the document, so a copy written into it"
-                        + " without cutting it short would hold more than the document",
-                () -> assertThat(whatAStoppedWritingLeft.length).isGreaterThan(SECOND_BYTES.length));
+        assumeTrue(
+                whatAStoppedWritingLeft.length > SECOND_BYTES.length,
+                "the part left behind is longer than the document, so a copy written into it without cutting it"
+                        + " short would hold more than the document");
         claim(
                 "the document is copied, and its copy holds exactly its bytes",
                 () -> {

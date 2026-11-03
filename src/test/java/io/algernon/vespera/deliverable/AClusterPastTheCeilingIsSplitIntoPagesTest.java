@@ -310,6 +310,17 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
         }
     }
 
+    /**
+     * The smallest ceilings at which two entries of 100 bytes share a page, measured from the page's parts (ADR-303 §3):
+     * the head through the title "Fire doors", 582 bytes; the navigation at its widest, "Page 9 of 9: " and four links
+     * to {@code index-9.html} named "previous", 189 bytes, above and below the list; the list's heading, 37; the list's
+     * closing, 6; and the tail, 16. A later page adds its numbered opening, {@code <ol start="9">}, 15; the first page
+     * its plain {@code <ol>}, 5, and the sentence nothing was written over this group in italics, 52.
+     */
+    private static final long A_LATER_PAGE_OF_TWO_SMALL_ENTRIES = 582 + 2 * 189 + 37 + 6 + 16 + 15 + 200;
+
+    private static final long A_FIRST_PAGE_OF_TWO_SMALL_ENTRIES = 582 + 2 * 189 + 37 + 6 + 16 + 5 + 52 + 200;
+
     @Test
     @Story("A group's page is split only past the ceiling")
     @DisplayName("A later page is counted with the list's heading once, so it holds what fits as the first page does")
@@ -318,18 +329,21 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
         long small = 100;
         long tooLargeForAnyPage = 1_000_000;
         // Two small entries after a large one: whether they share the second page decides two pages or three. Two small
-        // entries before a large one: whether they share the first page decides it. Both plans count the same heading,
-        // navigation and tail, so the two smallest ceilings differ by what the first page holds and a later one does not.
+        // entries before a large one: whether they share the first page decides it.
         long laterThreshold = smallestCeilingOfTwoPages(unwritten, new long[] {tooLargeForAnyPage, small, small});
         long firstThreshold = smallestCeilingOfTwoPages(unwritten, new long[] {small, small, tooLargeForAnyPage});
-        long firstPageOnly = utf8("<ol>\n") + utf8("<p><em>" + Deliverable.NOTHING_WAS_WRITTEN_OVER_IT + "</em></p>\n");
-        long laterPageOnly = utf8("<ol start=\"9\">\n");
 
         claim(
-                "the smallest ceiling at which two entries share the first page exceeds the one at which they share a"
-                        + " later page by the first page's own list opening and sentence, less a later page's numbered"
-                        + " list opening, and by nothing counted twice",
-                () -> assertThat(firstThreshold - laterThreshold).isEqualTo(firstPageOnly - laterPageOnly));
+                "two entries of " + small + " bytes share a later page from a ceiling of "
+                        + A_LATER_PAGE_OF_TWO_SMALL_ENTRIES + " bytes: the page's head and title, the navigation above"
+                        + " and below the list, the list's heading once, its numbered opening and closing, the tail,"
+                        + " and the two entries",
+                () -> assertThat(laterThreshold).isEqualTo(A_LATER_PAGE_OF_TWO_SMALL_ENTRIES));
+        claim(
+                "and share the first page from " + A_FIRST_PAGE_OF_TWO_SMALL_ENTRIES + " bytes: the same parts, the"
+                        + " heading once again, with the first page's plain list opening and the sentence saying"
+                        + " nothing was written over the group",
+                () -> assertThat(firstThreshold).isEqualTo(A_FIRST_PAGE_OF_TWO_SMALL_ENTRIES));
     }
 
     /**
@@ -347,16 +361,13 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
         long[] laterPageDecides = {1_000_000, 100, 100};
         long english = smallestCeilingOfTwoPages(unwritten, laterPageDecides, DeliverableLanguage.ENGLISH);
         long italian = smallestCeilingOfTwoPages(unwritten, laterPageDecides, DeliverableLanguage.ITALIAN);
-        long longerNavigation = utf8(ItalianWordingOnRecord.PAGE_OF) - utf8(ENGLISH_PAGE_OF)
-                + 4 * (utf8(longestOf(ItalianWordingOnRecord.FIRST, ItalianWordingOnRecord.PREVIOUS,
-                                ItalianWordingOnRecord.NEXT, ItalianWordingOnRecord.LAST))
-                        - utf8(longestOf("first", "previous", "next", "last")));
-        long longerHeading = utf8(ItalianWordingOnRecord.MEMBERSHIP_HEADING) - utf8("The documents in this group");
 
         claim(
-                "the Italian threshold exceeds the English by the navigation above and below the list, each longer by "
-                        + longerNavigation + " bytes at its widest, and the list heading, longer by " + longerHeading,
-                () -> assertThat(italian - english).isEqualTo(2 * longerNavigation + longerHeading));
+                "the Italian threshold exceeds the English by " + ITALIAN_OVER_ENGLISH + " bytes: the navigation above"
+                        + " and below the list is 10 bytes longer at its widest, \"Pagina 9 di 9: \" 2 bytes longer"
+                        + " than \"Page 9 of 9: \" and each of its four links named by its longest word, \"precedente\","
+                        + " 2 bytes longer than \"previous\"; and the list heading is 1 byte longer",
+                () -> assertThat(italian - english).isEqualTo(ITALIAN_OVER_ENGLISH));
     }
 
     /**
@@ -451,12 +462,12 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
      */
     private static final int CITATIONS_OF_THE_LAST = 40;
 
-    /** The English navigation's opening, as ADR-303 §5 has it, which the Italian is measured against. */
-    private static final String ENGLISH_PAGE_OF = "Page %d of %d: ";
-
-    private static String longestOf(String... words) {
-        return Arrays.stream(words).max(Comparator.comparingInt(String::length)).orElseThrow();
-    }
+    /**
+     * How many bytes more the Italian plan counts around a later page's list than the English (ADR-321 §4): its
+     * navigation, 10 bytes longer at its widest, twice, and its list heading, "I documenti di questo gruppo", 1 byte
+     * longer than "The documents in this group".
+     */
+    private static final long ITALIAN_OVER_ENGLISH = 2 * 10 + 1;
 
     /** The smallest ceiling at which {@code entrySizes} are planned as two pages and not three. */
     private static long smallestCeilingOfTwoPages(RecordedCluster unwritten, long[] entrySizes) {
@@ -554,8 +565,10 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
                                 throughTheTitle(dampers) + PAGE_2_OF_2 + THE_LIST_HEADING + "<ol start=\"2\">\n"
                                         + dampersEntries.get(1) + "</ol>\n" + PAGE_2_OF_2 + THE_TAIL));
         claim(
-                "the sentence saying why is the one that group's page written whole carries",
-                () -> assertThat(standingOnTheFirstPage(dampers)).startsWith("<p><em>").endsWith("</em></p>\n"));
+                "the sentence saying why, on that group's first page, is the record's for a group none of whose"
+                        + " documents could be sent, in italics",
+                () -> assertThat(standingOnTheFirstPage(dampers))
+                        .isEqualTo("<p><em>" + UnwrittenSentencesOnRecord.NO_DOCUMENT_COULD_BE_SENT + "</em></p>\n"));
     }
 
     @Test

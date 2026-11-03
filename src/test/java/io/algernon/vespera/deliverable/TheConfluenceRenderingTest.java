@@ -283,12 +283,16 @@ class TheConfluenceRenderingTest {
                                 .toList())
                         .containsExactly(List.of(THE_DIAGRAMS_FILE, (long) THE_DIAGRAM.length, sha256Of(THE_DIAGRAM))));
 
-        Path collided = draw(base.resolve("collided"), picturesOfTheFirst(), THE_DIAGRAMS_FILE);
+        Path collided = draw(base.resolve("collided"), picturesOfTheFourth(), THE_DIAGRAMS_FILE);
         claim(
-                "where a copy on the same page bears the picture's name, the copy keeps it and the picture takes ~1,"
-                        + " its entry's number",
-                () -> assertThat(ListedTree.filesUnder(doorsFolder(collided))).contains(
-                        "picture-" + sha256Of(THE_DIAGRAM).substring(0, 16) + "~1.png"));
+                "where the fourth entry's copy bears the picture's name, the page lists the copy under that name and"
+                        + " the picture, which the fourth entry carries, is written as ~4, its entry's number",
+                () -> {
+                    assertThat(filesOf(pageKeyed(pageList(collided), "1.1"))).contains(List.of(THE_DIAGRAMS_FILE,
+                            "../1-fire-safety/1-fire-doors/" + THE_DIAGRAMS_FILE, "copy"));
+                    assertThat(ListedTree.filesUnder(doorsFolder(collided))).containsExactlyInAnyOrder(
+                            ConfluencePages.BODY_NAME, THE_DIAGRAMS_FILE.replace(".png", "~4.png"));
+                });
     }
 
     @Test
@@ -607,6 +611,13 @@ class TheConfluenceRenderingTest {
     /** The first document carries the diagram; no other carries a picture. */
     private static SurvivorPictures picturesOfTheFirst() {
         return survivor -> survivor.occurrence().value() == 10
+                ? List.of(new ListedPicture("image/png", THE_DIAGRAM, false, "a diagram of <doors> & frames"))
+                : List.of();
+    }
+
+    /** The fourth document carries the diagram; no other carries a picture. */
+    private static SurvivorPictures picturesOfTheFourth() {
+        return survivor -> survivor.occurrence().value() == 13
                 ? List.of(new ListedPicture("image/png", THE_DIAGRAM, false, "a diagram of <doors> & frames"))
                 : List.of();
     }

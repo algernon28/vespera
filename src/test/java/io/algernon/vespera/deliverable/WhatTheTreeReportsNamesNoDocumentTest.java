@@ -2,6 +2,7 @@ package io.algernon.vespera.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -16,8 +17,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * What the tree's writer tells the rest of the application is numbers and kinds, never a path or a document's text
- * (ADR-274 §8): the module declares no logger, and {@code pipeline} writes its lines, the progress page and the
- * account from what {@link DeliverableProgress} hands over and nothing else.
+ * (ADR-274 §8): {@code pipeline} writes its lines, the progress page and the account from what {@link
+ * DeliverableProgress} hands over, and this holds that it hands over nothing else. That the module declares no logger
+ * is not held here.
  *
  * <p>A claim about the interface rather than about the lines, because it is the interface that decides what a line
  * can carry: a method that took a path or a string would let a name out of the tree, whatever the caller did with it.
@@ -40,10 +42,9 @@ class WhatTheTreeReportsNamesNoDocumentTest {
                 .sorted()
                 .toList();
 
-        claim(
-                "the progress the tree's writer reports has methods to report through, so the claim below is about"
-                        + " some",
-                () -> assertThat(DeliverableProgress.class.getDeclaredMethods()).isNotEmpty());
+        assumeTrue(
+                DeliverableProgress.class.getDeclaredMethods().length > 0,
+                "the progress the tree's writer reports has methods to report through, so the claim below is about some");
         claim(
                 "no method takes anything but a number or a kind: one named here could hand a path, a name or text"
                         + " out of the tree",

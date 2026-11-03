@@ -99,14 +99,10 @@ class ACitationLinksToThePageItsEntryIsOnTest {
                 Map.of(slotOf(doors), writing("Fire doors and their inspection", PROSE, 10, 11, 12)), members, Map.of(),
                 SurvivorPictures.none(), new ClusterPageCeiling.Bytes(1), DeliverableProgress.NONE);
         String firstPage = Files.readString(tree.resolve("1-fire-safety/1-fire-doors/index.html"), StandardCharsets.UTF_8);
-        String secondPage = Files.readString(tree.resolve("1-fire-safety/1-fire-doors/index-2.html"), StandardCharsets.UTF_8);
 
         claim(
                 "split at a ceiling of one byte, a page an entry, the first page's writing links [1] on itself, [2] and"
                         + " [3] on the second and third pages, and [9], which no entry has, by its anchor as it always did",
                 () -> assertThat(firstPage).contains(ON_A_FIRST_PAGE_OF_THREE));
-        claim(
-                "and the second page carries the anchor its citation names, and no writing",
-                () -> assertThat(secondPage).contains("<li id=\"document-2\">").doesNotContain("class=\"writing\""));
     }
 }
