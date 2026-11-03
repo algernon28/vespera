@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * The pages that write the files of a working directory the control panel changes (ADR-302 §8): {@code /labels} for the
@@ -170,43 +171,49 @@ final class ValuePages {
             Exchanges.redirect(exchange, "/labels");
             return;
         }
-        List<String> kept = new ArrayList<>();
         String removed = null;
         for (String name : fields.keySet()) {
             if (name.startsWith("remove-")) {
                 removed = fields.get("folder-" + name.substring("remove-".length()));
             }
         }
-        for (int i = 1; fields.containsKey("folder-" + i); i++) {
-            String listed = fields.get("folder-" + i);
-            if (!listed.equals(removed)) {
-                kept.add(listed);
-            }
-        }
         String typed = fields.getOrDefault("new-not-relevant-folder", "").strip();
-        if (removed == null && !typed.isEmpty()) {
-            Optional<String> refusal = refusalOfNotRelevantFolder(typed, kept);
+        boolean adding = removed == null && !typed.isEmpty();
+        if (adding) {
+            Optional<String> refusal = refusalOfNotRelevantFolder(typed, List.of());
             if (refusal.isPresent()) {
                 state.holdForm("not-relevant", FolderPages.withoutBrowse(fields));
                 state.say("/labels", refusal.get());
                 Exchanges.redirect(exchange, "/labels");
                 return;
             }
-            kept.add(typed);
         }
+        String removedFolder = removed;
+        AtomicReference<List<String>> kept = new AtomicReference<>(List.of());
         int[] counts = new int[2];
         boolean[] answered = {false};
         List<WorkingDirectoryWrite.Change> changes = List.of(
                 new WorkingDirectoryWrite.Change(NotRelevantFolders.FILE_NAME, current -> {
-                    NotRelevantFolders.read(current);
-                    return NotRelevantFolders.render(kept);
+                    // rebuilt from the file as read under the lock, never from the form's copy of it (ADR-334 §6)
+                    List<String> list = new ArrayList<>(NotRelevantFolders.read(current));
+                    if (removedFolder != null) {
+                        list.removeIf(listed -> listed.equals(removedFolder));
+                    } else if (adding) {
+                        Optional<String> refusal = refusalOfNotRelevantFolder(typed, list);
+                        if (refusal.isPresent()) {
+                            throw new IllegalArgumentException(refusal.get());
+                        }
+                        list.add(typed);
+                    }
+                    kept.set(list);
+                    return NotRelevantFolders.render(list);
                 }),
                 new WorkingDirectoryWrite.Change(LabelAnswers.FILE_NAME, current -> {
                     if (current.isEmpty()) {
                         return null;
                     }
                     answered[0] = true;
-                    return answersGivenBy(current.get(), kept, counts);
+                    return answersGivenBy(current.get(), kept.get(), counts);
                 }));
         Optional<String> refusal = state.write(folder.get(), changes);
         if (refusal.isPresent()) {
@@ -254,7 +261,7 @@ final class ValuePages {
     /** The line refusing {@code typed} as a folder not relevant, or none (ADR-334 §6). */
     private Optional<String> refusalOfNotRelevantFolder(String typed, List<String> listed) {
         String refused = "the folder " + typed + " is not added: ";
-        if (typed.equals(".") || typed.equals("./")) {
+        if (typed.equals(".") || typed.equals("./") || typed.equals("." + BACKSLASH) || namesTheCorpusRoot(typed)) {
             return Optional.of(refused + "the corpus root holds every question; name a folder below it");
         }
         boolean belowACodeSetFolder = NotRelevantFolders.isAbsolute(typed)
@@ -264,10 +271,39 @@ final class ValuePages {
             return Optional.of(refused
                     + "it is not a folder below the corpus root, written with / between its elements");
         }
-        if (listed.contains(typed)) {
+        if (listed.stream().anyMatch(stated -> NotRelevantFolders.lies(typed, stated)
+                && NotRelevantFolders.lies(stated, typed))) {
             return Optional.of(refused + "it is listed already");
         }
         return Optional.empty();
+    }
+
+    /** Whether {@code typed} spells the corpus root itself, with either separator, with or without a trailing one. */
+    private boolean namesTheCorpusRoot(String typed) {
+        String root = state.values().corpusRoot();
+        if (root == null || root.isBlank() || !NotRelevantFolders.isAbsolute(typed.replace(BACKSLASH, '/'))) {
+            return false;
+        }
+        String given = withoutTrailingSeparators(typed);
+        String own = withoutTrailingSeparators(root);
+        if (NotRelevantFolders.lies(given, own) && NotRelevantFolders.lies(own, given)) {
+            return true;
+        }
+        try {
+            return Files.isSameFile(Path.of(typed), Path.of(root));
+        } catch (IOException | RuntimeException cannotBeCompared) {
+            return false;
+        }
+    }
+
+    private static final char BACKSLASH = (char) 92;
+
+    private static String withoutTrailingSeparators(String path) {
+        String slashed = path.strip().replace(BACKSLASH, '/');
+        while (slashed.length() > 1 && slashed.endsWith("/")) {
+            slashed = slashed.substring(0, slashed.length() - 1);
+        }
+        return slashed;
     }
 
     // ---- /code-sets
@@ -552,7 +588,7 @@ final class ValuePages {
                     .append(ControlPanelPage.keyControl(key, key.key(), "f-" + key.key() + "-value", "Value", value,
                             seedFolder ? forName : "",
                             seedFolder ? FolderPages.statusElement(forName, FolderPages.statusOf(value, false)) : "",
-                            true))
+                            fileValue.isEmpty()))
                     .append(ControlPanelPage.Field.of(key.key() + ".provenance", "Why this value?")
                             .id("f-" + key.key() + "-provenance")
                             .value(typed.getOrDefault(key.key() + ".provenance", fileProvenance))

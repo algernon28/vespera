@@ -86,8 +86,16 @@ final class ControlPanelState {
      * image is {@link ControlPanelPage#DOCLING_IMAGE_GPU}, in the form, in the checks and in every start.
      */
     LaunchValues values() {
-        LaunchValues held = values;
+        return withThePreselectedImage(values);
+    }
+
+    private static LaunchValues withThePreselectedImage(LaunchValues held) {
         return held.doclingImage().isEmpty() ? held.withDoclingImage(ControlPanelPage.DOCLING_IMAGE_GPU) : held;
+    }
+
+    /** The launch values as held, the Docling image empty where none is named, for a change that holds them again. */
+    LaunchValues heldValues() {
+        return values;
     }
 
     /** Whether a launch value names the Docling image, so the image read is not the one the control panel preselects. */
@@ -327,7 +335,9 @@ final class ControlPanelState {
         if (controlPanelEnds) {
             return Optional.of(kind.name + " is not started: the control panel is ending");
         }
-        LaunchValues now = values();
+        // one read of the held values, so the child and the file stored are of the same values
+        LaunchValues held = values;
+        LaunchValues now = withThePreselectedImage(held);
         Optional<String> refusal = kind == Start.RUN ? now.refusalToRun() : now.refusalToLabel();
         if (refusal.isPresent()) {
             return refusal;
@@ -367,7 +377,8 @@ final class ControlPanelState {
             return Optional.of(kind.name + " is not started: " + (notBuilt.getMessage() == null
                     ? notBuilt.getClass().getSimpleName() : notBuilt.getMessage()));
         }
-        now.store(launchValuesFile, userName, stored::add);
+        // the values as held, so that a preselected image is given to the child but not stored as one named (ADR-334 §11)
+        held.store(launchValuesFile, userName, stored::add);
         try {
             child = Child.start(command.processBuilder());
         } catch (IOException | RuntimeException notStarted) {

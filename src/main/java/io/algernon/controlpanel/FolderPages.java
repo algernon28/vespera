@@ -278,7 +278,7 @@ final class FolderPages {
             path = under.relative();
         }
         if (target.form.equals("launch")) {
-            LaunchValues held = state.values();
+            LaunchValues held = state.heldValues();
             state.hold(new LaunchValues(
                     target == Target.CORPUS_ROOT ? path : held.corpusRoot(),
                     target == Target.WORKING_DIRECTORY ? path : held.workingDirectory(),
