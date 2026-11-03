@@ -360,6 +360,8 @@ Beside each folder field is a **Browse** button, which leads to the folder page:
 
 The progress page is shown on the control panel's **Progress** page, with its four tabs, reloading itself as it does in a tab of its own, for whatever runs in the working directory you named; until a command has written it there, the page says so and shows it as soon as it is written. **Open in a window of its own** opens the same page alone, to keep or send on.
 
+Beside **Run** and **Label**, the launch page's **Have the local model answer** starts `vespera label --auto`, the same command the Next page's button of that name starts, whatever the last command did; it is disabled when Run and Label are, and the jar says in one line why it answers nothing where there is no label file or one holds answers not yet recorded. The control panel never passes a label file of your own: to record one kept elsewhere, run `vespera label <file>` from a terminal.
+
 It listens at port 24291. To use another, set `VESPERA_CONTROL_PANEL_PORT` in the shell you start it from; `0` lets the system pick a free port at each start, and then nothing comes back. If the port is taken, by another program or by a control panel you already started, it says so on one line, listens at a port the system picks, and opens a new window or tab there. A value that is not a port from 0 to 65535 is refused with one line, and it exits 1.
 
 If it found no jar beside its own, it prints one line naming where it looked, and exits 1: build both jars with `./mvnw package`, and keep them side by side.

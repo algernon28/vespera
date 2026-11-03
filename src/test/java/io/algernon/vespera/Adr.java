@@ -2379,6 +2379,16 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_SHOWS_THE_PROGRESS_PAGE_AND_ITS_PAGES_ARE_DRAWN_TO_ONE_COMPACT_SCALE =
             FILE + "0335-the-control-panel-shows-the-progress-page-on-a-page-of-its-own-and-its-pages-are-drawn-to-one-compact-scale.md";
 
+    /**
+     * ADR-336 -- the launch page's form {@code launch} gains {@code label-auto}, Have the local model answer, which
+     * starts {@code label --auto} by Label's checks and is disabled where Label is, {@code /next}'s form staying; and
+     * {@code ChildCommand.ARGUMENTS} accounts for every option and positional argument of picocli's model of {@code
+     * vespera}, each set by a control of the launch form or never passed, with a reason (amends ADR-302 §2, §8 and §9
+     * and ADR-331 §3 and §6).
+     */
+    public static final String THE_LAUNCH_PAGE_STARTS_LABEL_AUTO_AND_EVERY_ARGUMENT_OF_THE_JAR_IS_ACCOUNTED_FOR =
+            FILE + "0336-the-launch-page-starts-label-auto-beside-label-and-every-argument-of-the-commands-the-control-panel-starts-is-set-by-a-control-of-the-launch-page-or-listed-as-never-passed-with-why.md";
+
     private Adr() {
     }
 }

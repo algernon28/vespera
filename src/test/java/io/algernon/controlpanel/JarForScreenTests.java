@@ -21,6 +21,12 @@ public final class JarForScreenTests {
     /** Said before what the child does: it first copies {@code profile.yaml} as it finds it, to {@link #THE_PROFILE_IT_FOUND}. */
     public static final String COPY_THE_PROFILE = "copy-the-profile ";
 
+    /**
+     * Said first, before anything else the child is told: it prints its arguments, joined by one space, as a line of
+     * its own after {@link #STARTED}, so that a test reads the command line it was started with (ADR-336 §1).
+     */
+    public static final String SAY_THE_ARGUMENTS = "say-the-arguments ";
+
     /** The file in the working directory the child copies {@code profile.yaml} to, where it is told to. */
     public static final String THE_PROFILE_IT_FOUND = "the-profile-the-child-found.yaml";
 
@@ -38,6 +44,11 @@ public final class JarForScreenTests {
         System.out.flush();
         Path told = Path.of(WHAT_TO_DO);
         String what = Files.isRegularFile(told) ? Files.readString(told, StandardCharsets.UTF_8).strip() : "sleep";
+        if (what.startsWith(SAY_THE_ARGUMENTS)) {
+            System.out.println(String.join(" ", args));
+            System.out.flush();
+            what = what.substring(SAY_THE_ARGUMENTS.length());
+        }
         if (what.startsWith(COPY_THE_PROFILE)) {
             Files.copy(Path.of("profile.yaml"), Path.of(THE_PROFILE_IT_FOUND));
             what = what.substring(COPY_THE_PROFILE.length());

@@ -102,8 +102,9 @@ class TheControlPanelsLayoutScreenTest {
 
     @Test
     @Story("The control panel's pages share one layout")
-    @DisplayName("Every page has a top row holding its title, named as the sidebar names it, and on the launch page Run, Label and Check")
-    void everyPageHasATopRowHoldingItsTitleAndTheLaunchPageItsThreeButtons() throws IOException {
+    @DisplayName("Every page has a top row holding its title, named as the sidebar names it, and on the launch page Run, Label, Have the local model answer and Check")
+    @Link(name = "ADR-336", url = Adr.THE_LAUNCH_PAGE_STARTS_LABEL_AUTO_AND_EVERY_ARGUMENT_OF_THE_JAR_IS_ACCOUNTED_FOR, type = "adr")
+    void everyPageHasATopRowHoldingItsTitleAndTheLaunchPageItsFourButtons() throws IOException {
         try (ScreenServer screens = aServer()) {
             PanelBrowser browser = screens.browser();
             Map<String, String> titles = new LinkedHashMap<>();
@@ -112,18 +113,19 @@ class TheControlPanelsLayoutScreenTest {
                 Page page = browser.go(path).page();
                 titles.put(path, String.join("|", byId(page, "top-row").select("h1").eachText()));
                 if (!path.equals("/")) {
-                    buttonsElsewhere.addAll(byId(page, "top-row").select("[name=run], [name=label], [name=check]")
-                            .eachAttr("name"));
+                    buttonsElsewhere.addAll(byId(page, "top-row")
+                            .select("[name=run], [name=label], [name=label-auto], [name=check]").eachAttr("name"));
                 }
             }
             Page launch = browser.go("/").page();
 
             claim("each page's top row holds one title, the name the sidebar gives that page",
                     () -> assertThat(titles).containsExactlyEntriesOf(THE_SEVEN_PAGES));
-            claim("on the launch page it holds Run, Label and Check, as buttons of the launch form",
+            claim("on the launch page it holds Run, Label, Have the local model answer and Check, as buttons of the"
+                            + " launch form",
                     () -> assertThat(form(launch, "launch").select("#top-row button").eachAttr("name"))
-                            .containsExactly("run", "label", "check"));
-            claim("and on no other page does it hold any of the three",
+                            .containsExactly("run", "label", "label-auto", "check"));
+            claim("and on no other page does it hold any of the four",
                     () -> assertThat(buttonsElsewhere).isEmpty());
         }
     }
