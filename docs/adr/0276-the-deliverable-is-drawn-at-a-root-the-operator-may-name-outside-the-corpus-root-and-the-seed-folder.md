@@ -10,6 +10,7 @@
 
 > **Partly amended — see [ADR-312](0312-the-confluence-rendering-lies-under-confluence-at-the-trees-root-drawn-by-every-drawing-and-what-an-earlier-drawing-left-in-it-is-counted-and-kept.md).** §1's bound on a named root's path is 135 characters; §6's count of folders left behind counts those in `confluence/`. The rest of this record stands.
 
+> **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Of §1: the CLI is `run`, `label`, `publish` and `serve`; the deliverable root stays a property. §2 also refuses a root at or inside `<working directory>/website/`. §3's "as nothing is in the working directory" has one exception, what a publish removes from the website; nothing beneath a deliverable root is deleted. The rest of this record stands.
 > **Partly amended — see [ADR-334](0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md).** Of §1 and §3: a root named whose real path is `<working directory>/deliverable` is read as no root named, each run's tree drawn in its own folder there and nothing of §3 asked of it. The rest of this record stands.
 
 - **Date**: 2026-10-18

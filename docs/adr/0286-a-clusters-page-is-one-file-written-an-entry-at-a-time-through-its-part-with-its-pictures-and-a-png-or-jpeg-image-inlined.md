@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-314](0314-the-confluence-rendering-writes-each-picture-its-cluster-page-shows-as-a-file-of-its-own-from-the-same-bytes-the-html-page-inlines.md).** Of §1 and §4, for the Confluence rendering alone: under `confluence/` each picture a cluster's page shows is a file of its own, from the same bytes, and the page names it. The HTML tree's page is unchanged.
 
+> **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** §5's "every page of the tree" is every page of the HTML tree: a page of the website rendering links a copy that stands beside it only in the website, and its `src` and `href` land inside the website. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Amends**: [ADR-274](0274-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md) §1.1, whose "no `src` or `href` that names a scheme or a host" admits one exception, an `<img>`'s `src` holding a `data:` URI of §1 here; §1's tree, which holds no picture file; and §2.7's bound of 69 characters, which bounds the index and the pages, there being no picture (§4). Every other rule of §1.1, §1.3's escaping and §2's copies stand.
