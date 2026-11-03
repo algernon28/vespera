@@ -81,8 +81,18 @@ final class ControlPanelState {
         this.values = LaunchValues.load(launchValuesFile, userName, notes::add);
     }
 
+    /**
+     * The launch values as the control panel reads them (ADR-334 §11): where no launch value names a Docling image, the
+     * image is {@link ControlPanelPage#DOCLING_IMAGE_GPU}, in the form, in the checks and in every start.
+     */
     LaunchValues values() {
-        return values;
+        LaunchValues held = values;
+        return held.doclingImage().isEmpty() ? held.withDoclingImage(ControlPanelPage.DOCLING_IMAGE_GPU) : held;
+    }
+
+    /** Whether a launch value names the Docling image, so the image read is not the one the control panel preselects. */
+    boolean doclingImageIsNamed() {
+        return !values.doclingImage().isEmpty();
     }
 
     /**
@@ -93,7 +103,7 @@ final class ControlPanelState {
     boolean aRenderingIsDrawn() {
         LaunchValues now = values;
         try {
-            if (now.deliverableRoot() != null && !now.deliverableRoot().isBlank()) {
+            if (now.deliverableRoot() != null && !now.deliverableRoot().isBlank() && !namesTheDefaultFolder(now)) {
                 return Files.isRegularFile(
                         Path.of(now.deliverableRoot().stripTrailing()).resolve(RENDERING).resolve(PAGE_LIST));
             }
@@ -108,6 +118,26 @@ final class ControlPanelState {
                 return runs.anyMatch(tree -> Files.isRegularFile(tree.resolve(RENDERING).resolve(PAGE_LIST)));
             }
         } catch (IOException | RuntimeException unreadable) {
+            return false;
+        }
+    }
+
+    /**
+     * Whether the output folder named is the working directory's {@code deliverable} folder, which is read as no folder
+     * named (ADR-334 §1): the trees lie in a folder of their own for each run there.
+     */
+    private static boolean namesTheDefaultFolder(LaunchValues now) {
+        if (now.workingDirectory() == null || now.workingDirectory().isBlank()) {
+            return false;
+        }
+        try {
+            Path named = Path.of(now.deliverableRoot().stripTrailing()).toAbsolutePath().normalize();
+            Path theDefault = Path.of(now.workingDirectory().stripTrailing()).toAbsolutePath().normalize()
+                    .resolve("deliverable");
+            return Files.exists(named) && Files.exists(theDefault)
+                    ? Files.isSameFile(named, theDefault)
+                    : named.toString().equalsIgnoreCase(theDefault.toString());
+        } catch (IOException | RuntimeException cannotBeHeld) {
             return false;
         }
     }
@@ -161,6 +191,11 @@ final class ControlPanelState {
     synchronized Optional<String> write(Path workingDirectory, String fileName,
             Function<Optional<String>, String> change) {
         return writer.write(workingDirectory, fileName, change);
+    }
+
+    /** As {@link #write(Path, String, Function)}, for one action writing several files under one hold of the lock. */
+    synchronized Optional<String> write(Path workingDirectory, List<WorkingDirectoryWrite.Change> changes) {
+        return writer.write(workingDirectory, changes);
     }
 
     /** The working directory held, empty where none is named. */
@@ -295,7 +330,7 @@ final class ControlPanelState {
         if (controlPanelEnds) {
             return Optional.of(kind.name + " is not started: the control panel is ending");
         }
-        LaunchValues now = values;
+        LaunchValues now = values();
         Optional<String> refusal = kind == Start.RUN ? now.refusalToRun() : now.refusalToLabel();
         if (refusal.isPresent()) {
             return refusal;

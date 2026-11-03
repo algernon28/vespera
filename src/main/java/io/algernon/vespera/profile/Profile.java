@@ -158,7 +158,8 @@ public record Profile(
         LanguagesValue preferredLanguages,
         NumericValue configurationSettingShareFloor,
         TextValue deliverableLanguage,
-        NumericValue clusterResolution) {
+        NumericValue clusterResolution,
+        FoldersValue codeSetFolders) {
 
     public Profile {
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
@@ -185,6 +186,38 @@ public record Profile(
                 configurationSettingShareFloor == null ? NumericValue.unset() : configurationSettingShareFloor;
         deliverableLanguage = deliverableLanguage == null ? TextValue.unset() : deliverableLanguage;
         clusterResolution = clusterResolution == null ? NumericValue.unset() : clusterResolution;
+        codeSetFolders = codeSetFolders == null ? FoldersValue.unset() : codeSetFolders;
+    }
+
+    /**
+     * The profile as it stood before {@code codeSetFolders} (ADR-334 §5.1): the same keys, that one unset. Kept so
+     * that a caller written for the earlier shape compiles; the canonical constructor is the one Jackson reads.
+     */
+    public Profile(
+        TextValue seedFolder,
+        NumericValue degenerateOutputConfidenceFloor,
+        NumericValue degenerateOutputWordFloor,
+        NumericValue boilerplateDocumentFrequencyFloor,
+        TextValue embeddingModel,
+        NumericValue relevanceScoreFloor,
+        TextValue arrangementApproved,
+        TextValue generationModel,
+        NumericValue generationContextWindow,
+        NumericValue clusterPageByteCeiling,
+        NumericValue logTimestampShareFloor,
+        NumericValue extractionAttempt,
+        NameEndingsValue codeNameEndings,
+        NameEndingsValue outOfScopeNameEndings,
+        NumericValue translationSimilarityFloor,
+        LanguagesValue preferredLanguages,
+        NumericValue configurationSettingShareFloor,
+        TextValue deliverableLanguage,
+        NumericValue clusterResolution) {
+        this(seedFolder, degenerateOutputConfidenceFloor, degenerateOutputWordFloor, boilerplateDocumentFrequencyFloor,
+                embeddingModel, relevanceScoreFloor, arrangementApproved, generationModel, generationContextWindow,
+                clusterPageByteCeiling, logTimestampShareFloor, extractionAttempt, codeNameEndings,
+                outOfScopeNameEndings, translationSimilarityFloor, preferredLanguages, configurationSettingShareFloor,
+                deliverableLanguage, clusterResolution, null);
     }
 
     /**
@@ -213,7 +246,7 @@ public record Profile(
     static Profile skeleton() {
         return new Profile(
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null);
+                null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -237,7 +270,8 @@ public record Profile(
                 preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
-                clusterResolution);
+                clusterResolution,
+                codeSetFolders);
     }
 
     /**
@@ -265,7 +299,8 @@ public record Profile(
                 preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
-                clusterResolution);
+                clusterResolution,
+                codeSetFolders);
     }
 
     /** The same profile, with stage 3's pointer to {@code word-count-distribution.html} brought up to date (ADR-282). */
@@ -289,7 +324,8 @@ public record Profile(
                 preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
-                clusterResolution);
+                clusterResolution,
+                codeSetFolders);
     }
 
     /**
@@ -316,7 +352,8 @@ public record Profile(
                 preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
-                clusterResolution);
+                clusterResolution,
+                codeSetFolders);
     }
 
     /**
@@ -348,7 +385,8 @@ public record Profile(
                 preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
-                clusterResolution);
+                clusterResolution,
+                codeSetFolders);
     }
 
     /**
@@ -375,7 +413,8 @@ public record Profile(
                 preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
-                clusterResolution);
+                clusterResolution,
+                codeSetFolders);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-171). */
@@ -399,7 +438,8 @@ public record Profile(
                 preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
-                clusterResolution);
+                clusterResolution,
+                codeSetFolders);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-256). */
@@ -423,7 +463,8 @@ public record Profile(
                 preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
-                clusterResolution);
+                clusterResolution,
+                codeSetFolders);
     }
 
     /** The same profile, with the pointer to {@code translations.html} brought up to date (ADR-271 §6). */
@@ -447,7 +488,8 @@ public record Profile(
                 preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
-                clusterResolution);
+                clusterResolution,
+                codeSetFolders);
     }
 
     /** The same profile, with the pointer to {@code translations.html} brought up to date (ADR-271 §6). */
@@ -471,7 +513,8 @@ public record Profile(
                 preferredLanguages.measuredBy(measurement),
                 configurationSettingShareFloor,
                 deliverableLanguage,
-                clusterResolution);
+                clusterResolution,
+                codeSetFolders);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-277 §2). */
@@ -495,7 +538,8 @@ public record Profile(
                 preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
-                clusterResolution);
+                clusterResolution,
+                codeSetFolders);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-287 §7). */
@@ -519,6 +563,7 @@ public record Profile(
                 preferredLanguages,
                 configurationSettingShareFloor.measuredBy(measurement),
                 deliverableLanguage,
-                clusterResolution);
+                clusterResolution,
+                codeSetFolders);
     }
 }

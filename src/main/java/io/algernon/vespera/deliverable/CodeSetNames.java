@@ -99,10 +99,40 @@ public final class CodeSetNames {
         return List.copyOf(entries);
     }
 
-    /** {@code ""}, or elements none empty joined by {@code /}, with no backslash. */
-    private static boolean isFolder(String folder) {
-        return folder.isEmpty()
-                || (folder.indexOf('\\') < 0 && !folder.startsWith("/") && !folder.endsWith("/") && !folder.contains("//"));
+    /**
+     * {@code ""}, or elements none empty joined by {@code /}, with no backslash; or, for a set below a code set folder
+     * outside the corpus root, the folder spelt absolute as {@code code_set} spells it (ADR-334 section 5.5):
+     * beginning with {@code /}, with a drive letter, a colon and {@code /}, or with {@code //}, holding no backslash, no
+     * empty element but the leading {@code //}, and not ending with {@code /}.
+     *
+     * <p>A single element after a leading {@code /} alone is not taken for a folder of the machine: a set's folder is
+     * a real path and is never directly under a root, and {@code /shop} is the mistake of a relative one.
+     */
+    public static boolean isFolder(String folder) {
+        if (folder.isEmpty()) {
+            return true;
+        }
+        if (folder.indexOf('\\') >= 0 || folder.endsWith("/")) {
+            return false;
+        }
+        String below;
+        if (folder.startsWith("//")) {
+            below = folder.substring(2);
+        } else if (folder.startsWith("/")) {
+            below = folder.substring(1);
+            if (!below.contains("/")) {
+                return false;
+            }
+        } else if (folder.length() >= 3 && isAsciiLetter(folder.charAt(0)) && folder.startsWith(":/", 1)) {
+            below = folder.substring(3);
+        } else {
+            below = folder;
+        }
+        return !below.isEmpty() && !below.startsWith("/") && !below.contains("//");
+    }
+
+    private static boolean isAsciiLetter(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
     }
 
     private static IllegalArgumentException refused(String why) {

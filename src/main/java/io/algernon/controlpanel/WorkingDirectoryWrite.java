@@ -54,6 +54,117 @@ public final class WorkingDirectoryWrite {
     /** The three files of a working directory the control panel writes whole; a repair's copy is the one other. */
     public static final Set<String> FILES = Set.of("profile.yaml", "relevance-labels.yaml", "code-set-names.yaml");
 
+    /** The file of the folders not relevant, the fourth the control panel writes (ADR-334 §6), with the answers it gives. */
+    public static final String NOT_RELEVANT_FOLDERS = "not-relevant-folders.yaml";
+
+    private static boolean mayBeWritten(String fileName) {
+        return FILES.contains(fileName) || NOT_RELEVANT_FOLDERS.equals(fileName);
+    }
+
+    /**
+     * One file of an action and what becomes of its text: {@code change} is given the file's text, empty where it is
+     * absent, and returns the new text, or {@code null} to write nothing to that file.
+     */
+    public record Change(String fileName, Function<Optional<String>, String> change) {
+    }
+
+    /**
+     * One action writing several files under one hold of the lock (ADR-334 §6): every change is asked first, in order,
+     * and none is written if one refuses; then the files are written in order, each whole to a {@code .part} file and
+     * moved over its target. A change returning {@code null} writes nothing to its file.
+     *
+     * @throws IllegalArgumentException for a name the control panel does not write
+     */
+    public Optional<String> write(Path workingDirectory, List<Change> changes) {
+        String fileName = changes.getFirst().fileName();
+        for (Change each : changes) {
+            if (!mayBeWritten(each.fileName())) {
+                throw new IllegalArgumentException(each.fileName() + " is not a file the control panel writes");
+            }
+        }
+        if (anInvocationItStartedRuns.getAsBoolean()) {
+            return Optional.of("the control panel writes nothing into a working directory while the invocation it"
+                    + " started runs, so " + fileName + " was not written");
+        }
+        Optional<String> refusal = refusalOfFolder(workingDirectory, userName, fileName);
+        if (refusal.isPresent()) {
+            return refusal;
+        }
+        Path folder = realOrGiven(workingDirectory);
+        Path lockFile = folder.resolve(LOCK_FILE_NAME);
+        FileChannel channel;
+        try {
+            channel = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        } catch (IOException e) {
+            return couldNotWrite(fileName, e);
+        }
+        FileLock lock;
+        try {
+            lock = channel.tryLock(LOCKED_BYTE, LOCKED_LENGTH, false);
+        } catch (OverlappingFileLockException heldInThisJvm) {
+            KEPT_OPEN.add(channel);
+            return Optional.of(held(folder, lockFile, fileName));
+        } catch (IOException e) {
+            closeQuietly(channel);
+            return couldNotWrite(fileName, e);
+        }
+        if (lock == null) {
+            String line = held(folder, lockFile, fileName);
+            closeQuietly(channel);
+            return Optional.of(line);
+        }
+        holdsTheLock = true;
+        try {
+            return writeAllHolding(channel, folder, changes);
+        } finally {
+            holdsTheLock = false;
+            try {
+                lock.release();
+            } catch (IOException ignored) {
+                // closing the channel releases it all the same
+            }
+            closeQuietly(channel);
+        }
+    }
+
+    private Optional<String> writeAllHolding(FileChannel channel, Path folder, List<Change> changes) {
+        String fileName = changes.getFirst().fileName();
+        List<Path> parts = new java.util.ArrayList<>();
+        try {
+            writeHolderLine(channel, holderLine(ProcessHandle.current().pid(), OffsetDateTime.now(), fileName));
+            List<String> texts = new java.util.ArrayList<>();
+            for (Change each : changes) {
+                Path file = folder.resolve(each.fileName());
+                Optional<String> current = Files.exists(file) ? Optional.of(Files.readString(file, UTF_8)) : Optional.empty();
+                try {
+                    texts.add(each.change().apply(current));
+                } catch (IllegalArgumentException refused) {
+                    return Optional.of(refused.getMessage());
+                }
+            }
+            for (int i = 0; i < changes.size(); i++) {
+                if (texts.get(i) == null) {
+                    continue;
+                }
+                Path part = folder.resolve(changes.get(i).fileName() + ".part");
+                parts.add(part);
+                Files.writeString(part, texts.get(i), UTF_8);
+                Files.move(part, folder.resolve(changes.get(i).fileName()), StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING);
+            }
+            return Optional.empty();
+        } catch (IOException | RuntimeException e) {
+            for (Path part : parts) {
+                try {
+                    Files.deleteIfExists(part);
+                } catch (IOException ignored) {
+                    // nothing more can be done about a part file; the next write writes over it
+                }
+            }
+            return couldNotWrite(fileName, e);
+        }
+    }
+
     /** The one file whose save makes a working directory that is not there (ADR-330 §7). */
     private static final String PROFILE = "profile.yaml";
 

@@ -2,6 +2,7 @@ package io.algernon.controlpanel;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -13,17 +14,19 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The pages that write the files of a working directory the control panel changes (ADR-302 §8): {@code /labels} for
- * the answers in {@code relevance-labels.yaml} (ADR-295 §6), {@code /code-sets} for the names in
- * {@code code-set-names.yaml} (ADR-295 §7), and {@code /profile} for every {@link ProfileKey} the next act's form
- * does not hold (ADR-295 §1 to §5). Every save is one of {@link WorkingDirectoryWrite}'s writes, answers a {@code 303}
- * to its page with the outcome, and is refused while the control panel's child runs; a {@code GET} writes nothing
+ * The pages that write the files of a working directory the control panel changes (ADR-302 §8): {@code /labels} for the
+ * folders not relevant in {@code not-relevant-folders.yaml} and the answers they give in {@code relevance-labels.yaml}
+ * (ADR-334 §6), {@code /code-sets} for the names in {@code code-set-names.yaml} (ADR-295 §7) and the folders outside the
+ * corpus root in the profile's {@code codeSetFolders} (ADR-334 §5.2), and {@code /profile} for every {@link ProfileKey}
+ * as one form (ADR-334 §7). Every save is one of {@link WorkingDirectoryWrite}'s writes, answers a {@code 303} to its
+ * page with the outcome, and is refused while the control panel's child runs; a {@code GET} writes nothing
  * (ADR-302 §1).
  *
- * <p>{@code /profile} edits every value as ADR-330 has it: each key's form is filled from what the file states and
+ * <p>{@code /profile} edits every value as ADR-330 has it: each key's section is filled from what the file states and
  * carries the value in use and its source, a line saying what the key is and the measurement it points at; a save
- * of a value left alone writes nothing; and a file not in the form {@link ProfileEdit} reads is shown with its
- * first line out of form and repaired, where the repair loses nothing, at {@code /profile-repair} (§2 to §6).
+ * writes every value changed in one write and none where one is refused, and writes nothing where none is changed; Reset
+ * puts the form back to the file; and a file not in the form {@link ProfileEdit} reads is shown with its first line out
+ * of form and repaired, where the repair loses nothing, at {@code /profile-repair} (ADR-330 §2 to §6).
  */
 final class ValuePages {
 
@@ -38,6 +41,7 @@ final class ValuePages {
     void register(Map<String, HttpHandler> pages) {
         pages.put("/labels", this::labels);
         pages.put("/code-sets", this::codeSets);
+        pages.put("/code-set-folders", this::codeSetFolders);
         pages.put("/profile", this::profile);
         pages.put("/profile-repair", this::profileRepair);
     }
@@ -53,12 +57,20 @@ final class ValuePages {
 
     private static final String NO_WORKING_DIRECTORY = "the working directory is not named, on the launch page";
 
-    /** The hint of the answer to a question, shared by every question's select (ADR-331 §8). */
-    private static final String HINT_OF_AN_ANSWER =
-            "Whether this document belongs in what you are keeping. No answer leaves it for later.";
-
     /** The hint of a code set's name, shared by every row's (ADR-331 §8). */
     private static final String HINT_OF_A_NAME = "The name the deliverable gives the set. Clear it to remove the name.";
+
+    /** The hint of a folder not relevant (ADR-334 §6). */
+    private static final String HINT_OF_A_FOLDER_NOT_RELEVANT =
+            "A folder of what you are not keeping: every question about a file below it is answered not relevant.";
+
+    /** The hint of a folder outside the corpus root (ADR-334 §5.2). */
+    private static final String HINT_OF_A_CODE_SET_FOLDER =
+            "A folder of code anywhere on this machine, read with the corpus and kept as code sets of its own.";
+
+    /** What the page says of a provenance beside a form that changes several values (ADR-334 §7). */
+    private static final String HINT_OF_A_PROVENANCE =
+            "Needed for each value you change: why you chose it, in your words. It is written beside it in profile.yaml.";
 
     /** What the profile in the working directory holds; empty where none is named, none is there or it cannot be read. */
     static Map<ProfileKey, ProfileEdit.Stated> profileOf(ControlPanelState state) {
@@ -74,103 +86,188 @@ final class ValuePages {
         return Map.of();
     }
 
+    /** The folders the profile's {@code codeSetFolders} states, in its order; none where it states none. */
+    private List<String> codeSetFoldersStated() {
+        ProfileEdit.Stated stated = profileOf(state).get(ProfileKey.CODE_SET_FOLDERS);
+        return CodeSetFolderChecks.statedIn(stated == null ? null : stated.value());
+    }
+
     // ---- /labels
 
     private void labels(HttpExchange exchange) throws IOException {
         if (!Exchanges.isRead(exchange)) {
-            saveLabels(exchange);
+            saveNotRelevant(exchange);
             return;
         }
-        StringBuilder body = new StringBuilder();
         String pending = state.takeOutcome("/labels");
         String problem = null;
         List<LabelAnswers.Question> questions = List.of();
-        try {
-            Optional<String> text = read(LabelAnswers.FILE_NAME);
-            if (state.workingDirectory().isEmpty()) {
-                problem = NO_WORKING_DIRECTORY;
-            } else if (text.isEmpty()) {
-                try {
-                    LabelAnswers.rewrite(Optional.empty(), Map.of());
-                } catch (IllegalArgumentException line) {
-                    problem = line.getMessage();
+        List<String> listed = List.of();
+        if (state.workingDirectory().isEmpty()) {
+            problem = NO_WORKING_DIRECTORY;
+        } else {
+            try {
+                Optional<String> text = read(LabelAnswers.FILE_NAME);
+                if (text.isPresent()) {
+                    questions = LabelAnswers.read(text.get());
                 }
-            } else {
-                questions = LabelAnswers.read(text.get());
+                listed = NotRelevantFolders.read(read(NotRelevantFolders.FILE_NAME));
+            } catch (IllegalArgumentException | IOException unreadable) {
+                problem = unreadable.getMessage();
             }
-        } catch (IllegalArgumentException | IOException unreadable) {
-            problem = unreadable.getMessage();
         }
-        body.append(ControlPanelPage.outcome(pending != null ? pending : problem));
+        StringBuilder body = new StringBuilder(ControlPanelPage.outcome(pending != null ? pending : problem));
         if (problem == null) {
-            body.append("<form name=\"labels\" method=\"post\" action=\"/labels\">\n<section class=\"card\">\n")
-                    .append("<p class=\"hint\" id=\"hint-relevant\">").append(HINT_OF_AN_ANSWER).append("</p>\n<ol>\n");
+            Map<String, String> held = state.heldForm("not-relevant");
+            List<String> folders = listed;
+            long below = questions.stream()
+                    .filter(question -> folders.stream().anyMatch(folder -> NotRelevantFolders.lies(question.path(), folder)))
+                    .count();
+            body.append("<p id=\"questions\" data-questions=\"").append(questions.size())
+                    .append("\" data-not-relevant=\"").append(below).append("\">")
+                    .append(questions.size()).append(questions.size() == 1 ? " question" : " questions").append(", ")
+                    .append(below).append(" of them in a folder not relevant.</p>\n");
+            body.append("<form name=\"not-relevant\" method=\"post\" action=\"/labels\">\n<section class=\"card\">\n")
+                    .append("<ul id=\"not-relevant-folders\">\n");
             int i = 1;
-            for (LabelAnswers.Question question : questions) {
-                body.append("<li><input type=\"hidden\" name=\"path-").append(i).append("\" value=\"")
-                        .append(ControlPanelPage.escape(question.path())).append("\"> <code>")
-                        .append(ControlPanelPage.escape(question.path())).append("</code> ")
-                        .append("<select name=\"relevant-").append(i)
-                        .append("\" aria-label=\"relevant\" aria-describedby=\"hint-relevant\">")
-                        .append(option("", "no answer", question.relevant().isEmpty()))
-                        .append(option("true", "relevant", question.relevant().equals(Optional.of(true))))
-                        .append(option("false", "not relevant", question.relevant().equals(Optional.of(false))))
-                        .append("</select></li>\n");
-                i++;
+            for (String folder : listed) {
+                body.append(listItem(folder, i++));
             }
-            body.append("</ol>\n</section>\n").append(ControlPanelPage.button("save", "Save", false)).append('\n')
+            body.append("</ul>\n")
+                    .append(ControlPanelPage.Field.of("new-not-relevant-folder", "Folder, from the corpus root")
+                            .value(held.getOrDefault("new-not-relevant-folder", "")).example("archive/old-flows")
+                            .hint("hint-new-not-relevant-folder", HINT_OF_A_FOLDER_NOT_RELEVANT)
+                            .browse(FolderPages.Target.NOT_RELEVANT_FOLDER.forName())
+                            .after(FolderPages.statusElement(FolderPages.Target.NOT_RELEVANT_FOLDER.forName(),
+                                    FolderPages.statusOfCodeSetFolder(state.values().corpusRoot(),
+                                            held.getOrDefault("new-not-relevant-folder", ""))))
+                            .html())
+                    .append("</section>\n").append(ControlPanelPage.button("save", "Save", false)).append('\n')
                     .append(ControlPanelPage.button("save-then-label", "Save, then Label", false)).append("\n</form>\n");
         }
-        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Questions", 0, body.toString()));
+        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Relevance", 0, body.toString()));
     }
 
-    private static String option(String value, String caption, boolean selected) {
-        return "<option value=\"" + value + "\"" + (selected ? " selected" : "") + ">" + caption + "</option>";
+    /** One item of a list of folders: the folder, its hidden control and the button that removes it. */
+    private static String listItem(String folder, int i) {
+        return "<li data-folder=\"" + ControlPanelPage.escape(folder) + "\"><input type=\"hidden\" name=\"folder-" + i
+                + "\" value=\"" + ControlPanelPage.escape(folder) + "\"> <code>" + ControlPanelPage.escape(folder)
+                + "</code> " + ControlPanelPage.button("remove-" + i, "Remove", false) + "</li>\n";
     }
 
-    private void saveLabels(HttpExchange exchange) throws IOException {
+    private void saveNotRelevant(HttpExchange exchange) throws IOException {
         Map<String, String> fields = Exchanges.form(exchange);
         Optional<Path> folder = state.workingDirectory();
+        Optional<FolderPages.Target> browse = FolderPages.browsed(fields);
+        if (browse.isPresent() && browse.get() == FolderPages.Target.NOT_RELEVANT_FOLDER) {
+            state.holdForm("not-relevant", FolderPages.withoutBrowse(fields, browse.get().field()));
+            Exchanges.redirect(exchange, FolderPages.addressOf(browse.get(),
+                    fields.getOrDefault(browse.get().field(), "").stripTrailing()));
+            return;
+        }
         if (folder.isEmpty()) {
             state.say("/labels", NO_WORKING_DIRECTORY);
             Exchanges.redirect(exchange, "/labels");
             return;
         }
-        Map<String, Optional<Boolean>> given = new LinkedHashMap<>();
-        for (int i = 1; fields.containsKey("path-" + i); i++) {
-            Optional<Boolean> answer = switch (fields.getOrDefault("relevant-" + i, "")) {
-                case "" -> Optional.empty();
-                case "true" -> Optional.of(true);
-                case "false" -> Optional.of(false);
-                default -> null;
-            };
-            if (answer == null) {
-                state.say("/labels", "an answer is one of no answer, true and false");
+        List<String> kept = new ArrayList<>();
+        String removed = null;
+        for (String name : fields.keySet()) {
+            if (name.startsWith("remove-")) {
+                removed = fields.get("folder-" + name.substring("remove-".length()));
+            }
+        }
+        for (int i = 1; fields.containsKey("folder-" + i); i++) {
+            String listed = fields.get("folder-" + i);
+            if (!listed.equals(removed)) {
+                kept.add(listed);
+            }
+        }
+        String typed = fields.getOrDefault("new-not-relevant-folder", "").strip();
+        if (removed == null && !typed.isEmpty()) {
+            Optional<String> refusal = refusalOfNotRelevantFolder(typed, kept);
+            if (refusal.isPresent()) {
+                state.holdForm("not-relevant", FolderPages.withoutBrowse(fields));
+                state.say("/labels", refusal.get());
                 Exchanges.redirect(exchange, "/labels");
                 return;
             }
-            given.put(fields.get("path-" + i), answer);
+            kept.add(typed);
         }
-        Optional<String> refusal = state.write(folder.get(), LabelAnswers.FILE_NAME, current -> {
-            Map<String, Optional<Boolean>> changed = new LinkedHashMap<>();
-            Map<String, Optional<Boolean>> recorded = new LinkedHashMap<>();
-            current.ifPresent(text -> LabelAnswers.read(text).forEach(q -> recorded.put(q.path(), q.relevant())));
-            given.forEach((path, answer) -> {
-                if (!answer.equals(recorded.get(path))) {
-                    changed.put(path, answer);
-                }
-            });
-            return LabelAnswers.rewrite(current, changed);
-        });
+        int[] counts = new int[2];
+        boolean[] answered = {false};
+        List<WorkingDirectoryWrite.Change> changes = List.of(
+                new WorkingDirectoryWrite.Change(NotRelevantFolders.FILE_NAME, current -> {
+                    NotRelevantFolders.read(current);
+                    return NotRelevantFolders.render(kept);
+                }),
+                new WorkingDirectoryWrite.Change(LabelAnswers.FILE_NAME, current -> {
+                    if (current.isEmpty()) {
+                        return null;
+                    }
+                    answered[0] = true;
+                    return answersGivenBy(current.get(), kept, counts);
+                }));
+        Optional<String> refusal = state.write(folder.get(), changes);
         if (refusal.isPresent()) {
+            state.holdForm("not-relevant", FolderPages.withoutBrowse(fields));
             state.say("/labels", refusal.get());
             Exchanges.redirect(exchange, "/labels");
-        } else if (fields.containsKey("save-then-label")) {
-            Exchanges.redirect(exchange, InvocationPages.startAndSay(state, ControlPanelState.Start.LABEL, "/labels"));
-        } else {
-            state.say("/labels", "the answers are saved in " + folder.get().resolve(LabelAnswers.FILE_NAME));
-            Exchanges.redirect(exchange, "/labels");
+            return;
         }
+        state.letGoOfForm("not-relevant");
+        if (fields.containsKey("save-then-label")) {
+            Exchanges.redirect(exchange, InvocationPages.startAndSay(state, ControlPanelState.Start.LABEL, "/labels"));
+            return;
+        }
+        Path file = folder.get().resolve(NotRelevantFolders.FILE_NAME);
+        state.say("/labels", answered[0]
+                ? "the folders not relevant are saved in " + file + ", and the " + counts[0] + " questions answered: "
+                        + counts[1] + " not relevant, " + (counts[0] - counts[1]) + " relevant"
+                : "the folders not relevant are saved in " + file + "; there are no questions to answer yet");
+        Exchanges.redirect(exchange, "/labels");
+    }
+
+    /**
+     * The label file's text with each question answered by the folders listed (ADR-334 §6): {@code false} where its
+     * path lies at or below one, {@code true} otherwise. Only a {@code relevant} line whose answer changes is rewritten.
+     *
+     * @param counts set to the number of questions and the number answered not relevant
+     */
+    private static String answersGivenBy(String text, List<String> folders, int[] counts) {
+        List<LabelAnswers.Question> questions = LabelAnswers.read(text);
+        Map<String, Optional<Boolean>> changed = new LinkedHashMap<>();
+        counts[0] = questions.size();
+        counts[1] = 0;
+        for (LabelAnswers.Question question : questions) {
+            boolean relevant = folders.stream().noneMatch(folder -> NotRelevantFolders.lies(question.path(), folder));
+            if (!relevant) {
+                counts[1]++;
+            }
+            if (!question.relevant().equals(Optional.of(relevant))) {
+                changed.put(question.path(), Optional.of(relevant));
+            }
+        }
+        return LabelAnswers.rewrite(Optional.of(text), changed);
+    }
+
+    /** The line refusing {@code typed} as a folder not relevant, or none (ADR-334 §6). */
+    private Optional<String> refusalOfNotRelevantFolder(String typed, List<String> listed) {
+        String refused = "the folder " + typed + " is not added: ";
+        if (typed.equals(".") || typed.equals("./")) {
+            return Optional.of(refused + "the corpus root holds every question; name a folder below it");
+        }
+        boolean belowACodeSetFolder = NotRelevantFolders.isAbsolute(typed)
+                && codeSetFoldersStated().stream().map(CodeSetFolderChecks::spelt)
+                        .anyMatch(stated -> NotRelevantFolders.lies(typed, stated));
+        if (!NotRelevantFolders.isWritten(typed) || (NotRelevantFolders.isAbsolute(typed) && !belowACodeSetFolder)) {
+            return Optional.of(refused
+                    + "it is not a folder below the corpus root, written with / between its elements");
+        }
+        if (listed.contains(typed)) {
+            return Optional.of(refused + "it is listed already");
+        }
+        return Optional.empty();
     }
 
     // ---- /code-sets
@@ -215,13 +312,57 @@ final class ValuePages {
                             .hint("hint-new-folder", "The folder of the set of code, from the corpus root.")
                             .browse(FolderPages.Target.NEW_FOLDER.forName())
                             .after(FolderPages.statusElement(FolderPages.Target.NEW_FOLDER.forName(),
-                                    FolderPages.statusOfCodeSetFolder(state.values().corpusRoot(), newFolder)))
+                                    statusOfNewFolder(newFolder)))
                             .html())
                     .append(ControlPanelPage.Field.of("new-name", "Name").value(held.getOrDefault("new-name", ""))
                             .example("Billing engine").hint("hint-new-name", HINT_OF_A_NAME).html())
                     .append("</section>\n").append(ControlPanelPage.button("save", "Save", false)).append("\n</form>\n");
+            body.append(codeSetFoldersForm());
         }
         Exchanges.page(exchange, ControlPanelPage.render(exchange, "Code sets", 0, body.toString()));
+    }
+
+    /** The status of the new set's folder: under the corpus root, or whole where it lies at or below a folder outside it. */
+    private FolderPages.Status statusOfNewFolder(String newFolder) {
+        return isBelowACodeSetFolder(newFolder) ? FolderPages.statusOf(newFolder, false)
+                : FolderPages.statusOfCodeSetFolder(state.values().corpusRoot(), newFolder);
+    }
+
+    /** Whether {@code folder} is spelt absolute and lies at or below a folder the profile's {@code codeSetFolders} states. */
+    private boolean isBelowACodeSetFolder(String folder) {
+        String stripped = folder.strip();
+        return NotRelevantFolders.isAbsolute(stripped) && codeSetFoldersStated().stream()
+                .map(CodeSetFolderChecks::spelt).anyMatch(stated -> NotRelevantFolders.lies(stripped, stated));
+    }
+
+    /** The form {@code code-set-folders} (ADR-334 §5.2): the folders the profile states, one to add, and the reason. */
+    private String codeSetFoldersForm() {
+        Map<String, String> held = state.heldForm("code-set-folders");
+        Map<ProfileKey, ProfileEdit.Stated> profile = profileOf(state);
+        ProfileEdit.Stated stated = profile.get(ProfileKey.CODE_SET_FOLDERS);
+        String provenance = stated == null || stated.provenance() == null ? "" : stated.provenance();
+        StringBuilder form = new StringBuilder("<form name=\"code-set-folders\" method=\"post\""
+                + " action=\"/code-set-folders\">\n<section class=\"card\">\n<h2>Folders outside the corpus root</h2>\n"
+                + "<ul id=\"code-set-folders\">\n");
+        int i = 1;
+        for (String folder : CodeSetFolderChecks.statedIn(stated == null ? null : stated.value())) {
+            form.append(listItem(folder, i++));
+        }
+        String typed = held.getOrDefault("new-code-set-folder", "");
+        form.append("</ul>\n")
+                .append(ControlPanelPage.Field.of("new-code-set-folder", "Folder outside the corpus root")
+                        .value(typed).example(ProfileKey.CODE_SET_FOLDERS.example())
+                        .hint("hint-new-code-set-folder", HINT_OF_A_CODE_SET_FOLDER)
+                        .browse(FolderPages.Target.CODE_SET_FOLDER.forName())
+                        .after(FolderPages.statusElement(FolderPages.Target.CODE_SET_FOLDER.forName(),
+                                FolderPages.statusOf(typed, false)))
+                        .html())
+                .append(ControlPanelPage.provenance("codeSetFolders.provenance", "f-codeSetFolders-provenance",
+                        "Why this value?", held.getOrDefault("codeSetFolders.provenance", provenance),
+                        "hint-codeSetFolders-provenance"))
+                .append(ControlPanelPage.costElement(ProfileKey.CODE_SET_FOLDERS)).append('\n')
+                .append("</section>\n").append(ControlPanelPage.button("save", "Save", false)).append("\n</form>\n");
+        return form.toString();
     }
 
     private void saveCodeSets(HttpExchange exchange) throws IOException {
@@ -239,7 +380,8 @@ final class ValuePages {
                     fields.getOrDefault("new-folder", "").stripTrailing()));
             return;
         }
-        if (FolderPages.climbs(fields.getOrDefault("new-folder", "").strip())) {
+        String typedFolder = fields.getOrDefault("new-folder", "").strip();
+        if (FolderPages.climbs(typedFolder) && !isBelowACodeSetFolder(typedFolder)) {
             state.say("/code-sets", "the folder is not saved: a code set's folder lies under the corpus root, and the"
                     + " one named does not");
             Exchanges.redirect(exchange, "/code-sets");
@@ -266,6 +408,88 @@ final class ValuePages {
         }
         state.say("/code-sets", refusal.orElse("the names are saved in " + folder.get().resolve(CodeSetRenames.FILE_NAME)));
         Exchanges.redirect(exchange, "/code-sets");
+    }
+
+    // ---- /code-set-folders
+
+    /** The form {@code code-set-folders}'s address: a {@code POST} adds or removes a folder; a {@code GET} lands on the page. */
+    private void codeSetFolders(HttpExchange exchange) throws IOException {
+        if (Exchanges.isRead(exchange)) {
+            Exchanges.redirect(exchange, "/code-sets");
+            return;
+        }
+        Map<String, String> fields = Exchanges.form(exchange);
+        Optional<FolderPages.Target> browse = FolderPages.browsed(fields);
+        if (browse.isPresent() && browse.get() == FolderPages.Target.CODE_SET_FOLDER) {
+            state.holdForm("code-set-folders", FolderPages.withoutBrowse(fields, browse.get().field()));
+            Exchanges.redirect(exchange, FolderPages.addressOf(browse.get(),
+                    fields.getOrDefault(browse.get().field(), "").stripTrailing()));
+            return;
+        }
+        Optional<Path> folder = state.workingDirectory();
+        if (folder.isEmpty()) {
+            state.say("/code-sets", NO_WORKING_DIRECTORY);
+            Exchanges.redirect(exchange, "/code-sets");
+            return;
+        }
+        ProfileEdit.Stated stated = profileOf(state).get(ProfileKey.CODE_SET_FOLDERS);
+        List<String> folders = new ArrayList<>(CodeSetFolderChecks.statedIn(stated == null ? null : stated.value()));
+        String removed = null;
+        for (String name : fields.keySet()) {
+            if (name.startsWith("remove-")) {
+                removed = fields.get("folder-" + name.substring("remove-".length()));
+            }
+        }
+        String typed = fields.getOrDefault("new-code-set-folder", "").stripTrailing();
+        if (removed != null) {
+            folders.remove(removed);
+        } else {
+            Optional<String> refusal = refusalOfCodeSetFolder(typed, folders);
+            if (refusal.isPresent()) {
+                state.holdForm("code-set-folders", FolderPages.withoutBrowse(fields));
+                state.say("/code-sets", refusal.get());
+                Exchanges.redirect(exchange, "/code-sets");
+                return;
+            }
+            folders.add(typed);
+        }
+        String value = String.join(File.pathSeparator, folders);
+        String provenance = fields.getOrDefault("codeSetFolders.provenance", "");
+        Optional<String> refusal = ProfileEdit.refusalOfSave(ProfileKey.CODE_SET_FOLDERS, value, provenance,
+                Optional.ofNullable(stated), Optional.empty());
+        if (refusal.isEmpty()) {
+            refusal = state.write(folder.get(), ProfileEdit.FILE_NAME,
+                    current -> ProfileEdit.rewrite(current, ProfileKey.CODE_SET_FOLDERS, value, provenance));
+        }
+        if (refusal.isPresent()) {
+            state.holdForm("code-set-folders", FolderPages.withoutBrowse(fields));
+            state.say("/code-sets", refusal.get());
+        } else {
+            state.letGoOfForm("code-set-folders");
+            state.say("/code-sets", "codeSetFolders is saved in " + folder.get().resolve(ProfileEdit.FILE_NAME));
+        }
+        Exchanges.redirect(exchange, "/code-sets");
+    }
+
+    /** The line refusing {@code typed} as a folder to add, or none (ADR-334 §5.2), in the order of §5.1's start. */
+    private Optional<String> refusalOfCodeSetFolder(String typed, List<String> stated) {
+        if (typed.isBlank()) {
+            return Optional.of("no folder is added: none is typed in the field");
+        }
+        LaunchValues values = state.values();
+        Path work = state.workingDirectory().orElseThrow();
+        ProfileEdit.Stated seed = profileOf(state).get(ProfileKey.SEED_FOLDER);
+        String output = values.deliverableRoot().isBlank() ? work.resolve("deliverable").toString()
+                : values.deliverableRoot();
+        List<CodeSetFolderChecks.Apart> apart = new ArrayList<>(List.of(
+                new CodeSetFolderChecks.Apart("corpus root", values.corpusRoot()),
+                new CodeSetFolderChecks.Apart("working directory", work.toString()),
+                new CodeSetFolderChecks.Apart("seed folder", seed == null || seed.value() == null ? "" : seed.value()),
+                new CodeSetFolderChecks.Apart("output folder", output)));
+        for (String listed : stated) {
+            apart.add(new CodeSetFolderChecks.Apart("code set folder", listed));
+        }
+        return CodeSetFolderChecks.refusal(typed, apart);
     }
 
     // ---- /profile
@@ -299,14 +523,11 @@ final class ValuePages {
         Map<ProfileKey, ProfileEdit.Stated> stated = text == null ? Map.of() : ProfileEdit.read(text);
         Map<ProfileKey, ProfileEdit.Measurement> measured = text == null ? Map.of() : ProfileEdit.measurementsOf(text);
         Optional<EffectiveValues> effective = state.effectiveValues();
-        List<ProfileKey> asked = next.wanted();
+        Map<String, String> typed = state.heldForm("profile");
         List<ProfileKey> shown = new ArrayList<>();
         StringBuilder list = new StringBuilder("<ul id=\"profile-list\">\n");
         StringBuilder sections = new StringBuilder("<div class=\"sections\">\n");
         for (ProfileKey key : ProfileKey.values()) {
-            if (asked.contains(key)) {
-                continue;
-            }
             shown.add(key);
             ProfileEdit.Stated held = stated.get(key);
             String fileValue = held == null || held.value() == null ? "" : held.value();
@@ -317,32 +538,35 @@ final class ValuePages {
                     .append("<span class=\"current\">")
                     .append(ControlPanelPage.escape(held == null || held.value() == null ? "not set" : held.value()))
                     .append("</span></a></li>\n");
-            Map<String, String> typed = state.heldForm(key.key());
             boolean seedFolder = key == ProfileKey.SEED_FOLDER;
             String forName = FolderPages.Target.PROFILE_SEED_FOLDER.forName();
-            String value = typed.getOrDefault("value", fileValue);
+            String value = typed.getOrDefault(key.key(), fileValue);
             sections.append("<section class=\"card\" id=\"key-").append(key.key()).append("\">\n")
-                    .append("<form name=\"").append(key.key()).append("\" method=\"post\" action=\"/profile\">\n")
                     .append("<h2>").append(key.key()).append("</h2>\n")
-                    .append("<input type=\"hidden\" name=\"key\" value=\"").append(key.key()).append("\">\n")
-                    .append("<input type=\"hidden\" name=\"drawn\" value=\"")
+                    .append("<input type=\"hidden\" name=\"").append(key.key()).append(".drawn\" value=\"")
                     .append(ProfileEdit.drawnOf(key, fileValue, fileProvenance)).append("\">\n")
                     .append(ControlPanelPage.text("p", "about-" + key.key(), key.about())).append('\n')
                     .append(inUse(key, held, effective)).append('\n')
                     .append(ControlPanelPage.text("p", "current-" + key.key(), current)).append('\n')
                     .append(measurement(key, measured.get(key)))
-                    .append(ControlPanelPage.keyControl(key, "value", "f-" + key.key() + "-value", "Value", value,
+                    .append(ControlPanelPage.keyControl(key, key.key(), "f-" + key.key() + "-value", "Value", value,
                             seedFolder ? forName : "",
-                            seedFolder ? FolderPages.statusElement(forName, FolderPages.statusOf(value, false)) : ""))
-                    .append(ControlPanelPage.provenance("provenance", "f-" + key.key() + "-provenance",
-                            "Why this value?", typed.getOrDefault("provenance", fileProvenance),
-                            "hint-" + key.key() + "-provenance"))
+                            seedFolder ? FolderPages.statusElement(forName, FolderPages.statusOf(value, false)) : "",
+                            true))
+                    .append(ControlPanelPage.Field.of(key.key() + ".provenance", "Why this value?")
+                            .id("f-" + key.key() + "-provenance")
+                            .value(typed.getOrDefault(key.key() + ".provenance", fileProvenance))
+                            .example(ControlPanelPage.REASON_EXAMPLE)
+                            .hint("hint-" + key.key() + "-provenance", HINT_OF_A_PROVENANCE).html())
                     .append(ControlPanelPage.costElement(key)).append('\n')
                     .append(NextPages.reportsOf(key.key()))
-                    .append(ControlPanelPage.button("save", "Save", false)).append("\n</form>\n</section>\n");
+                    .append("</section>\n");
         }
         body.append("<div class=\"profile\">\n<div class=\"card\">\n").append(list).append("</ul>\n</div>\n")
-                .append(sections).append("</div>\n</div>\n")
+                .append("<form name=\"profile\" method=\"post\" action=\"/profile\">\n")
+                .append(sections).append("</div>\n")
+                .append(ControlPanelPage.button("save", "Save", false)).append('\n')
+                .append(ControlPanelPage.button("reset", "Reset", false)).append("\n</form>\n</div>\n")
                 .append(ControlPanelPage.listsFor(shown, state.lastChecks().ollama().models()));
         Exchanges.page(exchange, ControlPanelPage.render(exchange, "Profile", 0, body.toString()));
     }
@@ -411,7 +635,7 @@ final class ValuePages {
     }
 
     /**
-     * What the page holds in place of the forms where the file is not in the form the jar writes it (ADR-330 §6): the
+     * What the page holds in place of the form where the file is not in the form the jar writes it (ADR-330 §6): the
      * first line that is not, the file's text, and, where what the repair changes is all that is wrong, what
      * each does and the form that makes them.
      */
@@ -438,53 +662,77 @@ final class ValuePages {
         return html.toString();
     }
 
+    /** One value of the form posted, as the save compares and writes it. */
+    private record Posted(ProfileKey key, String value, String provenance, Optional<String> drawn) {
+    }
+
     private void saveProfile(HttpExchange exchange) throws IOException {
         Map<String, String> fields = Exchanges.form(exchange);
         Optional<Path> folder = state.workingDirectory();
-        Optional<ProfileKey> key = ProfileKey.named(fields.getOrDefault("key", ""));
         Optional<FolderPages.Target> browse = FolderPages.browsed(fields);
-        if (browse.isPresent() && browse.get() == FolderPages.Target.PROFILE_SEED_FOLDER && key.isPresent()) {
-            state.holdForm(key.get().key(), FolderPages.withoutBrowse(fields, browse.get().field()));
+        if (browse.isPresent() && browse.get() == FolderPages.Target.PROFILE_SEED_FOLDER) {
+            state.holdForm("profile", FolderPages.withoutBrowse(fields, browse.get().field()));
             Exchanges.redirect(exchange, FolderPages.addressOf(browse.get(),
                     fields.getOrDefault(browse.get().field(), "").stripTrailing()));
             return;
         }
+        if (fields.containsKey("reset")) {
+            state.letGoOfForm("profile");
+            state.say("/profile", "the form is back to profile.yaml as last saved");
+            Exchanges.redirect(exchange, "/profile");
+            return;
+        }
         if (folder.isEmpty()) {
             state.say("/profile", NO_WORKING_DIRECTORY);
-        } else if (key.isEmpty()) {
-            state.say("/profile", "the profile has no value named " + fields.getOrDefault("key", ""));
-        } else {
-            state.say("/profile", saveOne(folder.get(), key.get(), fields));
+            Exchanges.redirect(exchange, "/profile");
+            return;
         }
-        Exchanges.redirect(exchange, key.map(each -> "/profile#key-" + each.key()).orElse("/profile"));
-    }
-
-    /**
-     * A save of one value, in ADR-330 §5's order: compared with what the page was drawn from, so that a value left alone
-     * writes nothing and takes no lock; checked against the file and by §4; written. A refusal keeps what was typed
-     * until the value is written or typed back to what the file states.
-     *
-     * @return the line the page shows
-     */
-    private String saveOne(Path folder, ProfileKey key, Map<String, String> fields) {
-        String value = fields.getOrDefault("value", "");
-        String provenance = fields.getOrDefault("provenance", "");
-        Optional<String> drawn = Optional.ofNullable(fields.get("drawn"));
-        if (drawn.isPresent() && ProfileEdit.drawnOf(key, value, provenance).equals(drawn.get())) {
-            state.letGoOfForm(key.key());
-            return key.key() + " is as profile.yaml states it: nothing was written";
+        List<Posted> changed = new ArrayList<>();
+        for (ProfileKey key : ProfileKey.values()) {
+            if (!fields.containsKey(key.key()) && !fields.containsKey(key.key() + ".provenance")) {
+                continue;
+            }
+            Posted posted = new Posted(key, fields.getOrDefault(key.key(), ""),
+                    fields.getOrDefault(key.key() + ".provenance", ""), Optional.ofNullable(fields.get(key.key() + ".drawn")));
+            if (posted.drawn().isPresent()
+                    && ProfileEdit.drawnOf(key, posted.value(), posted.provenance()).equals(posted.drawn().get())) {
+                continue;
+            }
+            changed.add(posted);
         }
-        Optional<String> refusal = ProfileEdit.refusalOfSave(key, value, provenance, statedIn(folder, key), drawn);
-        if (refusal.isEmpty()) {
-            refusal = state.write(folder, ProfileEdit.FILE_NAME,
-                    current -> ProfileEdit.rewrite(current, key, value, provenance));
+        if (changed.isEmpty()) {
+            state.letGoOfForm("profile");
+            state.say("/profile", "nothing was written: every value is as profile.yaml states it");
+            Exchanges.redirect(exchange, "/profile");
+            return;
         }
+        for (Posted each : changed) {
+            Optional<String> refusal = ProfileEdit.refusalOfSave(each.key(), each.value(), each.provenance(),
+                    statedIn(folder.get(), each.key()), each.drawn());
+            if (refusal.isPresent()) {
+                state.holdForm("profile", FolderPages.withoutBrowse(fields));
+                state.say("/profile", refusal.get());
+                Exchanges.redirect(exchange, "/profile#key-" + each.key().key());
+                return;
+            }
+        }
+        Optional<String> refusal = state.write(folder.get(), ProfileEdit.FILE_NAME, current -> {
+            Optional<String> text = current;
+            for (Posted each : changed) {
+                text = Optional.of(ProfileEdit.rewrite(text, each.key(), each.value(), each.provenance()));
+            }
+            return text.orElseThrow();
+        });
+        String first = "/profile#key-" + changed.getFirst().key().key();
         if (refusal.isPresent()) {
-            state.holdForm(key.key(), fields);
-            return refusal.get();
+            state.holdForm("profile", FolderPages.withoutBrowse(fields));
+            state.say("/profile", refusal.get());
+        } else {
+            state.letGoOfForm("profile");
+            state.say("/profile", String.join(", ", changed.stream().map(each -> each.key().key()).toList())
+                    + " saved in " + folder.get().resolve(ProfileEdit.FILE_NAME));
         }
-        state.letGoOfForm(key.key());
-        return key.key() + " is saved in " + folder.resolve(ProfileEdit.FILE_NAME);
+        Exchanges.redirect(exchange, first);
     }
 
     /** What the file states for {@code key} now; empty where it states none or cannot be read in the form. */

@@ -53,6 +53,14 @@ final class EffectiveValuesFile {
     /** Where the configuration the profile's {@code generationModel} overrides is read ({@link GenerationModel}). */
     private static final String GENERATION_MODEL = GenerationModel.CONFIGURED_DEFAULT_KEY;
 
+    /** The label model's own key, and the chat model it falls back to (ADR-334 §2). */
+    private static final String LABEL_MODEL = "vespera.label.model";
+
+    private static final String CHAT_MODEL = "spring.ai.ollama.chat.options.model";
+
+    /** The label model the code holds where configuration names neither key. */
+    private static final String THE_CODES_LABEL_MODEL = "qwen3:8b";
+
     /** The keys of the application's own file the control panel shows, in the order of ADR-330 §1. */
     private static final String[] AS_THE_APPLICATION_RESOLVES_THEM = {
         "vespera.docling.image",
@@ -129,7 +137,24 @@ final class EffectiveValuesFile {
         }
         address(values, "vespera.docling.base-url", SidecarStartSettings.DEFAULT_DOCLING);
         address(values, "spring.ai.ollama.base-url", SidecarStartSettings.DEFAULT_OLLAMA);
+        labelModel(values);
         return values;
+    }
+
+    /**
+     * The label model as {@code OllamaRelevanceLabeller} resolves it (ADR-334 §2): {@code vespera.label.model} where
+     * configuration names it, else {@code spring.ai.ollama.chat.options.model}, each with the source of the layer that
+     * named it, else {@value #THE_CODES_LABEL_MODEL} with the source {@code code}. Always written.
+     */
+    private void labelModel(Map<String, String[]> values) {
+        for (String property : new String[] {LABEL_MODEL, CHAT_MODEL}) {
+            String value = environment.getProperty(property);
+            if (value != null && !value.isBlank()) {
+                values.put(LABEL_MODEL, new String[] {value, sourceOf(property)});
+                return;
+            }
+        }
+        values.put(LABEL_MODEL, new String[] {THE_CODES_LABEL_MODEL, "code"});
     }
 
     /**

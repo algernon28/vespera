@@ -46,6 +46,18 @@ public record OccurrencePath(String value) {
      *     entries it found underneath the root it was given.
      */
     public static Result relativize(Path corpusRoot, Path entry) {
+        return relativize(corpusRoot, null, entry);
+    }
+
+    /**
+     * Derives the stored path for an entry found beneath a code set's folder outside the corpus root (ADR-334
+     * section 5.4): the folder's real path with {@code /} between its elements, then {@code /} and the path below the
+     * folder as traversal spells it. Such a path is absolute, and a path below the corpus root never is.
+     *
+     * @param spelling the folder's real path with {@code /} between its elements, or {@code null} for the corpus
+     *     root, whose paths are relative
+     */
+    public static Result relativize(Path corpusRoot, String spelling, Path entry) {
         Path relative = corpusRoot.relativize(entry);
         if (relative.getNameCount() == 0 || relative.toString().isEmpty()) {
             throw new IllegalArgumentException("entry is the corpus root itself: " + entry);
@@ -55,8 +67,15 @@ public record OccurrencePath(String value) {
         }
 
         StringBuilder joined = new StringBuilder();
+        if (spelling != null) {
+            joined.append(spelling);
+            if (!spelling.endsWith("/")) {
+                joined.append('/');
+            }
+        }
+        int start = joined.length();
         for (Path name : relative) {
-            if (joined.length() > 0) {
+            if (joined.length() > start) {
                 joined.append('/');
             }
             joined.append(name);

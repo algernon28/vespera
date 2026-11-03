@@ -165,9 +165,39 @@ public final class Walk {
      * @throws CheckpointMismatchException if the tree no longer matches the checkpoint
      */
     static Outcome walk(Path root, Observer observer, Checkpoint resumeFrom) throws IOException {
+        return walk(root, observer, resumeFrom, null);
+    }
+
+    /**
+     * A folder's real path with a slash between its elements, which is how an occurrence below a code set folder
+     * outside the corpus root is spelt (ADR-334 section 5.4): a drive letter and a colon first on Windows, two slashes
+     * and the server's name for a share.
+     */
+    public static String spellingOf(Path canonicalFolder) {
+        return canonicalFolder.toString().replace(java.io.File.separatorChar, '/');
+    }
+
+    /**
+     * A folder outside the corpus root that a walk also reads (ADR-334 section 5.3).
+     *
+     * @param ordinal its place among the folders, from {@code 1}, the corpus root being {@code 0}
+     * @param spelling its real path with {@code /} between its elements, which leads the path of every occurrence
+     *     found below it and is the spelling of every anomaly there (section 5.4)
+     */
+    record Folder(int ordinal, String spelling) {}
+
+    /**
+     * Walks {@code root} as {@link #walk(Path, Observer, Checkpoint)} does, as a folder outside the corpus root where
+     * {@code folder} is given: its occurrences are spelt by the folder's real path, absolute, and the folder is
+     * itself an entry of the walk it is read with, counted as seen and as entered (section 5.3), so that the
+     * identity of {@link Progress#accountsForEveryEntry()} holds of the whole.
+     *
+     * @param folder the folder this root is, or {@code null} for the corpus root
+     */
+    static Outcome walk(Path root, Observer observer, Checkpoint resumeFrom, Folder folder) throws IOException {
         Path canonical = canonicalRoot(root);
 
-        Visitor visitor = new Visitor(canonical, observer, resumeFrom);
+        Visitor visitor = new Visitor(canonical, observer, resumeFrom, folder);
         try {
             Files.walkFileTree(canonical, visitor);
         } catch (IOException e) {
@@ -222,10 +252,14 @@ public final class Walk {
         /** Whether the checkpointed directory was met, which is how a changed tree is caught. */
         private boolean foundTheCheckpoint;
 
-        private Visitor(Path root, Observer observer, Checkpoint resumeFrom) {
+        /** The folder outside the corpus root this walk is of, or {@code null} for the corpus root. */
+        private final Folder folder;
+
+        private Visitor(Path root, Observer observer, Checkpoint resumeFrom, Folder folder) {
             this.root = root;
             this.observer = observer;
             this.resumeFrom = resumeFrom;
+            this.folder = folder;
             this.foundTheCheckpoint = resumeFrom == null;
         }
 
@@ -240,6 +274,10 @@ public final class Walk {
                 // across sessions, and the accounting identity subtracts the root exactly once.
                 if (resumeFrom == null) {
                     directoriesEntered++;
+                    if (folder != null) {
+                        // A folder outside the corpus root is an entry of the walk it is read with.
+                        entriesSeen++;
+                    }
                 }
                 descend(null);
                 return FileVisitResult.CONTINUE;
@@ -294,7 +332,9 @@ public final class Walk {
                 return FileVisitResult.CONTINUE;
             }
 
-            switch (OccurrencePath.relativize(root, file)) {
+            switch (folder == null
+                    ? OccurrencePath.relativize(root, file)
+                    : OccurrencePath.relativize(root, folder.spelling(), file)) {
                 case OccurrencePath.Stored(OccurrencePath path) -> {
                     occurrences++;
                     observer.fileOccurrence(
@@ -315,6 +355,9 @@ public final class Walk {
             if (file.equals(root)) {
                 // The root is not an entry beneath itself, so it is not counted as one — and having
                 // failed, it was not entered either. The identity holds with anomalies alone.
+                if (folder != null) {
+                    entriesSeen++;
+                }
                 report(file, WalkAnomalyKind.UNPROCESSABLE, detail);
                 return FileVisitResult.CONTINUE;
             }
@@ -342,7 +385,8 @@ public final class Walk {
             List<Integer> completed = List.copyOf(position);
             ascend();
             if (!completed.isEmpty()) {
-                observer.checkpoint(new Checkpoint(completed, render(root, dir)), progress());
+                observer.checkpoint(
+                        new Checkpoint(completed, render(root, dir), folder == null ? 0 : folder.ordinal()), progress());
             }
             return FileVisitResult.CONTINUE;
         }
@@ -399,9 +443,17 @@ public final class Walk {
             return attrs.isSymbolicLink() || attrs.isOther();
         }
 
+        /** An anomaly below a folder outside the corpus root is spelt as its occurrences are (section 5.4). */
+        private String spelt(String rendering, Path entry) {
+            String below = entry.equals(root) ? "" : rendering.replace('\\', '/');
+            String leading = folder.spelling();
+            return below.isEmpty() ? leading : leading + (leading.endsWith("/") ? "" : "/") + below;
+        }
+
         private void report(Path entry, WalkAnomalyKind kind, String detail) {
             anomalies++;
-            observer.anomaly(render(root, entry), kind, detail);
+            String rendering = render(root, entry);
+            observer.anomaly(folder == null ? rendering : spelt(rendering, entry), kind, detail);
         }
     }
 }
