@@ -6,6 +6,8 @@
 
 > **Partly superseded — see [ADR-328](0328-the-confluence-rendering-is-one-tree-updated-in-place-by-each-publish-its-pages-keyed-and-titled-by-their-place-with-no-run-id-and-a-page-it-no-longer-has-moved-to-the-trash.md).** §8's *"Nothing is deleted. A page of an earlier publish whose key the page list no longer holds is left as it stands and counted in the closing line"* no longer holds: after every page of the list is sent, a page of the tree whose key the list does not hold is moved to the space's trash, deepest first, one holding a page the tree does not own left as it stands, and a removal the site refuses said, counted and left. The rest of §8 stands.
 
+> **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Of §1 and §4: a publish delivers a plugin's rendering to each destination it names, this record's holding of the Confluence destination. §5's command gains `--to`, bare staying Confluence, and is no longer the last command. §6's offer gains a choice of destination. §7's `confluence` names `deliverable`'s seam and `synthesis`, and holds the drawing too, its `Publisher` still reading the page list from disk. §2, §3, §8 as later records left it, §9 and §10 stand.
+
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
 - **Supersedes**: [ADR-304](0304-vespera-never-sends-the-deliverable-tree-to-confluence-itself-and-holds-no-uploader-no-credential-and-no-connection-for-it.md), whole. Vespera sends the Confluence rendering to one Confluence Cloud site, under one parent in one space the operator names, when and only when the operator asks it to (§1 to §3).

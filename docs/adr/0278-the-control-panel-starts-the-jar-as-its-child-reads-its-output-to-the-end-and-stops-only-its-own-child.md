@@ -14,6 +14,8 @@
 
 > **Partly amended — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** Of §1: the control panel starts the jar's `publish` as it starts `run` and `label`, and the child inherits the five values a publish reads from the operator's environment. The rest of this record stands.
 
+> **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Of §1: the `publish` child carries `--to`. The control panel starts no `serve`. The rest of this record stands.
+
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.
 - **Keeps**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md), whose What this does not decide leaves a program that starts the jar for the operator to a decision of its own: this is that decision for the **control panel**, and this record changes nothing in the packaged jar, its commands or what it starts; ADR-279 adds the corpus-root lock to `run`.
