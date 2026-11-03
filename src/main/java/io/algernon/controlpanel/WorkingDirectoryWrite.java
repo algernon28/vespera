@@ -136,36 +136,84 @@ public final class WorkingDirectoryWrite {
         try {
             writeHolderLine(channel, holderLine(ProcessHandle.current().pid(), OffsetDateTime.now(), fileName));
             List<String> texts = new java.util.ArrayList<>();
+            List<Optional<String>> asRead = new java.util.ArrayList<>();
             for (Change each : changes) {
                 Path file = folder.resolve(each.fileName());
                 Optional<String> current = Files.exists(file) ? Optional.of(Files.readString(file, UTF_8)) : Optional.empty();
+                asRead.add(current);
                 try {
                     texts.add(each.change().apply(current));
                 } catch (IllegalArgumentException refused) {
                     return Optional.of(refused.getMessage());
                 }
             }
+            List<Integer> moved = new java.util.ArrayList<>();
             for (int i = 0; i < changes.size(); i++) {
                 if (texts.get(i) == null) {
                     continue;
                 }
-                Path part = folder.resolve(changes.get(i).fileName() + ".part");
-                parts.add(part);
-                Files.writeString(part, texts.get(i), UTF_8);
-                Files.move(part, folder.resolve(changes.get(i).fileName()), StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.REPLACE_EXISTING);
+                try {
+                    Path part = folder.resolve(changes.get(i).fileName() + ".part");
+                    parts.add(part);
+                    Files.writeString(part, texts.get(i), UTF_8);
+                    Files.move(part, folder.resolve(changes.get(i).fileName()), StandardCopyOption.ATOMIC_MOVE,
+                            StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException | RuntimeException failed) {
+                    deleteParts(parts);
+                    if (moved.isEmpty()) {
+                        return couldNotWrite(changes.get(i).fileName(), failed);
+                    }
+                    return Optional.of(putBack(folder, changes, asRead, moved, changes.get(i).fileName(), failed));
+                }
+                moved.add(i);
             }
             return Optional.empty();
         } catch (IOException | RuntimeException e) {
-            for (Path part : parts) {
-                try {
-                    Files.deleteIfExists(part);
-                } catch (IOException ignored) {
-                    // nothing more can be done about a part file; the next write writes over it
-                }
-            }
+            deleteParts(parts);
             return couldNotWrite(fileName, e);
         }
+    }
+
+    private static void deleteParts(List<Path> parts) {
+        for (Path part : parts) {
+            try {
+                Files.deleteIfExists(part);
+            } catch (IOException ignored) {
+                // nothing more can be done about a part file; the next write writes over it
+            }
+        }
+    }
+
+    /**
+     * Puts each file already moved back as it was read, or removes it where it was not there (ADR-334 §6), and returns
+     * the one line: neither file is changed, or the file that could not be put back and why.
+     */
+    private static String putBack(Path folder, List<Change> changes, List<Optional<String>> asRead, List<Integer> moved,
+            String failedFile, Exception failed) {
+        String refusal = couldNotWrite(failedFile, failed).orElseThrow();
+        StringBuilder notBack = new StringBuilder();
+        for (int index : moved) {
+            String name = changes.get(index).fileName();
+            try {
+                if (asRead.get(index).isPresent()) {
+                    Path part = folder.resolve(name + ".part");
+                    try {
+                        Files.writeString(part, asRead.get(index).get(), UTF_8);
+                        Files.move(part, folder.resolve(name), StandardCopyOption.ATOMIC_MOVE,
+                                StandardCopyOption.REPLACE_EXISTING);
+                    } finally {
+                        Files.deleteIfExists(part);
+                    }
+                } else {
+                    Files.deleteIfExists(folder.resolve(name));
+                }
+            } catch (IOException | RuntimeException e) {
+                notBack.append(notBack.length() == 0 ? "" : "; ").append("could not put ").append(name)
+                        .append(" back as it stood: ").append(e.getMessage() == null
+                                ? e.getClass().getSimpleName() : e.getClass().getSimpleName() + ": " + e.getMessage());
+            }
+        }
+        return notBack.length() == 0 ? refusal + ", so neither file is changed" : refusal + ", and " + notBack;
     }
 
     /** The one file whose save makes a working directory that is not there (ADR-330 §7). */

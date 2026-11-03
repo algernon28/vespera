@@ -90,6 +90,11 @@ final class ControlPanelState {
         return held.doclingImage().isEmpty() ? held.withDoclingImage(ControlPanelPage.DOCLING_IMAGE_GPU) : held;
     }
 
+    /** The launch values as held, the Docling image empty where none is named, for a change that holds them again. */
+    LaunchValues heldValues() {
+        return values;
+    }
+
     /** Whether a launch value names the Docling image, so the image read is not the one the control panel preselects. */
     boolean doclingImageIsNamed() {
         return !values.doclingImage().isEmpty();
@@ -367,7 +372,8 @@ final class ControlPanelState {
             return Optional.of(kind.name + " is not started: " + (notBuilt.getMessage() == null
                     ? notBuilt.getClass().getSimpleName() : notBuilt.getMessage()));
         }
-        now.store(launchValuesFile, userName, stored::add);
+        // the values as held, so that a preselected image is given to the child but not stored as one named (ADR-334 §11)
+        values.store(launchValuesFile, userName, stored::add);
         try {
             child = Child.start(command.processBuilder());
         } catch (IOException | RuntimeException notStarted) {
