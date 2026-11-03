@@ -41,8 +41,11 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
 class ProfileEditorGuardsScreenTest {
 
-    /** The image picked, which is only ever a launch value. */
-    private static final String AN_IMAGE = "vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0-r2";
+    /**
+     * The image picked, which is only ever a launch value. Not the GPU image: posted while none is named, that one is the
+     * preselection sent back and names nothing (ADR-334 §11).
+     */
+    private static final String AN_IMAGE = "vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2";
 
     /** What is written, in the form the jar writes it. */
     private static final String A_PROFILE = """

@@ -343,7 +343,7 @@ class TheNotRelevantFoldersScreenTest {
         Path work = withTheQuestions();
         String root = corpus().toString();
         String rootWithSlashes = root.replace('\\', '/');
-        List<String> spellings = List.of(".", "./", root, root + File.separator, rootWithSlashes, rootWithSlashes + "/");
+        List<String> spellings = List.of(".", "./", "." + (char) 92, root,root + File.separator, rootWithSlashes, rootWithSlashes + "/");
         try (ScreenServer screens = start(work)) {
             PanelBrowser browser = screens.browser().go("/labels");
             for (String spelt : spellings) {

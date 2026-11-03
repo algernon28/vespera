@@ -261,7 +261,7 @@ final class ValuePages {
     /** The line refusing {@code typed} as a folder not relevant, or none (ADR-334 §6). */
     private Optional<String> refusalOfNotRelevantFolder(String typed, List<String> listed) {
         String refused = "the folder " + typed + " is not added: ";
-        if (typed.equals(".") || typed.equals("./") || namesTheCorpusRoot(typed)) {
+        if (typed.equals(".") || typed.equals("./") || typed.equals("." + BACKSLASH) || namesTheCorpusRoot(typed)) {
             return Optional.of(refused + "the corpus root holds every question; name a folder below it");
         }
         boolean belowACodeSetFolder = NotRelevantFolders.isAbsolute(typed)
