@@ -3,6 +3,8 @@ package io.algernon.controlpanel;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +48,7 @@ final class InvocationPages {
 
     void register(Map<String, HttpHandler> pages) {
         pages.put("/invocation", this::invocation);
+        pages.put("/progress", this::progress);
         pages.put("/stop", this::stop);
         pages.put("/label-auto", this::labelAuto);
         pages.put("/publish", this::publish);
@@ -97,10 +100,47 @@ final class InvocationPages {
         String last = ending.flatMap(Ending::lastLine).orElseGet(() -> lastNonBlank(state.tail()));
         body.append(ControlPanelPage.text("p", "last-line", last)).append('\n');
         if (state.workingDirectory().isPresent()) {
-            body.append("<p><a id=\"progress\" href=\"/report/progress.html\" target=\"_blank\" rel=\"noopener\">Progress</a></p>\n");
+            body.append("<p><a id=\"progress\" href=\"/progress\">Progress</a></p>\n");
         }
         body.append("<h2>Reports</h2>\n").append(LaunchPages.reports(state));
         Exchanges.page(exchange, ControlPanelPage.render(exchange, "Invocation", runs ? REFRESH_SECONDS : 0, body.toString()));
+    }
+
+    /** The words with no working directory held (ADR-335 §1). */
+    private static final String NO_WORKING_DIRECTORY = "No working directory is chosen, so there is no progress page to"
+            + " show. Choose one on the Launch page, and the progress page of what runs there is shown here.";
+
+    /** The words with a working directory that holds no progress page yet (ADR-335 §1). */
+    private static final String NOT_WRITTEN = "This working directory holds no progress page yet. It is shown here once"
+            + " Run or Label starts and the page is first written.";
+
+    /**
+     * {@code /progress} (ADR-335 §1): the progress page the jar writes, framed at its report path where the working
+     * directory holds one; else the words that say why not, the page asking to be loaded again only while it waits.
+     */
+    private void progress(HttpExchange exchange) throws IOException {
+        if (!Exchanges.isRead(exchange)) {
+            Exchanges.methodNotAllowed(exchange, "GET, HEAD");
+            return;
+        }
+        Optional<Path> folder = state.workingDirectory();
+        String which;
+        String inside;
+        if (folder.isEmpty()) {
+            which = "no-working-directory";
+            inside = "<p>" + ControlPanelPage.escape(NO_WORKING_DIRECTORY) + "</p>";
+        } else if (!Files.isRegularFile(folder.get().resolve("progress.html"))) {
+            which = "not-written";
+            inside = "<p>" + ControlPanelPage.escape(NOT_WRITTEN) + "</p>";
+        } else {
+            which = "shown";
+            inside = "<iframe id=\"progress-frame\" src=\"/report/progress.html\" title=\"Progress page\""
+                    + " sandbox=\"allow-scripts\"></iframe>\n<p><a id=\"progress-own-window\""
+                    + " href=\"/report/progress.html\" target=\"_blank\" rel=\"noopener\">Open in a window of its own</a></p>";
+        }
+        String body = "<div id=\"progress-view\" data-progress=\"" + which + "\">" + inside + "</div>";
+        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Progress",
+                which.equals("not-written") ? REFRESH_SECONDS : 0, body));
     }
 
     private void stop(HttpExchange exchange) throws IOException {
