@@ -142,9 +142,6 @@ class AFileGoneBeforeItIsSentInvocationTest {
     /** How the reason begins for a file stage 2 could not read off the disk. */
     private static final String COULD_NOT_BE_READ = "could not be read: ";
 
-    /** How the reason begins for a file whose call dropped the connection twice. */
-    private static final String CRASHED_THE_CONVERTER = "crashed the converter:";
-
     /** How stage 2's closing line opens when the step completed. */
     private static final String STAGE_2_FINISHED = "Stage 2 (extraction) finished";
 
@@ -233,8 +230,7 @@ class AFileGoneBeforeItIsSentInvocationTest {
                 () -> assertThat(extractionFailedReasons(root))
                         .containsOnlyKeys(gone.stream().map(AFileGoneBeforeItIsSentInvocationTest::nameOf).toList())
                         .allSatisfy((file, reason) -> assertThat(reason)
-                                .startsWith(COULD_NOT_BE_READ)
-                                .doesNotStartWith(CRASHED_THE_CONVERTER)));
+                                .startsWith(COULD_NOT_BE_READ)));
         claim(
                 "the converter was never asked to convert the control document: files that could not be read"
                         + " say nothing about the converter, so they are not a row of failures to check it for",
@@ -244,11 +240,9 @@ class AFileGoneBeforeItIsSentInvocationTest {
                         + " anything, and never again after a file that could not be sent",
                 () -> assertThat(sidecar.healthChecks() - checksBefore).isEqualTo(ONLY_THE_CHECK_BEFORE_THE_STAGE));
         claim(
-                "the file read last, which was still there, was posted once and kept",
-                () -> {
-                    assertThat(sidecar.callsPerDocument()).containsEntry(readLast, ONCE);
-                    assertThat(extractionFailedReasons(root)).doesNotContainKey(nameOf(readLast));
-                });
+                "the file read last, which was still there, was posted once (and, being none of the "
+                        + FIVE_IN_A_ROW + " removed above, kept)",
+                () -> assertThat(sidecar.callsPerDocument()).containsEntry(readLast, ONCE));
     }
 
     @Test

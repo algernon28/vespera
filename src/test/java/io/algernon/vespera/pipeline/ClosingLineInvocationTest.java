@@ -3,7 +3,6 @@ package io.algernon.vespera.pipeline;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.Profile;
@@ -43,7 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>{@link NextActionTest} pins what the line says in each state. What cannot be settled there is
  * whether the line is reached at all, whether it is reached once, and whether it is the last thing
  * an operator reads — which is the whole point of it. With nothing set, the invocation it ends emits
- * nine locally-correct gated lines, and a summary printed anywhere but last is a tenth.
+ * eleven locally-correct gated lines, and a summary printed anywhere but last is a twelfth.
  *
  * <p>The two commands report on different channels, and deliberately: {@code run} is unattended and
  * its line belongs with the gate lines it summarises, in the log. {@code label} is a person's own
@@ -64,20 +63,17 @@ class ClosingLineInvocationTest {
     /** What every closing line that asks for something says before naming it. */
     private static final String THE_ACTION = "Next:";
 
+    /** The gate lines a run with nothing set writes, one for each step its gates shut, before the closing line. */
+    private static final int GATE_LINES = 11;
+
     /** How {@link LabelIngestion} opens its own report, and so what the closing line follows. */
     private static final String WHAT_WAS_RECORDED = "recorded ";
-
-    /** Above every measured document frequency here, so stage 4's gate is open. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
     /** A threshold, set so the closing line is past asking for one. */
     private static final String A_THRESHOLD = "0.0";
 
     /** An approval as an operator writes it, twelve characters of an arrangement's name. */
     private static final String AN_APPROVAL = "0123456789ab";
-
-    /** The model the scripted embedder answers for. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     @TempDir
     static Path workingDirectory;
@@ -133,19 +129,19 @@ class ClosingLineInvocationTest {
                         + " which is what makes it the one an operator acts on",
                 () -> assertThat(operatorLines().getLast()).contains(THE_ACTION));
         claim(
-                "and there is exactly one of them -- a summary emitted per step would be a tenth line"
-                        + " saying what the nine already said",
+                "and there is exactly one of them -- a summary emitted per step would be one line more"
+                        + " saying what the " + GATE_LINES + " already said",
                 () -> assertThat(operatorLines().stream().filter(line -> line.contains(THE_ACTION)))
                         .hasSize(1));
         claim(
                 "it names the seed folder, which is the value this operator needs first and the one the"
-                        + " nine gate lines mention twice without ever asking for",
+                        + " " + GATE_LINES + " gate lines mention twice without ever asking for",
                 () -> assertThat(operatorLines().getLast()).contains("seedFolder"));
         claim(
-                "and the nine gate lines are untouched: each is correct about its own step, and none of"
-                        + " them is the defect this line fixes",
+                "and the " + GATE_LINES + " gate lines are untouched: each is correct about its own step, and"
+                        + " none of them is the defect this line fixes",
                 () -> assertThat(operatorLines().stream().filter(line -> line.contains("is gated:")))
-                        .isNotEmpty());
+                        .hasSize(GATE_LINES));
     }
 
     @Test
@@ -260,13 +256,12 @@ class ClosingLineInvocationTest {
                 () -> assertThat(operatorLines().getLast()).contains(THE_ACTION));
     }
 
-    /** A corpus and a seed folder, neither of them named in the profile yet. */
     @Test
     @Story("An invocation ends by naming the next value, once, after everything else it has to say")
     @DisplayName("Once the threshold is answered, the line hands over the arrangement that was just written")
     @Issue("175")
     @Link(name = "ADR-107", url = Adr.THE_ARRANGEMENT_GATE_APPROVES_A_NAMED_RUN, type = "adr")
-    void namesTheArrangementThisInvocationWrote(CapturedOutput output, @TempDir Path root, @TempDir Path seeds)
+    void namesTheArrangementThisInvocationWrote(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aScoredCorpus(root, seeds);
         answerEveryQuestion();
@@ -279,14 +274,14 @@ class ClosingLineInvocationTest {
                 "the line names the value the operator has to supply next, which is the approval of what"
                         + " they have just been shown -- with the threshold answered there is nothing"
                         + " earlier on the path left to ask for",
-                () -> assertThat(output.getAll()).contains("arrangementApproved"));
+                () -> assertThat(operatorLines().getLast()).contains(THE_ACTION).contains("arrangementApproved"));
         claim(
                 "and the name it hands over is the name of the arrangement this invocation actually"
                         + " wrote, read back from the ledger rather than chosen from among the"
                         + " arrangements by their names -- a name is a hash of what a run consumed and"
                         + " says nothing about when it happened, so picking by name would hand the"
                         + " operator a different arrangement from the one on the page",
-                () -> assertThat(output.getAll()).contains(theArrangementJustWritten()));
+                () -> assertThat(operatorLines().getLast()).contains(theArrangementJustWritten()));
         claim(
                 "and it is the same name the page carries, because the value copied and the arrangement"
                         + " read have to be one arrangement",
@@ -365,8 +360,8 @@ class ClosingLineInvocationTest {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seedFolder, "set by this test")
                 .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so the scoring run is minted")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so the scoring run is minted")
                 .build());
     }
 

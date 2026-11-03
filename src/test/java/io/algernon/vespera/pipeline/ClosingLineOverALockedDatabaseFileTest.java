@@ -16,17 +16,22 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.LoggerFactory;
-import org.sqlite.SQLiteErrorCode;
-import org.sqlite.SQLiteException;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.JobInstance;
 import org.springframework.batch.core.job.parameters.JobParameters;
 import org.springframework.batch.core.step.FatalStepExecutionException;
 import org.springframework.batch.core.step.StepExecution;
+import org.sqlite.SQLiteErrorCode;
+import org.sqlite.SQLiteException;
 
 /**
  * A step that failed on a locked database file says which file, and says to close what holds it,
@@ -57,12 +62,12 @@ class ClosingLineOverALockedDatabaseFileTest {
     /** The advice a closing line keeps for any other failure. */
     private static final String SIDECAR_ADVICE = "if docling-serve stopped answering, bring it back";
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("stepsFailingOnALockedDatabaseFile")
     @Story("A locked database file says which file, and that another process holds it")
-    @DisplayName("Stage 2 failing on a locked database file names the file and says to close what holds it")
-    void stageTwoOverALockedDatabaseFile() {
-        String line = closingLine(ExtractionHealthCheckListener.class,
-                () -> new ExtractionHealthCheckListener(null, null).afterStep(failedWith(chunkFailure(locked()))));
+    @DisplayName("A step failing on a locked database file names the file and says to close what holds it")
+    void aStepOverALockedDatabaseFile(Class<?> source, Runnable failingStep) {
+        String line = closingLine(source, failingStep);
 
         claim("the line names the database file and says another process holds it",
                 () -> assertThat(line).contains(DATABASE_FILE.toString()).contains("held by another process"));
@@ -70,6 +75,15 @@ class ClosingLineOverALockedDatabaseFileTest {
                 () -> assertThat(line).doesNotContain("docling-serve"));
         claim("and ends by saying to close what holds the file and run the same command again",
                 () -> assertThat(line).endsWith(CLOSE_WHAT_HOLDS_IT));
+    }
+
+    static Stream<Arguments> stepsFailingOnALockedDatabaseFile() {
+        Runnable stageTwo = () -> new ExtractionHealthCheckListener(null, null).afterStep(failedWith(chunkFailure(locked())));
+        Runnable seedExtraction = () -> new SeedExtractionItemWriter(null, null, null, null, null, null)
+                .afterStep(failedWith(chunkFailure(locked())));
+        return Stream.of(
+                Arguments.of(Named.of("stage 2", ExtractionHealthCheckListener.class), stageTwo),
+                Arguments.of(Named.of("seed extraction", SeedExtractionItemWriter.class), seedExtraction));
     }
 
     @Test
@@ -82,21 +96,6 @@ class ClosingLineOverALockedDatabaseFileTest {
 
         claim("the line still tells the operator to bring docling-serve back if it stopped answering",
                 () -> assertThat(line).contains(SIDECAR_ADVICE).doesNotContain(CLOSE_WHAT_HOLDS_IT));
-    }
-
-    @Test
-    @Story("A locked database file says which file, and that another process holds it")
-    @DisplayName("Seed extraction failing on a locked database file names the file and says to close what holds it")
-    void seedExtractionOverALockedDatabaseFile() {
-        String line = closingLine(SeedExtractionItemWriter.class,
-                () -> new SeedExtractionItemWriter(null, null, null, null, null, null)
-                        .afterStep(failedWith(chunkFailure(locked()))));
-
-        claim("the line names the database file and says another process holds it",
-                () -> assertThat(line).contains(DATABASE_FILE.toString()).contains("held by another process"));
-        claim("it says nothing of docling-serve", () -> assertThat(line).doesNotContain("docling-serve"));
-        claim("and ends by saying to close what holds the file and run the same command again",
-                () -> assertThat(line).endsWith(CLOSE_WHAT_HOLDS_IT));
     }
 
     @Test

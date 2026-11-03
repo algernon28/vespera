@@ -15,11 +15,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -49,9 +55,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
 @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
 class AProfileEditedWhileStageFiveRunsInvocationTest {
-
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** Another model the scripted runtime serves, under the same digest and weight format as the first. */
     private static final String ANOTHER_SERVED_MODEL = "another-embedding-model:1b";
@@ -96,38 +99,11 @@ class AProfileEditedWhileStageFiveRunsInvocationTest {
 
     @Test
     @Story("A run's later steps read the embedding model the run was started under")
-    @DisplayName("The embedding model renamed in the profile while documents are being embedded does not stop the scoring and grouping already started under the first name")
-    void anEmbeddingModelRenamedWhileChunksAreEmbeddedIsNotReadByTheRunsLaterSteps(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpus(root, seeds);
-        profile(seeds, MODEL_NAME, null);
-        EmbeddingScriptedBeans.onceItHasEmbedded(AFTER_THE_FIRST_CHUNK, () -> profile(seeds, ANOTHER_SERVED_MODEL, null));
-
-        cli.run("run", root.toString());
-
-        List<String> theRuns = scoringRunIdsFor(root);
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "it scored under one run, which names the model the profile named when the run was started",
-                () -> assertThat(theRuns).singleElement().satisfies(run -> assertThat(settingsOf(run))
-                        .contains("\"embeddingModel\":\"" + MODEL_NAME + "\"")));
-        claim(
-                "all " + CORPUS_DOCUMENTS + " documents are scored and grouped under it: the vectors the run"
-                        + " embedded are under the first name, and a name read again from the profile part-way"
-                        + " through finds none of them",
-                () -> assertThat(theRuns).singleElement().satisfies(run -> {
-                    assertThat(countUnder("relevance_score", run)).isEqualTo(CORPUS_DOCUMENTS);
-                    assertThat(countUnder("document_cluster", run)).isEqualTo(CORPUS_DOCUMENTS);
-                }));
-    }
-
-    @Test
-    @Story("A run's later steps read the embedding model the run was started under")
     @DisplayName("The embedding model cleared from the profile while documents are being embedded does not undo the embedding already done")
     void anEmbeddingModelClearedWhileChunksAreEmbeddedLeavesTheEmbeddingRecorded(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aCorpus(root, seeds);
-        profile(seeds, MODEL_NAME, null);
+        profile(seeds, EveryGateOpen.EMBEDDING_MODEL, null);
         EmbeddingScriptedBeans.onceItHasEmbedded(AFTER_THE_FIRST_CHUNK, () -> profile(seeds, null, null));
 
         cli.run("run", root.toString());
@@ -150,37 +126,50 @@ class AProfileEditedWhileStageFiveRunsInvocationTest {
     }
 
     /**
-     * The embedding step's gates read the profile, the model they read is checked with the serving runtime, and
-     * only then is the scoring run minted (ADR-202 section 2): an edit saved while the runtime is asked lands
-     * between the two. The run is minted under the model the gates read and the runtime was asked about, and
-     * every chunk is sent under it (ADR-244, applying ADR-228 section 2).
+     * A renamed model, saved at either of two moments. Once the first chunk is embedded, the run is already minted
+     * and its later steps read the name it was minted under (ADR-228 sections 2 and 4). While the runtime is asked
+     * whether the model runs here, the step's gates have read the profile and the run is not yet minted: it is
+     * minted under the model the gates read and the runtime was asked about, and every chunk is sent under it
+     * (ADR-202 section 2, ADR-244 applying ADR-228 section 2).
      */
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("momentsARenameIsSavedAt")
     @Story("A run's later steps read the embedding model the run was started under")
-    @DisplayName("The embedding model renamed in the profile while the runtime is asked whether it runs on this machine does not split the documents embedded from the scoring that reads them")
+    @DisplayName("The embedding model renamed in the profile while stage 5 runs is not read by the run already under way: it scores and groups every document under the first name")
     @Link(name = "ADR-244", url = Adr.THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN, type = "adr")
-    void anEmbeddingModelRenamedBeforeTheRunIsMintedIsNotReadByTheRun(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
+    void anEmbeddingModelRenamedWhileStageFiveRunsIsNotReadByTheRun(
+            Consumer<Runnable> savedAt, @TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
-        profile(seeds, MODEL_NAME, null);
-        EmbeddingScriptedBeans.whenFirstAskedWhereAModelRuns(() -> profile(seeds, ANOTHER_SERVED_MODEL, null));
+        profile(seeds, EveryGateOpen.EMBEDDING_MODEL, null);
+        savedAt.accept(() -> profile(seeds, ANOTHER_SERVED_MODEL, null));
 
         cli.run("run", root.toString());
 
         List<String> theRuns = scoringRunIdsFor(root);
         claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "it scored under one run, which names the model the step's gates read and the runtime was asked"
-                        + " about, not the one saved while it was asked",
+                "it scored under one run, which names the model the profile named when the step's gates read it,"
+                        + " not the one saved afterwards",
                 () -> assertThat(theRuns).singleElement().satisfies(run -> assertThat(settingsOf(run))
-                        .contains("\"embeddingModel\":\"" + MODEL_NAME + "\"")));
+                        .contains("\"embeddingModel\":\"" + EveryGateOpen.EMBEDDING_MODEL + "\"")));
         claim(
-                "all " + CORPUS_DOCUMENTS + " documents are scored and grouped under it: they were embedded under"
-                        + " the model the run names",
+                "all " + CORPUS_DOCUMENTS + " documents are scored and grouped under it: the vectors the run"
+                        + " embedded are under the first name, and a name read again from the profile part-way"
+                        + " through would find none of them",
                 () -> assertThat(theRuns).singleElement().satisfies(run -> {
                     assertThat(countUnder("relevance_score", run)).isEqualTo(CORPUS_DOCUMENTS);
                     assertThat(countUnder("document_cluster", run)).isEqualTo(CORPUS_DOCUMENTS);
                 }));
+    }
+
+    static Stream<Arguments> momentsARenameIsSavedAt() {
+        Consumer<Runnable> onceEmbedding = edit -> EmbeddingScriptedBeans.onceItHasEmbedded(AFTER_THE_FIRST_CHUNK, edit);
+        Consumer<Runnable> whileTheRuntimeIsAsked = EmbeddingScriptedBeans::whenFirstAskedWhereAModelRuns;
+        return Stream.of(
+                Arguments.of(Named.of("saved once the first document is embedded, after the run was started", onceEmbedding)),
+                Arguments.of(Named.of(
+                        "saved while the runtime is asked whether the model runs on this machine, before the run is started",
+                        whileTheRuntimeIsAsked)));
     }
 
     @Test
@@ -190,7 +179,7 @@ class AProfileEditedWhileStageFiveRunsInvocationTest {
     void anEmbeddingModelClearedBeforeTheRunIsMintedDoesNotStopTheRun(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aCorpus(root, seeds);
-        profile(seeds, MODEL_NAME, null);
+        profile(seeds, EveryGateOpen.EMBEDDING_MODEL, null);
         EmbeddingScriptedBeans.whenFirstAskedWhereAModelRuns(() -> profile(seeds, null, null));
 
         cli.run("run", root.toString());
@@ -203,7 +192,7 @@ class AProfileEditedWhileStageFiveRunsInvocationTest {
         claim(
                 "it scored and grouped all " + CORPUS_DOCUMENTS + " documents under one run, which names that model",
                 () -> assertThat(theRuns).singleElement().satisfies(run -> {
-                    assertThat(settingsOf(run)).contains("\"embeddingModel\":\"" + MODEL_NAME + "\"");
+                    assertThat(settingsOf(run)).contains("\"embeddingModel\":\"" + EveryGateOpen.EMBEDDING_MODEL + "\"");
                     assertThat(countUnder("relevance_score", run)).isEqualTo(CORPUS_DOCUMENTS);
                     assertThat(countUnder("document_cluster", run)).isEqualTo(CORPUS_DOCUMENTS);
                 }));
@@ -215,8 +204,8 @@ class AProfileEditedWhileStageFiveRunsInvocationTest {
     void aFloorClearedWhileChunksAreEmbeddedStillRemovesUnderTheRunItNames(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aCorpus(root, seeds);
-        profile(seeds, MODEL_NAME, A_FLOOR_ABOVE_EVERY_SCORE);
-        EmbeddingScriptedBeans.onceItHasEmbedded(AFTER_THE_FIRST_CHUNK, () -> profile(seeds, MODEL_NAME, null));
+        profile(seeds, EveryGateOpen.EMBEDDING_MODEL, A_FLOOR_ABOVE_EVERY_SCORE);
+        EmbeddingScriptedBeans.onceItHasEmbedded(AFTER_THE_FIRST_CHUNK, () -> profile(seeds, EveryGateOpen.EMBEDDING_MODEL, null));
 
         cli.run("run", root.toString());
 
@@ -249,7 +238,7 @@ class AProfileEditedWhileStageFiveRunsInvocationTest {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
                 .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .embeddingModel(model, model == null ? null : "set by this test")
                 .relevanceScoreFloor(floor, floor == null ? null : "set by this test")
                 .build());

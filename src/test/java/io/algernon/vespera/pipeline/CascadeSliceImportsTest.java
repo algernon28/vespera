@@ -67,10 +67,7 @@ class CascadeSliceImportsTest {
         }
 
         claim(
-                "the whole-job tests were found at all, so the claim below is about something",
-                () -> assertThat(wholeJobTests).isNotEmpty());
-        claim(
-                "the search found tests known to use the shared slice, the first and the last written among them,"
+                "the search found tests known to use the shared slice, so the claim below is about something, the first and the last written among them,"
                         + " so a search that quietly finds only some of them fails here rather than passing",
                 () -> assertThat(wholeJobTests)
                         .contains(CensusInvocationTest.class, UnconfiguredRootTest.class, RunIdentityGoldenTest.class));

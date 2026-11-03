@@ -7,8 +7,6 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -61,9 +59,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
 class ArrangementGoesThroughTwoPartitionsInvocationTest {
-
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** Six documents: two to move under the second seed, and at least three left under the first. */
     private static final int SIX_DOCUMENTS = 6;
@@ -217,20 +212,10 @@ class ArrangementGoesThroughTwoPartitionsInvocationTest {
             Files.writeString(root.resolve("corpus-" + document + ".txt"), "corpus document " + document);
         }
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
 
-        String arrangement = jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString());
+        String arrangement = new RunsOver(jdbcTemplate, root).latest("arrangement").value();
         String scoring = jdbcTemplate.queryForObject(
                 "SELECT upstream_run_id FROM run_upstream WHERE run_id = ?", String.class, arrangement);
         List<Long> documents = jdbcTemplate.queryForList(

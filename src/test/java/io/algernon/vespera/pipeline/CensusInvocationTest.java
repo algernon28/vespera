@@ -19,10 +19,13 @@ import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.SimpleJob;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -45,6 +48,7 @@ import picocli.CommandLine;
  */
 @CascadeSliceTest
 @Import(StubbedExtractionBeans.class)
+@ExtendWith(OutputCaptureExtension.class)
 @Epic("Census")
 @Feature("Invocation")
 @Issue("11")
@@ -106,9 +110,9 @@ class CensusInvocationTest {
 
     @Test
     @Story("What census does in one invocation")
-    @DisplayName("The job is one job named for the tool, with census as its first step")
+    @DisplayName("The job is named for the tool")
     @Link(name = "ADR-047", url = Adr.THE_PIPELINE_NEVER_BLOCKS, type = "adr")
-    void assemblesOneJobForTheWholePipeline() {
+    void theJobIsNamedForTheTool() {
         claim(
                 "there is one job, named vespera, for later slices to add their stages to rather than to"
                         + " stand beside",
@@ -157,71 +161,6 @@ class CensusInvocationTest {
                                 "relevance-report",
                                 "arrangement",
                                 "generation"));
-        claim(
-                "and the content census in particular runs after extraction rather than beside it: it"
-                        + " summarises a whole extraction pass, and a summary computed over a pass still"
-                        + " running would shift every time that pass resumed mid-corpus, quietly calibrating"
-                        + " a threshold against part of a corpus",
-                () -> assertThat(stagesInOrder.indexOf("content-census"))
-                        .isGreaterThan(stagesInOrder.indexOf("extraction")));
-        claim(
-                "and redundancy runs after the content census, in that order: it compares documents against"
-                        + " the boilerplate the census measured, and comparing before that measurement exists"
-                        + " would let two documents sharing nothing but a footer read as the same document",
-                () -> assertThat(stagesInOrder.indexOf("redundancy-signature"))
-                        .isGreaterThan(stagesInOrder.indexOf("content-census")));
-        claim(
-                "and a signature is written before anything is resolved against it, since resolution reads"
-                        + " the rows the signature step wrote",
-                () -> assertThat(stagesInOrder.indexOf("content-redundancy"))
-                        .isGreaterThan(stagesInOrder.indexOf("redundancy-signature")));
-        claim(
-                "and the seed set is compared against the corpus only after it has been extracted, since"
-                        + " the comparison reads the measurements that extraction produced: comparing first"
-                        + " would report a seed set of no documents against the whole corpus",
-                () -> assertThat(stagesInOrder.indexOf("seed-corpus-comparison"))
-                        .isGreaterThan(stagesInOrder.indexOf("seed-extraction")));
-        claim(
-                "and after redundancy too, so the documents the seeds are compared against are the ones"
-                        + " that would actually be scored -- a document ruled out as redundant is not one"
-                        + " of them",
-                () -> assertThat(stagesInOrder.indexOf("seed-corpus-comparison"))
-                        .isGreaterThan(stagesInOrder.indexOf("content-redundancy")));
-        claim(
-                "and relevance scoring runs after gate 3 embeds every vector, since scoring reads the"
-                        + " rows that step wrote rather than re-deriving them (#108, blocked by #107)",
-                () -> assertThat(stagesInOrder.indexOf("relevance-scoring"))
-                        .isGreaterThan(stagesInOrder.indexOf("embedding-scoring")));
-        claim(
-                "and the copies in another language are found after every vector is embedded, since two"
-                        + " copies with no path in common are told apart by their vectors, and before any"
-                        + " survivor is scored, so a removed copy is never scored, put to a person, grouped"
-                        + " or arranged",
-                () -> assertThat(stagesInOrder.indexOf("translation"))
-                        .isGreaterThan(stagesInOrder.indexOf("embedding-scoring"))
-                        .isLessThan(stagesInOrder.indexOf("relevance-scoring")));
-        claim(
-                "and clustering runs after relevance scoring, because a partition is the set of documents"
-                        + " one seed won: clustering before the winning seeds were recorded would have no"
-                        + " partition to run within, and running it corpus-wide instead is what ADR-045"
-                        + " forbids (#109)",
-                () -> assertThat(stagesInOrder.indexOf("clustering"))
-                        .isGreaterThan(stagesInOrder.indexOf("relevance-scoring")));
-        claim(
-                "and the threshold runs between scoring and clustering, which is the whole of ADR-087's"
-                        + " 'a below-threshold document costs nothing': a document removed here is not a"
-                        + " survivor by the time clustering reads the partition, so it is never grouped and"
-                        + " never given a page. Ordered the other way the run would cluster documents it"
-                        + " was about to remove (#112)",
-                () -> assertThat(stagesInOrder.indexOf("relevance-floor"))
-                        .isGreaterThan(stagesInOrder.indexOf("relevance-scoring"))
-                        .isLessThan(stagesInOrder.indexOf("clustering")));
-        claim(
-                "and before the page a person reads, so that everything one invocation derives exists"
-                        + " before anything is put to them -- a person who has answered sixty questions"
-                        + " should not find the run still working afterwards",
-                () -> assertThat(stagesInOrder.indexOf("clustering"))
-                        .isLessThan(stagesInOrder.indexOf("relevance-report")));
     }
 
     @Test
@@ -249,35 +188,23 @@ class CensusInvocationTest {
     }
 
     @Test
-    @Story("A gate ends the invocation rather than failing it")
-    @DisplayName("With no embedding model named, stage 5c mints no scoring run and the command still succeeds")
-    @Link(name = "ADR-084", url = Adr.THE_EMBEDDING_MODEL_IS_A_PROFILE_GATE, type = "adr")
-    @Issue("107")
-    void stopsAtTheEmbeddingModelGateWithoutFailing(@TempDir Path root) throws IOException {
-        Files.writeString(root.resolve("a.txt"), "a");
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation still reports success: gate 3 is a value the pipeline needs and does not"
-                        + " have, not an error -- the run ends there having recorded everything stage 5's"
-                        + " measurement step already learned (ADR-047)",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "and no scoring run was minted at all, because a run row for a stage that scored nothing"
-                        + " would read as a corpus scored against zero documents",
-                () -> assertThat(runCount("embedding-scoring")).isZero());
-    }
-
-    @Test
     @Story("The commands the tool offers")
     @DisplayName("Naming no command prints what the commands are, and does not report success")
-    void namingNoCommandPrintsTheCommands() {
+    void namingNoCommandPrintsTheCommands(CapturedOutput output) {
+        int before = output.getOut().length();
+
         cli.run();
 
         claim(
                 "an invocation naming no command does not exit as though work was done",
                 () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
+        claim(
+                "and it prints how the tool is used, naming its commands: run, label and publish among them",
+                () -> assertThat(output.getOut().substring(before))
+                        .contains("Usage: vespera")
+                        .contains(" run ")
+                        .contains(" label ")
+                        .contains(" publish "));
     }
 
     @Test

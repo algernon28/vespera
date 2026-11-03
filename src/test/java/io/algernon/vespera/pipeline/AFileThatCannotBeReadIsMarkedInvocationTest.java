@@ -344,8 +344,8 @@ class AFileThatCannotBeReadIsMarkedInvocationTest {
                         .containsExactlyElementsOf(ProgressLines.expected(CONTENT_HASH, BOTH)));
         String deleted = theOneWithNoHash(root);
         claim(
-                "the deleted file has no hash recorded and was not removed by byte-level reduction: it is not"
-                        + " called broken, and not called a copy of the other",
+                "the deleted file, the one with no hash recorded, was not removed by byte-level reduction: it"
+                        + " is not called broken, and not called a copy of the other",
                 () -> assertThat(stageOneVerdictsAgainst(root, deleted)).isEmpty());
         claim(
                 "extraction met it next, removed it as one that could not be read, and completed",
@@ -492,23 +492,15 @@ class AFileThatCannotBeReadIsMarkedInvocationTest {
                 canonicalRoot);
     }
 
-    /** Every verdict stage 1 wrote against {@code path}, and whether a hash is recorded for it, as text. */
+    /** Every verdict stage 1 wrote against {@code path}, as text. */
     private List<String> stageOneVerdictsAgainst(Path root, String path) {
-        String canonicalRoot = Walk.canonicalRoot(root).toString();
-        List<String> found = new java.util.ArrayList<>(jdbcTemplate.queryForList(
+        return jdbcTemplate.queryForList(
                 "SELECT v.kind FROM verdict v JOIN file_occurrence fo ON fo.id = v.occurrence_id"
                         + " JOIN walk w ON w.id = fo.walk_id JOIN run r ON r.id = v.run_id"
                         + " WHERE w.root = ? AND fo.path = ? AND r.stage = 'byte-level-reduction'",
                 String.class,
-                canonicalRoot,
-                path));
-        found.addAll(jdbcTemplate.queryForList(
-                "SELECT 'a recorded hash' FROM content_hash h JOIN file_occurrence fo ON fo.id = h.occurrence_id"
-                        + " JOIN walk w ON w.id = fo.walk_id WHERE w.root = ? AND fo.path = ?",
-                String.class,
-                canonicalRoot,
-                path));
-        return found;
+                Walk.canonicalRoot(root).toString(),
+                path);
     }
 
     /** Each file removed as one extraction failed on, with why, for the walk of {@code canonicalRoot}. */

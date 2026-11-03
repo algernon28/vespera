@@ -44,37 +44,12 @@ class ClusterSizeReportTest {
     private static final ClusterSizeReport.Partition CLUSTERED_BY_K = ClusterSizeReport.Partition.of(
             "seeds/minutes.pdf", List.of(21, 19), Optional.of(new RetainedEdgeSpread(0.01, 0.02, 0.04, 240)));
 
+    /** Four documents each alone in its group. */
+    private static final int FOUR_ALONE = 4;
+
     /** One document under its own exemplar: no pair, so no link and nothing to measure. */
     private static final ClusterSizeReport.Partition ONE_DOCUMENT_ALONE =
             ClusterSizeReport.Partition.of("seeds/lonely.pdf", List.of(1), Optional.empty());
-
-    @Test
-    @Story("The spread of cluster sizes is reported per partition")
-    @DisplayName("A partition reports its documents, its clusters and how their sizes are spread")
-    void reportsOnePartitionsSpread() {
-        String html = ClusterSizeReport.render(List.of(ONE_LARGE_CLUSTER_AND_THREE_ALONE));
-
-        claim(
-                "the partition names the exemplar whose documents it holds, so a reader can tell which"
-                        + " heading of the eventual page tree these groups would sit under",
-                () -> assertThat(html).contains("seeds/contracts.pdf"));
-        claim(
-                "and reports the 55 documents it grouped, so the sizes beside them read as a share of"
-                        + " something rather than as bare counts",
-                () -> assertThat(html).contains(">55<"));
-        claim(
-                "the 5 clusters they formed, which nobody supplied: the count is a property of how the"
-                        + " documents resemble each other, and the whole reason a page like this exists",
-                () -> assertThat(html).contains(">5<"));
-        claim(
-                "the largest at 40, so a reader can see one group swallowing most of a partition",
-                () -> assertThat(html).contains(">40<"));
-        claim(
-                "and the 3 groups holding one document each, which is the number that decides whether a"
-                        + " page tree built over this partition is worth building",
-                () -> assertThat(html).contains(">3<"));
-    }
-
 
     @Test
     @Story("The retained-edge spread is reported beside the sizes")
@@ -106,11 +81,14 @@ class ClusterSizeReportTest {
                 "the page explains a low spread as what it is about the documents -- that they were put"
                         + " together because every document is joined to its nearest few whether or not"
                         + " they are close, and not because they resemble each other",
-                () -> assertThat(html).contains("whether or not"));
+                () -> assertThat(html)
+                        .contains("every document is linked to its nearest few <em>whether or not they are close</em>")
+                        .contains("put together for want of anything better and not because they resemble one"
+                                + " another"));
         claim(
                 "and says what such a group will read as to a person opening it, which is the thing the"
                         + " number is for",
-                () -> assertThat(html).containsIgnoringCase("unrelated"));
+                () -> assertThat(html).contains("the groups will read as lists of unrelated documents under one heading"));
         claim(
                 "without naming a threshold: no number here is a cut, and a page that suggested one"
                         + " would be the unmeasured floor ADR-087 refused",
@@ -166,26 +144,15 @@ class ClusterSizeReportTest {
                         + " the response to that outcome, and there is no other",
                 () -> assertThat(html).contains("real answer"));
         claim(
-                "all four groups are still there to be counted, unmerged",
-                () -> assertThat(html).contains(">4<"));
-    }
-
-    @Test
-    @Story("The spread of cluster sizes is reported per partition")
-    @DisplayName("The middle cluster is reported rather than an average")
-    void reportsTheMiddleClusterRatherThanAnAverage() {
-        ClusterSizeReport.Partition oneLargeClusterAndFourAlone =
-                ClusterSizeReport.Partition.of("seeds/exemplar.pdf", List.of(100, 1, 1, 1, 1), Optional.empty());
-
-        claim(
-                "the middle group is 1 rather than the mean of 20.8: one group holding most of a"
-                        + " partition pulls an average upwards and leaves a reader with the impression of"
-                        + " evenly-sized pages that are not there",
-                () -> assertThat(oneLargeClusterAndFourAlone.median()).isEqualTo(1));
-        claim(
-                "and the largest is reported beside it, so both ends of the spread are visible rather"
-                        + " than one number standing in for the shape",
-                () -> assertThat(oneLargeClusterAndFourAlone.largest()).isEqualTo(100));
+                "all " + FOUR_ALONE + " groups are still there to be counted, unmerged: the row reads "
+                        + FOUR_ALONE + " documents in " + FOUR_ALONE + " groups, the largest and the middle of"
+                        + " one document, and " + FOUR_ALONE + " groups of one",
+                () -> assertThat(html).contains(ReportPage.textCell("seeds/exemplar.pdf")
+                        + ReportPage.numberCell(FOUR_ALONE)
+                        + ReportPage.numberCell(FOUR_ALONE)
+                        + ReportPage.numberCell(1)
+                        + ReportPage.numberCell(1)
+                        + ReportPage.numberCell(FOUR_ALONE)));
     }
 
     @Test
