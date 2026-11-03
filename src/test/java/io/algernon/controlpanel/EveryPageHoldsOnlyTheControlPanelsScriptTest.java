@@ -36,8 +36,8 @@ import org.junit.jupiter.api.io.TempDir;
  * next act wanting values and answers, and once while a second runs, so that the invocation page's Stop and Stop's
  * confirmation are written. A report is the jar's page and not the control panel's, and the script and {@code /alive}
  * are no pages. What the pages show from outside the control panel holds markup: a launch value, the child's last
- * line, a code set's name and a question's path, each of which would put a script or an event attribute on the page
- * were it not escaped.
+ * line, a code set's name, a question's path and a folder not relevant, each of which would put a script or an event
+ * attribute on the page were it not escaped.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -60,6 +60,12 @@ class EveryPageHoldsOnlyTheControlPanelsScriptTest {
 
     /** A question's path, closing its attribute and adding an event attribute. */
     private static final String MARKUP_PATH = "a/\" onfocus=\"alert(6)\" autofocus=\".pdf";
+
+    /**
+     * A folder not relevant, closing its attribute and adding an event attribute: since ADR-334 §6 the questions'
+     * paths are counted on {@code /labels} and not shown, and the folders listed are.
+     */
+    private static final String MARKUP_FOLDER = "a/\" onfocus=\"alert(7)\" autofocus=\"b";
 
     /** What the attribute of an event begins with. */
     private static final String EVENT = "on";
@@ -110,13 +116,13 @@ class EveryPageHoldsOnlyTheControlPanelsScriptTest {
                         + " text, and no attribute whose name begins with on",
                 () -> assertThat(scriptsOtherThanItsOwnAndEventAttributesOf(pages)).isEmpty());
         claim("while the text from outside the control panel reached the pages as text: the child's last line,"
-                        + " the code set's name, the question's path and the two launch values, each whole",
+                        + " the code set's name, the folder not relevant and the two launch values, each whole",
                 () -> assertThat(List.of(byId(ended, "last-line").text(),
                                 codeSets.document().select("[name=name-1]").val(),
-                                labels.document().select("[name=path-1]").val(),
+                                labels.document().select("[name=folder-1]").val(),
                                 launch.document().select("[name='vespera.docling.image']").val(),
                                 launch.document().select("[name='vespera.label.model']").val()))
-                        .containsExactly(MARKUP_LINE, MARKUP_NAME, MARKUP_PATH, MARKUP_IMAGE, MARKUP_MODEL));
+                        .containsExactly(MARKUP_LINE, MARKUP_NAME, MARKUP_FOLDER, MARKUP_IMAGE, MARKUP_MODEL));
     }
 
     /**
@@ -170,6 +176,10 @@ class EveryPageHoldsOnlyTheControlPanelsScriptTest {
                   closestSeed: "seed/one.docx"
                   relevant: null
                 """.formatted(MARKUP_PATH.replace("\"", "\\\"")), StandardCharsets.UTF_8);
+        Files.writeString(workingDirectory.resolve(NotRelevantFolders.FILE_NAME), """
+                ---
+                - folder: "%s"
+                """.formatted(MARKUP_FOLDER.replace("\"", "\\\"")), StandardCharsets.UTF_8);
         Files.writeString(workingDirectory.resolve(NextInvocation.FILE_NAME), """
                 invocation=run
                 wants=relevanceScoreFloor arrangementApproved

@@ -102,6 +102,8 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
             "vespera.docling.image", "vespera.docling.image.source",
             "vespera.docling.base-url", "vespera.docling.base-url.source",
             "spring.ai.ollama.base-url", "spring.ai.ollama.base-url.source",
+            // ADR-334 §2: the label model, as OllamaRelevanceLabeller resolves it.
+            "vespera.label.model", "vespera.label.model.source",
             "vespera.sidecars.start", "vespera.sidecars.start.source",
             "vespera.sidecars.wait-at-most", "vespera.sidecars.wait-at-most.source",
             "vespera.progress-interval", "vespera.progress-interval.source",

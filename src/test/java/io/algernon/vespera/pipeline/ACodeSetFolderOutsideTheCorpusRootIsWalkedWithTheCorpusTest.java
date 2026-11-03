@@ -78,7 +78,7 @@ class ACodeSetFolderOutsideTheCorpusRootIsWalkedWithTheCorpusTest {
 
     @Test
     @Story("Code kept beside the archive is read with it")
-    @DisplayName("A folder of code outside the archive's root is walked with it, in one walk, each of its files by the folder's whole path")
+    @DisplayName("A folder of code outside the corpus root is walked with it, in one walk, each of its files by the folder's whole path")
     void theFolderIsWalkedWithTheCorpusUnderOneWalk(@TempDir Path temp, @TempDir Path workingDirectory) throws Exception {
         Path root = Files.createDirectory(temp.resolve("archivio"));
         Path billing = theBillingEngine(temp);
@@ -98,7 +98,7 @@ class ACodeSetFolderOutsideTheCorpusRootIsWalkedWithTheCorpusTest {
 
     @Test
     @Story("Code kept beside the archive is read with it")
-    @DisplayName("Stage 1 keeps the code of a folder outside the archive's root as a set at that folder, named for it, with its build file")
+    @DisplayName("Stage 1 keeps the code of a folder outside the corpus root as a set at that folder, named for it, with its build file")
     void stageOneMakesTheFolderASetOfItsOwn(@TempDir Path temp, @TempDir Path workingDirectory) throws Exception {
         Path root = Files.createDirectory(temp.resolve("archivio"));
         Path billing = theBillingEngine(temp);

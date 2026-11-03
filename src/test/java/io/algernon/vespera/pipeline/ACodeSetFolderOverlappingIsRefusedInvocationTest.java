@@ -11,11 +11,13 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,10 +31,12 @@ import picocli.CommandLine;
 /**
  * {@code vespera run} refuses at its start, in one line and before anything is walked, a code set's folder the profile
  * names that is no folder there or overlaps a folder it must stay apart from (ADR-334 §5.1): here the working
- * directory, a folder above the corpus root, and a folder that is not there.
+ * directory, a folder above the corpus root, a folder inside it, the seed folder, a folder listed before it, the
+ * working directory's {@code deliverable} folder, and a folder that is not there. The deliverable root named is
+ * {@code ACodeSetFolderOverlappingTheDeliverableRootIsRefusedInvocationTest}'s.
  *
  * <p>One static working directory serves the class, as in {@code TheDeliverableRootInvocationTest}, and each test writes
- * the whole profile as text, naming its folder, so that no test's folder reaches another's and this compiles before
+ * the whole profile as text, naming its folders, so that no test's folder reaches another's and this compiles before
  * {@code Profile} has the key.
  */
 @CascadeSliceTest
@@ -106,6 +110,104 @@ class ACodeSetFolderOverlappingIsRefusedInvocationTest {
 
     @Test
     @Story("A folder of code that overlaps what Vespera writes or walks is refused")
+    @DisplayName("A folder inside the corpus root named as a folder of code is refused in one line, the corpus root's walk reading it already")
+    void aFolderInsideTheCorpusRootIsRefused(@TempDir Path corpusRoot) throws IOException {
+        Files.writeString(corpusRoot.resolve("corpus.txt"), "a corpus document");
+        Path inside = Files.createDirectories(corpusRoot.resolve("code"));
+        theProfileNames(inside);
+
+        String printed = standardErrorOf(() -> cli.run("run", corpusRoot.toString()));
+
+        claim("the invocation exits " + REFUSED, () -> assertThat(cli.getExitCode()).isEqualTo(REFUSED));
+        claim("and says why in " + ONE_LINE + " line on standard error, naming the folder and the corpus root it lies in",
+                () -> assertThat(printed.lines().toList())
+                        .containsExactly("vespera run refused the code set folder " + inside.toRealPath()
+                                + ": it is inside the corpus root " + corpusRoot.toRealPath() + NAME_A_FOLDER_APART));
+        claim("nothing was walked", () -> assertThat(walksOver(corpusRoot)).isZero());
+    }
+
+    @Test
+    @Story("A folder of code that overlaps what Vespera writes or walks is refused")
+    @DisplayName("The seed folder the profile names, named as a folder of code, is refused in one line before anything is walked")
+    void theSeedFolderIsRefused(@TempDir Path corpusRoot, @TempDir Path seeds) throws IOException {
+        Files.writeString(corpusRoot.resolve("corpus.txt"), "a corpus document");
+        theProfileNames(seeds.toAbsolutePath().toString(), Optional.of(seeds));
+
+        String printed = standardErrorOf(() -> cli.run("run", corpusRoot.toString()));
+
+        claim("the invocation exits " + REFUSED, () -> assertThat(cli.getExitCode()).isEqualTo(REFUSED));
+        claim("and says why in " + ONE_LINE + " line on standard error, naming the folder and the seed folder it is",
+                () -> assertThat(printed.lines().toList())
+                        .containsExactly("vespera run refused the code set folder " + seeds.toRealPath()
+                                + ": it is the seed folder " + seeds.toRealPath() + NAME_A_FOLDER_APART));
+        claim("nothing was walked", () -> assertThat(walksOver(corpusRoot)).isZero());
+    }
+
+    @Test
+    @Story("A folder of code that overlaps what Vespera writes or walks is refused")
+    @DisplayName("A folder inside one listed before it is refused in one line, the first folder being kept apart from the next")
+    void aFolderInsideAnEarlierCodeSetFolderIsRefused(@TempDir Path corpusRoot, @TempDir Path elsewhere)
+            throws IOException {
+        Files.writeString(corpusRoot.resolve("corpus.txt"), "a corpus document");
+        Path billing = Files.createDirectories(elsewhere.resolve("billing"));
+        Path inner = Files.createDirectories(billing.resolve("inner"));
+        theProfileNames(billing.toAbsolutePath() + File.pathSeparator + inner.toAbsolutePath(), Optional.empty());
+
+        String printed = standardErrorOf(() -> cli.run("run", corpusRoot.toString()));
+
+        claim("the invocation exits " + REFUSED, () -> assertThat(cli.getExitCode()).isEqualTo(REFUSED));
+        claim("and says why in " + ONE_LINE + " line on standard error, naming the second folder and the first it lies"
+                        + " in, the first being refused by nothing",
+                () -> assertThat(printed.lines().toList())
+                        .containsExactly("vespera run refused the code set folder " + inner.toRealPath()
+                                + ": it is inside the code set folder " + billing.toRealPath() + NAME_A_FOLDER_APART));
+        claim("nothing was walked", () -> assertThat(walksOver(corpusRoot)).isZero());
+    }
+
+    @Test
+    @Story("A folder of code that overlaps what Vespera writes or walks is refused")
+    @DisplayName("A folder listed twice is refused in one line as the folder listed before it")
+    void aFolderListedTwiceIsRefused(@TempDir Path corpusRoot, @TempDir Path billing) throws IOException {
+        Files.writeString(corpusRoot.resolve("corpus.txt"), "a corpus document");
+        theProfileNames(billing.toAbsolutePath() + File.pathSeparator + billing.toAbsolutePath(), Optional.empty());
+
+        String printed = standardErrorOf(() -> cli.run("run", corpusRoot.toString()));
+
+        claim("the invocation exits " + REFUSED, () -> assertThat(cli.getExitCode()).isEqualTo(REFUSED));
+        claim("and says why in " + ONE_LINE + " line on standard error, naming the folder as the code set folder it is",
+                () -> assertThat(printed.lines().toList())
+                        .containsExactly("vespera run refused the code set folder " + billing.toRealPath()
+                                + ": it is the code set folder " + billing.toRealPath() + NAME_A_FOLDER_APART));
+        claim("nothing was walked", () -> assertThat(walksOver(corpusRoot)).isZero());
+    }
+
+    /**
+     * Where no deliverable root is named, the trees are drawn in the working directory's {@code deliverable} folder,
+     * which lies inside the working directory; the working directory is compared before the deliverable root (§5.1), so
+     * that folder is refused as inside the working directory.
+     */
+    @Test
+    @Story("A folder of code that overlaps what Vespera writes or walks is refused")
+    @DisplayName("The working directory's deliverable folder, where the trees go when no root is named, is refused in one line as inside the working directory")
+    void theDefaultDeliverableFolderIsRefusedAsInsideTheWorkingDirectory(@TempDir Path corpusRoot) throws IOException {
+        Files.writeString(corpusRoot.resolve("corpus.txt"), "a corpus document");
+        Path deliverable = Files.createDirectories(workingDirectory.resolve("deliverable"));
+        theProfileNames(deliverable);
+
+        String printed = standardErrorOf(() -> cli.run("run", corpusRoot.toString()));
+
+        claim("the invocation exits " + REFUSED, () -> assertThat(cli.getExitCode()).isEqualTo(REFUSED));
+        claim("and says why in " + ONE_LINE + " line on standard error, naming the working directory, which is"
+                        + " compared before the deliverable root",
+                () -> assertThat(printed.lines().toList())
+                        .containsExactly("vespera run refused the code set folder " + deliverable.toRealPath()
+                                + ": it is inside the working directory " + workingDirectory.toRealPath()
+                                + NAME_A_FOLDER_APART));
+        claim("nothing was walked", () -> assertThat(walksOver(corpusRoot)).isZero());
+    }
+
+    @Test
+    @Story("A folder of code that overlaps what Vespera writes or walks is refused")
     @DisplayName("A folder of code that is not there is refused in one line before anything is walked, and exits 1")
     void aFolderThatIsNotThereIsRefused(@TempDir Path corpusRoot, @TempDir Path elsewhere) throws IOException {
         Files.writeString(corpusRoot.resolve("corpus.txt"), "a corpus document");
@@ -124,14 +226,15 @@ class ACodeSetFolderOverlappingIsRefusedInvocationTest {
 
     /** The whole profile, naming {@code folder} alone as a code set's folder, as the operator would write it. */
     private void theProfileNames(Path folder) throws IOException {
-        Files.createDirectories(profileStore.file().getParent());
-        Files.writeString(profileStore.file(), """
-                ---
-                codeSetFolders:
-                  value: '%s'
-                  provenance: "set by this test"
-                  measurement: null
-                """.formatted(folder.toAbsolutePath()), StandardCharsets.UTF_8);
+        theProfileNames(folder.toAbsolutePath().toString(), Optional.empty());
+    }
+
+    /**
+     * The whole profile, naming {@code folders} as the code set folders, written as the operator would write them, and
+     * {@code seedFolder} where it is given.
+     */
+    private void theProfileNames(String folders, Optional<Path> seedFolder) throws IOException {
+        TheProfileAsText.write(profileStore, folders, seedFolder);
     }
 
     /** How many walks of {@code corpusRoot} are recorded. */
@@ -141,7 +244,7 @@ class ACodeSetFolderOverlappingIsRefusedInvocationTest {
     }
 
     /** What {@code invocation} wrote on standard error. */
-    private static String standardErrorOf(Runnable invocation) {
+    static String standardErrorOf(Runnable invocation) {
         PrintStream original = System.err;
         ByteArrayOutputStream captured = new ByteArrayOutputStream();
         System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
@@ -150,6 +253,23 @@ class ACodeSetFolderOverlappingIsRefusedInvocationTest {
             return captured.toString(StandardCharsets.UTF_8);
         } finally {
             System.setErr(original);
+        }
+    }
+
+    /** The whole profile written as text, so that the tests compile whatever {@code Profile}'s components are. */
+    static final class TheProfileAsText {
+
+        private TheProfileAsText() {
+        }
+
+        static void write(ProfileStore profileStore, String folders, Optional<Path> seedFolder) throws IOException {
+            StringBuilder text = new StringBuilder("---\n");
+            seedFolder.ifPresent(seeds -> text.append("seedFolder:\n  value: '").append(seeds.toAbsolutePath())
+                    .append("'\n  provenance: \"set by this test\"\n  measurement: null\n"));
+            text.append("codeSetFolders:\n  value: '").append(folders)
+                    .append("'\n  provenance: \"set by this test\"\n  measurement: null\n");
+            Files.createDirectories(profileStore.file().getParent());
+            Files.writeString(profileStore.file(), text.toString(), StandardCharsets.UTF_8);
         }
     }
 }

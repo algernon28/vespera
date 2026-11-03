@@ -214,6 +214,9 @@ class ProfileStoreTest {
             clusterResolution:
               value: "2.5"
               provenance: "read off the group sizes"
+            codeSetFolders:
+              value: "D:/code/billing"
+              provenance: "the billing engine's checkout, beside the archive"
             """;
 
     @Test
