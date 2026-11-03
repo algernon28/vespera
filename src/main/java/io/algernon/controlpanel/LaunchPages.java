@@ -63,7 +63,9 @@ final class LaunchPages {
         String how = InvocationPages.how(state);
 
         String actions = ControlPanelPage.button("run", "Run", disabled)
-                + ControlPanelPage.button("label", "Label", disabled) + ControlPanelPage.button("check", "Check", false);
+                + ControlPanelPage.button("label", "Label", disabled)
+                + ControlPanelPage.button("label-auto", "Have the local model answer", disabled)
+                + ControlPanelPage.button("check", "Check", false);
         StringBuilder body = new StringBuilder();
         body.append(ControlPanelPage.outcome(state.takeOutcome("/")));
         body.append(ControlPanelPage.tiles(checks, FolderPages.freeSpaceOf(values.workingDirectory()), how,
@@ -413,7 +415,8 @@ final class LaunchPages {
             return;
         }
         ControlPanelState.Start kind = fields.containsKey("run") ? ControlPanelState.Start.RUN
-                : fields.containsKey("label") ? ControlPanelState.Start.LABEL : null;
+                : fields.containsKey("label") ? ControlPanelState.Start.LABEL
+                : fields.containsKey("label-auto") ? ControlPanelState.Start.LABEL_AUTO : null;
         if (kind == null) {
             Exchanges.redirect(exchange, "/");
             return;
