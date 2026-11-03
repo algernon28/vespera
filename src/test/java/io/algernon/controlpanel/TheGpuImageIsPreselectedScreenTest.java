@@ -25,7 +25,8 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * The control panel preselects the GPU image (ADR-334 §11): where no launch value names a Docling image, the launch
  * form's field holds {@code compose.gpu.yaml}'s image, the list offers it first and the processor image after it, and a
- * Run gives the child the GPU image; the jar's own default, in {@code application.yaml}, stays the processor image.
+ * Run gives the child the GPU image; the form posting that image back as it held it names no image; and the jar's own
+ * default, in {@code application.yaml}, stays the processor image.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -64,25 +65,68 @@ class TheGpuImageIsPreselectedScreenTest {
         }
     }
 
+    /**
+     * The form posts the image its field holds, so a Run with the field left alone posts the GPU image; that is the
+     * control panel's choice and not the operator's, so it is stored as no image named and the page still says the
+     * control panel chose it, while the child is given the GPU image all the same (ADR-334 §11).
+     */
     @Test
     @Story("The operator runs on the graphics card without choosing it")
-    @DisplayName("A Run with the image left as the page holds it gives the child the GPU image, and the jar's own default stays the processor image")
+    @DisplayName("A Run with the image left as the page holds it gives the child the GPU image, stores no image named, and the jar's own default stays the processor image")
     void aRunGivesTheChildTheGpuImage() throws IOException, InterruptedException {
         Path work = work();
-        ScreenServer.childWill(work, "exit 0 the closing line");
+        ScreenServer.childWill(work, JarForScreenTests.COPY_THE_IMAGE + "exit 0 the closing line");
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus(), work))) {
-            screens.afterARunHasEnded();
+            Page after = screens.afterARunHasEnded().go("/").page();
             LaunchValues stored = LaunchValues.load(LaunchValues.fileIn(folder.resolve("tmp"),
                     System.getProperty("user.name")), System.getProperty("user.name"), line -> {
                     });
 
-            claim("the launch values stored as the child started name the GPU image",
-                    () -> assertThat(stored.doclingImage()).isEqualTo(GPU));
-            claim("and the child is given it in its environment",
-                    () -> assertThat(stored.toChildEnvironment()).containsEntry("VESPERA_DOCLING_IMAGE", GPU));
+            claim("the child is given the GPU image in its environment",
+                    () -> assertThat(Files.readString(work.resolve(JarForScreenTests.THE_IMAGE_IT_WAS_GIVEN), UTF_8))
+                            .isEqualTo(GPU));
+            claim("the launch values stored as the child started name no image, the GPU image being the control"
+                            + " panel's choice and not one the operator named",
+                    () -> assertThat(stored.doclingImage()).isEmpty());
+            claim("and after the run the page still says the control panel chose it",
+                    () -> assertThat(byId(after, "in-use-" + IMAGE_FIELD).attr("data-source")).isEqualTo("preselected"));
         }
         claim("the jar's own configuration still names the processor image",
                 () -> assertThat(Files.readString(APPLICATION_YAML, UTF_8)).contains("image: " + CPU));
+    }
+
+    /**
+     * The launch form posts every field it holds, the image the control panel preselected among them, whichever of its
+     * buttons is pressed. A value posted that is the GPU image, where no image was named before, is the control panel's
+     * choice sent back and names nothing; once an image is named, the GPU image posted is named too (ADR-334 §11).
+     */
+    @Test
+    @Story("The operator runs on the graphics card without choosing it")
+    @DisplayName("Pressing Check or a Browse button with the image left as the page holds it names no image, and the page still says the control panel chose it")
+    void theGpuImagePostedBackAsTheFormHeldItNamesNoImage() throws IOException {
+        Path corpus = corpus();
+        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus, work()))) {
+            PanelBrowser browser = screens.browser();
+            Page checked = browser.press("launch", "check", Map.of()).page();
+            browser.press("launch", ScreenServer.BROWSE + FolderPages.Target.CORPUS_ROOT.forName(), Map.of());
+            Page browsed = browser.go("/").page();
+
+            claim("after Check the field holds the GPU image, which the page says the control panel chose",
+                    () -> assertThat(List.of(form(checked, "launch").select("[name='" + IMAGE_FIELD + "']").val(),
+                                    byId(checked, "in-use-" + IMAGE_FIELD).attr("data-source")))
+                            .containsExactly(GPU, "preselected"));
+            claim("and so it does after a Browse button was pressed and the launch page opened again",
+                    () -> assertThat(List.of(form(browsed, "launch").select("[name='" + IMAGE_FIELD + "']").val(),
+                                    byId(browsed, "in-use-" + IMAGE_FIELD).attr("data-source")))
+                            .containsExactly(GPU, "preselected"));
+
+            browser.press("launch", "check", Map.of(IMAGE_FIELD, CPU));
+            Page namedAgain = browser.press("launch", "check", Map.of(IMAGE_FIELD, GPU)).page();
+
+            claim("but the GPU image picked once another image was named is the operator's, named as typed",
+                    () -> assertThat(byId(namedAgain, "in-use-" + IMAGE_FIELD).attr("data-source"))
+                            .isEqualTo("launch-value"));
+        }
     }
 
     @Test

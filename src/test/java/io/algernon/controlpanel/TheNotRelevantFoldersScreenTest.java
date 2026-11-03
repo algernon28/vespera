@@ -15,6 +15,7 @@ import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,6 +25,8 @@ import java.util.Optional;
 import org.jsoup.nodes.Element;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
@@ -244,6 +247,114 @@ class TheNotRelevantFoldersScreenTest {
                             .isEqualTo("---\n- folder: \"b/flows\"\n"));
             claim("and no question file is made",
                     () -> assertThat(work.resolve(LabelAnswers.FILE_NAME)).doesNotExist());
+        }
+    }
+
+    /**
+     * A save is worked out from the file as it is read under the lock, the folder added to or removed from the list it
+     * holds then (ADR-334 §6), so a tab drawn before another tab saved loses none of what that tab added.
+     */
+    @Test
+    @Story("The operator answers the relevance questions by folder")
+    @DisplayName("A page drawn before another tab saved adds to and removes from the list as the file holds it, losing no folder the other tab added")
+    void aPageDrawnBeforeAnotherTabSavedLosesNoFolder() throws IOException {
+        Path work = withTheQuestions();
+        Files.writeString(work.resolve(THE_LIST), "---\n- folder: \"a\"\n", UTF_8);
+        try (ScreenServer screens = start(work)) {
+            PanelBrowser first = screens.browser().go("/labels");
+            PanelBrowser second = screens.browser().go("/labels");
+            second.press(FORM, "save", Map.of(NEW_FOLDER, "b/flows"));
+            first.press(FORM, "save", Map.of(NEW_FOLDER, "c"));
+
+            claim("the folder the first tab adds follows the one the second tab added after the first was drawn, which"
+                            + " is kept",
+                    () -> assertThat(Files.readString(work.resolve(THE_LIST), UTF_8))
+                            .isEqualTo("---\n- folder: \"a\"\n- folder: \"b/flows\"\n- folder: \"c\"\n"));
+
+            second.press(FORM, "remove-1", Map.of());
+
+            claim("and the folder the second tab removes goes, the one the first tab added after it was drawn staying",
+                    () -> assertThat(Files.readString(work.resolve(THE_LIST), UTF_8))
+                            .isEqualTo("---\n- folder: \"b/flows\"\n- folder: \"c\"\n"));
+            claim("the questions being answered by the list as written",
+                    () -> assertThat(answers(work)).containsExactly(
+                            new LabelAnswers.Question(A_FIRST, Optional.of(true)),
+                            new LabelAnswers.Question(A_FLOW, Optional.of(false)),
+                            new LabelAnswers.Question(BESIDE_THE_FLOWS, Optional.of(true))));
+        }
+    }
+
+    /**
+     * A save writes the list and then the questions, and a write that fails part way changes neither file: one already
+     * moved over its target is put back as it stood (ADR-334 §6). The questions' file is kept from being written by a
+     * folder, holding a file, where its {@code .part} file would be written (ADR-295 §2).
+     */
+    @Test
+    @Story("The operator answers the relevance questions by folder")
+    @DisplayName("A save whose questions cannot be written leaves the list as it stood too, says so in one line, and keeps what was typed")
+    void aSaveWhoseQuestionsCannotBeWrittenChangesNeitherFile() throws IOException {
+        Path work = withTheQuestions();
+        String listed = "---\n- folder: \"a\"\n";
+        Files.writeString(work.resolve(THE_LIST), listed, UTF_8);
+        Path inTheWay = Files.createDirectories(work.resolve(LabelAnswers.FILE_NAME + ".part"));
+        Files.writeString(inTheWay.resolve("keeps-the-folder-from-being-removed.txt"), "", UTF_8);
+        try (ScreenServer screens = start(work)) {
+            Page landed = screens.browser().go("/labels").press(FORM, "save", Map.of(NEW_FOLDER, "b/flows")).page();
+
+            claim("the list is as it stood, though it is written before the questions",
+                    () -> assertThat(Files.readString(work.resolve(THE_LIST), UTF_8)).isEqualTo(listed));
+            claim("the questions are as they stood",
+                    () -> assertThat(Files.readString(work.resolve(LabelAnswers.FILE_NAME), UTF_8))
+                            .isEqualTo(THREE_QUESTIONS));
+            claim("one line names the questions' file as not written, with why, and says neither file is changed",
+                    () -> assertThat(byId(landed, "outcome").text())
+                            .startsWith("the control panel could not write " + LabelAnswers.FILE_NAME + ": ")
+                            .endsWith(", so neither file is changed"));
+            claim("and the folder typed stands in the field",
+                    () -> assertThat(form(landed, FORM).select("[name=" + NEW_FOLDER + "]").val()).isEqualTo("b/flows"));
+        }
+    }
+
+    /** A folder is given once, its names compared as a question's path is compared with it (ADR-334 §6). */
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    @Story("The operator answers the relevance questions by folder")
+    @DisplayName("On Windows a folder listed already in another case is refused as listed already, and the list is not written")
+    void onWindowsAFolderListedInAnotherCaseIsListedAlready() throws IOException {
+        Path work = withTheQuestions();
+        String listed = "---\n- folder: \"Archive/Old\"\n";
+        Files.writeString(work.resolve(THE_LIST), listed, UTF_8);
+        try (ScreenServer screens = start(work)) {
+            Page landed = screens.browser().go("/labels").press(FORM, "save", Map.of(NEW_FOLDER, "archive/old")).page();
+
+            claim("the folder is refused as listed already",
+                    () -> assertThat(byId(landed, "outcome").text())
+                            .isEqualTo("the folder archive/old is not added: it is listed already"));
+            claim("and the list is as it stood",
+                    () -> assertThat(Files.readString(work.resolve(THE_LIST), UTF_8)).isEqualTo(listed));
+        }
+    }
+
+    /** The corpus root holds every question, however a field spells it (ADR-334 §6). */
+    @Test
+    @Story("The operator answers the relevance questions by folder")
+    @DisplayName("The corpus root is refused as holding every question however it is spelt: as a dot, by its whole path, with either separator, and with a separator after it")
+    void theCorpusRootIsRefusedHoweverItIsSpelt() throws IOException {
+        Path work = withTheQuestions();
+        String root = corpus().toString();
+        String rootWithSlashes = root.replace('\\', '/');
+        List<String> spellings = List.of(".", "./", root, root + File.separator, rootWithSlashes, rootWithSlashes + "/");
+        try (ScreenServer screens = start(work)) {
+            PanelBrowser browser = screens.browser().go("/labels");
+            for (String spelt : spellings) {
+                Page landed = browser.press(FORM, "save", Map.of(NEW_FOLDER, spelt)).page();
+
+                claim("'" + spelt + "' is refused as the corpus root, which holds every question",
+                        () -> assertThat(byId(landed, "outcome").text()).isEqualTo("the folder " + spelt
+                                + " is not added: the corpus root holds every question; name a folder below it"));
+                claim("and the list is not written",
+                        () -> assertThat(work.resolve(THE_LIST)).doesNotExist());
+            }
         }
     }
 

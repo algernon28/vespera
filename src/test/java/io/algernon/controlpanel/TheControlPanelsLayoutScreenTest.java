@@ -436,6 +436,10 @@ class TheControlPanelsLayoutScreenTest {
         }
     }
 
+    /**
+     * The converter running another image than Run would use is red, since extraction refuses it, and a model not served
+     * is amber (ADR-334 §2).
+     */
     @Test
     @Story("The operator starts an invocation from the control panel")
     @DisplayName("The preflight shows the converter's and the model service's checks green where they hold and amber otherwise, nothing named included, and the converter red where it runs another image than Run would use")
@@ -458,7 +462,7 @@ class TheControlPanelsLayoutScreenTest {
                 claim("with every check holding, every row of the preflight is green",
                         () -> assertThat(preflight(holds).values()).containsOnly("ok"));
                 claim("another image than Run would use is red, extraction refusing such a converter, and a model not"
-                                + " served is amber (ADR-334 §2)",
+                                + " served is amber",
                         () -> assertThat(List.of(preflight(differs).get("docling"), preflight(differs).get("ollama")))
                                 .containsExactly("bad", "warn"));
                 claim("and so is each where nothing is named for it, which has not been checked",
@@ -514,7 +518,7 @@ class TheControlPanelsLayoutScreenTest {
                     () -> assertThat(byId(page, "profile-list").select("a").eachAttr("href"))
                             .containsExactlyElementsOf(keys.stream().map(key -> "#key-" + key).toList()));
             claim("the page holds one form, profile, and every value's section lies inside it, holding no form of its"
-                            + " own (ADR-334 §7)",
+                            + " own",
                     () -> {
                         assertThat(page.document().select("form[name=profile]")).hasSize(1);
                         assertThat(keys.stream().map(key -> byId(page, "key-" + key).closest("form").attr("name")))
