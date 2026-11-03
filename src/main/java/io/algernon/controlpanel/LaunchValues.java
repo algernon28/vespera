@@ -53,6 +53,12 @@ public record LaunchValues(String corpusRoot, String workingDirectory, String de
         return value == null || value.isBlank() ? "" : value;
     }
 
+    /** The same values with the Docling image {@code image}. */
+    LaunchValues withDoclingImage(String image) {
+        return new LaunchValues(corpusRoot, workingDirectory, deliverableRoot, image, doclingBaseUrl, ollamaBaseUrl,
+                labelModel, lastSeedFolder);
+    }
+
     public static LaunchValues none() {
         return new LaunchValues("", "", "", "", "", "", "", "");
     }

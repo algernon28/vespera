@@ -53,8 +53,9 @@ class ConfigurationSettingShareFloorInTheProfileTest {
                 "the key is present, and empty, among every key the profile states",
                 () -> assertThat(loaded.keysAsWritten()).containsEntry(KEY, ""));
         claim(
-                "it is the profile's third key from the end: the pages' language and the groups' resolution follow it",
-                () -> assertThat(ProfileKeys.everyKey().get(ProfileKeys.everyKey().size() - 3)).isEqualTo(KEY));
+                "it is the key just before the pages' language, wherever the keys added after it put the two",
+                () -> assertThat(ProfileKeys.everyKey().indexOf(KEY))
+                        .isEqualTo(ProfileKeys.everyKey().indexOf("deliverableLanguage") - 1));
         claim(
                 "and the file census writes carries it, so an operator has it to fill in",
                 () -> assertThat(Files.readString(store.file())).contains(KEY + ":"));

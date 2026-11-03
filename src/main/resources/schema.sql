@@ -37,6 +37,19 @@ CREATE TABLE IF NOT EXISTS walk (
     directories_entered INTEGER NOT NULL DEFAULT 0
 );
 
+-- The folders outside the corpus root a walk reads with it, in the order it reads them (ADR-334 section 5.3): the
+-- profile's codeSetFolders as they stood when the walk started, recorded with the walk so that an unfinished walk
+-- is continued with the folders it began with. folder is the folder's real path, as walk.root is. Additive, so no
+-- module's schema version moves: a database written before it builds it empty at start-up (ADR-197 section 3). The
+-- primary key leads with walk_id, so ADR-173 asks no other index.
+-- owner: ledger
+CREATE TABLE IF NOT EXISTS walk_folder (
+    walk_id INTEGER NOT NULL REFERENCES walk (id),
+    ordinal INTEGER NOT NULL,
+    folder TEXT NOT NULL,
+    PRIMARY KEY (walk_id, ordinal)
+);
+
 -- UNIQUE (walk_id, path) is ADR-051 as a constraint: within one walk a path identifies exactly one
 -- file occurrence. It is also what makes a resumed walk safe to get wrong loudly -- re-recording an
 -- entry a previous session already recorded fails here rather than silently doubling the corpus.

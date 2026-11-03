@@ -371,7 +371,7 @@ function readmeSection(heading, name) {
     } else {
       // Each component is typed by the kind of answer its key takes (ADR-120), so the match is on
       // any of the value types rather than on the one name they used to share.
-      const real = [...record[1].matchAll(/(?:NumericValue|TextValue|NameEndingsValue|LanguagesValue) (\w+)/g)].map((k) => k[1]).sort();
+      const real = [...record[1].matchAll(/(?:NumericValue|TextValue|NameEndingsValue|LanguagesValue|FoldersValue) (\w+)/g)].map((k) => k[1]).sort();
       const wrong = [];
       for (const k of named) if (!real.includes(k)) wrong.push(`${k} is documented and is not a profile key`);
       for (const k of real) if (!named.includes(k)) wrong.push(`${k} is a profile key and is documented nowhere`);
@@ -434,7 +434,7 @@ function readmeSection(heading, name) {
           for (const f of readFileSync(join(dir, e.name), "utf8").matchAll(/FILE_NAME = "([^"]+)"/g)) real.push(f[1]);
         }
       }
-    })(MAIN);
+    })("src/main/java/io/algernon");
     // The database is named by the datasource URL rather than by a constant.
     for (const d of readFileSync(APPLICATION_YAML, "utf8").matchAll(/jdbc:sqlite:[^"]*?\/([\w.-]+\.db)/g)) real.push(d[1]);
     const wrong = [];

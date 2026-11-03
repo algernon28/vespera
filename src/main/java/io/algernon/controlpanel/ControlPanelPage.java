@@ -33,6 +33,22 @@ final class ControlPanelPage {
               var start = body.getAttribute('data-start');
               var seconds = parseInt(body.getAttribute('data-refresh-seconds') || '0', 10);
               var loadedAt = Date.now();
+              var tail = document.getElementById('tail');
+              if (tail) {
+                var kept = null;
+                try { kept = window.sessionStorage.getItem('vespera-tail-scroll'); } catch (ignored) { kept = null; }
+                var place = kept === null ? NaN : parseInt(kept, 10);
+                tail.scrollTop = isNaN(place) ? tail.scrollHeight : place;
+                tail.addEventListener('scroll', function () {
+                  try {
+                    if (tail.scrollTop + tail.clientHeight < tail.scrollHeight - 2) {
+                      window.sessionStorage.setItem('vespera-tail-scroll', String(tail.scrollTop));
+                    } else {
+                      window.sessionStorage.removeItem('vespera-tail-scroll');
+                    }
+                  } catch (ignored) { }
+                });
+              }
               if (!start) { return; }
               function poll() {
                 var reloading = false;
@@ -68,8 +84,11 @@ final class ControlPanelPage {
     /** The words an example begins with, so that none is read as a value a page holds (ADR-331 §8). */
     static final String EXAMPLE = "e.g. ";
 
+    /** The words a placeholder begins with where it shows the value in use, in place of an example (ADR-334 §1, §2). */
+    static final String IN_USE = "in use: ";
+
     /** The example of a reason, for every provenance (ADR-331 §8). */
-    private static final String REASON_EXAMPLE = "read off the report beside it: the cut I can live with";
+    static final String REASON_EXAMPLE = "read off the report beside it: the cut I can live with";
 
     /** The hint of every provenance (ADR-331 §8). */
     private static final String REASON_HINT = "Required. Why you chose this value, in your words. It is written beside"
@@ -170,6 +189,7 @@ final class ControlPanelPage {
             td, th { padding: .25rem .5rem; border-bottom: 1px solid var(--rule); text-align: left; }
             pre { overflow-x: auto; padding: .5rem; border: 1px solid var(--rule); border-radius: .5rem;
               background: var(--surface2); }
+            #tail { height: 45vh; overflow-y: auto; }
             @media (max-width: 800px) {
               #shell { grid-template-columns: 1fr; }
               #sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
@@ -184,7 +204,7 @@ final class ControlPanelPage {
     /** The pages the sidebar leads to, by path and name. */
     private static final List<String[]> NAVIGATION = List.of(new String[] {"/", "Launch"},
             new String[] {"/invocation", "Invocation"}, new String[] {"/next", "Next"},
-            new String[] {"/labels", "Questions"}, new String[] {"/code-sets", "Code sets"},
+            new String[] {"/labels", "Relevance"}, new String[] {"/code-sets", "Code sets"},
             new String[] {"/profile", "Profile"});
 
     private ControlPanelPage() {
@@ -278,6 +298,7 @@ final class ControlPanelPage {
         private boolean required;
         private String type = "text";
         private String example = "";
+        private String inUse = "";
         private String hintId = "";
         private String hint = "";
         private String list = "";
@@ -328,6 +349,12 @@ final class ControlPanelPage {
             return this;
         }
 
+        /** The value in use shown in the empty control, after {@link #IN_USE}, in place of an example (ADR-334 §1, §2). */
+        Field inUse(String inUse) {
+            this.inUse = inUse;
+            return this;
+        }
+
         /** The id of the {@code <datalist>} the control offers. */
         Field list(String list) {
             this.list = list;
@@ -354,7 +381,9 @@ final class ControlPanelPage {
             if (type.equals("number")) {
                 html.append(" step=\"any\"");
             }
-            if (!example.isEmpty()) {
+            if (!inUse.isEmpty()) {
+                html.append(" placeholder=\"").append(escape(IN_USE + inUse)).append('"');
+            } else if (!example.isEmpty()) {
                 html.append(" placeholder=\"").append(escape(EXAMPLE + example)).append('"');
             }
             if (!list.isEmpty()) {
@@ -392,8 +421,8 @@ final class ControlPanelPage {
                 .append("\">");
         for (String option : options) {
             html.append("<option value=\"").append(escape(option)).append('"')
-                    .append(option.equals(selected) ? " selected" : "").append('>').append(escape(option))
-                    .append("</option>");
+                    .append(option.equals(selected) ? " selected" : "").append('>')
+                    .append(escape(option.isEmpty() ? "not set" : option)).append("</option>");
         }
         return html.append("</select></div>\n<p class=\"hint\" id=\"").append(escape(hintId)).append("\">")
                 .append(escape(hint)).append("</p>\n</div>\n").toString();
@@ -432,10 +461,23 @@ final class ControlPanelPage {
      */
     static String keyControl(ProfileKey key, String name, String id, String label, String value, String browse,
             String after) {
+        return keyControl(key, name, id, label, value, browse, after, false);
+    }
+
+    /**
+     * As {@link #keyControl(ProfileKey, String, String, String, String, String, String)}, with the deliverable's language
+     * offering a first choice of none, {@code not set}, where {@code withNone} is set: the profile page's, so that a save
+     * of other values leaves an unset language unset (ADR-334 §7).
+     */
+    static String keyControl(ProfileKey key, String name, String id, String label, String value, String browse,
+            String after, boolean withNone) {
         String hintId = "hint-" + key.key();
         if (key == ProfileKey.DELIVERABLE_LANGUAGE) {
             List<String> options = value.isEmpty() || LANGUAGES.contains(value) ? LANGUAGES
                     : Stream.concat(LANGUAGES.stream(), Stream.of(value)).toList();
+            if (withNone) {
+                options = Stream.concat(Stream.of(""), options.stream()).toList();
+            }
             return choice(name, id, label, options, value, hintId, hintOf(key));
         }
         Field field = Field.of(name, label).id(id).value(value).example(key.example()).hint(hintId, hintOf(key));
@@ -477,8 +519,8 @@ final class ControlPanelPage {
 
     /** The two Docling images this build knows, each by its label (ADR-331 §7). */
     static String doclingImages() {
-        return "<datalist id=\"docling-images\"><option label=\"CPU\" value=\"" + escape(DOCLING_IMAGE_CPU)
-                + "\"><option label=\"GPU\" value=\"" + escape(DOCLING_IMAGE_GPU) + "\"></datalist>\n";
+        return "<datalist id=\"docling-images\"><option label=\"GPU\" value=\"" + escape(DOCLING_IMAGE_GPU)
+                + "\"><option label=\"CPU\" value=\"" + escape(DOCLING_IMAGE_CPU) + "\"></datalist>\n";
     }
 
     /** A submit button named {@code name}. */

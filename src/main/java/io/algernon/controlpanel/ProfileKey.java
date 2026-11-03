@@ -74,10 +74,13 @@ public enum ProfileKey {
             "The language the pages are written in, en or it."),
     CLUSTER_RESOLUTION("clusterResolution", Kind.NUMBER, Run.EMBEDDING_SCORING,
             "how finely the documents under each exemplar divide into groups", "2.5",
-            "How finely the documents under each exemplar divide into groups, a higher number making more, smaller ones.");
+            "How finely the documents under each exemplar divide into groups, a higher number making more, smaller ones."),
+    CODE_SET_FOLDERS("codeSetFolders", Kind.FOLDERS, Run.BYTE_LEVEL_REDUCTION,
+            "which folders outside the corpus root hold code that is read with the corpus", "D:\\code\\billing",
+            "The folders outside the corpus root whose code is read with the corpus, each kept as a code set of its own.");
 
     /** The type of a key's value, which is how the jar reads it. */
-    public enum Kind { TEXT, NUMBER, NAME_ENDINGS, LANGUAGES }
+    public enum Kind { TEXT, NUMBER, NAME_ENDINGS, LANGUAGES, FOLDERS }
 
     /** The runs a key can enter, in the cascade's order. */
     public enum Run {

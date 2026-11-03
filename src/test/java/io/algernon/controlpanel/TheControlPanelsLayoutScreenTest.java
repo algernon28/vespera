@@ -436,9 +436,14 @@ class TheControlPanelsLayoutScreenTest {
         }
     }
 
+    /**
+     * The converter running another image than Run would use is red, since extraction refuses it, and a model not served
+     * is amber (ADR-334 §2).
+     */
     @Test
     @Story("The operator starts an invocation from the control panel")
-    @DisplayName("The preflight shows the converter's and the model service's checks green where they hold and amber otherwise, nothing named included")
+    @DisplayName("The preflight shows the converter's and the model service's checks green where they hold and amber otherwise, nothing named included, and the converter red where it runs another image than Run would use")
+    @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
     void thePreflightShowsTheChecksOfTheSidecars() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
@@ -456,9 +461,10 @@ class TheControlPanelsLayoutScreenTest {
 
                 claim("with every check holding, every row of the preflight is green",
                         () -> assertThat(preflight(holds).values()).containsOnly("ok"));
-                claim("another image and a model not served are amber",
+                claim("another image than Run would use is red, extraction refusing such a converter, and a model not"
+                                + " served is amber",
                         () -> assertThat(List.of(preflight(differs).get("docling"), preflight(differs).get("ollama")))
-                                .containsExactly("warn", "warn"));
+                                .containsExactly("bad", "warn"));
                 claim("and so is each where nothing is named for it, which has not been checked",
                         () -> assertThat(List.of(preflight(nothingNamed).get("docling"),
                                         preflight(nothingNamed).get("ollama")))
@@ -496,12 +502,13 @@ class TheControlPanelsLayoutScreenTest {
     }
 
     /**
-     * The list and the one form it opens are written whole into one page, so that every read of {@code ProfileScreenTest}
-     * finds its form on {@code /profile}, and the style shows the one the address's fragment names (ADR-331 §4).
+     * The list and the one form of every value are written whole into one page, so that every read of
+     * {@code ProfileScreenTest} finds the form {@code profile} on {@code /profile}, and the style shows the section the
+     * address's fragment names (ADR-331 §4, ADR-334 §7).
      */
     @Test
     @Story("The operator writes a profile value")
-    @DisplayName("The profile page lists every value, each linked to the section holding its form, in the profile's order, and the style shows the section linked to")
+    @DisplayName("The profile page lists every value, each linked to its section of the one form, in the profile's order, and the style shows the section linked to")
     void theProfilePageListsEveryValueAndLinksToItsForm() throws IOException {
         List<String> keys = Arrays.stream(ProfileKey.values()).map(ProfileKey::key).toList();
         try (ScreenServer screens = aServer()) {
@@ -510,9 +517,15 @@ class TheControlPanelsLayoutScreenTest {
             claim("the list links each value's own section, in the profile's order",
                     () -> assertThat(byId(page, "profile-list").select("a").eachAttr("href"))
                             .containsExactlyElementsOf(keys.stream().map(key -> "#key-" + key).toList()));
-            claim("and each section holds that value's form",
-                    () -> assertThat(keys.stream().map(key -> byId(page, "key-" + key).select("form").eachAttr("name")))
-                            .containsExactlyElementsOf(keys.stream().map(key -> List.of(key)).toList()));
+            claim("the page holds one form, profile, and every value's section lies inside it, holding no form of its"
+                            + " own",
+                    () -> {
+                        assertThat(page.document().select("form[name=profile]")).hasSize(1);
+                        assertThat(keys.stream().map(key -> byId(page, "key-" + key).closest("form").attr("name")))
+                                .containsOnly("profile");
+                        assertThat(keys.stream().map(key -> byId(page, "key-" + key).select("form").size()))
+                                .containsOnly(0);
+                    });
             claim("the style shows a section through the address's fragment, with no script",
                     () -> assertThat(styleOf(page)).contains(":target"));
         }
@@ -526,8 +539,8 @@ class TheControlPanelsLayoutScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder,
                 ScreenServer.values(Files.createDirectories(folder.resolve("corpus")), workingDirectory))) {
             String key = ProfileKey.EXTRACTION_ATTEMPT.key();
-            Page landed = screens.browser().go("/profile").press(key, "save",
-                    Map.of("value", "2", "provenance", "the converter was busy on the first attempt")).page();
+            Page landed = screens.browser().go("/profile").press("profile", "save",
+                    Map.of(key, "2", key + ".provenance", "the converter was busy on the first attempt")).page();
 
             claim("the address lands on the profile page, at the section of the value saved",
                     () -> assertThat(List.of(landed.address().getPath(), String.valueOf(landed.address().getFragment())))
@@ -545,7 +558,7 @@ class TheControlPanelsLayoutScreenTest {
         pages.put("/", "Launch");
         pages.put("/invocation", "Invocation");
         pages.put("/next", "Next");
-        pages.put("/labels", "Questions");
+        pages.put("/labels", "Relevance");
         pages.put("/code-sets", "Code sets");
         pages.put("/profile", "Profile");
         return pages;

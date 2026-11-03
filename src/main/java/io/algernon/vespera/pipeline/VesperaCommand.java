@@ -4,6 +4,8 @@ import io.algernon.vespera.confluence.Publisher;
 import io.algernon.vespera.deliverable.DeliverableRoot;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.Runs;
+import io.algernon.vespera.corpus.CodeSetFolders;
+import io.algernon.vespera.profile.FoldersValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.TextValue;
@@ -256,6 +258,18 @@ public class VesperaCommand implements Callable<Integer> {
                         + " success.");
                 return CommandLine.ExitCode.USAGE;
             }
+            // A code set's folder outside the corpus root, after the corpus root is known and before the deliverable
+            // root's own checks (ADR-334 §5.1): one line, exit 1, nothing walked.
+            Optional<String> misplacedCodeSetFolder = CodeSetFolders.refusal(
+                    codeSetFolders(),
+                    corpusRoot,
+                    workingDirectoryInUse,
+                    seedFolder(),
+                    DeliverableRoot.of(deliverableRoot).folderOf(workingDirectoryInUse));
+            if (misplacedCodeSetFolder.isPresent()) {
+                System.err.println(misplacedCodeSetFolder.get());
+                return CommandLine.ExitCode.SOFTWARE;
+            }
             Optional<String> misplacedDeliverableRoot = DeliverableRoot.of(deliverableRoot)
                     .refusalAtTheStart(workingDirectoryInUse, corpusRoot, seedFolder());
             if (misplacedDeliverableRoot.isPresent()) {
@@ -326,7 +340,25 @@ public class VesperaCommand implements Callable<Integer> {
                 }
             }
             return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                    null, null, null, null);
+                    null, null, null, null, null);
+        }
+
+        /**
+         * The folders the profile's {@code codeSetFolders} names, in its order, where it names readable ones and the
+         * profile can be read. A profile that cannot be read is left to the job's own refusal of it, and a value that
+         * is unreadable reads none (ADR-120).
+         */
+        private List<Path> codeSetFolders() {
+            if (profileStore == null) {
+                return List.of();
+            }
+            try {
+                return profileStore.load().codeSetFolders().reading() instanceof FoldersValue.Answered answered
+                        ? answered.folders()
+                        : List.of();
+            } catch (RuntimeException unreadable) {
+                return List.of();
+            }
         }
 
         /**

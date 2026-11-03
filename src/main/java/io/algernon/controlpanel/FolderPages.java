@@ -32,8 +32,10 @@ final class FolderPages {
         DELIVERABLE_ROOT("vespera.deliverable-root", "launch", "vespera.deliverable-root", "/"),
         SEED_FOLDER("seedFolder", "seed-folder", "seedFolder", "/"),
         NEXT_SEED_FOLDER("next-seedFolder", "next", "seedFolder", "/next"),
-        PROFILE_SEED_FOLDER("profile-seedFolder", "seedFolder", "value", "/profile#key-seedFolder"),
-        NEW_FOLDER("new-folder", "code-sets", "new-folder", "/code-sets");
+        PROFILE_SEED_FOLDER("profile-seedFolder", "profile", "seedFolder", "/profile#key-seedFolder"),
+        NEW_FOLDER("new-folder", "code-sets", "new-folder", "/code-sets"),
+        CODE_SET_FOLDER("code-set-folder", "code-set-folders", "new-code-set-folder", "/code-sets"),
+        NOT_RELEVANT_FOLDER("not-relevant-folder", "not-relevant", "new-not-relevant-folder", "/labels");
 
         private final String forName;
         private final String form;
@@ -60,6 +62,11 @@ final class FolderPages {
         /** The name of the field's control in that form. */
         String field() {
             return field;
+        }
+
+        /** Whether the folder page lists from the corpus root down, by paths relative to it, and nowhere else. */
+        boolean fromTheCorpusRoot() {
+            return this == NEW_FOLDER || this == NOT_RELEVANT_FOLDER;
         }
 
         static Optional<Target> named(String forName) {
@@ -256,7 +263,7 @@ final class FolderPages {
         }
         Target target = named.get();
         String path = fields.getOrDefault("path", "");
-        if (target == Target.NEW_FOLDER) {
+        if (target.fromTheCorpusRoot()) {
             Under under = under(state.values().corpusRoot(), path);
             if (under.standing() != Standing.FOUND) {
                 state.say(target.back, switch (under.standing()) {
@@ -271,7 +278,7 @@ final class FolderPages {
             path = under.relative();
         }
         if (target.form.equals("launch")) {
-            LaunchValues held = state.values();
+            LaunchValues held = state.heldValues();
             state.hold(new LaunchValues(
                     target == Target.CORPUS_ROOT ? path : held.corpusRoot(),
                     target == Target.WORKING_DIRECTORY ? path : held.workingDirectory(),
@@ -286,7 +293,7 @@ final class FolderPages {
     private String page(Target target, String path) {
         StringBuilder body = new StringBuilder("<section class=\"card\">\n");
         String back = "<p><a id=\"folder-back\" href=\"" + ControlPanelPage.escape(target.back) + "\">Back</a></p>\n";
-        if (target == Target.NEW_FOLDER) {
+        if (target.fromTheCorpusRoot()) {
             codeSetListing(body, target, path);
         } else {
             listing(body, target, path);

@@ -53,9 +53,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The control panel as the editor of every value of {@code profile.yaml} (ADR-330, Part A): {@code /profile} keeps
- * ADR-331's list and its one form for each value, and each form shows the value in use and where it came from, what the
- * file states, a line saying what the key is, and the measurement's pointer; a save of one writes nothing where it is
- * unchanged; a file not in the jar's form is shown, and repaired where the repair can lose nothing; and a working
+ * ADR-331's list and is one form of every value (ADR-334 §7), each value's section showing the value in use and where it
+ * came from, what the file states, a line saying what the key is, and the measurement's pointer; a save writes nothing
+ * of a value left unchanged; a file not in the jar's form is shown, and repaired where the repair can lose nothing; and a working
  * directory that does not exist is made by the first save.
  *
  * <p>Driven through the pages as a browser reads them (ADR-297). What the jar says of a value is the file ADR-330 §1
@@ -230,7 +230,7 @@ class ProfileEditorScreenTest {
             claim("a value written by hand with no provenance is the profile's too",
                     () -> assertThat(inUse(page, "degenerateOutputConfidenceFloor")).containsExactly("0.3", "profile"));
 
-            Page saved = browser.press("relevanceScoreFloor", "save", Map.of()).page();
+            Page saved = browser.press("profile", "save", Map.of()).page();
             claim("and saving the floor as it stands is no refusal, the value being unchanged",
                     () -> assertThat(byId(saved, "outcome").text()).doesNotContain("is not saved"));
             claim("nor is anything written",
@@ -280,12 +280,12 @@ class ProfileEditorScreenTest {
 
             claim("the floor's field and its provenance hold what the file states",
                     () -> assertThat(List.of(valueOf(page, "relevanceScoreFloor").val(),
-                                    control(form(page, "relevanceScoreFloor"), "provenance").val()))
+                                    control(form(page, "profile"), "relevanceScoreFloor.provenance").val()))
                             .containsExactly("0.4", "read off the sample of sixty"));
             claim("the embedding model's field is empty, because pressing Save must not write into the profile a value"
                             + " nobody chose",
                     () -> assertThat(List.of(valueOf(page, "embeddingModel").val(),
-                                    control(form(page, "embeddingModel"), "provenance").val()))
+                                    control(form(page, "profile"), "embeddingModel.provenance").val()))
                             .containsExactly("", ""));
             claim("and its placeholder stays an example, not what the jar ships",
                     () -> assertThat(valueOf(page, "embeddingModel").attr("placeholder")).startsWith("e.g. "));
@@ -377,8 +377,8 @@ class ProfileEditorScreenTest {
                     () -> assertThat(valueOf(page, "deliverableLanguage").select("option[selected]").eachAttr("value"))
                             .containsExactly("fr"));
 
-            browser.press("relevanceScoreFloor", "save", Map.of());
-            browser.go("/profile").press("deliverableLanguage", "save", Map.of());
+            browser.press("profile", "save", Map.of());
+            browser.go("/profile").press("profile", "save", Map.of());
             claim("and saving each untouched leaves the file as it was: an unreadable value is the operator's to fix",
                     () -> assertThat(profileText(work)).isEqualTo(before));
         }
@@ -403,12 +403,12 @@ class ProfileEditorScreenTest {
             claim("the field holds the list as the file states it",
                     () -> assertThat(valueOf(browser.page(), "preferredLanguages").val()).isEqualTo("it, en"));
 
-            browser.press("preferredLanguages", "save", Map.of("value", "it en"));
+            browser.press("profile", "save", Map.of("preferredLanguages", "it en"));
             claim("sent back with a space, the same pieces are no change, so a comma in the file is not rewritten",
                     () -> assertThat(profileText(work)).isEqualTo(before));
 
-            browser.go("/profile").press("preferredLanguages", "save", Map.of("value", "it en fr",
-                    "provenance", "and French for the Paris office"));
+            browser.go("/profile").press("profile", "save", Map.of("preferredLanguages", "it en fr",
+                    "preferredLanguages.provenance", "and French for the Paris office"));
             claim("a piece added is written, with what was typed",
                     () -> assertThat(ProfileEdit.read(profileText(work)).get(ProfileKey.PREFERRED_LANGUAGES))
                             .isEqualTo(new ProfileEdit.Stated("it en fr", "and French for the Paris office")));
@@ -519,7 +519,7 @@ class ProfileEditorScreenTest {
         theProfileIs(work, TWO_KEYS);
         try (ScreenServer screens = start(work)) {
             PanelBrowser browser = screens.browser().go("/profile");
-            Page landed = browser.press("extractionAttempt", "save", Map.of()).page();
+            Page landed = browser.press("profile", "save", Map.of()).page();
 
             claim("saving it as it stands lands on the page and says so",
                     () -> assertThat(byId(landed, "outcome").text()).isNotBlank().doesNotContain("is not saved"));
@@ -528,8 +528,8 @@ class ProfileEditorScreenTest {
             claim("and not even the holder line of a lock it had no need of is written",
                     () -> assertThat(work.resolve("vespera.lock")).doesNotExist());
 
-            browser.go("/profile").press("extractionAttempt", "save", Map.of("value", "3",
-                    "provenance", "a third attempt"));
+            browser.go("/profile").press("profile", "save", Map.of("extractionAttempt", "3",
+                    "extractionAttempt.provenance", "a third attempt"));
             claim("saving it changed writes it, every other byte as it was",
                     () -> assertThat(profileText(work)).isEqualTo(TWO_KEYS
                             .replace("value: \"2\"", "value: \"3\"")
@@ -545,7 +545,7 @@ class ProfileEditorScreenTest {
         theProfileIs(work, TWO_KEYS);
         try (ScreenServer screens = start(work)) {
             PanelBrowser browser = screens.browser().go("/profile");
-            Page kept = browser.press("relevanceScoreFloor", "save", Map.of("value", "0.5")).page();
+            Page kept = browser.press("profile", "save", Map.of("relevanceScoreFloor", "0.5")).page();
 
             claim("the floor's old provenance says nothing of the new value, and the outcome says why it was not saved",
                     () -> assertThat(byId(kept, "outcome").text()).contains(THE_OLD_REASON));
@@ -555,12 +555,12 @@ class ProfileEditorScreenTest {
                     () -> assertThat(valueOf(kept, "relevanceScoreFloor").val()).isEqualTo("0.5"));
             claim("and on the next page too, until it is written",
                     () -> assertThat(valueOf(browser.go("/profile").page(), "relevanceScoreFloor").val()).isEqualTo("0.5"));
-            Page letGo = browser.press("relevanceScoreFloor", "save", Map.of("value", "0.4")).page();
+            Page letGo = browser.press("profile", "save", Map.of("relevanceScoreFloor", "0.4")).page();
             claim("typed back to what the file states, nothing is written and the field holds it",
                     () -> assertThat(List.of(profileText(work), valueOf(letGo, "relevanceScoreFloor").val()))
                             .containsExactly(TWO_KEYS, "0.4"));
 
-            Page none = browser.go("/profile").press("clusterPageByteCeiling", "save", Map.of("value", "1000000")).page();
+            Page none = browser.go("/profile").press("profile", "save", Map.of("clusterPageByteCeiling", "1000000")).page();
             claim("a value the file does not hold, given with no provenance, says it was not saved",
                     () -> assertThat(byId(none, "outcome").text()).contains("clusterPageByteCeiling is not saved"));
             claim("and is not written either",
@@ -579,7 +579,7 @@ class ProfileEditorScreenTest {
         try (ScreenServer screens = start(work)) {
             PanelBrowser browser = screens.browser().go("/profile");
             theProfileIs(work, behindThePage);
-            browser.press("relevanceScoreFloor", "save", Map.of());
+            browser.press("profile", "save", Map.of());
 
             claim("the floor saved behind the page, which the form still holds as it was, is kept",
                     () -> assertThat(profileText(work)).isEqualTo(behindThePage));
@@ -587,8 +587,8 @@ class ProfileEditorScreenTest {
             browser.go("/profile");
             String behindAgain = behindThePage.replace("value: \"0.6\"", "value: \"0.7\"");
             theProfileIs(work, behindAgain);
-            Page refused = browser.press("relevanceScoreFloor", "save", Map.of("value", "0.8",
-                    "provenance", "my own reading")).page();
+            Page refused = browser.press("profile", "save", Map.of("relevanceScoreFloor", "0.8",
+                    "relevanceScoreFloor.provenance", "my own reading")).page();
 
             claim("typed over, the outcome says the file moved",
                     () -> assertThat(byId(refused, "outcome").text()).contains(THE_FILE_MOVED));
@@ -612,7 +612,7 @@ class ProfileEditorScreenTest {
         theProfileIs(work, profile);
         try (ScreenServer screens = start(work)) {
             // What a browser sends of a text field: it removes a line feed from what the field holds.
-            screens.browser().go("/profile").press("relevanceScoreFloor", "save", Map.of("provenance", "read offthe sample"));
+            screens.browser().go("/profile").press("profile", "save", Map.of("relevanceScoreFloor.provenance", "read offthe sample"));
 
             claim("the file is as it was",
                     () -> assertThat(profileText(work)).isEqualTo(profile));
@@ -638,7 +638,7 @@ class ProfileEditorScreenTest {
             claim("the field holds the space, another folder's name without it",
                     () -> assertThat(valueOf(browser.page(), "seedFolder").val()).isEqualTo(" exemplars"));
 
-            browser.press("seedFolder", "save", Map.of());
+            browser.press("profile", "save", Map.of());
             claim("and the file is as it was, though no such folder is there to pass a check",
                     () -> assertThat(profileText(work)).isEqualTo(profile));
         }
@@ -655,8 +655,8 @@ class ProfileEditorScreenTest {
                         StandardOpenOption.WRITE)) {
             channel.write(ByteBuffer.wrap("pid=1 started=2026-10-19T10:00:00+02:00 command=run\n".getBytes(UTF_8)));
             FileLock held = channel.tryLock(Long.MAX_VALUE - 1, 1, false);
-            Page landed = screens.browser().go("/profile").press("extractionAttempt", "save", Map.of("value", "3",
-                    "provenance", "a third attempt")).page();
+            Page landed = screens.browser().go("/profile").press("profile", "save", Map.of("extractionAttempt", "3",
+                    "extractionAttempt.provenance", "a third attempt")).page();
             held.release();
 
             claim("nothing is written",
@@ -690,7 +690,7 @@ class ProfileEditorScreenTest {
                     () -> assertThat(byId(problem, "repair-changes").select("li").eachAttr("data-line"))
                             .containsExactlyElementsOf(THE_LINES_ITS_CHANGES_START_ON));
             claim("and holds no form of a value, which could not be saved",
-                    () -> assertThat(problem.document().select("form[name=relevanceScoreFloor]")).isEmpty());
+                    () -> assertThat(problem.document().select("form[name=profile]")).isEmpty());
             claim("nor the list that would lead to one",
                     () -> assertThat(problem.document().select("#profile-list")).isEmpty());
             claim("nothing was written by showing it",
@@ -706,7 +706,7 @@ class ProfileEditorScreenTest {
                     () -> assertThat(aRepairsCopies(work)).singleElement()
                             .satisfies(copy -> assertThat(Files.readString(copy, UTF_8)).isEqualTo(NOT_IN_FORM_BUT_CERTAIN)));
             claim("the page now holds the form of a value, and no problem",
-                    () -> assertThat(List.of(repaired.document().select("form[name=relevanceScoreFloor]").size(),
+                    () -> assertThat(List.of(repaired.document().select("form[name=profile]").size(),
                                     repaired.document().select("#form-problem").size()))
                             .containsExactly(1, 0));
         }
@@ -897,7 +897,7 @@ class ProfileEditorScreenTest {
         Path work = folder.resolve("not-yet").resolve("work");
         try (ScreenServer screens = start(work)) {
             PanelBrowser browser = screens.browser().go("/profile");
-            browser.press("extractionAttempt", "save", Map.of("value", "2", "provenance", "a second attempt"));
+            browser.press("profile", "save", Map.of("extractionAttempt", "2", "extractionAttempt.provenance", "a second attempt"));
 
             claim("the file holds only the value saved, the jar adding the rest as unset at its next load",
                     () -> assertThat(profileText(work)).isEqualTo("""
@@ -908,7 +908,7 @@ class ProfileEditorScreenTest {
                               measurement: null
                             """));
 
-            browser.go("/profile").press("extractionAttempt", "save", Map.of("value", "3", "provenance", "a third attempt"));
+            browser.go("/profile").press("profile", "save", Map.of("extractionAttempt", "3", "extractionAttempt.provenance", "a third attempt"));
             claim("and the owner goes on writing there, one file moved over another",
                     () -> assertThat(ProfileEdit.read(profileText(work)).get(ProfileKey.EXTRACTION_ATTEMPT))
                             .isEqualTo(new ProfileEdit.Stated("3", "a third attempt")));
@@ -961,8 +961,8 @@ class ProfileEditorScreenTest {
             claim("opening the page writes nothing",
                     () -> assertThat(folder.resolve("not-yet")).doesNotExist());
 
-            Page refused = browser.press("extractionAttempt", "save", Map.of("value", "not a number",
-                    "provenance", "a second attempt")).page();
+            Page refused = browser.press("profile", "save", Map.of("extractionAttempt", "not a number",
+                    "extractionAttempt.provenance", "a second attempt")).page();
             claim("nor does a refused value",
                     () -> assertThat(folder.resolve("not-yet")).doesNotExist());
             claim("and the page shows the form again with what was typed",
@@ -1018,7 +1018,7 @@ class ProfileEditorScreenTest {
             claim("and starting made nothing",
                     () -> assertThat(folder.resolve("not-yet")).doesNotExist());
 
-            browser.go("/profile").press("extractionAttempt", "save", Map.of("value", "2", "provenance", "a second attempt"));
+            browser.go("/profile").press("profile", "save", Map.of("extractionAttempt", "2", "extractionAttempt.provenance", "a second attempt"));
             Page after = browser.go("/").page();
             claim("once a value is saved, the folder is found",
                     () -> assertThat(byId(after, "status-vespera.working-dir").attr("data-status")).isEqualTo("found"));
@@ -1064,9 +1064,9 @@ class ProfileEditorScreenTest {
         return List.of(inUse.attr("data-value"), inUse.attr("data-source"));
     }
 
-    /** The control of the value in the form of {@code key}. */
+    /** The control of {@code key}'s value in the profile's one form (ADR-334 §7). */
     private static Element valueOf(Page page, String key) {
-        return control(form(page, key), "value");
+        return control(form(page, "profile"), key);
     }
 
     /** The one control of {@code form} named {@code name}; a test fails naming it where there is not one. */

@@ -108,10 +108,31 @@ public class WalkRecorder {
      * @throws ExcludesNothingViolationException if a finished walk cannot account for every entry it met
      */
     public WalkId walk(Path root) throws IOException {
+        return walk(root, List.of());
+    }
+
+    /**
+     * Walks {@code root}, then each of {@code folders} in order, under the one walk id of {@code root}, persisting
+     * everything they hold (ADR-334 section 5.3). The walk row's root stays the corpus root; the folders are recorded
+     * with the walk. An unfinished walk is continued with the folders it recorded when it started, whatever
+     * {@code folders} now says (ADR-055).
+     *
+     * @param folders the folders outside the corpus root a walk also reads, in the order it reads them
+     * @throws CheckpointMismatchException if a resumed walk finds a tree that no longer matches its checkpoint
+     * @throws ExcludesNothingViolationException if a finished walk cannot account for every entry it met
+     */
+    public WalkId walk(Path root, List<Path> folders) throws IOException {
         Path canonical = Walk.canonicalRoot(root);
         Optional<ResumableWalk> unfinished = ledger.walks().unfinishedWalk(canonical);
 
-        WalkId walkId = unfinished.map(ResumableWalk::walkId).orElseGet(() -> ledger.walks().startWalk(canonical));
+        List<Path> toRead = unfinished.isPresent()
+                ? ledger.walks().foldersOf(unfinished.get().walkId())
+                : folders.stream().map(Walk::canonicalRoot).toList();
+        WalkId walkId = unfinished
+                .map(ResumableWalk::walkId)
+                .orElseGet(() -> toRead.isEmpty()
+                        ? ledger.walks().startWalk(canonical)
+                        : transactions.execute(status -> ledger.walks().startWalk(canonical, toRead)));
         Optional<Checkpoint> resumeFrom =
                 unfinished.flatMap(walk -> Checkpoint.of(walk.checkpointOrdinals(), walk.checkpointPath()));
         WalkCounts alreadyCounted = unfinished.map(ResumableWalk::counts).orElse(new WalkCounts(0, 0));
@@ -121,17 +142,39 @@ public class WalkRecorder {
         }
 
         Session session = new Session(walkId, alreadyCounted);
-        Walk.Outcome outcome = traversal.traverse(canonical, session, resumeFrom.orElse(null));
-
-        if (!outcome.finished()) {
-            // Everything since the last checkpoint is dropped, which is what leaves the database at
-            // a point the next session can resume from. The walk stays unfinished, and therefore
-            // ineligible as run input, until a later session finishes it.
-            log.warn("Walk {} of {} did not finish and will be resumed: {}", walkId.value(), canonical, outcome.stoppedBecause());
-            return walkId;
+        Checkpoint resume = resumeFrom.orElse(null);
+        if (resume == null || resume.folder() == 0) {
+            Walk.Outcome outcome = traversal.traverse(canonical, session, resume);
+            if (!outcome.finished()) {
+                // Everything since the last checkpoint is dropped, which is what leaves the database at
+                // a point the next session can resume from. The walk stays unfinished, and therefore
+                // ineligible as run input, until a later session finishes it.
+                log.warn("Walk {} of {} did not finish and will be resumed: {}", walkId.value(), canonical,
+                        outcome.stoppedBecause());
+                return walkId;
+            }
+            session.completed(outcome.progress());
+        }
+        for (int i = 0; i < toRead.size(); i++) {
+            int ordinal = i + 1;
+            if (resume != null && resume.folder() > ordinal) {
+                continue;
+            }
+            Path folder = toRead.get(i);
+            Walk.Outcome outcome = Walk.walk(
+                    folder,
+                    session,
+                    resume != null && resume.folder() == ordinal ? resume : null,
+                    new Walk.Folder(ordinal, Walk.spellingOf(folder)));
+            if (!outcome.finished()) {
+                log.warn("Walk {} of {} did not finish in the folder {} and will be resumed: {}", walkId.value(),
+                        canonical, folder, outcome.stoppedBecause());
+                return walkId;
+            }
+            session.completed(outcome.progress());
         }
 
-        session.finish(outcome.progress());
+        session.finish();
         reconcile(walkId);
         return discardIfNothingNewWasSeen(canonical, walkId);
     }
@@ -183,7 +226,8 @@ public class WalkRecorder {
      * statements drift apart.
      */
     private boolean sawTheSameThing(WalkId earlier, WalkId later) {
-        return ledger.occurrences().sameOccurrences(earlier, later)
+        return ledger.walks().foldersOf(earlier).equals(ledger.walks().foldersOf(later))
+                && ledger.occurrences().sameOccurrences(earlier, later)
                 && anomalyLog.sameAnomalies(earlier, later)
                 && ledger.walks().countsFor(earlier).directoriesEntered()
                         == ledger.walks().countsFor(later).directoriesEntered();
@@ -229,6 +273,11 @@ public class WalkRecorder {
         /** Entries this session had walked when it last committed, so the cadence covers empty ground. */
         private long entriesAtLastCommit;
 
+        /** What this session's walks that have finished counted: the corpus root's, then each folder's so far. */
+        private long completedEntries;
+
+        private long completedDirectories;
+
         private Session(WalkId walkId, WalkCounts alreadyCounted) {
             this.walkId = walkId;
             this.alreadyCounted = alreadyCounted;
@@ -254,14 +303,15 @@ public class WalkRecorder {
          */
         @Override
         public void checkpoint(Checkpoint at, Walk.Progress progress) {
-            if (progress.entriesSeen() - entriesAtLastCommit < commitInterval) {
+            long entriesThisSession = completedEntries + progress.entriesSeen();
+            if (entriesThisSession - entriesAtLastCommit < commitInterval) {
                 return;
             }
             transactions.executeWithoutResult(status -> {
                 writeBuffered();
                 ledger.walks().recordProgress(walkId, at.encodedOrdinals(), at.pathRendering(), cumulative(progress));
             });
-            entriesAtLastCommit = progress.entriesSeen();
+            entriesAtLastCommit = entriesThisSession;
         }
 
         /**
@@ -289,15 +339,22 @@ public class WalkRecorder {
                     walkId.value());
         }
 
-        private void finish(Walk.Progress progress) {
+        /** Takes in what one finished walk of this session, of the corpus root or of a folder, counted. */
+        private void completed(Walk.Progress progress) {
+            completedEntries += progress.entriesSeen();
+            completedDirectories += progress.directoriesEntered();
+        }
+
+        private void finish() {
+            Walk.Progress none = new Walk.Progress(0, 0, 0, 0);
             transactions.executeWithoutResult(status -> {
                 writeBuffered();
-                ledger.walks().finishWalk(walkId, cumulative(progress));
+                ledger.walks().finishWalk(walkId, cumulative(none));
             });
 
             // The walk's end line carries the counts the progress lines were building towards
             // (ADR-093), and is the only progress line a walk of fewer than 1,000 entries writes.
-            WalkCounts counts = cumulative(progress);
+            WalkCounts counts = cumulative(none);
             log.info(
                     "Stage 0 (census): walk {} finished — {} entries walked, {} directories entered",
                     walkId.value(),
@@ -305,11 +362,14 @@ public class WalkRecorder {
                     String.format(Locale.ROOT, "%,d", counts.directoriesEntered()));
         }
 
-        /** This session's counts added to what earlier sessions of the same walk already recorded. */
+        /**
+         * This session's counts, those of its finished walks and of the one under way, added to what earlier
+         * sessions of the same walk already recorded.
+         */
         private WalkCounts cumulative(Walk.Progress progress) {
             return new WalkCounts(
-                    alreadyCounted.entriesSeen() + progress.entriesSeen(),
-                    alreadyCounted.directoriesEntered() + progress.directoriesEntered());
+                    alreadyCounted.entriesSeen() + completedEntries + progress.entriesSeen(),
+                    alreadyCounted.directoriesEntered() + completedDirectories + progress.directoriesEntered());
         }
 
         private void writeBuffered() {

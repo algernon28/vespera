@@ -19,6 +19,7 @@ import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
+import io.algernon.vespera.profile.FoldersValue;
 import io.algernon.vespera.profile.LanguagesValue;
 import io.algernon.vespera.profile.Measurement;
 import io.algernon.vespera.profile.NameEndingsValue;
@@ -87,7 +88,8 @@ class TheJarReadsWhatTheControlPanelWritesTest {
                 TextValue.class, ProfileKey.Kind.TEXT,
                 NumericValue.class, ProfileKey.Kind.NUMBER,
                 NameEndingsValue.class, ProfileKey.Kind.NAME_ENDINGS,
-                LanguagesValue.class, ProfileKey.Kind.LANGUAGES);
+                LanguagesValue.class, ProfileKey.Kind.LANGUAGES,
+                FoldersValue.class, ProfileKey.Kind.FOLDERS);
 
         claim("the control panel's keys are the profile's components, in the profile's order",
                 () -> assertThat(Arrays.stream(ProfileKey.values()).map(ProfileKey::key).toList())
@@ -110,7 +112,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
     void everyValueTheControlPanelSavesIsReadAsAnsweredAndEqual(@TempDir Path temp) throws IOException {
         Path seeds = Files.createDirectory(temp.resolve("seeds"));
         Path workingDirectory = Files.createDirectory(temp.resolve("work"));
-        Map<ProfileKey, List<String>> accepted = acceptedSamples(seeds);
+        Map<ProfileKey, List<String>> accepted = acceptedSamples(seeds, workingDirectory);
         claim("there are samples for every key of the table",
                 () -> assertThat(accepted.keySet()).containsExactlyInAnyOrder(ProfileKey.values()));
 
@@ -167,6 +169,9 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         refused.put(ProfileKey.ARRANGEMENT_APPROVED, List.of("0123456789AB"));
         refused.put(ProfileKey.SEED_FOLDER, List.of(temp.resolve("absent").toString(), aFile.toString()));
         refused.put(ProfileKey.CLUSTER_RESOLUTION, List.of("0", "-1", "-0.5", "NaN", "Infinity", "fine", "0,5"));
+        // ADR-334 §5.1: a piece that is not an absolute path makes the whole list unreadable.
+        refused.put(ProfileKey.CODE_SET_FOLDERS,
+                List.of("code/billing", temp.toAbsolutePath() + java.io.File.pathSeparator + "code/billing"));
 
         ProfileStore store = new ProfileStore(workingDirectory);
         for (Map.Entry<ProfileKey, List<String>> samples : refused.entrySet()) {
@@ -290,13 +295,18 @@ class TheJarReadsWhatTheControlPanelWritesTest {
     @Story("The jar reads what the control panel writes")
     @DisplayName("The jar's reader of code-set names reads the list the control panel writes, and refuses each list the control panel refuses")
     void codeSetNamesReadsTheListTheControlPanelWrites() {
+        // ADR-334 §5.5: a set below a code set folder outside the corpus root is named by that folder spelt absolute,
+        // beginning with /, with a drive letter, a colon and /, or with //; /shop is such a folder on POSIX.
         List<Rename> renames = List.of(new Rename("shop/core", "Shop \"core\" \\ ł"), new Rename("", "Archive"),
-                new Rename("lib", "Libraries"));
+                new Rename("lib", "Libraries"), new Rename("/shop", "Shop at the top"),
+                new Rename("D:/code/billing", "Billing"), new Rename("//server/share/billing", "Shared billing"));
         List<List<Rename>> refusedLists = List.of(
                 List.of(new Rename("lib", "One"), new Rename("lib", "Two")),
                 List.of(new Rename("lib", " ")),
                 List.of(new Rename("shop\\core", "Shop")),
-                List.of(new Rename("/shop", "Shop")),
+                List.of(new Rename("D:\\code\\billing", "Billing")),
+                List.of(new Rename("/shop//core", "Shop")),
+                List.of(new Rename("D:/code/billing/", "Billing")),
                 List.of(new Rename("shop/", "Shop")),
                 List.of(new Rename("shop//core", "Shop")));
 
@@ -360,8 +370,11 @@ class TheJarReadsWhatTheControlPanelWritesTest {
                 () -> assertThat(tryInASecondProcess(workingDirectory)).isEqualTo(TriesTheWorkingDirectory.HELD));
     }
 
-    /** The samples §4 saves for each key; the seed folder is a folder that exists. */
-    private static Map<ProfileKey, List<String>> acceptedSamples(Path seeds) {
+    /**
+     * The samples §4 saves for each key; the seed folder is a folder that exists, and the code set folders are one
+     * absolute folder or two, joined by the system's path separator as the control panel joins them (ADR-334 §5.1).
+     */
+    private static Map<ProfileKey, List<String>> acceptedSamples(Path seeds, Path elsewhere) {
         Map<ProfileKey, List<String>> samples = new LinkedHashMap<>();
         samples.put(ProfileKey.SEED_FOLDER, List.of(seeds.toString(), seeds + " "));
         samples.put(ProfileKey.DEGENERATE_OUTPUT_CONFIDENCE_FLOOR, List.of("0.4", "0"));
@@ -382,6 +395,9 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         samples.put(ProfileKey.CONFIGURATION_SETTING_SHARE_FLOOR, List.of("0.7"));
         samples.put(ProfileKey.DELIVERABLE_LANGUAGE, List.of("it", "EN", " it "));
         samples.put(ProfileKey.CLUSTER_RESOLUTION, List.of("2.5", "1.0", "0.0001", " 0.5 ", "1e3"));
+        samples.put(ProfileKey.CODE_SET_FOLDERS, List.of(seeds.toAbsolutePath().toString(),
+                " " + elsewhere.toAbsolutePath() + " ",
+                seeds.toAbsolutePath() + java.io.File.pathSeparator + elsewhere.toAbsolutePath()));
         return samples;
     }
 
@@ -426,6 +442,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
             case CODE_NAME_ENDINGS, OUT_OF_SCOPE_NAME_ENDINGS ->
                     ((NameEndingsValue) loaded).reading() instanceof NameEndingsValue.Answered;
             case PREFERRED_LANGUAGES -> ((LanguagesValue) loaded).reading() instanceof LanguagesValue.Answered;
+            case CODE_SET_FOLDERS -> ((FoldersValue) loaded).reading() instanceof FoldersValue.Answered;
             case DELIVERABLE_LANGUAGE -> {
                 try {
                     new LanguageOfTheDeliverable(store).language();
@@ -472,6 +489,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
             case NUMBER -> new NumericValue(value, provenance, measurement);
             case NAME_ENDINGS -> new NameEndingsValue(value, provenance, measurement);
             case LANGUAGES -> new LanguagesValue(value, provenance, measurement);
+            case FOLDERS -> new FoldersValue(value, provenance, measurement);
         };
     }
 

@@ -519,7 +519,8 @@ class FolderFieldStatusScreenTest {
             PanelBrowser browser = screens.browser();
             byte[] keptBefore = Files.readAllBytes(launchValues());
             pressed(browser, "launch", "check", Map.of(CORPUS_ROOT, A_PATH_NO_SYSTEM_CAN_HOLD));
-            Page landed = browser.go("/labels").press("labels", "save-then-label", Map.of("relevant-1", "true")).page();
+            // ADR-334 §6: the questions are answered by the list of folders not relevant, saved by the form not-relevant.
+            Page landed = browser.go("/labels").press("not-relevant", "save-then-label", Map.of()).page();
 
             claimTheStartWasRefused("Label", "/labels", landed, "none", browser, keptBefore);
         }
@@ -574,8 +575,8 @@ class FolderFieldStatusScreenTest {
 
             Page afterTheLaunchPagesSave = browser.press("seed-folder", "save",
                     Map.of("seedFolder", seeds, "provenance", "a reason")).page();
-            Page afterTheProfilePagesSave = browser.go("/profile").press("seedFolder", "save",
-                    Map.of("value", seeds, "provenance", "a reason")).page();
+            Page afterTheProfilePagesSave = browser.go("/profile").press("profile", "save",
+                    Map.of("seedFolder", seeds, "seedFolder.provenance", "a reason")).page();
 
             claim("each save lands back on its page, with its one line",
                     () -> assertThat(List.of(afterTheLaunchPagesSave, afterTheProfilePagesSave))

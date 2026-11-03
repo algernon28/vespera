@@ -3,6 +3,7 @@ package io.algernon.vespera.ledger;
 import java.nio.file.Path;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -57,6 +58,30 @@ public class Walks {
             throw new IllegalStateException("Insert into walk generated no key for root " + root);
         }
         return new WalkId(key.longValue());
+    }
+
+    /**
+     * Mints the identity of a walk of {@code root} that also reads {@code folders}, in that order, and records them
+     * with it (ADR-334 section 5.3): each folder's real path under its ordinal from 1, the corpus root being 0.
+     */
+    public WalkId startWalk(Path root, List<Path> folders) {
+        WalkId walkId = startWalk(root);
+        for (int i = 0; i < folders.size(); i++) {
+            jdbcTemplate.update(
+                    "INSERT INTO walk_folder (walk_id, ordinal, folder) VALUES (?, ?, ?)",
+                    walkId.value(),
+                    i + 1,
+                    folders.get(i).toString());
+        }
+        return walkId;
+    }
+
+    /** The folders {@code walkId} reads besides its root, in the order it reads them; none for an ordinary walk. */
+    public List<Path> foldersOf(WalkId walkId) {
+        return jdbcTemplate.query(
+                "SELECT folder FROM walk_folder WHERE walk_id = ? ORDER BY ordinal",
+                (resultSet, rowNumber) -> Path.of(resultSet.getString("folder")),
+                walkId.value());
     }
 
     /**
@@ -153,6 +178,7 @@ public class Walks {
      */
     public void discardWalk(WalkId walkId) {
         jdbcTemplate.update("DELETE FROM file_occurrence WHERE walk_id = ?", walkId.value());
+        jdbcTemplate.update("DELETE FROM walk_folder WHERE walk_id = ?", walkId.value());
         jdbcTemplate.update("DELETE FROM walk WHERE id = ?", walkId.value());
     }
 }

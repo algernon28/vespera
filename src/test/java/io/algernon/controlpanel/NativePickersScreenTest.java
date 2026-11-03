@@ -153,8 +153,8 @@ class NativePickersScreenTest {
 
             claim("on the profile page, each names the list, and the list holds the models",
                     () -> {
-                        assertThat(List.of(form(profile, "embeddingModel").select("[name=value]").attr("list"),
-                                        form(profile, "generationModel").select("[name=value]").attr("list")))
+                        assertThat(List.of(form(profile, "profile").select("[name=embeddingModel]").attr("list"),
+                                        form(profile, "profile").select("[name=generationModel]").attr("list")))
                                 .containsOnly(MODELS_LIST);
                         assertThat(byId(profile, MODELS_LIST).select("option").eachAttr("value"))
                                 .containsExactlyElementsOf(MODELS);
@@ -189,17 +189,17 @@ class NativePickersScreenTest {
             claim("the field names the list of images",
                     () -> assertThat(form(page, "launch").select("[name='vespera.docling.image']").attr("list"))
                             .isEqualTo("docling-images"));
-            claim("the list offers the processor image and then the GPU image, each labelled and each whole, as the"
-                            + " files that run them name them",
+            claim("the list offers the GPU image and then the processor image, each labelled and each whole, as the"
+                            + " files that run them name them, the GPU image first since the control panel preselects it",
                     () -> assertThat(byId(page, "docling-images").select("option"))
                             .extracting(option -> option.attr("label"), option -> option.attr("value"))
-                            .containsExactly(tuple("CPU", cpu), tuple("GPU", gpu)));
+                            .containsExactly(tuple("GPU", gpu), tuple("CPU", cpu)));
         }
     }
 
     @Test
     @Story("The operator writes a profile value")
-    @DisplayName("The deliverable's language is a choice of en and it on both pages, the value the profile holds chosen")
+    @DisplayName("The deliverable's language is a choice of en and it on both pages, the value the profile holds chosen, and on the profile page a choice of none while it holds none")
     void theDeliverablesLanguageIsASelectOfTheTwoLanguages() throws IOException, InterruptedException {
         Path workingDirectory = wantingEveryKey(folder);
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
@@ -208,11 +208,14 @@ class NativePickersScreenTest {
             PanelBrowser browser = screens.browser().go("/profile");
             Page unset = browser.page();
 
-            claim("the profile page's control is a select of en and it, and of nothing else",
-                    () -> assertThat(form(unset, languageKey).select("select[name=value] option").eachAttr("value"))
-                            .containsExactly("en", "it"));
+            claim("the profile page's control, while the profile states no language, is a select of none, en and it,"
+                            + " and of nothing else",
+                    () -> assertThat(form(unset, "profile").select("select[name=" + languageKey + "] option")
+                                    .eachAttr("value"))
+                            .containsExactly("", "en", "it"));
 
-            Page landed = browser.press(languageKey, "save", Map.of("value", "it", "provenance", "the readers read it"))
+            Page landed = browser.press("profile", "save",
+                            Map.of(languageKey, "it", languageKey + ".provenance", "the readers read it"))
                     .page();
 
             claim("choosing one writes it into the profile",
@@ -220,7 +223,7 @@ class NativePickersScreenTest {
                                     StandardCharsets.UTF_8)).get(ProfileKey.DELIVERABLE_LANGUAGE).value())
                             .isEqualTo("it"));
             claim("and the page then shows the value held as the one chosen",
-                    () -> assertThat(form(landed, languageKey).select("select[name=value] option[selected]")
+                    () -> assertThat(form(landed, "profile").select("select[name=" + languageKey + "] option[selected]")
                             .eachAttr("value")).containsExactly("it"));
 
             Page next = screens.afterARunHasEnded().go("/next").page();
@@ -242,7 +245,7 @@ class NativePickersScreenTest {
         String approvalKey = ProfileKey.ARRANGEMENT_APPROVED.key();
         Page profile = pagesWantingEveryKey.get("/profile");
         Page next = pagesWantingEveryKey.get("/next");
-        Element onTheProfile = form(profile, approvalKey).select("[name=value]").first();
+        Element onTheProfile = form(profile, "profile").select("[name=" + approvalKey + "]").first();
         Element onTheNext = form(next, "next").select("[name=" + approvalKey + "]").first();
 
         claim("the field names a list on both pages",
@@ -271,7 +274,7 @@ class NativePickersScreenTest {
         Map<String, List<String>> expected = new LinkedHashMap<>();
         for (ProfileKey key : ProfileKey.values()) {
             if (key != ProfileKey.DELIVERABLE_LANGUAGE) {
-                Element control = form(page, key.key()).select("[name=value]").first();
+                Element control = form(page, "profile").select("[name=" + key.key() + "]").first();
                 shapes.put(key.key(), List.of(control.attr("type"), control.attr("step"), control.attr("min"),
                         control.attr("max")));
                 expected.put(key.key(), key.kind() == ProfileKey.Kind.NUMBER ? List.of("number", "any", "", "")
@@ -297,8 +300,8 @@ class NativePickersScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(
                 Files.createDirectories(folder.resolve("corpus")), workingDirectory))) {
             String key = ProfileKey.RELEVANCE_SCORE_FLOOR.key();
-            Page landed = screens.browser().go("/profile").press(key, "save",
-                    Map.of("value", "not a number", "provenance", "a reason")).page();
+            Page landed = screens.browser().go("/profile").press("profile", "save",
+                    Map.of(key, "not a number", key + ".provenance", "a reason")).page();
 
             claim("the page says the value is refused",
                     () -> assertThat(byId(landed, "outcome").text()).contains(key + " is not saved"));
@@ -317,7 +320,7 @@ class NativePickersScreenTest {
         Map<String, List<String>> onTheProfile = new LinkedHashMap<>();
         Map<String, List<String>> onTheNext = new LinkedHashMap<>();
         for (ProfileKey key : ProfileKey.values()) {
-            onTheProfile.put(key.key(), shapeOf(form(profile, key.key()).select("[name=value]").first()));
+            onTheProfile.put(key.key(), shapeOf(form(profile, "profile").select("[name=" + key.key() + "]").first()));
             onTheNext.put(key.key(), shapeOf(form(next, "next").select("[name=" + key.key() + "]").first()));
         }
 
