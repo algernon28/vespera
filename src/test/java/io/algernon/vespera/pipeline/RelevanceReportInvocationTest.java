@@ -42,6 +42,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -264,15 +265,19 @@ class RelevanceReportInvocationTest {
     @DisplayName("The page reports the spread and the label file names the run, so the two can be matched later")
     void thePageAndTheLabelFileAgreeOnWhatTheyWereGeneratedFrom() {
         Labelled labelled = labelled();
+        String scoringRun = new RunsOver(jdbcTemplate, theRoot).latest(StageModules.EMBEDDING_SCORING.stage()).value();
 
         claim(
                 "the page shows the bands it cut, so a reader can see the shape rather than be handed a"
                         + " verdict about it",
                 () -> assertThat(labelled.page()).contains("Band 1"));
         claim(
-                "the label file names the run it was generated under, which is what lets a completed file"
-                        + " offered against a different sample be refused rather than partially matched",
-                () -> assertThat(labelled.labels()).contains("generatedUnderRun"));
+                "the label file names the scoring run it was generated under, the one this invocation minted over"
+                        + " its corpus, which is what lets a completed file offered against a different sample be"
+                        + " refused rather than partially matched",
+                () -> assertThat(YAMLMapper.builder().build().readTree(labelled.labels()).path("generatedUnderRun")
+                                .asString())
+                        .isEqualTo(scoringRun));
         claim(
                 "and it asks about the document that was scored, with the answer left blank for a person",
                 () -> assertThat(labelled.labels()).contains("corpus.txt").contains("relevant:"));

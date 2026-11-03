@@ -72,6 +72,7 @@ class PublishFindsTheLastDrawnRenderingIT {
     void publishAsksForTheLastDrawnRendering() throws IOException {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walk = ledger.walks().startWalk(workingDirectory.resolve("corpus"));
+        generationRun(ledger, walk, "drawn-earlier", true, true);
         RunId drawn = generationRun(ledger, walk, "drawn", true, true);
         generationRun(ledger, walk, "not-finished", false, true);
         generationRun(ledger, walk, "finished-with-no-rendering", true, false);
@@ -81,7 +82,8 @@ class PublishFindsTheLastDrawnRenderingIT {
 
         claim("the command ended as the publisher's outcome said",
                 () -> assertThat(exit).isEqualTo(CommandLine.ExitCode.OK));
-        claim("and asked for the rendering of the one run that finished and has a page list, in its tree's folder",
+        claim("and asked for the rendering of the later of the two runs that finished and have a page list, in its"
+                        + " tree's folder",
                 () -> assertThat(publisher.asked).containsExactly(drawn.value() + " at " + workingDirectory
                         .resolve("deliverable").resolve(drawn.value()).resolve(Publisher.RENDERING_FOLDER)));
     }

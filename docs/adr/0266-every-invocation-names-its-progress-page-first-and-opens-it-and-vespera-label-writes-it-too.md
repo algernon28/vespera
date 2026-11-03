@@ -142,7 +142,7 @@ The README's list of the working directory's files says `progress.html` is what 
 | `pipeline.SystemPageOpenerTest.withNoDisplayOrUnderCiNothingIsOpened` | a Linux with neither display variable, and every system with `CI` set, open nothing |
 | `pipeline.SystemPageOpenerTest.aBlankCiVariableIsReadAsNotSet` | a `CI` that is empty or only a space opens the page all the same, on Linux with a display and on Windows (#680) |
 | `pipeline.ProgressPageListenerTest.aFirstWriteThatFailsOpensNothingInThatInvocation` | a first write that fails, for `vespera run` and for `vespera label`, opens nothing in that invocation, though its last write succeeds (#680) |
-| `pipeline.NoTestOpensABrowserTest.theWholeApplicationsOpenerIsTheRecordingOne` | the whole application a test builds holds `SystemPageOpener`, and the `PageOpener` it hands out is `RecordingPageOpener` |
+| `pipeline.NoTestOpensABrowserTest.theWholeApplicationsOpenerIsTheRecordingOne` | the whole application a test builds holds `SystemPageOpener`, assumed rather than claimed (#681), and the `PageOpener` it hands out is `RecordingPageOpener` |
 
 `PipelineHoldsOnlyTheRulesOnRecordTest` holds `PageOpener` and `SystemPageOpener` on record as holding no rule.
 

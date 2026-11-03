@@ -68,12 +68,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-157", url = Adr.A_STAGE_ASKS_FOR_ITS_RUN_AFTER_ITS_OWN_GATE, type = "adr")
 class NoRunBehindAShutGateTest {
 
-    /** A floor of 1.0 opens stage 4's gate the way every other whole-job test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The embedding model this fixture names, so the embedding-model gate opens. */
-    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
-
     /** The stages that mint a run ahead of stage 4's gate: none of them stands behind a gate at all. */
     private static final List<String> BEFORE_STAGE_4 = List.of("byte-level-reduction", "extraction", "content-census");
 
@@ -113,7 +107,7 @@ class NoRunBehindAShutGateTest {
         aSeed(seeds);
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test, so only the repetition floor is missing")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so only the repetition floor is missing")
                 .build());
 
         cli.run("run", root.toString());
@@ -135,8 +129,8 @@ class NoRunBehindAShutGateTest {
     void theSeedGateStopsEverythingAfterIt(@TempDir Path root) throws IOException {
         aCorpusDocument(root);
         profileStore.save(ProfileFixture.profile()
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test, so only the seed folder is missing")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so only the seed folder is missing")
                 .build());
 
         cli.run("run", root.toString());
@@ -158,7 +152,7 @@ class NoRunBehindAShutGateTest {
         aSeed(seeds);
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so only the model is missing")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so only the model is missing")
                 .build());
 
         cli.run("run", root.toString());
@@ -179,7 +173,7 @@ class NoRunBehindAShutGateTest {
         // extraction and nothing survives to be scored, grouped or arranged.
         Files.writeString(root.resolve(SeedScriptedExtractionBeans.REFUSED_CONVERSION), "a document");
         aSeed(seeds);
-        everyGateOpen(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
@@ -198,7 +192,7 @@ class NoRunBehindAShutGateTest {
     void anUnapprovedArrangementStopsTheWriting(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpusDocument(root);
         aSeed(seeds);
-        everyGateOpen(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
@@ -217,15 +211,6 @@ class NoRunBehindAShutGateTest {
 
     private static void aSeed(Path seeds) throws IOException {
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-    }
-
-    /** Every gate in front of the arrangement open, and nothing approved. */
-    private void everyGateOpen(Path seeds) {
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test")
-                .build());
     }
 
     /** The stages in front of stage 4's gate, then {@code later} in order. */

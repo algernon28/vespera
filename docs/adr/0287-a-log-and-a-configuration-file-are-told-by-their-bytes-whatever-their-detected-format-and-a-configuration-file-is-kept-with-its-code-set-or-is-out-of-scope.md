@@ -271,7 +271,7 @@ Every file is built in the test, and every profile is YAML the test writes, the 
 | `profile.ProfileStoreTest.writesACompleteSkeletonForAFreshCorpus`, `profile.ProfileStoreTest.anAnswerIsReadAndWrittenBackAsWritten`, `profile.ProfileTest.aKeyIsDeclaredBesideTheKeyItIsReadWith` | census writes the key unset, right before the pages' language; a value is kept as written; `0,8` loads (#682) |
 | `pipeline.NextActionTest.anUnreadableConfigurationFloorIsReported` | the closing line names the key, says nothing was found, and quotes the value, in one line |
 | `pipeline.RunIdentityGoldenTest.byteLevelReduction` | §10's configuration consumed, word for word |
-| `pipeline.ByteLevelReductionTaskletTest.removesCompiledCodeFontsCertificatesDatabasesAndEmailsAsOutOfScope`, `pipeline.OutOfScopeNameEndingsTaskletTest.aListedEndingNeverLeavesOutAFileWhoseBytesNameItsKind` | the page's sentence above the timestamp table is §2's |
+| `pipeline.ByteLevelReductionTaskletTest.removesCompiledCodeFontsCertificatesDatabasesAndEmailsAsOutOfScope`, `pipeline.LogsOfNoKnownKindTaskletTest` | the page's sentence above the timestamp table is §2's; `pipeline.OutOfScopeNameEndingsTaskletTest.aListedEndingNeverLeavesOutAFileWhoseBytesNameItsKind` no longer repeats it (#682) |
 
 No test holds that the pass holds folders and no occurrence (§4): what a class holds does not show in what it writes.
 

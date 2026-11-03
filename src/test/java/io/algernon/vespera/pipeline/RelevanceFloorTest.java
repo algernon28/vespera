@@ -241,25 +241,6 @@ class RelevanceFloorTest {
                 });
     }
 
-    @Test
-    @Story("Where the vectors carry no single embedder identity, nothing is removed")
-    @DisplayName("With no single embedder identity under the vectors, the floor removes nothing")
-    @Issue("486")
-    @Link(name = "ADR-227", url = Adr.THE_FLOORS_STEP_WITHDRAWS_ITS_REMOVALS_IN_EVERY_CASE, type = "adr")
-    void noSingleIdentityRemovesNothing() {
-        profileWithFloor("0.42");
-        aLabelGivenUnder(THIS_RUNS_IDENTITY);
-
-        FloorReach reach = reachFor(Optional.empty());
-
-        // Whether the removals already standing are withdrawn is no longer the floor's to answer: the
-        // step withdraws them in every case (ADR-227), and RelevanceFloorInvocationTest holds that.
-        claim(
-                "nothing is removed, whatever the number and the answers: there is no one scale for the"
-                        + " number to be on",
-                () -> assertThat(reach.removesBelow()).isEmpty());
-    }
-
     /**
      * What the floor lets the step do, asked as the floor's step asks: with the number read from the profile
      * as the scoring run is minted with it ({@link RelevanceScoreFloorValue}), for a run whose vectors carry

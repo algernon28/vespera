@@ -79,10 +79,9 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-093", url = Adr.LOGGING_IS_EXPLICIT_AND_PROCESS_SCOPED, type = "adr")
 class RedundancyResolutionReportsItsProgressInvocationTest {
 
-    /** A floor of 1.0 opens stage 4's gate, and strips only what every document shares, which is nothing here. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
+    /** What every counter line of stage 3 opens with, whatever the loop it counts. */
+    private static final String A_STAGE_THREE_COUNTER = "Stage 3 (";
 
-    private static final String FREQUENCY_ROWS = "Stage 3 (content census, frequency rows)";
     private static final String PAIRS = "Stage 4b (redundancy resolution, near-duplicate candidates)";
     private static final String PROFILES = "Stage 4b (redundancy resolution, occurrence profiles)";
     private static final String COMPONENTS = "Stage 4b (redundancy resolution, near-duplicate components)";
@@ -93,9 +92,6 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
     private static final List<String> COUNTERS_THAT_WRITE =
             List.of(PAIRS, PROFILES, COMPONENTS, VERDICTS, CONTAINMENT);
 
-    /** Every counter this class names, for the claim that none writes once 4b is recorded. */
-    private static final List<String> EVERY_COUNTER =
-            List.of(FREQUENCY_ROWS, PAIRS, PROFILES, COMPONENTS, VERDICTS, CONTAINMENT);
 
     /** Each stage's own name, which its statement lines open with. */
     private static final String STAGE_THREE = "Stage 3 (content census)";
@@ -151,7 +147,7 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
         ConverterStopsPartwayBeans.script(List.of(), List.of(), List.of());
         ConverterStopsPartwayBeans.keepAnswering();
         profileStore.save(ProfileFixture.profile()
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .build());
         logged = new ListAppender<>();
         logged.start();
@@ -188,31 +184,34 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                             .anyMatch(line -> line.startsWith(FINISHED));
                 });
         claim(
-                "stage 3 writes no line over its frequency rows: the database writes them in one statement, and"
-                        + " no loop goes through the distinct passages one by one",
-                () -> assertThat(ProgressLines.of(logged.list, FREQUENCY_ROWS)).isEmpty());
+                "stage 3 writes no counter line at all over three documents: the database writes its frequency rows"
+                        + " in one statement, no loop goes through the distinct passages one by one, and its running"
+                        + " count of the files checked first writes at the thousandth",
+                () -> assertThat(stageThreeCounterLines()).isEmpty());
         claim(
                 "the candidates counter counts the " + signed + " signed documents, each once the pairs it is the"
-                        + " lesser member of are scored: the pairs are found a page of signed documents at a time, so"
-                        + " their number is known only at the end",
+                        + " lesser member of are scored, a line for each since a twentieth of three rounds to"
+                        + " nothing: the pairs are found a page of signed documents at a time, so their number is"
+                        + " known only at the end",
                 () -> assertThat(ProgressLines.of(logged.list, PAIRS))
-                        .containsExactlyElementsOf(ProgressLines.expected(PAIRS, signed)));
+                        .containsExactly(PAIRS + ": 1 of 3 (33%)", PAIRS + ": 2 of 3 (66%)", PAIRS + ": 3 of 3 (100%)"));
         claim(
                 "the two members of the one component are read for their facts, the one component is resolved,"
-                        + " and its one member that is not the survivor is written redundant with it",
+                        + " and its one member that is not the survivor is written redundant with it, a line for"
+                        + " each",
                 () -> {
                     assertThat(ProgressLines.of(logged.list, PROFILES))
-                            .containsExactlyElementsOf(ProgressLines.expected(PROFILES, TWO_MEMBERS));
+                            .containsExactly(PROFILES + ": 1 of 2 (50%)", PROFILES + ": 2 of 2 (100%)");
                     assertThat(ProgressLines.of(logged.list, COMPONENTS))
-                            .containsExactlyElementsOf(ProgressLines.expected(COMPONENTS, ONE_COMPONENT));
+                            .containsExactly(COMPONENTS + ": 1 of 1 (100%)");
                     assertThat(ProgressLines.of(logged.list, VERDICTS))
-                            .containsExactlyElementsOf(ProgressLines.expected(VERDICTS, ONE_VERDICT));
+                            .containsExactly(VERDICTS + ": 1 of 1 (100%)");
                 });
         claim(
                 "the containment counter reads one, two and three of three: every signed document, the one the"
                         + " pair removed included, because the step has been through it",
-                () -> assertThat(ProgressLines.of(logged.list, CONTAINMENT))
-                        .containsExactlyElementsOf(ProgressLines.expected(CONTAINMENT, signed)));
+                () -> assertThat(ProgressLines.of(logged.list, CONTAINMENT)).containsExactly(
+                        CONTAINMENT + ": 1 of 3 (33%)", CONTAINMENT + ": 2 of 3 (66%)", CONTAINMENT + ": 3 of 3 (100%)"));
         claim(
                 "4b's counters lie between its starting and finishing lines, in the order it goes through its"
                         + " loops, a component's verdicts written before the component is counted as resolved",
@@ -265,7 +264,6 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
             claim(
                     "every line of " + counter + " was written by the progress counter itself",
                     () -> assertThat(ProgressLines.loggersOf(logged.list, counter))
-                            .isNotEmpty()
                             .containsOnly(ProgressLines.theCountersLogger()));
         }
     }
@@ -317,8 +315,11 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                         .noneMatch(line -> line.startsWith(STARTING)));
         claim(
                 "so no counter of stage 3 or of 4b writes a line: the loops it counts did not run",
-                () -> assertThat(EVERY_COUNTER)
-                        .allSatisfy(counter -> assertThat(ProgressLines.of(logged.list, counter)).isEmpty()));
+                () -> {
+                    assertThat(stageThreeCounterLines()).isEmpty();
+                    assertThat(COUNTERS_THAT_WRITE)
+                            .allSatisfy(counter -> assertThat(ProgressLines.of(logged.list, counter)).isEmpty());
+                });
         claim(
                 "and neither stage 3 nor resolving says it is reading anything: a step already recorded makes"
                         + " none of its reads",
@@ -326,6 +327,15 @@ class RedundancyResolutionReportsItsProgressInvocationTest {
                     assertThat(StatementLines.of(operatorLines(), STAGE_THREE)).isEmpty();
                     assertThat(StatementLines.of(operatorLines(), STAGE_FOUR_B)).isEmpty();
                 });
+    }
+
+    /** Every line the progress counter wrote for stage 3, under whatever label: a loop of stage 3's counted by any name. */
+    private List<String> stageThreeCounterLines() {
+        return logged.list.stream()
+                .filter(event -> event.getLoggerName().equals(ProgressLines.theCountersLogger()))
+                .map(ILoggingEvent::getFormattedMessage)
+                .filter(line -> line.startsWith(A_STAGE_THREE_COUNTER))
+                .toList();
     }
 
     /** {@code said} with stage 3's line before its read of the shingle rows cut to how it opens. */

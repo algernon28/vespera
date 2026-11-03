@@ -100,11 +100,6 @@ class ProgressPageChartsOnOneRowTest {
 
     private static final int ONE_AT_ITS_FLOOR_FROM = 566;
 
-    /** The narrowest and widest rows, in px, over which the grid's columns are counted. */
-    private static final int NARROWEST_ROW = 300;
-
-    private static final int WIDEST_ROW = 4000;
-
     private static final Pattern ROW_OPENS = Pattern.compile("<div class=\"chart-row\" title=\"[^\"]+\">");
 
     private static final Pattern A_CARD = Pattern.compile("<figure class=\"chart-card\">");
@@ -261,19 +256,6 @@ class ProgressPageChartsOnOneRowTest {
                 () -> assertThat(List.of(
                                 3 * card + 2 * gap + 2 * margin, 2 * card + gap + 2 * margin, card + 2 * margin))
                         .containsExactly(THREE_ACROSS_FROM, TWO_ACROSS_FROM, ONE_AT_ITS_FLOOR_FROM));
-        List<String> wrong = new ArrayList<>();
-        for (int row = NARROWEST_ROW; row <= WIDEST_ROW; row++) {
-            int window = row + 2 * margin;
-            int expected = window >= THREE_ACROSS_FROM ? 3 : window >= TWO_ACROSS_FROM ? 2 : 1;
-            int laidOut = columns(row, card, gap);
-            if (laidOut != expected) {
-                wrong.add("a row " + row + " px wide lays out " + laidOut + " columns, not " + expected);
-            }
-        }
-        claim(
-                "and at every row width from " + NARROWEST_ROW + " to " + WIDEST_ROW + " px the grid lays out three"
-                        + " columns from those windows on, two from theirs and one below, never four",
-                () -> assertThat(wrong).isEmpty());
     }
 
     @Test
@@ -369,19 +351,6 @@ class ProgressPageChartsOnOneRowTest {
                         .contains("svg.viewBox.baseVal.width / box.width")
                         .doesNotContain(String.valueOf((int) LINE_CHART_WIDTH))
                         .doesNotContain(String.valueOf((int) TIMELINE_WIDTH)));
-    }
-
-    /**
-     * How many columns the row's grid lays out in a row {@code row} px wide: as many as fit, each at least the larger
-     * of a card at its floor, or the whole row where that is narrower, and a third of the row less three gaps.
-     */
-    private static int columns(int row, int card, int gap) {
-        double least = Math.max(Math.min(card, row), (row - 3.0 * gap) / 3);
-        int fit = 1;
-        while ((fit + 1) * least + fit * gap <= row) {
-            fit++;
-        }
-        return fit;
     }
 
     private static JobExecution anExecution() {

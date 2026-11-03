@@ -70,12 +70,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-048", url = Adr.WALK_AND_RUN_IDENTITY, type = "adr")
 class RunIdentityGoldenTest {
 
-    /** A floor of 1.0 opens stage 4's gate the way every other whole-job test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The embedding model this fixture names, so the embedding-model gate and everything behind it open. */
-    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
-
     /** The generation model this test names, so the generation text rests on a name this test chose. */
     private static final String GENERATION_MODEL = "a-named-writing-model:8b";
 
@@ -123,19 +117,15 @@ class RunIdentityGoldenTest {
         seeds = Files.createDirectory(scratch.resolve("seeds"));
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .clusterPageByteCeiling(A_PAGE_CEILING, "set by this test, to show it enters no run")
                 .build());
         cli.run("run", root.toString());
-        String arrangement = ArrangementGate.shortNameOf(new RunId(
-                theRunOf("arrangement").get("id").toString()));
-        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
-                .arrangementApproved(arrangement, "set by this test")
-                .generationModel(GENERATION_MODEL, "set by this test")
-                .build());
+        EveryGateOpen.approve(
+                profileStore,
+                ArrangementGate.shortNameOf(new RunId(theRunOf("arrangement").get("id").toString())),
+                GENERATION_MODEL);
         cli.run("run", root.toString());
     }
 
@@ -263,7 +253,7 @@ class RunIdentityGoldenTest {
 
         claim(
                 "the settings it records are the corpus root, the id of the content census it read, and the"
-                        + " boilerplate floor of " + BOILERPLATE_FLOOR + " this profile sets, written as a number",
+                        + " boilerplate floor of 1.0 this profile sets, written as a number",
                 () -> assertThat(run.get("config_consumed")).isEqualTo(
                         "{\"root\":\"%s\",\"stage3RunId\":\"%s\",\"boilerplateDocumentFrequencyFloor\":1.0}"
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("content-census"))));
@@ -319,7 +309,7 @@ class RunIdentityGoldenTest {
                         + " name pulled again under another digest is another piece of work, and the record"
                         + " says which pull scored",
                 () -> assertThat(run.get("config_consumed")).isEqualTo(
-                        ("{\"root\":\"%s\",\"embeddingModel\":\"" + EMBEDDING_MODEL + "\","
+                        ("{\"root\":\"%s\",\"embeddingModel\":\"qwen3-embedding:0.6b\","
                                         + "\"embeddingModelDigest\":\"" + EmbeddingScriptedBeans.DIGEST + "\","
                                         + "\"embeddingModelWeightDtype\":\"F16\","
                                         + "\"measurementRunId\":\"%s\",\"relevanceScoreFloor\":null,"
