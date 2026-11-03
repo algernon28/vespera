@@ -224,13 +224,13 @@ class ClusterSynthesisTest {
     private static final int NO_READING_REPORTED = 0;
 
     /**
-     * A reading count at the window sent, which is already the ceiling failing: at or above it means
-     * the question was cut down to fit before the model ever read it.
+     * A reading count at the ceiling, the window sent less one (ADR-166 section 3), which is already the
+     * ceiling failing: at or above it means the question was cut down to fit before the model ever read it.
      *
      * <p>Sitting on the boundary rather than over it is the stronger fixture, because a check written
      * as {@code >} instead of {@code >=} passes a count above and fails this one.
      */
-    private static final int A_COUNT_AT_THE_CEILING = THE_SHIPPED_WINDOW;
+    private static final int A_COUNT_AT_THE_CEILING = THE_SHIPPED_WINDOW - 1;
 
     /** How much a call that came back carrying no answer wrote, which is nothing. */
     private static final int NOTHING_WRITTEN = 0;
@@ -271,6 +271,10 @@ class ClusterSynthesisTest {
     private static final String AN_ANSWER_WHOSE_TITLE_IS_BLANK = "{\"title\":\"" + NOTHING_BUT_SPACES
             + "\",\"prose\":\"" + GENERATED_PROSE + "\"}";
 
+    /** An answer whose writing ends with the closing brace of its own JSON object, typed inside it (ADR-162). */
+    private static final String AN_ANSWER_ENDING_IN_A_STRAY_BRACE =
+            "{\"title\":\"" + GENERATED_TITLE + "\",\"prose\":\"" + GENERATED_PROSE + " }\"}";
+
     /** An answer that read back perfectly well and carried neither of the two things asked for. */
     private static final String AN_ANSWER_CARRYING_NEITHER = "{}";
 
@@ -281,8 +285,8 @@ class ClusterSynthesisTest {
     private static final String A_BLANK_TITLE = "the answer came back with a blank heading";
 
     /**
-     * How many ways one answer can be turned down: four, and the set is closed. Six different reasons
-     * now share one of the four, which is honest only while the six read differently from each other.
+     * How many ways one answer can be turned down: four, and the set is closed. Seven different reasons
+     * now share one of the four, which is honest only while the seven read differently from each other.
      */
     private static final int THE_WAYS_AN_ANSWER_IS_TURNED_DOWN = 4;
 
@@ -304,13 +308,10 @@ class ClusterSynthesisTest {
                         + " because the page a reader opens is built from this rather than being this",
                 () -> assertThat(doc.prose()).isEqualTo(GENERATED_PROSE));
         claim(
-                "and it says how many documents it was written from, both " + DOCUMENTS_SENT + " of them"
-                        + " here: a piece of writing that cannot say what it covers cannot be held against"
-                        + " the group it claims to cover",
-                () -> assertThat(doc.documentsSent()).isEqualTo(DOCUMENTS_SENT));
-        claim(
-                "and which ones, in the order their numbers were minted -- the closest document first,"
-                        + " the furthest second: a count says how much of the group was read and nothing"
+                "and which documents it was written from, both " + DOCUMENTS_SENT + " of them here, in the"
+                        + " order their numbers were minted -- the closest document first, the furthest"
+                        + " second: a piece of writing that cannot say what it covers cannot be held against"
+                        + " the group it claims to cover, and a count says how much of the group was read and nothing"
                         + " at all about which number in the writing means which document, and nothing"
                         + " downstream can work that out again",
                 () -> assertThat(doc.sent()).containsExactly(THE_CLOSEST_DOCUMENT, THE_FURTHEST_DOCUMENT));
@@ -340,7 +341,9 @@ class ClusterSynthesisTest {
         claim(
                 "the call says what the group is called and what it sits under, so what comes back is about"
                         + " this group of documents rather than about documents in general",
-                () -> assertThat(model.whatWasAsked()).contains(LABEL).contains(SEED_PATH));
+                () -> assertThat(model.whatWasAsked())
+                        .contains("\"" + LABEL + "\"")
+                        .contains("\"" + SEED_PATH + "\""));
         claim(
                 "and it says how many documents it is working from, all " + THREE_DOCUMENTS + " here: that"
                         + " number is what a later call, working from fewer, will differ from",
@@ -366,9 +369,8 @@ class ClusterSynthesisTest {
                         + " work and nobody can tell which they are holding",
                 () -> assertThat(model.optionsUsed().getNumCtx()).isEqualTo(READING_WINDOW));
         claim(
-                "and it fixes the shape the answer comes back in, rather than hoping for one: what comes"
-                        + " back has to be split into a heading and the writing itself, and text that has"
-                        + " to be guessed at is text that will be guessed at wrongly",
+                "and it sets a shape for the answer to come back in, rather than hoping for one: text that"
+                        + " has to be guessed at is text that will be guessed at wrongly",
                 () -> assertThat(model.optionsUsed().getFormat()).isNotNull());
     }
 
@@ -460,10 +462,8 @@ class ClusterSynthesisTest {
                 () -> assertThat(model.whatWasAsked()).contains(MIDDLE_HEADING).contains(FURTHEST_HEADING));
         claim(
                 "and it says it was written from those " + DOCUMENTS_SENT + ", which is what the finished"
-                        + " page discloses against a group of " + THREE_DOCUMENTS,
-                () -> assertThat(doc.documentsSent()).isEqualTo(DOCUMENTS_SENT));
-        claim(
-                "and it says which two, in the order their numbers were minted: the first number names"
+                        + " page discloses against a group of " + THREE_DOCUMENTS + ", and which two, in the"
+                        + " order their numbers were minted: the first number names"
                         + " the document between the other two, not the closest one, because the closest"
                         + " one was passed over -- the count alone would have left a reader of this"
                         + " writing pointed at a document it was never made from",
@@ -621,13 +621,6 @@ class ClusterSynthesisTest {
                 () -> assertThat(List.of(noAnswer.kind(), empty.kind(), unreadable.kind()))
                         .containsOnly(ClusterFaultKind.SCHEMA_VIOLATION));
         claim(
-                "and each keeps a different reason, so somebody reading the reasons can tell a call that"
-                        + " answered nothing from an answer with nothing in it from an answer nothing"
-                        + " could be made of -- one kind covering three things is only honest while the"
-                        + " three stay distinguishable",
-                () -> assertThat(List.of(noAnswer.detail(), empty.detail(), unreadable.detail()))
-                        .doesNotHaveDuplicates());
-        claim(
                 "and the reason for the answer nothing could read still describes where reading it gave"
                         + " up, which is the one of the three that has such a place to name",
                 () -> assertThat(unreadable.detail()).startsWith(COULD_NOT_BE_READ_BACK));
@@ -640,9 +633,10 @@ class ClusterSynthesisTest {
     @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
     void keepsTheOverrunForACallThatBothOverranAndCameBackWithNothing() {
         claim(
-                "a call reporting it read as much of the question as the window holds, and then coming"
-                        + " back with nothing, is kept as the question that did not arrive whole rather"
-                        + " than as the empty answer: reading the window's worth means the question was"
+                "a call reporting it read " + A_COUNT_AT_THE_CEILING + " tokens of the question, the ceiling"
+                        + " one short of the window, and then coming back with nothing, is kept as the"
+                        + " question that did not arrive whole rather than as the empty answer: reading"
+                        + " that much means the question was"
                         + " already cut down to fit, and that explains everything after it, the empty"
                         + " answer included -- so the check for it runs first and the reason kept is the"
                         + " one that explains the rest",
@@ -712,13 +706,6 @@ class ClusterSynthesisTest {
                         + " something and attributed none of it, and the model wrote nothing",
                 () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WHOSE_WRITING_IS_BLANK)))
                         .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, NO_WRITING_AT_ALL)));
-        claim(
-                "and it keeps exactly the reason an answer with no writing at all keeps: both say the"
-                        + " model returned no writing, and which of the two arrives is decided by the"
-                        + " machine that answered rather than by anything the archive's owner did or"
-                        + " could act on differently",
-                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WHOSE_WRITING_IS_BLANK)))
-                        .isEqualTo(faultFrom(answeringWith(AN_ANSWER_WITH_NO_WRITING_IN_IT))));
     }
 
     @Test
@@ -728,39 +715,16 @@ class ClusterSynthesisTest {
     @Link(name = "ADR-124", url = Adr.BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED, type = "adr")
     void keepsAnAnswerWithNoWritingApartFromTheOtherReasonsForTurningOneDown() {
         ClusterFault noWriting = faultFrom(answeringWith(AN_ANSWER_WITH_NO_WRITING_IN_IT));
-        ClusterFault noAnswerAtAll = faultFrom(carryingNoAnswerAtAll());
-        ClusterFault emptyAnswer = faultFrom(answeringWithNoText());
-        ClusterFault unreadable = faultFrom(answeringWith(NOT_AN_ANSWER_AT_ALL));
         ClusterFault pointingAtNothing = faultFrom(answeringWith(AN_ANSWER_POINTING_AT_NOTHING_AT_ALL));
 
         claim(
                 "an answer with no writing in it is kept as one that did not arrive in the shape asked"
-                        + " for, the same as an answer nothing could read: what came back was readable"
-                        + " and still was not the shape, which is the same thing to whoever has to do"
-                        + " something about it",
-                () -> assertThat(noWriting.kind()).isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION));
-        claim(
-                "and it is not kept as writing that pointed at no document, which is what an answer with"
-                        + " no writing would otherwise fall through to: that reason says the model wrote"
-                        + " something and gave the reader no thread back into the archive, and here the"
-                        + " model wrote nothing at all. The two want different things done about them",
-                () -> assertThat(pointingAtNothing.kind()).isEqualTo(ClusterFaultKind.CITATION_NOT_IN_RANGE));
-        claim(
-                "and all four answers that arrived in the wrong shape keep four different reasons, so"
-                        + " somebody reading them can tell a call that answered nothing from an answer"
-                        + " with no text from an answer nothing could be made of from an answer carrying"
-                        + " no writing -- one kind covering four things is only honest while the four"
-                        + " stay distinguishable",
-                () -> assertThat(List.of(
-                                noAnswerAtAll.detail(),
-                                emptyAnswer.detail(),
-                                unreadable.detail(),
-                                noWriting.detail()))
-                        .doesNotHaveDuplicates());
-        claim(
-                "and the reason for an answer with no writing says nothing about its heading, because"
-                        + " whether a heading arrived is not something this check established",
-                () -> assertThat(noWriting.detail()).isEqualTo(NO_WRITING_AT_ALL));
+                        + " for, and not as writing that pointed at no document, which is what it would"
+                        + " otherwise fall through to: that reason says the model wrote something and gave"
+                        + " the reader no thread back into the archive, and here the model wrote nothing at"
+                        + " all. The two want different things done about them",
+                () -> assertThat(List.of(noWriting.kind(), pointingAtNothing.kind()))
+                        .containsExactly(ClusterFaultKind.SCHEMA_VIOLATION, ClusterFaultKind.CITATION_NOT_IN_RANGE));
     }
 
     @Test
@@ -799,18 +763,15 @@ class ClusterSynthesisTest {
         claim(
                 "an answer whose heading came back blank is turned down too, with the reason \""
                         + A_BLANK_TITLE + "\" -- blank space is not a heading, and writing kept under"
-                        + " one would show in the finished work as an entry with nothing to click",
-                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WHOSE_TITLE_IS_BLANK)))
-                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, A_BLANK_TITLE)));
-        claim(
-                "and it does not keep the reason an answer with no heading at all keeps. The two are"
+                        + " one would show in the finished work as an entry with nothing to click -- and not"
+                        + " the reason \"" + NO_TITLE_AT_ALL + "\" an answer with no heading at all keeps. The two are"
                         + " different events to whoever has to act on them: a blank heading was accepted"
                         + " and kept by earlier versions of this tool, so a finished work already handed"
                         + " over may carry one and nothing will ever go back and mend it, while a heading"
                         + " that never arrived could never be kept at all and so left nothing behind to"
                         + " find",
                 () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WHOSE_TITLE_IS_BLANK)))
-                        .isNotEqualTo(faultFrom(answeringWith(AN_ANSWER_WITH_NO_TITLE_ON_IT))));
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, A_BLANK_TITLE)));
     }
 
     @Test
@@ -825,27 +786,30 @@ class ClusterSynthesisTest {
         ClusterFault noAnswerAtAll = faultFrom(carryingNoAnswerAtAll());
         ClusterFault emptyAnswer = faultFrom(answeringWithNoText());
         ClusterFault unreadable = faultFrom(answeringWith(NOT_AN_ANSWER_AT_ALL));
+        ClusterFault strayBrace = faultFrom(answeringWith(AN_ANSWER_ENDING_IN_A_STRAY_BRACE));
 
         claim(
-                "an answer missing its heading, and one whose heading is blank, are both kept as answers"
-                        + " that did not arrive in the shape asked for -- the same as an answer nothing"
-                        + " could read, because what came back was readable and still was not the shape",
-                () -> assertThat(List.of(noTitle.kind(), blankTitle.kind()))
-                        .containsOnly(ClusterFaultKind.SCHEMA_VIOLATION));
+                "writing ending in the answer's own closing brace is kept, like an answer missing its heading"
+                        + " or one whose heading is blank, as an answer that did not arrive in the shape asked"
+                        + " for -- the same as an answer nothing could read, because what came back was"
+                        + " readable and still was not the shape",
+                () -> assertThat(strayBrace.kind()).isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION));
         claim(
-                "and the six reasons now sharing that one way of being turned down all read differently"
+                "and the seven reasons now sharing that one way of being turned down all read differently"
                         + " from one another, so somebody reading them can tell a call that answered"
                         + " nothing from an answer with no text from an answer nothing could be made of"
                         + " from an answer carrying no writing from one carrying no heading from one"
-                        + " whose heading was blank -- one way covering six things is only honest while"
-                        + " the six stay distinguishable",
+                        + " whose heading was blank from writing ending in the answer's own closing brace"
+                        + " -- one way covering seven things is only honest while the seven stay"
+                        + " distinguishable",
                 () -> assertThat(List.of(
                                 noAnswerAtAll.detail(),
                                 emptyAnswer.detail(),
                                 unreadable.detail(),
                                 noWriting.detail(),
                                 noTitle.detail(),
-                                blankTitle.detail()))
+                                blankTitle.detail(),
+                                strayBrace.detail()))
                         .doesNotHaveDuplicates());
         claim(
                 "and there are still only " + THE_WAYS_AN_ANSWER_IS_TURNED_DOWN + " ways an answer is"
@@ -853,11 +817,6 @@ class ClusterSynthesisTest {
                         + " fail to be, not a new kind of failure, and it leaves the archive's owner the"
                         + " same thing to do -- ask again, or accept the gap",
                 () -> assertThat(ClusterFaultKind.values()).hasSize(THE_WAYS_AN_ANSWER_IS_TURNED_DOWN));
-        claim(
-                "and neither reason about the heading says anything about the writing, because whether"
-                        + " the writing arrived is not something this check established",
-                () -> assertThat(List.of(noTitle.detail(), blankTitle.detail()))
-                        .noneMatch(reason -> reason.contains("writing")));
     }
 
     @Test

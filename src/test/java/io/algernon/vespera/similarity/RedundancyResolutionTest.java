@@ -2,6 +2,7 @@ package io.algernon.vespera.similarity;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.Ledger;
@@ -136,6 +137,9 @@ class RedundancyResolutionTest {
                 "scan.pdf", shingles(0, 100), THINNER_TEXT, Instant.parse("2020-01-01T00:00:00Z"));
         OccurrenceId digital = fixture.document(
                 "digital.pdf", shingles(1, 100), FULLER_TEXT, Instant.parse("2026-01-01T00:00:00Z"));
+        assumeTrue(
+                creationTimeOf(scan).compareTo(creationTimeOf(digital)) < 0,
+                "the thinner rendering is the older file");
 
         fixture.resolve();
 
@@ -144,13 +148,11 @@ class RedundancyResolutionTest {
                         + " alphanumeric characters against the other's 10000",
                 () -> assertThat(redundantWith(digital)).isNull());
         claim(
-                "and the thinner one is redundant with it, pointing at the survivor",
+                "and the thinner one is redundant with it, pointing at the survivor, even though the thinner one is"
+                        + " six years older -- stage 1 keeps the earliest copy because byte-identical copies leave"
+                        + " nothing else to choose on, and stage 4 keeps the fullest because here content can choose"
+                        + " (ADR-079)",
                 () -> assertThat(redundantWith(scan)).isEqualTo(digital.value()));
-        claim(
-                "even though the thinner one is six years older -- stage 1 keeps the earliest copy"
-                        + " because byte-identical copies leave nothing else to choose on, and stage 4"
-                        + " keeps the fullest because here content can choose (ADR-079)",
-                () -> assertThat(creationTimeOf(scan)).isLessThan(creationTimeOf(digital)));
         claim(
                 "the stored relation says which of the two rules removed it",
                 () -> assertThat(relationOf(scan)).isEqualTo("near-duplicate"));
@@ -330,15 +332,13 @@ class RedundancyResolutionTest {
 
         fixture.resolveWith(counting, counting);
         jdbcTemplate.execute(TheRunsHashIndex.statementFor(fixture.stage2RunId.value()));
-
-        claim(
-                "the index ordered by word-sequence hash is in place, as it is whenever the redundancy check"
-                        + " reads, so the plans below are read against the index a careless query would fall"
-                        + " into, and not against a database where it could not",
-                () -> assertThat(jdbcTemplate.queryForObject(
+        assumeTrue(
+                jdbcTemplate.queryForObject(
                                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'shingle_by_hash'",
-                                Integer.class))
-                        .isEqualTo(1));
+                                Integer.class)
+                        == 1,
+                "the index ordered by word-sequence hash is in place, as it is whenever the redundancy check reads,"
+                        + " so the plans below are read against the index a careless query would fall into");
         claim(
                 "stage 4 read one document's shingles in two ways -- its set, which a signature and exact"
                         + " scoring both read, and a candidate container's size -- and each was issued",

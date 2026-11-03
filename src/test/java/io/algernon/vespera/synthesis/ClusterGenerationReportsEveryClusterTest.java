@@ -52,8 +52,7 @@ import org.springframework.test.context.ActiveProfiles;
  * own {@code GenerationProgress} implements only the four methods ADR-190 gave it and compiles unchanged,
  * because the two new ones have defaults.
  *
- * <p><b>Part (d) of ADR-192.</b> Does not compile until the two methods exist; part (d) moves it into {@code
- * src/test}. Report text says <em>group</em> where these names say cluster (ADR-122).
+ * <p>Part (d) of ADR-192. Report text says <em>group</em> where these names say cluster (ADR-122).
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

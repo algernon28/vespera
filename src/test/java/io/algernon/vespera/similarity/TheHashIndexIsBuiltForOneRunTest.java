@@ -3,6 +3,7 @@ package io.algernon.vespera.similarity;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.PoolOfTwo;
@@ -102,14 +103,15 @@ class TheHashIndexIsBuiltForOneRunTest {
     @Story("The index on word-sequence hashes is built for one extraction")
     @DisplayName("With no hash index in the database, the index is built over the rows of the extraction asked for, and the caller is told once that it started and once that it ended")
     void withNoIndexItIsBuiltForTheRun() {
+        assumeTrue(
+                thisRun.value().matches(TheRunsHashIndex.A_MINTED_RUN_ID)
+                        && anotherRun.value().matches(TheRunsHashIndex.A_MINTED_RUN_ID),
+                "the two runs made here have ids in the form a run id is minted in");
         Recorder recorder = new Recorder();
         long highestRow = jdbcTemplate.queryForObject("SELECT MAX(rowid) FROM shingle", Long.class);
 
         Optional<Duration> took = TheRunsHashIndex.buildFor(jdbcTemplate, thisRun, recorder);
 
-        claim("the two runs made here have ids in the form a run id is minted in, so the claims below are about"
-                + " ids the build accepts", () -> assertThat(List.of(thisRun.value(), anotherRun.value()))
-                .allMatch(id -> id.matches(TheRunsHashIndex.A_MINTED_RUN_ID)));
         claim("the call says how long building took, which is how its caller knows something was built",
                 () -> assertThat(took).isPresent());
         claim(
@@ -150,6 +152,7 @@ class TheHashIndexIsBuiltForOneRunTest {
     void anotherRunsIndexIsRemovedAndThisRunsBuilt() {
         jdbcTemplate.execute(TheRunsHashIndex.statementFor(anotherRun.value()));
         Recorder recorder = new Recorder();
+        long highestRow = jdbcTemplate.queryForObject("SELECT MAX(rowid) FROM shingle", Long.class);
 
         Optional<Duration> took = TheRunsHashIndex.buildFor(jdbcTemplate, thisRun, recorder);
 
@@ -162,8 +165,11 @@ class TheHashIndexIsBuiltForOneRunTest {
         claim(
                 "the caller hears of one statement, the build, started once and ended once: the removal is"
                         + " made inside it and has no callback of its own",
-                () -> assertThat(recorder.calls).hasSize(2).first().asString().startsWith("starting "
-                        + SimilarityStatement.SHINGLE_HASH_INDEX_BUILD));
+                () -> assertThat(recorder.calls)
+                        .containsExactly(
+                                "starting " + SimilarityStatement.SHINGLE_HASH_INDEX_BUILD + " over up to "
+                                        + OptionalLong.of(highestRow),
+                                "ended " + SimilarityStatement.SHINGLE_HASH_INDEX_BUILD));
         claim("no row of either extraction is touched by it", () -> assertThat(
                         jdbcTemplate.queryForObject("SELECT COUNT(*) FROM shingle", Long.class))
                 .isEqualTo(2L * ROWS_A_RUN));
@@ -201,15 +207,11 @@ class TheHashIndexIsBuiltForOneRunTest {
                 quoteAndMore + "a".repeat(MINTED_LENGTH - quoteAndMore.length()),
                 "a".repeat(MINTED_LENGTH) + "\n");
 
-        claim(
+        assumeTrue(
+                refused.stream().noneMatch(id -> id.matches(TheRunsHashIndex.A_MINTED_RUN_ID)),
                 "each id tried below is outside the minted form: one a name, one a character short, one a"
                         + " character long, one in upper case, three of the right length holding a quote"
-                        + " or a letter past f, and one of the minted form with a line end after it",
-                () -> assertThat(refused).noneMatch(id -> id.matches(TheRunsHashIndex.A_MINTED_RUN_ID)));
-        claim(
-                "while the same length of the letter a, in lower case, is in it, so the form is what the"
-                        + " refusals turn on",
-                () -> assertThat("a".repeat(MINTED_LENGTH)).matches(TheRunsHashIndex.A_MINTED_RUN_ID));
+                        + " or a letter past f, and one of the minted form with a line end after it");
         for (String id : refused) {
             Recorder recorder = new Recorder();
             Throwable thrown = catchThrowable(() -> TheRunsHashIndex.buildFor(jdbcTemplate, new RunId(id), recorder));

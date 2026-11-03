@@ -118,7 +118,7 @@ class AFailedReadOfOneHashsOccurrencesIsThrownWithItsCauseTest {
         claim(
                 "what is thrown is a failure of the database, and not a failure of the program to say one: no"
                         + " empty reference stands in its place",
-                () -> assertThat(thrown).isInstanceOf(DataAccessException.class).isNotInstanceOf(NullPointerException.class));
+                () -> assertThat(thrown).isInstanceOf(DataAccessException.class));
         claim(
                 "and it carries what the database said, so the operator reads why the read failed",
                 () -> assertThat(thrown).rootCause().isInstanceOf(SQLiteException.class).hasMessage(WHAT_SQLITE_SAID));

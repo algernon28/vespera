@@ -59,8 +59,7 @@ The README's command prints, for each line, the share `100 × k / N` in integer 
 
 | Method | What it holds |
 | --- | --- |
-| `aShingleInExactlyTheFloorsShareIsBoilerplate` | at 0.28 of 25, a shingle in 7 or 8 documents is boilerplate and one in 6 is not |
-| `sevenOfAHundredReachAFloorOfSevenHundredths` | at 0.07 of 100, a shingle in 7 is boilerplate and one in 6 is not |
+| `aShingleInTheFloorsShareOfTheCorpusOrMoreIsBoilerplate` | at 0.28 of 25 and at 0.07 of 100, a shingle in 7 documents or more is boilerplate and one in 6 is not; at 0.333 of 25 the first count marked is 9, at 0.5 of 3 it is 2 (#682) |
 | `everyExactShareMarksTheShinglesInThatManyDocumentsOrMore` | for every N up to 500 whose k / N terminates, the floor k / N marks the counts k to N and none below |
 | `anyWrittenFloorMarksTheShinglesAtOrPastItsProductWithTheCorpus` | 20,000 floors of one to six decimal places between 0 and 1, over N up to 500, each mark the counts at or above `ceil(f × N)` and none below |
 | `theSharePrintedForALineMarksThatLineAndTheLinesAfterIt` | for every N up to 500, each share the README's command prints marks the first count on its line and every count after it (§5) |

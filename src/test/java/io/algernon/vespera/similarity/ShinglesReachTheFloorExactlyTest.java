@@ -20,8 +20,13 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -61,38 +66,34 @@ class ShinglesReachTheFloorExactlyTest {
 
     private int corpora;
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("floorsWrittenInDecimals")
     @Story("The floor is a proportion of the shingled corpus")
-    @DisplayName("At a floor of 0.28 of 25 documents, a shingle in 7 is boilerplate and one in 6 is not")
-    void aShingleInExactlyTheFloorsShareIsBoilerplate() {
-        RunId census = corpus(25);
+    @DisplayName("At a floor written in decimals, a shingle in the floor's share of the corpus or more is boilerplate and one in fewer is not")
+    void aShingleInTheFloorsShareOfTheCorpusOrMoreIsBoilerplate(String floor, int shingledDocuments, long firstMarked) {
+        RunId census = corpus(shingledDocuments);
 
-        Set<Long> boilerplate = resolve(census, "0.28");
+        Set<Long> boilerplate = resolve(census, floor);
 
         claim(
-                "7 of 25 is 0.28 exactly, so a shingle in 7 of the 25 documents reaches a floor of 0.28; the"
-                        + " product 0.28 × 25 is 7, not the 7.000000000000001 a double makes of it",
-                () -> assertThat(boilerplate).contains(7L));
-        claim("a shingle in 8 of the 25 documents is past the floor", () -> assertThat(boilerplate)
-                .contains(8L));
-        claim("a shingle in 6 of the 25 documents, 0.24 of them, is below the floor", () -> assertThat(
-                        boilerplate)
-                .doesNotContain(6L));
+                "at a floor of " + floor + " of " + shingledDocuments + " documents, worked out by hand as the"
+                        + " ceiling of the exact product, the shingles in " + firstMarked + " documents and in every"
+                        + " count past it are boilerplate, and none in fewer",
+                () -> assertThat(boilerplate)
+                        .containsExactlyElementsOf(LongStream.rangeClosed(firstMarked, shingledDocuments)
+                                .boxed()
+                                .toList()));
     }
 
-    @Test
-    @Story("The floor is a proportion of the shingled corpus")
-    @DisplayName("At a floor of 0.07 of 100 documents, a shingle in 7 is boilerplate and one in 6 is not")
-    void sevenOfAHundredReachAFloorOfSevenHundredths() {
-        RunId census = corpus(100);
-
-        Set<Long> boilerplate = resolve(census, "0.07");
-
-        claim(
-                "7 of 100 is 0.07 exactly, so a shingle in 7 of the 100 documents reaches a floor of 0.07",
-                () -> assertThat(boilerplate).contains(7L));
-        claim("a shingle in 6 of the 100 documents is below it", () -> assertThat(boilerplate)
-                .doesNotContain(6L));
+    static Stream<Arguments> floorsWrittenInDecimals() {
+        return Stream.of(
+                Arguments.of(
+                        Named.of("0.28 of 25 is 7 exactly, not the 7.000000000000001 a double makes of it", "0.28"),
+                        25,
+                        7L),
+                Arguments.of(Named.of("0.07 of 100 is 7 exactly", "0.07"), 100, 7L),
+                Arguments.of(Named.of("0.333 of 25 is 8.325, so a shingle needs 9 documents", "0.333"), 25, 9L),
+                Arguments.of(Named.of("0.5 of 3 is 1.5, so a shingle needs 2 documents", "0.5"), 3, 2L));
     }
 
     @Test
