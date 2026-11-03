@@ -207,11 +207,12 @@ class NextScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder, values(workingDirectory))) {
             Page page = screens.afterARunHasEnded().go("/next").page();
 
-            claim("the next act is not known, though the file names a run",
+            claim("the next act is not known, though the file names a run, and the page says the last run did not finish",
                     () -> assertThat(List.of(byId(page, "next-invocation").attr("data-invocation"),
                                     byId(page, "next-invocation").text()))
                             .containsExactly("unknown",
-                                    "The next act is not known: no invocation of the control panel's has ended with 0"));
+                                    "The last run did not finish, so there is no next step to suggest. The Invocation page says"
+                                            + " how it ended; start it again from the Launch page once that is put right."));
             claim("and no value is asked for",
                     () -> assertThat(page.document().select("form[name=next]")).isEmpty());
         }
