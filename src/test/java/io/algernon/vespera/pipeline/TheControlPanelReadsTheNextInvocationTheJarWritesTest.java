@@ -57,14 +57,10 @@ class TheControlPanelReadsTheNextInvocationTheJarWritesTest {
     void whatTheJarWritesTheControlPanelReads(String shape, Contents contents, @TempDir Path workingDirectory)
             throws Exception {
         NextInvocationFile.write(workingDirectory, contents);
-        claim("the jar wrote the file", () -> assertThat(workingDirectory.resolve(NextInvocationFile.FILE_NAME))
-                .isRegularFile());
 
         Optional<NextInvocation> read = NextInvocation.read(workingDirectory);
 
-        claim("the control panel reads the file under the name the jar writes it",
-                () -> assertThat(NextInvocation.FILE_NAME).isEqualTo(NextInvocationFile.FILE_NAME));
-        claim("and reads " + shape + " as the same command, the same keys in the same order, the same answers wanted"
+        claim("the control panel finds the file under the name the jar writes it, and reads " + shape + " as the same command, the same keys in the same order, the same answers wanted"
                         + " and the same arrangement",
                 () -> assertThat(read).hasValueSatisfying(next -> {
                     assertThat(next.invocation().name()).isEqualTo(contents.invocation().name());

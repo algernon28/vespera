@@ -48,7 +48,7 @@
 | --- | --- |
 | `corpus.CompiledCodeFontCertificateAndDatabaseDetectionTest.aSignatureWhoseLengthIsOneByteIsRecognised` | signed data with no content whose outer length is written `81` and one byte is `CERTIFICATE`; an envelope of that form holding a PDF is not |
 | `corpus.CompiledCodeFontCertificateAndDatabaseDetectionTest.anAppleFontIsAFont` | an sfnt opening `true` or `typ1`, and a web font of flavour `true`, are `FONT`; a header that disagrees, text opening with `true` and bytes opening with `typewriter` are not |
-| `pipeline.SurvivorListListenerTest.aReadThatFailsForAnyReasonLeavesThePageBeforeAndIsNotThrown`, `…aRunThatCannotBeFoundIsSaidAndNotThrown` | an `IllegalStateException` in the count, and in the lookup of the run, is said in one error line and not thrown; the page before stands whole |
+| `pipeline.SurvivorListListenerTest.aCountThatFailsLeavesThePageBeforeAndIsNotThrown` (its case of an error that is not the database's, #682), `…aRunThatCannotBeFoundIsSaidAndNotThrown` | an `IllegalStateException` in the count, and in the lookup of the run, is said in one error line and not thrown; the page before stands whole |
 | `pipeline.ReviewListThatFailsPartwayLeavesThePreviousOneTest.anErrorOfAnyKindLeavesTheReviewListBeforeAndIsNotThrown` | the same for the review list |
 
 ## What this does not decide

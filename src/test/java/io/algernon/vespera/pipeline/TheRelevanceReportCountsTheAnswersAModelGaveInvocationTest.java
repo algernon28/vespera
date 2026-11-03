@@ -11,7 +11,6 @@ import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -81,8 +80,6 @@ class TheRelevanceReportCountsTheAnswersAModelGaveInvocationTest {
     /** Every answer recorded for the seed set, whoever gave it: what the other counter is over. */
     private static final int RECORDED_ANSWERS = MODEL_ANSWERS + ONE_ANSWER_OF_A_PERSON;
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** A labeller's identity, as ADR-197 section 3 shapes one. No such model exists. */
     private static final String A_LABELLER = "ollama:synthetic-labeller;digest=synthetic";
@@ -299,16 +296,9 @@ class TheRelevanceReportCountsTheAnswersAModelGaveInvocationTest {
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
     }
 
-    /** The seed folder named, stage 4's gate open, gate 3 open, and no threshold. */
+    /** Every gate up to the approval open, and no threshold. */
     private void profile(Path seeds) {
-        String noThreshold = null;
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .relevanceScoreFloor(noThreshold, noThreshold)
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 
     /** The paths of the corpus's documents as the walk of {@code root} recorded them, in path order. */

@@ -27,8 +27,6 @@ class TwoDocumentsNearlyAlike {
 
     private static final int SHARED_WORDS = 90;
 
-    /** Above every measured document frequency here, so stage 4's gate is open, and strips only what all three share. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
     @Bean
     @Primary
@@ -48,7 +46,7 @@ class TwoDocumentsNearlyAlike {
         Files.writeString(root.resolve("near-1.txt"), "the bytes of the second");
         Files.writeString(root.resolve("apart.txt"), "the bytes of the third");
         profileStore.save(ProfileFixture.profile()
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .build());
     }
 }

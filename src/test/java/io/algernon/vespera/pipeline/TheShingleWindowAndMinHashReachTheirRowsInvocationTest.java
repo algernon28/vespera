@@ -64,8 +64,6 @@ class TheShingleWindowAndMinHashReachTheirRowsInvocationTest {
     /** How long a minimum is stored, in bytes. */
     private static final int BYTES_OF_A_MINIMUM = 4;
 
-    /** Above every measured document frequency here, so stage 4's gate is open, and strips nothing. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
     /** Answers each document with words of its own. */
     @TestConfiguration
@@ -119,7 +117,7 @@ class TheShingleWindowAndMinHashReachTheirRowsInvocationTest {
             Files.writeString(root.resolve("corpus-" + document + ".txt"), "the bytes of document " + document);
         }
         profileStore.save(ProfileFixture.profile()
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .build());
         cli.run("run", root.toString());
     }
@@ -153,7 +151,7 @@ class TheShingleWindowAndMinHashReachTheirRowsInvocationTest {
                 () -> assertThat(jdbcTemplate.queryForList(
                                 "SELECT DISTINCT signature_identity FROM minhash_signature", String.class))
                         .containsExactly("word:" + WINDOW + ";perms:" + PERMUTATIONS + ";bands:" + BANDS + ";rows:" + ROWS
-                                + ";seed:" + SEED + ";floor:" + BOILERPLATE_FLOOR));
+                                + ";seed:" + SEED + ";floor:" + EveryGateOpen.BOILERPLATE_FLOOR));
     }
 
     @Test

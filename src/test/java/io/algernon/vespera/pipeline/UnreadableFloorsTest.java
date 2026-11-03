@@ -2,7 +2,6 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.embedding.RelevanceLabel;
@@ -62,8 +61,8 @@ class UnreadableFloorsTest {
      * <p><b>It is never called, and that is the claim.</b> An unreadable floor is settled before any
      * question of calibration arises — {@code reachFor} hands the rule no number, and the rule reads no
      * labels at all — so a double that would fail loudly if consulted is how this test says the
-     * threshold's scale never entered into it. Give it a seed folder and answers and the outcome is the
-     * same, because there is no number for a scale to be wrong about.
+     * threshold's scale never entered into it. The profile names a seed folder, so that a rule reading the
+     * labels before it looked at the number would reach the double.
      */
     private static RelevanceLabels seedSetWithNoAnswers() {
         return new RelevanceLabels(null) {
@@ -71,6 +70,11 @@ class UnreadableFloorsTest {
             public List<RelevanceLabel> forSeedSet(String seedSet) {
                 throw new AssertionError("an unreadable floor was checked against a scale; it has no number"
                         + " for a scale to be wrong about");
+            }
+
+            @Override
+            public List<RelevanceLabel> forSeedSet(String seedSet, String scale) {
+                return forSeedSet(seedSet);
             }
         };
     }
@@ -86,15 +90,12 @@ class UnreadableFloorsTest {
         RedundancyGate gate = new RedundancyGate(profileStore);
 
         claim(
-                "asking for the floor does not raise: until now this read the value with no catch and no"
+                "asking for the floor does not raise -- until now this read the value with no catch and no"
                         + " trimming, so one comma in one key ended the invocation partway through, with"
                         + " whatever it had already done left behind and nothing saying which value was at"
-                        + " fault",
-                () -> assertThatCode(gate::floor).doesNotThrowAnyException());
-        claim(
-                "and the step simply has no floor to work with, which is exactly the state it is in"
-                        + " before anybody sets one -- the work already done stands, and the person fixes"
-                        + " the value and runs again",
+                        + " fault -- and the step simply has no floor to work with, which is exactly the state"
+                        + " it is in before anybody sets one: the work already done stands, and the person"
+                        + " fixes the value and runs again",
                 () -> assertThat(gate.floor()).isEmpty());
     }
 
@@ -112,12 +113,9 @@ class UnreadableFloorsTest {
                 "reading the floor does not raise, and that matters more here than anywhere else: this"
                         + " value is read while the tool is still wiring itself up, so a single mistyped"
                         + " character used to mean the tool would not start -- no invocation, no report,"
-                        + " and no line naming the key that stopped it",
-                () -> assertThatCode(() -> configuration.degenerateOutputConfidenceFloor(profileStore))
-                        .doesNotThrowAnyException());
-        claim(
-                "and no floor is applied, which is how this key ships and how every corpus runs before"
-                        + " anyone has measured a distribution to set it from",
+                        + " and no line naming the key that stopped it. And no floor is applied, which is how"
+                        + " this key ships and how every corpus runs before anyone has measured a distribution"
+                        + " to set it from",
                 () -> assertThat(configuration.degenerateOutputConfidenceFloor(profileStore).value())
                         .isNull());
     }
@@ -128,12 +126,14 @@ class UnreadableFloorsTest {
     void theStepAndTheRunIdentityAgree(@TempDir Path workingDirectory) {
         ProfileStore profileStore = new ProfileStore(workingDirectory);
         profileStore.save(ProfileFixture.profile()
+                .seedFolder(workingDirectory.toString(), "set by this test, so the answers could be read")
                 .relevanceScoreFloor(A_DECIMAL_COMMA, WHY)
                 .build());
         RelevanceFloor step = new RelevanceFloor(profileStore, seedSetWithNoAnswers());
 
         claim(
-                "the step removes nothing, because there is no number for it to remove anything by",
+                "the step removes nothing, because there is no number for it to remove anything by, and it"
+                        + " never reads the answers recorded for the seed set",
                 () -> assertThat(step.reachFor(
                                         Optional.of(AN_EMBEDDER),
                                         "Stage 5e (relevance floor)",

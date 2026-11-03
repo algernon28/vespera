@@ -69,8 +69,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-199", url = Adr.THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE, type = "adr")
 class UncoveredStatementsInvocationTest {
 
-    /** What stage 4's gate is opened with, so stage 4a runs. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
     /** Stage 1's two lines around the survivor count that sizes its broken check's counter. */
     private static final String COUNTING_FOR_THE_BROKEN_CHECK =
@@ -162,7 +160,7 @@ class UncoveredStatementsInvocationTest {
         ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, NOWHERE);
         jdbcTemplate.update("DELETE FROM extraction_cache");
         profileStore.save(ProfileFixture.profile()
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .build());
     }
 

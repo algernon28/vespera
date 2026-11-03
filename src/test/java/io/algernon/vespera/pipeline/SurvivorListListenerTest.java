@@ -37,11 +37,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.job.JobExecution;
@@ -285,10 +290,22 @@ class SurvivorListListenerTest {
                 }));
     }
 
-    @Test
+    /** A count that fails, as the database fails it and as any other error does, and what that failure says. */
+    static Stream<Arguments> countsThatFail() {
+        return Stream.of(
+                Arguments.of(
+                        Named.of("a failure the database reports", failingToCount()), WHAT_THE_COUNT_SAID),
+                Arguments.of(
+                        Named.of("an error that is not the database's", failingWithAnError()), WHAT_THE_ERROR_SAID));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("countsThatFail")
     @Story("The list of files extraction read and kept")
-    @DisplayName("When the count of the files extraction kept fails, the list written before stands whole, one line says so, and nothing is thrown from the end of extraction")
-    void aCountThatFailsLeavesThePageBeforeAndIsNotThrown(@TempDir Path root, @TempDir Path workingDirectory)
+    @DisplayName("When the count of the files extraction kept fails, for any reason, the list written before stands whole, one line says so, and nothing is thrown from the end of extraction")
+    @Link(name = "ADR-254", url = Adr.A_FAILURE_AT_THE_END_OF_STAGE_2_IS_SAID_WHATEVER_IT_WAS, type = "adr")
+    void aCountThatFailsLeavesThePageBeforeAndIsNotThrown(
+            Verdicts failing, String whatTheFailureSaid, @TempDir Path root, @TempDir Path workingDirectory)
             throws IOException {
         listener(theVerdicts(), theMetrics(), root, workingDirectory).afterStep(step(ExitStatus.COMPLETED, 0));
         Path page = workingDirectory.resolve(THE_SURVIVOR_LIST);
@@ -296,26 +313,27 @@ class SurvivorListListenerTest {
         saidByTheListener.clear();
         happened.clear();
 
-        Throwable thrown = catchThrowable(() -> listener(failingToCount(), theMetrics(), root, workingDirectory)
+        Throwable thrown = catchThrowable(() -> listener(failing, theMetrics(), root, workingDirectory)
                 .afterStep(step(ExitStatus.COMPLETED, 0)));
 
         theReadingBeganAndNoLineSaysHowLongItTook();
 
         claim(
-                "nothing was thrown from the end of extraction: the failed count was said, not thrown",
+                "nothing was thrown from the end of extraction: Spring Batch would log a stack trace and skip the"
+                        + " listeners after this one",
                 () -> assertThat(thrown).isNull());
         claim(
                 "the list in its place is the first invocation's, character for character",
                 () -> assertThat(Files.readString(page, StandardCharsets.UTF_8)).isEqualTo(thePageBefore));
         claim(
                 "one line, written as an error, says that the files that came through could not be counted and"
-                        + " that their list could not be written to the page's place, with what the database said",
+                        + " that their list could not be written to the page's place, with what the failure said",
                 () -> assertThat(saidByTheListener).singleElement().satisfies(line -> {
                     assertThat(line.getLevel()).isEqualTo(Level.ERROR);
                     assertThat(line.getFormattedMessage())
                             .startsWith("Stage 2 (extraction): the files that came through could not be counted,"
                                     + " and their list could not be written to " + page.toAbsolutePath() + ": ")
-                            .contains(WHAT_THE_COUNT_SAID);
+                            .contains(whatTheFailureSaid);
                 }));
     }
 
@@ -401,40 +419,6 @@ class SurvivorListListenerTest {
                                     + " their list could not be written to " + page.toAbsolutePath() + ": ");
                 }));
         theReadingBeganAndNoLineSaysHowLongItTook();
-    }
-
-    @Test
-    @Story("The list of files extraction read and kept")
-    @DisplayName("When the read of the files extraction kept fails with an error that is not the database's, the list written before stands whole, one line says so, and nothing is thrown from the end of extraction")
-    @Link(name = "ADR-254", url = Adr.A_FAILURE_AT_THE_END_OF_STAGE_2_IS_SAID_WHATEVER_IT_WAS, type = "adr")
-    void aReadThatFailsForAnyReasonLeavesThePageBeforeAndIsNotThrown(
-            @TempDir Path root, @TempDir Path workingDirectory) throws IOException {
-        listener(theVerdicts(), theMetrics(), root, workingDirectory).afterStep(step(ExitStatus.COMPLETED, 0));
-        Path page = workingDirectory.resolve(THE_SURVIVOR_LIST);
-        String thePageBefore = Files.readString(page, StandardCharsets.UTF_8);
-        saidByTheListener.clear();
-        happened.clear();
-
-        Throwable thrown = catchThrowable(() -> listener(failingWithAnError(), theMetrics(), root, workingDirectory)
-                .afterStep(step(ExitStatus.COMPLETED, 0)));
-
-        claim(
-                "nothing was thrown from the end of extraction: Spring Batch would log a stack trace and skip the"
-                        + " listeners after this one",
-                () -> assertThat(thrown).isNull());
-        claim(
-                "the list in its place is the first invocation's, character for character",
-                () -> assertThat(Files.readString(page, StandardCharsets.UTF_8)).isEqualTo(thePageBefore));
-        claim(
-                "one line, written as an error, says that the files that came through could not be counted and"
-                        + " that their list could not be written to the page's place, with what the error said",
-                () -> assertThat(saidByTheListener).singleElement().satisfies(line -> {
-                    assertThat(line.getLevel()).isEqualTo(Level.ERROR);
-                    assertThat(line.getFormattedMessage())
-                            .startsWith("Stage 2 (extraction): the files that came through could not be counted,"
-                                    + " and their list could not be written to " + page.toAbsolutePath() + ": ")
-                            .contains(WHAT_THE_ERROR_SAID);
-                }));
     }
 
     @Test

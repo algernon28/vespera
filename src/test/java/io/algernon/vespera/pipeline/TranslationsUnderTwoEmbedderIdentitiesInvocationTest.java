@@ -4,7 +4,6 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -81,8 +80,8 @@ class TranslationsUnderTwoEmbedderIdentitiesInvocationTest {
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor("1.0", "set by this test, so stage 4's gate is open")
-                .embeddingModel("qwen3-embedding:0.6b", "set by this test, so the embedding-model gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
                 .preferredLanguages("en", "set by this test, so the Chinese copy is removed")
                 .build());
         cli.run("run", root.toString());
@@ -129,11 +128,7 @@ class TranslationsUnderTwoEmbedderIdentitiesInvocationTest {
     }
 
     private String latestScoringRun(Path root) {
-        return jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = 'embedding-scoring' AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                Walk.canonicalRoot(root).toString());
+        return new RunsOver(jdbcTemplate, root).latest("embedding-scoring").value();
     }
 
     private long translationsUnder(String run) {

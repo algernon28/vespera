@@ -3,6 +3,7 @@ package io.algernon.vespera.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -140,6 +141,7 @@ class TemporaryFilesInTheWorkingDirectoryTest {
     @DisplayName("A working directory named by a path relative to where the command was started is given to the database as an absolute path")
     void aRelativeWorkingDirectoryIsSetAsAnAbsolutePath() throws SQLException, IOException {
         Path relative = Path.of(UNDER_THE_CURRENT_DIRECTORY, "a relative working directory " + System.nanoTime());
+        assumeTrue(!relative.isAbsolute(), "the path this test names is relative, as one named on the command line may be");
         Files.createDirectories(relative);
         try {
             new TemporaryFilesInTheWorkingDirectory().onApplicationEvent(prepared(relative.toString()));
@@ -147,15 +149,9 @@ class TemporaryFilesInTheWorkingDirectoryTest {
             try (Connection later = DriverManager.getConnection("jdbc:sqlite::memory:")) {
                 String reported = temporaryFilesDirectory(later);
                 claim(
-                        "the path this test names is relative, \"" + relative + "\", as a working directory named"
-                                + " on the command line may be",
-                        () -> assertThat(relative).isRelative());
-                claim(
                         "what the database is given, and reports, is an absolute path, so where its temporary files"
-                                + " go does not depend on what the current directory is when it writes one",
-                        () -> assertThat(Path.of(reported)).isAbsolute());
-                claim(
-                        "and it is the same folder: the relative path, read against the current directory",
+                                + " go does not depend on what the current directory is when it writes one: the"
+                                + " relative path read against the current directory",
                         () -> assertThat(Path.of(reported).normalize())
                                 .isEqualTo(relative.toAbsolutePath().normalize()));
             }

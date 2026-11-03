@@ -49,11 +49,7 @@ class TheNextInvocationFileIsWrittenWithTheClosingLineTest {
     /** The file's name, beside the database file. */
     private static final String FILE_NAME = "next-invocation.properties";
 
-    /** Above every measured document frequency here, so stage 4's gate is open. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
-    /** The model the scripted embedder answers for. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     @TempDir
     static Path workingDirectory;
@@ -149,8 +145,8 @@ class TheNextInvocationFileIsWrittenWithTheClosingLineTest {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
                 .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so the scoring run is minted")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so the scoring run is minted")
                 .build());
     }
 

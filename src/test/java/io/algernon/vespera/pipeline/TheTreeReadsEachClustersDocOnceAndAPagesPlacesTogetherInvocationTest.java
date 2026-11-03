@@ -8,7 +8,6 @@ import ch.qos.logback.core.AppenderBase;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -80,8 +79,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-241", url = Adr.THE_MANIFEST_ASKS_A_PAGES_PLACES_AND_A_SYNTHESIS_DOC_IS_READ_ONCE, type = "adr")
 class TheTreeReadsEachClustersDocOnceAndAPagesPlacesTogetherInvocationTest {
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
     private static final String THE_READING_WINDOW = "4096";
 
     /** How many survivors the tree lists: many more than its clusters, and fewer than a page of 1,000. */
@@ -265,15 +262,9 @@ class TheTreeReadsEachClustersDocOnceAndAPagesPlacesTogetherInvocationTest {
                         + " index alike",
                 () -> assertThat(readsOfTheWriting).isEqualTo(CLUSTERS));
         claim(
-                "no question the final documents ask, but the two a document's pictures are looked up by, is asked as"
-                        + " many times as there are documents: the " + SURVIVORS + " documents, listed three times"
-                        + " over, are looked up a page at a time and not one at a time",
-                () -> assertThat(byText).allSatisfy((sql, times) -> assertThat(times)
-                        .as("how many times this was asked: %s", sql)
-                        .isLessThan(SURVIVORS)));
-        claim(
                 "all the questions the final documents ask, but the two a document's pictures are looked up by, are"
-                        + " fewer than the " + SURVIVORS + " documents they list",
+                        + " fewer than the " + SURVIVORS + " documents they list: the documents, listed three times"
+                        + " over, are looked up a page at a time and not one at a time",
                 () -> assertThat(byText.values().stream().mapToInt(Integer::intValue).sum())
                         .as("every question the final documents asked: %s", byText)
                         .isLessThan(SURVIVORS));
@@ -311,17 +302,13 @@ class TheTreeReadsEachClustersDocOnceAndAPagesPlacesTogetherInvocationTest {
             Files.writeString(root.resolve("corpus-" + file + ".txt"), "corpus document " + file);
         }
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .generationContextWindow(THE_READING_WINDOW, "set by this test, so every call here reads in the same window")
                 .build());
         cli.run("run", root.toString());
         profileStore.save(ProfileFixture.profileFrom(profileStore.load())
-                .arrangementApproved(ArrangementGate.shortNameOf(theLatestArrangement(root)), "read by this test")
+                .arrangementApproved(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")), "read by this test")
                 .build());
 
         RunId arrangement = theApprovedArrangement(root);
@@ -365,15 +352,6 @@ class TheTreeReadsEachClustersDocOnceAndAPagesPlacesTogetherInvocationTest {
                     SURVIVORS / CLUSTERS,
                     cluster + 1);
         }
-    }
-
-    private RunId theLatestArrangement(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
     }
 
     private RunId theApprovedArrangement(Path root) {

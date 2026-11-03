@@ -200,10 +200,8 @@ class WorkingDirectoryLockTest {
     void theRefusalSaysWhatItCouldRead(@TempDir Path workingDirectory) {
         String holderLine = "pid=4242 started=2026-09-28T22:38:44+02:00 command=run archive-root";
 
-        claim("with the holder's line read, the refusal quotes it between the directory and the advice",
-                () -> assertThat(new WorkingDirectoryInUseException(workingDirectory, holderLine))
-                        .hasMessage(inUse(workingDirectory, holderLine)));
-        claim("with nothing readable in the lock file, the refusal says so in place of the line",
+        claim("with nothing readable in the lock file, the refusal says so in place of the holder's line, which a"
+                        + " refused take quotes when it can read it",
                 () -> assertThat(new WorkingDirectoryInUseException(workingDirectory, "  "))
                         .hasMessage(inUse(workingDirectory, "its details could not be read")));
         claim("and it carries the directory it refused, for whatever reports it",

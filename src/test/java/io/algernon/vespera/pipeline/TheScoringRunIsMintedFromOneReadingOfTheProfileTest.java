@@ -101,7 +101,7 @@ class TheScoringRunIsMintedFromOneReadingOfTheProfileTest {
         ProfileStore gates = new ProfileStore(gatesWorking);
         gates.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test, so the seed gate is open")
-                .boilerplateDocumentFrequencyFloor("1.0", "set by this test, so stage 4's gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .build());
         RedundancyGate redundancyGate = new RedundancyGate(gates);
         StageRuns stageRuns = new StageRuns(

@@ -286,7 +286,7 @@ The implementer's, in the change that builds this:
 | `pipeline.TheTreeInHtmlInvocationTest.theClosingLineNamesTheIndexAndTheIndexIsOpenedOnce` | §7: the index by its whole path and `0 documents not copied`, opened once with the page in place |
 | `pipeline.GenerationBreakerInvocationTest.aStoppedStepOpensTheTreesIndexOnce` | §7: with the step stopped by five answers turned down, the index is opened once with the page in place |
 | `pipeline.GenerationBreakerInvocationTest.anUnfinishedStepOpensTheTreesIndexOnce` | §7: with the step left unfinished, eight groups standing with a fault, the index is opened once with the page in place |
-| `pipeline.TheTreeInHtmlInvocationTest.anInvocationThatWritesTheTreeOpensTwoPages` | §7 and ADR-266 §2 as amended: exactly two pages are opened, the progress page and then the index |
+| `pipeline.TheTreeInHtmlInvocationTest.theClosingLineNamesTheIndexAndTheIndexIsOpenedOnce` | §7 and ADR-266 §2 as amended: exactly two pages are opened, the progress page and then the index (merged into it, #682) |
 | `pipeline.TheTreeInHtmlInvocationTest.theCopiesAreToldBeforeAndAfterInCountsOnly` | §2.5 and §8: two lines of the copies, every argument a number: before, the survivors about to copy, their bytes and the free bytes; after, the count of each outcome and the bytes copied; neither names a document, the archive or the tree |
 | `pipeline.TheClosingLineCountsTheCopiesThatDoNotStandTest.leavesTheCopiesOutWhereThisInvocationWroteNoTree` | §7: with no count handed over, the line names the index and ends at the groups left unwritten, with nothing of copies |
 | `pipeline.TheClosingLineCountsTheCopiesThatDoNotStandTest.countsTheDocumentsNotCopiedEvenAtNone` | §7: `0 documents`, `1 document` and `2 documents not copied` |

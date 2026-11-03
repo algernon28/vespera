@@ -524,10 +524,10 @@ These hold the record through what it builds. Each is `@Disabled` until then, it
 
 | Method | What it holds |
 | --- | --- |
-| `pipeline.TheStagesNamingThePresetsModulesTest.theStagesNamingEmbeddingAreTheLastFour` | `StageModules`' stages naming `embedding` are the last four of §10's table |
-| `pipeline.TheStagesNamingThePresetsModulesTest.theStagesNamingSimilarityAreExtractionAndTheTwoAfterIt` | those naming `similarity` are extraction, content census and content redundancy |
-| `pipeline.TheStagesNamingThePresetsModulesTest.theStagesNamingExtractionAreTheSevenFromExtractionOn` | those naming `extraction` are the seven §10 moves, byte-level reduction alone left |
-| `pipeline.VesperaPublishWritesNoEffectiveValuesInvocationTest.aPublishWritesNoFile` | a publish, refused here with nothing drawn, writes no §1 file: a writer ahead of its first refusal is seen, one after it is not (§1) |
+| `pipeline.TheStagesNamingThePresetsModulesTest.eachPresetsModuleIsNamedByItsStages` (#682) | `StageModules`' stages naming `embedding` are the last four of §10's table |
+| `pipeline.TheStagesNamingThePresetsModulesTest.eachPresetsModuleIsNamedByItsStages` (#682) | those naming `similarity` are extraction, content census and content redundancy |
+| `pipeline.TheStagesNamingThePresetsModulesTest.eachPresetsModuleIsNamedByItsStages` (#682) | those naming `extraction` are the seven §10 moves, byte-level reduction alone left |
+| `pipeline.VesperaPublishWritesNoEffectiveValuesInvocationTest.aPublishRefusedBeforeItSendsWritesNoFile` (#681) | a publish, refused here with nothing drawn, writes no §1 file: a writer ahead of its first refusal is seen, one after it is not (§1) |
 | `pipeline.ARefusedInvocationWritesNoEffectiveValuesInvocationTest.aRefusedInvocationLeavesTheFileAsItWas` | `vespera run` with no root: a marker put in the file stays, so a writer ahead of the refusal is seen (§1) |
 | `pipeline.ARefusedInvocationWritesNoEffectiveValuesInvocationTest.aLabelRefusedAtItsStartLeavesTheFileAsItWas` | `vespera label --auto` given a file: the same (§1) |
 | `controlpanel.ProfileEditorGuardsScreenTest.saveThenRunStartsTheRunOnceEveryKeyIsWritten` | the child, as it starts, finds every key in the file (§5) |
