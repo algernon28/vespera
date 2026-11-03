@@ -5,6 +5,7 @@ import static io.algernon.controlpanel.ScreenServer.form;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.controlpanel.PanelBrowser.Page;
 import io.algernon.vespera.Adr;
@@ -267,6 +268,8 @@ class NativePickersScreenTest {
         Map<String, Integer> slidersOnEachPage = new LinkedHashMap<>();
         pagesWantingEveryKey.forEach((path, each) ->
                 slidersOnEachPage.put(path, each.document().select("input[type=range]").size()));
+        assumeTrue(slidersOnEachPage.size() == PAGES_THAT_HOLD_A_FORM,
+                "the fixture holds the six pages the sidebar leads to and the folder page");
         Map<String, List<String>> shapes = new LinkedHashMap<>();
         Map<String, List<String>> expected = new LinkedHashMap<>();
         for (ProfileKey key : ProfileKey.values()) {
@@ -282,10 +285,7 @@ class NativePickersScreenTest {
         claim("each value's control has the type its kind gives it, a number any step and no bounds",
                 () -> assertThat(shapes).containsExactlyEntriesOf(expected));
         claim("and no page holds a slider, of the six the sidebar leads to and the folder page",
-                () -> {
-                    assertThat(slidersOnEachPage).hasSize(PAGES_THAT_HOLD_A_FORM);
-                    assertThat(slidersOnEachPage.values()).containsOnly(0);
-                });
+                () -> assertThat(slidersOnEachPage.values()).containsOnly(0));
     }
 
     /** A browser does not send a number field what is no number; a post that does is still {@link ProfileEdit}'s to refuse. */

@@ -577,16 +577,22 @@ class FolderFieldStatusScreenTest {
             Page afterTheProfilePagesSave = browser.go("/profile").press("seedFolder", "save",
                     Map.of("value", seeds, "provenance", "a reason")).page();
 
-            claim("each save lands back on its page, with its one line",
+            claim("each save lands back on its page, with the one line it gives where no working directory is named",
                     () -> assertThat(List.of(afterTheLaunchPagesSave, afterTheProfilePagesSave))
-                            .extracting(page -> page.address().getPath(), page -> byId(page, "outcome").text().isBlank())
-                            .containsExactly(tuple("/", false), tuple("/profile", false)));
+                            .extracting(page -> page.address().getPath(), page -> byId(page, "outcome").text())
+                            .containsExactly(
+                                    tuple("/", "seedFolder is not saved: the working directory is not named"),
+                                    tuple("/profile", "the working directory is not named, on the launch page")));
             claim("and no profile was written",
                     () -> assertThat(Files.exists(workingDirectory.resolve(ProfileEdit.FILE_NAME))).isFalse());
         }
     }
 
-    /** Each item is read as a pair: the number on the attribute and the GiB the same item shows, so neither can drift. */
+    /**
+     * Each item is read as a pair: the number on the attribute and the GiB the same item shows, so neither can drift.
+     * Both folders lie on one drive here, so the tile is read again with no deliverable root chosen, where the
+     * deliverable root's free space would be none.
+     */
     @Test
     @Story("The operator sees whether a folder will do")
     @DisplayName("The free space list shows GiB, worked out from the bytes it keeps on each item, and the free space tile shows the working directory's")
@@ -598,7 +604,6 @@ class FolderFieldStatusScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder, values)) {
             Page page = screens.browser().page();
             List<Element> items = byId(page, "free-space").select("[data-folder]");
-            Element tile = byId(page, "tiles").select("[data-tile=free-space]").first();
 
             claim("the working directory's and the deliverable root's items are both there",
                     () -> assertThat(items).hasSize(2));
@@ -608,8 +613,16 @@ class FolderFieldStatusScreenTest {
                             .contains(gib(item.attr("data-usable-bytes")))
                             .doesNotContain(item.attr("data-usable-bytes"))
                             .doesNotContain("bytes")));
-            claim("and the tile gives the working directory's",
-                    () -> assertThat(tile.text()).contains(gib(items.getFirst().attr("data-usable-bytes"))));
+        }
+        Path own = Files.createDirectories(folder.resolve("no-deliverable-root"));
+        LaunchValues noDeliverableRoot = new LaunchValues("", workingDirectory.toString(), "", "", "", "", "", "");
+        try (ScreenServer screens = ScreenServer.start(own, noDeliverableRoot)) {
+            Page page = screens.browser().page();
+            Element workingDirectorysItem = byId(page, "free-space").select("[data-folder=working-directory]").first();
+            Element tile = byId(page, "tiles").select("[data-tile=free-space]").first();
+
+            claim("and with no deliverable root chosen, the tile gives the working directory's free space",
+                    () -> assertThat(tile.text()).contains(gib(workingDirectorysItem.attr("data-usable-bytes"))));
         }
     }
 

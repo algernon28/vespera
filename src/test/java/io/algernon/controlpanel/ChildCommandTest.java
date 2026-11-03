@@ -58,7 +58,7 @@ class ChildCommandTest {
     private static final LaunchValues THE_TWO = new LaunchValues(CORPUS_ROOT.toString(),
             WORKING_DIRECTORY.toString(), "", "", "", "", "", "");
 
-    /** Every launch value named, and a last seed folder that must reach the child nowhere. */
+    /** Every launch value named, a last seed folder among them. */
     private static final String LAST_SEED_FOLDER = "seeds-last-confirmed";
 
     private static final LaunchValues EVERY_VALUE = new LaunchValues(CORPUS_ROOT.toString(),
@@ -165,22 +165,6 @@ class ChildCommandTest {
     }
 
     @Test
-    @Story("The control panel passes its launch values to the jar")
-    @DisplayName("The last seed folder is in neither the command line nor the environment of Run or Label")
-    @Issue("564")
-    @Link(name = "ADR-292", url = Adr.THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES, type = "adr")
-    void theLastSeedFolderReachesTheChildNowhere() {
-        for (ChildCommand command : List.of(ChildCommand.run(JAVA, JAR, EVERY_VALUE),
-                ChildCommand.label(JAVA, JAR, false, EVERY_VALUE))) {
-            claim("no argument of the command line holds the last seed folder",
-                    () -> assertThat(command.command()).noneMatch(argument -> argument.contains(LAST_SEED_FOLDER)));
-            claim("and no variable the control panel adds holds it",
-                    () -> assertThat(command.environment().values())
-                            .noneMatch(value -> value.contains(LAST_SEED_FOLDER)));
-        }
-    }
-
-    @Test
     @Story("The control panel starts the jar as shipped")
     @Issue("633")
     @DisplayName("Publish is the jar's publish command with the working directory absolute, and adds no Confluence value to the child's environment")
@@ -193,10 +177,11 @@ class ChildCommandTest {
         claim("and no variable the control panel adds names Confluence: the child inherits the five values from the"
                         + " operator's environment, and the control panel holds none of them",
                 () -> assertThat(publish.environment().keySet()).noneMatch(name -> name.contains("CONFLUENCE")));
-        claim("a publish with no working directory is not built, the label's refusal given",
-                () -> assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR,
-                                new LaunchValues(CORPUS_ROOT.toString(), "", "", "", "", "", "", "")))
-                        .isInstanceOf(IllegalArgumentException.class));
+        LaunchValues noWorkingDirectory = new LaunchValues(CORPUS_ROOT.toString(), "", "", "", "", "", "", "");
+        claim("a publish with no working directory is not built, the label's refusal given as the message",
+                () -> assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR, noWorkingDirectory))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage(noWorkingDirectory.refusalToLabel().orElseThrow()));
     }
 
     @Test

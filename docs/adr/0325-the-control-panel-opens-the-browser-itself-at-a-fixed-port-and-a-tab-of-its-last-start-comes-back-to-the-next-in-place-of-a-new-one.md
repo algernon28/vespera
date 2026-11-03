@@ -321,7 +321,7 @@ These hold the classes of §10, which they name:
 | --- | --- |
 | `controlpanel.SystemBrowserOpenerTest.eachSystemIsAskedThroughItsOwnCommand` | Windows through `rundll32 url.dll,FileProtocolHandler`, macOS through `open`, Linux with a display through `xdg-open`, each with the address (§7) |
 | `controlpanel.SystemBrowserOpenerTest.underCiOrWithNoDisplayNothingIsOpened` | `CI` set on every system, and Linux with neither display variable: empty (§7) |
-| `controlpanel.SystemBrowserOpenerTest.theAddressIsHandedOverAsOneArgument` | three arguments on Windows and two elsewhere, the last the address whole (§7) |
+| `controlpanel.SystemBrowserOpenerTest.eachSystemIsAskedThroughItsOwnCommand` | three arguments on Windows and two elsewhere, the last the address whole (§7), held by each system's exact command (#681) |
 | `controlpanel.ControlPanelStartTest.aTabThatComesBackWithinTheBoundLeavesTheOpenerUnasked` | in process, with a recording opener and a bound of 30 seconds: a tab's poll of `/alive` ends the wait at once, and the opener is never asked (§3, §4.4) |
 | `controlpanel.ControlPanelStartTest.noTabWithinTheBoundAsksTheOpenerOnceForTheRoot` | with a short bound and no tab: the waiting line, one address printed, the root alone, and the opener asked once for it (§3) |
 | `controlpanel.ControlPanelStartTest.anOpenerThatThrowsLeavesTheAddressPrintedAndTheControlPanelServing` | an opener throwing: §7's line naming the class, the address printed before it, and the server answering its page (§7) |

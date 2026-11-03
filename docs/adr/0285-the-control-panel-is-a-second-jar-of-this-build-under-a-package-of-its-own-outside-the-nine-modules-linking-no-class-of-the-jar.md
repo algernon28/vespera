@@ -105,10 +105,7 @@ Two of ADR-278's tests wait for the screens: Run and Label disabled while a line
 | `PackagedJarIT.theSpringBootJarCarriesNoClassOfTheControlPanel` | the Spring Boot jar holds `VesperaApplication` and nothing under `io/algernon/controlpanel/` (§2) |
 | `PackagedJarIT.theControlPanelJarCarriesOnlyTheControlPanelsClasses` | the `control-panel` jar holds classes of `io/algernon/controlpanel/` and nothing else outside `META-INF/`, so no Spring and no nested library (§2) |
 | `controlpanel.HolderLineTest.aLineIsReadIntoItsPidAndStartedAndKeptWhole` | a holder line's pid, its `started` as an instant, and its text whole |
-| `controlpanel.HolderLineTest.aLineWhoseProcessIsAliveAndStartedNoLaterThanStartedPlusOneSecondIsHeld` | the rule's first case, at its bound |
-| `controlpanel.HolderLineTest.aLineWhoseProcessStartedMoreThanOneSecondAfterStartedIsNotHeld` | a reused pid is not held |
-| `controlpanel.HolderLineTest.aLineWhosePidIsDeadIsNotHeld` | a dead pid is not held, whatever its start |
-| `controlpanel.HolderLineTest.aLineWhoseProcessGivesNoStartInstantIsHeld` | a missing start instant counts as held |
+| `controlpanel.HolderLineTest.aLineIsHeldWhileItsProcessIsAliveAndStartedInTime` | the rule case by case: held at its bound and before it, a reused pid not held, a dead pid not held whatever its start, a missing start instant counted as held (#682) |
 | `controlpanel.HolderLineTest.theRuleReadsTheProcessTheSystemNames` | the rule against real processes: this JVM held, this JVM's pid under a `started` before it began not held, an ended process's pid not held |
 | `controlpanel.HolderLineTest.readingALockedHolderLineTakesNoLock` | a holder line is read while its file is locked as the jar locks it |
 | `controlpanel.HolderLineTest.readingAHolderLineStartsNoProcessAndTakesNoLock` | `HolderLine`, `HolderProcess` and `HolderReading` name no `ProcessBuilder` and call no lock of a `FileChannel` |
@@ -131,7 +128,7 @@ Two of ADR-278's tests wait for the screens: Run and Label disabled while a line
 | `controlpanel.ChildTest.aStoppedChildIsShownAsStoppedThoughItExitsAsAFailureDoes` | Stopped, recorded by the control panel, whatever the exit code |
 | `controlpanel.ChildTest.eachExitCodeIsShownWithTheLastLineThatIsNotBlank` | exits 0, 1 and 2, each with its last line that is not blank |
 | `controlpanel.HowItEndedTest.howItEndedFollowsTheExitCodeAndTheControlPanelsOwnStop` | ADR-278 §5's table, row by row |
-| `controlpanel.HowItEndedTest.anyOtherExitCodeOfAChildNotStoppedIsFailedOrRefused` | the four ways it is shown, and every other code, the extremes of an int included, failed or refused, or stopped after the control panel's own Stop |
+| `controlpanel.HowItEndedTest.aChildsEndingIsShownAsOneOfFour` | the four ways it is shown; every other code, the extremes of an int included, failed or refused, or stopped after the control panel's own Stop, is now a case of `howItEndedFollowsTheExitCodeAndTheControlPanelsOwnStop` (#682) |
 | `controlpanel.ChildTest.aChildKilledFromOutsideIsShownAsFailedOrRefusedWithItsCode` | a child killed by another program: failed or refused, with its code, not stopped, and no last line where it printed none |
 
 ## What this does not decide

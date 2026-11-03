@@ -100,7 +100,7 @@ class LaunchScreenTest {
 
     @Test
     @Story("The operator starts an invocation from the control panel")
-    @DisplayName("The free space of the working folder's drive and of the deliverable folder's is shown, each in bytes")
+    @DisplayName("The free space of the working folder's drive and of the deliverable folder's is shown, each carrying its usable bytes")
     void theFreeSpaceOfTheWorkingDirectorysAndTheDeliverableRootsDrivesIsShown() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
@@ -285,8 +285,13 @@ class LaunchScreenTest {
                         () -> assertThat(List.of(byId(page, "docling-check").attr("data-check"),
                                         byId(page, "ollama-check").attr("data-check")))
                                 .containsExactly("another-image", "missing"));
-                claim("each is one warning beside Run, the two and no other",
-                        () -> assertThat(byId(page, "warnings").select("li")).hasSize(2));
+                List<String> warnings = byId(page, "warnings").select("li").stream().map(Element::text).toList();
+                claim("each is one warning beside Run, the two and no other: the image the converter runs where"
+                                + " another is named, then the model the model service does not serve",
+                        () -> assertThat(warnings).satisfiesExactly(
+                                image -> assertThat(image).contains("runs " + IMAGE_RUN, IMAGE_NAMED + " is named"),
+                                model -> assertThat(model).isEqualTo(
+                                        "the model service at " + stub + " does not serve " + MODEL_NOT_SERVED)));
                 claim("and Run stays enabled",
                         () -> assertThat(form(page, "launch").select("[name=run]").hasAttr("disabled")).isFalse());
 

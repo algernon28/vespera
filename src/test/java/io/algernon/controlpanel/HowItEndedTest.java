@@ -9,8 +9,14 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * How the control panel shows that its child ended (ADR-278 §5, landed by ADR-285 §5): its own Stop first, whatever
@@ -40,8 +46,8 @@ class HowItEndedTest {
 
     @Test
     @Story("The control panel says how its child ended")
-    @DisplayName("Any other exit code of a child the control panel did not stop is shown as failed or refused")
-    void anyOtherExitCodeOfAChildNotStoppedIsFailedOrRefused() {
+    @DisplayName("A child's ending is shown as one of four: ended, failed or refused, a defect of the control panel, or stopped")
+    void aChildsEndingIsShownAsOneOfFour() {
         claim("every exit code is shown as one of four: ended, failed or refused, a defect of the control panel, or"
                         + " stopped",
                 () -> assertThat(HowItEnded.values()).containsExactlyInAnyOrder(
@@ -49,28 +55,39 @@ class HowItEndedTest {
                         HowItEnded.FAILED_OR_REFUSED,
                         HowItEnded.DEFECT_OF_THE_CONTROL_PANEL,
                         HowItEnded.STOPPED));
-        for (int code : OTHER_CODES) {
-            claim("exit " + code + ", not stopped, is failed or refused",
-                    () -> assertThat(HowItEnded.of(false, code)).isEqualTo(HowItEnded.FAILED_OR_REFUSED));
-            claim("and exit " + code + ", stopped by the control panel's own Stop, is stopped",
-                    () -> assertThat(HowItEnded.of(true, code)).isEqualTo(HowItEnded.STOPPED));
-        }
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("endings")
     @Story("The control panel says how its child ended")
-    @DisplayName("Exit 0 is ended, 1 failed or refused, 2 a defect of the control panel, and its own Stop is stopped whatever the code")
-    void howItEndedFollowsTheExitCodeAndTheControlPanelsOwnStop() {
-        claim("exit 0, not stopped, is ended",
-                () -> assertThat(HowItEnded.of(false, ENDED)).isEqualTo(HowItEnded.ENDED));
-        claim("exit 1, not stopped, is failed or refused",
-                () -> assertThat(HowItEnded.of(false, FAILED_OR_REFUSED)).isEqualTo(HowItEnded.FAILED_OR_REFUSED));
-        claim("exit 2, not stopped, is a defect of the control panel, whose command line the jar refused",
-                () -> assertThat(HowItEnded.of(false, COMMAND_LINE_REFUSED))
-                        .isEqualTo(HowItEnded.DEFECT_OF_THE_CONTROL_PANEL));
-        claim("stopped by the control panel's own Stop, exit 1 is stopped, not failed",
-                () -> assertThat(HowItEnded.of(true, FAILED_OR_REFUSED)).isEqualTo(HowItEnded.STOPPED));
-        claim("and so is a kill's exit code on Linux, 137",
-                () -> assertThat(HowItEnded.of(true, KILLED_ON_LINUX)).isEqualTo(HowItEnded.STOPPED));
+    @DisplayName("Exit 0 is ended, 1 failed or refused, 2 a defect of the control panel, any other code failed or refused, and its own Stop is stopped whatever the code")
+    void howItEndedFollowsTheExitCodeAndTheControlPanelsOwnStop(
+            boolean stopped, int exitCode, HowItEnded expected) {
+        claim("a child " + (stopped ? "stopped by the control panel's own Stop" : "the control panel did not stop")
+                        + " that exits " + exitCode + " is shown as " + expected,
+                () -> assertThat(HowItEnded.of(stopped, exitCode)).isEqualTo(expected));
+    }
+
+    /**
+     * Each exit code of the table and each other code, once for a child the control panel did not stop and once for
+     * one its own Stop ended: not stopped, 0 is ended, 1 failed or refused, 2 a defect of the control panel and any
+     * other code failed or refused; stopped, every code is stopped.
+     */
+    static Stream<Arguments> endings() {
+        Stream<Arguments> notStopped = Stream.of(
+                Arguments.of(Named.of("exit 0, not stopped, is ended", false), ENDED, HowItEnded.ENDED),
+                Arguments.of(Named.of("exit 1, not stopped, is failed or refused", false), FAILED_OR_REFUSED,
+                        HowItEnded.FAILED_OR_REFUSED),
+                Arguments.of(Named.of("exit 2, not stopped, is a defect of the control panel, whose command line the"
+                        + " jar refused", false), COMMAND_LINE_REFUSED, HowItEnded.DEFECT_OF_THE_CONTROL_PANEL));
+        Stream<Arguments> otherNotStopped = IntStream.of(OTHER_CODES).mapToObj(code -> Arguments.of(
+                Named.of("exit " + code + ", not stopped, is failed or refused", false), code,
+                HowItEnded.FAILED_OR_REFUSED));
+        Stream<Arguments> stopped = IntStream.concat(
+                        IntStream.of(ENDED, FAILED_OR_REFUSED, COMMAND_LINE_REFUSED), IntStream.of(OTHER_CODES))
+                .mapToObj(code -> Arguments.of(
+                        Named.of("exit " + code + ", stopped by the control panel's own Stop, is stopped", true),
+                        code, HowItEnded.STOPPED));
+        return Stream.of(notStopped, otherNotStopped, stopped).flatMap(cases -> cases);
     }
 }

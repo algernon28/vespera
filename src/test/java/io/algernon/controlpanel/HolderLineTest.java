@@ -31,9 +31,14 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Whether a holder line is held, read by the control panel without a lock and without the jar (ADR-278 §4, landed by
@@ -84,44 +89,32 @@ class HolderLineTest {
                         .contains(new HolderLine(A_PID, STARTED_INSTANT, A_HOLDER_LINE)));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("processes")
     @Story("The control panel finds an invocation it did not start")
-    @DisplayName("A line whose process is alive and started no later than one second after the line's start time is held")
-    void aLineWhoseProcessIsAliveAndStartedNoLaterThanStartedPlusOneSecondIsHeld() {
-        claim("a live process that started exactly one second after the line's start time holds it",
-                () -> assertThat(LINE.heldWhile(new HolderProcess(true, Optional.of(STARTED_INSTANT.plus(ONE_SECOND)))))
-                        .isTrue());
-        claim("and so does one that started before it",
-                () -> assertThat(LINE.heldWhile(new HolderProcess(true, Optional.of(STARTED_INSTANT.minus(ONE_SECOND)))))
-                        .isTrue());
+    @DisplayName("A line is held while its process is alive and started no later than one second after the line's start time, or gives no start instant; a later start is a reused pid, and a process not alive holds nothing")
+    void aLineIsHeldWhileItsProcessIsAliveAndStartedInTime(HolderProcess process, boolean held) {
+        claim("the line is " + (held ? "held" : "not held") + " by that process",
+                () -> assertThat(LINE.heldWhile(process)).isEqualTo(held));
     }
 
-    @Test
-    @Story("The control panel finds an invocation it did not start")
-    @DisplayName("A line whose process started more than one second after the line's start time is not held: the pid was reused")
-    void aLineWhoseProcessStartedMoreThanOneSecondAfterStartedIsNotHeld() {
-        claim("a live process that started one millisecond past one second after the line's start time does not hold it",
-                () -> assertThat(LINE.heldWhile(new HolderProcess(
-                                true, Optional.of(STARTED_INSTANT.plus(ONE_SECOND).plus(ONE_MILLISECOND)))))
-                        .isFalse());
-    }
-
-    @Test
-    @Story("The control panel finds an invocation it did not start")
-    @DisplayName("A line whose process is not alive is not held, whatever its start")
-    void aLineWhosePidIsDeadIsNotHeld() {
-        claim("a process that is not alive holds nothing, though its start would fit the rule",
-                () -> assertThat(LINE.heldWhile(new HolderProcess(false, Optional.of(STARTED_INSTANT)))).isFalse());
-        claim("nor one that is not alive and gives no start",
-                () -> assertThat(LINE.heldWhile(new HolderProcess(false, Optional.empty()))).isFalse());
-    }
-
-    @Test
-    @Story("The control panel finds an invocation it did not start")
-    @DisplayName("A line whose live process gives no start instant counts as held")
-    void aLineWhoseProcessGivesNoStartInstantIsHeld() {
-        claim("a live process whose start the system does not give holds the line",
-                () -> assertThat(LINE.heldWhile(new HolderProcess(true, Optional.empty()))).isTrue());
+    /** Each process the rule is asked about, with whether it holds the line. */
+    static Stream<Arguments> processes() {
+        return Stream.of(
+                Arguments.of(Named.of("a live process that started exactly one second after the line's start time holds"
+                        + " it", new HolderProcess(true, Optional.of(STARTED_INSTANT.plus(ONE_SECOND)))), true),
+                Arguments.of(Named.of("a live process that started before it holds it",
+                        new HolderProcess(true, Optional.of(STARTED_INSTANT.minus(ONE_SECOND)))), true),
+                Arguments.of(Named.of("a live process that started one millisecond past one second after the line's"
+                                + " start time does not hold it: the pid was reused",
+                        new HolderProcess(true, Optional.of(STARTED_INSTANT.plus(ONE_SECOND).plus(ONE_MILLISECOND)))),
+                        false),
+                Arguments.of(Named.of("a process that is not alive holds nothing, though its start would fit the rule",
+                        new HolderProcess(false, Optional.of(STARTED_INSTANT))), false),
+                Arguments.of(Named.of("nor one that is not alive and gives no start",
+                        new HolderProcess(false, Optional.empty())), false),
+                Arguments.of(Named.of("a live process whose start the system does not give holds the line",
+                        new HolderProcess(true, Optional.empty())), true));
     }
 
     @Test

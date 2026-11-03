@@ -15,10 +15,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
@@ -36,58 +40,58 @@ import org.junit.jupiter.params.provider.ValueSource;
 @Link(name = "ADR-294", url = Adr.THE_CONTROL_PANEL_LEARNS_WHAT_THE_NEXT_INVOCATION_WANTS_FROM_A_FILE, type = "adr")
 class NextInvocationTest {
 
-    /** The file's name, beside the database file. */
+    /** The file's name, beside the database file, as the jar writes it (ADR-294 §4). */
     private static final String FILE_NAME = "next-invocation.properties";
 
     /** An arrangement's short name, as the jar writes it. */
     private static final String AN_ARRANGEMENT = "9f2c41ab77de";
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("wellFormedFiles")
     @Story("The control panel learns what the next invocation wants")
-    @DisplayName("The control panel reads the file under the name the jar gives it")
-    void theFileIsReadUnderItsName() {
-        claim("the name the control panel reads is next-invocation.properties",
-                () -> assertThat(NextInvocation.FILE_NAME).isEqualTo(FILE_NAME));
+    @DisplayName("A file in the jar's shape is read as the next invocation it names")
+    void aFileInTheJarsShapeIsRead(String text, NextInvocation expected, @TempDir Path workingDirectory)
+            throws Exception {
+        written(workingDirectory, text);
+
+        claim("the file is read as the invocation, the keys wanted in the order written, whether answers are wanted"
+                        + " and the arrangement to approve",
+                () -> assertThat(NextInvocation.read(workingDirectory)).contains(expected));
     }
 
-    @Test
-    @Story("The control panel learns what the next invocation wants")
-    @DisplayName("A run wanting keys is read with its keys in the order written")
-    void aRunWantingKeysIsReadWithTheKeysInOrder(@TempDir Path workingDirectory) throws Exception {
-        written(workingDirectory, "invocation=run\nwants=seedFolder boilerplateDocumentFrequencyFloor embeddingModel\n"
-                + "answer=false\n");
-
-        claim("the file is read as a run wanting seedFolder, boilerplateDocumentFrequencyFloor and embeddingModel, in"
-                        + " that order, with no answers and no arrangement",
-                () -> assertThat(NextInvocation.read(workingDirectory)).contains(new NextInvocation(
-                        NextInvocation.Invocation.RUN,
-                        List.of("seedFolder", "boilerplateDocumentFrequencyFloor", "embeddingModel"),
-                        false,
-                        Optional.empty())));
-    }
-
-    @Test
-    @Story("The control panel learns what the next invocation wants")
-    @DisplayName("A label wanting answers is read with no keys")
-    void aLabelWantingAnswersIsRead(@TempDir Path workingDirectory) throws Exception {
-        written(workingDirectory, "invocation=label\nwants=\nanswer=true\n");
-
-        claim("the file is read as label, answers wanted, no key and no arrangement",
-                () -> assertThat(NextInvocation.read(workingDirectory)).contains(new NextInvocation(
-                        NextInvocation.Invocation.LABEL, List.of(), true, Optional.empty())));
-    }
-
-    @Test
-    @Story("The control panel learns what the next invocation wants")
-    @DisplayName("An approval wanted is read with the arrangement to approve")
-    void anApprovalWantedIsReadWithItsArrangement(@TempDir Path workingDirectory) throws Exception {
-        written(workingDirectory, "invocation=run\nwants=arrangementApproved\nanswer=false\narrangement="
-                + AN_ARRANGEMENT + "\n");
-
-        claim("the file is read as a run wanting arrangementApproved, naming the arrangement written",
-                () -> assertThat(NextInvocation.read(workingDirectory)).contains(new NextInvocation(
-                        NextInvocation.Invocation.RUN, List.of("arrangementApproved"), false,
-                        Optional.of(AN_ARRANGEMENT))));
+    /**
+     * Each file written by hand in the jar's shape, with the next invocation it names: a run wanting keys, read with
+     * its keys in the order written; a label wanting answers, read with no keys; an approval, read with its
+     * arrangement; and a file with a date comment and its keys in another order, read without the comment.
+     */
+    static Stream<Arguments> wellFormedFiles() {
+        return Stream.of(
+                Arguments.of(
+                        Named.of("a run wanting three keys, read with its keys in the order written",
+                                "invocation=run\nwants=seedFolder boilerplateDocumentFrequencyFloor embeddingModel\n"
+                                        + "answer=false\n"),
+                        new NextInvocation(
+                                NextInvocation.Invocation.RUN,
+                                List.of("seedFolder", "boilerplateDocumentFrequencyFloor", "embeddingModel"),
+                                false,
+                                Optional.empty())),
+                Arguments.of(
+                        Named.of("a label wanting answers, read with no keys", "invocation=label\nwants=\nanswer=true\n"),
+                        new NextInvocation(NextInvocation.Invocation.LABEL, List.of(), true, Optional.empty())),
+                Arguments.of(
+                        Named.of("an approval wanted, read with the arrangement to approve",
+                                "invocation=run\nwants=arrangementApproved\nanswer=false\narrangement="
+                                        + AN_ARRANGEMENT + "\n"),
+                        new NextInvocation(
+                                NextInvocation.Invocation.RUN, List.of("arrangementApproved"), false,
+                                Optional.of(AN_ARRANGEMENT))),
+                Arguments.of(
+                        Named.of("a date comment and the keys in another order, the comment left out",
+                                "#Mon Oct 19 10:00:00 CEST 2026\nanswer=false\nwants=relevanceScoreFloor\n"
+                                        + "invocation=run\n"),
+                        new NextInvocation(
+                                NextInvocation.Invocation.RUN, List.of("relevanceScoreFloor"), false,
+                                Optional.empty())));
     }
 
     @Test

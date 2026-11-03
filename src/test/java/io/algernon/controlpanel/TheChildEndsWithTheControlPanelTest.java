@@ -88,8 +88,7 @@ class TheChildEndsWithTheControlPanelTest {
                     + " panel was ended", () -> assertThat(childRanBeforeTheEnd).isTrue());
             claim("the control panel ended within " + BOUND.toSeconds() + " seconds of being asked to",
                     () -> assertThat(controlPanelEnded).isTrue());
-            claim("and once it had, its invocation was gone too: the control panel waits up to "
-                            + ControlPanelState.END_BOUND.toSeconds() + " seconds for it before it ends",
+            claim("and once it had, its invocation was gone too",
                     () -> assertThat(started.getFirst().isAlive()).isFalse());
         } finally {
             started.forEach(ProcessHandle::destroyForcibly);
