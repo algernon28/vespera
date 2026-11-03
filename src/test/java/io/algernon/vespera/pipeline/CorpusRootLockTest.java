@@ -189,10 +189,9 @@ class CorpusRootLockTest {
 
         List<String> names = names(folder);
         claim("two roots taken leave two files in the folder", () -> assertThat(names).hasSize(2));
-        claim("each named by sixteen hexadecimal digits and .lock",
+        claim("each named by sixteen hexadecimal digits and .lock, so the folder holds neither file the agent"
+                        + " guard knows a working directory by",
                 () -> assertThat(names).allMatch(name -> name.matches(FILE_NAME_SHAPE)));
-        claim("so the folder holds neither file the agent guard knows a working directory by",
-                () -> assertThat(names).doesNotContain(WorkingDirectoryLock.FILE_NAME, "vespera.db"));
     }
 
     @Test

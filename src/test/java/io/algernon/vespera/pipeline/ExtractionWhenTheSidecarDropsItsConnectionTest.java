@@ -106,8 +106,11 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
     /** Four documents that drop the connection twice, one that converts, and four more that drop. */
     private static final int FOUR_ONE_FOUR = 2 * (FIVE_IN_A_ROW - 1) + 1;
 
-    /** The one document, of a corpus where every other drops, that is answered: which one does not matter there. */
-    private static final int THE_ONE_THAT_CONVERTS = FIVE_IN_A_ROW;
+    /**
+     * Where the document that runs out of time is read, counted from 0: after two that drop and before
+     * three, so a timeout that ended the row would leave no five in a row on either side of it.
+     */
+    private static final int TIMED_OUT_AT = 2;
 
     /** How many timeouts in a row stop being about the file and start being about the converter. */
     private static final int THREE_IN_A_ROW = 3;
@@ -419,12 +422,16 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
                 () -> assertThat(lines())
                         .anyMatch(line -> line.startsWith(STAGE_2_FINISHED) && line.contains("skipped=" + ONCE)));
         claim(
-                "that document was removed only once the step had completed, and the page, written after"
-                        + " that, lists it with its reason",
-                () -> assertThat(workingDirectory.resolve(THE_REVIEW_LIST))
-                        .content()
-                        .contains(nameOf(THE_FAILING_DOCUMENT))
-                        .contains("capacity: " + NO_CAPACITY));
+                "that document was removed for the converter's want of capacity, and the page lists it with"
+                        + " that reason",
+                () -> {
+                    assertThat(extractionFailedReasons(root))
+                            .containsEntry(nameOf(THE_FAILING_DOCUMENT), "capacity: " + NO_CAPACITY);
+                    assertThat(workingDirectory.resolve(THE_REVIEW_LIST))
+                            .content()
+                            .contains(nameOf(THE_FAILING_DOCUMENT))
+                            .contains("capacity: " + NO_CAPACITY);
+                });
         claim(
                 "and the log counts it: " + ONCE + " file could not be read",
                 () -> assertThat(lines())
@@ -503,12 +510,14 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
     @DisplayName("A document that runs out of time between them does not end the run of dropped documents: the fifth still stops extraction")
     void aTimeoutBetweenThemDoesNotEndTheRunOfDroppedDocuments(@TempDir Path root) throws IOException {
         writeTheCorpus(root, MORE_THAN_FIVE);
-        for (int document = 1; document <= MORE_THAN_FIVE; document++) {
-            if (document != THE_ONE_THAT_CONVERTS) {
+        List<Integer> asRead = theOrderTheStageReadsIn(root);
+        int theOneThatTimesOut = asRead.get(TIMED_OUT_AT);
+        for (int document : asRead) {
+            if (document != theOneThatTimesOut) {
                 sidecar.dropping(document, LoopbackSidecar.EVERY_CALL);
             }
         }
-        sidecar.rejecting(THE_ONE_THAT_CONVERTS, GATEWAY_TIMEOUT, CONVERSION_IS_TAKING_TOO_LONG);
+        sidecar.rejecting(theOneThatTimesOut, GATEWAY_TIMEOUT, CONVERSION_IS_TAKING_TOO_LONG);
         // The stop this test expects is for a converter that converts nothing, so the control conversion
         // sent on the fifth is dropped too (ADR-184). What it is about is only that the timeout did not end
         // the row; with the control conversion converted, the five would be the files' own and removed.
@@ -517,9 +526,10 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
         cli.run("run", root.toString());
 
         claim(
-                "the invocation failed: document " + THE_ONE_THAT_CONVERTS + " ran out of time in place of"
-                        + " converting, which brought no conversion back, so wherever it was read among them,"
-                        + " the other " + FIVE_IN_A_ROW + " dropped the connection twice in a row",
+                "the invocation failed: the document read after the first " + TIMED_OUT_AT + " ran out of time"
+                        + " in place of converting, which brought no conversion back, so the " + TIMED_OUT_AT
+                        + " dropped before it and the " + (FIVE_IN_A_ROW - TIMED_OUT_AT) + " dropped after it"
+                        + " are " + FIVE_IN_A_ROW + " in a row, where neither side alone is",
                 () -> assertThat(cli.getExitCode()).isNotZero());
         claim(
                 "and the closing line says extraction stopped for " + FIVE_IN_A_ROW + " files in a row",

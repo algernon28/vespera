@@ -32,11 +32,12 @@ import org.springframework.test.context.DynamicPropertySource;
  * What extraction and the content census record about themselves, and which archive each reads
  * (ADR-048, ADR-012, ADR-154).
  *
- * <p>Two things are pinned for each. First, that what the stage consumed is written down: for
- * extraction, the engine it was configured against and the tier-2 confidence floor. A judgement made
- * under one engine is not a judgement under another (ADR-012), and a floor retuned later has to be told
- * apart from the old one. Second, that what it read is the run the stage before it did in this
- * invocation, over the archive it was handed and no other.
+ * <p>Two things are pinned. First, that what extraction consumed is written down: the engine it was
+ * configured against and the tier-2 confidence floor. A judgement made under one engine is not a
+ * judgement under another (ADR-012), and a floor retuned later has to be told apart from the old one.
+ * Second, that what each stage read is the run the stage before it did in this invocation, over the
+ * archive it was handed and no other; that every run names the one before it, whatever the archive, is
+ * {@link RunUpstreamChainTest}'s.
  *
  * <p><b>These claims used to be made against the two classes that minted these runs</b>, built by hand
  * in {@code ExtractionRunTest} and {@code ContentCensusRunTest}. ADR-157 folds both classes, with every
@@ -96,64 +97,23 @@ class EarlyStageRunsInvocationTest {
 
     @Test
     @Story("What extraction records about itself")
-    @DisplayName("Extraction writes down which engine it was configured against")
-    void extractionRecordsTheEngineItWasConfiguredAgainst(@TempDir Path root) throws IOException {
+    @DisplayName("Extraction writes down which engine and which tier-2 confidence floor it was configured against")
+    @Issue("48")
+    void extractionRecordsTheEngineAndTheConfidenceFloorItWasConfiguredAgainst(@TempDir Path root)
+            throws IOException {
         anArchiveOf(root, FILES_IN_THE_FIRST_ARCHIVE);
 
         cli.run("run", root.toString());
+        String consumed = configConsumedBy(theRunOf("extraction", root));
 
         claim(
                 "what extraction consumed names the engine it ran against, so a judgement made under one"
                         + " engine is never mistaken for one made under another",
-                () -> assertThat(configConsumedBy(theRunOf("extraction", root))).contains(extractorIdentity.value()));
-    }
-
-    @Test
-    @Story("What extraction records about itself")
-    @DisplayName("Extraction writes down the tier-2 confidence floor it was configured against (#48)")
-    void extractionRecordsTheConfidenceFloorItWasConfiguredAgainst(@TempDir Path root) throws IOException {
-        anArchiveOf(root, FILES_IN_THE_FIRST_ARCHIVE);
-
-        cli.run("run", root.toString());
-
+                () -> assertThat(consumed).contains(extractorIdentity.value()));
         claim(
-                "what extraction consumed also names the tier-2 threshold of " + CONFIDENCE_FLOOR + " it ran"
-                        + " against, so a run's own row answers what shaped its judgements without re-reading"
-                        + " the profile",
-                () -> assertThat(configConsumedBy(theRunOf("extraction", root)))
-                        .contains("\"degenerateOutputConfidenceFloor\":" + CONFIDENCE_FLOOR));
-    }
-
-    @Test
-    @Story("What extraction records about itself")
-    @DisplayName("Extraction records that it read what the previous stage left, and names that same work")
-    void extractionNamesThePreviousStagesWorkAsWhatItRead(@TempDir Path root) throws IOException {
-        anArchiveOf(root, FILES_IN_THE_FIRST_ARCHIVE);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "extraction records as what it read exactly one piece of work, the byte-level reduction"
-                        + " this invocation did over this archive, so what a judgement was derived from is"
-                        + " answerable later without re-deriving it",
-                () -> assertThat(ledger.runs().upstreamRuns(theRunOf("extraction", root)))
-                        .containsExactly(theRunOf("byte-level-reduction", root)));
-    }
-
-    @Test
-    @Story("What stage 3 records about itself")
-    @DisplayName("Stage 3's run names the extraction run this invocation did as its upstream")
-    void theContentCensusNamesTheExtractionRunAsItsUpstream(@TempDir Path root) throws IOException {
-        anArchiveOf(root, FILES_IN_THE_FIRST_ARCHIVE);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "stage 3 records as what it read the extraction this invocation did over this archive, so"
-                        + " a later question about what its document frequency was measured over is"
-                        + " answerable from the run row itself",
-                () -> assertThat(ledger.runs().upstreamRuns(theRunOf("content-census", root)))
-                        .containsExactly(theRunOf("extraction", root)));
+                "and the tier-2 threshold of " + CONFIDENCE_FLOOR + " it ran against, so a run's own row answers"
+                        + " what shaped its judgements without re-reading the profile",
+                () -> assertThat(consumed).contains("\"degenerateOutputConfidenceFloor\":" + CONFIDENCE_FLOOR));
     }
 
     @Test

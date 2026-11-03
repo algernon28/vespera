@@ -9,8 +9,6 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
@@ -19,9 +17,13 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,8 +40,7 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * Gate 3 open (ADR-084, #107): a corpus survivor is re-chunked from its cached Docling response once
  * an embedding model is named and stage 5's earlier gates are open, and each of its chunks is embedded
- * and stored as a vector under a scoring run, rather than left unchunked, unembedded, or re-converted
- * through Docling a second time.
+ * and stored as a vector under a scoring run, rather than left unchunked or unembedded.
  *
  * <p>A sibling of {@link SeedCorpusComparisonInvocationTest} for the same reason that class is a
  * sibling of {@link SeedExtractionInvocationTest}: this fixture additionally names an embedding
@@ -53,11 +54,8 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-084", url = Adr.THE_EMBEDDING_MODEL_IS_A_PROFILE_GATE, type = "adr")
 class EmbeddingScoringInvocationTest {
 
-    /** A floor of 1.0 opens stage 4's gate the same way {@link SeedCorpusComparisonInvocationTest} does. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model this fixture names, so gate 3 opens too. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
+    /** What the corpus document of the chunking test holds, a text no other test of this class writes. */
+    private static final String WHAT_THE_CORPUS_DOCUMENT_SAYS = "a corpus document";
 
     @TempDir
     static Path workingDirectory;
@@ -114,7 +112,7 @@ class EmbeddingScoringInvocationTest {
         Files.writeString(
                 seeds.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ),
                 "a seed document that is moved away when read, for ADR-155's scoring test");
-        profile(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         SeedScriptedExtractionBeans.moveAwayWhenReadInto(elsewhere);
 
         cli.run("run", root.toString());
@@ -173,9 +171,10 @@ class EmbeddingScoringInvocationTest {
     @Story("A survivor is re-chunked once a model is named")
     @DisplayName("With a model named, a corpus survivor's chunks land in the chunk cache and each embeds")
     void chunksTheSurvivorFromTheExtractionCache(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(root.resolve("corpus.txt"), WHAT_THE_CORPUS_DOCUMENT_SAYS);
+        String theSurvivorsHash = sha256Of(WHAT_THE_CORPUS_DOCUMENT_SAYS);
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
@@ -183,28 +182,18 @@ class EmbeddingScoringInvocationTest {
                 "the invocation reports success",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "and the surviving corpus document was chunked, its chunks landing in the chunk cache"
-                        + " rather than nowhere",
-                () -> assertThat(chunkCacheRowCount()).isPositive());
+                "and the surviving corpus document was chunked, its chunks landing in the chunk cache under"
+                        + " the SHA-256 of its own bytes, computed here with the JDK, rather than nowhere: the"
+                        + " seed's chunks and another test's are under hashes of their own",
+                () -> assertThat(chunkRowsOf(theSurvivorsHash)).isPositive());
         claim(
-                "and each of those chunks was embedded, its vector landing in the vector table rather"
-                        + " than the re-chunk being the last thing gate 3 does",
-                () -> assertThat(vectorRowCount()).isEqualTo(chunkCacheRowCount()));
+                "and each of those chunks was embedded, its vector landing in the vector table under the same"
+                        + " hash, rather than the re-chunk being the last thing gate 3 does",
+                () -> assertThat(vectorRowsOf(theSurvivorsHash)).isEqualTo(chunkRowsOf(theSurvivorsHash)));
         claim(
                 "and a scoring run was minted for it -- a run row for a pass that scored a survivor"
                         + " would otherwise be missing from the ledger entirely",
                 () -> assertThat(runIdsOver("embedding-scoring", root)).hasSize(1));
-    }
-
-    /** The seed folder named, stage 4's gate open, and gate 3 open too. */
-    private void profile(Path seeds) {
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
     }
 
     /** Whether embedding scoring is recorded as finished under any scoring run over this test's corpus. */
@@ -213,12 +202,26 @@ class EmbeddingScoringInvocationTest {
                 .anyMatch(runId -> ledger.runs().stepFinished(new RunId(runId), "embedding-scoring"));
     }
 
-    private long chunkCacheRowCount() {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM chunk_cache", Long.class);
+    /** How many chunks the chunk cache holds of the document whose bytes hash to {@code contentHash}. */
+    private long chunkRowsOf(String contentHash) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM chunk_cache WHERE content_hash = ?", Long.class, contentHash);
     }
 
-    private long vectorRowCount() {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM vector", Long.class);
+    /** How many vectors the vector table holds of that document's chunks. */
+    private long vectorRowsOf(String contentHash) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM vector WHERE content_hash = ?", Long.class, contentHash);
+    }
+
+    /** The SHA-256 of {@code text}'s UTF-8 bytes as lowercase hex, computed with the JDK. */
+    private static String sha256Of(String text) {
+        try {
+            return HexFormat.of()
+                    .formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is required of every JVM", e);
+        }
     }
 
     /** Every operator-facing line this invocation wrote, in the order it wrote them. */

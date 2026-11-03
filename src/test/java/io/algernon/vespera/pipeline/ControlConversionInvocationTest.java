@@ -25,12 +25,18 @@ import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -232,13 +238,16 @@ class ControlConversionInvocationTest {
                         .allSatisfy((file, reason) -> assertThat(reason).startsWith("crashed the converter:")));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("convertersThatConvertNothing")
     @Issue("393")
+    @Issue("385")
     @Story("A converter that answers its health check and converts nothing")
-    @DisplayName("A converter that drops every call, Vespera's own control PDF included, still stops extraction after five files in a row, says the control PDF failed too, and removes nothing")
-    void aConverterThatDropsTheControlConversionTooStillStopsTheStage(@TempDir Path root) throws IOException {
+    @DisplayName("A converter that fails every call, Vespera's own control PDF included, still stops extraction after five files in a row, says the control PDF failed too, and removes nothing")
+    void aConverterThatFailsTheControlConversionTooStillStopsTheStage(
+            Consumer<LoopbackSidecar> failingEveryCall, String fiveInARow, @TempDir Path root) throws IOException {
         writeTheCorpus(root, MORE_THAN_FIVE);
-        sidecar.droppingEveryCall();
+        failingEveryCall.accept(sidecar);
 
         cli.run("run", root.toString());
 
@@ -249,14 +258,23 @@ class ControlConversionInvocationTest {
                 "the control PDF was sent " + ONCE + " time, after the fifth file in a row",
                 () -> assertThat(sidecar.controlConversions()).isEqualTo(ONCE));
         claim(
-                "the closing line says " + FIVE_IN_A_ROW + " files in a row dropped the connection twice and"
-                        + " that the control PDF was not converted either",
+                "the closing line says " + FIVE_IN_A_ROW + " files in a row failed the way this converter fails"
+                        + " them and that the control PDF was not converted either",
                 () -> assertThat(lines())
                         .anyMatch(line -> line.startsWith(STAGE_2_FAILED)
-                                && line.contains(FIVE_DROPPED_TWICE + AND_NOT_THE_CONTROL_EITHER)));
+                                && line.contains(fiveInARow + AND_NOT_THE_CONTROL_EITHER)));
         claim(
-                "no file was removed",
+                "no file was removed: a stopped extraction resolves none of what it set aside",
                 () -> assertThat(extractionFailedReasons(root)).isEmpty());
+    }
+
+    /** The two ways a converter converts nothing, each with what the closing line says of the five in a row. */
+    static Stream<Arguments> convertersThatConvertNothing() {
+        Consumer<LoopbackSidecar> dropping = LoopbackSidecar::droppingEveryCall;
+        Consumer<LoopbackSidecar> refusing = sidecar -> sidecar.answeringEveryCall(REFUSED_FOR_CAPACITY);
+        return Stream.of(
+                Arguments.of(Named.of("a converter that drops every call", dropping), FIVE_DROPPED_TWICE),
+                Arguments.of(Named.of("a converter that refuses every call for want of room", refusing), FIVE_SET_ASIDE));
     }
 
     @Test
@@ -308,33 +326,6 @@ class ControlConversionInvocationTest {
                 () -> assertThat(extractionFailedReasons(root))
                         .containsOnlyKeys(refused.stream().map(ControlConversionInvocationTest::nameOf).toList())
                         .allSatisfy((file, reason) -> assertThat(reason).isEqualTo("capacity: " + NO_CAPACITY)));
-    }
-
-    @Test
-    @Issue("385")
-    @Story("A converter that answers its health check and converts nothing")
-    @DisplayName("A converter that refuses every call for want of room, Vespera's own control PDF included, still stops extraction after five files in a row and says the control PDF failed too")
-    void aConverterThatRefusesTheControlConversionTooStillStopsTheStage(@TempDir Path root) throws IOException {
-        writeTheCorpus(root, MORE_THAN_FIVE);
-        sidecar.answeringEveryCall(REFUSED_FOR_CAPACITY);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation failed",
-                () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "the control PDF was sent " + ONCE + " time, after the fifth refusal in a row",
-                () -> assertThat(sidecar.controlConversions()).isEqualTo(ONCE));
-        claim(
-                "the closing line says " + FIVE_IN_A_ROW + " files in a row were set aside and that the control"
-                        + " PDF was not converted either",
-                () -> assertThat(lines())
-                        .anyMatch(line -> line.startsWith(STAGE_2_FAILED)
-                                && line.contains(FIVE_SET_ASIDE + AND_NOT_THE_CONTROL_EITHER)));
-        claim(
-                "no file was removed: a stopped extraction resolves none of what it set aside",
-                () -> assertThat(extractionFailedReasons(root)).isEmpty());
     }
 
     @Test

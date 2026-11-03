@@ -116,12 +116,6 @@ class ExtractionItemProcessorTest {
                                 corpus.occurrence(0).value(),
                                 corpus.extractionRunId().value()))
                         .isPositive());
-        claim(
-                "and nothing was chunked: a chunk cut under a budget no embedding model has been named for is"
-                        + " work guaranteed to be discarded, and stage 5 re-chunks from the extraction cache once a"
-                        + " model exists",
-                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM chunk_cache", Integer.class))
-                        .isZero());
     }
 
     /**

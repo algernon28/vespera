@@ -13,12 +13,9 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * Writes the profile's {@code extractionAttempt} key (ADR-185) into {@code profile.yaml}, or takes it
  * out, by editing the file's YAML tree rather than through {@code ProfileFixture}.
  *
- * <p><b>Through the tree on purpose.</b> {@code ProfileFixture} builds a {@code Profile}
- * positionally, so a builder method for a key the record does not have yet would not compile, and a test
- * tree that does not compile fails every test, not only the ones about this key. Edited as YAML, the file
- * carries the key whether or not the code knows it. Until it does, {@code ProfileStore} refuses the file,
- * because the record is the schema (ADR-061) and it is read with {@code FAIL_ON_UNKNOWN_PROPERTIES}; that
- * is how the tests that use this fail before the key is built.
+ * <p><b>Through the tree on purpose.</b> Edited as YAML, the file carries the key exactly as an operator
+ * types it, and loses it exactly as an operator takes it out, with no record or builder in between to
+ * shape either.
  *
  * <p>The rest of the file is read and written back as it stands, so every other answer, and census's
  * pointers beside them, are kept.

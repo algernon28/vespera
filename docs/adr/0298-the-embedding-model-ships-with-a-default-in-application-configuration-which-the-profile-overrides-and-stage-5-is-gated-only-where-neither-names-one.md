@@ -100,7 +100,7 @@ The change is to `pipeline` (`EmbeddingModelGate`, `NextAction`), to `applicatio
 | --- | --- |
 | `pipeline.EmbeddingModelGateTest.resolvesTheConfiguredDefaultWhenTheProfileNamesNone` | an unset `embeddingModel` resolves to the configured key's value (§1) |
 | `pipeline.EmbeddingModelGateTest.prefersTheProfileOverTheConfiguredDefault` | a value in the profile wins over the configured one (§1) |
-| `pipeline.EmbeddingModelGateTest.treatsABlankProfileValueAsUnanswered` | `embeddingModel: ""` resolves to the configured value (§1) |
+| `pipeline.EmbeddingModelGateTest.resolvesTheConfiguredDefaultWhenTheProfileNamesNone`, its blank case | `embeddingModel: ""` resolves to the configured value (§1) (#682) |
 | `pipeline.EmbeddingModelGateTest.opensOnTheProfileAloneWhenConfigurationNamesNone` | a blank configured key and a named model open the gate on the profile's name (§2) |
 | `pipeline.EmbeddingModelGateTest.closesOnlyWhenNeitherTheProfileNorConfigurationNamesAModel` | a blank configured key and an unset profile answer none (§2) |
 | `pipeline.ADefaultAndTheSameModelInTheProfileAreOneScoringRunTest.theModelsSourceIsNotPartOfTheScoringRunsIdentity` | a model named in the profile and the same name as the configured default arrive at one scoring run (§3) |

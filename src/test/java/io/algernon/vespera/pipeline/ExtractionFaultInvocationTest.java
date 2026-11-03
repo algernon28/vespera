@@ -6,8 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.extraction.FailuresInARow;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
@@ -61,12 +59,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Issue("265")
 @Link(name = "ADR-139", url = Adr.A_REFUSED_CONVERSION_LEAVES_A_FAULT_ROW, type = "adr")
 class ExtractionFaultInvocationTest {
-
-    /** A floor of 1.0 opens stage 4's gate, as every invocation test reaching stage 5 sets it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model this fixture names, so gate 3 -- and the scoring step past it -- open too. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** The corpus file the scripted converter refuses to open, whatever its bytes say. */
     private static final String REFUSED = SeedScriptedExtractionBeans.REFUSED_CONVERSION;
@@ -135,7 +127,7 @@ class ExtractionFaultInvocationTest {
         Files.writeString(root.resolve(REFUSED), "stands in for a container the converter cannot open");
         Files.writeString(root.resolve(READABLE), "a corpus document with real text in it");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
@@ -178,7 +170,7 @@ class ExtractionFaultInvocationTest {
         }
         Files.writeString(root.resolve(READABLE), "a corpus document with real text in it");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
@@ -206,7 +198,7 @@ class ExtractionFaultInvocationTest {
         Files.writeString(root.resolve(FAULTED), "a file the converter faults on");
         Files.writeString(root.resolve(READABLE), "a corpus document with real text in it");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
@@ -256,7 +248,7 @@ class ExtractionFaultInvocationTest {
         Files.writeString(root.resolve(FAULTED), "a file the converter faults on");
         Files.writeString(root.resolve(READABLE), "a corpus document with real text in it");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
@@ -284,7 +276,7 @@ class ExtractionFaultInvocationTest {
         Files.writeString(root.resolve(WITHOUT_TEXT), "an intact file the converter finds no text in");
         Files.writeString(root.resolve(READABLE), "a corpus document with real text in it");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
@@ -305,17 +297,6 @@ class ExtractionFaultInvocationTest {
                 "and the readable file beside it was scored, so this case too leaves the pass able to"
                         + " finish rather than merely able to start",
                 () -> assertThat(scoreRowsFor(root, READABLE)).isEqualTo(ONE_SCORE));
-    }
-
-    /** The seed folder named, stage 4's gate open, and gate 3 open too. */
-    private void profile(Path seeds) {
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
     }
 
     /**

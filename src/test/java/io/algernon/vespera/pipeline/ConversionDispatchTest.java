@@ -146,22 +146,11 @@ class ConversionDispatchTest {
         }
 
         claim(
-                "once the first document is handed over, the converter has been asked about it and about the"
-                        + " " + ASKED_AHEAD + " after it, although none of them has answered: two waves of"
-                        + " the " + CONVERSIONS_AT_ONCE + " that convert at once are always waiting behind"
-                        + " the document in hand",
-                () -> assertThat(askedAboutAfterEachRead.getFirst()).isEqualTo(1 + ASKED_AHEAD));
-        claim(
-                "once the " + READ_BEFORE_A_COMMIT + " documents of the first commit are handed over, and"
-                        + " before any of them is processed or committed, the converter has already been"
-                        + " asked about the " + ASKED_AHEAD + " that follow them, which belong to later"
-                        + " commits: it is not left idle while the first one drains and commits",
-                () -> assertThat(askedAboutAfterEachRead.get(READ_BEFORE_A_COMMIT - 1))
-                        .isEqualTo(READ_BEFORE_A_COMMIT + ASKED_AHEAD));
-        claim(
                 "after every document handed over, the converter has been asked about that many and the"
-                        + " " + ASKED_AHEAD + " after them, and never about more than the " + DOCUMENTS
-                        + " there are",
+                        + " " + ASKED_AHEAD + " after them, although none of them has answered, and never about"
+                        + " more than the " + DOCUMENTS + " there are: two waves of the " + CONVERSIONS_AT_ONCE
+                        + " that convert at once are always waiting behind the document in hand, across the"
+                        + " commit after the first " + READ_BEFORE_A_COMMIT + " as well",
                 () -> assertThat(askedAboutAfterEachRead).containsExactlyElementsOf(expectedAskedAbout()));
     }
 

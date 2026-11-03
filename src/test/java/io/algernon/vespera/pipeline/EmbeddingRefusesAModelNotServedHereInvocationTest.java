@@ -18,12 +18,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -63,9 +69,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-197", url = Adr.A_LOCAL_MODEL_LABELS_AND_THE_FLOOR_IS_A_RULE, type = "adr")
 class EmbeddingRefusesAModelNotServedHereInvocationTest {
 
-    /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
     /** What the refusal line calls this stage, so an operator reading the log knows which one stopped. */
     private static final String THE_STAGE = "stage 5's scoring step";
 
@@ -81,8 +84,8 @@ class EmbeddingRefusesAModelNotServedHereInvocationTest {
     /** A name Ollama has never pulled, as a mistyped {@code embeddingModel} is. */
     private static final String AN_EMBEDDING_MODEL_OLLAMA_HAS_NEVER_PULLED = "an-embedder-nobody-pulled:0.6b";
 
-    /** A name Ollama reports as having its weights on this machine. */
-    private static final String AN_EMBEDDING_MODEL_SERVED_HERE = "qwen3-embedding:0.6b";
+    /** A name Ollama reports as having its weights on this machine: the one every gate is opened with. */
+    private static final String AN_EMBEDDING_MODEL_SERVED_HERE = EveryGateOpen.EMBEDDING_MODEL;
 
     /** A name configured where stage 5's gates are shut, so it must never be asked about. */
     private static final String AN_EMBEDDING_MODEL_BEHIND_A_SHUT_GATE = "an-embedder-behind-a-shut-gate:0.6b";
@@ -114,120 +117,103 @@ class EmbeddingRefusesAModelNotServedHereInvocationTest {
         EmbeddingScriptedBeans.servesEveryModel();
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("modelsNotServedHere")
     @Story("No chunk leaves this machine through Ollama")
-    @DisplayName("An embedding model whose tag ends in cloud is refused before any chunk is sent, without asking Ollama")
-    void aCloudTaggedEmbeddingModelIsRefusedBeforeAnyChunk(
-            @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
-        aCorpusScoredUnder(root, seeds, A_CLOUD_TAGGED_EMBEDDING_MODEL);
+    @DisplayName("An embedding model not served here is refused before any chunk is sent, on one error line saying why")
+    void anEmbeddingModelNotServedHereIsRefusedBeforeAnyChunk(
+            Consumer<String> howOllamaAnswers,
+            String embeddingModel,
+            String reason,
+            boolean ollamaIsAsked,
+            @TempDir Path root,
+            @TempDir Path seeds,
+            CapturedOutput output)
+            throws IOException {
+        howOllamaAnswers.accept(embeddingModel);
+        aCorpusScoredUnder(root, seeds, embeddingModel);
         int before = output.getAll().length();
 
         cli.run("run", root.toString());
         String said = output.getAll().substring(before);
 
+        CharSequence[] otherReasons =
+                EVERY_REASON.stream().filter(other -> !other.equals(reason)).toArray(CharSequence[]::new);
+
         claim("the invocation ends non-zero, because it was stopped", () -> assertThat(cli.getExitCode())
                 .isNotZero());
         claim(
-                "no chunk reached the embedding model, because a cloud model is answered by a hosted"
-                        + " service and the first chunk would already be there",
+                "no chunk reached the embedding model, because the first chunk sent to a model not served"
+                        + " here would already have left this machine",
                 () -> assertThat(EmbeddingScriptedBeans.embeddingCallsMade()).isZero());
         claim(
-                "exactly one line, at error level, names " + THE_STAGE + " and says the embedding model "
-                        + A_CLOUD_TAGGED_EMBEDDING_MODEL + " is a cloud model, and no stack trace stands in its"
-                        + " place",
-                () -> oneErrorLineSays(said, A_CLOUD_TAGGED_EMBEDDING_MODEL, " is a cloud model"));
+                "exactly one line, at error level, names " + THE_STAGE + " and the embedding model "
+                        + embeddingModel + " and says \"" + reason + "\", and no stack trace stands in its place",
+                () -> oneErrorLineSays(said, embeddingModel, reason));
         claim(
-                "Ollama was not asked about it: the tag alone settles it",
-                () -> assertThat(EmbeddingScriptedBeans.shownModels())
-                        .doesNotContain(A_CLOUD_TAGGED_EMBEDDING_MODEL));
+                "and no line naming it gives another of the reasons a model is refused: an operator who"
+                        + " mistyped embeddingModel is told the name is not served here, and not that its"
+                        + " remoteness is in doubt",
+                () -> assertThat(linesSaying(said, embeddingModel))
+                        .allSatisfy(line -> assertThat(line).doesNotContain(otherReasons)));
+        claim(
+                ollamaIsAsked
+                        ? "Ollama was asked where the model runs, since its name alone does not settle it"
+                        : "Ollama was not asked about it: the tag alone settles it",
+                () -> assertThat(EmbeddingScriptedBeans.shownModels().contains(embeddingModel))
+                        .isEqualTo(ollamaIsAsked));
         claim(
                 "no embedding-scoring run was minted, because a run that embedded nothing would read as"
                         + " one that found nothing to score",
                 () -> assertThat(scoringRunsOver(root)).isEmpty());
     }
 
-    @Test
-    @Story("No chunk leaves this machine through Ollama")
-    @DisplayName("An embedding model Ollama reports as remote is refused before any chunk is sent, whatever its name")
-    void anEmbeddingModelReportedAsRemoteIsRefusedBeforeAnyChunk(
-            @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
-        EmbeddingScriptedBeans.forwardsToAHostedService(AN_EMBEDDING_MODEL_OLLAMA_FORWARDS);
-        aCorpusScoredUnder(root, seeds, AN_EMBEDDING_MODEL_OLLAMA_FORWARDS);
-        int before = output.getAll().length();
+    /** What the refusal line says of a cloud-tagged model. */
+    private static final String A_CLOUD_MODEL = " is a cloud model";
 
-        cli.run("run", root.toString());
-        String said = output.getAll().substring(before);
+    /** What it says of a model Ollama reports as remote. */
+    private static final String REPORTED_AS_REMOTE = "as remote";
 
-        claim("the invocation ends non-zero, because it was stopped", () -> assertThat(cli.getExitCode())
-                .isNotZero());
-        claim(
-                "no chunk reached the embedding model: a model created from a cloud one carries no cloud"
-                        + " tag, and Ollama's own report is what says it is forwarded",
-                () -> assertThat(EmbeddingScriptedBeans.embeddingCallsMade()).isZero());
-        claim(
-                "exactly one line, at error level, names " + THE_STAGE + " and the embedding model "
-                        + AN_EMBEDDING_MODEL_OLLAMA_FORWARDS + " and says Ollama reports it as remote, with no"
-                        + " stack trace",
-                () -> oneErrorLineSays(said, AN_EMBEDDING_MODEL_OLLAMA_FORWARDS, "as remote"));
-        claim("no embedding-scoring run was minted", () -> assertThat(scoringRunsOver(root)).isEmpty());
-    }
+    /** What it says of a model Ollama cannot answer about. */
+    private static final String NOT_ESTABLISHED = "could not be established";
 
-    @Test
-    @Story("No chunk leaves this machine through Ollama")
-    @DisplayName("An embedding model Ollama cannot answer about is refused, not assumed to be served here")
-    void anEmbeddingModelOllamaCannotAnswerAboutIsRefused(
-            @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
-        EmbeddingScriptedBeans.cannotSayWhereItRuns(AN_EMBEDDING_MODEL_OLLAMA_CANNOT_ANSWER_ABOUT);
-        aCorpusScoredUnder(root, seeds, AN_EMBEDDING_MODEL_OLLAMA_CANNOT_ANSWER_ABOUT);
-        int before = output.getAll().length();
+    /** What it says of a model Ollama has never pulled. */
+    private static final String SERVES_NO_MODEL_NAMED = "serves no model named " + AN_EMBEDDING_MODEL_OLLAMA_HAS_NEVER_PULLED;
 
-        cli.run("run", root.toString());
-        String said = output.getAll().substring(before);
+    /** The four reasons, so a line can be shown to give its own and none of the others. */
+    private static final List<String> EVERY_REASON =
+            List.of(A_CLOUD_MODEL, REPORTED_AS_REMOTE, NOT_ESTABLISHED, SERVES_NO_MODEL_NAMED);
 
-        claim("the invocation ends non-zero, because it was stopped", () -> assertThat(cli.getExitCode())
-                .isNotZero());
-        claim(
-                "no chunk reached the embedding model: a model whose remoteness cannot be established is"
-                        + " refused, as the labeller refuses one (ADR-197 section 6)",
-                () -> assertThat(EmbeddingScriptedBeans.embeddingCallsMade()).isZero());
-        claim(
-                "exactly one line, at error level, names " + THE_STAGE + " and the embedding model "
-                        + AN_EMBEDDING_MODEL_OLLAMA_CANNOT_ANSWER_ABOUT + " and says it could not be established"
-                        + " where it runs, with no stack trace",
-                () -> oneErrorLineSays(said, AN_EMBEDDING_MODEL_OLLAMA_CANNOT_ANSWER_ABOUT, "could not be established"));
-        claim("no embedding-scoring run was minted", () -> assertThat(scoringRunsOver(root)).isEmpty());
-    }
-
-    @Test
-    @Story("No chunk leaves this machine through Ollama")
-    @DisplayName("An embedding model Ollama has never pulled is refused as one it does not serve, not as one it cannot place")
-    void anEmbeddingModelOllamaHasNeverPulledIsRefusedAsNotServed(
-            @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
-        EmbeddingScriptedBeans.hasNeverPulled(AN_EMBEDDING_MODEL_OLLAMA_HAS_NEVER_PULLED);
-        aCorpusScoredUnder(root, seeds, AN_EMBEDDING_MODEL_OLLAMA_HAS_NEVER_PULLED);
-        int before = output.getAll().length();
-
-        cli.run("run", root.toString());
-        String said = output.getAll().substring(before);
-
-        claim("the invocation ends non-zero, because it was stopped", () -> assertThat(cli.getExitCode())
-                .isNotZero());
-        claim("no chunk reached the embedding model", () -> assertThat(EmbeddingScriptedBeans.embeddingCallsMade())
-                .isZero());
-        claim(
-                "exactly one line, at error level, names " + THE_STAGE + " and says Ollama serves no model"
-                        + " named " + AN_EMBEDDING_MODEL_OLLAMA_HAS_NEVER_PULLED + ": an operator who mistyped"
-                        + " embeddingModel is told the name is not served here, and not that its remoteness is"
-                        + " in doubt",
-                () -> {
-                    oneErrorLineSays(
-                            said,
-                            AN_EMBEDDING_MODEL_OLLAMA_HAS_NEVER_PULLED,
-                            "serves no model named " + AN_EMBEDDING_MODEL_OLLAMA_HAS_NEVER_PULLED);
-                    assertThat(linesSaying(said, AN_EMBEDDING_MODEL_OLLAMA_HAS_NEVER_PULLED))
-                            .noneSatisfy(line -> assertThat(line).contains("could not be established"));
-                });
-        claim("no embedding-scoring run was minted", () -> assertThat(scoringRunsOver(root)).isEmpty());
+    /**
+     * Each way a model is not served here: how Ollama is scripted to answer about it, its name, what the
+     * refusal says, and whether Ollama is asked at all.
+     */
+    static Stream<Arguments> modelsNotServedHere() {
+        Consumer<String> leftAlone = model -> {};
+        Consumer<String> forwarding = EmbeddingScriptedBeans::forwardsToAHostedService;
+        Consumer<String> unanswered = EmbeddingScriptedBeans::cannotSayWhereItRuns;
+        Consumer<String> neverPulled = EmbeddingScriptedBeans::hasNeverPulled;
+        return Stream.of(
+                Arguments.of(
+                        Named.of("a model whose tag ends in cloud, refused without asking Ollama", leftAlone),
+                        A_CLOUD_TAGGED_EMBEDDING_MODEL,
+                        A_CLOUD_MODEL,
+                        false),
+                Arguments.of(
+                        Named.of("a model Ollama reports as remote, whatever its name", forwarding),
+                        AN_EMBEDDING_MODEL_OLLAMA_FORWARDS,
+                        REPORTED_AS_REMOTE,
+                        true),
+                Arguments.of(
+                        Named.of("a model Ollama cannot answer about, refused rather than assumed served here", unanswered),
+                        AN_EMBEDDING_MODEL_OLLAMA_CANNOT_ANSWER_ABOUT,
+                        NOT_ESTABLISHED,
+                        true),
+                Arguments.of(
+                        Named.of("a model Ollama has never pulled, refused as one it does not serve", neverPulled),
+                        AN_EMBEDDING_MODEL_OLLAMA_HAS_NEVER_PULLED,
+                        SERVES_NO_MODEL_NAMED,
+                        true));
     }
 
     @Test
@@ -261,7 +247,8 @@ class EmbeddingRefusesAModelNotServedHereInvocationTest {
         Profile profile = profileStore.load();
         profileStore.save(ProfileFixture.profile()
                 .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .boilerplateDocumentFrequencyFloor(
+                        EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .embeddingModel(AN_EMBEDDING_MODEL_BEHIND_A_SHUT_GATE, "set by this test, with no seed folder")
                 .build());
 
@@ -300,11 +287,8 @@ class EmbeddingRefusesAModelNotServedHereInvocationTest {
     private void aCorpusScoredUnder(Path root, Path seeds, String embeddingModel) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .embeddingModel(embeddingModel, "set by this test, so gate 3 is open")
                 .build());
     }

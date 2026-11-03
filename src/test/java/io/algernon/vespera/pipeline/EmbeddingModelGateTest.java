@@ -13,9 +13,13 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -69,16 +73,24 @@ class EmbeddingModelGateTest {
     @Autowired
     private ProfileStore profileStore;
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("unansweredModels")
     @Story("Unset means the shipped model, not a stop")
-    @DisplayName("With no model written in the profile, documents are scored under the configured default")
-    void resolvesTheConfiguredDefaultWhenTheProfileNamesNone() {
-        profile(null);
+    @DisplayName("With no model written in the profile, or a blank one, documents are scored under the configured default")
+    void resolvesTheConfiguredDefaultWhenTheProfileNamesNone(String written) {
+        profile(written);
 
         claim(
-                "an unanswered embeddingModel resolves to the name application configuration carries, so the gate"
-                        + " is open and scoring runs without the operator having had to name a model",
+                "an unanswered embeddingModel, never written or written and left empty, resolves to the name"
+                        + " application configuration carries rather than to a closed gate or a fault, so the gate"
+                        + " is open, scoring runs without the operator having had to name a model, and the name"
+                        + " handed on is never blank",
                 () -> assertThat(embeddingModelGate.modelName()).contains(CONFIGURED_DEFAULT));
+    }
+
+    /** The two ways a profile leaves the model unanswered. */
+    static Stream<Named<String>> unansweredModels() {
+        return Stream.of(Named.of("no model written", null), Named.of("a blank model written", BLANK));
     }
 
     @Test
@@ -91,18 +103,6 @@ class EmbeddingModelGateTest {
                 "the key the operator answered wins over the shipped name: a corpus scored under another model is a"
                         + " judgement about that corpus, and the profile is where it travels with its provenance",
                 () -> assertThat(embeddingModelGate.modelName()).contains(AN_OPERATOR_CHOICE));
-    }
-
-    @Test
-    @Story("Unset means the shipped model, not a stop")
-    @DisplayName("A blank model in the profile is an unanswered one, so the configured default applies")
-    void treatsABlankProfileValueAsUnanswered() {
-        profile(BLANK);
-
-        claim(
-                "a key written and left empty resolves to the default rather than to a closed gate or a fault, so"
-                        + " the name handed on is never blank",
-                () -> assertThat(embeddingModelGate.modelName()).contains(CONFIGURED_DEFAULT));
     }
 
     @Test

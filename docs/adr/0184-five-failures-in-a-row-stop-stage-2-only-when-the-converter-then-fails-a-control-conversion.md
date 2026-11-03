@@ -171,7 +171,7 @@ It also holds three constraints, which ADR-176 meets and no later change to the 
 `ControlConversionInvocationTest` (`src/test/java/io/algernon/vespera/pipeline/`) drives whole invocations with the production `DoclingClient`, extractor and cache against `LoopbackSidecar`. `LoopbackSidecar` now recognises the control conversion by the sentence its bytes carry. By default it converts it, answering with text that carries the sentence. It drops it when it drops every call, and answers it like everything else when told to answer every call one way. Every test that needs files in a row learns the order the stage reads in first, because that order is the file system's and not the names'.
 
 1. **Ten files in a row that each drop the connection twice**, between two that convert. The step completes. The ten are removed as `crashed the converter`. The control conversion was posted twice, once per five, so the count started again after the first.
-2. **A converter that drops every call**, over six files. The step stops, the control conversion was posted once, the closing line says it did not convert the control document either, and nothing is removed.
+2. **A converter that drops every call**, over six files. The step stops, the control conversion was posted once, the closing line says it did not convert the control document either, and nothing is removed. Items 2 and 4 are two cases of one test, `ControlConversionInvocationTest.aConverterThatFailsTheControlConversionTooStillStopsTheStage` (#682).
 3. **#385: five files the converter refuses for `capacity` on every call**, at every other position of ten. The first invocation completes with five extraction faults resolved. Then its completion record is deleted. The resume completes. It posts each of the five once and the control conversion once, and no other file. The five are removed with `capacity` as their reason.
 4. **A converter that refuses every call for `capacity`**, the control conversion included. The step stops with the breaker's message and the new suffix, and the control conversion was posted once.
 5. **A cached answer does not end a row of dropped files.** Nine files, every call dropped. The fifth in read order was converted earlier, from a copy under another root, so it is answered from the cache. The step stops, nothing is removed, and the cached file is not posted.
@@ -185,7 +185,7 @@ It also holds three constraints, which ADR-176 meets and no later change to the 
 
 **`ExtractionWhenTheSidecarDropsItsConnectionTest.aTimeoutBetweenThemDoesNotEndTheRunOfDroppedDocuments`** now also drops the control conversion. Its subject is that a timeout does not end the row, and the stop it expects needs a converter that converts nothing. Every other test in that class is untouched.
 
-**`ExtractionCircuitBreakerTest` and `ExtractionConcurrencyTest`** pin the breaker as a counter. Where the implementation gives the breaker a collaborator, or changes what `afterProcess` is told, these tests may need their construction adapted. What they claim must not change: five in a row reach the count, and an answered file ends the row.
+**`ExtractionCircuitBreakerTest`** pins the breaker as a counter; `ExtractionConcurrencyTest` held the same two claims again and now holds only the width (#681). Where the implementation gives the breaker a collaborator, or changes what `afterProcess` is told, these tests may need their construction adapted. What they claim must not change: five in a row reach the count, and an answered file ends the row.
 
 ## What this does not decide
 
