@@ -40,6 +40,7 @@ import org.springframework.modulith.core.ApplicationModules;
 @Link(name = "ADR-041", url = Adr.LEDGER_OWNS_IDENTITY_AND_VERDICTS, type = "adr")
 @Link(name = "ADR-101", url = Adr.THE_RUN_ENDS_AT_THE_GENERATED_DOCUMENTS, type = "adr")
 @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
+@Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
 class ModuleBoundariesTest {
 
     private static final ApplicationModules MODULES = ApplicationModules.of(VesperaApplication.class);
@@ -72,19 +73,25 @@ class ModuleBoundariesTest {
     /**
      * What a capability module is allowed to declare, where that is not {@code ledger} alone.
      *
-     * <p>Two entries, the only horizontal capability-to-capability edges in the tree.
+     * <p>Three entries, the only horizontal capability-to-capability edges in the tree.
      * {@code extraction} names {@code corpus} for the two detection enumerations Docling's pipeline
      * choice is derived from (ADR-100), and, since ADR-226, what a seed the floor stopped is sent as and
      * which detected formats list their pictures, and, since ADR-282, how stage 3 splits the word counts:
      * a wider purpose for the same two types, the declaration
      * unchanged. {@code deliverable} names {@code synthesis} for the records it draws the tree from, the
-     * citation pattern and the filename stem (ADR-274 §4). Recorded here as named exceptions rather than
-     * by relaxing the assertion, so that a third module widening its declaration still fails this test,
-     * and so does either of the two widening beyond what is named here.
+     * citation pattern and the filename stem (ADR-274 §4). A plugin's module, {@code confluence}, names
+     * {@code deliverable}, whose seam it implements, and {@code synthesis}, whose records the seam hands it
+     * (ADR-333 §1). Recorded here as named exceptions rather than by relaxing the assertion, so that a
+     * fourth module widening its declaration still fails this test, and so does any of the three widening
+     * beyond what is named here.
      */
     private static final Map<String, List<String>> DECLARED_DEPENDENCIES = Map.of(
             "extraction", List.of("ledger", "corpus"),
-            "deliverable", List.of("ledger", "synthesis"));
+            "deliverable", List.of("ledger", "synthesis"),
+            "confluence", List.of("ledger", "deliverable", "synthesis"));
+
+    /** The modules of the plugins compiled into the jar (ADR-333 §1): the Confluence rendering's, for now. */
+    private static final List<String> PLUGIN_MODULES = List.of("confluence");
 
     /**
      * The capability modules, derived rather than re-listed: the recorded ten less {@code ledger},
@@ -171,7 +178,9 @@ class ModuleBoundariesTest {
 
         claim(
                 "every capability module present declares exactly what is recorded for it -- ledger,"
-                        + " and for extraction and the tree's module the two horizontal exceptions in the tree; one named here has"
+                        + " and for extraction, the tree's module and a plugin's module the three horizontal exceptions"
+                        + " in the tree, a plugin's being the seam it implements and the records the seam hands it; one"
+                        + " named here has"
                         + " been widened beyond that, and the profile is the dependency that would be"
                         + " reached for first -- the values a pass is switched on and off by are read where"
                         + " the passes are assembled and handed down as plain numbers and paths, never read"
@@ -222,25 +231,37 @@ class ModuleBoundariesTest {
     }
 
     /**
-     * The one module that opens a connection to Confluence is a module of its own, declaring {@code ledger} alone, so
-     * a change to it moves no stage's version (ADR-308 §7, §10).
+     * A plugin is a module of its own, declaring {@code ledger}, {@code deliverable}, whose seam it implements, and
+     * {@code synthesis}, whose records the seam hands it, and nothing else horizontal; and {@code deliverable}, which
+     * drives every drawing, names no plugin's module, the beans reaching it from {@code pipeline} (ADR-333 §1). It
+     * replaces ADR-308 §7's {@code thePublisherIsAModuleOfItsOwn}, whose "names no class of deliverable" ADR-333
+     * reverses; no stage's version names either module, so no run id moves (ADR-333 §14).
      */
     @Test
     @Story("The boundary rule holds for every module")
-    @DisplayName("The publisher is a module of its own, which declares the ledger alone")
+    @DisplayName("A plugin's module declares the ledger, the seam's module and the writing's records, and the tree's module names no plugin")
     @Issue("633")
-    void thePublisherIsAModuleOfItsOwn() {
-        List<List<String>> declared = MODULES.stream()
-                .filter(module -> "confluence".equals(module.getIdentifier().toString()))
-                .map(module -> module.getBasePackage()
-                        .getAnnotation(ApplicationModule.class)
-                        .map(declaration -> List.of(declaration.allowedDependencies()))
-                        .orElse(List.of()))
-                .toList();
+    @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+    void aPluginsModuleDeclaresTheSeamAndNothingElseHorizontal() {
+        Map<String, List<String>> declared = new java.util.TreeMap<>();
+        MODULES.stream()
+                .filter(module -> PLUGIN_MODULES.contains(module.getIdentifier().toString())
+                        || "deliverable".equals(module.getIdentifier().toString()))
+                .forEach(module -> declared.put(
+                        module.getIdentifier().toString(),
+                        module.getBasePackage()
+                                .getAnnotation(ApplicationModule.class)
+                                .map(declaration -> List.of(declaration.allowedDependencies()))
+                                .orElse(List.of())));
 
         claim(
-                "there is one module that publishes, and it declares the ledger and nothing else: it names no class of"
-                        + " deliverable, reading the page list by its contract",
-                () -> assertThat(declared).containsExactly(List.of("ledger")));
+                "each plugin's module is there, and declares the ledger, deliverable and synthesis, and nothing else",
+                () -> assertThat(PLUGIN_MODULES).allSatisfy(plugin -> assertThat(declared)
+                        .as("what %s declares", plugin)
+                        .containsEntry(plugin, List.of("ledger", "deliverable", "synthesis"))));
+        claim(
+                "and deliverable, which drives every plugin's drawing, declares no plugin's module: pipeline hands it"
+                        + " the beans",
+                () -> assertThat(declared.get("deliverable")).doesNotContainAnyElementsOf(PLUGIN_MODULES));
     }
 }

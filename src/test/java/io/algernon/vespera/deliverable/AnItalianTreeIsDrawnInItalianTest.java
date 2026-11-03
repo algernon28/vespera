@@ -27,16 +27,16 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * A tree whose deliverable language is Italian, drawn whole, and what every page of it says (ADR-321 §4, §5): the HTML
- * cluster pages and index, and the Confluence rendering's root page, seed partition's page, cluster pages and titles.
+ * cluster pages and index. The Confluence rendering's root page, seed partition's page, cluster pages and titles moved
+ * with the rendering into {@code confluence} (ADR-333 §1), where {@code TheConfluenceRenderingIsDrawnInItalianTest}
+ * holds them over this class's fixture, drawn with the Confluence rendering's plugin.
  * The writing itself is the model's and is handed in here as it would be written; what is held is every word Vespera
  * writes around it. Every fixture is synthetic: an archive written here, a run id of the ledger's shape.
  *
@@ -51,10 +51,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Feature("The tree the operator is handed")
 @Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
 @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
-@Link(name = "ADR-310", url = Adr.A_CONFLUENCE_PAGES_TITLE_ENDS_WITH_ITS_PLACE_AND_ITS_RUNS_MARKER, type = "adr")
-@Link(name = "ADR-328", url = Adr.THE_CONFLUENCE_RENDERING_IS_ONE_TREE_UPDATED_IN_PLACE_WITH_NO_RUN_ID, type = "adr")
-@Link(name = "ADR-315", url = Adr.THE_ROOT_PAGE_CARRIES_NEITHER_THE_CORPUS_ROOT_NOR_THE_PROFILE, type = "adr")
-class AnItalianTreeIsDrawnInItalianTest {
+public class AnItalianTreeIsDrawnInItalianTest {
 
     private static final DeliverableLanguage ITALIAN = DeliverableLanguage.ITALIAN;
 
@@ -63,12 +60,12 @@ class AnItalianTreeIsDrawnInItalianTest {
     private static final String SEED_PATH = "seeds/Sicurezza.docx";
 
     /** How many documents the written cluster holds, and how many entries its list has with the one it no longer holds. */
-    private static final int FOUR_DOCUMENTS = 4;
+    public static final int FOUR_DOCUMENTS = 4;
 
-    private static final int FIVE_ENTRIES = 5;
+    public static final int FIVE_ENTRIES = 5;
 
     /** How many documents its call sent: two it holds and one it no longer does. */
-    private static final int THREE_SENT = 3;
+    public static final int THREE_SENT = 3;
 
     /** A ceiling of one byte, which splits a cluster a page an entry (ADR-303). */
     private static final long ONE_BYTE = 1;
@@ -78,7 +75,7 @@ class AnItalianTreeIsDrawnInItalianTest {
     private static final RecordedCluster DAMPERS = cluster(THE_SEED, 1, "Serrande", 2, 1);
 
     /** The title the model wrote, in Italian, as an Italian deliverable asks it to. */
-    private static final String DOORS_TITLE = "Porte tagliafuoco e loro ispezione";
+    public static final String DOORS_TITLE = "Porte tagliafuoco e loro ispezione";
 
     /** Writing citing the three documents the call sent. */
     private static final String PROSE = "Le porte [1] e i telai [2] sono descritti insieme [3].";
@@ -87,7 +84,7 @@ class AnItalianTreeIsDrawnInItalianTest {
     private static final long NO_LONGER_HELD = 99;
 
     /** The copy that cannot be made, its original never written into the archive. */
-    private static final String GONE_FROM_THE_ARCHIVE = "reports/d.txt";
+    public static final String GONE_FROM_THE_ARCHIVE = "reports/d.txt";
 
     /** The key the index lists the language under, as the profile spells it. */
     private static final String THE_KEY = "deliverableLanguage";
@@ -96,7 +93,7 @@ class AnItalianTreeIsDrawnInItalianTest {
      * Words every English page of the tree carries and no Italian one may: each fixed English phrase of ADR-321 §4's
      * table, as far as it is told apart from a path or a value, and the navigation's four words as links.
      */
-    private static final List<String> ENGLISH_FIXED_WORDS = List.of(
+    public static final List<String> ENGLISH_FIXED_WORDS = List.of(
             "The documents in this group",
             "Written from the first",
             "othing was written over this group",
@@ -119,8 +116,6 @@ class AnItalianTreeIsDrawnInItalianTest {
             "no longer in the archive",
             "more picture",
             "lang=\"en\"");
-
-    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     @Test
     @Story("An Italian deliverable's pages say in Italian what Vespera writes on them")
@@ -251,100 +246,31 @@ class AnItalianTreeIsDrawnInItalianTest {
 
     @Test
     @Story("An Italian deliverable's pages say in Italian what Vespera writes on them")
-    @DisplayName("The Confluence root page and the seed partition's page are headed and explained in Italian")
-    void theConfluenceRootAndPartitionPagesAreInItalian(@TempDir Path base) throws IOException {
-        Path confluence = draw(base).resolve(ConfluencePages.DIRECTORY_NAME);
-        String root = asRead(textOf(confluence.resolve(ConfluencePages.BODY_NAME)));
-        String partition = asRead(textOf(confluence.resolve("1-sicurezza").resolve(ConfluencePages.BODY_NAME)));
-
-        claim(
-                "the root page opens with the deliverable named in Italian, without the run's id, and the record's"
-                        + " Italian sentence",
-                () -> assertThat(root).startsWith("<h1>" + ItalianWordingOnRecord.THE_DELIVERABLE.strip()
-                        + "</h1>\n<p>" + ItalianWordingOnRecord.THE_ROOT_PAGES_SENTENCE + "</p>"));
-        claim(
-                "and both pages head their table of groups in Italian, the unwritten group's cell in Italian",
-                () -> assertThat(List.of(root, partition)).allSatisfy(page -> assertThat(page)
-                        .contains(headRow(ItalianWordingOnRecord.THE_TABLE_OF_CLUSTERS))
-                        .contains("<em>" + ItalianWordingOnRecord.NOTHING_WAS_WRITTEN_OVER_IT + "</em>")));
-    }
-
-    @Test
-    @Story("An Italian deliverable's pages say in Italian what Vespera writes on them")
-    @DisplayName("Each group's Confluence pages say in Italian what its HTML pages say")
-    void theClustersConfluencePagesAreInItalian(@TempDir Path base) throws IOException {
-        Path folder = draw(base).resolve(ConfluencePages.DIRECTORY_NAME).resolve("1-sicurezza");
-        String first = asRead(textOf(folder.resolve("1-porte").resolve(ConfluencePages.BODY_NAME)));
-        String third = asRead(textOf(folder.resolve("1-porte").resolve("page-3.xml")));
-        String fifth = asRead(textOf(folder.resolve("1-porte").resolve("page-5.xml")));
-        String dampers = asRead(textOf(folder.resolve("2-serrande").resolve(ConfluencePages.BODY_NAME)));
-
-        claim(
-                "the written group's first page opens on the navigation in Italian, says what the writing rests on"
-                        + " and heads its list in Italian",
-                () -> assertThat(first)
-                        .startsWith("<p>" + ItalianWordingOnRecord.PAGE_OF.formatted(1, FIVE_ENTRIES))
-                        .contains("<ac:link-body>" + ItalianWordingOnRecord.NEXT + "</ac:link-body>")
-                        .contains("<ac:link-body>" + ItalianWordingOnRecord.LAST + "</ac:link-body>")
-                        .contains("<p>" + ItalianWordingOnRecord.SUBSET_DISCLOSURE.formatted(THREE_SENT, FOUR_DOCUMENTS)
-                                + "</p>")
-                        .contains("<h2>" + ItalianWordingOnRecord.MEMBERSHIP_HEADING + "</h2>"));
-        claim(
-                "its third page says in Italian that the group no longer holds the document at that number, and its"
-                        + " fifth why the copy is not there",
-                () -> {
-                    assertThat(third).contains("<em>" + ItalianWordingOnRecord.THE_CLUSTER_NO_LONGER_HOLDS_IT + "</em>");
-                    assertThat(fifth).contains(GONE_FROM_THE_ARCHIVE + " <em>" + ItalianWordingOnRecord.GONE + "</em>");
-                });
-        claim(
-                "and the unwritten group's page says why and that it stands, in Italian",
-                () -> assertThat(dampers).contains(
-                        "<p><em>" + ItalianWordingOnRecord.THE_ANSWER_CAME_BACK_IN_ANOTHER_SHAPE + "</em></p>\n"
-                                + "<p><em>" + ItalianWordingOnRecord.STANDS_WITHOUT_WRITING + "</em></p>"));
-    }
-
-    @Test
-    @Story("An Italian deliverable's pages are titled in Italian where Vespera titles them")
-    @DisplayName("The page list titles a split group's later pages with pagina, and keeps every other title as it was")
-    void thePageListTitlesTheLaterPagesWithPagina(@TempDir Path base) throws IOException {
-        Path list = draw(base).resolve(ConfluencePages.DIRECTORY_NAME).resolve(ConfluencePages.PAGE_LIST_FILE_NAME);
-        List<String> titles = JSON.readTree(list.toFile()).get("pages").valueStream()
-                .map(page -> page.get("title").asString())
-                .toList();
-        List<String> doorsPages = IntStream.rangeClosed(1, FIVE_ENTRIES)
-                .mapToObj(page -> DOORS_TITLE + " (1.1"
-                        + (page == 1 ? "" : ItalianWordingOnRecord.PAGE_IN_A_TITLE + page) + ")")
-                .toList();
-
-        claim(
-                "the written group's five pages are titled by the model's Italian title, the later four saying pagina"
-                        + " and their number",
-                () -> assertThat(titles).containsAll(doorsPages));
-        claim(
-                "and the root page, the seed partition's page and the unwritten group's page keep the titles that are"
-                        + " names: Vespera, the seed's file name and the group's label",
-                () -> assertThat(titles).contains(
-                        "Vespera", "Sicurezza (1)", "Serrande (1.2)"));
-    }
-
-    @Test
-    @Story("An Italian deliverable's pages say in Italian what Vespera writes on them")
     @DisplayName("No page of an Italian tree carries a fixed English word")
     void noPageCarriesAFixedEnglishWord(@TempDir Path base) throws IOException {
         Path tree = draw(base);
-        Map<String, String> pages = Stream.concat(filesUnder(tree, ".html").stream(), filesUnder(tree, ".xml").stream())
+        Map<String, String> pages = filesUnder(tree, ".html").stream()
                 .collect(Collectors.toMap(page -> tree.relativize(page).toString(), page -> asRead(textOf(page))));
 
         claim(
-                "the " + pages.size() + " HTML and Confluence pages carry none of the English the same tree would carry"
-                        + " in English",
+                "the " + pages.size() + " HTML pages carry none of the English the same tree would carry in English;"
+                        + " the Confluence rendering's pages are held to the same words by its plugin's test",
                 () -> assertThat(pages).allSatisfy((name, page) -> assertThat(page)
                         .as(name)
                         .doesNotContain(ENGLISH_FIXED_WORDS)));
     }
 
-    /** The fixture drawn into {@code base}: its archive, its working directory and its tree, in Italian. */
+    /** The fixture drawn into {@code base}, with no plugin. */
     private static Path draw(Path base) throws IOException {
+        return draw(base, List.of());
+    }
+
+    /**
+     * The fixture drawn into {@code base}: its archive, its working directory and its tree, in Italian, with {@code
+     * plugins} drawing beside it; {@code confluence.TheConfluenceRenderingIsDrawnInItalianTest} draws it with the
+     * Confluence rendering's (ADR-333 §1).
+     */
+    public static Path draw(Path base, List<Plugin> plugins) throws IOException {
         Path archive = base.resolve("archive");
         Files.createDirectories(archive.resolve("reports"));
         Files.createDirectories(archive.resolve("notes"));
@@ -371,6 +297,7 @@ class AnItalianTreeIsDrawnInItalianTest {
                 ListedCodeSets.NONE,
                 SurvivorPictures.none(),
                 new ClusterPageCeiling.Bytes(ONE_BYTE),
+                plugins,
                 DeliverableProgress.NONE);
     }
 
@@ -389,7 +316,7 @@ class AnItalianTreeIsDrawnInItalianTest {
     }
 
     /** The head row of a table headed by {@code heads}, as the tree writes it. */
-    private static String headRow(List<String> heads) {
+    public static String headRow(List<String> heads) {
         return "<tr>" + heads.stream().map(head -> "<th>" + head + "</th>").collect(Collectors.joining()) + "</tr>";
     }
 

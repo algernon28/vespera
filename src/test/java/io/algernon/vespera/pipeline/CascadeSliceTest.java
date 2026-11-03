@@ -1,5 +1,6 @@
 package io.algernon.vespera.pipeline;
 
+import io.algernon.vespera.confluence.ConfluencePlugin;
 import io.algernon.vespera.confluence.Publisher;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
@@ -106,6 +107,8 @@ import org.springframework.transaction.annotation.Transactional;
     VesperaCommand.Label.class,
     VesperaCommand.Publish.class,
     Publisher.class,
+    // The Confluence rendering's plugin, which every drawing draws beside the tree (ADR-333 §1, §4).
+    ConfluencePlugin.class,
     NextAction.class,
     VesperaJobConfiguration.class,
     // The progress page's opener, which records and opens nothing, in place of the system's (ADR-266): no

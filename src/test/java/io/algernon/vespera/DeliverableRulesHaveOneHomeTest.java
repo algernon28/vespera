@@ -85,26 +85,72 @@ class DeliverableRulesHaveOneHomeTest {
             "ProseHtml",
             "UnwrittenSentences");
 
+    /**
+     * Of those, the ones a plugin reads, which {@code deliverable} makes public for what a plugin reads of them and
+     * nothing more (ADR-333 §2's table): every collaborator but {@code ManifestCsv}, which no plugin reads.
+     */
+    private static final Set<String> READ_BY_A_PLUGIN = Set.of(
+            "ClusterPage",
+            "IndexPage",
+            "EntryPictures",
+            "Copies",
+            "CopyNames",
+            "Html",
+            "ProseHtml",
+            "UnwrittenSentences");
+
+    /** What a plugin reads of a member's copy (ADR-333 §2, §5): its outcome, its name and its path, and no writing. */
+    private static final Set<String> WHAT_A_PLUGIN_READS_OF_THE_COPIES = Set.of("outcomeOf", "nameOf", "pathOf");
+
     @Test
     @Story("Each rule has one class")
-    @DisplayName("Each collaborator the tree's writer is split into exists in its module and is not public")
-    void eachCollaboratorIsPackagePrivate() throws Exception {
+    @DisplayName("Each collaborator the tree's writer is split into exists in its module, and only those a plugin reads are public")
+    @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+    void eachCollaboratorIsInItsModuleAndOnlyThoseAPluginReadsArePublic() throws Exception {
         Set<String> classes = classesOf(THE_MODULES);
         for (String collaborator : THE_COLLABORATORS) {
+            boolean read = READ_BY_A_PLUGIN.contains(collaborator);
             claim(
-                    collaborator + " is a class of deliverable and is not public: it carries one rule of the"
-                            + " tree, and Deliverable is the module's one door to them",
+                    collaborator + " is a class of deliverable carrying one rule of the tree, and "
+                            + (read
+                                    ? "is public, a plugin reading it through the seam (ADR-333 §2)"
+                                    : "is not public: no plugin reads it, and Deliverable is the module's door to it"),
                     () -> {
                         assertThat(classes).contains(IN_DELIVERABLE + collaborator);
                         assertThat(Modifier.isPublic(loaded(IN_DELIVERABLE + collaborator).getModifiers()))
                                 .as("whether %s is public", collaborator)
-                                .isFalse();
+                                .isEqualTo(read);
                     });
         }
         claim(
                 "and the citation pattern and the filename stem are synthesis's, the generation check and the label"
                         + " reading them there as the tree does",
                 () -> assertThat(classes).contains(IN_SYNTHESIS + "Citation", IN_SYNTHESIS + "FilenameStem"));
+    }
+
+    @Test
+    @Story("Each rule has one class")
+    @DisplayName("A plugin reads what the copies came to and makes none: Copies opens its outcome, name and path alone")
+    @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+    void aPluginReadsWhatTheCopiesCameToAndMakesNone() throws Exception {
+        Class<?> copies = loaded(IN_DELIVERABLE + "Copies");
+        Set<String> open = new TreeSet<>();
+        for (Method method : copies.getDeclaredMethods()) {
+            if (Modifier.isPublic(method.getModifiers())) {
+                open.add(method.getName());
+            }
+        }
+        boolean constructible = Arrays.stream(copies.getDeclaredConstructors())
+                .anyMatch(constructor -> Modifier.isPublic(constructor.getModifiers()));
+
+        claim(
+                "the public methods of Copies are a member's outcome, its copy's name and its copy's path: the HTML"
+                        + " tree alone reads the archive and checks a copy against stage 2's key, and a plugin reads what"
+                        + " it found (ADR-333 §5)",
+                () -> assertThat(open).isEqualTo(WHAT_A_PLUGIN_READS_OF_THE_COPIES));
+        claim(
+                "and no constructor of Copies is public, so no plugin makes one of its own and opens the archive",
+                () -> assertThat(constructible).isFalse());
     }
 
     @Test

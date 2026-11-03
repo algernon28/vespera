@@ -22,8 +22,9 @@ import org.junit.jupiter.api.Test;
 /**
  * The Italian of an Italian deliverable's fixed words, held to the record word for word and to the rules every English
  * sentence keeps (ADR-321 §4, §5): the eight sentences of ADR-174 and ADR-319, a copy's outcome, the line on pictures not
- * shown, the index's code sets and a split cluster's Confluence title. The pages these land on are held by {@link
- * AnItalianTreeIsDrawnInItalianTest}.
+ * shown and the index's code sets. The pages these land on are held by {@link AnItalianTreeIsDrawnInItalianTest}; a
+ * split cluster's Confluence title moved with the Confluence rendering into {@code confluence} (ADR-333 §1), where
+ * {@code TheConfluenceRenderingIsDrawnInItalianTest} holds it.
  *
  * <p>The report says <em>group</em> where the code says cluster (ADR-122); the Italian says <em>gruppo</em>.
  */
@@ -45,15 +46,6 @@ class ItalianWordingTest {
 
     /** The word this project uses, which Italian also borrows, and the English rendering, neither on an Italian page. */
     private static final List<String> NOT_GRUPPO = List.of("cluster", "group");
-
-    /** A seed partition's place and a cluster's, as a Confluence title writes them. */
-    private static final String PLACE = "1.1";
-
-    /** A cluster's title, as the model wrote it. */
-    private static final String A_TITLE = "Porte tagliafuoco";
-
-    /** The second page of a split cluster. */
-    private static final int THE_SECOND_PAGE = 2;
 
     /** How many pictures a line says are not shown, past one, so the plural is the one written. */
     private static final int THREE_PICTURES = 3;
@@ -191,26 +183,6 @@ class ItalianWordingTest {
         claim(
                 "and a set lying at the corpus root names its folder as the record's Italian does",
                 () -> assertThat(read).contains("<td>" + ItalianWordingOnRecord.THE_ARCHIVES_TOP + "</td>"));
-    }
-
-    @Test
-    @Story("An Italian deliverable's pages are titled in Italian where Vespera titles them")
-    @DisplayName("A split group's later Confluence pages say pagina in their titles, and its first page no page at all")
-    void aSplitClustersConfluenceTitleSaysPagina() {
-        claim(
-                "the second page's title is the text, then the place, pagina and its number",
-                () -> assertThat(ConfluenceTitles.cluster(A_TITLE, PLACE, THE_SECOND_PAGE, ITALIAN))
-                        .isEqualTo(A_TITLE + " (" + PLACE + ItalianWordingOnRecord.PAGE_IN_A_TITLE + THE_SECOND_PAGE
-                                + ")"));
-        claim(
-                "the first page's carries no page, as in English",
-                () -> assertThat(ConfluenceTitles.cluster(A_TITLE, PLACE, 1, ITALIAN))
-                        .isEqualTo(A_TITLE + " (" + PLACE + ")"));
-        claim(
-                "and an English rendering's second page still says page",
-                () -> assertThat(ConfluenceTitles.cluster(A_TITLE, PLACE, THE_SECOND_PAGE,
-                                DeliverableLanguage.ENGLISH))
-                        .isEqualTo(A_TITLE + " (" + PLACE + " page " + THE_SECOND_PAGE + ")"));
     }
 
     /** {@code html} as a reader reads it: the five entities read back, so an escaped apostrophe reads as one. */

@@ -2358,6 +2358,16 @@ public final class Adr {
     public static final String THE_LOCAL_MODEL_LABELS_ONLY_UNDER_THE_EXTRACTOR_ITS_RUN_WAS_CONVERTED_UNDER = FILE
             + "0332-vespera-label-auto-is-refused-under-another-extractor-identity-than-its-run-was-converted-under-and-a-placeholder-in-the-ocr-preset-stops-only-a-run.md";
 
+    /**
+     * ADR-333 -- a plugin inside the jar draws one rendering and delivers it to one destination, a publish names its
+     * destinations, and the website is refreshed in one folder and served on loopback: the seam in {@code deliverable},
+     * the Confluence drawing moved into {@code confluence}, and a plugin's failed drawing stopping that plugin alone
+     * (amends ADR-308 §1, §4 to §7, ADR-101, ADR-102, ADR-301, ADR-312, ADR-274, ADR-276, ADR-286, ADR-047, ADR-040,
+     * ADR-177, ADR-278, ADR-280 and ADR-321).
+     */
+    public static final String A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION = FILE
+            + "0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md";
+
     private Adr() {
     }
 }

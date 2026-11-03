@@ -938,7 +938,7 @@ class DeliverableTest {
                         + " files, being the index, the listing, the one group's own page and the marker saying what"
                         + " drew the tree, and nothing else",
                 () -> assertThat(everyFileUnder(tree).stream()
-                                .filter(file -> !tree.relativize(file).startsWith(ConfluencePages.DIRECTORY_NAME))
+                                .filter(file -> !tree.relativize(file).startsWith("confluence"))
                                 .toList())
                         .hasSize(THE_INDEX_THE_LISTING_ONE_PAGE_AND_THE_MARKER)
                         .contains(tree.resolve(DeliverableRoot.MARKER_FILE_NAME)));

@@ -115,7 +115,7 @@ class TheClusterFolderHoldsItsPageAndItsCopiesTest {
                         + " copy under the document's own name, its spaces, brackets and capitals as written, and"
                         + " nothing else",
                 () -> assertThat(filesUnder(tree).stream()
-                                .filter(name -> !name.startsWith(ConfluencePages.DIRECTORY_NAME + "/")))
+                                .filter(name -> !name.startsWith("confluence/")))
                         .containsExactlyInAnyOrder(
                                 "index.html",
                                 "documents.csv",

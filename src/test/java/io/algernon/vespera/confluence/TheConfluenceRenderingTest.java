@@ -1,4 +1,4 @@
-package io.algernon.vespera.deliverable;
+package io.algernon.vespera.confluence;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static io.algernon.vespera.deliverable.ListedTree.anImage;
@@ -11,6 +11,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.deliverable.ClusterPageCeiling;
+import io.algernon.vespera.deliverable.Deliverable;
+import io.algernon.vespera.deliverable.DeliverableProgress;
+import io.algernon.vespera.deliverable.DeliverableProvenance;
+import io.algernon.vespera.deliverable.DeliverableRoot;
+import io.algernon.vespera.deliverable.FixedWords;
+import io.algernon.vespera.deliverable.Html;
+import io.algernon.vespera.deliverable.ListedCodeSets;
+import io.algernon.vespera.deliverable.ListedPicture;
+import io.algernon.vespera.deliverable.ListedSurvivor;
+import io.algernon.vespera.deliverable.ListedTree;
+import io.algernon.vespera.deliverable.NamedValue;
+import io.algernon.vespera.deliverable.Plugin;
+import io.algernon.vespera.deliverable.SurvivorPictures;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.synthesis.ClusterSlot;
 import io.algernon.vespera.synthesis.DeliverableLanguage;
@@ -46,11 +60,17 @@ import tools.jackson.databind.json.JsonMapper;
  * ADR-316): its pages' titles, their storage-format bodies, the files each carries, the page list, and what an earlier
  * drawing left in it. Every fixture is synthetic: an archive written here, a run id of the ledger's shape.
  *
+ * <p><b>Drawn by its plugin</b> (ADR-333 §1, §2): the rendering and this class moved from {@code deliverable} into
+ * {@code confluence}, and the tree is drawn through {@code Deliverable}'s public door with the Confluence plugin handed
+ * in, as {@code pipeline} hands it the beans. Every claim stands as it stood. Untagged: CI's {@code
+ * -DexcludedGroups=confluence} is for the publish's integration tests alone (ADR-320 §6).
+ *
  * <p><b>The report says <em>group</em> and the code says <em>cluster</em></b> (ADR-122).
  */
 @Epic("The deliverable")
 @Feature("The Confluence rendering")
 @Issue("620")
+@Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
 @Link(name = "ADR-301", url = Adr.A_CONFLUENCE_RENDERING_IS_DRAWN_BESIDE_THE_HTML_TREE, type = "adr")
 @Link(name = "ADR-309", url = Adr.A_CITATION_ON_A_CONFLUENCE_PAGE_IS_AN_ANCHOR_LINK, type = "adr")
 @Link(name = "ADR-310", url = Adr.A_CONFLUENCE_PAGES_TITLE_ENDS_WITH_ITS_PLACE_AND_ITS_RUNS_MARKER, type = "adr")
@@ -98,6 +118,10 @@ class TheConfluenceRenderingTest {
     private static final byte[] A_SCAN = anImage("png", 5, 5);
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
+
+    /** The one plugin the tree is drawn with here: the Confluence rendering's, its publisher never asked to send. */
+    private static final List<Plugin> THE_CONFLUENCE_PLUGIN =
+            List.of(new ConfluencePlugin(new Publisher("", "", "", "")));
 
     private static final Pattern AN_ANCHOR_MACRO = Pattern.compile(
             "<li><ac:structured-macro ac:name=\"anchor\"><ac:parameter ac:name=\"\">document-(\\d+)</ac:parameter>"
@@ -378,7 +402,8 @@ class TheConfluenceRenderingTest {
                         .containsExactlyInAnyOrderElementsOf(titlesIn(list).subList(1, 4).stream().map(Html::escape).toList()));
         claim(
                 "the unwritten group's row says so in the index's words",
-                () -> assertThat(root).contains("<em>" + Deliverable.NOTHING_WAS_WRITTEN_OVER_IT + "</em>"));
+                () -> assertThat(root).contains(
+                        "<em>" + FixedWords.nothingWasWrittenOverIt(DeliverableLanguage.ENGLISH) + "</em>"));
         claim(
                 "documents.csv is the root page's one file, a listing, with the HTML tree's bytes' size and digest",
                 () -> assertThat(filesOf(list.get("pages").get(0))).containsExactly(
@@ -439,7 +464,16 @@ class TheConfluenceRenderingTest {
             survivors.add(survivor(100 + place, "notes/" + place + ".txt", sha256Of(bytes("note " + place)), THE_SEED,
                     SEED_PATH, place - 1, 0.5));
         }
-        Path tree = ListedTree.write(base.resolve(THE_WORKING_DIRECTORY), archive, groups, Map.of(), survivors, Map.of());
+        Path tree = Deliverable.writeTo(
+                base.resolve(THE_WORKING_DIRECTORY),
+                DeliverableRoot.UNNAMED,
+                ListedTree.provenance(archive),
+                ListedTree.of(groups, Map.of(), survivors, Map.of()),
+                ListedCodeSets.NONE,
+                SurvivorPictures.none(),
+                new ClusterPageCeiling.Unset(),
+                THE_CONFLUENCE_PLUGIN,
+                DeliverableProgress.NONE);
         List<JsonNode> pages = pageList(tree).get("pages").valueStream().toList();
         List<String> expectedKeys = new ArrayList<>(List.of("root", "1"));
         List<String> expectedTitles = new ArrayList<>(List.of("Vespera", "Fire Safety (1)"));
@@ -584,7 +618,10 @@ class TheConfluenceRenderingTest {
                         ListedTree.RUN_ID, ListedTree.WALK, archive.toString(),
                         List.of(new NamedValue(THE_PROFILE_KEY, THE_PROFILE_VALUE))),
                 ListedTree.of(List.of(DOORS, DAMPERS), written, survivors, Map.of()),
+                ListedCodeSets.NONE,
                 pictures,
+                new ClusterPageCeiling.Unset(),
+                THE_CONFLUENCE_PLUGIN,
                 progress);
     }
 
@@ -598,10 +635,18 @@ class TheConfluenceRenderingTest {
             survivors.add(survivor(10 + at, "reports/" + at + ".txt", sha256Of(bytes("document " + at)), THE_SEED,
                     SEED_PATH, 0, 0.9 - at / 10.0));
         }
-        return ListedTree.writeWithCeiling(
-                base.resolve(THE_WORKING_DIRECTORY), archive, List.of(DOORS),
-                Map.of(slotOf(DOORS), writing(DOORS_TITLE, PROSE, 10, 11, 12, 13)), survivors, Map.of(),
-                SurvivorPictures.none(), new ClusterPageCeiling.Bytes(1), DeliverableProgress.NONE);
+        return Deliverable.writeTo(
+                base.resolve(THE_WORKING_DIRECTORY),
+                DeliverableRoot.UNNAMED,
+                ListedTree.provenance(archive),
+                ListedTree.of(
+                        List.of(DOORS), Map.of(slotOf(DOORS), writing(DOORS_TITLE, PROSE, 10, 11, 12, 13)), survivors,
+                        Map.of()),
+                ListedCodeSets.NONE,
+                SurvivorPictures.none(),
+                new ClusterPageCeiling.Bytes(1),
+                THE_CONFLUENCE_PLUGIN,
+                DeliverableProgress.NONE);
     }
 
     /** The first document carries the diagram; no other carries a picture. */
