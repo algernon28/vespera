@@ -36,7 +36,7 @@ import java.util.function.Consumer;
  * <p><b>One SHA-256 per picture per pass</b> (ADR-213 §5). The second pass digests each picture once, for the
  * furniture check; the first pass's digests are not carried into it, the second answer being a new answer.
  */
-final class EntryPictures {
+public final class EntryPictures {
 
     /** The media type a PNG's bytes are shown under (ADR-286 §1). */
     private static final String PNG_MEDIA_TYPE = "image/png";
@@ -149,7 +149,7 @@ final class EntryPictures {
      * @param copy the survivor's copy in its cluster's folder where one stands, otherwise empty
      */
     void writeUnder(OutputStream page, ListedSurvivor member, Optional<Path> copy) throws IOException {
-        writeUnder(page, member, copy, ConfluenceEntries.NONE);
+        writeUnder(page, member, copy, Entries.NONE);
     }
 
     /**
@@ -157,7 +157,7 @@ final class EntryPictures {
      * also}, the Confluence rendering's (ADR-314 §1): the same pictures from the same bytes, in the same order, with the
      * same count of those not shown, from the one answer the source gives here, so no document is asked a third time.
      */
-    void writeUnder(OutputStream page, ListedSurvivor member, Optional<Path> copy, ConfluenceEntries also)
+    void writeUnder(OutputStream page, ListedSurvivor member, Optional<Path> copy, Entries also)
             throws IOException {
         if (copy.isPresent() && writeCopyInline(page, copy.get())) {
             also.copyShown();
@@ -206,7 +206,7 @@ final class EntryPictures {
      * The line saying how many of a document's pictures are not shown, {@code notShown} being one or more, in {@code
      * language} (ADR-321 §4).
      */
-    static String notShownLine(int notShown, DeliverableLanguage language) {
+    public static String notShownLine(int notShown, DeliverableLanguage language) {
         String sentence = switch (language) {
             case ENGLISH -> notShown == 1
                     ? " more picture from this document is not shown."

@@ -36,6 +36,7 @@ import io.algernon.vespera.deliverable.ListedPicture;
 import io.algernon.vespera.deliverable.ListedPicturePlace;
 import io.algernon.vespera.deliverable.ListedSurvivor;
 import io.algernon.vespera.deliverable.NamedValue;
+import io.algernon.vespera.deliverable.Plugin;
 import io.algernon.vespera.deliverable.SurvivorPictures;
 import io.algernon.vespera.synthesis.ArrangedPartition;
 import io.algernon.vespera.synthesis.ClusterFault;
@@ -163,6 +164,7 @@ class GenerationTasklet implements Tasklet {
     private final ProfileStore profileStore;
     private final ModelPull modelPull;
     private final ObjectProvider<PageOpener> opener;
+    private final ObjectProvider<Plugin> plugins;
     private final boolean openBrowser;
     private final Path root;
     private final Path workingDirectory;
@@ -187,6 +189,7 @@ class GenerationTasklet implements Tasklet {
             ProfileStore profileStore,
             ModelPull modelPull,
             ObjectProvider<PageOpener> opener,
+            ObjectProvider<Plugin> plugins,
             @Value("${vespera.open-browser:true}") boolean openBrowser,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
@@ -215,6 +218,7 @@ class GenerationTasklet implements Tasklet {
         this.profileStore = profileStore;
         this.modelPull = modelPull;
         this.opener = opener;
+        this.plugins = plugins;
         this.openBrowser = openBrowser;
         this.root = root;
         this.workingDirectory = workingDirectory;
@@ -582,6 +586,7 @@ class GenerationTasklet implements Tasklet {
         InvocationRuns handedOver = new InvocationRuns(
                 chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext());
         handedOver.recordDormantCodeSetNames(Math.toIntExact(copies.dormantCodeSetNames));
+        handedOver.recordRenderingsNotDrawn(copies.renderingsNotDrawn);
         if (copies.codeFiles > 0) {
             handedOver.recordCodeFilesNotCopied(copies.codeFilesNotStanding());
         }
@@ -626,6 +631,9 @@ class GenerationTasklet implements Tasklet {
         long codeOther;
         long codeBytes;
         long dormantCodeSetNames;
+
+        /** The plugins whose drawing failed, in the order the drawing told them (ADR-333 §11). */
+        final List<NextAction.RenderingNotDrawn> renderingsNotDrawn = new ArrayList<>();
 
         /** The files of code whose copy does not stand: every outcome but a copy made or kept (ADR-296 §6.1). */
         int codeFilesNotStanding() {
@@ -794,6 +802,16 @@ class GenerationTasklet implements Tasklet {
             }
 
             @Override
+            public void pluginDrawingFailed(String plugin, String exceptionType) {
+                counts.renderingsNotDrawn.add(new NextAction.RenderingNotDrawn(plugin, exceptionType));
+                LOG.warn(
+                        "Stage 6b (generation, plugins): the {} rendering could not be drawn ({}); the tree and the"
+                                + " other renderings are drawn, and a publish to it is refused until a drawing finishes",
+                        plugin,
+                        exceptionType);
+            }
+
+            @Override
             public void copiesAtALongPath(long copies) {
                 if (copies > 0) {
                     LOG.warn(
@@ -952,6 +970,7 @@ class GenerationTasklet implements Tasklet {
                 codeSetsOf(byteLevelReductionRun),
                 survivorPictures(byteLevelReductionRun),
                 ClusterPageByteCeiling.of(profile.clusterPageByteCeiling()).forTheTree(),
+                plugins.orderedStream().toList(),
                 treeProgress(copies));
     }
 

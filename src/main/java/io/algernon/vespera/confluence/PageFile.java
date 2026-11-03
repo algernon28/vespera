@@ -1,4 +1,4 @@
-package io.algernon.vespera.deliverable;
+package io.algernon.vespera.confluence;
 
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 

@@ -2,11 +2,14 @@ package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.confluence.Publisher;
 import io.algernon.vespera.deliverable.DeliverableRoot;
+import io.algernon.vespera.deliverable.Plugin;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.Runs;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.TextValue;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -588,6 +591,11 @@ public class VesperaCommand implements Callable<Integer> {
                 return CommandLine.ExitCode.SOFTWARE;
             }
             Path confluence = renderingOf(generation.get());
+            if (!drawingFinished(confluence)) {
+                System.err.println("vespera publish sent nothing to " + Publisher.RENDERING_FOLDER + ": the last drawing"
+                        + " of its rendering did not finish. Run vespera run to draw it again, and publish again.");
+                return CommandLine.ExitCode.SOFTWARE;
+            }
             Publisher.Outcome outcome =
                     publisher.publish(confluence, generation.get(), workingDirectoryInUse, System.out::println);
             if (!outcome.published()) {
@@ -598,18 +606,41 @@ public class VesperaCommand implements Callable<Integer> {
             return CommandLine.ExitCode.OK;
         }
 
-        /** The last generation run minted whose generation step finished and whose tree holds a page list. */
+        /**
+         * The last generation run minted whose generation step finished and whose tree holds the rendering's folder
+         * with a page list or a {@code drawing.txt}: the last run to have drawn it, or begun to, so that an older run's
+         * rendering is never sent in place of one whose drawing did not finish (ADR-333 §6, §11).
+         */
         private Optional<String> lastDrawn() {
             Map<String, Set<String>> finished = ledger.runs().finishedSteps();
             List<Runs.Listed> runs = ledger.runs().listed();
             for (Runs.Listed listed : runs.reversed()) {
+                Path rendering = renderingOf(listed.id());
                 if (StageModules.GENERATION.stage().equals(listed.stage())
                         && finished.getOrDefault(listed.id(), Set.of()).contains(StepNames.GENERATION)
-                        && Files.isRegularFile(renderingOf(listed.id()).resolve(Publisher.PAGE_LIST_FILE_NAME))) {
+                        && (Files.isRegularFile(rendering.resolve(Publisher.PAGE_LIST_FILE_NAME))
+                                || Files.isRegularFile(rendering.resolve(Plugin.DRAWING_STATE_FILE_NAME)))) {
                     return Optional.of(listed.id());
                 }
             }
             return Optional.empty();
+        }
+
+        /**
+         * Whether the rendering's last drawing went to its end: its {@code drawing.txt} says {@code drawn}, or there is
+         * none, as in a rendering drawn before ADR-333, and the page list alone decides (ADR-333 §11). Read before
+         * anything else of the destination.
+         */
+        private static boolean drawingFinished(Path rendering) {
+            Path state = rendering.resolve(Plugin.DRAWING_STATE_FILE_NAME);
+            if (!Files.isRegularFile(state)) {
+                return true;
+            }
+            try {
+                return Plugin.DRAWN.equals(Files.readString(state, StandardCharsets.UTF_8).strip());
+            } catch (IOException | RuntimeException unreadable) {
+                return false;
+            }
         }
 
         private Path renderingOf(String generationRun) {

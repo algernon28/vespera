@@ -24,7 +24,7 @@ import java.util.Optional;
  * <p><b>It links to a page only where writing exists</b> (ADR-111), though the page itself is written
  * either way, so a cluster keeps its slot in the listing.
  */
-final class IndexPage {
+public final class IndexPage {
 
     /** The most characters of a slug a name carries, so the longest file of the tree is bounded (ADR-274 §1.2). */
     static final int SLUG_LENGTH = 40;
@@ -99,7 +99,7 @@ final class IndexPage {
      * The name of a partition's directory: its position zero-padded to the width of {@code partitionCount},
      * then its seed's filename stem as a slug (ADR-112).
      */
-    static String partitionDirectoryName(ListedPartition partition, int partitionCount) {
+    public static String partitionDirectoryName(ListedPartition partition, int partitionCount) {
         return pad(partition.partitionOrder(), widthOf(partitionCount))
                 + "-" + slug(FilenameStem.of(partition.seedPath()));
     }
@@ -108,12 +108,12 @@ final class IndexPage {
      * The name of a cluster's folder within its partition's directory, which holds its page and its copies: its
      * position zero-padded to {@code clusterWidth} digits, then its label as a slug (ADR-112, ADR-280 §0).
      */
-    static String clusterFolderName(RecordedCluster recorded, int clusterWidth) {
+    public static String clusterFolderName(RecordedCluster recorded, int clusterWidth) {
         return pad(recorded.cluster().clusterOrder(), clusterWidth) + "-" + slug(recorded.label().value());
     }
 
     /** How many digits it takes to write {@code count}, which is how wide every position in it is padded. */
-    static int widthOf(int count) {
+    public static int widthOf(int count) {
         return String.valueOf(count).length();
     }
 
@@ -191,7 +191,7 @@ final class IndexPage {
     }
 
     /** {@code ordinal}, zero-padded to {@code width} digits (ADR-112). */
-    static String pad(int ordinal, int width) {
+    public static String pad(int ordinal, int width) {
         return String.format("%0" + width + "d", ordinal);
     }
 

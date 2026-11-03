@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
  * any of the stem is left, an attempt may repeat the one before, but once the stem is empty each attempt is strictly
  * longer than the one before, and the names in a folder are finite.
  */
-final class CopyNames {
+public final class CopyNames {
 
     /** The most UTF-16 code units a copy's whole name may hold (ADR-280 §3). */
     static final int LONGEST_NAME = 100;
@@ -147,7 +147,7 @@ final class CopyNames {
      * {@link #keyOf} holds a name as a case-insensitive APFS volume compares it, {@link #unitKeyOf} as NTFS does; a key
      * of one kind meeting one of the other only over-matches, which costs a suffix and nothing else.
      */
-    static Set<String> keysOf(String name) {
+    public static Set<String> keysOf(String name) {
         return new HashSet<>(List.of(keyOf(name), unitKeyOf(name)));
     }
 

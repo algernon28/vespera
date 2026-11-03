@@ -152,4 +152,11 @@ public interface DeliverableProgress {
      * run, and none where there are none (ADR-296 §6.2).
      */
     default void dormantCodeSetNames(long entries) {}
+
+    /**
+     * Called once for each plugin whose drawing failed and was stopped, with its name and the simple name of the type
+     * of what it threw: each a word of ours and neither a document's, and never the exception's message (ADR-333 §11,
+     * ADR-274 §8).
+     */
+    default void pluginDrawingFailed(String plugin, String exceptionType) {}
 }

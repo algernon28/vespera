@@ -36,7 +36,7 @@ import java.util.function.LongConsumer;
  * plan, the first with the writing and the others with the list alone. An entry is written the same on whichever page
  * it lands.
  */
-final class ClusterPage {
+public final class ClusterPage {
 
     /** What the writing's block shows (ADR-275 section 2): fixed words, none of the cluster's. */
     static final String WRITING_HOVER = "What the local model wrote over this group from the documents listed below it;"
@@ -63,7 +63,7 @@ final class ClusterPage {
      * What a citation link points at, and what each membership entry carries as its own id: the page's
      * inside-the-page naming for membership entry {@code n} (ADR-109).
      */
-    static final String ANCHOR_PREFIX = "document-";
+    public static final String ANCHOR_PREFIX = "document-";
 
     /** What ends a list, whether the page is whole or one of several. */
     private static final String LIST_CLOSING = "</ol>\n";
@@ -116,7 +116,7 @@ final class ClusterPage {
             EntryPictures pictures,
             DeliverableProgress progress,
             LongConsumer entryEnds,
-            ConfluenceEntries confluence,
+            Entries confluence,
             boolean writingFinished,
             DeliverableLanguage language)
             throws IOException {
@@ -146,7 +146,7 @@ final class ClusterPage {
             DeliverableLanguage language)
             throws IOException {
         emit(out, recorded, doc, why, numbered, breaks, page, folder, copies, pictures, DeliverableProgress.NONE,
-                bytesHandedOn -> {}, ConfluenceEntries.NONE, writingFinished, language);
+                bytesHandedOn -> {}, Entries.NONE, writingFinished, language);
     }
 
     /**
@@ -166,7 +166,7 @@ final class ClusterPage {
             EntryPictures pictures,
             DeliverableProgress progress,
             LongConsumer entryEnds,
-            ConfluenceEntries confluence,
+            Entries confluence,
             boolean writingFinished,
             DeliverableLanguage language)
             throws IOException {
@@ -359,7 +359,7 @@ final class ClusterPage {
      * Where a cluster's entries fall on its pages (ADR-303 §3): the first entry of each page, counted from 0, and the
      * number of entries.
      */
-    static final class PageBreaks {
+    public static final class PageBreaks {
         private final List<Integer> firsts;
         private final int entries;
 
@@ -368,12 +368,12 @@ final class ClusterPage {
             this.entries = entries;
         }
 
-        int pages() {
+        public int pages() {
             return firsts.size();
         }
 
         /** The entry, counted from 0, that page {@code page} opens with; the entry count for the page after the last. */
-        int firstEntryOf(int page) {
+        public int firstEntryOf(int page) {
             return page > firsts.size() ? entries : firsts.get(page - 1);
         }
 
@@ -510,7 +510,7 @@ final class ClusterPage {
             EntryPictures pictures,
             DeliverableProgress progress,
             LongConsumer entryEnds,
-            ConfluenceEntries confluence,
+            Entries confluence,
             DeliverableLanguage language)
             throws IOException {
         for (int at = first; at < after; at++) {

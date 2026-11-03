@@ -1,10 +1,12 @@
 package io.algernon.vespera.pipeline;
 
 import io.algernon.vespera.ledger.RunId;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 
 /**
@@ -50,6 +52,9 @@ class InvocationRuns {
     private static final String CODE_FILES_NOT_COPIED = "vespera.deliverable.code-files-not-copied";
 
     private static final String DORMANT_CODE_SET_NAMES = "vespera.deliverable.dormant-code-set-names";
+
+    /** Where the plugins whose drawing failed are handed to the closing line, one {@code name:type} to a line (ADR-333 §11). */
+    private static final String RENDERINGS_NOT_DRAWN = "vespera.deliverable.renderings-not-drawn";
 
     /** Where the count of clusters standing without writing is handed to the account (ADR-319 §5.2). */
     private static final String CLUSTERS_STANDING = "vespera.generation.clusters-standing-without-writing";
@@ -139,6 +144,30 @@ class InvocationRuns {
     /** The count {@link #recordDormantCodeSetNames} recorded; 0 where none was recorded. */
     int dormantCodeSetNames() {
         return executionContext.getInt(DORMANT_CODE_SET_NAMES, 0);
+    }
+
+    /**
+     * Records the plugins whose drawing failed in the tree this invocation wrote, in the order the drawing told them,
+     * for the closing line: each a name of ours and the simple name of a type, never a message (ADR-333 §11).
+     */
+    void recordRenderingsNotDrawn(List<NextAction.RenderingNotDrawn> renderings) {
+        executionContext.putString(
+                RENDERINGS_NOT_DRAWN,
+                renderings.stream()
+                        .map(rendering -> rendering.plugin() + ":" + rendering.exceptionType())
+                        .collect(Collectors.joining("\n")));
+    }
+
+    /** The plugins {@link #recordRenderingsNotDrawn} recorded; none where none was recorded. */
+    List<NextAction.RenderingNotDrawn> renderingsNotDrawn() {
+        String recorded = executionContext.getString(RENDERINGS_NOT_DRAWN, "");
+        if (recorded.isEmpty()) {
+            return List.of();
+        }
+        return recorded.lines()
+                .map(line -> new NextAction.RenderingNotDrawn(
+                        line.substring(0, line.indexOf(':')), line.substring(line.indexOf(':') + 1)))
+                .toList();
     }
 
     /**

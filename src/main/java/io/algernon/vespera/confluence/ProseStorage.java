@@ -1,5 +1,9 @@
-package io.algernon.vespera.deliverable;
+package io.algernon.vespera.confluence;
 
+import io.algernon.vespera.deliverable.ClusterPage;
+import io.algernon.vespera.deliverable.Html;
+import io.algernon.vespera.deliverable.Prose;
+import io.algernon.vespera.deliverable.ProseHtml;
 import java.util.function.IntFunction;
 
 /**

@@ -1,5 +1,9 @@
-package io.algernon.vespera.deliverable;
+package io.algernon.vespera.confluence;
 
+import io.algernon.vespera.deliverable.ClusterPage;
+import io.algernon.vespera.deliverable.FixedWords;
+import io.algernon.vespera.deliverable.Html;
+import io.algernon.vespera.deliverable.UnwrittenSentences;
 import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;

@@ -219,7 +219,8 @@ class NextAction {
                 invocationRuns.foldersLeftBehind(),
                 invocationRuns.filesLeftBehind(),
                 invocationRuns.codeFilesNotCopied(),
-                invocationRuns.dormantCodeSetNames()));
+                invocationRuns.dormantCodeSetNames(),
+                invocationRuns.renderingsNotDrawn()));
     }
 
     /**
@@ -279,7 +280,30 @@ class NextAction {
             int foldersLeftBehind,
             int filesLeftBehind,
             OptionalInt codeFilesNotCopied,
-            int dormantCodeSetNames) {
+            int dormantCodeSetNames,
+            List<RenderingNotDrawn> renderingsNotDrawn) {
+
+        /** A summary of a tree whose every plugin drew. */
+        DeliverableSummary(
+                Path tree,
+                int clustersLeftUnwritten,
+                OptionalInt documentsNotCopied,
+                boolean documentsFolderLeftBehind,
+                int foldersLeftBehind,
+                int filesLeftBehind,
+                OptionalInt codeFilesNotCopied,
+                int dormantCodeSetNames) {
+            this(
+                    tree,
+                    clustersLeftUnwritten,
+                    documentsNotCopied,
+                    documentsFolderLeftBehind,
+                    foldersLeftBehind,
+                    filesLeftBehind,
+                    codeFilesNotCopied,
+                    dormantCodeSetNames,
+                    List.of());
+        }
 
         /** A summary of a tree with no code set and no dormant name. */
         DeliverableSummary(
@@ -299,6 +323,29 @@ class NextAction {
                     OptionalInt.empty(),
                     0);
         }
+    }
+
+    /**
+     * A plugin whose drawing failed in the tree this invocation wrote: its name and the simple name of the type it threw,
+     * each a word of ours and neither a document's (ADR-333 §11, ADR-274 §8).
+     */
+    record RenderingNotDrawn(String plugin, String exceptionType) {}
+
+    /**
+     * What the line says of the renderings not drawn, to follow every other clause of the sentence about the tree and
+     * precede its last full stop (ADR-333 §11): one clause per plugin whose drawing failed, naming it and the type, and
+     * nothing where none failed or this invocation drew no tree.
+     */
+    private static String renderingsNotDrawn(DeliverableSummary deliverable) {
+        if (deliverable.documentsNotCopied().isEmpty()) {
+            return "";
+        }
+        StringBuilder clauses = new StringBuilder();
+        for (RenderingNotDrawn rendering : deliverable.renderingsNotDrawn()) {
+            clauses.append("; the ").append(rendering.plugin()).append(" rendering could not be drawn (")
+                    .append(rendering.exceptionType()).append("), so a publish to it is refused until a drawing finishes");
+        }
+        return clauses.toString();
     }
 
     /**
@@ -523,7 +570,8 @@ class NextAction {
                     + deliverable.tree().resolve(Deliverable.INDEX_FILE_NAME)
                     + ", with " + deliverable.clustersLeftUnwritten() + " "
                     + (deliverable.clustersLeftUnwritten() == 1 ? "group" : "groups") + " left unwritten"
-                    + notCopied + ofCode(deliverable) + leftBehind(deliverable) + pageCeilingIgnored(profile, deliverable) + ".");
+                    + notCopied + ofCode(deliverable) + leftBehind(deliverable) + pageCeilingIgnored(profile, deliverable)
+                    + renderingsNotDrawn(deliverable) + ".");
         }
         if (!questionsWritten) {
             return runWanting(whatIsSet(profile, answersRecorded) + " No questions were written this invocation,"
