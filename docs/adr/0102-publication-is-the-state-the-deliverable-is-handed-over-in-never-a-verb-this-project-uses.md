@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** To publish is now a verb of this project for one act alone: sending the Confluence rendering to the operator's site by `vespera publish`. Publication-ready keeps its sense, and nothing else is said to publish. The rest of this record stands.
 
+> **Partly amended — see [ADR-332](0332-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** To publish is the one act of delivering a plugin's rendering to one or more destinations, `vespera publish`. Publication-ready keeps its sense, and nothing else is said to publish. The rest of this record stands.
+
 - **Date**: 2026-09-12
 - **Status**: accepted
 - **Amends**: [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md) — none of its substance. It named a correction to `CONTEXT.md` as a consequence and left the wording open; this record settles the wording, and settles it differently from the straight deletion the consequence implies.

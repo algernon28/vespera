@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** Of §1: beyond drawing it, nothing in this project renders, uploads or transmits the deliverable anywhere, except that `vespera publish` sends the Confluence rendering to the operator's Confluence Cloud site. The rest of this record stands.
 
+> **Partly amended — see [ADR-332](0332-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Of §1 as ADR-308 amended it: stage 6b draws every plugin's rendering beside the HTML tree, and a publish delivers each to its destination. §4's parity test holds three renderings. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Amends**: [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md), its Decision's opening sentence, which reads as §1 here, and its Context's "rendering the result into a wiki", which stays struck as putting the result into a wiki and not as drawing files for one (§1). Seven stages, stage 7 struck, no `publication` module, no `vespera publish`, and every other section stand.

@@ -1,5 +1,7 @@
 # ADR-312 — The Confluence rendering lies under `confluence/` at the tree's root, drawn by every drawing, and what an earlier drawing left in it is counted and kept
 
+> **Partly amended — see [ADR-332](0332-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** §1, §2 and §4 hold of `website/` as of `confluence/`. Of §5: a publish reads the state of the drawing, `drawing.txt`, beside the page list, and refuses a drawing that did not finish. The rest of this record stands.
+
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
 - **Rests on**: [ADR-301](0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md), by which stage 6b draws the Confluence rendering beside the HTML tree, and [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md), by which a publish reads its page list.
