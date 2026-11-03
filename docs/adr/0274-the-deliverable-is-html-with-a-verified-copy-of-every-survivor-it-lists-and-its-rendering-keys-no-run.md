@@ -280,7 +280,7 @@ The implementer's, in the change that builds this:
 | `pipeline.TheTreeKeysNoRunTest` | §5: generation's version names `synthesis`, `extraction` and `embedding`, arrangement's stands, and no stage names `deliverable` |
 | `pipeline.RunIdentityGoldenTest.generation` | §5: generation's recorded version is `synthesis+extraction+embedding` |
 | `PipelineHoldsOnlyTheRulesOnRecordTest` | §4: the class `pipeline` names the tree by is `deliverable.Deliverable`, read among the capability types, and `GenerationTasklet` names the ten moved types as `deliverable`'s |
-| `ModuleBoundariesTest.theDeliverableIsAModuleOfItsOwn` | §4: a module `deliverable` declaring `ledger` and `synthesis`, among nine recorded modules and two declared exceptions |
+| `ModuleBoundariesTest.everyModuleIsOneOfTheRecordedModules` and `ModuleBoundariesTest.everyCapabilityModuleDeclaresLedgerAlone` | §4: a module `deliverable` among the recorded modules, declaring `ledger` and `synthesis`, one of two declared exceptions (#682) |
 | `pipeline.TheTreeInHtmlInvocationTest.aCampaignLeavesAnHtmlTreeWithACopyOfEverySurvivor` | §1, §2: a whole campaign's tree, each copy equal to its file, the archive unchanged |
 | `pipeline.TheTreeInHtmlInvocationTest.aFinishedGenerationIsDrawnAgainWithoutAQuestion` | §6 and §7: with the step recorded finished, the index is written again, a copy taken away is made again and says `copied`, no question is put, no run is minted, and the index is opened once with the page in place |
 | `pipeline.TheTreeInHtmlInvocationTest.theClosingLineNamesTheIndexAndTheIndexIsOpenedOnce` | §7: the index by its whole path and `0 documents not copied`, opened once with the page in place |

@@ -35,8 +35,9 @@ import org.springframework.core.io.ClassPathResource;
  * keeping a dependency for a reader nobody has decided to build is what ADR-046 rules out. A reader
  * that wants a vector database is a decision of its own, and brings its dependency with it.
  *
- * <p>Read from the files and the classpath, with no Docker. {@link ChromaIsNotASidecarTest} holds
- * {@code compose.yaml}, and {@link TheApplicationStartsWithNoVectorStoreTest} the application context.
+ * <p>Read from the files and the classpath, with no Docker. Both compose files are among the build files read
+ * for any mention of Chroma, which a service, an image or a volume for it would be; {@link
+ * TheApplicationStartsWithNoVectorStoreTest} holds the application context.
  *
  * <p>Written before the change it pins: against the tree it was written on, every test here fails, each
  * naming what is still there.

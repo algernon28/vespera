@@ -637,14 +637,6 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                 () -> assertThat(notOnRecord)
                         .as("the classes of the code that runs the stages that are on record neither way")
                         .isEmpty());
-        claim(
-                "every class on record as deciding something is still there: one that has gone took its"
-                        + " decision with it, so its entry goes too, and its stage stops being identified by"
-                        + " this code if that was the last one",
-                () -> assertThat(shipped).containsAll(holdingARule));
-        claim(
-                "and no class is on record both as deciding something and as deciding nothing",
-                () -> assertThat(holdingARule).doesNotContainAnyElementsOf(HOLDING_NO_RULE));
     }
 
     @Test

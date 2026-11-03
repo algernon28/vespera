@@ -43,7 +43,7 @@ import org.springframework.util.StreamUtils;
  *
  * <p>One class is excepted, by name and by table: the invocation account, whose six counting statements
  * ADR-198 section 3 allowed in the module that assembles the job. The exception is held to its bounds
- * here, so a seventh table, a second class, or a statement of the account's that does more than count
+ * here, so an eighth table, a second class, or a statement of the account's that does more than count
  * fails this test.
  */
 @Epic("Architecture")

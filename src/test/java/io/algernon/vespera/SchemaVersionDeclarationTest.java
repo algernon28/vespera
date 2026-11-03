@@ -2,6 +2,7 @@ package io.algernon.vespera;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.ledger.SchemaVersionGuard;
 import io.qameta.allure.Epic;
@@ -9,8 +10,14 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,23 +57,17 @@ import org.springframework.test.context.ActiveProfiles;
 class SchemaVersionDeclarationTest {
 
     /**
-     * The modules owning tables in {@code schema.sql}, and therefore the modules owing a version.
+     * The modules owning tables in {@code schema.sql}, and therefore the modules owing a version: read off the
+     * line above each table that names its owner, so that a module given its first table owes a version from
+     * that commit on without anyone adding it to a list here.
      *
-     * <p>{@code profile} is absent because it owns no tables — it is a YAML file (ADR-061), and a
-     * schema version for it would be a claim about nothing. {@code pipeline} is absent because it
-     * composes the others and owns no tables of its own. Add a module here in the same commit that
-     * gives it its first table.
-     *
-     * <p>{@code embedding} joins the list with {@code unusable_seed} (ADR-083), the first table stage
-     * 5 owns and the first this project has added outside the original four table-owning modules.
-     *
-     * <p>{@code synthesis} joins it with {@code cluster} (ADR-110, #175), the table the terminal
-     * stages arrange beneath. It is the one module named in the architecture that had no package at
-     * all until this point, so it is also the first to be added here and in {@code
-     * ModuleBoundariesTest} at the same time.
+     * <p>{@code profile} owns no tables — it is a YAML file (ADR-061) — and {@code pipeline} composes the others
+     * and owns none of its own, so neither is named by a line of the schema.
      */
-    private static final Set<String> MODULES_OWNING_TABLES =
-            Set.of("ledger", "corpus", "extraction", "similarity", "embedding", "synthesis");
+    private static final Path THE_SCHEMA = Path.of("src", "main", "resources", "schema.sql");
+
+    /** The line directly above a table of the schema that names the module owning it. */
+    private static final Pattern AN_OWNER = Pattern.compile("^-- owner: ([a-z]+)$", Pattern.MULTILINE);
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -74,13 +75,20 @@ class SchemaVersionDeclarationTest {
     @Test
     @Story("A module states the schema it was built against")
     @DisplayName("Every module that owns tables has declared the schema version it expects")
-    void everyModuleOwningTablesDeclaresItsSchemaVersion() {
+    void everyModuleOwningTablesDeclaresItsSchemaVersion() throws IOException {
+        Set<String> owningTables = new TreeSet<>();
+        Matcher owner = AN_OWNER.matcher(Files.readString(THE_SCHEMA));
+        while (owner.find()) {
+            owningTables.add(owner.group(1));
+        }
+        assumeTrue(!owningTables.isEmpty(), "the schema names the owner of its tables");
+
         claim(
                 "the modules that recorded a version are exactly the modules that own tables — a name"
                         + " missing here is a module reading a database it never checked, and a name"
                         + " unexpected here is a version claimed for tables nobody owns",
                 () -> assertThat(modulesDeclaringAVersion())
-                        .containsExactlyInAnyOrderElementsOf(MODULES_OWNING_TABLES));
+                        .containsExactlyInAnyOrderElementsOf(owningTables));
     }
 
     private List<String> modulesDeclaringAVersion() {

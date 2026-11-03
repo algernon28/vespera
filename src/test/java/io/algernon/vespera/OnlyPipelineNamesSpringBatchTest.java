@@ -8,6 +8,9 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -79,11 +82,26 @@ class OnlyPipelineNamesSpringBatchTest {
     @DisplayName("No helper is left that empties a batch reader into a set")
     void theHelperThatEmptiedAReaderIsGone() throws Exception {
         Map<String, List<String>> names = ShippedClasses.namesByClass();
+        Set<String> emptyingAReader = new TreeSet<>();
+        for (String shipped : names.keySet()) {
+            for (Method method : Class.forName(shipped, false, Thread.currentThread().getContextClassLoader())
+                    .getDeclaredMethods()) {
+                if (Collection.class.isAssignableFrom(method.getReturnType())
+                        && Arrays.stream(method.getParameterTypes()).anyMatch(type ->
+                                type.getName().startsWith(SPRING_BATCH.replace('/', '.'))
+                                        && type.getSimpleName().endsWith("Reader"))) {
+                    emptyingAReader.add(shipped + "." + method.getName());
+                }
+            }
+        }
 
         claim(
-                "the helper that read a whole batch reader into a set is not among the shipped classes: what"
-                        + " it emptied is no longer a batch reader, and a set of the surviving documents is"
-                        + " built where one is needed by going through them",
-                () -> assertThat(names).doesNotContainKey(THE_HELPER_THAT_EMPTIED_A_READER));
+                "no shipped class, the helper that read a whole batch reader into a set or any other, takes a batch"
+                        + " reader and hands back a collection: what it emptied is no longer a batch reader, and a"
+                        + " set of the surviving documents is built where one is needed by going through them",
+                () -> {
+                    assertThat(names).doesNotContainKey(THE_HELPER_THAT_EMPTIED_A_READER);
+                    assertThat(emptyingAReader).isEmpty();
+                });
     }
 }

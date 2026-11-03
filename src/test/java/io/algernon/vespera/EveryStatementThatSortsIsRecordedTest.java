@@ -167,13 +167,13 @@ class EveryStatementThatSortsIsRecordedTest {
      * Rows 8 and 9 are gone since ADR-220, whose section 15 also records the two statements of stage 4b's
      * that are in neither table.
      *
-     * <p>Seven more rows are gone, and a class left holding no statement that sorts has no entry. Rows 13,
+     * <p>Eight more rows are gone, and a class left holding no statement that sorts has no entry. Rows 13,
      * 16, 17 and 18 went with ADR-223: stages 6a and 6b read one seed partition at a time or ask by key, so
-     * {@code embedding.DocumentClusters} keeps row 12 alone and {@code synthesis.Clusters}, {@code
-     * synthesis.SynthesisDocs} and {@code synthesis.ClusterFaults} hold none. Rows 15, 19 and 20 went with
-     * ADR-224: {@code embedding.RelevanceDistribution} and {@code pipeline.InvocationAccount} hold none. What
-     * is left of ADR-218's table of statements whose temporary files grow with the corpus is rows 1, 2,
-     * 7 and 10 to 12, row 6 having gone with ADR-225.
+     * {@code synthesis.Clusters}, {@code synthesis.SynthesisDocs} and {@code synthesis.ClusterFaults} hold
+     * none. Row 12 went with ADR-236, so {@code embedding.DocumentClusters} holds none either. Rows 15, 19 and
+     * 20 went with ADR-224: {@code embedding.RelevanceDistribution} and {@code pipeline.InvocationAccount}
+     * hold none. What is left of ADR-218's table of statements whose temporary files grow with the corpus is
+     * rows 1, 2, 7, 10 and 11, row 6 having gone with ADR-225.
      */
     private static final Map<String, Integer> RECORDED = new TreeMap<>(Map.ofEntries(
             // Row 1, the grouping ADR-211 excepted, and three bounded by one page: the count of a page's

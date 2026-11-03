@@ -507,8 +507,7 @@ These hold the record through what it builds. Each is `@Disabled` until then, it
 | `pipeline.TheTimeoutsInARowConfiguredSetAnOccurrenceAsideInvocationTest.twoTimeoutsInARowSetTheSecondAside` | B | one `extraction_fault` row at 2, where the shipped 3 writes none (§9) |
 | `TheShippedPresetsTest.theShippedFileNamesBothAtTheirEarlierValues` | B | 15 and 1.0, exactly (§8, §9) |
 | `TheShippedPresetsTest.theConvertersTwoPresetsShipAtTheirEarlierValues` | B | `rapidocr` and 3, exactly (§8, §9) |
-| `TheShippedPresetsTest.theShingleWindowAndMinHashShipAtTheirEarlierValues` | B | 5; 128, 16, 8 and the seed the code held, exactly (§8, §9) |
-| `TheShippedPresetsTest.theRedundancyCutsShipAtTheirEarlierValues` | B | 0.80 and 0.95; 32 and 24, exactly (§8, §9) |
+| `TheShippedPresetsTest.theRedundancyPresetsShipAtTheirEarlierValues` | B | 5; 128, 16, 8 and the seed the code held; 0.80 and 0.95; 32 and 24, exactly, one case each (§8, §9) (#682) |
 | `TheShippedPresetsTest.theRelevanceScoreAndItsSampleShipAtTheirEarlierValues` | B | 3; 5 and 12, exactly (§8, §9) |
 | `pipeline.TheTechnicalPresetsFromConfigurationInvocationTest.theConvertersPresetsNameTheExtractionRun` | B | another OCR preset in the extractor identity in place of `rapidocr`; the two components ending stage 2's configuration, in order (§9) |
 | `pipeline.TheTechnicalPresetsFromConfigurationInvocationTest.theRedundancyPresetsNameTheContentRedundancyRun` | B | the two components ending stage 4's configuration, in order, each as its identity writes it (§9) |

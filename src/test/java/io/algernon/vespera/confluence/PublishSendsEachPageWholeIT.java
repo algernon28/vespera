@@ -13,7 +13,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -46,12 +45,6 @@ class PublishSendsEachPageWholeIT {
     private static final List<String> ORDER =
             List.of(Rendering.ROOT_TITLE, Rendering.PARTITION_TITLE, Rendering.CLUSTER_TITLE);
 
-    /** The files each page carries, by its title, in the page list's order. */
-    private static final Map<String, List<String>> FILES = Map.of(
-            Rendering.ROOT_TITLE, List.of(Rendering.LISTING),
-            Rendering.PARTITION_TITLE, List.of(),
-            Rendering.CLUSTER_TITLE, List.of(Rendering.COPY, Rendering.PICTURE));
-
     @TempDir
     Path folder;
 
@@ -67,10 +60,9 @@ class PublishSendsEachPageWholeIT {
             List<Seen> seen = new ArrayList<>();
             publish(site, rendering, seen);
 
-            claim("the first line is the totals: three pages and three files holding their bytes",
-                    () -> assertThat(seen.getFirst().line()).isEqualTo(totals()));
-            claim("and it was printed before the site was sent any request",
-                    () -> assertThat(seen.getFirst().requestsBefore()).isZero());
+            claim("the first line, the totals of three pages and three files holding their bytes, was printed before"
+                            + " the site was sent any request",
+                    () -> assertThat(seen.getFirst()).isEqualTo(new Seen(totals(), 0)));
         }
     }
 
@@ -149,24 +141,6 @@ class PublishSendsEachPageWholeIT {
         try (StubConfluence site = StubConfluence.start()) {
             publish(site, rendering, new ArrayList<>());
             List<StubConfluence.Write> writes = site.writes();
-            List<String> early = new ArrayList<>();
-            for (int at = 0; at < writes.size(); at++) {
-                StubConfluence.Write write = writes.get(at);
-                if (write.kind() != StubConfluence.Kind.CREATED) {
-                    continue;
-                }
-                List<StubConfluence.Write> before = writes.subList(0, at);
-                for (String earlier : ORDER.subList(0, ORDER.indexOf(write.page()))) {
-                    if (before.stream().noneMatch(w -> w.kind() == StubConfluence.Kind.BODY && w.page().equals(earlier))) {
-                        early.add(write.page() + " created before the body of " + earlier);
-                    }
-                    for (String file : FILES.get(earlier)) {
-                        if (!before.contains(new StubConfluence.Write(StubConfluence.Kind.FILE, earlier, file))) {
-                            early.add(write.page() + " created before " + file + " of " + earlier);
-                        }
-                    }
-                }
-            }
             List<StubConfluence.Page> pages = site.pages();
 
             claim("the site took each page's create, then its files in the list's order, then its body, a page at a time",
@@ -180,8 +154,6 @@ class PublishSendsEachPageWholeIT {
                             write(StubConfluence.Kind.FILE, Rendering.CLUSTER_TITLE, Rendering.COPY),
                             write(StubConfluence.Kind.FILE, Rendering.CLUSTER_TITLE, Rendering.PICTURE),
                             write(StubConfluence.Kind.BODY, Rendering.CLUSTER_TITLE, null)));
-            claim("no page was created while a page before it in the list still lacked its body or a file",
-                    () -> assertThat(early).isEmpty());
             claim("parents first: the root page under the parent named, each other under its parent's page",
                     () -> assertThat(pages).extracting(page -> page.title + " < " + page.parentId).containsExactly(
                             Rendering.ROOT_TITLE + " < " + StubConfluence.PARENT_ID,

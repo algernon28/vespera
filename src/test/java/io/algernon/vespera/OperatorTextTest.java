@@ -46,8 +46,11 @@ class OperatorTextTest {
     /** The application's own source, which is where a string an operator reads is written. */
     private static final Path MAIN_SOURCE = Path.of("src", "main", "java");
 
-    /** An ordinal against either of the two words ADR-098 names, in text rather than in a symbol. */
-    private static final Pattern ORDINAL = Pattern.compile("\\b(gate|step) \\d");
+    /**
+     * An ordinal against either of the two words ADR-098 names, in text rather than in a symbol, whatever its
+     * case: "Gate 3" at the head of a sentence is the same ordinal.
+     */
+    private static final Pattern ORDINAL = Pattern.compile("\\b(gate|step) \\d", Pattern.CASE_INSENSITIVE);
 
     /**
      * One literal the scan must find, named rather than counted for the reason {@link
@@ -111,9 +114,8 @@ class OperatorTextTest {
      * file — quietly, because what it goes on producing still looks like literals. This walks the four
      * states once, so it can be wrong about a character but never about where it is.
      *
-     * <p>No text block is handled, because this source has none. One would arrive here as an empty
-     * literal followed by its own contents read as code, which is the kind of silence the second
-     * canary above exists to catch.
+     * <p>A text block is a fifth state: its contents are one literal, read up to the three quotes that
+     * close it, so that its quotes and slashes are not taken for code.
      */
     private static List<String> literalsOf(String code) {
         List<String> literals = new ArrayList<>();
@@ -130,6 +132,10 @@ class OperatorTextTest {
                     } else if (character == '/' && next == '*') {
                         state = State.BLOCK_COMMENT;
                         at++;
+                    } else if (character == '"' && code.startsWith(TEXT_BLOCK_QUOTES, at)) {
+                        state = State.TEXT_BLOCK;
+                        current.setLength(0);
+                        at += 2;
                     } else if (character == '"') {
                         state = State.STRING;
                         current.setLength(0);
@@ -159,6 +165,18 @@ class OperatorTextTest {
                         current.append(character);
                     }
                 }
+                case TEXT_BLOCK -> {
+                    if (character == '\\') {
+                        current.append(character).append(next);
+                        at++;
+                    } else if (code.startsWith(TEXT_BLOCK_QUOTES, at)) {
+                        literals.add(current.toString());
+                        state = State.CODE;
+                        at += 2;
+                    } else {
+                        current.append(character);
+                    }
+                }
                 case CHARACTER -> {
                     if (character == '\\') {
                         at++;
@@ -171,10 +189,14 @@ class OperatorTextTest {
         return literals;
     }
 
+    /** What opens and closes a text block. */
+    private static final String TEXT_BLOCK_QUOTES = "\"\"\"";
+
     /** Where in a compilation unit the scan currently is, which is all it has to get right. */
     private enum State {
         CODE,
         STRING,
+        TEXT_BLOCK,
         CHARACTER,
         LINE_COMMENT,
         BLOCK_COMMENT
