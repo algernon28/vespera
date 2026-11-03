@@ -210,6 +210,33 @@ class TheProfileIsOneFormScreenTest {
         }
     }
 
+    /**
+     * The choice of none is offered only where the file states no language (ADR-334 §7): where it states one, a save of
+     * the form keeps a language, as the file does.
+     */
+    @Test
+    @Story("The operator edits the profile")
+    @DisplayName("A language the file states is offered without the choice of none, the one stated chosen")
+    void aStatedLanguageIsOfferedWithoutTheChoiceOfNone() throws IOException {
+        Path work = workingDirectory();
+        String language = ProfileKey.DELIVERABLE_LANGUAGE.key();
+        theProfileIs(work, TWO_KEYS + language + """
+                :
+                  value: "en"
+                  provenance: "the readers read English"
+                  measurement: null
+                """);
+        try (ScreenServer screens = start(work)) {
+            Element select = form(screens.browser().go("/profile").page(), FORM)
+                    .selectFirst("select[name=" + language + "]");
+
+            claim("the language's choices are the languages alone, and the one the file states is chosen",
+                    () -> assertThat(List.of(select.select("option").eachAttr("value"),
+                                    select.select("option[selected]").eachAttr("value")))
+                            .containsExactly(List.of("en", "it"), List.of("en")));
+        }
+    }
+
     /** The one control of the profile's form named {@code name}; a test fails naming it where there is not one. */
     private static Element control(Page page, String name) {
         List<Element> named = form(page, FORM).select("input, select, textarea").stream()

@@ -396,8 +396,12 @@ final class LaunchPages {
         }
         Map<String, String> fields = Exchanges.form(exchange);
         LaunchValues old = state.values();
+        String image = posted(fields, "vespera.docling.image");
+        if (image.equals(ControlPanelPage.DOCLING_IMAGE_GPU) && !state.doclingImageIsNamed()) {
+            image = ""; // the preselection posted back as the form held it names nothing (ADR-334 §11)
+        }
         state.hold(new LaunchValues(postedFolder(fields, "vespera.corpus-root"), postedFolder(fields, "vespera.working-dir"),
-                postedFolder(fields, "vespera.deliverable-root"), posted(fields, "vespera.docling.image"),
+                postedFolder(fields, "vespera.deliverable-root"), image,
                 posted(fields, "vespera.docling.base-url"), posted(fields, "spring.ai.ollama.base-url"),
                 posted(fields, "vespera.label.model"), old.lastSeedFolder()));
         if (fields.containsKey("use-running-image")) {
@@ -445,7 +449,7 @@ final class LaunchPages {
                     current -> ProfileEdit.rewrite(current, ProfileKey.SEED_FOLDER, folder, fields.getOrDefault("provenance", "")));
             if (refusal.isEmpty()) {
                 state.letGoOfForm("seed-folder");
-                LaunchValues held = state.values();
+                LaunchValues held = state.heldValues();
                 state.hold(new LaunchValues(held.corpusRoot(), held.workingDirectory(), held.deliverableRoot(),
                         held.doclingImage(), held.doclingBaseUrl(), held.ollamaBaseUrl(), held.labelModel(), folder));
             }
