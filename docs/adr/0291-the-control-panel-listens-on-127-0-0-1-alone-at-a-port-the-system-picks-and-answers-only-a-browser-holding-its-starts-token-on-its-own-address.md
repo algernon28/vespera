@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-331](0331-the-control-panel-opens-a-window-of-its-own-and-its-pages-are-a-cockpit-with-a-picker-an-example-and-a-hint-on-its-fields.md).** Of §6: "No request path is ever mapped to a file" stands of files, and the query of `/folders` names a folder, whose subfolders' names alone are answered, past the same checks. Of its Known limits: any local caller can list the names of the folders of every drive through it, and no file's name. The rest of this record stands.
 
+> **Partly amended — see [ADR-335](0335-the-control-panel-shows-the-progress-page-on-a-page-of-its-own-and-its-pages-are-drawn-to-one-compact-scale.md).** Of §7: the four tabs of the progress page under `/report/` are answered with `frame-ancestors 'self'` in place of `frame-ancestors 'none'`, the rest of the policy and the other three headers unchanged, so that the control panel's own pages may frame them and no other site's may; every other response keeps `'none'`. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the server is the JDK's `com.sun.net.httpserver.HttpServer`, and the control panel still names only its own package, `java.base` and `jdk.httpserver` (§1, §2).

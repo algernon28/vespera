@@ -42,8 +42,16 @@ class ReportScreenTest {
             "word-count-distribution.html", "seed-corpus-comparison.html", "translations.html", "cluster-sizes.html",
             "relevance-labelling.html", "arrangement.html", "cluster-page-sizes.html");
 
-    /** The control panel's own policy on every response. */
+    /** The control panel's own policy on every response but the four tabs of the progress page. */
     private static final String THE_CONTROL_PANELS_POLICY = "frame-ancestors 'none'; form-action 'self'; base-uri 'none'";
+
+    /** The four tabs of the progress page, which the control panel's own pages frame (ADR-335 §3). */
+    private static final List<String> THE_FOUR_TABS = List.of("progress.html", "progress-steps.html",
+            "progress-samples.html", "progress-runs.html");
+
+    /** The policy of the four tabs in place of the control panel's own: framed by its own origin alone (ADR-335 §3). */
+    private static final String FRAMED_BY_THE_CONTROL_PANEL_ALONE =
+            "frame-ancestors 'self'; form-action 'self'; base-uri 'none'";
 
     /** The second policy a report is answered with, so its script runs in an origin of its own. */
     private static final String THE_REPORTS_POLICY = "sandbox allow-scripts";
@@ -53,8 +61,9 @@ class ReportScreenTest {
 
     @Test
     @Story("The operator reads the reports from the control panel")
-    @DisplayName("Each report is served as written, at its own path, as HTML, under the control panel's policy and a sandbox")
+    @DisplayName("Each report is served as written, at its own path, as HTML, under the control panel's policy and a sandbox, the progress page's four tabs framed by the control panel's own pages alone and every other report by none")
     @Link(name = "ADR-306", url = Adr.THE_CONTROL_PANELS_OWN_HOLDER_LINE_IS_HELD_BY_NOBODY, type = "adr")
+    @Link(name = "ADR-335", url = Adr.THE_CONTROL_PANEL_SHOWS_THE_PROGRESS_PAGE_AND_ITS_PAGES_ARE_DRAWN_TO_ONE_COMPACT_SCALE, type = "adr")
     void eachReportIsServedAsWrittenInASandboxAtItsOwnPath() throws IOException {
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         Map<String, String> written = new LinkedHashMap<>();
@@ -74,11 +83,14 @@ class ReportScreenTest {
                         response.body().equals(written.get(report))));
             }
 
-            claim("each of the sixteen is answered 200, as HTML in UTF-8, under the control panel's policy and the"
-                            + " sandbox, kept out of the cache, its body the file's bytes as written",
+            claim("each of the sixteen is answered 200, as HTML in UTF-8, under a policy framing it by the control"
+                            + " panel's own pages alone for the progress page's four tabs and by nothing for the twelve"
+                            + " others, then the sandbox, kept out of the cache, its body the file's bytes as written",
                     () -> assertThat(answered).containsExactlyElementsOf(THE_SIXTEEN_REPORTS.stream()
                             .map(report -> List.<Object>of(report, 200, List.of("text/html; charset=utf-8"),
-                                    List.of(THE_CONTROL_PANELS_POLICY, THE_REPORTS_POLICY), List.of("no-store"), true))
+                                    List.of(THE_FOUR_TABS.contains(report) ? FRAMED_BY_THE_CONTROL_PANEL_ALONE
+                                            : THE_CONTROL_PANELS_POLICY, THE_REPORTS_POLICY),
+                                    List.of("no-store"), true))
                             .toList()));
         }
     }

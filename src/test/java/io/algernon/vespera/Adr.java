@@ -2369,6 +2369,16 @@ public final class Adr {
     public static final String THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT =
             FILE + "0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md";
 
+    /**
+     * ADR-335 -- the control panel shows the progress page on {@code /progress}, the third page of its sidebar, in a
+     * frame of {@code /report/progress.html} that reloads itself, the four tabs answered with {@code frame-ancestors
+     * 'self'}; the invocation page links it in the same window; and every page is drawn to one compact scale of
+     * spaces, type sizes, corners, a control height and a sidebar width (amends ADR-291 §7, ADR-302 §2, §3 and an
+     * alternative it refused, and ADR-331 §3).
+     */
+    public static final String THE_CONTROL_PANEL_SHOWS_THE_PROGRESS_PAGE_AND_ITS_PAGES_ARE_DRAWN_TO_ONE_COMPACT_SCALE =
+            FILE + "0335-the-control-panel-shows-the-progress-page-on-a-page-of-its-own-and-its-pages-are-drawn-to-one-compact-scale.md";
+
     private Adr() {
     }
 }

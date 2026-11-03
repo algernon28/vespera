@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The sixteen reports re-served read-only (ADR-302 §3, ADR-306 §2): each at one fixed path, {@code /report/} and its file name,
@@ -17,6 +18,13 @@ import java.util.Optional;
 final class ReportPages {
 
     private static final String SANDBOX = "sandbox allow-scripts";
+
+    /** The first policy of the four tabs of the progress page, which the control panel's own pages may frame (ADR-335 §3). */
+    private static final String FRAMED_BY_ITS_OWN = "frame-ancestors 'self'; form-action 'self'; base-uri 'none'";
+
+    /** The four tabs of the progress page. */
+    private static final Set<String> FRAMEABLE = Set.of("progress.html", "progress-steps.html",
+            "progress-samples.html", "progress-runs.html");
 
     private final ControlPanelState state;
 
@@ -46,6 +54,9 @@ final class ReportPages {
         } catch (IOException unreadable) {
             Exchanges.notFound(exchange, "the working directory holds no " + report);
             return;
+        }
+        if (FRAMEABLE.contains(report)) {
+            exchange.getResponseHeaders().set("Content-Security-Policy", FRAMED_BY_ITS_OWN);
         }
         exchange.getResponseHeaders().add("Content-Security-Policy", SANDBOX);
         Exchanges.send(exchange, 200, "text/html; charset=utf-8", bytes);

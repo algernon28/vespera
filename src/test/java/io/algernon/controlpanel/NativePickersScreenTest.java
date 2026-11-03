@@ -61,7 +61,7 @@ class NativePickersScreenTest {
     /** An arrangement to approve, twelve hexadecimal characters, for the next act's file that wants its approval. */
     private static final String ARRANGEMENT = "0123456789ab";
 
-    /** The six pages the sidebar leads to and the folder page. */
+    /** The six pages the sidebar leads to that hold a form, every one but the progress page's, and the folder page. */
     private static final int PAGES_THAT_HOLD_A_FORM = 7;
 
     /** The folder under which the pages below were asked for, once for the class. */
@@ -284,7 +284,7 @@ class NativePickersScreenTest {
 
         claim("each value's control has the type its kind gives it, a number any step and no bounds",
                 () -> assertThat(shapes).containsExactlyEntriesOf(expected));
-        claim("and no page holds a slider, of the six the sidebar leads to and the folder page",
+        claim("and no page holds a slider, of the six the sidebar leads to that hold a form and the folder page",
                 () -> {
                     assertThat(slidersOnEachPage).hasSize(PAGES_THAT_HOLD_A_FORM);
                     assertThat(slidersOnEachPage.values()).containsOnly(0);
