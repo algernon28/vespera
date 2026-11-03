@@ -14,6 +14,8 @@
 
 > **Partly amended — see [ADR-335](0335-the-control-panel-shows-the-progress-page-on-a-page-of-its-own-and-its-pages-are-drawn-to-one-compact-scale.md).** Of §2: the invocation page's `progress` links `/progress`, the control panel's page that shows the progress page, in the same window. Of §3: the four tabs of the progress page carry `frame-ancestors 'self'` in place of ADR-291 §7's `'none'`, then `sandbox allow-scripts`. Of the alternative refused *"A report shown in an `iframe` of a control-panel page"*: `/progress` frames `/report/progress.html`, and no other report is framed. The rest of this record stands.
 
+> **Partly amended — see [ADR-336](0336-the-launch-page-starts-label-auto-beside-label-and-every-argument-of-the-commands-the-control-panel-starts-is-set-by-a-control-of-the-launch-page-or-listed-as-never-passed-with-why.md).** Of §2 and §9: the form `launch` has four submit buttons, `run`, `label`, `label-auto` and `check`; `label-auto` starts `label --auto` as `label` starts `label`, by the same checks and lines, disabled where they are, a refusal answering `303` to `/`. Of §8: the form `label-auto` on `/next` stands, and is no longer the one place `label --auto` is started from. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone; it asks the sidecars through `java.net.HttpURLConnection`, of `java.base`, and reads their JSON with a reader of its own (§5). Its §4: one class of its own owns the skeleton, styling and escaping of its pages (§10).

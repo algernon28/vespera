@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-335](0335-the-control-panel-shows-the-progress-page-on-a-page-of-its-own-and-its-pages-are-drawn-to-one-compact-scale.md).** Of §3: the sidebar leads to seven pages, `/progress` Progress the third, after Invocation; `/progress` holds one frame of `/report/progress.html` beside its one script; and the style is drawn to one scale of spaces, type sizes, corners, a control height and a sidebar width on `:root`, every margin, padding, gap, type size and corner a step of it, its colours unchanged. Of What this does not decide: the styling of a page is so far decided there. The rest of this record stands.
 
+> **Partly amended — see [ADR-336](0336-the-launch-page-starts-label-auto-beside-label-and-every-argument-of-the-commands-the-control-panel-starts-is-set-by-a-control-of-the-launch-page-or-listed-as-never-passed-with-why.md).** Of §3: the launch page's `#top-row` holds four buttons of the form `launch`, `run`, `label`, `label-auto` and `check`. Of §6: a refusal of `label --auto` lands on `/next` where it was pressed there, and on `/` where it was pressed on the launch page. The rest of this record stands.
+
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone, and starts the window by `ProcessBuilder`, `java.desktop` not added (§1). Its §4: one class owns the pages' skeleton, styling and escaping (§3).

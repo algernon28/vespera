@@ -72,7 +72,8 @@ class LaunchScreenTest {
 
     @Test
     @Story("The operator starts an invocation from the control panel")
-    @DisplayName("The launch form holds the seven values by their names, as last started, with Run, Label and Check")
+    @DisplayName("The launch form holds the seven values by their names, as last started, with Run, Label, Have the local model answer and Check")
+    @Link(name = "ADR-336", url = Adr.THE_LAUNCH_PAGE_STARTS_LABEL_AUTO_AND_EVERY_ARGUMENT_OF_THE_JAR_IS_ACCOUNTED_FOR, type = "adr")
     void theLaunchFormHoldsTheSevenLaunchValuesByTheirKeysAsLastStarted() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
@@ -93,8 +94,8 @@ class LaunchScreenTest {
                     () -> assertThat(THE_SEVEN_KEYS.stream().map(key -> launch.select("[name='" + key + "']").val()))
                             .containsExactly(corpusRoot.toString(), workingDirectory.toString(),
                                     deliverableRoot.toString(), IMAGE_NAMED, nobody, nobody, MODEL_NOT_SERVED));
-            claim("its buttons are Run, Label and Check, in that order",
-                    () -> assertThat(buttonNames(launch)).containsExactly("run", "label", "check"));
+            claim("its buttons are Run, Label, Have the local model answer and Check, in that order",
+                    () -> assertThat(buttonNames(launch)).containsExactly("run", "label", "label-auto", "check"));
         }
     }
 
@@ -158,10 +159,10 @@ class LaunchScreenTest {
 
             claim("the holder line of the working folder's lock, held by another live process, is shown whole",
                     () -> assertThat(byId(page, "holder-working-directory").text()).isEqualTo(holderLine));
-            claim("Run and Label are disabled and Check is not",
-                    () -> assertThat(List.of("run", "label", "check").stream()
+            claim("Run, Label and Have the local model answer are disabled and Check is not",
+                    () -> assertThat(List.of("run", "label", "label-auto", "check").stream()
                                     .map(button -> launch.select("[name='" + button + "']").hasAttr("disabled")))
-                            .containsExactly(true, true, false));
+                            .containsExactly(true, true, true, false));
         }
     }
 
@@ -219,10 +220,10 @@ class LaunchScreenTest {
                     () -> assertThat(List.of(byId(page, "holder-corpus-root").text(),
                                     byId(page, "holder-working-directory").text()))
                             .containsExactly(holderLine, ""));
-            claim("Run and Label are disabled and Check is not",
-                    () -> assertThat(List.of("run", "label", "check").stream()
+            claim("Run, Label and Have the local model answer are disabled and Check is not",
+                    () -> assertThat(List.of("run", "label", "label-auto", "check").stream()
                                     .map(button -> launch.select("[name='" + button + "']").hasAttr("disabled")))
-                            .containsExactly(true, true, false));
+                            .containsExactly(true, true, true, false));
         }
     }
 
@@ -380,10 +381,10 @@ class LaunchScreenTest {
 
             claim("the launch page shows the working folder held by nobody",
                     () -> assertThat(byId(launchPage, "holder-working-directory").text()).isEmpty());
-            claim("and Run, Label and Check are all enabled",
-                    () -> assertThat(List.of("run", "label", "check").stream()
+            claim("and Run, Label, Have the local model answer and Check are all enabled",
+                    () -> assertThat(List.of("run", "label", "label-auto", "check").stream()
                                     .map(button -> launch.select("[name='" + button + "']").hasAttr("disabled")))
-                            .containsExactly(false, false, false));
+                            .containsExactly(false, false, false, false));
 
             Page landed = browser.go("/next").press("next", "save-then-run", floor).page();
 
