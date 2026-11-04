@@ -25,7 +25,10 @@ final class ControlPanelPage {
      * and {@code data-refresh-seconds}, polls {@code /alive} one second after the last poll settled, never on an
      * interval and never from inside another timer's callback, reloads the page where the server answers a mark that
      * is not the page's, and, where the page asks, once the server has answered the page's mark and the page's seconds
-     * have passed. It writes nothing into the page.
+     * have passed, unless the operator is at work on the page: the drawer is shown, the focus is on a field or the
+     * progress page's frame, an {@code input} or {@code change} event has reached the document, or a {@code <details>}
+     * is open or closed otherwise than drawn (ADR-340 §2); a reload onto a later start is never held. It reads these and
+     * keeps no data, and writes nothing into the page.
      */
     static final String SCRIPT = """
             (function () {
@@ -50,6 +53,21 @@ final class ControlPanelPage {
                   } catch (ignored) { }
                 });
               }
+              var touched = false;
+              document.addEventListener('input', function () { touched = true; });
+              document.addEventListener('change', function () { touched = true; });
+              var folds = Array.prototype.slice.call(document.querySelectorAll('details'));
+              var drawn = folds.map(function (fold) { return fold.open; });
+              function atWork() {
+                if (document.querySelector('#values:target, #values :target')) { return true; }
+                var focus = document.activeElement;
+                if (focus && /^(input|select|textarea|iframe)$/.test(focus.nodeName.toLowerCase())) { return true; }
+                if (touched) { return true; }
+                for (var i = 0; i < folds.length; i++) {
+                  if (folds[i].open !== drawn[i]) { return true; }
+                }
+                return false;
+              }
               if (!start) { return; }
               function poll() {
                 var reloading = false;
@@ -62,7 +80,8 @@ final class ControlPanelPage {
                   .then(function (response) { return response.status === 200 ? response.text() : null; })
                   .then(function (answer) {
                     if (answer === null || !/^[A-Za-z0-9_-]{22}$/.test(answer)) { return; }
-                    if (answer !== start || (seconds > 0 && Date.now() - loadedAt >= seconds * 1000)) {
+                    if (answer !== start
+                        || (seconds > 0 && Date.now() - loadedAt >= seconds * 1000 && !atWork())) {
                       reloading = true;
                       window.location.reload();
                     }
@@ -218,10 +237,9 @@ final class ControlPanelPage {
               border-radius: var(--radius); background: var(--surface); }
             #progress-view p { margin: var(--space-3) 0 0; }
             @media (max-width: 800px) {
-              #top-bar { position: static; }
               #values-held { margin: 0; }
               .home, #tiles { grid-template-columns: 1fr; }
-              #values { top: 0; width: 100%; }
+              #values { top: 9rem; width: 100%; }
             }
             """;
 
@@ -240,8 +258,10 @@ final class ControlPanelPage {
      * @param body the page's content, already escaped
      */
     static String render(HttpExchange exchange, ControlPanelState state, String title, int refreshSeconds, String body) {
-        String refresh = refreshSeconds > 0
-                ? "<noscript><meta http-equiv=\"refresh\" content=\"" + refreshSeconds + "\"></noscript>\n" : "";
+        // the home page's browser never reloads it of its own: one running no script cannot tell what would be lost (ADR-340 §2)
+        boolean home = exchange.getRequestURI().getPath().equals("/");
+        String refresh = refreshSeconds > 0 && !home
+                ?"<noscript><meta http-equiv=\"refresh\" content=\"" + refreshSeconds + "\"></noscript>\n" : "";
         String marks = " data-start=\"" + escape(attribute(exchange, ControlPanelServer.MARK_ATTRIBUTE)) + "\""
                 + (refreshSeconds > 0 ? " data-refresh-seconds=\"" + refreshSeconds + "\"" : "");
         return "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"

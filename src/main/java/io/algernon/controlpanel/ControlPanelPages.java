@@ -47,7 +47,18 @@ public final class ControlPanelPages {
      */
     public static Map<String, HttpHandler> pages(ChildRuntime runtime, Path launchValuesFile,
             Path corpusRootLockFolder, String userName, Path currentDirectory) {
-        return pages(new ControlPanelState(runtime, launchValuesFile, corpusRootLockFolder, userName, currentDirectory));
+        return pages(runtime, launchValuesFile, corpusRootLockFolder, userName,
+                WorkingDirectoryDefault.of(currentDirectory, Map.of(), Map.of()));
+    }
+
+    /**
+     * The same pages, the work folder left empty being {@code workingDirectoryDefault}, which {@code ControlPanel.main}
+     * resolves from the JVM's own properties and environment (ADR-340 §6).
+     */
+    public static Map<String, HttpHandler> pages(ChildRuntime runtime, Path launchValuesFile,
+            Path corpusRootLockFolder, String userName, WorkingDirectoryDefault workingDirectoryDefault) {
+        return pages(new ControlPanelState(runtime, launchValuesFile, corpusRootLockFolder, userName,
+                workingDirectoryDefault));
     }
 
     /** The same pages, reading and changing {@code state}, which {@code ControlPanel.serve} ends its child through. */

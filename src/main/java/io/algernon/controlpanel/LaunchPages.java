@@ -25,6 +25,9 @@ import java.util.Optional;
  */
 final class LaunchPages {
 
+    /** How often the script reloads the home page, where it shows no line of a press and the operator is not at work on it (ADR-340 §2). */
+    static final int REFRESH_SECONDS = 15;
+
     private static final String RULES_OF_FREE_SPACE = "Stage 4b's build of its index of shingles needs 58 bytes free on the"
             + " working directory's drive for each shingle row of the stage-2 run it reads; stage 3's grouping writes"
             + " about 22 to 23 bytes, and stage 4b's build about 91, of temporary files for each row they sort; the"
@@ -95,7 +98,8 @@ final class LaunchPages {
         body.append(ControlPanelPage.doclingImages());
         body.append(ControlPanelPage.listsFor(List.of(ProfileKey.values()), checks.ollama().models()));
         body.append(drawer(held, checks, effective, open, corpus, relevance, profile));
-        Exchanges.page(exchange, ControlPanelPage.render(exchange, state, "Home", 0, body.toString()));
+        Exchanges.page(exchange, ControlPanelPage.render(exchange, state, "Home",
+                pending != null ? 0 : REFRESH_SECONDS, body.toString()));
     }
 
     /** {@code #reports-box}: the reports in a box that folds, drawn open (ADR-340 §2). */
@@ -216,20 +220,31 @@ final class LaunchPages {
         String inUse = state.effectiveWorkingDirectory();
         ControlPanelPage.Field field = ControlPanelPage.Field.of(name, "Work folder").key(name).value(typed)
                 .hint("hint-" + name, "Where Vespera keeps its database, its reports and profile.yaml. Left empty, it is"
-                        + " the .vespera folder of the folder the control panel was started from, as shown. If it is not"
-                        + " there yet, the first value you save makes it.")
+                        + " the folder this machine is set to use, or else the .vespera folder of the folder the control"
+                        + " panel was started from, as shown. If it is not there yet, the first value you save makes it.")
                 .browse(target.forName());
         if (isTheDefault) {
             field.inUse(inUse);
         } else {
             field.example("D:\\vespera\\work");
         }
+        WorkingDirectoryDefault machine = state.workingDirectoryDefault();
+        String source = isTheDefault ? machine.source() : "launch-value";
+        String words = !isTheDefault ? "In use: " + typed + ", as typed here."
+                : switch (machine.source()) {
+                    case WorkingDirectoryDefault.SYSTEM_PROPERTY -> "In use: " + inUse + ", from the system property "
+                            + machine.name() + " the control panel was started with.";
+                    case WorkingDirectoryDefault.ENVIRONMENT -> "In use: " + inUse + ", from the environment variable "
+                            + machine.name() + ".";
+                    default -> "In use: " + inUse
+                            + ", the .vespera folder of the folder the control panel was started from.";
+                };
         return field.after(FolderPages.statusElement(target.forName(), workingDirectoryStatus(held))
                 + "<p id=\"in-use-" + name + "\" data-value=\"" + ControlPanelPage.escape(inUse) + "\" data-source=\""
-                + (isTheDefault ? "default" : "launch-value") + "\">"
-                + ControlPanelPage.escape(isTheDefault
-                        ? "In use: " + inUse + ", the .vespera folder of the folder the control panel was started from."
-                        : "In use: " + typed + ", as typed here.")
+                + source + "\""
+                + (isTheDefault && !machine.name().isEmpty()
+                        ? " data-source-name=\"" + ControlPanelPage.escape(machine.name()) + "\"" : "")
+                + ">" + ControlPanelPage.escape(words)
                 + "</p>\n").html();
     }
 

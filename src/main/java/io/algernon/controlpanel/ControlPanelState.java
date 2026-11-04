@@ -62,10 +62,10 @@ final class ControlPanelState {
     private TreeHold heldTree = new TreeHold(Map.of(), Map.of(), Map.of());
 
     /**
-     * The folder {@code vespera.working-dir} left empty names: {@code .vespera} under the directory the control panel
-     * was started in, absolute and normalised, read once as it started (ADR-340 §6).
+     * The folder {@code vespera.working-dir} left empty names on this machine, with where it came from, read once as
+     * the control panel started (ADR-340 §6); a value no path can hold is kept as given.
      */
-    private final Path defaultWorkingDirectory;
+    private final WorkingDirectoryDefault workingDirectoryDefault;
 
     private volatile LaunchValues values;
     private volatile SidecarChecks.Checks lastChecks = new SidecarChecks.Checks(
@@ -78,13 +78,13 @@ final class ControlPanelState {
 
     ControlPanelState(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder, String userName) {
         this(runtime, launchValuesFile, corpusRootLockFolder, userName,
-                Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize());
+                WorkingDirectoryDefault.of(Path.of(System.getProperty("user.dir")), Map.of(), Map.of()));
     }
 
-    /** As above, the work folder's default being {@code .vespera} under {@code currentDirectory} (ADR-340 §6). */
+    /** As above, the work folder left empty being {@code workingDirectoryDefault} (ADR-340 §6). */
     ControlPanelState(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder, String userName,
-            Path currentDirectory) {
-        this.defaultWorkingDirectory = currentDirectory.toAbsolutePath().normalize().resolve(".vespera");
+            WorkingDirectoryDefault workingDirectoryDefault) {
+        this.workingDirectoryDefault = workingDirectoryDefault;
         this.runtime = runtime;
         this.launchValuesFile = launchValuesFile;
         this.corpusRootLockFolder = corpusRootLockFolder;
@@ -108,12 +108,12 @@ final class ControlPanelState {
     /** The values as a start uses them: the image preselected and the work folder its default where either is left empty. */
     private LaunchValues withTheDefaults(LaunchValues held) {
         LaunchValues image = withThePreselectedImage(held);
-        return image.workingDirectory().isEmpty() ? image.withWorkingDirectory(defaultWorkingDirectory.toString()) : image;
+        return image.workingDirectory().isEmpty() ? image.withWorkingDirectory(workingDirectoryDefault.folder()) : image;
     }
 
-    /** The work folder left empty is this one (ADR-340 §6). */
-    Path defaultWorkingDirectory() {
-        return defaultWorkingDirectory;
+    /** The work folder left empty is this one, and this is where it came from (ADR-340 §6). */
+    WorkingDirectoryDefault workingDirectoryDefault() {
+        return workingDirectoryDefault;
     }
 
     /**
@@ -123,7 +123,7 @@ final class ControlPanelState {
     String effectiveWorkingDirectory() {
         String named = values.workingDirectory();
         if (named.isEmpty()) {
-            return defaultWorkingDirectory.toString();
+            return pathOf(workingDirectoryDefault.folder()).isPresent() ? workingDirectoryDefault.folder() : "";
         }
         return pathOf(named.stripTrailing()).isPresent() ? named : "";
     }
@@ -281,7 +281,7 @@ final class ControlPanelState {
     /** The working directory held: the one named, or its default; empty only where the one named is no path this system can hold. */
     Optional<Path> workingDirectory() {
         String named = values.workingDirectory();
-        return named.isEmpty() ? Optional.of(defaultWorkingDirectory) : pathOf(named);
+        return pathOf(named.isEmpty() ? workingDirectoryDefault.folder() : named);
     }
 
     /**

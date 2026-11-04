@@ -9,6 +9,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -54,9 +55,17 @@ public final class ControlPanel {
             Path launchValuesFile = LaunchValues.fileIn(Path.of(System.getProperty("java.io.tmpdir")), userName);
             // the directory it was started in, read once: a work folder left empty is .vespera under it (ADR-340 §6)
             Path currentDirectory = Path.of("").toAbsolutePath().normalize();
+            Map<String, String> systemProperties = new HashMap<>();
+            System.getProperties().forEach((key, value) -> {
+                if (key instanceof String name && value instanceof String text) {
+                    systemProperties.put(name, text);
+                }
+            });
+            WorkingDirectoryDefault workingDirectoryDefault = WorkingDirectoryDefault.of(currentDirectory,
+                    systemProperties, System.getenv());
             ControlPanelState state = new ControlPanelState(runtime, launchValuesFile,
                     corpusRootLockFolder(System.getenv(CORPUS_ROOT_LOCK_FOLDER_VARIABLE), System.getProperty("user.home")),
-                    userName, currentDirectory);
+                    userName, workingDirectoryDefault);
             endChildWithThisJvm(state);
             Optional<ControlPanelServer> server = begin(state, System.getenv(PORT_VARIABLE),
                     TAB_BOUND, new SystemBrowserOpener(), line -> {
