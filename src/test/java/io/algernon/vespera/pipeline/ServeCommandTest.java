@@ -58,8 +58,9 @@ import picocli.CommandLine.IFactory;
  * then the JVM's system properties, then the environment, reading no YAML file; and it refuses in one line, exit 1,
  * creating nothing, a {@code --db-dir} that disagrees with a set {@code vespera.working-dir}, a working directory that
  * is not there, one holding no published website, a port in use and a value for the port that is no port (ADR-341
- * §3). Arguments it cannot read end it with exit 2, a blank value is unset in each of the three sources, and the
- * environment's names are found as Spring relaxes them, {@code DB_DIR} among them (ADR-341 §4, §5). That a working
+ * §3). Arguments it cannot read end it with exit 2, a blank value is unset in each of the three sources, a blank
+ * {@code --db-dir=} excepted, which the mixin reads as the folder started in and so refuses, and the environment's
+ * names are found as Spring relaxes them, {@code DB_DIR} among them (ADR-341 §4, §5). That a working
  * directory not there is refused and not made on the packaged jar too is {@code ServeHoldsNoLockIT}'s.
  *
  * <p>What {@code ServeCommand} reads is handed to it here, a {@link Properties} for the system properties and a map for
@@ -484,6 +485,35 @@ class ServeCommandTest {
                         + " started in",
                 () -> assertThat(blankDbDir.toAbsolutePath().normalize())
                         .isEqualTo(startedIn.resolve(".vespera").toAbsolutePath().normalize()));
+    }
+
+    @Test
+    @Timeout(value = A_REFUSAL_SECONDS, unit = TimeUnit.SECONDS)
+    @Story("The website is served on loopback alone")
+    @DisplayName("A blank --db-dir= is refused, exit 1, in the disagreement line: the mixin reads it as the folder vespera serve was started in")
+    void aBlankDbDirIsRefusedByTheMixinAsTheFolderItWasStartedIn() throws IOException {
+        Path startedIn = base.resolve("started-here");
+        // picocli reads --db-dir= into the mixin as the empty path, which is the process's own folder.
+        Path readByTheMixin = Path.of("").toAbsolutePath().normalize();
+        Sources sources = sourcesOf(List.of());
+
+        int exit = sources.command().call("--" + DB_DIR + "=");
+
+        claim("the command ends with exit code 1, having served nothing: the blank is not unset here as it is for"
+                        + " --vespera.working-dir= and --vespera.serve.port=",
+                () -> assertThat(exit).isEqualTo(CommandLine.ExitCode.SOFTWARE));
+        claim("its one line is WorkingDirectoryOption's, naming the folder the process was started in as the --db-dir"
+                        + " given and .vespera under user.dir as the working directory in use, on standard error, and"
+                        + " nothing on standard output",
+                () -> {
+                    assertThat(sources.errors()).containsExactly("vespera serve was given --db-dir " + readByTheMixin
+                            + " but the working directory in use is "
+                            + startedIn.resolve(".vespera").toAbsolutePath().normalize() + ";"
+                            + THE_REST_OF_THE_DISAGREEMENT);
+                    assertThat(sources.output()).isEmpty();
+                });
+        claim("and nothing was made: not the folder user.dir names, nor anything beside it",
+                () -> assertThat(filesUnder(base)).isEmpty());
     }
 
     @Test
