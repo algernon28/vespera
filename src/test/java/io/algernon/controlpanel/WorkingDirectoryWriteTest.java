@@ -19,7 +19,10 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -33,8 +36,9 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * How the control panel writes into a working directory (ADR-295 §1, §2): only while no invocation it started runs,
  * only in a folder of the user's own (ADR-291 §8, checked as ADR-292 §3 checks its folder), only holding
- * {@code vespera.lock} as the jar takes it, never waiting for it, and only the three files, each written whole by a
- * move. Taking the lock against the jar's own lock in another process is the contract test's,
+ * {@code vespera.lock} as the jar takes it, never waiting for it, and only the four files (ADR-334 §6), each written
+ * whole by a move. A save of {@code profile.yaml} alone makes a working directory that is not there, owner-only
+ * (ADR-330 §7). Taking the lock against the jar's own lock in another process is the contract test's,
  * {@code pipeline.TheJarReadsWhatTheControlPanelWritesTest}.
  */
 @Epic("Operation")
@@ -207,7 +211,7 @@ class WorkingDirectoryWriteTest {
     /**
      * A save of {@code profile.yaml} alone makes a working directory that is not there (ADR-330 §7, amending ADR-295 §1):
      * no question is answered and no code set named before a run has made it, so the other two files go on refusing.
-     * That the profile's save makes it is {@code ProfileEditorScreenTest}'s.
+     * That the profile's save makes it, owner-only, is {@link #aSaveOfTheProfileMakesAMissingWorkingDirectoryOwnerOnly}'s.
      */
     @Test
     @Story("The control panel writes into a working directory")
@@ -229,6 +233,62 @@ class WorkingDirectoryWriteTest {
                     () -> assertThat(missing).doesNotExist());
         }
         claim("the change was never asked for", () -> assertThat(changed).isFalse());
+    }
+
+    /**
+     * A save of {@code profile.yaml} makes a working directory that is not there, and each folder it makes is this
+     * user's alone from the moment it is made (ADR-330 §7, kept by ADR-339 §4): on POSIX permissions {@code rwx------},
+     * and on a volume with access control lists, NTFS among them, one entry, this user's, which the file written there
+     * inherits. The text saved is the one {@code ProfileEdit} composes for a file that is absent, then for the file as
+     * it stands. On a volume with neither, such as FAT32, the folder is made as the volume makes it and there is no
+     * rule to see, so the claims of who may write there are skipped by assumption.
+     */
+    @Test
+    @Story("The control panel keeps its files from other users")
+    @DisplayName("A save of the profile makes a working directory that is not there, each folder it makes this user's alone, and the file in it holds only the value saved")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    @Issue("700")
+    void aSaveOfTheProfileMakesAMissingWorkingDirectoryOwnerOnly(@TempDir Path temp) throws IOException {
+        Path work = temp.resolve("not-yet").resolve("work");
+        Path profile = work.resolve(ProfileEdit.FILE_NAME);
+
+        Optional<String> first = NO_CHILD_RUNS.write(work, ProfileEdit.FILE_NAME, current -> ProfileEdit.rewrite(
+                current, ProfileKey.EXTRACTION_ATTEMPT, "2", "a second attempt"));
+
+        claim("the first save makes both folders, and the file in them holds only the value saved, the jar adding the"
+                        + " rest as unset at its next load",
+                () -> assertThat(profile).as("the profile the first save wrote, which said %s", first)
+                        .hasContent("""
+                                ---
+                                extractionAttempt:
+                                  value: "2"
+                                  provenance: "a second attempt"
+                                  measurement: null
+                                """));
+
+        Optional<String> second = NO_CHILD_RUNS.write(work, ProfileEdit.FILE_NAME, current -> ProfileEdit.rewrite(
+                current, ProfileKey.EXTRACTION_ATTEMPT, "3", "a third attempt"));
+
+        claim("and the user goes on writing there, one file moved over another",
+                () -> assertThat(ProfileEdit.read(Files.readString(profile, UTF_8)).get(ProfileKey.EXTRACTION_ATTEMPT))
+                        .as("the value the second save wrote, which said %s", second)
+                        .isEqualTo(new ProfileEdit.Stated("3", "a third attempt")));
+
+        if (Files.getFileStore(work).supportsFileAttributeView("posix")) {
+            claim("where the volume has POSIX permissions the folder and the one above it, both made by the save, are"
+                            + " this user's alone",
+                    () -> assertThat(Stream.of(work, work.getParent()).map(WorkingDirectoryWriteTest::permissions))
+                            .containsOnly("rwx------"));
+        } else {
+            assumeTrue(Files.getFileStore(work).supportsFileAttributeView("acl"),
+                    "the volume has neither POSIX permissions nor access control lists, where a save makes the folder"
+                            + " as the volume makes it, so there is no rule of who may write there to see");
+            UserPrincipal thisUser = work.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(USER);
+            claim("where the volume holds access control lists each folder the save made, and the file, hold one"
+                            + " entry, allowing this user, whatever the folder above them hands down",
+                    () -> assertThat(Stream.of(work, work.getParent(), profile).map(WorkingDirectoryWriteTest::entriesOf))
+                            .containsOnly(List.<List<Object>>of(List.of(AclEntryType.ALLOW, thisUser))));
+        }
     }
 
     @Test
@@ -439,6 +499,25 @@ class WorkingDirectoryWriteTest {
     private static String refusalOf(Path folder, String file) {
         return "the control panel writes nothing in " + folder
                 + ", which is not a folder only this user can write in, so " + file + " was not written";
+    }
+
+    private static String permissions(Path folder) {
+        try {
+            return PosixFilePermissions.toString(Files.getPosixFilePermissions(folder));
+        } catch (IOException e) {
+            throw new AssertionError("the permissions of " + folder + " could not be read", e);
+        }
+    }
+
+    /** Each access control entry of {@code path}: its type and who it names. */
+    private static List<List<Object>> entriesOf(Path path) {
+        try {
+            return Files.getFileAttributeView(path, AclFileAttributeView.class).getAcl().stream()
+                    .map(entry -> List.<Object>of(entry.type(), entry.principal()))
+                    .toList();
+        } catch (IOException e) {
+            throw new AssertionError("the entries of " + path + " could not be read", e);
+        }
     }
 
     private static String readQuietly(Path file) {

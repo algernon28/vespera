@@ -2087,10 +2087,9 @@ public final class Adr {
             + "0296-each-code-set-is-copied-whole-under-code-its-paths-kept-and-each-file-checked-against-the-size-and-time-the-walk-recorded.md";
 
     /**
-     * ADR-297 -- the control panel's screens are tested failing-first through {@code PanelBrowser}, the JDK's HTTP
-     * client with a cookie store and jsoup at test scope, which opens the printed address, follows a {@code 303},
-     * and submits a form by its name as a browser sends it, a {@code POST} from the panel's own origin; no browser is
-     * downloaded, and every such test is a unit test on both CI jobs.
+     * ADR-297 -- the control panel's screens were tested failing-first through the pages it served, read as a browser
+     * reads them, by the JDK's HTTP client and jsoup at test scope, every such test a unit test on both CI jobs.
+     * Superseded by ADR-339, whose window is tested on JavaFX's Headless platform; the pages and their tests are gone.
      */
     public static final String THE_CONTROL_PANELS_SCREENS_ARE_TESTED_THROUGH_THE_PAGES_IT_SERVES = FILE
             + "0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md";
