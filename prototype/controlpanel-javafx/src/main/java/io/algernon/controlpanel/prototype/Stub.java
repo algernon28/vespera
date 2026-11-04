@@ -8,7 +8,9 @@ import java.util.stream.Collectors;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
@@ -27,7 +29,50 @@ final class Stub {
 
     record Step(String stage, String name, String stopCost) {}
 
-    record Key(String name, String type, String earliestRun, String example, String about) {}
+    /**
+     * A profile key: what the form shows ({@code label}, {@code about}), which control constrains it
+     * ({@code type}: share, whole, decimal, folder, folders, endings, languages, model, choice), its
+     * bounds where it is a number, and where else it is edited ({@code editedIn}, null when only here).
+     */
+    record Key(String name, String type, String earliestRun, String example, String about, String label,
+            double min, double max, double step, String editedIn) {
+
+        Key(String name, String type, String earliestRun, String example, String about) {
+            this(name, type, earliestRun, example, about, name, 0, 1, 0.01, null);
+        }
+    }
+
+    private static Key share(String name, String label, String earliestRun, String example, String about) {
+        return new Key(name, "share", earliestRun, example, about, label, 0, 1, 0.01, null);
+    }
+
+    private static Key whole(String name, String label, String earliestRun, String example, String about,
+            double min, double max, double step) {
+        return new Key(name, "whole", earliestRun, example, about, label, min, max, step, null);
+    }
+
+    private static Key of(String type, String name, String label, String earliestRun, String example, String about) {
+        return new Key(name, type, earliestRun, example, about, label, 0, 0, 0, null);
+    }
+
+    private static Key elsewhere(String type, String name, String label, String earliestRun, String example,
+            String about, String editedIn) {
+        return new Key(name, type, earliestRun, example, about, label, 0, 0, 0, editedIn);
+    }
+
+    /** The steps a change makes again, in plain words. */
+    static String rerunOf(Key key) {
+        return switch (key.earliestRun()) {
+            case "none" -> "Changing it re-runs nothing: the next run only draws the pages again.";
+            case "byte-level-reduction" -> "Changing it re-runs every step after the census.";
+            case "extraction" -> "Changing it re-runs from text extraction on.";
+            case "content-redundancy" -> "Changing it re-runs from duplicate detection on.";
+            case "seed-measurement" -> "Changing it re-runs from the comparison with the exemplars on.";
+            case "embedding-scoring" -> "Changing it re-runs from relevance scoring on (nothing is embedded again).";
+            case "generation" -> "Changing it re-runs only the writing of the pages.";
+            default -> "Changing it re-runs from " + key.earliestRun() + " on.";
+        };
+    }
 
     static final List<Step> STEPS = List.of(
             new Step("0", "census", "the entries walked since the last commit are walked again"),
@@ -51,26 +96,47 @@ final class Stub {
             "content-redundancy", "seed-measurement", "embedding-scoring", "arrangement", "generation");
 
     static final List<Key> KEYS = List.of(
-            new Key("seedFolder", "folder", "seed-measurement", "D:\\archive\\exemplars", "The folder of documents known to be relevant."),
-            new Key("degenerateOutputConfidenceFloor", "number", "extraction", "0.5", "Below this conversion confidence a document is dropped."),
-            new Key("degenerateOutputWordFloor", "number", "extraction", "20", "Below this many words a conversion is dropped."),
-            new Key("boilerplateDocumentFrequencyFloor", "number", "content-redundancy", "0.4", "A shingle in more than this share of documents is boilerplate."),
-            new Key("embeddingModel", "text", "embedding-scoring", "bge-m3:latest", "The model that embeds every survivor."),
-            new Key("relevanceScoreFloor", "number", "embedding-scoring", "0.62", "Below this score a document is not relevant."),
-            new Key("arrangementApproved", "text", "generation", "auto", "The arrangement the deliverable is written from."),
-            new Key("generationModel", "text", "generation", "qwen3:8b", "The model that writes each group's page."),
-            new Key("generationContextWindow", "number", "generation", "32768", "Tokens the generation model is given."),
-            new Key("clusterPageByteCeiling", "number", "none", "10485760", "Largest page a group may have."),
-            new Key("logTimestampShareFloor", "number", "byte-level-reduction", "0.7", "Above this share of timestamped lines a file is a log."),
-            new Key("extractionAttempt", "number", "extraction", "2", "Which attempt at the failed conversions this is."),
-            new Key("codeNameEndings", "endings", "byte-level-reduction", ".java .sql", "Name endings read as code."),
-            new Key("outOfScopeNameEndings", "endings", "byte-level-reduction", ".ok .tmp", "Name endings never kept."),
-            new Key("translationSimilarityFloor", "number", "embedding-scoring", "0.85", "Above this similarity two documents are translations."),
-            new Key("preferredLanguages", "languages", "embedding-scoring", "it, en", "Which translation is kept."),
-            new Key("configurationSettingShareFloor", "number", "byte-level-reduction", "0.8", "Above this share of settings a file is configuration."),
-            new Key("deliverableLanguage", "choice", "generation", "it", "The language the deliverable is written in."),
-            new Key("clusterResolution", "number", "embedding-scoring", "2.5", "Higher makes more, smaller groups."),
-            new Key("codeSetFolders", "folders", "byte-level-reduction", "D:\\code\\billing", "Code folders outside the corpus root."));
+            elsewhere("folder", "seedFolder", "Exemplars folder", "seed-measurement", "D:\\archive\\exemplars",
+                    "Documents you know are relevant. The archive is measured against them.", "Seed folder"),
+            share("degenerateOutputConfidenceFloor", "Minimum reading confidence", "extraction", "0.5",
+                    "Files the converter read with less confidence than this are left out as unreadable. See confidence-distribution."),
+            whole("degenerateOutputWordFloor", "Minimum words per file", "extraction", "20",
+                    "Files whose text has fewer words than this are left out as holding nothing readable. See word-count-distribution.",
+                    0, 100_000, 1),
+            share("boilerplateDocumentFrequencyFloor", "Boilerplate threshold", "content-redundancy", "0.4",
+                    "A five-word passage found in more than this share of documents is boilerplate (headers, disclaimers) and is not used to compare documents. See document-frequency."),
+            of("model", "embeddingModel", "Scoring model", "embedding-scoring", "bge-m3:latest",
+                    "The local model that turns each document into numbers to score how relevant it is."),
+            share("relevanceScoreFloor", "Relevance cut-off", "embedding-scoring", "0.62",
+                    "Documents scoring below this are left out as not relevant. See relevance-labelling."),
+            of("arrangement", "arrangementApproved", "Approved arrangement", "generation", "auto",
+                    "The grouping and order you approve before the pages are written. 'auto' approves every one unread. See arrangement."),
+            of("model", "generationModel", "Writing model", "generation", "qwen3:8b",
+                    "The local model that writes the text connecting each group's documents."),
+            whole("generationContextWindow", "Reading window (tokens)", "generation", "32768",
+                    "How much of a group the writing model reads in one go. Larger needs a stronger machine.", 2048, 1_048_576, 1024),
+            whole("clusterPageByteCeiling", "Largest page (bytes)", "none", "10485760",
+                    "A group's page larger than this is split into several pages. See cluster-page-sizes.", 1, 1e12, 1_000_000),
+            share("logTimestampShareFloor", "Log file threshold", "byte-level-reduction", "0.7",
+                    "Text files where at least this share of lines begin with a date or time are left out as logs. See format-mix."),
+            whole("extractionAttempt", "Extraction attempt", "extraction", "2",
+                    "Set 2, then 3, to ask the converter again about the files it failed on. See extraction-failures.", 1, 99, 1),
+            of("endings", "codeNameEndings", "Code file endings", "byte-level-reduction", ".java .sql",
+                    "File name endings read as code. See format-mix."),
+            of("endings", "outOfScopeNameEndings", "Endings to leave out", "byte-level-reduction", ".ok .tmp",
+                    "Unrecognised files with these name endings are left out. See format-mix."),
+            share("translationSimilarityFloor", "Translation likeness", "embedding-scoring", "0.85",
+                    "Two documents in different languages at least this alike are taken as one document. See translations."),
+            of("languages", "preferredLanguages", "Preferred languages", "embedding-scoring", "it, en",
+                    "Of a document held in several languages, the copy in the first language listed is kept. See translations."),
+            share("configurationSettingShareFloor", "Configuration file threshold", "byte-level-reduction", "0.8",
+                    "Text files where at least this share of lines are settings are left out as configuration. See format-mix."),
+            of("choice", "deliverableLanguage", "Deliverable language", "generation", "it",
+                    "The language the pages are written in. Not set: English."),
+            new Key("clusterResolution", "decimal", "embedding-scoring", "2.5",
+                    "Higher makes more, smaller groups. Not set: 1.0. See cluster-sizes.", "Grouping fineness", 0.1, 20, 0.1, null),
+            elsewhere("folders", "codeSetFolders", "Code folders outside the corpus root", "byte-level-reduction",
+                    "D:\\code\\billing", "Code kept beside the archive, read with it and copied whole.", "Code sets"));
 
     static final List<String> REPORTS = List.of("progress", "format-mix", "extraction-failures",
             "extraction-survivors", "confidence-distribution", "document-frequency", "word-count-distribution",
@@ -88,13 +154,22 @@ final class Stub {
     static final String GPU_IMAGE = "vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0-r2";
     static final String CPU_IMAGE = "vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2";
 
-    final StringProperty corpusRoot = new SimpleStringProperty("D:\\archive\\corpus");
-    final StringProperty workingDirectory = new SimpleStringProperty("E:\\vespera_working_dir");
+    final Config config;
+    final StringProperty corpusRoot = new SimpleStringProperty("");
+    final StringProperty workingDirectory = new SimpleStringProperty("");
     final StringProperty outputFolder = new SimpleStringProperty("");
-    final StringProperty doclingImage = new SimpleStringProperty(GPU_IMAGE);
-    final StringProperty doclingAddress = new SimpleStringProperty("http://localhost:5001");
-    final StringProperty ollamaAddress = new SimpleStringProperty("http://localhost:11434");
-    final StringProperty labelModel = new SimpleStringProperty("qwen3:8b");
+    final StringProperty doclingImage = new SimpleStringProperty("");
+    final StringProperty doclingAddress = new SimpleStringProperty("");
+    final StringProperty ollamaAddress = new SimpleStringProperty("");
+    final StringProperty labelModel = new SimpleStringProperty("");
+    /** How far each of {@link #STEPS} has got, 0 to 1. */
+    final List<DoubleProperty> stepProgress = STEPS.stream()
+            .map(s -> (DoubleProperty) new SimpleDoubleProperty(0)).toList();
+    /** Folder, from the corpus root, to the name the deliverable gives its code set. */
+    final ObservableMap<String, String> codeSetNames = FXCollections.observableMap(new LinkedHashMap<>());
+    final ObservableList<String> codeSetFolders = FXCollections.observableArrayList();
+    /** Which file the profile was last read from or saved to. */
+    final StringProperty profileSource = new SimpleStringProperty("");
 
     /** none, running, ended, failed, stopped — the panel's {@code HowItEnded}, flattened. */
     final StringProperty childState = new SimpleStringProperty("none");
@@ -107,7 +182,7 @@ final class Stub {
     final ObservableList<String> wants = FXCollections.observableArrayList();
     final ObservableMap<String, String> profile = FXCollections.observableMap(new LinkedHashMap<>());
     final ObservableMap<String, String> why = FXCollections.observableMap(new LinkedHashMap<>());
-    final ObservableList<String> notRelevantFolders = FXCollections.observableArrayList("archive/old-flows");
+    final ObservableList<String> notRelevantFolders = FXCollections.observableArrayList();
     final StringProperty outcome = new SimpleStringProperty("");
 
     private Timeline ticker;
@@ -115,12 +190,91 @@ final class Stub {
     private int stopAt;
 
     Stub() {
-        profile.put("seedFolder", "D:\\archive\\exemplars");
-        why.put("seedFolder", "the folder the team keeps its reference manuals in");
-        profile.put("degenerateOutputConfidenceFloor", "0.5");
-        why.put("degenerateOutputConfidenceFloor", "read off confidence-distribution: the knee at 0.5");
-        profile.put("boilerplateDocumentFrequencyFloor", "0.4");
-        why.put("boilerplateDocumentFrequencyFloor", "read off document-frequency");
+        this(Config.load());
+    }
+
+    Stub(Config config) {
+        this.config = config;
+        corpusRoot.set(config.launch.get("corpusRoot").value());
+        workingDirectory.set(config.launch.get("workingDirectory").value());
+        outputFolder.set(config.launch.get("deliverableRoot").value());
+        String image = config.launch.get("doclingImage").value();
+        doclingImage.set(image.isBlank() ? GPU_IMAGE : image);
+        doclingAddress.set(config.launch.get("doclingAddress").value());
+        ollamaAddress.set(config.launch.get("ollamaAddress").value());
+        labelModel.set(config.launch.get("labelModel").value());
+        notRelevantFolders.setAll(config.notRelevantFolders);
+        codeSetNames.putAll(config.codeSetNames);
+        loadFlags();
+        loadProfile(java.nio.file.Files.isRegularFile(Config.SCRATCH_PROFILE) ? Config.SCRATCH_PROFILE : config.profileFile);
+    }
+
+    /** Where a launch value came from, for the line under its field. */
+    String sourceOf(String name) {
+        return config.launch.get(name).source();
+    }
+
+    private void loadProfile(java.nio.file.Path file) {
+        profile.clear();
+        why.clear();
+        if (file != null) {
+            config.readProfile(file);
+            config.profile.forEach((k, e) -> {
+                profile.put(k, e.value());
+                why.put(k, e.provenance());
+            });
+        }
+        if (!profile.containsKey("seedFolder") && !config.launch.get("seedFolder").value().isBlank()) {
+            profile.put("seedFolder", config.launch.get("seedFolder").value());
+        }
+        codeSetFolders.setAll(java.util.Arrays.stream(profile.getOrDefault("codeSetFolders", "").split(";"))
+                .map(String::strip).filter(s -> !s.isEmpty()).toList());
+        profileSource.set(file == null ? "no profile.yaml yet"
+                : file.equals(Config.SCRATCH_PROFILE) ? "the prototype's copy, " + file : "profile.yaml in the working directory");
+        profileVersion.set(profileVersion.get() + 1);
+    }
+
+    /** Moves on each time the profile is read again, so a form knows to redraw. */
+    final IntegerProperty profileVersion = new SimpleIntegerProperty(0);
+
+    /** Save every value at once, into the prototype's own copy; the operator's profile.yaml is never written. */
+    void saveProfile(Map<String, String> values, Map<String, String> given) {
+        // The form asks no "why": a changed value gets a provenance line written for it, which the jar
+        // requires. Whether a person must still give one is the decision this prototype leaves open.
+        Map<String, String> reasons = new LinkedHashMap<>(given);
+        Map<String, String> kept = new LinkedHashMap<>();
+        values.forEach((k, v) -> {
+            if (!v.isBlank()) {
+                kept.put(k, v);
+                boolean changed = !v.equals(profile.getOrDefault(k, ""));
+                if (changed || reasons.getOrDefault(k, "").isBlank()) {
+                    reasons.put(k, AUTO_PROVENANCE);
+                }
+            }
+        });
+        try {
+            Config.writeProfile(Config.SCRATCH_PROFILE, kept, reasons);
+            loadProfile(Config.SCRATCH_PROFILE);
+            outcome.set(kept.size() + " values saved in the prototype's copy, " + Config.SCRATCH_PROFILE);
+        } catch (java.io.IOException e) {
+            outcome.set("Nothing is saved: the prototype's copy could not be written.");
+        }
+    }
+
+    /** Back to the file last saved: the prototype's copy if there is one, else profile.yaml. */
+    void resetProfile() {
+        loadProfile(java.nio.file.Files.isRegularFile(Config.SCRATCH_PROFILE) ? Config.SCRATCH_PROFILE : config.profileFile);
+        outcome.set("The form is back to " + profileSource.get() + " as last saved.");
+    }
+
+    void saveInclusions(List<String> leftOut) {
+        notRelevantFolders.setAll(leftOut);
+        try {
+            Config.writeNotRelevant(Config.SCRATCH_INCLUSIONS, leftOut);
+            outcome.set(leftOut.size() + " folders left out, saved in the prototype's copy, " + Config.SCRATCH_INCLUSIONS);
+        } catch (java.io.IOException e) {
+            outcome.set("Nothing is saved: the prototype's copy could not be written.");
+        }
     }
 
     boolean running() {
@@ -141,12 +295,14 @@ final class Stub {
         if (cmd.equals("run")) {
             int from = Math.max(currentStep.get(), 0);
             currentStep.set(from);
+            for (int i = from; i < STEPS.size(); i++) {
+                stepProgress.get(i).set(0);
+            }
             stopAt = profile.containsKey("relevanceScoreFloor") ? STEPS.size() - 1 : 11;
-            line("vespera run " + corpusRoot.get());
-            line("working directory " + workingDirectory.get());
+            line("> " + commandLine(cmd));
         } else {
             stopAt = -1;
-            line("vespera " + cmd + " " + corpusRoot.get());
+            line("> " + commandLine(cmd));
         }
         outcome.set(cap(cmd) + " is started.");
         ticker = new Timeline(new KeyFrame(Duration.millis(350), e -> tick()));
@@ -174,6 +330,7 @@ final class Stub {
             return;
         }
         Step step = STEPS.get(currentStep.get());
+        stepProgress.get(currentStep.get()).set((ticks % 6 == 0 ? 6 : ticks % 6) / 6.0);
         line(step.name() + ": " + (ticks % 6) * 17 + "% — batch " + ticks);
         if (ticks % 6 == 0) {
             line(step.name() + ": done");
@@ -197,15 +354,85 @@ final class Stub {
         nextInvocation.set(next);
     }
 
+    static final String AUTO_PROVENANCE = "set in the control panel";
+
     void save(String key, String value, String reason) {
-        if (reason == null || reason.isBlank()) {
-            outcome.set(key + " is not saved: say why this value.");
-            return;
+        Map<String, String> values = new LinkedHashMap<>(profile);
+        values.put(key, value);
+        Map<String, String> reasons = new LinkedHashMap<>(why);
+        if (reason != null && !reason.isBlank()) {
+            reasons.put(key, reason);
         }
-        profile.put(key, value);
-        why.put(key, reason);
+        saveProfile(values, reasons);
         wants.remove(key);
-        outcome.set(key + " is saved in " + workingDirectory.get() + "\\profile.yaml");
+    }
+
+    /** A command-line option the jar takes: a picocli flag, or a Spring property given as --name=value. */
+    record Flag(String name, String label, String type, String defaultValue, String about, String commands) {}
+
+    final List<Flag> flags = new ArrayList<>();
+    /** Each flag's value as the operator set it; a value equal to the default is left off the command line. */
+    final ObservableMap<String, String> flagValues = FXCollections.observableMap(new LinkedHashMap<>());
+
+    private void loadFlags() {
+        flags.add(new Flag("vespera.open-browser", "Open the progress page in the browser", "bool",
+                config.appValue("vespera.open-browser", "true"),
+                "Each run and label opens progress.html in your default browser as it starts.", "run, label"));
+        flags.add(new Flag("vespera.progress-interval", "Progress page refresh (seconds)", "seconds",
+                config.appValue("vespera.progress-interval", "5s"),
+                "How often the progress page reloads itself.", "run, label"));
+        flags.add(new Flag("vespera.sidecars.start", "Start Docling and Ollama when not answering", "bool",
+                config.appValue("vespera.sidecars.start", "true"),
+                "Starts the converter and the model server in Docker, and Docker itself, when they are not running.", "run, label --auto"));
+        flags.add(new Flag("vespera.sidecars.wait-at-most", "Wait for the services (seconds)", "seconds",
+                config.appValue("vespera.sidecars.wait-at-most", "180s"),
+                "How long to wait for the converter and the model server to answer once started.", "run, label --auto"));
+        flags.add(new Flag("vespera.models.pull", "Download missing models", "bool",
+                config.appValue("vespera.models.pull", "true"),
+                "Pulls a model the run needs and Ollama does not have yet.", "run"));
+        flags.add(new Flag("vespera.models.pull-stalled-at-most", "Give up a stalled download (seconds)", "seconds",
+                config.appValue("vespera.models.pull-stalled-at-most", "600s"),
+                "A model download that makes no progress for this long is abandoned.", "run"));
+        flags.add(new Flag("vespera.relevance.sample.bands", "Relevance question bands", "whole",
+                config.appValue("vespera.relevance.sample.bands", "5"),
+                "Into how many score bands the documents you are asked about are drawn.", "run"));
+        flags.add(new Flag("vespera.relevance.sample.per-band", "Questions per band", "whole",
+                config.appValue("vespera.relevance.sample.per-band", "12"),
+                "How many documents are drawn from each band for you to answer.", "run"));
+        flags.add(new Flag("vespera.corpus-root-lock-folder", "Lock folder", "folder",
+                config.appValue("vespera.corpus-root-lock-folder", ""),
+                "Where the lock that stops two runs walking one corpus root is kept. Empty: .vespera-root-locks in your home folder.", "run"));
+        flags.add(new Flag("label-file", "Label file to record", "file", "",
+                "A completed label file kept elsewhere. Empty: the one the last run wrote in the working directory.", "label"));
+        flags.forEach(f -> flagValues.put(f.name(), f.defaultValue()));
+    }
+
+    /** The command line an invocation would be started with, showing only what differs from the defaults. */
+    String commandLine(String cmd) {
+        StringBuilder line = new StringBuilder("vespera ").append(cmd);
+        if (cmd.equals("run") && !corpusRoot.get().isBlank()) {
+            line.append(' ').append(quote(corpusRoot.get()));
+        }
+        if (cmd.startsWith("label") && !flagValues.getOrDefault("label-file", "").isBlank()) {
+            line.append(' ').append(quote(flagValues.get("label-file")));
+        }
+        if (!workingDirectory.get().isBlank()) {
+            line.append(" --db-dir=").append(quote(workingDirectory.get()));
+        }
+        String base = cmd.split(" ")[0];
+        for (Flag flag : flags) {
+            String value = flagValues.getOrDefault(flag.name(), "");
+            boolean applies = flag.commands().contains(cmd) || flag.commands().equals(base)
+                    || flag.commands().contains(base + ",") || flag.commands().endsWith(", " + base);
+            if (applies && !flag.name().equals("label-file") && !value.equals(flag.defaultValue()) && !value.isBlank()) {
+                line.append(" --").append(flag.name()).append('=').append(quote(value));
+            }
+        }
+        return line.toString();
+    }
+
+    private static String quote(String s) {
+        return s.contains(" ") ? "\"" + s + "\"" : s;
     }
 
     static Key key(String name) {
@@ -253,12 +480,14 @@ final class Stub {
 
     /** Rule 5 of the prototype skill: the whole state, printed on every variant switch. */
     String dump() {
+        // Names and counts only: no path and no value of the operator's is printed.
         List<String> lines = new ArrayList<>();
-        lines.add("corpusRoot=" + corpusRoot.get() + "  workingDirectory=" + workingDirectory.get());
+        lines.add("sources: " + config.launch.entrySet().stream().map(e -> e.getKey() + " from " + e.getValue().source())
+                .collect(Collectors.joining(", ")));
         lines.add("child=" + childLine() + "  step=" + (currentStep.get() < 0 ? "-" : STEPS.get(currentStep.get()).name()));
         lines.add("next=" + (nextInvocation.get().isEmpty() ? "-" : nextInvocation.get()) + "  wants=" + wants);
-        lines.add("profile=" + profile.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue())
-                .collect(Collectors.joining(", ")));
+        lines.add("profile keys set=" + profile.size() + "  folders left out=" + notRelevantFolders.size()
+                + "  code set names=" + codeSetNames.size() + "  code set folders=" + codeSetFolders.size());
         return String.join(System.lineSeparator() + "  ", lines);
     }
 }

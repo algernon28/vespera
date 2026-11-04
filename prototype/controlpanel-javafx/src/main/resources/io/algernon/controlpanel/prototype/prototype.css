@@ -57,3 +57,36 @@
 .switcher .label { -fx-text-fill: white; -fx-font-weight: bold; }
 .switcher .button { -fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 14px; }
 .switcher .button:hover { -fx-background-color: rgba(255,255,255,0.15); -fx-background-radius: 999; }
+
+/* Variant B, second pass: one look for every button, whatever it does. */
+.cockpit .button, .cockpit .button:default {
+    -fx-background-color: #ffffff; -fx-border-color: #0969da; -fx-border-radius: 6; -fx-background-radius: 6;
+    -fx-text-fill: #0969da; -fx-font-weight: bold; -fx-padding: 6 14;
+}
+.cockpit .button:hover { -fx-background-color: #ddf4ff; }
+.cockpit .button:pressed { -fx-background-color: #b6e3ff; }
+.cockpit .button:disabled { -fx-opacity: 0.45; }
+.source { -fx-text-fill: #8c959f; -fx-font-size: 11px; }
+.bad-text { -fx-text-fill: #cf222e; }
+.code { -fx-font-family: "Consolas", monospace; }
+.step-name { -fx-font-family: "Consolas", monospace; }
+.hyperlink.absent { -fx-text-fill: #8c959f; }
+.text-field.changed { -fx-border-color: #d4a72c; -fx-border-width: 2; -fx-border-radius: 3; }
+.progress-bar.bar-done > .bar { -fx-background-color: #1a7f37; }
+.progress-bar.bar-running > .bar { -fx-background-color: #0969da; }
+.progress-bar.bar-stopped > .bar { -fx-background-color: #d4a72c; }
+
+/* Variant B, third pass */
+.missing-badge { -fx-text-fill: #9a6700; -fx-background-color: #fff8c5; -fx-padding: 1 8; -fx-background-radius: 999;
+                 -fx-font-size: 11px; -fx-font-weight: bold; }
+.rerun { -fx-text-fill: #57606a; -fx-font-size: 11px; -fx-font-style: italic; }
+.key-small { -fx-font-family: "Consolas", monospace; -fx-font-size: 11px; -fx-text-fill: #8c959f; }
+.indent { -fx-padding: 0 0 4 26; }
+.command-line { -fx-font-family: "Consolas", monospace; -fx-font-size: 11px; -fx-background-color: #0d1117;
+                -fx-text-fill: #c9d1d9; -fx-padding: 4 6; -fx-background-radius: 4; }
+.value-chip { -fx-background-color: #eaeef2; -fx-background-radius: 999; -fx-padding: 2 4 2 10; }
+.list-row { -fx-background-color: #f6f8fa; -fx-background-radius: 4; -fx-padding: 3 4 3 8; }
+.cockpit .button.chip-remove { -fx-padding: 0 6; -fx-font-size: 11px; -fx-border-color: transparent; -fx-background-color: transparent; }
+.cockpit .button.chip-remove:hover { -fx-background-color: #ffebe9; -fx-text-fill: #cf222e; }
+.wanted { -fx-background-color: #fff8c5; -fx-border-color: #d4a72c; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 10; }
+.wanted-name .field-name { -fx-text-fill: #9a6700; }

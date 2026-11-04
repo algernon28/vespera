@@ -76,7 +76,7 @@ public final class Prototype extends Application {
             // Builds every variant once, runs the stub child to its stop, then exits.
             stub.start("run");
             javafx.animation.Timeline smoke = new javafx.animation.Timeline(
-                    new javafx.animation.KeyFrame(javafx.util.Duration.seconds(1.5), e -> show(index + 1)));
+                    new javafx.animation.KeyFrame(javafx.util.Duration.seconds(5), e -> show(index + 1)));
             smoke.setCycleCount(VARIANTS.size() * 2);
             smoke.setOnFinished(e -> javafx.application.Platform.exit());
             smoke.play();

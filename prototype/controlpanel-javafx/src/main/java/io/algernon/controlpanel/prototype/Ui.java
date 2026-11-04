@@ -92,14 +92,105 @@ final class Ui {
         return new VBox(4, label(name, "field-name"), field);
     }
 
+    /** GPU or CPU, said in words; the image names stay visible but small. */
     static VBox imageField(Stub stub) {
-        ComboBox<String> box = new ComboBox<>();
-        box.getItems().addAll(Stub.GPU_IMAGE, Stub.CPU_IMAGE);
-        box.setEditable(true);
-        box.setMaxWidth(Double.MAX_VALUE);
-        box.valueProperty().bindBidirectional(stub.doclingImage);
-        return new VBox(4, label("Docling image", "field-name"), box,
-                label("In use: chosen by the control panel; pick the other if this machine has no graphics card.", "hint"));
+        String current = stub.doclingImage.get();
+        boolean currentIsGpu = current.contains("-cu1") || current.contains("gpu");
+        boolean currentIsCpu = current.contains("-cpu");
+        String gpuImage = currentIsGpu ? current : Stub.GPU_IMAGE;
+        String cpuImage = currentIsCpu ? current : Stub.CPU_IMAGE;
+        javafx.scene.control.ToggleGroup group = new javafx.scene.control.ToggleGroup();
+        javafx.scene.control.RadioButton gpu = new javafx.scene.control.RadioButton("GPU: needs an NVIDIA graphics card. Much faster.");
+        javafx.scene.control.RadioButton cpu = new javafx.scene.control.RadioButton("CPU: runs on any machine. Slower.");
+        gpu.setUserData(gpuImage);
+        cpu.setUserData(cpuImage);
+        gpu.setToggleGroup(group);
+        cpu.setToggleGroup(group);
+        VBox box = new VBox(4, label("Document converter (Docling)", "field-name"),
+                gpu, label(gpuImage, "source", "indent"), cpu, label(cpuImage, "source", "indent"));
+        if (!current.isBlank() && !currentIsGpu && !currentIsCpu) {
+            javafx.scene.control.RadioButton other = new javafx.scene.control.RadioButton("Other image");
+            other.setUserData(current);
+            other.setToggleGroup(group);
+            box.getChildren().addAll(other, label(current, "source", "indent"));
+        }
+        group.getToggles().stream().filter(t -> t.getUserData().equals(current)).findFirst()
+                .ifPresentOrElse(group::selectToggle, () -> group.selectToggle(gpu));
+        group.selectedToggleProperty().addListener((o, a, b) -> {
+            if (b != null) {
+                stub.doclingImage.set((String) b.getUserData());
+            }
+        });
+        return box;
+    }
+
+    /**
+     * A list of folders, with the folder being added above it: Browse picks it, "+" adds it.
+     * {@code refusal} says why a folder cannot be added, or null; {@code shown} turns it into
+     * the text kept in the list.
+     */
+    static VBox folderList(String name, javafx.collections.ObservableList<String> items,
+            java.util.function.Supplier<String> start, java.util.function.Function<File, String> refusal,
+            java.util.function.Function<File, String> shown, String hint) {
+        TextField picked = new TextField();
+        picked.setEditable(false);
+        picked.setPromptText("Browse to pick a folder");
+        HBox.setHgrow(picked, Priority.ALWAYS);
+        Label problem = label("", "bad-text");
+        Button browse = new Button("Browse…");
+        Button add = new Button("+");
+        add.setTooltip(new javafx.scene.control.Tooltip("Add the folder to the list"));
+        add.disableProperty().bind(picked.textProperty().isEmpty());
+        browse.setOnAction(e -> {
+            DirectoryChooser chooser = new DirectoryChooser();
+            chooser.setTitle(name);
+            String from = start.get();
+            if (from != null && new File(from).isDirectory()) {
+                chooser.setInitialDirectory(new File(from));
+            }
+            File dir = chooser.showDialog(browse.getScene().getWindow());
+            if (dir != null) {
+                String why = refusal.apply(dir);
+                problem.setText(why == null ? "" : "Not added: " + why);
+                picked.setText(why == null ? shown.apply(dir) : "");
+            }
+        });
+        add.setOnAction(e -> {
+            if (items.stream().anyMatch(picked.getText()::equalsIgnoreCase)) {
+                problem.setText("Not added: it is listed already");
+            } else {
+                items.add(picked.getText());
+            }
+            picked.clear();
+        });
+        VBox rows = new VBox(4);
+        Runnable draw = () -> {
+            rows.getChildren().clear();
+            for (String item : items) {
+                Label text = label(item, "code");
+                text.setMaxWidth(Double.MAX_VALUE);
+                HBox.setHgrow(text, Priority.ALWAYS);
+                Button remove = new Button("✕");
+                remove.getStyleClass().add("chip-remove");
+                remove.setTooltip(new javafx.scene.control.Tooltip("Remove from the list"));
+                remove.setOnAction(e -> items.remove(item));
+                HBox row = new HBox(6, text, remove);
+                row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                row.getStyleClass().add("list-row");
+                rows.getChildren().add(row);
+            }
+            if (items.isEmpty()) {
+                rows.getChildren().add(label("None yet.", "hint"));
+            }
+        };
+        items.addListener((ListChangeListener<String>) c -> draw.run());
+        draw.run();
+        VBox box = new VBox(6, label(name, "field-name"));
+        if (hint != null) {
+            box.getChildren().add(label(hint, "hint"));
+        }
+        box.getChildren().addAll(new HBox(6, picked, browse, add), problem, rows);
+        return box;
     }
 
     /** Value, why, cost and report links for one profile key, with its own Save. */
@@ -137,11 +228,22 @@ final class Ui {
     static Hyperlink reportLink(Stub stub, String report) {
         Hyperlink link = new Hyperlink(report);
         link.setOnAction(e -> {
-            Alert alert = new Alert(Alert.AlertType.INFORMATION,
-                    "Would open " + stub.workingDirectory.get() + "\\" + report + ".html in the browser"
-                            + " (or in an embedded WebView, if javafx-web is added).");
-            alert.setHeaderText(report);
-            alert.showAndWait();
+            File file = new File(stub.workingDirectory.get(), report + ".html");
+            if (file.isFile()) {
+                // AWT's own thread, so the JavaFX thread never waits on the browser starting.
+                Thread.ofVirtual().start(() -> {
+                    try {
+                        java.awt.Desktop.getDesktop().open(file);
+                    } catch (Exception ignored) {
+                        // a prototype: the link simply does nothing
+                    }
+                });
+            } else {
+                Alert alert = new Alert(Alert.AlertType.INFORMATION,
+                        "The working directory holds no " + report + ".html yet: a run writes it.");
+                alert.setHeaderText(report);
+                alert.showAndWait();
+            }
         });
         return link;
     }
