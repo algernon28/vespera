@@ -19,10 +19,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
@@ -112,12 +112,12 @@ class TheCodeSetFoldersAreWalkedUnderTheCorpusRootsWalkTest {
     }
 
     /**
-     * A session stopped inside a code set folder, once a checkpoint there is committed, is continued from that
-     * checkpoint (ADR-055; ADR-334 §5.3, "a checkpoint names the folder it lies in by its ordinal"): under the walk's own
-     * id, in that folder, the corpus root not walked again nor what the checkpoint covers. The folders are walked by
-     * {@link Walk#walk} itself, not through the traversal seam, so the session is stopped by the transaction template
-     * the recorder commits through: it throws once the walk row's checkpoint names the first folder, as a machine
-     * stopping there ends the session, every row committed so far kept.
+     * An invocation stopped inside a code set folder, once a checkpoint there is committed, is continued from that
+     * checkpoint by the next (ADR-055; ADR-334 §5.3, "a checkpoint names the folder it lies in by its ordinal"): under
+     * the walk's own id, in that folder, the corpus root not walked again nor what the checkpoint covers. The folders are
+     * walked by {@link Walk#walk} itself, not through the traversal seam, so the invocation is stopped by the transaction
+     * template the recorder commits through: it throws once the walk row's checkpoint names the first folder, as a
+     * machine stopping there ends the invocation, every row committed so far kept.
      */
     @Test
     @Story("A walk resumes where it stopped")
@@ -138,7 +138,7 @@ class TheCodeSetFoldersAreWalkedUnderTheCorpusRootsWalkTest {
         Throwable stoppedBy = catchThrowable(() -> stoppingInTheFirstFolder.walk(root, List.of(billing, tools)));
         Optional<ResumableWalk> unfinished = ledger.walks().unfinishedWalk(Walk.canonicalRoot(root));
 
-        claim("the first session ended inside the first folder outside the corpus root, its walk unfinished and its last"
+        claim("the first invocation ended inside the first folder outside the corpus root, its walk unfinished and its last"
                         + " checkpoint led by that folder's ordinal",
                 () -> {
                     assertThat(stoppedBy).isInstanceOf(MachineStopped.class);
@@ -157,7 +157,7 @@ class TheCodeSetFoldersAreWalkedUnderTheCorpusRootsWalkTest {
 
         WalkId resumed = recorder().walk(root, List.of(billing, tools));
 
-        claim("the next session continues the walk under its own id, and finishes it, accounting for every entry",
+        claim("the next invocation continues the walk under its own id, and finishes it, accounting for every entry",
                 () -> {
                     assertThat(resumed).isEqualTo(stopped);
                     assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).contains(resumed);
@@ -201,7 +201,7 @@ class TheCodeSetFoldersAreWalkedUnderTheCorpusRootsWalkTest {
                 new WalkCounts(9, 4));
         ResumableWalk unfinished = ledger.walks().unfinishedWalk(Walk.canonicalRoot(root)).orElseThrow();
 
-        claim("and recorded with a walk, the ledger hands it back to the next session as the same checkpoint",
+        claim("and recorded with a walk, the ledger hands it back to the next invocation as the same checkpoint",
                 () -> assertThat(Checkpoint.of(unfinished.checkpointOrdinals(), unfinished.checkpointPath()))
                         .contains(inTheSecondFolder));
     }
@@ -314,17 +314,13 @@ class TheCodeSetFoldersAreWalkedUnderTheCorpusRootsWalkTest {
 
     /** The occurrences {@code walk} recorded, each path's row id by its path. */
     private Map<String, Long> rowsOf(WalkId walk) {
-        Map<String, Long> rows = new LinkedHashMap<>();
-        jdbcTemplate.query("SELECT id, path FROM file_occurrence WHERE walk_id = ? ORDER BY path",
-                row -> {
-                    rows.put(row.getString("path"), row.getLong("id"));
-                },
-                walk.value());
-        return rows;
+        return jdbcTemplate.query("SELECT id, path FROM file_occurrence WHERE walk_id = ?",
+                        (row, number) -> Map.entry(row.getString("path"), row.getLong("id")), walk.value())
+                .stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**
-     * A transaction template that commits as the recorder's does, then ends the session, as a machine stopping would,
+     * A transaction template that commits as the recorder's does, then ends the invocation, as a machine stopping would,
      * once a walk's checkpoint lies in the folder of {@code ordinal}.
      */
     private TransactionTemplate stoppingOnceTheCheckpointLiesIn(int ordinal) {
@@ -354,8 +350,8 @@ class TheCodeSetFoldersAreWalkedUnderTheCorpusRootsWalkTest {
     }
 
     /**
-     * A traversal that walks for real and stops as soon as the walk offers its first checkpoint, the shape of a session
-     * killed partway, as {@code WalkRecorderTest}'s does.
+     * A traversal that walks for real and stops as soon as the walk offers its first checkpoint, the shape of an
+     * invocation killed partway, as {@code WalkRecorderTest}'s does.
      */
     private static WalkRecorder.Traversal stoppingAfterTheFirstDirectory() {
         return (root, observer, resumeFrom) -> {
@@ -363,7 +359,7 @@ class TheCodeSetFoldersAreWalkedUnderTheCorpusRootsWalkTest {
             try {
                 return Walk.walk(root, stopping, resumeFrom);
             } catch (StopAtTheFirstCheckpoint.Stop stop) {
-                return new Walk.Outcome(root, stopping.lastProgress, false, "the test stopped this session");
+                return new Walk.Outcome(root, stopping.lastProgress, false, "the test stopped this invocation");
             }
         };
     }

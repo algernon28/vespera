@@ -203,7 +203,7 @@ public final class WorkingDirectoryWrite {
                         Files.deleteIfExists(part);
                     }
                 } else {
-                    moves.delete(folder.resolve(name));
+                    moves.deleteIfExists(folder.resolve(name));
                 }
             } catch (IOException | RuntimeException e) {
                 notBack.append(notBack.length() == 0 ? "" : "; ").append("could not put ").append(name)
@@ -236,28 +236,32 @@ public final class WorkingDirectoryWrite {
     private final FileMoves moves;
 
     /**
-     * How a file is moved over its target and how one is removed. It is a seam for the tests to fail a move, as no file
-     * system fails a put-back that did not fail the write before it.
+     * How a file is moved over its target and how one is removed, which the all-or-none write and its put-back carry
+     * (ADR-334 §6). It is a seam for the tests to fail a move, as no file system fails a put-back that did not fail
+     * the write before it.
      */
     interface FileMoves {
 
         void move(Path from, Path to) throws IOException;
 
-        void delete(Path file) throws IOException;
+        void deleteIfExists(Path file) throws IOException;
     }
 
-    public WorkingDirectoryWrite(BooleanSupplier anInvocationItStartedRuns, String userName) {
-        this(anInvocationItStartedRuns, userName, new FileMoves() {
-            @Override
-            public void move(Path from, Path to) throws IOException {
-                Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            }
+    /** The moves and removals as the file system does them. */
+    static final FileMoves ON_DISK = new FileMoves() {
+        @Override
+        public void move(Path from, Path to) throws IOException {
+            Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        }
 
-            @Override
-            public void delete(Path file) throws IOException {
-                Files.deleteIfExists(file);
-            }
-        });
+        @Override
+        public void deleteIfExists(Path file) throws IOException {
+            Files.deleteIfExists(file);
+        }
+    };
+
+    public WorkingDirectoryWrite(BooleanSupplier anInvocationItStartedRuns, String userName) {
+        this(anInvocationItStartedRuns, userName, ON_DISK);
     }
 
     WorkingDirectoryWrite(BooleanSupplier anInvocationItStartedRuns, String userName, FileMoves moves) {

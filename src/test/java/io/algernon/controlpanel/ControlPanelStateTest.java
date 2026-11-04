@@ -34,8 +34,8 @@ import org.junit.jupiter.api.io.TempDir;
  * The control panel's writes and its starts one at a time (ADR-295 §1, ADR-306 §1): the server answers each request on
  * a thread of its own, and since a holder line of the control panel's own process reads as held by nobody, only the
  * {@link ControlPanelState}'s monitor keeps a start from passing its checks while a write holds the working-directory
- * lock. And where the state reads a Confluence rendering as drawn, the working directory's {@code deliverable} folder
- * named being read as none named (ADR-334 §1).
+ * lock. The state also tells whether a Confluence rendering is drawn, and reads the working directory's
+ * {@code deliverable} folder, named as the output folder, as no folder named (ADR-334 §1).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -48,6 +48,9 @@ class ControlPanelStateTest {
 
     /** How long the test waits for either thread before it fails. */
     private static final Duration BOUND = Duration.ofSeconds(10);
+
+    /** A generation run's folder, as the trees under the working directory's {@code deliverable} folder are named. */
+    private static final String A_RUN = "abcdef0123456789";
 
     @Test
     @Story("The control panel writes into a working directory")
@@ -113,9 +116,9 @@ class ControlPanelStateTest {
         Path workingDirectory = Files.createDirectory(folder.resolve("working"));
         Path corpusRoot = Files.createDirectory(folder.resolve("corpus"));
         Path theDefault = workingDirectory.resolve("deliverable");
-        aRenderingDrawnUnderARunOf(theDefault);
+        aRenderingDrawnAtTheTopOf(theDefault.resolve(A_RUN));
         Path elsewhere = folder.resolve("elsewhere");
-        aRenderingDrawnUnderARunOf(elsewhere);
+        aRenderingDrawnAtTheTopOf(elsewhere.resolve(A_RUN));
         Map<String, String> named = new LinkedHashMap<>();
         named.put("no output folder named", "");
         named.put("the working directory's deliverable folder named", theDefault.toString());
@@ -151,7 +154,7 @@ class ControlPanelStateTest {
     void onWindowsTheDefaultFolderInCapitalsFindsARendering(@TempDir Path folder) throws IOException {
         Path workingDirectory = Files.createDirectory(folder.resolve("working"));
         Path corpusRoot = Files.createDirectory(folder.resolve("corpus"));
-        aRenderingDrawnUnderARunOf(workingDirectory.resolve("deliverable"));
+        aRenderingDrawnAtTheTopOf(workingDirectory.resolve("deliverable").resolve(A_RUN));
         Map<String, String> named = new LinkedHashMap<>();
         named.put("the deliverable folder named in capitals", workingDirectory.resolve("DELIVERABLE").toString());
 
@@ -174,7 +177,7 @@ class ControlPanelStateTest {
         return drawn;
     }
 
-    /** A Confluence rendering's page list at the top of {@code tree}, as a named root, the tree itself, holds it. */
+    /** A Confluence rendering's page list at the top of {@code tree}, as each run's tree holds it. */
     private static void aRenderingDrawnAtTheTopOf(Path tree) throws IOException {
         Path confluence = Files.createDirectories(tree.resolve("confluence"));
         Files.writeString(confluence.resolve("pages.json"), "{}", StandardCharsets.UTF_8);
@@ -188,12 +191,6 @@ class ControlPanelStateTest {
                         folder.resolve("no-such.jar")),
                 LaunchValues.fileIn(Files.createDirectory(folder.resolve("tmp")), USER),
                 Files.createDirectory(folder.resolve("root-locks")), USER);
-    }
-
-    /** A Confluence rendering's page list as a run's tree holds it, in a run's folder under {@code trees}. */
-    private static void aRenderingDrawnUnderARunOf(Path trees) throws IOException {
-        Path confluence = Files.createDirectories(trees.resolve("abcdef0123456789").resolve("confluence"));
-        Files.writeString(confluence.resolve("pages.json"), "{}", StandardCharsets.UTF_8);
     }
 
     /** The state {@code thread} comes to rest in: waiting on a monitor, or ended; the test fails where it does neither. */

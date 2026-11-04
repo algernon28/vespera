@@ -18,7 +18,6 @@ import java.nio.channels.FileLock;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
@@ -60,9 +59,9 @@ class WorkingDirectoryWriteTest {
     private static final WorkingDirectoryWrite NO_CHILD_RUNS = new WorkingDirectoryWrite(() -> false, USER);
 
     /** The list of folders not relevant, written first of the two, and the questions, written after it. */
-    private static final String THE_LIST = "not-relevant-folders.yaml";
+    private static final String THE_LIST = NotRelevantFolders.FILE_NAME;
 
-    private static final String THE_QUESTIONS = "relevance-labels.yaml";
+    private static final String THE_QUESTIONS = LabelAnswers.FILE_NAME;
 
     private static final String LIST_BEFORE = "---\n- folder: \"a\"\n";
 
@@ -389,10 +388,11 @@ class WorkingDirectoryWriteTest {
     }
 
     /**
-     * File moves that move as the control panel's own do, but fail every move onto the questions, every move onto the
-     * list after the first, which is the put-back, and every removal of the list, which is the put-back of a list that
-     * was not there. A part file is moved and removed as usual. What was asked of the list itself, a move onto it or
-     * its removal, is kept in order, so a test can tell which put-back was tried.
+     * File moves that move and remove as the control panel's own on disk do, {@link WorkingDirectoryWrite#ON_DISK}
+     * doing it, but fail every move onto the questions, every move onto the list after the first, which is the
+     * put-back, and every removal of the list, which is the put-back of a list that was not there. A part file is moved
+     * and removed as usual. What was asked of the list itself, a move onto it or its removal, is kept in order, so a
+     * test can tell which put-back was tried.
      */
     private static final class FailingThePutBack implements WorkingDirectoryWrite.FileMoves {
 
@@ -411,16 +411,16 @@ class WorkingDirectoryWriteTest {
                     throw new IOException(THE_PUT_BACK_FAILS);
                 }
             }
-            Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            WorkingDirectoryWrite.ON_DISK.move(from, to);
         }
 
         @Override
-        public void delete(Path file) throws IOException {
+        public void deleteIfExists(Path file) throws IOException {
             if (file.getFileName().toString().equals(THE_LIST)) {
                 onTheList.add(DELETE);
                 throw new IOException(THE_PUT_BACK_FAILS);
             }
-            Files.deleteIfExists(file);
+            WorkingDirectoryWrite.ON_DISK.deleteIfExists(file);
         }
     }
 
