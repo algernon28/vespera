@@ -16,6 +16,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -163,6 +166,78 @@ class ControlPanelStateTest {
         claim("the folder named in capitals is the working directory's deliverable folder, and the rendering in a run's"
                         + " folder under it is found",
                 () -> assertThat(drawn).containsExactly(Map.entry("the deliverable folder named in capitals", true)));
+    }
+
+    /**
+     * A start is refused where the working directory it passes is held by another invocation (ADR-278 §4, ADR-341 §3):
+     * the one the window passes, which may have come from the environment and be kept nowhere, and not the one the state
+     * held before. The holder is a live process of the test's own, named by a holder line as the jar writes one.
+     */
+    @Test
+    @Issue("700")
+    @Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+    @Link(name = "ADR-278", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN, type = "adr")
+    @Story("The control panel starts no invocation where another holds the working directory")
+    @DisplayName("A start is refused where the working directory it passes is held by another invocation, whatever the one held before")
+    void aStartIsRefusedWhereTheWorkingDirectoryItPassesIsHeld(@TempDir Path folder) throws Exception {
+        Path corpusRoot = Files.createDirectory(folder.resolve("corpus"));
+        Path free = Files.createDirectory(folder.resolve("free"));
+        Path held = Files.createDirectory(folder.resolve("held"));
+        Process holder = ChildForTests.builder("sleep").start();
+        try {
+            Files.writeString(held.resolve(WorkingDirectoryWrite.LOCK_FILE_NAME), "pid=" + holder.pid() + " started="
+                    + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS))
+                    + " command=run\n", StandardCharsets.UTF_8);
+            ControlPanelState passingTheHeldOne = new ControlPanelState(SleepingJar.runtime(),
+                    LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp-one")), USER),
+                    Files.createDirectories(folder.resolve("root-locks-one")), USER);
+            passingTheHeldOne.hold(new LaunchValues(corpusRoot.toString(), free.toString(), "", "", "", "", "", ""));
+            ControlPanelState passingTheFreeOne = new ControlPanelState(SleepingJar.runtime(),
+                    LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp-two")), USER),
+                    Files.createDirectories(folder.resolve("root-locks-two")), USER);
+            passingTheFreeOne.hold(new LaunchValues(corpusRoot.toString(), held.toString(), "", "", "", "", "", ""));
+            Optional<String> refusedForTheHeldOne;
+            boolean startedForTheHeldOne;
+            Optional<String> refusedForTheFreeOne;
+            boolean startedForTheFreeOne;
+            try {
+                refusedForTheHeldOne = passingTheHeldOne.start(ControlPanelState.Start.RUN, passing(corpusRoot, held),
+                        new ArrayList<>());
+                startedForTheHeldOne = passingTheHeldOne.childWasStarted();
+                refusedForTheFreeOne = passingTheFreeOne.start(ControlPanelState.Start.RUN, passing(corpusRoot, free),
+                        new ArrayList<>());
+                startedForTheFreeOne = passingTheFreeOne.childWasStarted();
+            } finally {
+                passingTheHeldOne.stop();
+                passingTheFreeOne.stop();
+            }
+
+            claim("passing a working directory another invocation holds, while the one held before is free, is refused,"
+                            + " naming the one passed, and starts nothing",
+                    () -> {
+                        assertThat(refusedForTheHeldOne).hasValueSatisfying(line -> assertThat(line).startsWith(
+                                "Run is not started: the working directory " + held
+                                        + " is held by another Vespera invocation ("));
+                        assertThat(startedForTheHeldOne).isFalse();
+                    });
+            claim("and passing a free one, while the one held before is held, starts the invocation",
+                    () -> {
+                        assertThat(refusedForTheFreeOne).isEmpty();
+                        assertThat(startedForTheFreeOne).isTrue();
+                    });
+        } finally {
+            holder.destroyForcibly().waitFor(BOUND.toSeconds(), TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * What the window passes for a Run whose corpus root and working directory came from the environment: both passed,
+     * as the command's own arguments, and neither kept (ADR-341 §3).
+     */
+    private static ControlPanelState.Plan passing(Path corpusRoot, Path workingDirectory) {
+        return new ControlPanelState.Plan(
+                new LaunchValues(corpusRoot.toString(), workingDirectory.toString(), "", "", "", "", "", ""),
+                new LaunchValues("", "", "", "", "", "", "", ""), Map.of(), null);
     }
 
     /** Whether a rendering is drawn, by what each output folder named is called, the state holding it as launch value. */

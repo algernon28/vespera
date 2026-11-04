@@ -33,20 +33,21 @@ final class SleepingJar {
         if (jar == null) {
             Path folder = Files.createTempDirectory("vespera-sleeping-jar");
             folder.toFile().deleteOnExit();
-            jar = write(folder.resolve("sleeping.jar"));
+            jar = write(folder.resolve("sleeping.jar"), ASleepingChildForTests.class);
             jar.toFile().deleteOnExit();
         }
         return jar;
     }
 
-    private static Path write(Path file) throws IOException {
+    /** Writes a jar holding {@code main} alone, run by its manifest; {@link EndingJar} writes its own by it too. */
+    static Path write(Path file, Class<?> main) throws IOException {
         Manifest manifest = new Manifest();
         manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
-        manifest.getMainAttributes().put(Attributes.Name.MAIN_CLASS, ASleepingChildForTests.class.getName());
-        String entry = ASleepingChildForTests.class.getName().replace('.', '/') + ".class";
+        manifest.getMainAttributes().put(Attributes.Name.MAIN_CLASS, main.getName());
+        String entry = main.getName().replace('.', '/') + ".class";
         try (OutputStream out = Files.newOutputStream(file);
                 JarOutputStream jarred = new JarOutputStream(out, manifest);
-                InputStream bytes = ASleepingChildForTests.class.getClassLoader().getResourceAsStream(entry)) {
+                InputStream bytes = main.getClassLoader().getResourceAsStream(entry)) {
             if (bytes == null) {
                 throw new IOException("no compiled " + entry + " on the test class path");
             }

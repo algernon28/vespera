@@ -239,6 +239,23 @@ The words each holds are the pages' as the records give them.
 | `controlpanel.TheCommandOptionsTest.theLabelFileIsPassedToLabelAndNeverToLabelAuto` | the label file to `label`, none to `label --auto` (§4) |
 | `controlpanel.TheCommandOptionsTest.theLineShownIsTheCommandStarted` | `shown()` is `vespera` and the child's arguments, a space quoted (§4) |
 
+What the implementation owes is held, through the window shown by `ControlPanelWindow.shownOn(Stage, ControlPanelState, Dialogs)` on the Headless platform, its questions answered by the test through `Dialogs.confirm(String, String, String)` (ADR-339 §6), by these (added in place, [#700](https://github.com/algernon28/vespera/issues/700)):
+
+| Method | What it holds |
+| --- | --- |
+| `controlpanel.TheFoldersToIncludeTest.aFolderUntickedIsWrittenAloneThoughItsSubfoldersWereListed` | a folder unticked stands unticked with every folder below it and is written alone (§1, ADR-334 §6) |
+| `controlpanel.TheFoldersToIncludeTest.untickingEverySubfolderLeavesTheFolderHalfTickedAndWritesOnlyThem` | the only subfolder, or every one, unticked: the folder half-ticked, those subfolders written and it not (§1) |
+| `controlpanel.TheFoldersToIncludeTest.aListedSubfolderComesBackUnchanged` | a listed `A/B`, with `A` holding `B` alone or `B` and `C`: drawn unticked under a half-ticked `A`, the file unchanged by a Save (§1) |
+| `controlpanel.TheFoldersToIncludeTest.aListedFolderNoLongerThereIsKept` | a listed folder no longer there, at the top and below a folder: kept by a Save (§1) |
+| `controlpanel.TheWindowSavesTheProfileTest.theProfileTabsSaveWritesEachValueAndNoteAsTheTableSays` | the Profile tab's Save writes ADR-340 §2's table, row by row, a key the file never stated left unwritten (§1, ADR-340 §2) |
+| `controlpanel.TheWindowSavesTheProfileTest.aSeedFolderOfferedFromTheLastOneIsWrittenBySave` | the seed folder offered from `last-seed-folder`, which the profile does not state, is written by the section's Save with the filled-in note (§1, ADR-340 §2) |
+| `controlpanel.TheWorkingDirectoryInTheFoldersFieldTest.theFieldsWorkingDirectoryIsReadAndWrittenBeforeARunAndAfterIt` | the working directory from the environment or `.env`, kept nowhere: its profile, folders not relevant and reports read, its `progress.json` read as the Run ends, its profile and folders not relevant written after it (§1, §2, §3) |
+| `controlpanel.TheWorkingDirectoryInTheFoldersFieldTest.anotherWorkingDirectoryTypedInTheFieldIsTheOneRead` | another working directory typed in the field: its profile, folders not relevant and reports read (§1, §3) |
+| `controlpanel.ControlPanelStateTest.aStartIsRefusedWhereTheWorkingDirectoryItPassesIsHeld` | a start is refused where the working directory passed is held, and not for the one held before (§3, ADR-278 §4) |
+| `controlpanel.StopAndCloseAskFirstTest.stopAsksWithItsSentenceAndStopsTheChildOnlyOnTheAnswerThatGoesOn` | `stop` and `stop-step` ask with ADR-285 §5's sentence; no stops nothing, yes stops the child (§1, ADR-278 §6) |
+| `controlpanel.StopAndCloseAskFirstTest.closingWhileTheChildRunsAsksOnceAndKeepTheWindowKeepsIt` | closing while the child runs asks once, with the sentence, **Stop and close** and **Keep the window**; Keep the window keeps both; no child, no question (§7) |
+| `controlpanel.TheValuesTheNextInvocationWantsTest.aReportTheWorkingDirectoryHoldsIsALinkBesideAWantedValue` | a wanted key's report the working directory holds is a link in `wanted`, opening that report (§1, §6) |
+
 The tests of §8's moved rules are ADR-339 §6's, in its Tests section.
 
 ## What the implementation owes
