@@ -40,10 +40,10 @@ import picocli.CommandLine;
  * The last generation run whose tree holds the page list or a {@code drawing.txt} is the one, so an older run's
  * rendering is never sent in place of one whose drawing did not finish.
  *
- * <p>ADR-333's Tests table names this class {@code confluence.PublishRefusesARenderingWhoseDrawingDidNotFinishIT}. It
- * lies in {@code pipeline} beside {@code PublishFindsTheLastDrawnRenderingIT}, because the run a publish takes is found
- * by {@code VesperaCommand.Publish}, whose constructor this package alone reaches; and it is a test of the build and
- * untagged, since its publisher sends nothing and reaches no site, so CI runs it. Step 1 of ADR-333 §13 keeps that
+ * <p>This is the class ADR-333's Tests table, as corrected in ADR-333 step 1, and ADR-338 §3 name. It lies in {@code
+ * pipeline} beside {@code PublishFindsTheLastDrawnRenderingIT}, because the run a publish takes is found by {@code
+ * VesperaCommand.Publish}, whose constructor this package alone reaches; and it is a test of the build and untagged,
+ * since its publisher sends nothing and reaches no site, so CI runs it. Step 1 of ADR-333 §13 keeps that
  * constructor and its {@link Publisher}; a bare publish is Confluence, the only destination before {@code --to} (§6).
  */
 @JdbcTest

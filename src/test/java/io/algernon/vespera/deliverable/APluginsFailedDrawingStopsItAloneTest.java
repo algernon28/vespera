@@ -50,7 +50,10 @@ class APluginsFailedDrawingStopsItAloneTest {
 
     private static final String WHOLE = "zulu";
 
-    /** Every call a plugin's drawing hears over the fixture but the closing of a group's entries, which is not pinned. */
+    /**
+     * Every call a plugin's drawing hears over the fixture, the closing of a cluster's entries among them (ADR-333 §11:
+     * any call of its entries).
+     */
     private static final List<String> EVERY_CALL_THAT_CAN_THROW = List.of(
             ScriptedPlugin.DRAWING,
             ScriptedPlugin.PARTITION_STARTED,
@@ -60,6 +63,7 @@ class APluginsFailedDrawingStopsItAloneTest {
             ScriptedPlugin.PICTURE,
             ScriptedPlugin.NOT_SHOWN,
             ScriptedPlugin.END,
+            ScriptedPlugin.ENTRIES_CLOSED,
             ScriptedPlugin.CLUSTER_DRAWN,
             ScriptedPlugin.PARTITION_ENDED,
             ScriptedPlugin.FINISH,
@@ -87,7 +91,7 @@ class APluginsFailedDrawingStopsItAloneTest {
         Path tree = TwoClustersWithPictures.draw(base, List.of(failing, whole), hearing(told));
         Map<String, byte[]> theTreeWithTheTwo = everyFileOf(tree);
         String stateAfterTheFailure = stateOf(tree, FAILING);
-        List<String> failingHeard = TwoClustersWithPictures.withoutEntriesClosed(failing.calls());
+        List<String> failingHeard = failing.calls();
 
         claim(
                 "the drawing went to its end at the same tree, and every file of it outside the plugins' folders is"
@@ -112,7 +116,8 @@ class APluginsFailedDrawingStopsItAloneTest {
                 () -> {
                     int thrownAt = indexOfTheFirst(failingHeard, call);
                     assertThat(thrownAt).as("where %s threw", FAILING).isNotNegative();
-                    List<String> after = failingHeard.subList(thrownAt + 1, failingHeard.size());
+                    List<String> after = TwoClustersWithPictures.withoutEntriesClosed(
+                            failingHeard.subList(thrownAt + 1, failingHeard.size()));
                     if (call.equals(ScriptedPlugin.DRAWING) || call.equals(ScriptedPlugin.CLOSE)) {
                         assertThat(after).isEmpty();
                     } else {
