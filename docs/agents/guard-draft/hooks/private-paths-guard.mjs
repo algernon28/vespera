@@ -104,6 +104,13 @@
 // it, so it is read as a path only where that makes one, as after an =, and on a system that is not
 // Windows a rooted one is not read.
 //
+// In a segment whose first word is the bare word git, a word that begins with : or :N: (N from 0 to 3) is
+// git's index form (ADR-343, which amends ADR-217 section 2 for that form): its rest is read as any token
+// is, against every folder the command names, and on Windows the word is read by its rest only, off Windows
+// as written as well. A git push refspec such as :claude/x is read so too. Not given that reading: a
+// redirect's target, a value after =, and any word in a command with a ( ) or backtick (or { } in
+// PowerShell). One letter and a colon stays a drive, and a name of spaces stays refused.
+//
 // A link is followed before the check. A path that holds .. is read twice, and either reading refuses:
 // as text, where .. folds against the name before it, and as the file system walks it, which starts from
 // the real path of the folder the path is read against (for an absolute path, from its root) and at each
@@ -681,6 +688,39 @@ function variantsOf(text) {
   return [words, values];
 }
 
+// Where the words that are git's index form start in a command (ADR-343), each with its prefix, : or :N:
+// for a stage N of 0 to 3. A word counts only in a segment (cut at ; & | and the line break) whose first
+// word is the bare word git, folded to one case in PowerShell, and in a command with no ( ) or backtick,
+// and, in PowerShell, no { }. A word after a redirect operator, a word with a quote inside it and a word
+// with no rest after the prefix do not count. A value after = is not the word, so it does not either.
+const INDEX_PREFIX = /^(:(?:[0-3]:)?)(?=[^])/;
+function gitIndexForms(command, bash) {
+  const forms = new Map();
+  if (/[()`]/.test(command) || (!bash && /[{}]/.test(command))) return forms;
+  for (const segment of command.matchAll(/[^;&|\r\n]+/g)) {
+    const words = [...segment[0].matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)];
+    const [first, ...rest] = words;
+    if (!first || first[3] === undefined || (bash ? first[3] : first[3].toLowerCase()) !== "git") continue;
+    let afterRedirect = false;
+    for (const word of rest) {
+      const bare = word[3] !== undefined;
+      const text = word[1] ?? word[2] ?? word[3];
+      if (afterRedirect) {
+        afterRedirect = false;
+        continue;
+      }
+      if (bare && /^\d*(?:>>?|<)$/.test(text)) {
+        afterRedirect = true;
+        continue;
+      }
+      if (bare && /["'`]/.test(text)) continue;
+      const prefix = INDEX_PREFIX.exec(text);
+      if (prefix) forms.set(segment.index + word.index + (bare ? 0 : 1), prefix[1]);
+    }
+  }
+  return forms;
+}
+
 // What a command's text names: absolute paths, each as { label, text }, where text is read against the
 // current directory by the caller, and relative ones, each as rel -> { label, written }, where written
 // is how many times the command writes that token. A relative one is read against a directory by the
@@ -848,12 +888,21 @@ function pathsInCommand(command, bash) {
     readOnce(text, base);
   };
 
-  for (const m of command.matchAll(COMMAND_TOKENS)) read(m[0], m.index);
+  // In a segment whose program is git, a word that begins with : or :N: is git's index form, and is read
+  // by its rest as well as, off Windows, as written (ADR-343). indexForms holds where each such word starts.
+  const indexForms = gitIndexForms(command, bash);
+  const readWord = (text, offset) => {
+    const prefix = indexForms.get(offset);
+    if (prefix === undefined || !text.startsWith(prefix)) return read(text, offset);
+    if (!windows) read(text, offset);
+    read(text.slice(prefix.length), offset >= 0 ? offset + prefix.length : -1);
+  };
+  for (const m of command.matchAll(COMMAND_TOKENS)) readWord(m[0], m.index);
   // A backslash before a space joins what is on either side of it into one path.
   for (const m of command.matchAll(/(?:\\ |[^\s"'`;|&<>()])+/g)) {
     if (m[0].includes("\\ ")) read(m[0].replace(/\\ /g, " "));
   }
-  for (const { whole, from } of quotes) if (whole) read(whole, from);
+  for (const { whole, from } of quotes) if (whole) readWord(whole, from);
   return { absolute, relative };
 }
 
