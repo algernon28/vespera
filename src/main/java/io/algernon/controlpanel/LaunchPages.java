@@ -223,14 +223,23 @@ final class LaunchPages {
                         + " the folder this machine is set to use, or else the .vespera folder of the folder the control"
                         + " panel was started from, as shown. If it is not there yet, the first value you save makes it.")
                 .browse(target.forName());
-        if (isTheDefault) {
+        // a default no path can hold names no folder in use: the example stands instead (ADR-340 §6)
+        boolean heldNoPath = isTheDefault && inUse.isEmpty();
+        if (isTheDefault && !heldNoPath) {
             field.inUse(inUse);
         } else {
             field.example("D:\\vespera\\work");
         }
         WorkingDirectoryDefault machine = state.workingDirectoryDefault();
         String source = isTheDefault ? machine.source() : "launch-value";
+        String given = writtenWithCodes(machine.folder());
         String words = !isTheDefault ? "In use: " + typed + ", as typed here."
+                : heldNoPath && machine.source().equals(WorkingDirectoryDefault.SYSTEM_PROPERTY)
+                ? "None in use: the system property " + machine.name() + " the control panel was started with names "
+                        + given + ", which is no path this system can hold, so no working directory is chosen."
+                : heldNoPath && machine.source().equals(WorkingDirectoryDefault.ENVIRONMENT)
+                ? "None in use: the environment variable " + machine.name() + " names " + given
+                        + ", which is no path this system can hold, so no working directory is chosen."
                 : switch (machine.source()) {
                     case WorkingDirectoryDefault.SYSTEM_PROPERTY -> "In use: " + inUse + ", from the system property "
                             + machine.name() + " the control panel was started with.";
@@ -246,6 +255,19 @@ final class LaunchPages {
                         ? " data-source-name=\"" + ControlPanelPage.escape(machine.name()) + "\"" : "")
                 + ">" + ControlPanelPage.escape(words)
                 + "</p>\n").html();
+    }
+
+    /** The value as given, each character below U+0020 written {@code U+} and its four hexadecimal digits (ADR-340 §6). */
+    private static String writtenWithCodes(String value) {
+        StringBuilder written = new StringBuilder();
+        value.chars().forEach(c -> {
+            if (c < 0x20) {
+                written.append(String.format("U+%04X", c));
+            } else {
+                written.append((char) c);
+            }
+        });
+        return written.toString();
     }
 
     /**

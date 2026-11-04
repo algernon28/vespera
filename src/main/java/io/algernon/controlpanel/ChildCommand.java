@@ -10,8 +10,9 @@ import java.util.Map;
 /**
  * The command line, environment and current directory of the child the control panel starts (ADR-278 §1, ADR-285 §5):
  * only the jar's {@code run}, {@code label} and {@code publish} commands (ADR-308 §6), after both encoding flags, with
- * absolute paths and {@code CI=1}. A publish's child inherits the five values it reads from the operator's environment,
- * as every child inherits it; the control panel adds none of them.
+ * absolute paths and {@code CI=1}. A child inherits the operator's environment less the eight variables that name the
+ * working directory (ADR-340 §6), so that the folder passed is the folder the jar opens; a publish's child still
+ * inherits the five values it reads, and the control panel adds none of them.
  */
 public final class ChildCommand {
 
@@ -134,9 +135,22 @@ public final class ChildCommand {
         return directory;
     }
 
+    private static final List<String> NAMING_THE_WORKING_DIRECTORY = List.of("VESPERA_WORKINGDIR",
+            "VESPERA_WORKING_DIR", "vespera_workingdir", "vespera_working_dir", "DBDIR", "DB_DIR", "dbdir", "db_dir");
+
+    /** The child's whole environment where the control panel's is {@code inherited}: it less the eight, {@link #environment()} over it (ADR-340 §6). */
+    public Map<String, String> environmentFrom(Map<String, String> inherited) {
+        Map<String, String> whole = new LinkedHashMap<>(inherited);
+        NAMING_THE_WORKING_DIRECTORY.forEach(whole::remove);
+        whole.putAll(environment());
+        return whole;
+    }
+
     public ProcessBuilder processBuilder() {
         ProcessBuilder builder = new ProcessBuilder(command);
-        builder.environment().putAll(environment());
+        Map<String, String> whole = environmentFrom(new LinkedHashMap<>(builder.environment()));
+        builder.environment().clear();
+        builder.environment().putAll(whole);
         builder.directory(directory.toFile());
         return builder;
     }

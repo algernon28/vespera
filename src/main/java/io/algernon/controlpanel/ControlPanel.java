@@ -53,7 +53,7 @@ public final class ControlPanel {
                     + runtime.java());
             String userName = System.getProperty("user.name");
             Path launchValuesFile = LaunchValues.fileIn(Path.of(System.getProperty("java.io.tmpdir")), userName);
-            // the directory it was started in, read once: a work folder left empty is .vespera under it (ADR-340 §6)
+            // the directory it was started in, read once: .vespera under it is the fallback of a work folder left empty (ADR-340 §6)
             Path currentDirectory = Path.of("").toAbsolutePath().normalize();
             Map<String, String> systemProperties = new HashMap<>();
             System.getProperties().forEach((key, value) -> {

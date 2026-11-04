@@ -134,7 +134,7 @@ final class ControlPanelPage {
             #top-bar {
               position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center;
               gap: var(--space-3); padding: var(--space-3) var(--space-5); background: var(--surface);
-              border-bottom: 1px solid var(--rule); }
+              border-bottom: 1px solid var(--rule); max-height: 3rem; overflow-y: auto; }
             .brand { margin: 0; color: var(--sun); font-weight: 700; letter-spacing: .06em; }
             form[name=launch] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin: 0; }
             .autolabel { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; font-weight: 400; }
@@ -237,6 +237,7 @@ final class ControlPanelPage {
               border-radius: var(--radius); background: var(--surface); }
             #progress-view p { margin: var(--space-3) 0 0; }
             @media (max-width: 800px) {
+              #top-bar { max-height: 9rem; overflow-y: auto; }
               #values-held { margin: 0; }
               .home, #tiles { grid-template-columns: 1fr; }
               #values { top: 9rem; width: 100%; }
@@ -248,8 +249,8 @@ final class ControlPanelPage {
 
     /**
      * The whole page, carrying the start's mark the server gave the exchange, the control panel's one
-     * script by its address, and, where it asks to be loaded again, the script's refresh and the browser's own inside
-     * {@code <noscript>} (ADR-325 §4.1, §5); a top bar holding {@code title}, the four starts and the way to the other
+     * script by its address, and, where it asks to be loaded again, the script's refresh and, except on the home page,
+     * the browser's own inside {@code <noscript>} (ADR-325 §4.1, §5; ADR-340 §2); a top bar holding {@code title}, the four starts and the way to the other
      * pages and the values (ADR-340 §1), and no page menu.
      *
      * @param exchange the request the page answers, which the server marked with the start's mark
@@ -261,7 +262,7 @@ final class ControlPanelPage {
         // the home page's browser never reloads it of its own: one running no script cannot tell what would be lost (ADR-340 §2)
         boolean home = exchange.getRequestURI().getPath().equals("/");
         String refresh = refreshSeconds > 0 && !home
-                ?"<noscript><meta http-equiv=\"refresh\" content=\"" + refreshSeconds + "\"></noscript>\n" : "";
+                ? "<noscript><meta http-equiv=\"refresh\" content=\"" + refreshSeconds + "\"></noscript>\n" : "";
         String marks = " data-start=\"" + escape(attribute(exchange, ControlPanelServer.MARK_ATTRIBUTE)) + "\""
                 + (refreshSeconds > 0 ? " data-refresh-seconds=\"" + refreshSeconds + "\"" : "");
         return "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
