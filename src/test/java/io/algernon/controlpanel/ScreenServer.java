@@ -68,7 +68,8 @@ final class ScreenServer implements AutoCloseable {
     /**
      * Writes {@code values} as the last launch values, writes the jar for the screen tests, and starts the server
      * with the screens' pages, reading corpus-root locks in a folder of the test's own, everything under
-     * {@code folder}.
+     * {@code folder}, which is the control panel's current directory: a work folder left empty is
+     * {@link #defaultWorkingDirectoryIn(Path) its .vespera} (ADR-340 §6), never one under the directory the tests run in.
      */
     static ScreenServer start(Path folder, LaunchValues values) throws IOException {
         String userName = System.getProperty("user.name");
@@ -77,7 +78,15 @@ final class ScreenServer implements AutoCloseable {
         Set<Started> runningBefore = snapshot(ProcessHandle.current().descendants());
         Path corpusRootLockFolder = Files.createDirectories(folder.resolve("root-locks"));
         return new ScreenServer(ControlPanelServer.start(pages(runtime, launchValuesFile, corpusRootLockFolder,
-                userName)), runningBefore, corpusRootLockFolder);
+                userName, folder)), runningBefore, corpusRootLockFolder);
+    }
+
+    /**
+     * The work folder a server {@link #start started} on {@code folder} uses where the field is left empty:
+     * {@code .vespera} under its current directory, absolute and normalised (ADR-340 §6). Not made.
+     */
+    static Path defaultWorkingDirectoryIn(Path folder) {
+        return folder.toAbsolutePath().normalize().resolve(".vespera");
     }
 
     /** Writes {@code values} as the last launch values of {@code userName}, under {@code folder}; returns their file. */
@@ -114,10 +123,13 @@ final class ScreenServer implements AutoCloseable {
         return corpusRootLockFolder;
     }
 
-    /** The screens' pages, by path, as {@code ControlPanel.main} starts the server with them (ADR-302 §10). */
+    /**
+     * The screens' pages, by path, as {@code ControlPanel.main} starts the server with them (ADR-302 §10), the control
+     * panel's current directory being {@code currentDirectory} in place of the test JVM's (ADR-340 §6).
+     */
     private static Map<String, HttpHandler> pages(ChildRuntime runtime, Path launchValuesFile,
-            Path corpusRootLockFolder, String userName) {
-        return ControlPanelPages.pages(runtime, launchValuesFile, corpusRootLockFolder, userName);
+            Path corpusRootLockFolder, String userName, Path currentDirectory) {
+        return ControlPanelPages.pages(runtime, launchValuesFile, corpusRootLockFolder, userName, currentDirectory);
     }
 
     /**
@@ -129,7 +141,7 @@ final class ScreenServer implements AutoCloseable {
         Path elsewhere = Files.createDirectories(folder.resolve("only-for-the-paths"));
         return ControlPanelPages.pages(new ChildRuntime(elsewhere.resolve("java"), elsewhere.resolve("vespera.jar")),
                         elsewhere.resolve("launch-values.properties"), elsewhere.resolve("root-locks"),
-                        System.getProperty("user.name"))
+                        System.getProperty("user.name"), elsewhere)
                 .keySet().stream()
                 .filter(path -> !path.startsWith("/report/") && !path.equals(TabPaths.SCRIPT)
                         && !path.equals(TabPaths.ALIVE))

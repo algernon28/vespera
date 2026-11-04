@@ -24,6 +24,8 @@ import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
@@ -126,6 +128,27 @@ class AFolderNotWalkedIsNeverReadTest {
         claim("and no folder was met as one not walked",
                 () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM walk_folder_not_entered", Long.class))
                         .isZero());
+    }
+
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    @Story("The operator leaves a folder of the corpus unread")
+    @DisplayName("On Windows a folder listed in another case is not read: names are compared without regard to case")
+    void onWindowsAFolderListedInAnotherCaseIsNotWalked(@TempDir Path temp, @TempDir Path workingDirectory)
+            throws Exception {
+        Path root = theCorpus(temp);
+        theProfileListsNotWalked(workingDirectory, "OLD/Flows");
+
+        census(root, workingDirectory);
+
+        claim("nothing below old/flows was recorded, the list naming it OLD/Flows",
+                () -> assertThat(jdbcTemplate.queryForList("SELECT path FROM file_occurrence ORDER BY path", String.class))
+                        .containsExactly(THE_NOTE, BESIDE_IT));
+        claim("and the folder met and not entered is recorded as the walk spells it, the list as the profile does",
+                () -> assertThat(List.of(
+                                jdbcTemplate.queryForList("SELECT path FROM walk_folder_not_entered", String.class),
+                                jdbcTemplate.queryForList("SELECT folder FROM walk_folder_not_walked", String.class)))
+                        .containsExactly(List.of(NOT_WALKED), List.of("OLD/Flows")));
     }
 
     @Test

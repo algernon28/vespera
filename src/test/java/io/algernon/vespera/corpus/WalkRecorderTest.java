@@ -234,6 +234,42 @@ class WalkRecorderTest {
                 () -> assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).contains(walkId));
     }
 
+    /**
+     * Each of the two folders holds a folder the first session's list names, so whichever the walk meets first, the
+     * session stops after it and the other is met by the continuation alone.
+     */
+    @Test
+    @Story("A walk resumes where it stopped")
+    @DisplayName("An unfinished walk is continued with the folders not read it recorded, though the profile now lists none")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
+    @Link(name = "ADR-055", url = Adr.A_WALK_IS_RESUMED_UNDER_ITS_OWN_ID, type = "adr")
+    void anUnfinishedWalkIsContinuedWithTheFoldersNotWalkedItRecorded(@TempDir Path root) throws IOException {
+        for (String folder : List.of("one/old", "two/old")) {
+            Files.createDirectories(root.resolve(folder));
+        }
+        Files.writeString(root.resolve("one/a.txt"), "a");
+        Files.writeString(root.resolve("one/old/x.ok"), "x");
+        Files.writeString(root.resolve("two/b.txt"), "b");
+        Files.writeString(root.resolve("two/old/y.ok"), "y");
+        Ledger ledger = ledger();
+
+        WalkId stopped = recorder(stoppingAfterTheFirstDirectoryNotEnteringTheFoldersGiven())
+                .walk(root, List.of(), List.of("one/old", "two/old"));
+        WalkId resumed = recorder().walk(root, List.of(), List.of());
+
+        claim("the second session continued the walk that stopped",
+                () -> assertThat(resumed).isEqualTo(stopped));
+        claim("nothing below either folder not read was recorded, the continuation leaving out the one it met",
+                () -> assertThat(recordedAgainst(resumed)).extracting(RecordedOccurrence::path)
+                        .containsExactlyInAnyOrder(new OccurrencePath("one/a.txt"), new OccurrencePath("two/b.txt")));
+        claim("the walk still holds the list it was given first, and met both folders as not entered",
+                () -> assertThat(List.of(ledger.walks().foldersNotWalkedOf(resumed),
+                                ledger.walks().foldersNotEnteredCount(resumed)))
+                        .containsExactly(List.of("one/old", "two/old"), 2L));
+        claim("and it finished, reconciled with both folders in the arithmetic",
+                () -> assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).contains(resumed));
+    }
+
     @Test
     @Story("Nothing goes unaccounted for")
     @DisplayName("A walk carrying an anomaly is reconciled with that anomaly in the arithmetic")
@@ -553,6 +589,27 @@ class WalkRecorderTest {
         };
     }
 
+    /** As {@link #stoppingAfterTheFirstDirectory()}, not entering the folders not walked the recorder gives it. */
+    private static WalkRecorder.Traversal stoppingAfterTheFirstDirectoryNotEnteringTheFoldersGiven() {
+        return new WalkRecorder.Traversal() {
+            @Override
+            public Walk.Outcome traverse(Path root, Walk.Observer observer, Checkpoint resumeFrom) throws IOException {
+                return traverse(root, observer, resumeFrom, List.of());
+            }
+
+            @Override
+            public Walk.Outcome traverse(Path root, Walk.Observer observer, Checkpoint resumeFrom,
+                    List<String> foldersNotWalked) throws IOException {
+                StopAfterTheFirstCheckpoint stopping = new StopAfterTheFirstCheckpoint(observer);
+                try {
+                    return Walk.walk(root, stopping, resumeFrom, null, foldersNotWalked);
+                } catch (StopAfterTheFirstCheckpoint.Stop stop) {
+                    return new Walk.Outcome(root, stopping.lastProgress, false, "the test stopped this session");
+                }
+            }
+        };
+    }
+
     /** Passes everything through, then stops the walk the first time it offers a checkpoint. */
     private static final class StopAfterTheFirstCheckpoint implements Walk.Observer {
 
@@ -562,6 +619,11 @@ class WalkRecorderTest {
 
         private StopAfterTheFirstCheckpoint(Walk.Observer delegate) {
             this.delegate = delegate;
+        }
+
+        @Override
+        public void folderNotEntered(String path) {
+            delegate.folderNotEntered(path);
         }
 
         @Override

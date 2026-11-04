@@ -23,14 +23,18 @@ import java.util.regex.Pattern;
 import org.jsoup.nodes.Element;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The folders to process and the code sets are one tree of the corpus's folders, shown one folder at a time (ADR-340
  * §5): every folder is read at first; a folder unticked and saved is written into the profile's
  * {@code foldersNotWalked}, with its provenance, and a folder below it cannot be ticked; a folder marked as code is
- * named in {@code code-set-names.yaml}; moving through the tree holds what was ticked and writes nothing; and a changed
- * list with no provenance writes neither file.
+ * named in {@code code-set-names.yaml}, and a folder not read cannot be; moving through the tree holds what was ticked
+ * and writes nothing, and Reset lets go of it; a save says what it wrote, or that nothing was; a changed list with no
+ * provenance, or from a page drawn before the file changed, writes neither file; and on Windows a folder listed in
+ * another case is the folder itself.
  *
  * <p>The corpus holds three folders whose names sort without regard to case, {@code Archive}, {@code billing} and
  * {@code notes}, a folder below {@code billing}, and a file at its root, which no row may name.
@@ -242,6 +246,142 @@ class TheFoldersToProcessScreenTest {
             claim("the tree says no corpus root is named, and holds no row",
                     () -> assertThat(List.of(byId(page, "folder-tree").attr("data-tree"), rows(page).size()))
                             .containsExactly("no-corpus-root", 0));
+        }
+    }
+
+    @Test
+    @Story("The operator leaves a folder of the corpus unread")
+    @DisplayName("Save with nothing changed writes neither file and says every folder is as the files state it")
+    void aSaveWithNothingChangedWritesNothingAndSaysSo() throws IOException {
+        Path work = work();
+        try (ScreenServer screens = aServer(corpus(), work)) {
+            Page landed = screens.browser().go("/?open=values-corpus").press(TREE, "save", Map.of()).page();
+
+            claim("the save says nothing was written, in these words",
+                    () -> assertThat(byId(landed, "outcome").text())
+                            .isEqualTo("nothing was written: every folder is as the files state it"));
+            claim("and neither the profile nor the code sets' names is written",
+                    () -> assertThat(List.of(Files.exists(work.resolve(ProfileEdit.FILE_NAME)),
+                                    Files.exists(work.resolve(CodeSetRenames.FILE_NAME))))
+                            .containsExactly(false, false));
+        }
+    }
+
+    @Test
+    @Story("The operator leaves a folder of the corpus unread")
+    @DisplayName("A save says how many folders are not read and how many code sets are named")
+    void aSaveSaysHowManyFoldersAreNotReadAndHowManyCodeSetsAreNamed() throws IOException {
+        try (ScreenServer screens = aServer(corpus(), work())) {
+            PanelBrowser browser = screens.browser().go("/?open=values-corpus");
+            Page page = browser.page();
+            int notes = rowOf(page, "notes");
+            int billing = rowOf(page, "billing");
+            Page landed = browser.press(TREE, "save", Map.of("walk-" + notes, UNTICKED,
+                    "code-set-" + billing, TICKED, "code-set-name-" + billing, "Billing engine",
+                    "foldersNotWalked.provenance", WHY)).page();
+
+            claim("the save says one folder is not read and one code set is named, in these words",
+                    () -> assertThat(byId(landed, "outcome").text())
+                            .isEqualTo("the folders to process are saved: 1 not read, 1 named as code sets"));
+        }
+    }
+
+    @Test
+    @Story("The operator leaves a folder of the corpus unread")
+    @DisplayName("Reset lets go of every tick held, writes nothing, and shows the tree as the files state it")
+    void resetLetsGoOfWhatIsHeldAndWritesNothing() throws IOException {
+        Path work = work();
+        try (ScreenServer screens = aServer(corpus(), work)) {
+            PanelBrowser browser = screens.browser().go("/?open=values-corpus");
+            Page atTheRoot = browser.page();
+            int notes = rowOf(atTheRoot, "notes");
+            browser.press(TREE, "open-" + rowOf(atTheRoot, "billing"), Map.of("walk-" + notes, UNTICKED));
+            Page held = browser.press(TREE, "up-0", Map.of()).page();
+            Page reset = browser.press(TREE, "reset", Map.of()).page();
+
+            claim("before Reset, notes is held unticked",
+                    () -> assertThat(rows(held).get(2).get(1)).isEqualTo("not-walked"));
+            claim("Reset lands on the folder shown, every folder read again as the files state it",
+                    () -> assertThat(List.of(byId(reset, "folder-tree").attr("data-path"),
+                                    rows(reset).stream().map(row -> row.get(1)).toList()))
+                            .containsExactly("", List.of("walked", "walked", "walked")));
+            claim("and nothing was written",
+                    () -> assertThat(List.of(Files.exists(work.resolve(ProfileEdit.FILE_NAME)),
+                                    Files.exists(work.resolve(CodeSetRenames.FILE_NAME))))
+                            .containsExactly(false, false));
+        }
+    }
+
+    /** The file changes behind the page between its drawing and the save, as {@code vespera label --auto} may write it. */
+    @Test
+    @Story("The operator leaves a folder of the corpus unread")
+    @DisplayName("A save from a page drawn before the profile's list changed is refused in one line, and the file is as it was")
+    void aSaveFromAPageDrawnBeforeTheListChangedIsRefused() throws IOException {
+        Path work = work();
+        try (ScreenServer screens = aServer(corpus(), work)) {
+            PanelBrowser browser = screens.browser().go("/?open=values-corpus");
+            int notes = rowOf(browser.page(), "notes");
+            theProfileListsNotWalked(work, "Archive");
+            String behindThePage = Files.readString(work.resolve(ProfileEdit.FILE_NAME), UTF_8);
+            Page landed = browser.press(TREE, "save", Map.of("walk-" + notes, UNTICKED,
+                    "foldersNotWalked.provenance", WHY)).page();
+
+            claim("the save is refused, the value having changed since the page was drawn",
+                    () -> assertThat(byId(landed, "outcome").text()).isEqualTo("foldersNotWalked is not saved:"
+                            + " profile.yaml has changed this value since the page was drawn; look at it and save again"));
+            claim("and the file is as it was written behind the page",
+                    () -> assertThat(Files.readString(work.resolve(ProfileEdit.FILE_NAME), UTF_8))
+                            .isEqualTo(behindThePage));
+        }
+    }
+
+    @Test
+    @Story("The operator names the code sets")
+    @DisplayName("A folder not read cannot be marked as code")
+    void aFolderNotReadCannotBeMarkedAsCode() throws IOException {
+        Path work = work();
+        theProfileListsNotWalked(work, "notes");
+        try (ScreenServer screens = aServer(corpus(), work)) {
+            Page page = screens.browser().go("/?open=values-corpus").page();
+            Element tree = form(page, TREE);
+            int notes = rowOf(page, "notes");
+
+            claim("the row of the folder not read has its Code box disabled, and the others not",
+                    () -> assertThat(List.of(tree.selectFirst("[name=code-set-" + notes + "]").hasAttr("disabled"),
+                                    tree.selectFirst("[name=code-set-" + rowOf(page, "billing") + "]")
+                                            .hasAttr("disabled")))
+                            .containsExactly(true, false));
+        }
+    }
+
+    /**
+     * On Windows a folder listed in another case is the folder itself, as the walk compares them (ADR-340 §5, §8.2): the
+     * tree shows it not read, and ticking it again takes it off the list.
+     */
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    @Story("The operator leaves a folder of the corpus unread")
+    @DisplayName("On Windows a folder listed in another case is shown not read, and ticking it again takes it off the list")
+    void onWindowsAFolderListedInAnotherCaseIsTheFolderItself() throws IOException {
+        Path work = work();
+        theProfileListsNotWalked(work, "Notes");
+        try (ScreenServer screens = aServer(corpus(), work)) {
+            PanelBrowser browser = screens.browser().go("/?open=values-corpus");
+            Page page = browser.page();
+            int notes = rowOf(page, "notes");
+            List<String> notesAsShown = rows(page).get(2);
+            Element box = form(page, TREE).selectFirst("[name=walk-" + notes + "]");
+            List<Boolean> boxAsDrawn = List.of(box.hasAttr("checked"), box.hasAttr("disabled"));
+            browser.press(TREE, "save", Map.of("walk-" + notes, TICKED,
+                    "foldersNotWalked.provenance", "the notes are documentation after all"));
+
+            claim("the folder notes is shown not read, the list naming it as Notes, and not as below a folder not read",
+                    () -> assertThat(notesAsShown).containsExactly("notes", "not-walked", "not-marked"));
+            claim("its Read box is drawn unticked and can be ticked again",
+                    () -> assertThat(boxAsDrawn).containsExactly(false, false));
+            claim("and ticked again and saved, the list names no folder",
+                    () -> assertThat(listIn(Files.readString(work.resolve(ProfileEdit.FILE_NAME), UTF_8)))
+                            .isIn("", "null"));
         }
     }
 

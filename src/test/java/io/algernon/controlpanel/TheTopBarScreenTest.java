@@ -104,8 +104,8 @@ class TheTopBarScreenTest {
 
     @Test
     @Story("The operator finds their way around the control panel")
-    @DisplayName("The top bar leads to the home page, the invocation page and the settings, the page shown marked")
-    void theTopBarLeadsHomeToTheInvocationPageAndToTheSettings() throws IOException {
+    @DisplayName("The top bar leads to the home page, the invocation page and the drawer of values, the page shown marked")
+    void theTopBarLeadsHomeToTheInvocationPageAndToTheValues() throws IOException {
         try (ScreenServer screens = aServer()) {
             PanelBrowser browser = screens.browser();
             Page home = browser.go("/").page();

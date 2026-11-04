@@ -5,7 +5,6 @@ import static io.algernon.controlpanel.ScreenServer.form;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import io.algernon.controlpanel.PanelBrowser.Page;
 import io.algernon.vespera.Adr;
@@ -91,8 +90,6 @@ class FolderFieldStatusScreenTest {
     @DisplayName("With no folder named, the corpus root and the output folder say not chosen, and the work folder says what its default is")
     @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void withNoFolderNamedEachFieldSaysNotChosen() throws IOException {
-        Path theDefault = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize().resolve(".vespera");
-        assumeFalse(Files.exists(theDefault), "a .vespera folder lies where the tests run, so the default is there");
         try (ScreenServer screens = ScreenServer.start(folder, LaunchValues.none())) {
             Page page = screens.browser().page();
 

@@ -164,7 +164,7 @@ class TheHomePageScreenTest {
                 got.put(path, List.of(answer.status(), answer.header("Location")));
             }
             Map<String, List<Object>> posted = new LinkedHashMap<>();
-            for (String path : List.of("/progress", "/code-sets", "/seed-folder")) {
+            for (String path : List.of("/progress", "/code-sets", "/seed-folder", "/label-auto")) {
                 RawHttp.Response answer = RawHttp.send(server, "POST", path, List.of(host, origin,
                         "Content-Type: application/x-www-form-urlencoded"));
                 posted.put(path, List.of(answer.status(), answer.header("Allow")));
@@ -174,9 +174,13 @@ class TheHomePageScreenTest {
 
             claim("a GET of each answers 303 to the place of the home page or its drawer where its content stands",
                     () -> assertThat(got).containsExactlyEntriesOf(expected));
-            claim("and a post to the three no form posts to any more is answered 405, naming the two methods they answer",
+            String child = byId(screens.browser().go("/invocation").page(), "child").attr("data-ending");
+
+            claim("a post to the four no form posts to any more is answered 405, naming the two methods they answer",
                     () -> assertThat(posted).allSatisfy((path, answer) -> assertThat(answer).as(path)
                             .containsExactly(405, List.of("GET, HEAD"))));
+            claim("and the post to the local model's old address started no command",
+                    () -> assertThat(child).isEqualTo("none"));
         }
     }
 
@@ -201,6 +205,7 @@ class TheHomePageScreenTest {
         pages.put("/profile", "/?open=values-profile#values-profile");
         pages.put("/code-sets", "/?open=values-corpus#values-corpus");
         pages.put("/seed-folder", "/?open=values-profile#key-seedFolder");
+        pages.put("/label-auto", "/#next-step");
         return pages;
     }
 

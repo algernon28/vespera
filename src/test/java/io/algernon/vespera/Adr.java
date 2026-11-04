@@ -2413,7 +2413,7 @@ public final class Adr {
      * empty work folder being the jar's default, which Run passes; every field is named in plain words; and a folder
      * the profile's {@code foldersNotWalked} names, unticked in a tree of the corpus's folders, is counted by the walk
      * and never entered (amends ADR-302 §2, §4, §8 and §9, ADR-292 §5, ADR-331 §3, §5, §6 and §8, ADR-334 §1 to §3,
-     * §5.2, §5.5, §6 and §7, ADR-335 §1 and §4, ADR-330 §2, §4 and §12, ADR-336 §1, ADR-050, ADR-054, ADR-055, ADR-056
+     * §5.2, §5.5, §6 and §7, ADR-335 §1, §4 and §5, ADR-330 §2, §4 and §12, ADR-336 §1, ADR-050, ADR-054, ADR-055, ADR-056
      * and ADR-115).
      */
     public static final String THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED =

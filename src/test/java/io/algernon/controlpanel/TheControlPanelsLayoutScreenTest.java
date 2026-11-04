@@ -6,7 +6,6 @@ import static io.algernon.controlpanel.ScreenServer.whenTheChildHasEnded;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import io.algernon.controlpanel.PanelBrowser.Page;
 import io.algernon.vespera.Adr;
@@ -321,8 +320,6 @@ class TheControlPanelsLayoutScreenTest {
     @Story("The operator starts an invocation from the control panel")
     @DisplayName("The preflight is red for a corpus root not chosen or a working directory left to a default that is not there, for either not there or a file, and that does not disable Run")
     void thePreflightIsRedForAFolderRunNeeds() throws IOException {
-        assumeFalse(Files.exists(Path.of(System.getProperty("user.dir")).resolve(".vespera")),
-                "a .vespera folder lies where the tests run, so the working directory's default is there");
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path aFile = Files.writeString(folder.resolve("a-file.txt"), "not a folder", StandardCharsets.UTF_8);
         Path notThere = folder.resolve("not-there");

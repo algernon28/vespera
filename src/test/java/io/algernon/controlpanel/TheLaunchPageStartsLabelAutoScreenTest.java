@@ -6,7 +6,6 @@ import static io.algernon.controlpanel.ScreenServer.form;
 import static io.algernon.controlpanel.ScreenServer.whenTheChildHasEnded;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import io.algernon.controlpanel.PanelBrowser.Page;
 import io.algernon.vespera.Adr;
@@ -148,16 +147,14 @@ class TheLaunchPageStartsLabelAutoScreenTest {
 
     /**
      * With the work folder left empty, Label starts on the jar's default, {@code .vespera} in the control panel's
-     * current directory (ADR-340 §6), which a test cannot choose; where one lies there, Label would start in it, so the
-     * test is aborted rather than run.
+     * current directory (ADR-340 §6), which is the test's folder, holding none.
      */
     @Test
     @Story("The operator has the local model answer the relevance questions")
     @DisplayName("Label with Autolabel ticked and the work folder left empty is refused by the line of the default folder, which is not there, and starts nothing")
     @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void labelAutoIsRefusedWithTheLineOfTheValueItNeeds() throws IOException {
-        Path theDefault = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize().resolve(".vespera");
-        assumeFalse(Files.exists(theDefault), "a .vespera folder lies where the tests run, and Label would start in it");
+        Path theDefault = ScreenServer.defaultWorkingDirectoryIn(folder);
         LaunchValues values = new LaunchValues("", "", "", "", "", "", "", "");
         try (ScreenServer screens = ScreenServer.start(folder, values)) {
             PanelBrowser browser = screens.browser();

@@ -6,7 +6,6 @@ import static io.algernon.controlpanel.ScreenServer.form;
 import static io.algernon.vespera.TestSteps.claim;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import io.algernon.controlpanel.PanelBrowser.Page;
 import io.algernon.vespera.Adr;
@@ -27,8 +26,9 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Every field left empty shows the value in use where one exists, and keeps its example and its Browse button where
  * none does (ADR-340 §6): a value of the profile the jar says lies beneath it shows that value; the documents folder,
- * the work folder, the seed folder and a code set folder, none of which has a default the control panel would use,
- * keep their examples. The field stays empty either way, so that nothing the operator did not type is saved.
+ * the seed folder and a code set folder, none of which has a default the control panel would use, keep their examples;
+ * and the work folder is {@code .vespera} under the control panel's current directory, which Run, Label and Publish
+ * pass and start in. The field stays empty either way, so that nothing the operator did not type is saved.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -38,6 +38,10 @@ class EveryEmptyFieldShowsTheValueInUseScreenTest {
 
     /** The writing model the jar said it would use where the profile names none. */
     private static final String THE_JARS_WRITING_MODEL = "a-writing-model:8b";
+
+    /** What the child is told in the folder it is started in: print its arguments, then end. */
+    private static final String SAYS_ITS_ARGUMENTS_AND_ENDS = JarForScreenTests.SAY_THE_ARGUMENTS
+            + "exit 0 the closing line";
 
     @TempDir
     Path folder;
@@ -101,17 +105,12 @@ class EveryEmptyFieldShowsTheValueInUseScreenTest {
         }
     }
 
-    /**
-     * The control panel's current directory is the test JVM's, which the test cannot choose, so the default is worked
-     * out from it, the rule being the record's; where a {@code .vespera} lies there, as in a checkout someone runs
-     * Vespera from, Run would start a command in it, so the test is aborted rather than run.
-     */
+    /** The control panel's current directory is the test's folder, which {@link ScreenServer#start} gives it. */
     @Test
     @Story("The operator sees the value in use and where it came from")
     @DisplayName("An empty work folder is the jar's default, .vespera in the folder the control panel was started from, which Run uses")
     void anEmptyWorkFolderIsTheJarsDefaultWhichRunPasses() throws IOException {
-        Path theDefault = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize().resolve(".vespera");
-        assumeFalse(Files.exists(theDefault), "a .vespera folder lies where the tests run, and Run would start in it");
+        Path theDefault = ScreenServer.defaultWorkingDirectoryIn(folder);
         try (ScreenServer screens = ScreenServer.start(folder,
                 new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), "", "", "", "", "", "", ""))) {
             PanelBrowser browser = screens.browser();
@@ -133,6 +132,40 @@ class EveryEmptyFieldShowsTheValueInUseScreenTest {
                                     + " is no folder that is there"));
             claim("and nothing made the folder",
                     () -> assertThat(theDefault).doesNotExist());
+        }
+    }
+
+    /**
+     * The child prints its arguments only where the file in the directory it is started in tells it to, so a line of
+     * them in the tail says both what it was given and where it was started (ADR-340 §6).
+     */
+    @Test
+    @Story("The operator sees the value in use and where it came from")
+    @DisplayName("With the work folder left empty and the default there, Run, Label and Publish pass the default and start in it")
+    void anEmptyWorkFolderThatIsThereIsPassedToRunLabelAndPublishAndTheyStartInIt()
+            throws IOException, InterruptedException {
+        Path theDefault = Files.createDirectories(ScreenServer.defaultWorkingDirectoryIn(folder));
+        Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
+        ScreenServer.childWill(theDefault, SAYS_ITS_ARGUMENTS_AND_ENDS);
+        Path confluence = Files.createDirectories(
+                theDefault.resolve("deliverable").resolve("abcdef0123456789").resolve("confluence"));
+        Files.writeString(confluence.resolve("pages.json"), "{}", UTF_8);
+        try (ScreenServer screens = ScreenServer.start(folder,
+                new LaunchValues(corpusRoot.toString(), "", "", "", "", "", "", ""))) {
+            PanelBrowser browser = screens.browser();
+            String run = byId(ScreenServer.whenTheChildHasEnded(browser.press("launch", "run", Map.of())), "tail")
+                    .text();
+            String label = byId(ScreenServer.whenTheChildHasEnded(browser.go("/").press("launch", "label", Map.of())),
+                    "tail").text();
+            String publish = byId(ScreenServer.whenTheChildHasEnded(
+                    browser.go("/invocation").press("publish", "publish", Map.of())), "tail").text();
+
+            claim("Run passed the default as the working directory, and was started in it",
+                    () -> assertThat(run).contains("run " + corpusRoot.toAbsolutePath() + " --db-dir=" + theDefault));
+            claim("so did Label",
+                    () -> assertThat(label).contains("label --db-dir=" + theDefault));
+            claim("and so did Publish",
+                    () -> assertThat(publish).contains("publish --db-dir=" + theDefault));
         }
     }
 

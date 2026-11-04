@@ -339,7 +339,7 @@ class LaunchValuesTest {
     @Story("The control panel refuses what it cannot start")
     @DisplayName("Run is refused without the corpus root, and not for a working directory left empty, which is the jar's default")
     @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
-    void runIsRefusedWithoutTheCorpusRootOrTheWorkingDirectory() {
+    void runIsRefusedWithoutTheCorpusRootAndNotForAnEmptyWorkingDirectory() {
         claim("with neither, Run needs the corpus root alone",
                 () -> assertThat(withRootAndDirectory(EVERY_VALUE, "", "").refusalToRun())
                         .contains(RUN_NEEDS_THE_CORPUS_ROOT));
@@ -357,7 +357,7 @@ class LaunchValuesTest {
     @Story("The control panel refuses what it cannot start")
     @DisplayName("Label is not refused for a working directory left empty, which is the jar's default, whatever the corpus root")
     @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
-    void labelIsRefusedWithoutTheWorkingDirectory() {
+    void labelIsNotRefusedForAnEmptyWorkingDirectory() {
         claim("with no working directory, Label is not refused, a corpus root or none",
                 () -> assertThat(List.of(withRootAndDirectory(EVERY_VALUE, "/archive", "").refusalToLabel(),
                                 withRootAndDirectory(EVERY_VALUE, "", "").refusalToLabel()))
