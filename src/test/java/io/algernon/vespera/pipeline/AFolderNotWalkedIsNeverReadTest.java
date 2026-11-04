@@ -64,9 +64,6 @@ class AFolderNotWalkedIsNeverReadTest {
     /** Two files below the folder not walked, one in a folder of its own, neither of which may be read. */
     private static final List<String> BELOW_IT = List.of("old/flows/flow.ok", "old/flows/deeper/flow2.ok");
 
-    /** The one folder not walked the walk meets. */
-    private static final long ONE_FOLDER_NOT_WALKED = 1;
-
     /** The entries below the root a walk leaving out the folder meets: notes, its note, old, its file, and the folder. */
     private static final long ENTRIES_BELOW_THE_ROOT = 5;
 
@@ -99,12 +96,14 @@ class AFolderNotWalkedIsNeverReadTest {
                 () -> assertThat(jdbcTemplate.queryForList("SELECT path FROM file_occurrence ORDER BY path", String.class))
                         .containsExactly(THE_NOTE, BESIDE_IT));
         claim("the walk finished, having met five entries below the root (notes, its note, old, its file and the"
-                        + " folder not read), entered three folders (the root, notes and old) and met one folder not"
-                        + " read: two occurrences, no anomaly, three folders entered less the root and one not walked"
-                        + " account for the five",
+                        + " folder not read) and entered three folders (the root, notes and old): two occurrences, no"
+                        + " anomaly, three folders entered less the root and one not walked account for the five",
                 () -> assertThat(jdbcTemplate.queryForObject("SELECT finished || ' ' || entries_seen || ' '"
-                                + " || directories_entered || ' ' || folders_not_walked FROM walk", String.class))
-                        .isEqualTo("1 " + ENTRIES_BELOW_THE_ROOT + " " + FOLDERS_ENTERED + " " + ONE_FOLDER_NOT_WALKED));
+                                + " || directories_entered FROM walk", String.class))
+                        .isEqualTo("1 " + ENTRIES_BELOW_THE_ROOT + " " + FOLDERS_ENTERED));
+        claim("the one folder it met and did not enter is recorded as a row of its own, by its path",
+                () -> assertThat(jdbcTemplate.queryForList("SELECT path FROM walk_folder_not_entered", String.class))
+                        .containsExactly(NOT_WALKED));
         claim("and the list it was given is recorded with it, the folder first and alone",
                 () -> assertThat(jdbcTemplate.queryForList(
                                 "SELECT ordinal || ' ' || folder FROM walk_folder_not_walked ORDER BY ordinal", String.class))
@@ -125,7 +124,7 @@ class AFolderNotWalkedIsNeverReadTest {
                 () -> assertThat(jdbcTemplate.queryForList("SELECT path FROM file_occurrence ORDER BY path", String.class))
                         .containsExactly(THE_NOTE, "old/flows/deeper/flow2.ok", "old/flows/flow.ok", BESIDE_IT));
         claim("and no folder was met as one not walked",
-                () -> assertThat(jdbcTemplate.queryForObject("SELECT folders_not_walked FROM walk", Long.class))
+                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM walk_folder_not_entered", Long.class))
                         .isZero());
     }
 
@@ -156,18 +155,20 @@ class AFolderNotWalkedIsNeverReadTest {
         census(root, workingDirectory);
         Files.delete(workingDirectory.resolve("profile.yaml"));
         census(root, workingDirectory);
+        // The walks by their order, not their ids, which a database shared with other classes hands out as it goes.
+        List<Long> walks = jdbcTemplate.queryForList("SELECT id FROM walk ORDER BY id", Long.class);
+        List<Long> filesOfEach = walks.stream().map(walk -> jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM file_occurrence WHERE walk_id = ?", Long.class, walk)).toList();
+        List<List<String>> listOfEach = walks.stream().map(walk -> jdbcTemplate.queryForList(
+                "SELECT folder FROM walk_folder_not_walked WHERE walk_id = ? ORDER BY ordinal", String.class, walk))
+                .toList();
 
+        claim("the second walk, given no list, is kept as another walk, not discarded as a repetition",
+                () -> assertThat(walks).hasSize((int) TWO_WALKS));
         claim("the first list names a folder that is not there, so each walk read every file of the corpus",
-                () -> assertThat(jdbcTemplate.queryForList("SELECT walk_id || ' ' || COUNT(*) FROM file_occurrence"
-                                + " GROUP BY walk_id ORDER BY walk_id", String.class))
-                        .containsExactly("1 " + FILES_OF_THE_CORPUS, "2 " + FILES_OF_THE_CORPUS));
-        claim("and the second walk, given no list, is kept as another walk, not discarded as a repetition",
-                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM walk", Long.class))
-                        .isEqualTo(TWO_WALKS));
+                () -> assertThat(filesOfEach).containsExactly(FILES_OF_THE_CORPUS, FILES_OF_THE_CORPUS));
         claim("the first walk recorded its list and the second none",
-                () -> assertThat(jdbcTemplate.queryForList(
-                                "SELECT walk_id || ' ' || folder FROM walk_folder_not_walked ORDER BY walk_id", String.class))
-                        .containsExactly("1 gone"));
+                () -> assertThat(listOfEach).containsExactly(List.of("gone"), List.of()));
     }
 
     /** A corpus of a note, a folder of old flows with a file beside it, and two files below the flows. */

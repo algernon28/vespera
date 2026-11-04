@@ -11,10 +11,12 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The invocation page {@code /invocation}, Stop's confirmation {@code /stop}, {@code /label-auto} (ADR-302 §2,
- * §7) and {@code /publish} (ADR-308 §6), offered on the invocation page once a Confluence rendering is drawn: the one child the control panel started, shown as ADR-278 §5 and ADR-285 §5 say it ended, refreshed every
- * {@value #REFRESH_SECONDS} seconds while it runs; Stop asks to be confirmed and stops only that child (ADR-278 §6).
- * A {@code GET} of any of them stops and starts nothing (ADR-302 §1).
+ * The invocation page {@code /invocation}, Stop's confirmation {@code /stop} (ADR-302 §2, §7) and {@code /publish}
+ * (ADR-308 §6), offered on the invocation page once a Confluence rendering is drawn: the one child the control panel
+ * started, shown as ADR-278 §5 and ADR-285 §5 say it ended, refreshed every {@value #REFRESH_SECONDS} seconds while it
+ * runs; Stop asks to be confirmed and stops only that child (ADR-278 §6). A {@code GET} of any of them stops and starts
+ * nothing (ADR-302 §1). {@code /progress} is no page: it answers a {@code GET} with a {@code 303} to the home page's
+ * {@code #progress-view} (ADR-340 §2, §3), whose content {@link #progressView} writes.
  */
 final class InvocationPages {
 
@@ -50,7 +52,6 @@ final class InvocationPages {
         pages.put("/invocation", this::invocation);
         pages.put("/progress", this::progress);
         pages.put("/stop", this::stop);
-        pages.put("/label-auto", this::labelAuto);
         pages.put("/publish", this::publish);
     }
 
@@ -60,10 +61,18 @@ final class InvocationPages {
      * where it did not.
      */
     static String startAndSay(ControlPanelState state, ControlPanelState.Start kind, String refusedAt) {
+        return startAndSay(state, kind, refusedAt, refusedAt);
+    }
+
+    /**
+     * As {@link #startAndSay(ControlPanelState, ControlPanelState.Start, String)}, a refusal said on the page {@code page}
+     * and the browser sent to {@code refusedAt}, the address of a section of that page (ADR-340 §3).
+     */
+    static String startAndSay(ControlPanelState state, ControlPanelState.Start kind, String page, String refusedAt) {
         List<String> stored = new ArrayList<>();
         Optional<String> refusal = state.start(kind, stored);
         if (refusal.isPresent()) {
-            state.say(refusedAt, refusal.get());
+            state.say(page, refusal.get());
             return refusedAt;
         }
         if (!stored.isEmpty()) {
@@ -82,7 +91,7 @@ final class InvocationPages {
         String how = how(state);
         StringBuilder body = new StringBuilder(ControlPanelPage.outcome(state.takeOutcome("/invocation")));
         String words = words(state, how);
-        body.append(ControlPanelPage.tiles(state.lastChecks(), FolderPages.freeSpaceOf(state.values().workingDirectory()),
+        body.append(ControlPanelPage.tiles(state.lastChecks(), FolderPages.freeSpaceOf(state.effectiveWorkingDirectory()),
                 how, words));
         body.append("<p id=\"child\" data-ending=\"").append(how).append("\" data-state=\"")
                 .append(ControlPanelPage.stateOfInvocation(how)).append("\">")
@@ -100,29 +109,40 @@ final class InvocationPages {
         String last = ending.flatMap(Ending::lastLine).orElseGet(() -> lastNonBlank(state.tail()));
         body.append(ControlPanelPage.text("p", "last-line", last)).append('\n');
         if (state.workingDirectory().isPresent()) {
-            body.append("<p><a id=\"progress\" href=\"/progress\">Progress</a></p>\n");
+            body.append("<p><a id=\"progress\" href=\"/#progress-view\">Progress</a></p>\n");
         }
         body.append("<h2>Reports</h2>\n").append(LaunchPages.reports(state));
-        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Invocation", runs ? REFRESH_SECONDS : 0, body.toString()));
+        Exchanges.page(exchange, ControlPanelPage.render(exchange, state, "Invocation", runs ? REFRESH_SECONDS : 0,
+                body.toString()));
     }
 
-    /** The words with no working directory held (ADR-335 §1). */
-    private static final String NO_WORKING_DIRECTORY = "No working directory is chosen, so there is no progress page to"
-            + " show. Choose one on the Launch page, and the progress page of what runs there is shown here.";
+    /** The words with a working directory the system cannot hold (ADR-340 §2). */
+    private static final String NO_WORKING_DIRECTORY = "No working directory this system can hold is chosen, so there is"
+            + " no progress page to show. Choose one under Settings, and the progress page of what runs there is shown"
+            + " here.";
 
     /** The words with a working directory that holds no progress page yet (ADR-335 §1). */
     private static final String NOT_WRITTEN = "This working directory holds no progress page yet. It is shown here once"
             + " Run or Label starts and the page is first written.";
 
     /**
-     * {@code /progress} (ADR-335 §1): the progress page the jar writes, framed at its report path where the working
-     * directory holds one; else the words that say why not, the page asking to be loaded again only while it waits.
+     * {@code /progress} is no page (ADR-340 §3): a {@code GET} or {@code HEAD} answers {@code 303} to the home page's
+     * progress view, any other method is refused.
      */
     private void progress(HttpExchange exchange) throws IOException {
         if (!Exchanges.isRead(exchange)) {
             Exchanges.methodNotAllowed(exchange, "GET, HEAD");
             return;
         }
+        Exchanges.redirect(exchange, "/#progress-view");
+    }
+
+    /**
+     * {@code #progress-view} of the home page (ADR-340 §2; ADR-335 §1): the progress page the jar writes, framed at its
+     * report path where the working directory holds one; else the words that say why not. The home page never asks to be
+     * loaded again, so a progress page first written while it is open is shown at its next load.
+     */
+    static String progressView(ControlPanelState state) {
         Optional<Path> folder = state.workingDirectory();
         String which;
         String inside;
@@ -138,9 +158,7 @@ final class InvocationPages {
                     + " sandbox=\"allow-scripts\"></iframe>\n<p><a id=\"progress-own-window\""
                     + " href=\"/report/progress.html\" target=\"_blank\" rel=\"noopener\">Open in a window of its own</a></p>";
         }
-        String body = "<div id=\"progress-view\" data-progress=\"" + which + "\">" + inside + "</div>";
-        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Progress",
-                which.equals("not-written") ? REFRESH_SECONDS : 0, body));
+        return "<div id=\"progress-view\" data-column=\"centre\" data-progress=\"" + which + "\">" + inside + "</div>\n";
     }
 
     private void stop(HttpExchange exchange) throws IOException {
@@ -161,7 +179,7 @@ final class InvocationPages {
             }
             body.append("<form name=\"stop-confirmed\" method=\"post\" action=\"/stop\">")
                     .append(ControlPanelPage.button("stop", "Stop", false)).append("</form>\n");
-            Exchanges.page(exchange, ControlPanelPage.render(exchange, "Stop", 0, body.toString()));
+            Exchanges.page(exchange, ControlPanelPage.render(exchange, state, "Stop", 0, body.toString()));
             return;
         }
         try {
@@ -170,15 +188,6 @@ final class InvocationPages {
             Thread.currentThread().interrupt();
         }
         Exchanges.redirect(exchange, "/invocation");
-    }
-
-    private void labelAuto(HttpExchange exchange) throws IOException {
-        if (Exchanges.isRead(exchange)) {
-            Exchanges.redirect(exchange, "/");
-            return;
-        }
-        Exchanges.form(exchange);
-        Exchanges.redirect(exchange, startAndSay(state, ControlPanelState.Start.LABEL_AUTO, "/next"));
     }
 
     /** Starts {@code publish} (ADR-308 §6); a {@code GET} starts nothing. */

@@ -26,14 +26,15 @@ public final class ChildCommand {
                             + " nothing the control panel reads."),
             new Argument("vespera", "version", "",
                     "Never passed (ADR-278 §1): it boots the context, takes the lock and prints no version."),
-            new Argument("run", "<root>", "vespera.corpus-root", "The corpus root field, made absolute."),
+            new Argument("run", "<root>", "vespera.corpus-root", "The Documents folder field, made absolute."),
             new Argument("run", "db-dir", "vespera.working-dir",
-                    "The working directory field, made absolute; also the child's current directory."),
+                    "The Work folder field, made absolute, or its default where the field is empty; also the child's"
+                            + " current directory."),
             new Argument("label", "auto", "label-auto",
-                    "Passed by Have the local model answer, here and on the next page; Label passes none."),
+                    "Passed by Label when the box Autolabel in the top bar is ticked; Label passes none otherwise."),
             new Argument("label", "<file>", "",
-                    "Never passed: label reads the label file the last run wrote in the working directory, which the"
-                            + " Relevance page answers."),
+                    "Never passed: label reads the label file the last run wrote in the work folder, which the"
+                            + " Relevance section of Settings answers."),
             new Argument("label", "db-dir", "vespera.working-dir", "As for run."),
             new Argument("publish", "db-dir", "vespera.working-dir",
                     "As for run; Publish stands on the invocation page."));

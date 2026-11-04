@@ -136,26 +136,26 @@ class NativePickersScreenTest {
         }
     }
 
-    /** Only the launch page asks (ADR-302 §5): a page's models are what it was last told, and a suggestion in any case. */
+    /**
+     * The run settings and the next step stand on the home page, which asks the model service as it is drawn (ADR-302 §5,
+     * ADR-340 §2, §3), so both forms offer the names it was just told; that no other page asks is held by the invocation
+     * page's test of the checks it shows.
+     */
     @Test
     @Story("The operator picks a model")
-    @DisplayName("The embedding model and the generation model offer the same list on the profile page and the next act's, asking the model service nothing more")
+    @DisplayName("The embedding model and the generation model offer the same list in the run settings and the next step")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void theEmbeddingAndGenerationModelsOfferTheSameList() throws IOException, InterruptedException {
         Path workingDirectory = wantingEveryKey(folder);
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         try (SidecarsForTests sidecars = SidecarsForTests.answering("an-image", MODELS);
                 ScreenServer screens = ScreenServer.start(folder, new LaunchValues(corpusRoot.toString(),
                         workingDirectory.toString(), "", "", "", sidecars.address(), "", ""))) {
-            PanelBrowser browser = screens.browser();
-            int askedBeforeTheProfilePage = sidecars.tagsAsked();
-            Page profile = browser.go("/profile").page();
-            int askedAfterTheProfilePage = sidecars.tagsAsked();
-            PanelBrowser afterARun = screens.afterARunHasEnded();
-            int askedBeforeTheNextPage = sidecars.tagsAsked();
-            Page next = afterARun.go("/next").page();
-            int askedAfterTheNextPage = sidecars.tagsAsked();
+            Page home = screens.afterARunHasEnded().go("/").page();
+            Page profile = home;
+            Page next = home;
 
-            claim("on the profile page, each names the list, and the list holds the models",
+            claim("in the run settings, each names the list, and the list holds the models",
                     () -> {
                         assertThat(List.of(form(profile, "profile").select("[name=embeddingModel]").attr("list"),
                                         form(profile, "profile").select("[name=generationModel]").attr("list")))
@@ -163,17 +163,10 @@ class NativePickersScreenTest {
                         assertThat(byId(profile, MODELS_LIST).select("option").eachAttr("value"))
                                 .containsExactlyElementsOf(MODELS);
                     });
-            claim("on the next act's page, the same",
-                    () -> {
-                        assertThat(List.of(form(next, "next").select("[name=embeddingModel]").attr("list"),
-                                        form(next, "next").select("[name=generationModel]").attr("list")))
-                                .containsOnly(MODELS_LIST);
-                        assertThat(byId(next, MODELS_LIST).select("option").eachAttr("value"))
-                                .containsExactlyElementsOf(MODELS);
-                    });
-            claim("and neither page asked the service: the launch page's answer is what they offer",
-                    () -> assertThat(List.of(askedAfterTheProfilePage, askedAfterTheNextPage))
-                            .containsExactly(askedBeforeTheProfilePage, askedBeforeTheNextPage));
+            claim("and in the next step, the same list",
+                    () -> assertThat(List.of(form(next, "next").select("[name=embeddingModel]").attr("list"),
+                                    form(next, "next").select("[name=generationModel]").attr("list")))
+                            .containsOnly(MODELS_LIST));
         }
     }
 

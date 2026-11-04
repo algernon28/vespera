@@ -4,6 +4,7 @@ import io.algernon.vespera.corpus.CheckpointMismatchException;
 import io.algernon.vespera.corpus.ExcludesNothingViolationException;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.ledger.WalkId;
+import io.algernon.vespera.profile.CorpusFoldersValue;
 import io.algernon.vespera.profile.FoldersValue;
 import io.algernon.vespera.profile.Measurement;
 import io.algernon.vespera.profile.Profile;
@@ -66,7 +67,7 @@ public class CensusTasklet implements Tasklet {
         // The two walks are independent, so neither is allowed to cost the other its chance to run
         // (ADR-064). A corpus root that cannot be walked is still worth knowing the seed set for, and
         // the invocation fails afterwards either way.
-        Walked corpus = walkOrCapture(root, codeSetFoldersOf(profile), "the corpus");
+        Walked corpus = walkOrCapture(root, codeSetFoldersOf(profile), foldersNotWalkedOf(profile), "the corpus");
         Optional<Walked> seed = walkSeedFolderIfNamed(profile);
 
         profileStore.save(profile.withSeedFolderMeasurement(seedFolderMeasurement(seed.orElse(null))));
@@ -119,7 +120,25 @@ public class CensusTasklet implements Tasklet {
      * nothing had yet decided was fatal, and again as the exception that actually stopped the run.
      */
     private Walked walkOrCapture(Path walkRoot, String what) {
-        return walkOrCapture(walkRoot, List.of(), what);
+        return walkOrCapture(walkRoot, List.of(), List.of(), what);
+    }
+
+    /**
+     * The folders of the corpus the profile's {@code foldersNotWalked} names, in its order, which the walk of the
+     * corpus root counts and does not enter (ADR-340 section 8); none where the key is unset or unreadable (ADR-120).
+     */
+    private static List<String> foldersNotWalkedOf(Profile profile) {
+        return switch (profile.foldersNotWalked().reading()) {
+            case CorpusFoldersValue.Answered answered -> answered.folders();
+            case CorpusFoldersValue.Unset unset -> List.of();
+            case CorpusFoldersValue.Unreadable unreadable -> {
+                log.warn(
+                        "The profile's foldersNotWalked \"{}\" is not a list of folders below the corpus root, so every"
+                                + " folder is read",
+                        unreadable.text());
+                yield List.of();
+            }
+        };
     }
 
     /**
@@ -139,9 +158,11 @@ public class CensusTasklet implements Tasklet {
         };
     }
 
-    private Walked walkOrCapture(Path walkRoot, List<Path> folders, String what) {
+    private Walked walkOrCapture(Path walkRoot, List<Path> folders, List<String> foldersNotWalked, String what) {
         try {
-            WalkId walkId = folders.isEmpty() ? walkRecorder.walk(walkRoot) : walkRecorder.walk(walkRoot, folders);
+            WalkId walkId = foldersNotWalked.isEmpty()
+                    ? (folders.isEmpty() ? walkRecorder.walk(walkRoot) : walkRecorder.walk(walkRoot, folders))
+                    : walkRecorder.walk(walkRoot, folders, foldersNotWalked);
             log.info("Census recorded {} at {} under walk {}", what, walkRoot, walkId.value());
             return new Walked(walkId, null);
         } catch (Exception e) {

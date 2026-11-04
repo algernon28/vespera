@@ -255,7 +255,7 @@ public final class ProfileEdit {
 
     private static String normalized(ProfileKey key, String value) {
         String typed = trimmed(key, withoutBreaks(value == null ? "" : value));
-        if (key.kind() == ProfileKey.Kind.FOLDERS) {
+        if (key.kind() == ProfileKey.Kind.FOLDERS || key.kind() == ProfileKey.Kind.CORPUS_FOLDERS) {
             return String.join(java.io.File.pathSeparator, foldersOf(typed));
         }
         return key.kind() == ProfileKey.Kind.NAME_ENDINGS || key.kind() == ProfileKey.Kind.LANGUAGES
@@ -281,6 +281,30 @@ public final class ProfileEdit {
                 }
             } catch (InvalidPathException cannotBeHeld) {
                 return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Whether the value holds one or more folders, each below the corpus root and relative to it (ADR-340 §8.1): elements
+     * separated by {@code /}, none empty, none {@code .} or {@code ..}, no {@code \}, neither beginning nor ending with
+     * {@code /}, and not absolute.
+     */
+    private static boolean areFoldersBelowTheCorpusRoot(String value) {
+        List<String> folders = foldersOf(value);
+        if (folders.isEmpty()) {
+            return false;
+        }
+        for (String folder : folders) {
+            if (folder.indexOf('\\') >= 0 || folder.startsWith("/") || folder.endsWith("/")
+                    || folder.matches("^[A-Za-z]:.*")) {
+                return false;
+            }
+            for (String element : folder.split("/", -1)) {
+                if (element.isEmpty() || element.equals(".") || element.equals("..")) {
+                    return false;
+                }
             }
         }
         return true;
@@ -329,6 +353,9 @@ public final class ProfileEdit {
                     : Optional.of(quoted + " is not a list of two-letter language codes");
             case CODE_SET_FOLDERS -> areFolders(value) ? Optional.empty()
                     : Optional.of(quoted + " is not a list of absolute folders, separated by " + java.io.File.pathSeparator);
+            case FOLDERS_NOT_WALKED -> areFoldersBelowTheCorpusRoot(value) ? Optional.empty()
+                    : Optional.of(quoted + " is not a list of folders below the corpus root, written with / between"
+                            + " their elements and separated by " + java.io.File.pathSeparator);
             case CLUSTER_RESOLUTION -> number(value).filter(number -> number > 0).isPresent() ? Optional.empty()
                     : Optional.of(quoted + " is not a number above 0");
             default -> number(value).isPresent() ? Optional.empty() : Optional.of(quoted + " is not a number");

@@ -10,9 +10,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The control panel's pages by path, for {@code ControlPanelServer.start} (ADR-302 §10): the launch page, the
- * folder page, the invocation page and Stop's confirmation, the sixteen reports, and the next act, the questions, the
- * code sets and the profile, with the paths their forms post to. The pages start the child, write files and read the sidecars; the
+ * The control panel's pages by path, for {@code ControlPanelServer.start} (ADR-302 §10; ADR-340 §3): the home page with
+ * its drawer of values, the folder page, the invocation page and Stop's confirmation, and the sixteen reports, with the
+ * paths their forms post to and, answering a {@code 303}, the paths of the pages the home page took in. The pages start the child, write files and read the sidecars; the
  * server's classes do none of these (ADR-291 §8). They link no class of the jar (ADR-285 §3).
  */
 public final class ControlPanelPages {
@@ -44,12 +44,13 @@ public final class ControlPanelPages {
     static Map<String, HttpHandler> pages(ControlPanelState state) {
         Map<String, HttpHandler> pages = new HashMap<>();
         NextPages next = new NextPages(state);
-        new LaunchPages(state).register(pages);
+        ValuePages values = new ValuePages(state);
+        new LaunchPages(state, next, values).register(pages);
         new FolderPages(state).register(pages);
         new InvocationPages(state).register(pages);
         new ReportPages(state).register(pages);
         next.register(pages);
-        new ValuePages(state, next).register(pages);
+        values.register(pages);
         pages.put(ControlPanelPage.SCRIPT_PATH, ControlPanelPages::script);
         return pages;
     }

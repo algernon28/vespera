@@ -10,12 +10,17 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The next act {@code /next} (ADR-302 §8): what {@code next-invocation.properties} says the next invocation wants,
- * read after the control panel's own child ended with 0 and at no other time (ADR-294 §4), each value asked for with
- * its provenance, its cost and the reports that inform it, and saved by ADR-295's writes, one key after another, the
- * first refused ending the save. Where answers are wanted it leads to {@code /labels} and to {@code label-auto}.
+ * The next step, a box of the home page's right column (ADR-340 §4; ADR-302 §8): what {@code next-invocation.properties}
+ * says the next invocation wants, read after the control panel's own child ended with 0 and at no other time
+ * (ADR-294 §4), each value asked for with its provenance, its cost and the reports that inform it, and saved by
+ * ADR-295's writes, one key after another, the first refused ending the save. Where answers are wanted it leads to the
+ * relevance section of the drawer and says to tick Autolabel. {@code /next} is no page any more: a {@code GET} lands on
+ * the box, and a {@code POST} is the form {@code next}'s.
  */
 final class NextPages {
+
+    /** The prefix of every id the box draws that the run settings draw too, so that the home page holds none twice. */
+    static final String ID_PREFIX = "next-";
 
     /** §8's table: the reports each key is read off, in the order the README's table of values names them. */
     static final Map<String, List<String>> REPORTS_OF_A_KEY = Map.ofEntries(
@@ -37,11 +42,17 @@ final class NextPages {
 
     /** {@code report-<key>}, the links to the reports §8's table names for the key; empty where it names none. */
     static String reportsOf(String key) {
+        return reportsOf("", key);
+    }
+
+    /** As {@link #reportsOf(String)}, its id written after {@code idPrefix} (ADR-340 §4). */
+    static String reportsOf(String idPrefix, String key) {
         List<String> reports = REPORTS_OF_A_KEY.get(key);
         if (reports == null) {
             return "";
         }
-        StringBuilder list = new StringBuilder("<ul id=\"report-").append(ControlPanelPage.escape(key)).append("\">");
+        StringBuilder list = new StringBuilder("<ul id=\"").append(ControlPanelPage.escape(idPrefix)).append("report-")
+                .append(ControlPanelPage.escape(key)).append("\">");
         for (String report : reports) {
             list.append("<li>").append(ControlPanelPage.reportLink(report)).append("</li>");
         }
@@ -56,22 +67,23 @@ final class NextPages {
 
     void register(Map<String, HttpHandler> pages) {
         pages.put("/next", this::next);
+        pages.put("/label-auto", this::labelAuto);
     }
 
     /** What the file says, or why the control panel offers nothing from it. */
     private record Read(Optional<NextInvocation> next, Optional<String> problem, String why) {
     }
 
-    /** §3's three cases (ADR-334): why the page suggests nothing, as {@code data-why} has it, and in words. */
+    /** §4's three cases (ADR-340): why the box suggests nothing, as {@code data-why} has it, and in words. */
     private static final String NONE_ENDED = "none-ended";
     private static final String ENDED_BADLY = "ended-badly";
     private static final String SAID_NOTHING = "said-nothing";
 
     private static final Map<String, String> WHY_IN_WORDS = Map.of(
-            NONE_ENDED, "No run has finished yet, so there is no next step to suggest. Start a run from the Launch"
-                    + " page; once it finishes, this page shows what it needs next.",
+            NONE_ENDED, "No run has finished yet, so there is no next step to suggest. Press Run; once a run finishes,"
+                    + " this box shows what it needs next.",
             ENDED_BADLY, "The last run did not finish, so there is no next step to suggest. The Invocation page says"
-                    + " how it ended; start it again from the Launch page once that is put right.",
+                    + " how it ended; press Run again once that is put right.",
             SAID_NOTHING, "The last run finished without saying what it needs next, so there is no next step to"
                     + " suggest.");
 
@@ -100,13 +112,29 @@ final class NextPages {
                 .map(ProfileKey::named).flatMap(Optional::stream).toList()).orElse(List.of());
     }
 
+    /** {@code /next}: a {@code GET} lands on the box of the home page (ADR-340 §3); a {@code POST} is the form {@code next}'s. */
     private void next(HttpExchange exchange) throws IOException {
         if (!Exchanges.isRead(exchange)) {
             save(exchange);
             return;
         }
+        Exchanges.redirect(exchange, "/#next-step");
+    }
+
+    /** {@code /label-auto} is no page: a {@code GET} lands on the box of the next step, any other method is refused (ADR-340 §3). */
+    private void labelAuto(HttpExchange exchange) throws IOException {
+        if (Exchanges.isRead(exchange)) {
+            Exchanges.redirect(exchange, "/#next-step");
+            return;
+        }
+        Exchanges.methodNotAllowed(exchange, "GET, HEAD");
+    }
+
+    /** {@code #next-step}: the box of the home page's right column (ADR-340 §4). */
+    String box() {
         Read read = read();
-        StringBuilder body = new StringBuilder(ControlPanelPage.outcome(state.takeOutcome("/next")));
+        StringBuilder body = new StringBuilder("<section class=\"card\" id=\"next-step\" data-column=\"right\">\n"
+                + "<h2>Next step</h2>\n");
         String invocation = read.next().map(next -> next.invocation().name().toLowerCase(java.util.Locale.ROOT))
                 .orElse("unknown");
         String why = read.next().isPresent() || read.problem().isPresent() ? "" : read.why();
@@ -127,18 +155,17 @@ final class NextPages {
                         .append(ControlPanelPage.escape(file.toString())).append("</code></p>\n");
             }
             if (next.answer()) {
-                body.append("<p><a id=\"labels-link\" href=\"/labels\">Answer the questions</a></p>\n")
-                        .append("<form name=\"label-auto\" method=\"post\" action=\"/label-auto\">")
-                        .append(ControlPanelPage.button("label-auto", "Have the local model answer", false))
-                        .append("</form>\n");
+                body.append("<p><a id=\"labels-link\" href=\"/?open=values-relevance#values-relevance\">Answer by folder</a>")
+                        .append(" Or tick Autolabel and press Label to have the local model answer.</p>\n");
             }
         }
-        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Next", 0, body.toString()));
+        return body.append("</section>\n").toString();
     }
 
     private String form(List<ProfileKey> keys, NextInvocation next) {
         Map<String, String> held = state.heldForm("next");
         Map<ProfileKey, ProfileEdit.Stated> profile = ValuePages.profileOf(state);
+        Optional<EffectiveValues> effective = state.effectiveValues();
         StringBuilder form = new StringBuilder("<form name=\"next\" method=\"post\" action=\"/next\">\n");
         for (ProfileKey key : keys) {
             String name = key.key();
@@ -152,19 +179,19 @@ final class NextPages {
             boolean seedFolder = key == ProfileKey.SEED_FOLDER;
             String forName = FolderPages.Target.NEXT_SEED_FOLDER.forName();
             form.append("<fieldset>\n");
-            form.append(ControlPanelPage.keyControl(key, name, "f-" + name, name, value,
+            form.append(ControlPanelPage.keyControl(key, name, ID_PREFIX + "f-" + name, ID_PREFIX, value,
+                    ValuePages.valueInUse(key, stated, effective).orElse(""),
                     seedFolder ? forName : "",
                     seedFolder ? FolderPages.statusElement(forName, FolderPages.statusOf(value, false)) : ""));
-            form.append(ControlPanelPage.provenance(name + ".provenance", "f-" + name + ".provenance",
-                    name + ": why this value?", held.getOrDefault(name + ".provenance", fileProvenance),
-                    "hint-" + name + "-provenance"));
-            form.append(ControlPanelPage.costElement(key)).append('\n');
-            form.append(reportsOf(name));
+            form.append(ControlPanelPage.provenance(name + ".provenance", ID_PREFIX + "f-" + name + ".provenance",
+                    "Why this value?", held.getOrDefault(name + ".provenance", fileProvenance),
+                    ID_PREFIX + "hint-" + name + "-provenance"));
+            form.append(ControlPanelPage.costElement(ID_PREFIX, key)).append('\n');
+            form.append(reportsOf(ID_PREFIX, name));
             form.append("</fieldset>\n");
         }
         form.append(ControlPanelPage.button("save", "Save", false)).append('\n')
                 .append(ControlPanelPage.button("save-then-run", "Save, then Run", false)).append("\n</form>\n");
-        form.append(ControlPanelPage.listsFor(keys, state.lastChecks().ollama().models()));
         return form.toString();
     }
 
@@ -180,8 +207,8 @@ final class NextPages {
         Optional<Path> folder = state.workingDirectory();
         List<ProfileKey> keys = wanted();
         if (folder.isEmpty() || keys.isEmpty()) {
-            state.say("/next", "there is no value the next invocation wants to save");
-            Exchanges.redirect(exchange, "/next");
+            state.say("/", "there is no value the next invocation wants to save");
+            Exchanges.redirect(exchange, "/#next-step");
             return;
         }
         List<String> saved = new ArrayList<>();
@@ -196,18 +223,18 @@ final class NextPages {
                         current -> ProfileEdit.rewrite(current, key, value, provenance));
             }
             if (refusal.isPresent()) {
-                state.say("/next", refusal.get());
-                Exchanges.redirect(exchange, "/next");
+                state.say("/", refusal.get());
+                Exchanges.redirect(exchange, "/#next-step");
                 return;
             }
             saved.add(key.key());
         }
         state.letGoOfForm("next");
         if (fields.containsKey("save-then-run")) {
-            Exchanges.redirect(exchange, InvocationPages.startAndSay(state, ControlPanelState.Start.RUN, "/next"));
+            Exchanges.redirect(exchange, InvocationPages.startAndSay(state, ControlPanelState.Start.RUN, "/"));
             return;
         }
-        state.say("/next", String.join(", ", saved) + " saved in " + folder.get().resolve(ProfileEdit.FILE_NAME));
-        Exchanges.redirect(exchange, "/next");
+        state.say("/", String.join(", ", saved) + " saved in " + folder.get().resolve(ProfileEdit.FILE_NAME));
+        Exchanges.redirect(exchange, "/#next-step");
     }
 }

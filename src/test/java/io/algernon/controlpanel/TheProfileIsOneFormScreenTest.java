@@ -75,8 +75,8 @@ class TheProfileIsOneFormScreenTest {
             Page page = screens.browser().go("/profile").page();
             Element profile = form(page, FORM);
 
-            claim("the page holds one form, the profile's",
-                    () -> assertThat(page.document().select("form").eachAttr("name")).containsExactly(FORM));
+            claim("the drawer's run settings hold one form, the profile's",
+                    () -> assertThat(byId(page, "values-profile").select("form").eachAttr("name")).containsExactly(FORM));
             claim("it holds, for every value in the profile's order, what the page drew it from, the value and its"
                             + " provenance, each named by the value",
                     () -> assertThat(controlNames(profile)).containsExactlyElementsOf(expected));

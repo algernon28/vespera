@@ -63,6 +63,15 @@ final class ControlPanelState {
 
     private final Map<String, Map<String, String>> heldForms = new HashMap<>();
 
+    /** What the tree of folders to process holds across a press of Open or a folder above (ADR-340 §5). */
+    private TreeHold heldTree = new TreeHold(Map.of(), Map.of(), Map.of());
+
+    /**
+     * The folder {@code vespera.working-dir} left empty names: {@code .vespera} under the directory the control panel
+     * was started in, absolute and normalised, read once as it started (ADR-340 §6).
+     */
+    private final Path defaultWorkingDirectory;
+
     private volatile LaunchValues values;
     private volatile SidecarChecks.Checks lastChecks = new SidecarChecks.Checks(
             new SidecarChecks.Check(SidecarChecks.Result.NOT_CHECKED),
@@ -73,6 +82,14 @@ final class ControlPanelState {
     private boolean controlPanelEnds;
 
     ControlPanelState(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder, String userName) {
+        this(runtime, launchValuesFile, corpusRootLockFolder, userName,
+                Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize());
+    }
+
+    /** As above, the work folder's default being {@code .vespera} under {@code currentDirectory} (ADR-340 §6). */
+    ControlPanelState(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder, String userName,
+            Path currentDirectory) {
+        this.defaultWorkingDirectory = currentDirectory.toAbsolutePath().normalize().resolve(".vespera");
         this.runtime = runtime;
         this.launchValuesFile = launchValuesFile;
         this.corpusRootLockFolder = corpusRootLockFolder;
@@ -91,6 +108,29 @@ final class ControlPanelState {
 
     private static LaunchValues withThePreselectedImage(LaunchValues held) {
         return held.doclingImage().isEmpty() ? held.withDoclingImage(ControlPanelPage.DOCLING_IMAGE_GPU) : held;
+    }
+
+    /** The values as a start uses them: the image preselected and the work folder its default where either is left empty. */
+    private LaunchValues withTheDefaults(LaunchValues held) {
+        LaunchValues image = withThePreselectedImage(held);
+        return image.workingDirectory().isEmpty() ? image.withWorkingDirectory(defaultWorkingDirectory.toString()) : image;
+    }
+
+    /** The work folder left empty is this one (ADR-340 §6). */
+    Path defaultWorkingDirectory() {
+        return defaultWorkingDirectory;
+    }
+
+    /**
+     * The work folder as the pages and the starts read it: the one typed, or its default where the field is empty; empty
+     * only where the one typed is no path this system can hold.
+     */
+    String effectiveWorkingDirectory() {
+        String named = values.workingDirectory();
+        if (named.isEmpty()) {
+            return defaultWorkingDirectory.toString();
+        }
+        return pathOf(named.stripTrailing()).isPresent() ? named : "";
     }
 
     /** The launch values as held, the Docling image empty where none is named, for a change that holds them again. */
@@ -115,10 +155,11 @@ final class ControlPanelState {
                 return Files.isRegularFile(
                         Path.of(now.deliverableRoot().stripTrailing()).resolve(RENDERING).resolve(PAGE_LIST));
             }
-            if (now.workingDirectory() == null || now.workingDirectory().isBlank()) {
+            String working = effectiveWorkingDirectory();
+            if (working.isBlank()) {
                 return false;
             }
-            Path trees = Path.of(now.workingDirectory().stripTrailing()).resolve("deliverable");
+            Path trees = Path.of(working.stripTrailing()).resolve("deliverable");
             if (!Files.isDirectory(trees)) {
                 return false;
             }
@@ -134,12 +175,13 @@ final class ControlPanelState {
      * Whether the output folder named is the working directory's {@code deliverable} folder, which is read as no folder
      * named (ADR-334 §1): the trees lie in a folder of their own for each run there.
      */
-    private static boolean namesTheDefaultFolder(LaunchValues now) {
-        if (now.workingDirectory() == null || now.workingDirectory().isBlank()) {
+    private boolean namesTheDefaultFolder(LaunchValues now) {
+        String working = effectiveWorkingDirectory();
+        if (working.isBlank()) {
             return false;
         }
         try {
-            Path theDefault = Path.of(now.workingDirectory().stripTrailing()).toAbsolutePath().normalize()
+            Path theDefault = Path.of(working.stripTrailing()).toAbsolutePath().normalize()
                     .resolve("deliverable");
             return LaunchPages.namesTheSameFolder(now.deliverableRoot(), theDefault.toString());
         } catch (RuntimeException cannotBeHeld) {
@@ -183,6 +225,30 @@ final class ControlPanelState {
         heldForms.remove(form);
     }
 
+    /**
+     * What the tree of folders to process holds in memory beside the files (ADR-340 §5): by folder, as the tree spells
+     * it, whether a folder is read and whether it is marked as a code set, each only where it differs from what the
+     * files state, and the name typed for a folder marked.
+     */
+    record TreeHold(Map<String, Boolean> walked, Map<String, Boolean> marked, Map<String, String> names) {
+    }
+
+    /** What the tree holds now; empty maps where it holds nothing. */
+    synchronized TreeHold heldTree() {
+        return heldTree;
+    }
+
+    /** Holds {@code held} in place of what the tree held, until {@link #letGoOfTree}. */
+    synchronized void holdTree(TreeHold held) {
+        heldTree = new TreeHold(Map.copyOf(held.walked()), Map.copyOf(held.marked()), Map.copyOf(held.names()));
+    }
+
+    /** Lets go of everything the tree held: it is saved or reset, and shows what the files say again. */
+    synchronized void letGoOfTree() {
+        heldTree = new TreeHold(Map.of(), Map.of(), Map.of());
+        heldForms.remove("folders-to-process");
+    }
+
     /** The lines the launch values' file gave as it was loaded. */
     List<String> notes() {
         return List.copyOf(notes);
@@ -203,10 +269,10 @@ final class ControlPanelState {
         return writer.write(workingDirectory, changes);
     }
 
-    /** The working directory held, empty where none is named. */
+    /** The working directory held: the one named, or its default; empty only where the one named is no path this system can hold. */
     Optional<Path> workingDirectory() {
         String named = values.workingDirectory();
-        return named.isEmpty() ? Optional.empty() : pathOf(named);
+        return named.isEmpty() ? Optional.of(defaultWorkingDirectory) : pathOf(named);
     }
 
     /**
@@ -337,7 +403,7 @@ final class ControlPanelState {
         }
         // one read of the held values, so the child and the file stored are of the same values
         LaunchValues held = values;
-        LaunchValues now = withThePreselectedImage(held);
+        LaunchValues now = withTheDefaults(held);
         Optional<String> refusal = kind == Start.RUN ? now.refusalToRun() : now.refusalToLabel();
         if (refusal.isPresent()) {
             return refusal;

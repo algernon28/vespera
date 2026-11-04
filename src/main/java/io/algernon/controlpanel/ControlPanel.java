@@ -52,9 +52,11 @@ public final class ControlPanel {
                     + runtime.java());
             String userName = System.getProperty("user.name");
             Path launchValuesFile = LaunchValues.fileIn(Path.of(System.getProperty("java.io.tmpdir")), userName);
+            // the directory it was started in, read once: a work folder left empty is .vespera under it (ADR-340 §6)
+            Path currentDirectory = Path.of("").toAbsolutePath().normalize();
             ControlPanelState state = new ControlPanelState(runtime, launchValuesFile,
                     corpusRootLockFolder(System.getenv(CORPUS_ROOT_LOCK_FOLDER_VARIABLE), System.getProperty("user.home")),
-                    userName);
+                    userName, currentDirectory);
             endChildWithThisJvm(state);
             Optional<ControlPanelServer> server = begin(state, System.getenv(PORT_VARIABLE),
                     TAB_BOUND, new SystemBrowserOpener(), line -> {

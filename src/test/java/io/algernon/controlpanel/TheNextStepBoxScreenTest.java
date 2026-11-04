@@ -45,6 +45,7 @@ class TheNextStepBoxScreenTest {
     private static final String WANTS_THE_FLOOR = """
             invocation=run
             wants=boilerplateDocumentFrequencyFloor
+            answer=false
             """;
 
     /** Answers wanted and no value, as a scoring run's closing line leaves the next act. */

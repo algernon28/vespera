@@ -270,7 +270,7 @@ class ProfileEditorScreenTest {
 
     @Test
     @Story("The operator edits what the file states")
-    @DisplayName("Each field holds the value and provenance the file states, and a value the jar ships stays out of the field")
+    @DisplayName("Each field holds the value and provenance the file states, and a value the jar ships stays out of the field, shown as the value in use")
     void theFieldsHoldTheFilesOwnWordsAndADefaultStaysOutOfThem() throws IOException {
         Path work = workingDirectory();
         theJarSaid(work, Map.of("embeddingModel", SHIPPED_EMBEDDING_MODEL, "embeddingModel.source", "shipped"));
@@ -287,8 +287,9 @@ class ProfileEditorScreenTest {
                     () -> assertThat(List.of(valueOf(page, "embeddingModel").val(),
                                     control(form(page, "profile"), "embeddingModel.provenance").val()))
                             .containsExactly("", ""));
-            claim("and its placeholder stays an example, not what the jar ships",
-                    () -> assertThat(valueOf(page, "embeddingModel").attr("placeholder")).startsWith("e.g. "));
+            claim("and its placeholder is what the jar ships, in use",
+                    () -> assertThat(valueOf(page, "embeddingModel").attr("placeholder"))
+                            .isEqualTo("in use: " + SHIPPED_EMBEDDING_MODEL));
         }
     }
 

@@ -195,7 +195,9 @@ class TheTopBarScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder,
                 ScreenServer.values(Files.createDirectories(folder.resolve("corpus")), work))) {
             PanelBrowser browser = screens.browser();
-            Element before = form(browser.page(), "launch").selectFirst("[name=" + AUTOLABEL + "]");
+            // Read before the press, which ticks the box in the page's own document as a browser does.
+            Element box = form(browser.page(), "launch").selectFirst("[name=" + AUTOLABEL + "]");
+            List<Object> before = List.of(box.attr("type"), box.hasAttr("checked"));
             Page landed = browser.press("launch", "label", Map.of(AUTOLABEL, TICKED)).page();
             whenTheChildHasEnded(browser);
             Page home = browser.go("/").page();
@@ -203,8 +205,7 @@ class TheTopBarScreenTest {
                     LaunchValues.fileIn(folder.resolve("tmp"), System.getProperty("user.name")));
 
             claim("the box is a checkbox, drawn unticked",
-                    () -> assertThat(List.of(before.attr("type"), before.hasAttr("checked")))
-                            .containsExactly("checkbox", false));
+                    () -> assertThat(before).containsExactly("checkbox", false));
             claim("after a start that ticked it, it is drawn unticked again on the page landed on and on the home page",
                     () -> assertThat(List.of(landed, home).stream()
                                     .map(page -> form(page, "launch").selectFirst("[name=" + AUTOLABEL + "]")
