@@ -1,6 +1,6 @@
 # ADR-306 — The control panel reads a holder line of its own process as held by nobody, and serves the cluster pages' sizes as a sixteenth report
 
-> **Partly amended — see [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §2: the sixteenth report is listed in the window's Reports section and opened in the default browser, not served. Of §3: the Profile tab lists each key's reports beside it, `Reports.OF_A_KEY`. §1 stands.
+> **Partly amended — see [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §2: the sixteenth report is listed in the window's Reports section and opened in a tab of the window, not served. Of §3: the Profile tab lists each key's reports beside it, `Reports.OF_A_KEY`. §1 stands.
 
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.

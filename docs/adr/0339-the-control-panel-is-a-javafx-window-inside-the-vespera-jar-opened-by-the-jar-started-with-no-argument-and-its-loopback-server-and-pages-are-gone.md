@@ -2,7 +2,7 @@
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.
-- **Decided**: by the operator, that a desktop window replaces the browser control panel rather than standing beside it, that it ships inside the Vespera jar and not as an application of its own, that a flag on the command line keeps a start that never opens the window, and that its layout is variant B of [#700](https://github.com/algernon28/vespera/issues/700), which [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md) records. The rest, the dependency and its version, how the window starts from the jar, which native libraries the jar carries, what a start does where no window can open, which records it supersedes and which it keeps, and how a window is tested, Claude recommended and the operator accepted as written.
+- **Decided**: by the operator, that a desktop window replaces the browser control panel rather than standing beside it, that it ships inside the Vespera jar and not as an application of its own, that a flag on the command line keeps a start that never opens the window, and that its layout is variant B of [#700](https://github.com/algernon28/vespera/issues/700), which [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md) records. The rest, the dependencies and their version, how the window starts from the jar, which native libraries the jar carries, what a start does where no window can open, which records it supersedes and which it keeps, and how a window is tested, Claude recommended and the operator accepted as written.
 - **Supersedes**: [ADR-291](0291-the-control-panel-listens-on-127-0-0-1-alone-at-a-port-the-system-picks-and-answers-only-a-browser-holding-its-starts-token-on-its-own-address.md), whose server, address and checks exist no more (§5). It carries a note at its head.
 - **Supersedes**: [ADR-297](0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md): a window is tested as §6 says, and jsoup leaves the pom with the last page (§6). It carries a note at its head.
 - **Supersedes**: [ADR-302](0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md) but for what §4 below keeps of it: its §5, the sidecars asked and their answers only read; its §6, free space; its §7, the table of what a stop costs at each step; and of its §8 the rule of what the next act asks for. Its pages, forms, paths, names and the report re-served in a sandbox go. It carries a note at its head.
@@ -14,7 +14,7 @@
 - **Amends**: [ADR-278](0278-the-control-panel-starts-the-jar-as-its-child-reads-its-output-to-the-end-and-stops-only-its-own-child.md) §2, whose pages are the window's (ADR-341). The rest of it stands. It carries a note at its head.
 - **Keeps**: ADR-278 §1, §3 to §8, [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md), [ADR-294](0294-the-control-panel-learns-what-the-next-invocation-wants-from-a-file-the-jar-writes-with-the-closing-line.md), [ADR-295](0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md) but for what [ADR-340](0340-the-note-saved-with-a-profile-value-is-filled-in-for-the-operator-set-in-the-control-panel-or-the-provenance-already-saved-and-a-value-changed-under-its-old-note-is-saved-with-the-filled-in-one.md) amends, [ADR-306](0306-the-control-panel-reads-a-holder-line-of-its-own-process-as-held-by-nobody-and-serves-the-cluster-page-sizes-as-a-sixteenth-report.md) §1 and §2, [ADR-307](0307-the-child-the-control-panel-started-ends-with-it-wherever-its-end-runs-the-jvms-shutdown-hooks.md), [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md), [ADR-334](0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md) and [ADR-336](0336-the-launch-page-starts-label-auto-beside-label-and-every-argument-of-the-commands-the-control-panel-starts-is-set-by-a-control-of-the-launch-page-or-listed-as-never-passed-with-why.md), each for what it decides of the child, the locks, the refusals and the files, which §4 lists.
 - **Keeps**: [ADR-040](0040-modules-are-capability-shaped-not-stage-shaped.md): the ten modules stay ten; the control panel and the jar's entry point are outside `io.algernon.vespera` (§2, §3). [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md): no installer, script or image is shipped. [ADR-264](0264-the-private-paths-guard-refuses-only-what-reads-or-writes-outside-the-allow-list-and-a-working-directory-is-open-as-the-place-it-lies-in.md) and [ADR-283](0283-the-private-paths-guard-reads-a-deliverable-tree-as-outside-the-allow-list-wherever-it-lies-by-its-marker.md): the window reads no document and serves nothing (§4).
-- **Read with**: [ADR-046](0046-the-pom-carries-what-a-recorded-decision-requires.md): the dependency of §1 is this record's.
+- **Read with**: [ADR-046](0046-the-pom-carries-what-a-recorded-decision-requires.md): the dependencies of §1 are this record's.
 - **Settles**: [#700](https://github.com/algernon28/vespera/issues/700), with ADR-340 and ADR-341.
 
 ## Context
@@ -47,11 +47,34 @@ Each classifier's jars carry the whole of JavaFX's classes beside that platform'
 
 The probe was not run on Linux.
 
+**OpenJFX 26.0.2's `javafx-web`** is, like the three, an empty jar whose POM pulls the jar of its platform's classifier, and with it `javafx-media` and `jdk-jsobject`, each in the same way. A classifier's `jdk-jsobject` holds `netscape.javascript`'s two classes and nothing else. Their sizes in bytes:
+
+| Classifier | `javafx-web` | `javafx-media` | `jdk-jsobject` | The three |
+| --- | --- | --- | --- | --- |
+| `win` | 36,073,597 | 1,189,003 | 1,675 | 37,264,275 |
+| `linux` | 47,588,621 | 1,598,608 | 1,675 | 49,188,904 |
+| `mac` | 39,810,204 | 1,618,939 | 1,675 | 41,430,818 |
+| `mac-aarch64` | 38,815,045 | 1,541,079 | 1,675 | 40,357,799 |
+
+`javafx-web-26.0.2-win.jar` holds WebKit as `jfxwebkit.dll`, 96,460,800 bytes unpacked; the `linux` jar holds it as `libjfxwebkit.so`, 124,666,640 bytes, whose ELF names as needed only `libdl.so.2`, `libpthread.so.0`, `libjvm.so`, `librt.so.1`, `libm.so.6`, `libc.so.6` and `ld-linux-x86-64.so.2`. `javafx-media`'s native libraries, GStreamer's among them, are loaded by a media player and not by a viewer of these reports: after the probe below, JavaFX's cache held `jfxwebkit.dll` beside the libraries of the three and none of `javafx-media`'s.
+
+**The jar with them.** The six jars `javafx-web` brings on Windows, the three of the `win` classifier and the three empty ones of 301, 303 and 303 bytes, were nested in a copy of the packaged jar of 2026-11-04, 179,837,033 bytes, as the Boot plugin nests a library: stored, under `BOOT-INF/lib/`, and named in `BOOT-INF/classpath.idx`. That copy was 37,266,121 bytes larger than a copy made the same way without them, 20.7% of the packaged jar.
+
+**A probe of a report's viewer**, outside the repository, on Windows 11 with OpenJDK 26.0.2.1 and the `win` jars of `javafx-controls` and `javafx-web` on a class path. The jar's own `ProgressPage` wrote the progress page's four tabs for a synthetic invocation with a step running, at an interval of 1 second, and a `WebView` of 1000 by 800 on a stage loaded `progress.html` by its `file:` address. On the Headless platform, `glass.platform` set to `Headless` and `prism.order` to `sw` as the tests set them:
+
+- the toolkit was up in 161 to 173 ms, and the page loaded 849 to 969 ms after the `WebView` was made; JavaScript is on by default; the page held its 24 hit circles, and a snapshot of the view held 544 colours;
+- the page's own script reloaded it 5 times in 5.2 seconds, at its interval;
+- a JavaFX `MOUSE_MOVED` fired on the `WebView` over the middle of the first chart, scrolled into view, showed the page's tooltip, holding the sample's time and its series' value, and drew its crosshair;
+- a press, a release and a click fired on the `WebView` over the bar's link to `progress-steps.html`, the same over a link to a text file outside the working directory, and the page's own `click()` on its link to `progress-samples.html`, each set the engine's location to the link's address as its load began; the load, cancelled from the location's listener, left the viewer on `progress.html`, its title and its document as they were;
+- a script added to the page, catching each click and passing its address out through `alert`, kept the viewer in place as well.
+
+On Windows' own platform, the stage placed off the screen, the same held, the toolkit up in 304 ms. The viewer was not run on Linux.
+
 ## Decision
 
 ### 1. The dependency
 
-The pom gains one dependency, at compile scope:
+The pom gains two dependencies, at compile scope:
 
 ```xml
 <dependency>
@@ -59,15 +82,20 @@ The pom gains one dependency, at compile scope:
     <artifactId>javafx-controls</artifactId>
     <version>${javafx.version}</version>
 </dependency>
+<dependency>
+    <groupId>org.openjfx</groupId>
+    <artifactId>javafx-web</artifactId>
+    <version>${javafx.version}</version>
+</dependency>
 ```
 
-with the property `javafx.version` at **26.0.2**, beside the pom's other versions. Spring Boot 4.1.1's parent manages no version of OpenJFX. `javafx-controls` brings `javafx-graphics` and `javafx-base`; nothing else of OpenJFX is declared: no `javafx-fxml`, since the window is built in Java; no `javafx-web`, since the window draws the progress page's charts itself (ADR-341 §2) and opens a report in the default browser (ADR-341 §6); no `javafx-swing` and no `javafx-media`. 26.0.2 is the OpenJFX release of the JDK's own major, the one measured above; a later 26.0.x is the same decision.
+with the property `javafx.version` at **26.0.2**, beside the pom's other versions. Spring Boot 4.1.1's parent manages no version of OpenJFX. `javafx-controls` brings `javafx-graphics` and `javafx-base`, and holds the window's controls and charts; `javafx-web` brings `javafx-media` and `jdk-jsobject`, and holds the `WebView` a report opens in inside the window (ADR-341 §6). Nothing else of OpenJFX is declared: no `javafx-fxml`, since the window is built in Java, and no `javafx-swing`; `javafx-media`, which no class of the control panel names, comes in only as `javafx-web`'s own. 26.0.2 is the OpenJFX release of the JDK's own major, the one measured above; a later 26.0.x is the same decision.
 
-**The jar carries the native libraries of the platform it is built on**, the classifier OpenJFX's parent POM picks by the building machine's system. The pom names no classifier. A jar built on Windows opens the window on Windows; one built on Linux, on Linux. Every command of the jar runs on any platform whatever it carries, since no class of `io.algernon.vespera` names JavaFX and nothing loads it until the window opens. Carrying every classifier would add about 26.7 MB of classes the build machine does not use and of native libraries a jar built for one operator does not run (ADR-216); a jar for another platform is built there.
+**The jar carries the native libraries of the platform it is built on**, the classifier OpenJFX's parent POM picks by the building machine's system. The pom names no classifier. A jar built on Windows opens the window on Windows; one built on Linux, on Linux. Every command of the jar runs on any platform whatever it carries, since no class of `io.algernon.vespera` names JavaFX and nothing loads it until the window opens. Carrying every classifier would add about 157.7 MB of classes the build machine does not use and of native libraries a jar built for one operator does not run (ADR-216); a jar for another platform is built there.
 
-So the Spring Boot jar grows by the three jars of one classifier, 9,515,963 bytes where it is built on Windows, about 5.6% of the build of 2026-11-03.
+So the Spring Boot jar grows by the six jars of one classifier and their empty ones: where it is built on Windows, `javafx-controls`' three by 9,515,963 bytes, about 5.6% of the build of 2026-11-03, and `javafx-web`'s by 37,266,121 bytes more, 20.7% of the build of 2026-11-04, as measured above, so that JavaFX is about 46.8 MB of a jar of about 217 MB. WebKit is loaded only once a report is opened, and the first report opened on a machine writes `jfxwebkit.dll`, 96,460,800 bytes, beside JavaFX's other native libraries under `<user home>/.openjfx/cache/`.
 
-**The build stays green on both CI jobs** because each resolves its own classifier: Linux's `verify` builds and tests against `linux`, Windows' `test` against `win`, and every window test runs on the Headless platform, which needs no display (§6).
+**The build stays green on both CI jobs** because each resolves its own classifier: Linux's `verify` builds and tests against `linux`, Windows' `test` against `win`, and every window test, a report's viewer among them, runs on the Headless platform, which needs no display (§6).
 
 ### 2. How it starts
 
@@ -117,7 +145,7 @@ Its `java` stays ADR-288 §3's, `<java.home>/bin/java`. `ChildRuntime.find(Strin
 
 ### 3. What the control panel links
 
-ADR-285 §1 stands: the control panel's code is `io.algernon.controlpanel`, outside the ten modules. ADR-285 §3 stands with other modules: a compiled class of the control panel names types of its own package, of the JDK's `java.base`, of JavaFX's public packages, those whose names begin `javafx.`, and of `tools.jackson`, for the one file ADR-341 §3 reads with it. It names nothing of `io.algernon.vespera`, of `io.algernon.EntryPoint`, of Spring, of `java.sql`, of `java.desktop`, of `jdk.httpserver`, and no `com.sun.javafx` or `com.sun.glass` type. No class of `io.algernon.vespera` names the control panel or JavaFX. ADR-285 §4's ADR-001 stands: the window starts no Spring context.
+ADR-285 §1 stands: the control panel's code is `io.algernon.controlpanel`, outside the ten modules. ADR-285 §3 stands with other modules: a compiled class of the control panel names types of its own package, of the JDK's `java.base`, of JavaFX's public packages, those whose names begin `javafx.`, and of `tools.jackson`, for the one file ADR-341 §3 reads with it. It names nothing of `io.algernon.vespera`, of `io.algernon.EntryPoint`, of Spring, of `java.sql`, of `java.desktop`, of `jdk.httpserver`, of `netscape.javascript`, which `jdk-jsobject` brings, and no `com.sun.javafx`, `com.sun.glass` or `com.sun.webkit` type. No class of `io.algernon.vespera` names the control panel or JavaFX. ADR-285 §4's ADR-001 stands: the window starts no Spring context.
 
 ADR-130's rule within the control panel binds one stylesheet, a resource of `io.algernon.controlpanel`, which owns every colour, size and space the window draws; no class sets a style of its own.
 
@@ -140,7 +168,7 @@ The window is a new face on the same contract. These stand as their records say,
 | Every argument of the jar's commands accounted for | ADR-336 §2 | `ChildCommand.ARGUMENTS` |
 | Run, Label and Let the local model answer disabled while the window's child runs or a holder line is held, `label --auto` started by Label's checks | ADR-302 §2, ADR-336 §1 | `ControlPanelState` |
 
-**The private-paths rules stand.** The window reads no document, lists folder names only where the operator opens a folder (ADR-341 §1), and writes only the files ADR-295 and ADR-330 name; it serves nothing, so no other local caller reaches it. An agent may still start the jar, with no argument too: the guard sees the start and nothing the window then reads or writes, as ADR-264 §5 has it.
+**The private-paths rules stand.** The window reads no document: its viewer loads the jar's reports alone, and a link inside one to a document is handed to the system, which opens it (ADR-341 §6). It lists folder names only where the operator opens a folder (ADR-341 §1), and writes only the files ADR-295 and ADR-330 name; it serves nothing, so no other local caller reaches it. An agent may still start the jar, with no argument too: the guard sees the start and nothing the window then reads or writes, as ADR-264 §5 has it.
 
 ### 5. What goes
 
@@ -156,7 +184,8 @@ The window is a new face on the same contract. These stand as their records say,
 - **A window test builds the window's root from a `ControlPanelState`**, shows it on a stage, finds a control by its id, presses it by `fire()` and reads what the window then shows. It finds nothing by its position, its style class or its words, but where a record fixes the words, as ADR-341 §1 fixes the two label commands'.
 - **Every window test is a unit test**, `*Test`, run by surefire on both CI jobs, needing neither a display, a browser nor `verify`.
 - **A native dialog is not opened by a test.** The window asks for a folder or a file through a seam of its own that a test answers; that `DirectoryChooser` and `FileChooser` open is not held.
-- **What a window test cannot hold**: how the window looks on Windows' Direct3D or Linux's OpenGL pipeline, focus, and a native dialog. A record whose decision rests on one says so.
+- **A report's viewer is JavaFX's own `WebView`, run on the Headless platform** as measured above. A test opens a report in it, presses a link inside the report by the page's own `click()` through `WebEngine.executeScript`, and reads where the viewer is from `WebEngine.getLocation()` and the page's title from its own `document.title`. What the window hands to the system to open goes through the same seam as a dialog, which the test answers, so no program of the system starts.
+- **What a window test cannot hold**: how the window looks on Windows' Direct3D or Linux's OpenGL pipeline, focus, a native dialog, what the system opens for an address handed to it, and what WebKit draws of a report and a pointer's hover over it, which are measured above. A record whose decision rests on one says so.
 - **jsoup leaves the pom** with the last test that reads a page; nothing else names it.
 
 **The tests of the server, the pages and the second jar go, and the change that builds the window deletes them**, with the classes they read; they stand until then, since the classes they read still stand:
@@ -175,15 +204,15 @@ No file under `src/main/java/io/algernon/vespera` changes for this record, so no
 ## Consequences
 
 - One jar: the window and the commands ship together and cannot drift apart, and the operator starts one file.
-- The jar grows by one platform's JavaFX, about 9.5 MB, and a jar built on one platform opens the window there alone.
+- The jar grows by one platform's JavaFX, about 46.8 MB on Windows, WebKit about 36 MB of it, and a jar built on one platform opens the window there alone.
 - No port is listened on, and no other program on the machine can reach the control panel.
-- Each start of the window writes one line of JavaFX's on standard error, and the first start on a machine writes JavaFX's native libraries under `<user home>/.openjfx/cache/`.
+- Each start of the window writes one line of JavaFX's on standard error, the first start on a machine writes JavaFX's native libraries under `<user home>/.openjfx/cache/`, and the first report opened there writes WebKit's beside them, about 96 MB on Windows.
 - A start of the jar with no argument that opens the window makes no `.vespera` in its current directory; `--headless` alone, and a start where the window cannot open, still make one, as a bare start of the command line does.
 - The private-paths guard, which sees an agent's start of the jar, sees no more than before: what the window does is held by the written rule alone (ADR-264 §5).
 
 ## Known limits
 
-- **The Headless platform was measured on Windows alone.** On Linux it loads `libprism_sw.so` and the font libraries, which need FreeType and Fontconfig on the runner; the Linux job holds it, and a job lacking them fails every window test there until the workflow installs them.
+- **The Headless platform was measured on Windows alone, and a report's viewer on it too.** On Linux it loads `libprism_sw.so` and the font libraries, which need FreeType and Fontconfig on the runner, and the viewer loads `libjfxwebkit.so`, which by its ELF needs only the C runtime's libraries and the JVM's; the Linux job holds both, and a job lacking a library fails every window test there, or every test of a report's viewer, until the workflow installs it.
 - **A jar copied to another platform runs every command and opens no window**: started with no argument, it answers as its command line, with §2's line.
 - **A `--headless` after the first argument is not read as one**, and the command line refuses it as an option it does not know.
 - **The window is drawn by JavaFX 26.0.2's controls and their default theme under the one stylesheet**; how it looks is held by no test (§6).
@@ -195,10 +224,11 @@ No file under `src/main/java/io/algernon/vespera` changes for this record, so no
 - **A subcommand, `vespera panel`.** picocli parses it after `VesperaApplication.main` has made and locked a working directory; the window is no invocation and takes no working directory until the operator names one.
 - **`VesperaApplication.main` deciding.** A class of the jar would name the control panel, which ADR-285 §3 keeps from happening; `EntryPoint` stands outside both.
 - **A `Main-Class` extending `Application`.** On the class path the Java launcher refuses one with `JavaFX runtime components are missing`; Spring Boot's launcher would also have to stop being the `Main-Class`.
-- **Every classifier in the jar.** 26.7 MB of what no build for this operator runs, and duplicate classes on the class path (§1).
+- **Every classifier in the jar.** 157.7 MB of what no build for this operator runs, and duplicate classes on the class path (§1).
 - **TestFX with Monocle.** Two test dependencies for what JavaFX's own Headless platform does, and Monocle's builds trail JavaFX's releases.
 - **Testing the window's model alone.** The operator's decisions are about what the window shows and where; a model holds none of them.
-- **`javafx-web`, showing `progress.html` in a `WebView`.** About 25 MB more a platform for a page whose numbers the window can draw itself (ADR-341 §2).
+- **No `javafx-web`, and a report opened in the default browser.** About 37 MB less on Windows, but a report would leave the window for another program, which the operator refused (ADR-341 §6).
+- **A `WebView` of `progress.html` in place of the cockpit's three charts.** The page is laid out for a browser's window and wraps its charts at ADR-322's widths; the window draws them at its own size from `progress.json` (ADR-341 §2), and the page itself opens in a report's tab (ADR-341 §6).
 
 ## Tests
 
@@ -213,7 +243,7 @@ No file under `src/main/java/io/algernon/vespera` changes for this record, so no
 | `controlpanel.TheControlPanelLinksNoClassOfTheJarTest.noClassOfTheJarNamesJavaFx` | no compiled class of `io.algernon.vespera` names a `javafx.` type, so a command never loads it (§1) |
 | `controlpanel.HeadlessToolkitTest.theToolkitRunsOnTheHeadlessPlatformWithNoDisplay` | the toolkit started by the tests runs JavaFX's Headless platform (§6) |
 | `controlpanel.HeadlessToolkitTest.aStageIsShownAButtonFoundByItsIdPressedAndTheSceneDrawn` | a stage shown, a button found by id and fired, its effect read, a snapshot the scene's size (§6) |
-| `PackagedJarIT.theJarCarriesTheControlPanelAndJavaFxAndStartsAtTheEntryPoint` | the Spring Boot jar holds the control panel's classes and `EntryPoint`, the three OpenJFX 26.0.2 jars of the classifier `os.name` and `os.arch` give the platform that built it, `Start-Class` `io.algernon.EntryPoint`, `Main-Class` Spring Boot's launcher and `Enable-Native-Access: ALL-UNNAMED` (§1, §2) |
+| `PackagedJarIT.theJarCarriesTheControlPanelAndJavaFxAndStartsAtTheEntryPoint` | the Spring Boot jar holds the control panel's classes and `EntryPoint`, the six OpenJFX 26.0.2 jars of the classifier `os.name` and `os.arch` give the platform that built it, `javafx-base`, `javafx-controls`, `javafx-graphics`, `javafx-media`, `javafx-web` and `jdk-jsobject`, each once, `Start-Class` `io.algernon.EntryPoint`, `Main-Class` Spring Boot's launcher and `Enable-Native-Access: ALL-UNNAMED` (§1, §2) |
 | `PackagedJarIT.noControlPanelJarIsBuiltBesideIt` | no `-control-panel.jar` in `target` (§5) |
 | `CliExitIT.aJarThatCannotOpenTheWindowAnswersAsItsCommandLine` | the packaged jar, started in a JVM of its own with no argument and a glass platform JavaFX does not have: §2's line, the commands' usage and picocli's usage code (§2) |
 | `controlpanel.ChildRuntimeTest.theJarIsTheOneTheClassPathNames` | the class path's one file, absolute, renamed or not (§2) |
@@ -238,7 +268,7 @@ The packaged jar's three tests of the second jar and its manifest are replaced b
 
 ## What the implementation owes
 
-Beside the tests above, which it turns green, the change that builds the window changes the `headless` and `gui` profiles of the pom as §2 has them, the `gui` profile keeping its name, and deletes the tests §6 lists. It changes the README's lines on building and running in one command, headless, and its section on starting the control panel: the window opened by the jar with no argument or by the `gui` profile, and `--headless`, or the `headless` profile, the way to run the jar without it.
+Beside the tests above, which it turns green, the change that builds the window declares both dependencies of §1 in the pom, with the comment above them naming this record and, for `javafx-web`, ADR-341 §6, changes the `headless` and `gui` profiles of the pom as §2 has them, the `gui` profile keeping its name, and deletes the tests §6 lists. It changes the README's lines on building and running in one command, headless, and its section on starting the control panel: the window opened by the jar with no argument or by the `gui` profile, and `--headless`, or the `headless` profile, the way to run the jar without it.
 
 ## What this does not decide
 

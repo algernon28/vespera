@@ -1,20 +1,27 @@
 package io.algernon.controlpanel;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import javafx.concurrent.Worker;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.CheckBoxTreeItem;
+import javafx.scene.control.Hyperlink;
+import javafx.scene.control.Tab;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
+import javafx.scene.web.WebEngine;
+import javafx.scene.web.WebView;
 import javafx.stage.Stage;
 
 /**
@@ -133,6 +140,57 @@ final class WindowForTests implements AutoCloseable {
     static <N extends Node> List<N> every(Parent root, String id, Class<N> kind) {
         return HeadlessToolkit.everyNodeUnder(node(root, id, Node.class)).stream()
                 .filter(kind::isInstance).map(kind::cast).toList();
+    }
+
+    /**
+     * What a report's tab of the window shows (ADR-341 §6): whether the tab is selected, the file its viewer is on, null
+     * before it is on any, the title of the page it shows, and whether that page has loaded.
+     */
+    record ReportTab(boolean selected, Path shows, String title, boolean loaded) {
+    }
+
+    /** The tab of {@code report}, a file name of the working directory, and what its viewer shows; empty where none is open. */
+    static Optional<ReportTab> reportTab(Parent root, String report) {
+        Optional<Tab> tab = HeadlessToolkit.tabWithId(root, "report-" + report);
+        if (tab.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<WebView> viewer = HeadlessToolkit.nodeWithId(root, "viewer-" + report)
+                .filter(WebView.class::isInstance).map(WebView.class::cast);
+        if (viewer.isEmpty()) {
+            return Optional.of(new ReportTab(tab.get().isSelected(), null, null, false));
+        }
+        WebEngine engine = viewer.get().getEngine();
+        String location = engine.getLocation();
+        Path shows = location == null || location.isEmpty() ? null : Path.of(URI.create(location.split("#", 2)[0]));
+        boolean loaded = engine.getLoadWorker().getState() == Worker.State.SUCCEEDED;
+        String title = loaded ? String.valueOf(engine.executeScript("document.title")) : null;
+        return Optional.of(new ReportTab(tab.get().isSelected(), shows, title, loaded));
+    }
+
+    /** Whether {@code report}'s tab is open and its viewer has loaded the page it is on. */
+    static boolean loaded(Optional<ReportTab> tab) {
+        return tab.isPresent() && tab.get().loaded();
+    }
+
+    /** The ids of the tabs of the pane the Profile tab stands in, in their order. */
+    static List<String> tabIds(Parent root) {
+        Tab profile = HeadlessToolkit.tabWithId(root, "profile")
+                .orElseThrow(() -> new AssertionError("the window holds no Profile tab"));
+        return profile.getTabPane().getTabs().stream().map(Tab::getId).toList();
+    }
+
+    /** Presses the link to {@code report} under the node whose id is {@code id}; the test fails where there is none. */
+    static void pressReportLink(Parent root, String id, String report) {
+        every(root, id, Hyperlink.class).stream().filter(link -> report.equals(link.getText())).findFirst()
+                .orElseThrow(() -> new AssertionError("the window holds no link to " + report + " under " + id))
+                .fire();
+    }
+
+    /** Clicks, by the page's own script, the element whose id is {@code element} in the page {@code report}'s viewer shows. */
+    static void clickInsideTheReport(Parent root, String report, String element) {
+        node(root, "viewer-" + report, WebView.class).getEngine()
+                .executeScript("document.getElementById('" + element + "').click()");
     }
 
     @Override

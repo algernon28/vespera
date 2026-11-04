@@ -12,6 +12,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,8 +30,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Each value the next invocation wants is edited in place in {@code wanted}, with its reports (ADR-341 §1, §6, keeping
- * ADR-294 and ADR-306 §3): a report of the key that the working directory holds is a link there, opened through the
- * window's dialogs, as on the key's row of the Profile tab. A wanted value the profile states none for is offered what
+ * ADR-294 and ADR-306 §3): a report of the key that the working directory holds is a link there, opened in its own tab
+ * of the window, as on the key's row of the Profile tab. A wanted value the profile states none for is offered what
  * the next page offered (ADR-294 §4, ADR-292 §6): the arrangement the file names, as the approval, and the last seed
  * folder, as the seed folder.
  *
@@ -53,7 +54,7 @@ class TheValuesTheNextInvocationWantsTest {
 
     @Test
     @Story("The control panel shows what the next invocation wants")
-    @DisplayName("A report of a wanted value that the working directory holds is a link, and opens that report")
+    @DisplayName("A report of a wanted value that the working directory holds is a link, and opens that report inside the window")
     void aReportTheWorkingDirectoryHoldsIsALinkBesideAWantedValue(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
         Files.writeString(workingDirectory.resolve(NextInvocation.FILE_NAME),
@@ -64,7 +65,8 @@ class TheValuesTheNextInvocationWantsTest {
                 workingDirectory.toString(), "", "", "", "", "", ""));
 
         List<String> links;
-        List<Path> opened;
+        Optional<WindowForTests.ReportTab> opened;
+        List<URI> handed;
         try (WindowForTests window = WindowForTests.shown(state)) {
             Optional<String> refusal = state.start(ControlPanelState.Start.RUN, new ArrayList<>());
             assumeThat(refusal).as("the child that ends at once is started").isEmpty();
@@ -74,16 +76,21 @@ class TheValuesTheNextInvocationWantsTest {
             assumeThat(drawn).as("the wanted value's row is drawn once the invocation has ended").isTrue();
             links = window.read(root -> WindowForTests.every(root, "wanted", Hyperlink.class).stream()
                     .map(Hyperlink::getText).toList());
-            window.act(root -> WindowForTests.every(root, "wanted", Hyperlink.class).stream()
-                    .filter(link -> ITS_REPORT.equals(link.getText())).findFirst().ifPresent(Hyperlink::fire));
-            opened = List.copyOf(window.dialogs.opened);
+            window.act(root -> WindowForTests.pressReportLink(root, "wanted", ITS_REPORT));
+            opened = window.awaiting(root -> WindowForTests.reportTab(root, ITS_REPORT), WindowForTests::loaded);
+            handed = List.copyOf(window.dialogs.handed);
         }
 
         claim("beside the wanted boilerplate floor, the report it is read off, which the working directory holds, is a"
                         + " link",
                 () -> assertThat(links).containsExactly(ITS_REPORT));
-        claim("and pressing it opens that report of the working directory",
-                () -> assertThat(opened).containsExactly(workingDirectory.resolve(ITS_REPORT)));
+        claim("and pressing it opens that report of the working directory in its own tab of the window, selected",
+                () -> assertThat(opened).hasValueSatisfying(tab -> {
+                    assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(ITS_REPORT));
+                    assertThat(tab.selected()).isTrue();
+                }));
+        claim("and hands nothing to the system to open, so no browser is started",
+                () -> assertThat(handed).isEmpty());
     }
 
     /**

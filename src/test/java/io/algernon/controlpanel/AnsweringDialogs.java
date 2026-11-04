@@ -1,14 +1,15 @@
 package io.algernon.controlpanel;
 
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * The window's {@link Dialogs} as a test answers them (ADR-339 §6): no native dialog opens. Each question the window
- * asks is kept with its two answers' words and answered with {@link #answer}; each report opened is kept; no folder and
- * no file is ever chosen.
+ * The window's {@link Dialogs} as a test answers them (ADR-339 §6): no native dialog opens and nothing is handed to the
+ * system. Each question the window asks is kept with its two answers' words and answered with {@link #answer}; each
+ * address handed to the system is kept; no folder and no file is ever chosen.
  */
 final class AnsweringDialogs implements Dialogs {
 
@@ -19,8 +20,8 @@ final class AnsweringDialogs implements Dialogs {
     /** Every question asked, in order. */
     final List<Asked> asked = new CopyOnWriteArrayList<>();
 
-    /** Every report the window opened, in order. */
-    final List<Path> opened = new CopyOnWriteArrayList<>();
+    /** Every address the window handed to the system to open, in order (ADR-341 §6). */
+    final List<URI> handed = new CopyOnWriteArrayList<>();
 
     /** What the next question is answered: true for the answer that goes on. */
     volatile boolean answer;
@@ -36,8 +37,8 @@ final class AnsweringDialogs implements Dialogs {
     }
 
     @Override
-    public void open(Path report) {
-        opened.add(report);
+    public void handToTheSystem(URI address) {
+        handed.add(address);
     }
 
     @Override
