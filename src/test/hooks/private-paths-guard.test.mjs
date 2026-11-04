@@ -14,6 +14,9 @@
 // or writes, and lets through Glob and a shell command whose every program is a lister or the Vespera jar;
 // a working directory is open as the place it lies in, and no search is refused for what lies beneath it.
 // The K6 cases and W10 are held to it, and so is every case whose claim it changed, each keeping its id.
+// docs/adr/0343 amends docs/adr/0217 section 2: in a segment whose program is git, a token :<path> or
+// :<N>:<path> is read as its path, from which the colon and stage are taken off; docs/adr/0196's drive of
+// one letter and docs/adr/0217's refusal of a name made only of spaces are kept. The O cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -1621,6 +1624,58 @@ cases.push(
   ["I603", "Get-Content beneath a name of two dots and a stream name, by a relative path", "PowerShell", { command: String.raw`Get-Content scratch\..:x\note.txt` }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.powerShell }],
   ["I604", "Write of the checkout's settings through a stream name of .claude that holds a line terminator", "Write", { file_path: `${C}/.claude:x\ny/settings.json`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["I605", "Read of a report through a stream name of the working directory that holds a line terminator", "Read", { file_path: `${WD}:x\ny/report.html` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+);
+
+/* ---------- git's index form, held to docs/adr/0343 ---------- */
+
+// docs/adr/0343 amends docs/adr/0217 section 2. In a segment of a command whose program is the bare word
+// git, a token that begins with :<N>: (N a stage, 0 to 3) or with : has that taken off, and the rest is
+// read as the path it names, as every relative token is: against each folder the command names, and
+// judged by the allow list like any path. A token after any other program, the target of a redirect, a
+// value after = and a token of a command that holds ( ) or a backtick keep docs/adr/0217's refusal on
+// Windows. docs/adr/0196's drive of one letter and docs/adr/0217's refusal of a name made only of
+// spaces, which the user kept, stand in a git segment as anywhere.
+const NOT_A_STREAM_ELSEWHERE = "a name made only of a stream name is refused on Windows alone (docs/adr/0217 section 2)";
+
+cases.push(
+  /* O1. Let through on every platform: the rest lies inside the allow list. */
+  ["O101", "git show of a file in the index, :<path>", "Bash", { command: "git show :AGENTS.md" }, ALLOWED],
+  ["O102", "git show of a file at stage 0 of the index, :0:<path>", "Bash", { command: "git show :0:docs/x.md" }, ALLOWED],
+  ["O103", "git diff of a file at stage 2 of the index", "Bash", { command: "git diff :2:src/a.java" }, ALLOWED],
+  ["O104", "git show of a file in the index, in a PowerShell command", "PowerShell", { command: "git show :README.md" }, ALLOWED],
+  ["O105", "git -C a folder of the checkout, then a file in the index read against it", "Bash", { command: "git -C src show :Example.java" }, ALLOWED],
+  ["O106", "git push of a refspec that deletes a branch, whose rest is read as a path in the checkout", "Bash", { command: "git push origin :claude/x" }, ALLOWED],
+  ["O107", "git show of a quoted index path whose name holds a space", "Bash", { command: "git show ':my notes/readme.txt'" }, ALLOWED],
+  ["O108", "git show of a file in the index in a second segment whose program is git", "Bash", { command: "git status && git show :README.md" }, ALLOWED],
+
+  /* O2. Refused: the rest is read as every path is, and lies outside the allow list. */
+  ["O201", "git show of an index path that climbs out of the checkout", "Bash", { command: "git show :../outside/doc.txt" }, REFUSED],
+  ["O202", "git show of an index path that is a drive path", "Bash", { command: `git show :${ON_THE_FIXTURES_DRIVE}/x` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["O203", "git show of a stage's index path that is a drive path no allowed root is on", "Bash", { command: `git show :0:${NO_DRIVE}` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["O204", "git show of an index path headed by a variable whose value lies outside the allow list", "Bash", { command: "git show :$HOME/Documents/x.txt" }, REFUSED],
+
+  /* O3. The same token where git is not the program that is given it: refused on Windows, as before. */
+  ["O301", "cat of a token that begins with a colon", "Bash", { command: "cat :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O302", "echo of git and a token that begins with a colon, whose program is echo", "Bash", { command: "echo git :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O303", "cat of such a token in a segment after one whose program is git", "Bash", { command: "git status; cat :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O304", "git show of such a token in a command quoted for bash, whose program is bash", "Bash", { command: "bash -c 'git show :README.md'" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O305", "git show of a file in the index, redirected into a token that begins with a colon", "Bash", { command: "git show :README.md > :out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O306", "git diff whose option's value after = begins with a colon", "Bash", { command: "git diff --output=:out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O307", "git show of a command substitution that cats a token that begins with a colon", "Bash", { command: "git show $(cat :README.md)" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O308", "a sed label, which docs/adr/0217 refuses and this record keeps", "Bash", { command: "sed ':a;N;$!ba;s/x/y/g' README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O309", "a JSON value written after its colon with no space", "Bash", { command: `echo '{"a":1}'` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+
+  /* O4. docs/adr/0196's drive of one letter, kept on the user's word: one letter and a colon at the head
+     of a token is a drive, in a git segment too and in the rest of an index path. */
+  ["O401", "a lambda whose parameter is one letter, written m:m.group", "Bash", { command: `python -c "f = lambda m:m.group(0)"` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["O402", "git show of one letter, a colon and a name", "Bash", { command: "git show Q:x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["O403", "git show of a stage's index path that is one letter, a colon and a name", "Bash", { command: "git show :0:Q:x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+
+  /* O5. docs/adr/0217's refusal of a name made only of spaces in a longer path, kept on the user's word:
+     a sed or awk program goes in a file. */
+  ["O501", "sed whose program holds a name made only of a space between two slashes", "Bash", { command: "sed 's/ /_/g' README.md" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["O502", "cat of a quoted path one of whose names is a space", "Bash", { command: "cat 'scratch/ /note.txt'" }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
+  ["O503", "git show of a quoted index path one of whose names is a space", "Bash", { command: "git show ': /x.md'" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {

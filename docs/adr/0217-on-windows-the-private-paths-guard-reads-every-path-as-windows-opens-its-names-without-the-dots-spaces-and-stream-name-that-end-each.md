@@ -1,6 +1,6 @@
 # ADR-217 — On Windows the private-paths guard reads every path as Windows opens its names, without the dots, spaces and stream name that end each
 
-> **Partly amended — see [ADR-233](0233-the-private-paths-guard-reads-what-stands-beside-the-name-claude-a-leading-tilde-in-a-field-and-a-link-out-of-its-own-folder.md).** §2's "a name made only of dots, spaces or a stream name" now takes in a name of dots with a stream name after it, which is not read as `.` or `..`; and §1's stream name runs to the end of the name, a line terminator in it included. Everything else in this record stands.
+> **Partly amended — see [ADR-233](0233-the-private-paths-guard-reads-what-stands-beside-the-name-claude-a-leading-tilde-in-a-field-and-a-link-out-of-its-own-folder.md).** §2's "a name made only of dots, spaces or a stream name" now takes in a name of dots with a stream name after it, which is not read as `.` or `..`; and §1's stream name runs to the end of the name, a line terminator in it included. **And see [ADR-343](0343-in-a-git-command-the-private-paths-guard-reads-gits-index-form-as-the-path-it-names-and-keeps-the-drive-of-one-letter-and-the-name-of-spaces.md)**, which amends §2 for one form: in a segment whose program is `git`, a token `:<path>` or `:<N>:<path>` is read as its path, and a refspec `:<branch>` with it; the cost Consequences lists for that form, and "whether the costs of §2 are kept", are decided there. Everything else in this record stands.
 
 - **Date**: 2026-10-09
 - **Status**: accepted.
