@@ -57,14 +57,8 @@ import tools.jackson.databind.json.JsonMapper;
 @Link(name = "ADR-202", url = Adr.GENERATION_AND_EMBEDDING_REFUSE_A_MODEL_NOT_SERVED_HERE, type = "adr")
 class AModelOllamaDoesNotServeIsPulledInvocationTest {
 
-    /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
     /** An embedding model Ollama is scripted as not serving until it is pulled. */
     private static final String AN_EMBEDDING_MODEL_NOT_SERVED = "hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q8_0";
-
-    /** An embedding model Ollama serves. */
-    private static final String AN_EMBEDDING_MODEL_SERVED = "qwen3-embedding:0.6b";
 
     /** A generation model Ollama is scripted as not serving until it is pulled. */
     private static final String A_GENERATION_MODEL_NOT_SERVED = "a-model-nobody-pulled-yet:8b";
@@ -175,8 +169,8 @@ class AModelOllamaDoesNotServeIsPulledInvocationTest {
     @Story("A model Ollama serves is never pulled")
     @DisplayName("An embedding model Ollama serves is not pulled, and scoring goes on")
     void anEmbeddingModelServedIsNotPulled(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpusScoredUnder(root, seeds, AN_EMBEDDING_MODEL_SERVED);
-        OLLAMA.pulls(AN_EMBEDDING_MODEL_SERVED, aWholePull());
+        aCorpusScoredUnder(root, seeds, EveryGateOpen.EMBEDDING_MODEL);
+        OLLAMA.pulls(EveryGateOpen.EMBEDDING_MODEL, aWholePull());
 
         cli.run("run", root.toString());
 
@@ -272,7 +266,7 @@ class AModelOllamaDoesNotServeIsPulledInvocationTest {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
                 .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .embeddingModel(embeddingModel, "set by this test, so gate 3 is open")
                 .build());
     }
@@ -283,23 +277,15 @@ class AModelOllamaDoesNotServeIsPulledInvocationTest {
      */
     private void anApprovedArrangementToWriteUnder(Path root, Path seeds, String generationModel)
             throws IOException {
-        aCorpusScoredUnder(root, seeds, AN_EMBEDDING_MODEL_SERVED);
+        aCorpusScoredUnder(root, seeds, EveryGateOpen.EMBEDDING_MODEL);
         cli.run("run", root.toString());
-        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
-                .arrangementApproved(ArrangementGate.shortNameOf(theLatestArrangement(root)), "read by this test")
-                .generationModel(generationModel, "set by this test")
-                .build());
+        EveryGateOpen.approve(profileStore, ArrangementGate.shortNameOf(theLatestArrangement(root)), generationModel);
         GenerationScriptedBeans.forgetScriptedAnswers();
     }
 
     /** The arrangement the most recent invocation over {@code root} recorded. */
     private RunId theLatestArrangement(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
+        return new RunsOver(jdbcTemplate, root).latest("arrangement");
     }
 
     private List<String> scoringRunsOver(Path root) {

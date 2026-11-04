@@ -151,7 +151,7 @@ Earlier records are not edited in their text. Where this record amends one, that
 
 | Test file | What changes in step A |
 | --- | --- |
-| `VectorStoreIsReachedOnFirstUseTest` | **Deleted.** Its second and third claims, a refused connection and the datasource not being lazy, have no object. Its first, that the whole application starts under `./mvnw test` with no sidecar, is held by `TheApplicationStartsWithNoVectorStoreTest.theApplicationStarts`. |
+| `VectorStoreIsReachedOnFirstUseTest` | **Deleted.** Its second and third claims, a refused connection and the datasource not being lazy, have no object. Its first, that the whole application starts under `./mvnw test` with no sidecar, is held by `TheApplicationStartsWithNoVectorStoreTest.theApplicationDeclaresNoVectorStore` being run, a context that cannot start failing it at load (#681). |
 | `VesperaApplicationIT` | The test `askedForTheVectorStoreConnectsToTheRunningChroma` and the `VectorStore` import go. `contextLoads`'s display name becomes *"The application starts with Ollama and the document converter running beside it"*. The javadoc drops the sentences on the vector store and on `VectorStoreIsReachedOnFirstUseTest`. The links to ADR-039 and ADR-142 go; those to ADR-011, ADR-012 and ADR-013 stay. |
 | `TestcontainersConfiguration` | The import of `ChromaDBContainer`, `CHROMA_IMAGE` and the bean `chromaContainer` go. The javadoc's Chroma item goes, *"Two roles"* and *"Unlike the two above"* are reworded for the two containers that remain, and *"both are pinned"* stays true of them. |
 | `TestVesperaApplication` | Javadoc only: *"throwaway Chroma, Ollama and docling-serve containers"* becomes *"throwaway Ollama and docling-serve containers"*. |
@@ -201,12 +201,8 @@ Earlier records are not edited in their text. Where this record amends one, that
   - `noShippedClassNamesAVectorStore`: no class compiled from `src/main` names a type under `org/springframework/ai/vectorstore/` or anything named for Chroma, and `pipeline.VectorStoreConfiguration` is not among them.
   - `nothingInTheProductionTreeMentionsChroma`: no file under `src/main`, in any case and in comments too.
   - `theShippedConfigurationSetsNoVectorStoreProperty`: `application.yaml`, flattened as Spring reads it, has no key under `spring.ai.vectorstore`.
-  - `theBuildFilesNoLongerMentionChroma`: `pom.xml`, `compose.yaml`, `compose.gpu.yaml` and `.github/workflows/build.yml`, in any case.
-- `ChromaIsNotASidecarTest`, two tests:
-  - `noComposeFileRunsChroma`: neither compose file declares a service named for Chroma or running its image.
-  - `noComposeFileKeepsAVolumeForChroma`: neither declares or mounts a volume named for Chroma. Chroma never had one; the test is there so that one does not come back with a service.
-- `TheApplicationStartsWithNoVectorStoreTest`, two tests, starting the whole application in-process under the `test` profile with no Docker:
-  - `theApplicationStarts`: the context is active. It takes over the one claim of `VectorStoreIsReachedOnFirstUseTest` that outlives it.
+  - `theBuildFilesNoLongerMentionChroma`: `pom.xml`, `compose.yaml`, `compose.gpu.yaml` and `.github/workflows/build.yml`, in any case. It also holds what a second class held of the compose files, that neither declares a service, runs an image, or declares or mounts a volume named for Chroma, a mention of it in either file in any case being what each of those would be (#682).
+- `TheApplicationStartsWithNoVectorStoreTest`, one test, starting the whole application in-process under the `test` profile with no Docker; that the context starts is held by its being run, a context that cannot start failing it at load (#681):
   - `theApplicationDeclaresNoVectorStore`: no bean definition is of a type under `org.springframework.ai.vectorstore.` or `org.springframework.ai.chroma.`, or is named for a vector store or for Chroma; types are read from the definitions without building a bean.
 
 **Not pinned, and why:**

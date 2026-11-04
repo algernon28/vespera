@@ -300,7 +300,7 @@ class ByteLevelReductionTaskletTest {
      * ADR-167: BMP images are out of scope too, removed in the same pass and under the same verdict as a
      * spreadsheet, with a reason of their own. The other images beside it are the point: the rule is
      * about one kind of image, not about images. The detected format is read as the text the ledger
-     * stores, so this compiles before the value exists.
+     * stores.
      */
     @Test
     @Story("What stage 1 does over census's survivors")
@@ -345,8 +345,7 @@ class ByteLevelReductionTaskletTest {
      * ADR-168: videos are out of scope, whatever their container, removed in the same pass and under the
      * same verdict as a spreadsheet and a BMP image, with a reason of their own. The two copies are the
      * duplicate pass's to never see; the CorelDRAW drawing beside them shares a video's {@code RIFF}
-     * wrapper with an AVI, and is kept. The detected format is read as the text the ledger stores, so this
-     * compiles before the value exists.
+     * wrapper with an AVI, and is kept. The detected format is read as the text the ledger stores.
      */
     @Test
     @Story("What stage 1 does over census's survivors")
@@ -535,8 +534,7 @@ class ByteLevelReductionTaskletTest {
      * ADR-178, amending ADR-171's size rule: over the 16,000,000-byte ceiling, plain text and Markdown
      * are converted in parts and so kept, while HTML, CSV and AsciiDoc, whose structure a cut can break,
      * and text in UTF-16, whose line ends are two bytes, stay out of scope. None of them is shaped like a
-     * log, and no log floor is set, so the log rule cannot be what removes them. Red until the change
-     * lands: today the plain text and the Markdown are removed too.
+     * log, and no log floor is set, so the log rule cannot be what removes them.
      */
     @Test
     @Story("What stage 1 does over census's survivors")

@@ -97,18 +97,20 @@ class StatementStepsPerRowAreTheDeclaredOnesTest {
         List<String> embedding = Arrays.stream(EmbeddingStatement.values()).map(Enum::name).toList();
         claim(
                 "the comparison's later reads of the surviving documents' metrics have a statement of their own,"
-                        + " named straight after the first read's, the order they are issued in",
-                () -> assertThat(embedding).containsSubsequence("CORPUS_METRICS", "CORPUS_METRICS_AGAIN")
-                        .contains("CORPUS_METRICS_AGAIN")
-                        .satisfies(names -> assertThat(names.indexOf("CORPUS_METRICS_AGAIN"))
-                                .isEqualTo(names.indexOf("CORPUS_METRICS") + 1)));
+                        + " declared straight after the first read's",
+                () -> assertThat(embedding.indexOf("CORPUS_METRICS_AGAIN"))
+                        .isEqualTo(embedding.indexOf("CORPUS_METRICS") + 1));
         List<Enum<?>> readAPage = everyStatement()
                 .filter(statement -> READ_A_PAGE_OF_SURVIVORS_AT_A_TIME.contains(statement.name()))
                 .toList();
+        claim(
+                "each of the four reads made a page at a time is a statement under the name given here, so none"
+                        + " is passed over for want of its name",
+                () -> assertThat(readAPage.stream().map(Enum::name).toList())
+                        .containsExactlyInAnyOrderElementsOf(READ_A_PAGE_OF_SURVIVORS_AT_A_TIME));
         for (Enum<?> read : readAPage) {
             claim(
-                    read + " is read a page at a time and counts the rows it reads itself, so it declares no steps"
-                            + " a row",
+                    read + ", read a page at a time and told the rows it reads, declares no steps a row",
                     () -> assertThat(stepsPerRowOf(read)).isEmpty());
         }
 

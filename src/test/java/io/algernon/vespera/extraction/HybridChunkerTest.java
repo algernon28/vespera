@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.StatementLog;
 import io.algernon.vespera.ledger.KeysetPages;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -12,13 +13,16 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -84,11 +88,6 @@ class HybridChunkerTest {
         List<Chunk> chunks = chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, ChunkingRule.DEFAULT);
 
         claim(
-                "two headed sections, each short enough to fit in one chunk, produce exactly two"
-                        + " chunks rather than one chunk per text item or one chunk for the whole"
-                        + " document",
-                () -> assertThat(chunks).hasSize(2));
-        claim(
                 "the running page footer between the two sections contributes nothing to either"
                         + " chunk's text, since it carries no document content of its own",
                 () -> assertThat(chunks.stream().map(Chunk::text)).noneMatch(text -> text.contains("page 1 of 12")));
@@ -97,7 +96,9 @@ class HybridChunkerTest {
                         + " to understand the paragraph beneath it",
                 () -> assertThat(chunks.get(0).text()).startsWith("Introduction"));
         claim(
-                "and chunks are numbered in document order, starting at zero",
+                "and two headed sections, each short enough to fit in one chunk, produce exactly two chunks,"
+                        + " rather than one chunk per text item or one chunk for the whole document, numbered in"
+                        + " document order, starting at zero",
                 () -> assertThat(chunks).extracting(Chunk::ordinal).containsExactly(0, 1));
     }
 
@@ -146,15 +147,20 @@ class HybridChunkerTest {
     @Story("The same content is chunked once per chunking rule")
     @DisplayName("Chunking the same content twice under the same rule chunks it only once")
     void cachesChunksUnderOneChunkingRule() {
-        HybridChunker chunker = chunker();
+        StatementLog log = new StatementLog(new TransactionAwareDataSourceProxy(Objects.requireNonNull(jdbcTemplate.getDataSource())));
+        HybridChunker chunker = new HybridChunker(new ChunkCache(log.jdbcTemplate()));
 
         List<Chunk> first = chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, ChunkingRule.DEFAULT);
+        log.clear();
         List<Chunk> second = chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, ChunkingRule.DEFAULT);
+        List<String> writtenBySecond = log.said().stream()
+                .filter(sql -> sql.stripLeading().toUpperCase(Locale.ROOT).startsWith("INSERT"))
+                .toList();
 
         claim(
                 "the second call answers with the exact chunks stored the first time, rather than"
-                        + " re-chunking",
-                () -> assertThat(second).isEqualTo(first));
+                        + " re-chunking: it writes no row at all",
+                () -> assertThat(List.of(second, writtenBySecond)).containsExactly(first, List.of()));
         claim(
                 "and exactly one chunk row per produced chunk is stored under this content and"
                         + " rule, not one row per call",
@@ -208,7 +214,9 @@ class HybridChunkerTest {
                         + " VALUES (?, ?, ?, ?, ?, ?)",
                 rows);
 
-        Map<String, Integer> counted = chunker.chunkCounts(contentHashes, ChunkingRule.DEFAULT);
+        StatementLog log = new StatementLog(new TransactionAwareDataSourceProxy(Objects.requireNonNull(jdbcTemplate.getDataSource())));
+        Map<String, Integer> counted = new HybridChunker(new ChunkCache(log.jdbcTemplate()))
+                .chunkCounts(contentHashes, ChunkingRule.DEFAULT);
 
         claim(
                 "every one of the " + contentHashes.size() + " documents has its pieces counted, one or two of them"
@@ -219,6 +227,12 @@ class HybridChunkerTest {
                     assertThat(counted.get(contentHashes.get(1))).isEqualTo(2);
                     assertThat(counted.get(contentHashes.getLast())).isOne();
                 });
+        claim(
+                "asked by two statements, one for the first " + KeysetPages.ROWS_IN_A_PAGE + " documents and one"
+                        + " for the last, rather than one statement naming them all",
+                () -> assertThat(log.said())
+                        .filteredOn(sql -> sql.contains("FROM chunk_cache"))
+                        .hasSize(2));
     }
 
     /** How many chunks {@link #CONTENT_HASH} has stored under {@code rule}, none where it has none. */

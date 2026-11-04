@@ -2389,6 +2389,13 @@ public final class Adr {
     public static final String THE_LAUNCH_PAGE_STARTS_LABEL_AUTO_AND_EVERY_ARGUMENT_OF_THE_JAR_IS_ACCOUNTED_FOR =
             FILE + "0336-the-launch-page-starts-label-auto-beside-label-and-every-argument-of-the-commands-the-control-panel-starts-is-set-by-a-control-of-the-launch-page-or-listed-as-never-passed-with-why.md";
 
+    /**
+     * ADR-337 -- every claim can fail, a decision is held once, the full-run classes share their setup, and a record's
+     * Tests name tests that exist.
+     */
+    public static final String EVERY_CLAIM_CAN_FAIL_AND_A_DECISION_IS_HELD_ONCE = FILE
+            + "0337-every-claim-can-fail-a-decision-is-held-once-and-a-records-tests-name-tests-that-exist.md";
+
     private Adr() {
     }
 }

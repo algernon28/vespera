@@ -14,13 +14,12 @@ import io.qameta.allure.Story;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -40,9 +39,6 @@ import org.junit.jupiter.api.io.TempDir;
 class CorpusRootLockKeyTest {
 
     private static final boolean WINDOWS = System.getProperty("os.name", "").startsWith("Windows");
-
-    /** The name rule: sixteen lowercase hexadecimal digits, then {@code .lock}. */
-    private static final String FILE_NAME_SHAPE = "[0-9a-f]{16}\\.lock";
 
     /** How many hexadecimal digits of the SHA-256 name a file. */
     private static final int DIGITS = 16;
@@ -142,24 +138,22 @@ class CorpusRootLockKeyTest {
 
     @Test
     @Story("The lock's file lies outside every working directory")
-    @DisplayName("A root's file is named by sixteen digits of its key's SHA-256, and never vespera.lock or vespera.db")
-    void theFileIsNamedBySixteenDigitsOfTheKeysSha256(@TempDir Path temporary) throws Exception {
-        for (Path key : List.of(
-                temporary.resolve("corpus"),
-                temporary.resolve(WorkingDirectoryLock.FILE_NAME),
-                temporary.resolve("vespera.db"))) {
-            String name = CorpusRootLock.fileName(key);
-            String expected = HexFormat.of()
-                            .formatHex(MessageDigest.getInstance("SHA-256")
-                                    .digest(key.toString().getBytes(StandardCharsets.UTF_8)))
-                            .substring(0, DIGITS)
-                    + ".lock";
-            claim("the file for " + key + " is the first " + DIGITS + " lowercase hexadecimal digits of the SHA-256"
-                            + " of the key's text in UTF-8, then .lock",
-                    () -> assertThat(name).isEqualTo(expected).matches(FILE_NAME_SHAPE));
-            claim("and is neither of the two names the agent guard knows a working directory by",
-                    () -> assertThat(name).isNotIn(WorkingDirectoryLock.FILE_NAME, "vespera.db"));
+    @DisplayName("A root's file is named by sixteen digits of its key's SHA-256, so never vespera.lock or vespera.db")
+    void theFileIsNamedBySixteenDigitsOfTheKeysSha256() {
+        Map<String, String> fileNameOfEachKey = new LinkedHashMap<>();
+        for (String key : List.of("corpus", WorkingDirectoryLock.FILE_NAME, "vespera.db")) {
+            fileNameOfEachKey.put(key, CorpusRootLock.fileName(Path.of(key)));
         }
+
+        claim("the file for each key is the first " + DIGITS + " lowercase hexadecimal digits of the SHA-256 of"
+                        + " the key's text in UTF-8, then .lock: the digests as sha256sum prints them for the"
+                        + " texts corpus, vespera.lock and vespera.db, so a key named like either file the agent"
+                        + " guard knows a working directory by is named like neither",
+                () -> assertThat(fileNameOfEachKey)
+                        .containsExactly(
+                                Map.entry("corpus", "6b17b8fcc411a533.lock"),
+                                Map.entry(WorkingDirectoryLock.FILE_NAME, "f49ba92c65cb3412.lock"),
+                                Map.entry("vespera.db", "318b2c61fe4d4597.lock")));
     }
 
     /** Makes a junction with {@code mklink /J}, which needs no privilege, as {@link TestLinks} does on Windows. */

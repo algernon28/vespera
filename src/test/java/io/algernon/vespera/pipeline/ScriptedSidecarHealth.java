@@ -37,6 +37,12 @@ final class ScriptedSidecarHealth implements SidecarHealth {
         ollamaAnswers = ollama;
     }
 
+    /** From now on, both answer once docling-serve has failed its next {@code checks} checks. */
+    void answeringAfter(int checks) {
+        doclingFailsFirst = doclingAsked.get() + checks;
+        answering(true, true);
+    }
+
     int questionsAsked() {
         return doclingAsked.get() + ollamaAsked.get();
     }

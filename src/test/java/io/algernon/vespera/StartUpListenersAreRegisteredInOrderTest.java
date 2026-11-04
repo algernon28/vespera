@@ -111,15 +111,12 @@ class StartUpListenersAreRegisteredInOrderTest {
         claim(
                 "and the database still has no directory set for its temporary files in this process",
                 () -> assertThat(temporaryFilesDirectory()).isEmpty());
-        claim(
-                "the three listeners that create the working directory, take its lock and check its profile are"
-                        + " registered, in that order",
-                () -> assertThat(registered).containsSubsequence(ALREADY_REGISTERED));
         List<String> inOrder = new ArrayList<>(ALREADY_REGISTERED);
         inOrder.add(SETS_THE_TEMPORARY_FILES_DIRECTORY);
         claim(
-                "the listener that tells the database to write its temporary files in the working directory is"
-                        + " registered too, after those three: the directory exists by then and is this start's"
+                "the three listeners that create the working directory, take its lock and check its profile are"
+                        + " registered, in that order, and the listener that tells the database to write its"
+                        + " temporary files in the working directory is registered after those three: the directory exists by then and is this start's"
                         + " alone, and a start refused for a directory in use or a profile that does not load has"
                         + " changed nothing about the database",
                 () -> assertThat(registered).containsSubsequence(inOrder));

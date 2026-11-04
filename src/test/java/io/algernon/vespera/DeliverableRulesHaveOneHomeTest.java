@@ -11,6 +11,8 @@ import io.qameta.allure.Story;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.RecordComponent;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -152,7 +154,7 @@ class DeliverableRulesHaveOneHomeTest {
 
     @Test
     @Story("Nothing is written twice")
-    @DisplayName("No class of the two modules declares a stem method of its own, so FilenameStem is the one rule")
+    @DisplayName("No class of the two modules declares a stem method of its own, and the label and the pages call FilenameStem, the one rule")
     void theFilenameStemIsWrittenOnce() throws Exception {
         Set<String> declaring = new TreeSet<>();
         for (String name : classesOf(THE_MODULES)) {
@@ -163,11 +165,27 @@ class DeliverableRulesHaveOneHomeTest {
             }
         }
 
+        Set<String> notCalling = new TreeSet<>();
+        for (Path source : STEM_READERS) {
+            if (!Files.readString(source).contains("FilenameStem.of(")) {
+                notCalling.add(source.getFileName().toString());
+            }
+        }
+
         claim(
-                "no method of synthesis or deliverable is named for a stem: ClusterLabel, the pages and the copies"
-                        + " all call FilenameStem.of, where the one rule is (ADR-213 §4)",
-                () -> assertThat(declaring).isEmpty());
+                "no method of synthesis or deliverable is named for a stem, and ClusterLabel, the index page and the"
+                        + " Confluence pages each call FilenameStem.of, where the one rule is",
+                () -> {
+                    assertThat(declaring).as("the methods named for a stem").isEmpty();
+                    assertThat(notCalling).as("the readers of a stem that do not call FilenameStem.of").isEmpty();
+                });
     }
+
+    /** The sources that take a filename stem: the group's label, the index page and the Confluence pages. */
+    private static final List<Path> STEM_READERS = List.of(
+            Path.of("src/main/java/io/algernon/vespera/synthesis/ClusterLabel.java"),
+            Path.of("src/main/java/io/algernon/vespera/deliverable/IndexPage.java"),
+            Path.of("src/main/java/io/algernon/vespera/deliverable/ConfluencePages.java"));
 
     @Test
     @Story("Nothing is written twice")

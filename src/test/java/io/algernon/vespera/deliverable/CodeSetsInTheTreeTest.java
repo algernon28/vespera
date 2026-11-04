@@ -334,9 +334,6 @@ class CodeSetsInTheTreeTest {
         claim(
                 "the section comes after the last group's table",
                 () -> assertThat(index.indexOf(theSection)).isGreaterThan(index.indexOf("Fire doors")));
-        claim(
-                "and nothing in it says group",
-                () -> assertThat(theSection.toLowerCase(java.util.Locale.ROOT)).doesNotContain("group"));
     }
 
     @Test

@@ -20,6 +20,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,9 +38,6 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>2,500 fault rows of the run, and some of another run's, which nothing may resolve. The resolution runs in one
  * transaction of its own, as {@code ExtractionFaultRecorder} runs it.
- *
- * <p>It names nothing ADR-220 adds beyond what {@code ExtractionFaultResolutionTest} names, and fails until the
- * resolution reads the run's rows a page at a time.
  */
 @Epic("Extraction")
 @Feature("Stage 2 step")
@@ -145,8 +143,11 @@ class FaultsAreResolvedAPageAtATimeTest {
                         + " no other run's",
                 () -> {
                     assertThat(pool.jdbcTemplate().queryForObject(
-                                    "SELECT COUNT(*) FROM verdict WHERE run_id = ? AND kind = 'EXTRACTION_FAILED'"
-                                            + " AND reason LIKE 'internal: fault %'",
+                                    "SELECT COUNT(*) FROM verdict JOIN extraction_fault"
+                                            + " ON extraction_fault.occurrence_id = verdict.occurrence_id"
+                                            + " AND extraction_fault.run_id = verdict.run_id"
+                                            + " WHERE verdict.run_id = ? AND verdict.kind = 'EXTRACTION_FAILED'"
+                                            + " AND verdict.reason = 'internal: ' || extraction_fault.detail",
                                     Integer.class,
                                     run.value()))
                             .isEqualTo(FAULTS);
@@ -161,12 +162,22 @@ class FaultsAreResolvedAPageAtATimeTest {
                 });
         claim(
                 "every read of the run's fault rows goes through at most " + A_PAGE + " of them, going on from the"
-                        + " last row read; none reads them all",
+                        + " last row read by the index on the run and the row number; none reads them all",
                 () -> assertThat(log.said().stream()
                                 .filter(sql -> sql.contains("FROM extraction_fault"))
                                 .filter(sql -> !sql.contains("COUNT(") && !sql.contains("MIN(") && !sql.contains("MAX("))
                                 .toList())
                         .isNotEmpty()
-                        .allSatisfy(sql -> assertThat(sql).contains(" LIMIT " + A_PAGE)));
+                        .allSatisfy(sql -> assertThat(sql).endsWith(" LIMIT " + A_PAGE))
+                        .allSatisfy(sql -> assertThat(planOf(sql))
+                                .anyMatch(detail -> detail.endsWith("(run_id=? AND rowid>?)"))));
+    }
+
+    /** The plan SQLite gives {@code sql}, every placeholder bound to a number, which changes no plan here. */
+    private List<String> planOf(String sql) {
+        Object[] arguments = Collections.nCopies((int) sql.chars().filter(c -> c == '?').count(), (Object) 0L)
+                .toArray();
+        return pool.jdbcTemplate()
+                .query("EXPLAIN QUERY PLAN " + sql, (resultSet, rowNumber) -> resultSet.getString("detail"), arguments);
     }
 }

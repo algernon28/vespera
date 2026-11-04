@@ -226,13 +226,9 @@ class FailedSeedExtractionNamesItsFailureTest {
                         + " command again once it is fixed",
                 () -> assertThat(operatorLines()).anyMatch(this::namesTheFailureAndWhatToDo));
         claim(
-                "seed extraction is recorded as finished under no run: the seeds after the crash were"
-                        + " never read, and a finished step is one no later invocation does again",
-                () -> assertThat(runIdsFor("seed-measurement", root))
-                        .noneMatch(run -> ledger.runs().stepFinished(run, "seed-extraction")));
-        claim(
-                "and no measurement run was minted at all, because nothing in this invocation saw the whole"
-                        + " seed folder",
+                "no measurement run was minted, so seed extraction is recorded as finished under none: the"
+                        + " seeds after the crash were never read, and a finished step is one no later"
+                        + " invocation does again",
                 () -> assertThat(runIdsFor("seed-measurement", root)).isEmpty());
 
         ConverterStopsAnsweringBeans.keepAnswering();

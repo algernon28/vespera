@@ -146,9 +146,11 @@ class TheControlPanelsLayoutScreenTest {
 
             claim("each of the seven pages is titled with the name the sidebar gives it, then the program's",
                     () -> assertThat(titles).containsExactlyEntriesOf(expected));
-            claim("and the folder page, which is none of the seven, with the name its top row gives it, then the program's",
-                    () -> assertThat(folderPage.document().title())
-                            .isEqualTo(byId(folderPage, "top-row").select("h1").text() + " · Vespera"));
+            claim("and the folder page, which is none of the seven, with its own name, Folder, which its top row gives"
+                            + " it, then the program's",
+                    () -> assertThat(List.of(folderPage.document().title(),
+                                    byId(folderPage, "top-row").select("h1").text()))
+                            .containsExactly("Folder · Vespera", "Folder"));
         }
     }
 
@@ -225,7 +227,7 @@ class TheControlPanelsLayoutScreenTest {
             String[] aroundTheNarrowRule = NARROW_WINDOW_RULE.split(style, 2);
             Set<String> grids = selectorsSetting(style, Pattern.compile("display\\s*:\\s*grid\\b"));
             Set<String> oneColumnInANarrowWindow = aroundTheNarrowRule.length < 2 ? Set.of()
-                    : selectorsSetting(aroundTheNarrowRule[1],
+                    : selectorsSetting(blockOpenedBefore(aroundTheNarrowRule[1]),
                             Pattern.compile("grid-template-columns\\s*:\\s*1fr\\s*(;|$)"));
 
             claim("the style keeps the top row in view as a page scrolls",
@@ -581,6 +583,20 @@ class TheControlPanelsLayoutScreenTest {
     }
 
     /** Each selector, one of a list apart, of the rules of {@code style} with a declaration {@code declaration} finds. */
+    /** What lies inside the block whose opening brace comes just before {@code after}, up to its closing brace. */
+    private static String blockOpenedBefore(String after) {
+        int depth = 1;
+        for (int at = 0; at < after.length(); at++) {
+            char each = after.charAt(at);
+            if (each == '{') {
+                depth++;
+            } else if (each == '}' && --depth == 0) {
+                return after.substring(0, at);
+            }
+        }
+        return after;
+    }
+
     private static Set<String> selectorsSetting(String style, Pattern declaration) {
         Set<String> selectors = new TreeSet<>();
         Matcher rule = Pattern.compile("([^{}]+)\\{([^{}]*)\\}").matcher(style);

@@ -127,10 +127,13 @@ class TextOnlyInPageHeadersAndFootersIsDegenerateTest {
                 metrics().writeAndJudge(anOccurrence("no-text.pdf"), aRun("no-text"), converted(NO_TEXT_AT_ALL), null, null);
 
         claim(
-                "no text anywhere is not text in page headers and footers, and is not said to be",
-                () -> assertThat(verdict)
-                        .isEqualTo(new DegeneracyVerdict(true, UsableText.NO_ALPHANUMERIC_CONTENT)));
+                "no text anywhere is not text in page headers and footers, and is not said to be: the reason is"
+                        + " the one written for no letter or digit at all, \"" + NO_ALPHANUMERIC_CONTENT + "\"",
+                () -> assertThat(verdict).isEqualTo(new DegeneracyVerdict(true, NO_ALPHANUMERIC_CONTENT)));
     }
+
+    /** The reason for no letter or digit anywhere, word for word as the record that decides it writes it. */
+    private static final String NO_ALPHANUMERIC_CONTENT = "zero alphanumeric content after whitespace normalisation";
 
     /** A mean confidence the converter reports, below {@link #A_SET_CONFIDENCE_FLOOR}. */
     private static final double A_LOW_MEAN_CONFIDENCE = 0.10;

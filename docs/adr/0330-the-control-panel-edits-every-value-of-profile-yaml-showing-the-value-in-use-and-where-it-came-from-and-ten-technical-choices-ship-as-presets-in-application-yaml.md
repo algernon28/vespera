@@ -509,8 +509,7 @@ These hold the record through what it builds. Each is `@Disabled` until then, it
 | `pipeline.TheTimeoutsInARowConfiguredSetAnOccurrenceAsideInvocationTest.twoTimeoutsInARowSetTheSecondAside` | B | one `extraction_fault` row at 2, where the shipped 3 writes none (§9) |
 | `TheShippedPresetsTest.theShippedFileNamesBothAtTheirEarlierValues` | B | 15 and 1.0, exactly (§8, §9) |
 | `TheShippedPresetsTest.theConvertersTwoPresetsShipAtTheirEarlierValues` | B | `rapidocr` and 3, exactly (§8, §9) |
-| `TheShippedPresetsTest.theShingleWindowAndMinHashShipAtTheirEarlierValues` | B | 5; 128, 16, 8 and the seed the code held, exactly (§8, §9) |
-| `TheShippedPresetsTest.theRedundancyCutsShipAtTheirEarlierValues` | B | 0.80 and 0.95; 32 and 24, exactly (§8, §9) |
+| `TheShippedPresetsTest.theRedundancyPresetsShipAtTheirEarlierValues` | B | 5; 128, 16, 8 and the seed the code held; 0.80 and 0.95; 32 and 24, exactly, one case each (§8, §9) (#682) |
 | `TheShippedPresetsTest.theRelevanceScoreAndItsSampleShipAtTheirEarlierValues` | B | 3; 5 and 12, exactly (§8, §9) |
 | `pipeline.TheTechnicalPresetsFromConfigurationInvocationTest.theConvertersPresetsNameTheExtractionRun` | B | another OCR preset in the extractor identity in place of `rapidocr`; the two components ending stage 2's configuration, in order (§9) |
 | `pipeline.TheTechnicalPresetsFromConfigurationInvocationTest.theRedundancyPresetsNameTheContentRedundancyRun` | B | the two components ending stage 4's configuration, in order, each as its identity writes it (§9) |
@@ -526,10 +525,10 @@ These hold the record through what it builds. Each is `@Disabled` until then, it
 
 | Method | What it holds |
 | --- | --- |
-| `pipeline.TheStagesNamingThePresetsModulesTest.theStagesNamingEmbeddingAreTheLastFour` | `StageModules`' stages naming `embedding` are the last four of §10's table |
-| `pipeline.TheStagesNamingThePresetsModulesTest.theStagesNamingSimilarityAreExtractionAndTheTwoAfterIt` | those naming `similarity` are extraction, content census and content redundancy |
-| `pipeline.TheStagesNamingThePresetsModulesTest.theStagesNamingExtractionAreTheSevenFromExtractionOn` | those naming `extraction` are the seven §10 moves, byte-level reduction alone left |
-| `pipeline.VesperaPublishWritesNoEffectiveValuesInvocationTest.aPublishWritesNoFile` | a publish, refused here with nothing drawn, writes no §1 file: a writer ahead of its first refusal is seen, one after it is not (§1) |
+| `pipeline.TheStagesNamingThePresetsModulesTest.eachPresetsModuleIsNamedByItsStages` (#682) | `StageModules`' stages naming `embedding` are the last four of §10's table |
+| `pipeline.TheStagesNamingThePresetsModulesTest.eachPresetsModuleIsNamedByItsStages` (#682) | those naming `similarity` are extraction, content census and content redundancy |
+| `pipeline.TheStagesNamingThePresetsModulesTest.eachPresetsModuleIsNamedByItsStages` (#682) | those naming `extraction` are the seven §10 moves, byte-level reduction alone left |
+| `pipeline.VesperaPublishWritesNoEffectiveValuesInvocationTest.aPublishRefusedBeforeItSendsWritesNoFile` (#681) | a publish, refused here with nothing drawn, writes no §1 file: a writer ahead of its first refusal is seen, one after it is not (§1) |
 | `pipeline.ARefusedInvocationWritesNoEffectiveValuesInvocationTest.aRefusedInvocationLeavesTheFileAsItWas` | `vespera run` with no root: a marker put in the file stays, so a writer ahead of the refusal is seen (§1) |
 | `pipeline.ARefusedInvocationWritesNoEffectiveValuesInvocationTest.aLabelRefusedAtItsStartLeavesTheFileAsItWas` | `vespera label --auto` given a file: the same (§1) |
 | `controlpanel.ProfileEditorGuardsScreenTest.saveThenRunStartsTheRunOnceEveryKeyIsWritten` | the child, as it starts, finds every key in the file (§5) |

@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
@@ -30,10 +29,10 @@ import org.springframework.test.context.DynamicPropertySource;
  * What a second invocation over an unchanged corpus does to the work the first one recorded
  * (ADR-115, ADR-116, #191).
  *
- * <p><b>Several steps share one run, and that is what this class is about.</b> Fourteen of the job's
- * fifteen steps write under eight run identities: stage 4's two steps share one, the seed
- * measurement's two share one, and stage 5's scoring half has five steps under a single run. A
- * record of completion kept against the run therefore says "all of this is recorded" on the strength
+ * <p><b>Several steps share one run, and that is what this class is about.</b> Fifteen of the job's
+ * sixteen steps write under eight run identities, the census minting none: stage 4's two steps share one,
+ * the seed measurement's two share one, and stage 5's scoring half has six steps under a single run, four of
+ * which record their completion. A record of completion kept against the run therefore says "all of this is recorded" on the strength
  * of whichever step reached the end first, and the steps behind it are told their work is done. So
  * completion is recorded against the step that did the work, and every claim here is a claim about
  * one step rather than about a stage.
@@ -50,17 +49,14 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
 class RepeatedInvocationTest {
 
-    /** A floor of 1.0 opens stage 4's gate, so both of its steps run and share stage 4's run. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model this fixture names, so gate 3 opens and stage 5's five-step scoring half runs. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
-
     /** How many corpus documents this fixture walks, every one of which survives to be clustered. */
     private static final int CORPUS_DOCUMENTS = 2;
 
     /** What each of those documents is worth once the job has run: one row each, per table. */
     private static final int ONE_ROW_EACH = CORPUS_DOCUMENTS;
+
+    /** The seeds this fixture's seed folder holds, each measured once. */
+    private static final int ONE_SEED = 1;
 
     /** The step of stage 5's scoring half whose work the second claim below puts back. */
     private static final String THE_CLUSTERING_STEP = "clustering";
@@ -91,7 +87,7 @@ class RepeatedInvocationTest {
     void aSecondInvocationOverAnUnchangedCorpusRepeatsNothing(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aCorpus(root, seeds);
-        profile(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
 
         cli.run("run", root.toString());
@@ -107,16 +103,16 @@ class RepeatedInvocationTest {
         // completion records say, so a count here would pin the fixture rather than the behaviour.
         // The seed measurement below makes the same point about two steps sharing one run.
         claim(
-                "the seed measurement still holds " + ONE_ROW_EACH + " rows for " + CORPUS_DOCUMENTS
-                        + " documents rather than twice that: reading the seeds and comparing them are"
-                        + " recorded together, and the first finishing does not speak for the second",
-                () -> assertThat(rowsOver(root, "extraction_metric")).isEqualTo(ONE_ROW_EACH));
+                "the seed measurement still holds the " + ONE_SEED + " row of extraction metrics the first"
+                        + " invocation wrote for the " + ONE_SEED + " seed: reading the seeds, which shares its run"
+                        + " with comparing them, finds its own work recorded and neither discards nor rewrites it",
+                () -> assertThat(rowsOver(seeds, "extraction_metric")).isEqualTo(ONE_SEED));
         claim(
                 "each of the " + CORPUS_DOCUMENTS + " documents carries one relevance score rather than"
-                        + " two, although five separate pieces of work are recorded together",
+                        + " two, although four pieces of work record their completion together",
                 () -> assertThat(rowsOver(root, "relevance_score")).isEqualTo(ONE_ROW_EACH));
         claim(
-                "and each is in exactly one cluster -- the last of those five, and the one a shared"
+                "and each is in exactly one cluster -- the last of those four, and the one a shared"
                         + " record would have let the first answer for",
                 () -> assertThat(rowsOver(root, "document_cluster")).isEqualTo(ONE_ROW_EACH));
     }
@@ -127,7 +123,7 @@ class RepeatedInvocationTest {
     void aStepWhoseWorkIsMissingDoesItAgainThoughItsStepMatesAreDone(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aCorpus(root, seeds);
-        profile(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
         String scoringRun = scoringRunIdFor(root);
         aClusteringPassThatStoppedPartway(scoringRun);
@@ -160,16 +156,6 @@ class RepeatedInvocationTest {
             Files.writeString(root.resolve("corpus-" + i + ".txt"), "a corpus document " + i);
         }
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-    }
-
-    /** The seed folder named, stage 4's gate open and gate 3 open, so every shared run is reached. */
-    private void profile(Path seeds) {
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
     }
 
     /**

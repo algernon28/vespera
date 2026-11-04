@@ -5,8 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -58,12 +56,6 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
 @Link(name = "ADR-088", url = Adr.RELEVANCE_THRESHOLD_IS_SIXTY_LABELS, type = "adr")
 @ExtendWith(OutputCaptureExtension.class)
 class LabelFileShowsRecordedAnswersInvocationTest {
-
-    /** A floor of 1.0 opens stage 4's gate, the way every stage-5 invocation fixture does. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model this fixture names, so gate 3 and the steps behind it open. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** The document each test answers as relevant first. */
     private static final String FIRST_DOCUMENT = "first.txt";
@@ -351,13 +343,7 @@ class LabelFileShowsRecordedAnswersInvocationTest {
 
     /** Writes the profile this fixture runs under, naming {@code seeds} as its seed folder. */
     private void nameTheSeedFolder(Path seeds) {
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 
     /** What {@code vespera label} printed, and only that: the run before it printed to the same streams. */

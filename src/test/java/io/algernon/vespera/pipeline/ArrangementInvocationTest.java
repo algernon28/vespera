@@ -7,8 +7,6 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.algernon.vespera.synthesis.Clusters;
@@ -52,12 +50,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-104", url = Adr.THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED, type = "adr")
 class ArrangementInvocationTest {
 
-    /** A floor of 1.0 opens stage 4's gate the same way {@link ClusteringInvocationTest} does. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model this fixture names, so gate 3 and everything behind it open. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
-
     /** How many corpus documents this fixture walks, all of which survive to be arranged. */
     private static final int CORPUS_DOCUMENTS = 3;
 
@@ -97,12 +89,9 @@ class ArrangementInvocationTest {
         List<RecordedCluster> arranged = WholeRun.clusters(jdbcTemplate,theArrangementRun());
         claim(
                 "every group the previous step formed has a row of its own, which is the level that did"
-                        + " not exist before it: that step records which documents share a group without"
-                        + " the group itself being addressable anywhere",
-                () -> assertThat(arranged).isNotEmpty());
-        claim(
-                "and each arrives named, counted and placed, so whatever renders the arrangement never"
-                        + " works any of that out a second time -- the arrangement a person approves and"
+                        + " not exist before it, and each arrives named, counted and placed, so whatever"
+                        + " renders the arrangement never works any of that out a second time -- the"
+                        + " arrangement a person approves and"
                         + " the arrangement a reader receives have to be the same one",
                 () -> assertThat(arranged).allSatisfy(recorded -> {
                     assertThat(recorded.label().value()).isNotBlank();
@@ -203,10 +192,17 @@ class ArrangementInvocationTest {
                         + " did not say which one it was could only be approved in general",
                 () -> assertThat(Files.readString(page))
                         .contains(theArrangementRun().value().substring(0, ArrangementGate.APPROVAL_LENGTH)));
+        List<RecordedCluster> arranged = WholeRun.clusters(jdbcTemplate, theArrangementRun());
         claim(
-                "and every group on it arrives with the documents it holds, because a name with no size"
-                        + " beside it gives a reviewer nothing to weigh",
-                () -> assertThat(Files.readString(page)).contains(String.valueOf(CORPUS_DOCUMENTS)));
+                "and every group on it arrives with the documents it holds, in its row's count cell, and the "
+                        + CORPUS_DOCUMENTS + " documents in all are said above the table, because a name with no"
+                        + " size beside it gives a reviewer nothing to weigh",
+                () -> {
+                    String written = Files.readString(page);
+                    assertThat(arranged).isNotEmpty().allSatisfy(recorded -> assertThat(written)
+                            .contains("<td class=\"count\">" + recorded.cluster().documentCount() + "</td>"));
+                    assertThat(written).contains(CORPUS_DOCUMENTS + " document(s) in " + arranged.size() + " group(s).");
+                });
     }
 
     @Test
@@ -221,15 +217,12 @@ class ArrangementInvocationTest {
 
         String page = Files.readString(workingDirectory.resolve(ArrangementTasklet.ARRANGEMENT_FILE_NAME));
         claim(
-                "the document each name was taken from is a link, so a reviewer opens it and disagrees"
-                        + " with the name rather than taking the name on trust -- which is the only thing"
-                        + " this page can be checked against",
+                "the document each name was taken from is a link into the archive where the document already"
+                        + " is, so a reviewer opens it and disagrees with the name rather than taking the name on"
+                        + " trust -- which is the only thing this page can be checked against -- and nothing"
+                        + " copies or moves a document to be linked to",
                 () -> assertThat(page)
                         .contains("<a href=\"" + Walk.canonicalRoot(root).resolve("corpus.txt").toUri() + "\""));
-        claim(
-                "and the link points into the archive where the document already is, because nothing here"
-                        + " copies or moves a document to be linked to",
-                () -> assertThat(page).contains(Walk.canonicalRoot(root).toUri().toString()));
     }
 
     @Test
@@ -242,13 +235,13 @@ class ArrangementInvocationTest {
 
         cli.run("run", root.toString());
 
+        String page = Files.readString(workingDirectory.resolve(ArrangementTasklet.ARRANGEMENT_FILE_NAME));
         claim(
-                "no group on the page carries a written-up name or any prose: what is being approved is a"
-                        + " derivation, and a reviewer checking written-up text would be reviewing the very"
-                        + " thing this page exists to authorise -- nothing has been approved at this point,"
-                        + " so nothing has been written over any group",
-                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM synthesis_doc", Integer.class))
-                        .isZero());
+                "the group on the page is named by its leading document's own title, \""
+                        + SeedScriptedExtractionBeans.STUBBED_TITLE + "\", not by a written-up name: what is being"
+                        + " approved is a derivation, and a reviewer checking written-up text would be reviewing"
+                        + " the very thing this page exists to authorise",
+                () -> assertThat(page).contains("<td>" + SeedScriptedExtractionBeans.STUBBED_TITLE + "</td>"));
     }
 
     /** The arrangement run this invocation minted — the one this test's claims are about. */
@@ -271,12 +264,6 @@ class ArrangementInvocationTest {
 
     /** The seed folder named, stage 4's gate open, and gate 3 open too. */
     private void profile(Path seeds) {
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 }

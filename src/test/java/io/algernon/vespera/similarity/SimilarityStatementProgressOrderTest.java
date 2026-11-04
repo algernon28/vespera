@@ -69,9 +69,6 @@ class SimilarityStatementProgressOrderTest {
 
     private static final double NO_BOILERPLATE_FLOOR = 0.9;
 
-    /** Measuring reports one statement, started once and ended once: two callbacks about statements. */
-    private static final int A_START_AND_AN_END = 2;
-
     /** The two documents the first test's walk holds, one page of them. */
     private static final int TWO_OCCURRENCES = 2;
 
@@ -140,9 +137,6 @@ class SimilarityStatementProgressOrderTest {
                                 starting(SimilarityStatement.SHINGLE_ROWS, OptionalLong.of(shingleRows)),
                                 ended(SimilarityStatement.SHINGLE_ROWS),
                                 "occurrencesChecked(" + TWO_OCCURRENCES + ")"));
-        claim(
-                "the callbacks about statements are the " + A_START_AND_AN_END + " above",
-                () -> assertThat(recorder.statements()).hasSize(A_START_AND_AN_END));
     }
 
     /**
@@ -386,7 +380,7 @@ class SimilarityStatementProgressOrderTest {
     @Story("Resolving redundancy says what it is reading")
     @DisplayName("A page of the signature bands that throws stops resolution inside its loop, after the count of the signed documents ended")
     @Link(name = "ADR-220", url = Adr.NO_CLASS_HOLDS_EVERY_OCCURRENCE_OF_A_RUN, type = "adr")
-    void aTimedReadThatThrowsIsNotSaidToHaveEnded() throws SQLException {
+    void aPageOfTheSignatureBandsThatThrowsStopsResolutionInsideItsLoop() throws SQLException {
         oneSignatureRow();
         Recorder recorder = new Recorder() {
             @Override
@@ -485,17 +479,7 @@ class SimilarityStatementProgressOrderTest {
             calls.add(ended(statement));
         }
 
-        /** Written without {@code @Override}: it is gone once ADR-211 is built. */
-        public void toGoThrough(long hashes) {
-            calls.add("toGoThrough");
-        }
-
-        /** Written without {@code @Override}: it is gone once ADR-211 is built. */
-        public void hashGoneThrough() {
-            calls.add("hashGoneThrough");
-        }
-
-        /** ADR-211's callback, written without {@code @Override} so the class compiles before it exists. */
+        @Override
         public void occurrencesChecked(int occurrences) {
             calls.add("occurrencesChecked(" + occurrences + ")");
         }

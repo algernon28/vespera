@@ -47,6 +47,12 @@ class ExemplarsAreGatheredInSynthesisTest {
 
     private static final OccurrenceId THIRD = new OccurrenceId(3);
 
+    /** The first member's score, lower than the third's, so member order and score order differ. */
+    private static final double FIRST_SCORE = 0.4;
+
+    /** The third member's score. */
+    private static final double THIRD_SCORE = 0.9;
+
     private static final OpeningText FIRST_OPENING = new OpeningText("the first member's opening", 4);
 
     private static final OpeningText THIRD_OPENING = new OpeningText("the third member's opening", 4);
@@ -59,17 +65,18 @@ class ExemplarsAreGatheredInSynthesisTest {
 
         List<Exemplar> exemplars = ClusterExemplars.gathered(
                 List.of(FIRST, NOTHING_CHUNKED, THIRD),
-                scoresSaidInto(said, Map.of(FIRST, 0.9, NOTHING_CHUNKED, 0.7, THIRD, 0.4)),
+                scoresSaidInto(said, Map.of(FIRST, FIRST_SCORE, NOTHING_CHUNKED, 0.7, THIRD, THIRD_SCORE)),
                 openingsSaidInto(said, Map.of(FIRST, FIRST_OPENING, THIRD, THIRD_OPENING)),
                 progressSaidInto(said));
 
         claim(
                 "the exemplars are the first and third members, each carrying its opening chunk, that chunk's"
-                        + " word count and its score, in the order the members came: the member nothing was"
+                        + " word count and its score, in the order the members came and not by score, the third"
+                        + " scoring higher than the first: the member nothing was"
                         + " chunked from is left out rather than sent empty",
                 () -> assertThat(exemplars).containsExactly(
-                        new Exemplar(FIRST, FIRST_OPENING.text(), FIRST_OPENING.wordCount(), 0.9),
-                        new Exemplar(THIRD, THIRD_OPENING.text(), THIRD_OPENING.wordCount(), 0.4)));
+                        new Exemplar(FIRST, FIRST_OPENING.text(), FIRST_OPENING.wordCount(), FIRST_SCORE),
+                        new Exemplar(THIRD, THIRD_OPENING.text(), THIRD_OPENING.wordCount(), THIRD_SCORE)));
         claim(
                 "and for each member the score is asked first, then the opening chunk, then the line for a"
                         + " member nothing was chunked from where there is none, then the counter of members"

@@ -52,7 +52,7 @@ Built by [#620](https://github.com/algernon28/vespera/issues/620).
 
 | Method | What it holds |
 | --- | --- |
-| `…theConfluencePageShowsThePicturesTheHtmlPageShows` | the same pictures, entries and order on both renderings of one cluster (§1) |
-| `…aPicturesFileHoldsTheBytesTheHtmlPageInlines` | the file's bytes equal the base64-decoded `data:` URI of the HTML page (§2) |
-| `…aPictureCollidingWithACopyTakesItsEntrysNumber` | a copy named as a picture keeps its name, the picture takes `~<n>` (§3) |
-| `…anImageSurvivorsCopyIsShownAndNotWrittenAgain` | an image survivor's entry shows its copy by `ri:attachment` and no picture's file is written for it (§2) |
+| `…bothRenderingsCarryTheSameEntriesAndCitations` (#684) | the same pictures, entries and order on both renderings of one cluster (§1) |
+| `…bothRenderingsCarryTheSameEntriesAndCitations` (#684) | the file's bytes equal the base64-decoded `data:` URI of the HTML page (§2) |
+| `…anImageSurvivorsCopyIsShownAndAPictureCollidingWithACopyTakesItsEntrysNumber` (#684) | a copy named as a picture keeps its name, the picture takes `~<n>` (§3) |
+| `…anImageSurvivorsCopyIsShownAndAPictureCollidingWithACopyTakesItsEntrysNumber` (#684) | an image survivor's entry shows its copy by `ri:attachment` and no picture's file is written for it (§2) |

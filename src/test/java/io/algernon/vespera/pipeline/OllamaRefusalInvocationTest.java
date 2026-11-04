@@ -8,7 +8,6 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.embedding.LabelQuestion;
 import io.algernon.vespera.embedding.OllamaLabellerFixture;
 import io.algernon.vespera.embedding.RelevanceLabeller;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -18,6 +17,7 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -99,8 +99,12 @@ class OllamaRefusalInvocationTest {
     void aCloudTagIsRefusedWithoutAskingOllama(@TempDir Path root, @TempDir Path seeds, CapturedOutput output)
             throws IOException {
         aScoredCorpus(root, seeds);
-        RestClient.Builder builder = RestClient.builder().baseUrl(OLLAMA);
-        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        AtomicInteger requests = new AtomicInteger();
+        RestClient.Builder builder = RestClient.builder().baseUrl(OLLAMA).requestInterceptor((request, body, next) -> {
+            requests.incrementAndGet();
+            return next.execute(request, body);
+        });
+        MockRestServiceServer.bindTo(builder).build();
         AtomicInteger chatCalls = new AtomicInteger();
         CURRENT.set(OllamaLabellerFixture.over("gpt-oss:120b-cloud", LOCAL_URL, builder, chatCalls));
 
@@ -113,12 +117,9 @@ class OllamaRefusalInvocationTest {
                         .contains("gpt-oss:120b-cloud is a cloud model")
                         .doesNotContain("\tat "));
         claim(
-                "no request reached Ollama: the stub has no expectation, so any request to /api/tags or"
-                        + " /api/show would have failed, and it saw none",
-                () -> {
-                    server.verify();
-                    assertThat(chatCalls.get()).isZero();
-                });
+                "no request reached Ollama, neither a question about the model nor a chat: every request the"
+                        + " client makes is counted on its way out, and none was",
+                () -> assertThat(List.of(requests.get(), chatCalls.get())).containsOnly(0));
     }
 
     @Test
@@ -145,17 +146,13 @@ class OllamaRefusalInvocationTest {
                         .contains("could not be established")
                         .doesNotContain("\tat "));
         claim("the chat model was never called", () -> assertThat(chatCalls.get()).isZero());
-        server.verify();
+        claim("and Ollama was asked about the model, the one request it was scripted to answer", server::verify);
     }
 
     private void aScoredCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor("1.0", "set by this test, so stage 4's gate is open")
-                .embeddingModel("qwen3-embedding:0.6b", "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
     }
 }

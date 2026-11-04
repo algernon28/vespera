@@ -36,20 +36,17 @@ import org.springframework.test.context.ActiveProfiles;
  * walked so far, with no total, written by {@code corpus}'s {@code WalkRecorder} as it has been since
  * ADR-093.
  *
- * <p>On main the line is written only when the walk finishes a directory and a commit interval of entries
- * has passed since the last commit, and the walk never finishes the root as a directory of its own. So the
- * files of a root with no directory in it were walked with nothing said until the walk ended. ADR-192 has
- * the line written from a callback after each entry, at the running cadence of its section 8, which is every
- * 1,000 entries below 100,000.
+ * <p>Before ADR-192 the line was written only when the walk finished a directory and a commit interval of
+ * entries had passed since the last commit, and the walk never finishes the root as a directory of its own,
+ * so the files of a root with no directory in it were walked with nothing said until the walk ended. The
+ * line is written from a callback after each entry, at the running cadence of ADR-192 section 8, which is
+ * every 1,000 entries below 100,000.
  *
  * <p>The first test walks {@value #FILES} files in a directory beneath the root: 1,002 entries with the
- * directory. On main that writes one running line, at 1,002, from the checkpoint the finished directory
- * offers. ADR-192 has the checkpoint write no line, so the walk writes one at 1,000 and none at 1,002. <b>Both
- * tests are red until part (a) of ADR-192 lands</b>: the first at its claim that the one running line names
- * 1,000 entries, the second at its claim that the lines are there. That cadence above 100,000 entries, and that the line can
- * name entries not yet committed, are pinned in {@code CensusRunningCountCadenceTest}, which part (a) brings
- * in, because a walk of that many files is not a fixture this suite can afford and the callback it drives
- * does not exist until then.
+ * directory. The checkpoint the finished directory offers writes no line, so the walk writes one at 1,000 and
+ * none at 1,002; a line written from the checkpoint would name 1,002. That cadence above 100,000 entries, and
+ * that the line can name entries not yet committed, are pinned in {@code CensusRunningCountCadenceTest},
+ * because a walk of that many files is not a fixture this suite can afford (#681).
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

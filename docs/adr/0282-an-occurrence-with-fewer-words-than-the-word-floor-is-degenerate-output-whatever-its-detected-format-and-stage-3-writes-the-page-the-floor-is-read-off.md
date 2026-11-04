@@ -129,8 +129,7 @@ An occurrence removed by tier 3 is not a survivor of stage 2 and is never a memb
 | Method | What it holds |
 | --- | --- |
 | `extraction.DegeneracyFloorTest.fewerWordsThanTheFloorAreDegenerate` | one word under a floor of 2 is degenerate, with the reason `1 word(s), below the configured word floor 2` |
-| `extraction.DegeneracyFloorTest.asManyWordsAsTheFloorClearIt` | two words under a floor of 2 are not degenerate |
-| `extraction.DegeneracyFloorTest.moreWordsThanTheFloorClearIt` | three words under a floor of 2 are not degenerate |
+| `extraction.DegeneracyFloorTest.asManyWordsAsTheFloorClearIt` | two words, and three, under a floor of 2 are not degenerate (#682) |
 | `extraction.DegeneracyFloorTest.anUnsetWordFloorRemovesNothing` | one word with no floor set is not degenerate |
 | `extraction.DegeneracyFloorTest.noAlphanumericContentIsTheReasonBeforeTooFewWords` | tier 1's reason, not tier 3's, for no letter or digit under a set floor |
 | `extraction.DegeneracyFloorTest.aLowConfidenceIsTheReasonBeforeTooFewWords` | tier 2's reason, not tier 3's, for both at once |
@@ -138,6 +137,7 @@ An occurrence removed by tier 3 is not a survivor of stage 2 and is never a memb
 | `extraction.AWordIsWhatStageTwoCountsTest.aYearAloneIsOneWord` | `2026` alone is one word, stored and judged, under a floor of 2 |
 | `extraction.AWordIsWhatStageTwoCountsTest.wordsWithoutALatinVowelAreWords` | `Привет мир` is two words and clears a floor of 2, though the vowelless counter counts both |
 | `extraction.AWordIsWhatStageTwoCountsTest.theWordsOfPageHeadersAndFootersCount` | a one-word body under a three-word header holds four words and clears a floor of 2 |
+| `extraction.AWordIsWhatStageTwoCountsTest.oneCharacterWordsAreWords` | `I a` is two words and clears a floor of 2, though the one-character counter counts both (#680) |
 | `extraction.WordCountDistributionTest.theBandsAndTheCandidateFloorsAreTheRecordedOnes` | `BANDS` and `CANDIDATE_FLOORS` as §4 lists them |
 | `extraction.WordCountDistributionTest.eachSurvivorIsCountedInItsBandUnderItsDetectedFormat` | survivors of three formats each in their band, formats in declaration order |
 | `extraction.WordCountDistributionTest.aFloorRemovesTheSurvivorsWithFewerWordsThanItInEachFormat` | `removedBy` for each candidate floor and format, and summed |
@@ -153,7 +153,7 @@ An occurrence removed by tier 3 is not a survivor of stage 2 and is never a memb
 | `pipeline.TheWordFloorInvocationTest` | a one-word file removed with its reason under a floor of 2 and the rest kept; unset removes nothing and adds no stop; a one-word seed is usable under the floor |
 | `pipeline.NextActionTest.aWordFloorThatIsNotAWholeNumberIsReported` | the closing line names the key, says whole number, quotes the text and names the page |
 | `pipeline.NextActionTest.anUnsetWordFloorIsNotNamed` | an unset floor is not named in the closing line |
-| `profile.DegenerateOutputWordFloorInTheProfileTest` | census drafts the key unset; an answer round-trips; the pointer method keeps the answer |
+| `profile.DegenerateOutputWordFloorInTheProfileTest` | the pointer method keeps the answer; `profile.ProfileStoreTest.writesACompleteSkeletonForAFreshCorpus` and `profile.ProfileStoreTest.anAnswerIsReadAndWrittenBackAsWritten`: census drafts the key unset and an answer round-trips; `profile.ProfileTest.aKeyIsDeclaredBesideTheKeyItIsReadWith`: after the confidence floor (#682) |
 
 `ProfileTest.theRecordDeclaresASingleConstructor` counts fifteen keys, with ADR-277's `codeNameEndings`; `ProfileStoreTest.everyAnswerLandsOnTheKeyThatCarriedIt` answers the new key; `PipelineHoldsOnlyTheRulesOnRecordTest` lists `DegenerateOutputWordFloor` and `WordCountDistributionReport` as holding no rule and stage 3's new collaborators; `RedundancyResolutionReportsItsProgressInvocationTest.countsEveryLoop` holds stage 3's lines with `the word counts` between `the extraction metrics` and `the shares of the documents`; `RunIdentityGoldenTest.extraction` holds that an unset floor leaves stage 2's identity text as it was; `CascadeSliceTest` wires `WordCountDistribution`, and `TheReadsByKeyTakeTheLedgersPageTest` holds that it keeps no page size of its own.
 

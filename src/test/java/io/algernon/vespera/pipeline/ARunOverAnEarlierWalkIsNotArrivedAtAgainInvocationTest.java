@@ -75,8 +75,6 @@ import picocli.CommandLine;
 @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
 class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
     private static final String LABEL_FILE = "relevance-labels.yaml";
 
     /** How many texts the fixture's archive holds before one is added. */
@@ -102,7 +100,7 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
 
     /**
      * Which stages' runs hold rows in each table keyed by a run, as the first invocation of this fixture
-     * leaves them: fourteen of the twenty-six. The other twelve hold no row in this fixture: the three of
+     * leaves them: fourteen of the twenty-nine. The other fifteen hold no row in this fixture: the three of
      * generation, which is not reached, and those a corpus of two texts that share every shingle, one usable
      * seed and no answer recorded gives nothing to write to, {@code verdict} among them.
      */
@@ -347,11 +345,7 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
 
     /** The seed folder named, stage 4's gate open and the embedding gate open. */
     private void everyGateOpen(Path seeds) {
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so the embedding gate is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 
     /** The finished walks of {@code root}, in the order they were made. */

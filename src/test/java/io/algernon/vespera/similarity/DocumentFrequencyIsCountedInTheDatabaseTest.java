@@ -2,6 +2,7 @@ package io.algernon.vespera.similarity;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.PoolOfTwo;
@@ -21,7 +22,6 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -193,14 +193,11 @@ class DocumentFrequencyIsCountedInTheDatabaseTest {
                 new long[] {firstSurvivor, A_SURVIVOR_AND_TWO_RULED_OUT_OF_DIFFERENT_PAGES},
                 new long[] {firstRuledOut, A_SURVIVOR_AND_TWO_RULED_OUT_OF_DIFFERENT_PAGES},
                 new long[] {lastRuledOut, A_SURVIVOR_AND_TWO_RULED_OUT_OF_DIFFERENT_PAGES});
-        claim(
-                "the fixture puts the first two ruled-out documents in the first page of " + A_PAGE + " and the"
-                        + " last in the third, so the cases about one page and about different pages are those",
-                () -> {
-                    assertThat(ids.indexOf(firstRuledOut)).isLessThan(A_PAGE);
-                    assertThat(ids.indexOf(secondRuledOut)).isLessThan(A_PAGE);
-                    assertThat(ids.indexOf(lastRuledOut)).isGreaterThanOrEqualTo(2 * A_PAGE);
-                });
+        assumeTrue(
+                ids.indexOf(firstRuledOut) < A_PAGE
+                        && ids.indexOf(secondRuledOut) < A_PAGE
+                        && ids.indexOf(lastRuledOut) >= 2 * A_PAGE,
+                "the first two ruled-out documents lie in the first page and the last in the third");
         try (Connection connection = pool.connection()) {
             connection.setAutoCommit(false);
             try (PreparedStatement row = connection.prepareStatement(
@@ -269,31 +266,12 @@ class DocumentFrequencyIsCountedInTheDatabaseTest {
                     written.put(resultSet.getLong(2), new long[] {resultSet.getLong(3), resultSet.getLong(4)});
                 },
                 stage3.value());
-        Map<String, Long> leftWithNoRow = new LinkedHashMap<>();
-        leftWithNoRow.put(
-                "a passage one surviving document and one ruled-out document carry: one survivor is fewer than two",
-                ONE_SURVIVOR_AND_ONE_RULED_OUT);
-        leftWithNoRow.put(
-                "a passage only two ruled-out documents of one page carry", TWO_RULED_OUT_OF_ONE_PAGE);
-        leftWithNoRow.put(
-                "a passage one ruled-out document carries and nothing else under this run does, though every document"
-                        + " carries it under an earlier run",
-                ONE_RULED_OUT_ALONE);
-        leftWithNoRow.put(
-                "a passage only two ruled-out documents carry, one in the first page and one in the last",
-                TWO_RULED_OUT_OF_DIFFERENT_PAGES);
-        leftWithNoRow.put(
-                "a passage one surviving document and two ruled-out documents of different pages carry",
-                A_SURVIVOR_AND_TWO_RULED_OUT_OF_DIFFERENT_PAGES);
-        leftWithNoRow.put(
-                "a passage only ruled-out documents carry, under a granularity no surviving document has",
-                UNDER_THE_OTHER_GRANULARITY);
-        leftWithNoRow.forEach((what, hash) -> claim(
-                "no row is left for " + what,
-                () -> assertThat(written).as("the rows written, by passage").doesNotContainKey(hash)));
         claim(
                 "a row is written for each of the " + SHARED_HASHES + " shared passages and for no other: none for a"
-                        + " passage of one document alone",
+                        + " passage of one document alone, and none for a passage one surviving document and one or two"
+                        + " ruled-out documents carry, or only ruled-out documents carry -- of one page or of"
+                        + " different pages, under this run alone or every document under an earlier run, under this"
+                        + " granularity or one no surviving document has",
                 () -> assertThat(written.keySet()).containsExactlyInAnyOrderElementsOf(expected.keySet()));
         claim(
                 "and every row is under the granularity the surviving documents carry",

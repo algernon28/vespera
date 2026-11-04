@@ -35,8 +35,7 @@ import org.springframework.test.context.ActiveProfiles;
  * <p>Since ADR-220, §14, a fault's row is written when it is recorded, so a step that stopped has nothing left to
  * do at its end: its rows stand, it judges none of them, and it announces no loop.
  *
- * <p><b>Part (b) of ADR-192.</b> Does not compile until the interface and the overload exist; part (b) moves it
- * into {@code src/test}. What is written is {@code ExtractionFaultResolutionTest}'s to pin.
+ * <p>What is written is {@code ExtractionFaultResolutionTest}'s to pin.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -55,7 +54,19 @@ class ExtractionFaultResolutionReportsItsCountTest {
     @Story("Stage 2 tells its caller how many faults it resolves")
     @DisplayName("Two recorded faults are announced once, and each is reported after its verdict is written, on a completed step")
     void announcesTheRecordedFaultsAndReportsEachOnCompletion() {
-        reportsTwoFaults(true);
+        Ledger ledger = new Ledger(jdbcTemplate);
+        RunId run = aRun(ledger);
+        ExtractionFaultResolution resolution = new ExtractionFaultResolution(new ExtractionFaults(jdbcTemplate), ledger);
+        resolution.record(anOccurrence(ledger, run, "first.pdf"), run, "internal", "the converter failed");
+        resolution.record(anOccurrence(ledger, run, "second.pdf"), run, "capacity", "the converter was busy");
+        List<String> events = new ArrayList<>();
+
+        resolution.resolve(run, true, recording(events));
+
+        claim(
+                "the loop is announced once with the run's two fault rows, before the first is resolved, and"
+                        + " each is reported once after its verdict",
+                () -> assertThat(events).containsExactly("to-resolve 2", "resolved", "resolved"));
     }
 
     @Test
@@ -88,22 +99,6 @@ class ExtractionFaultResolutionReportsItsCountTest {
         new ExtractionFaultResolution(new ExtractionFaults(jdbcTemplate), ledger).resolve(run, true, recording(events));
 
         claim("the one call is the total, zero", () -> assertThat(events).containsExactly("to-resolve 0"));
-    }
-
-    private void reportsTwoFaults(boolean completed) {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        RunId run = aRun(ledger);
-        ExtractionFaultResolution resolution = new ExtractionFaultResolution(new ExtractionFaults(jdbcTemplate), ledger);
-        resolution.record(anOccurrence(ledger, run, "first.pdf"), run, "internal", "the converter failed");
-        resolution.record(anOccurrence(ledger, run, "second.pdf"), run, "capacity", "the converter was busy");
-        List<String> events = new ArrayList<>();
-
-        resolution.resolve(run, completed, recording(events));
-
-        claim(
-                "the loop is announced once with the run's two fault rows, before the first is resolved, and"
-                        + " each is reported once after its verdict",
-                () -> assertThat(events).containsExactly("to-resolve 2", "resolved", "resolved"));
     }
 
     private RunId aRun(Ledger ledger) {

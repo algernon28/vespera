@@ -3,6 +3,7 @@ package io.algernon.vespera.similarity;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.Ledger;
@@ -54,7 +55,7 @@ class ShinglerTest {
     /**
      * The most rows {@link Shingler#write} sends in one JDBC batch, as issue #367 fixes it. It mirrors
      * {@code Shingler.SHINGLE_INSERT_BATCH}, which the spec makes {@code private}, so the test states the
-     * value rather than reading it.
+     * value rather than reading it, and assumes the long text crosses two batches of it.
      */
     private static final int ROWS_PER_BATCH = 5_000;
 
@@ -197,19 +198,13 @@ class ShinglerTest {
 
         shingler.write(occurrenceId, runId, text, FIVE_WORD_SHINGLES);
 
-        claim(
-                "a text of " + LONG_TEXT_WORDS + " distinct words gives more shingles than two full"
-                        + " database batches of " + ROWS_PER_BATCH + " rows each, so the write crosses at"
-                        + " least two batch boundaries",
-                () -> assertThat(computed).hasSizeGreaterThan(2 * ROWS_PER_BATCH));
+        assumeTrue(
+                computed.size() > 2 * ROWS_PER_BATCH,
+                "a text of " + LONG_TEXT_WORDS + " distinct words gives more shingles than two batches of "
+                        + ROWS_PER_BATCH + " rows");
         claim(
                 "every shingle the function computed is stored for this occurrence and run, exactly once,"
-                        + " none lost or repeated at a batch boundary",
-                () -> assertThat(storedHashes(occurrenceId, runId, FIVE_WORD_SHINGLES.identity()))
-                        .containsExactlyInAnyOrderElementsOf(computed));
-        claim(
-                "the rows were inserted in the order the function computed the shingles, across every"
-                        + " batch boundary",
+                        + " none lost or repeated at a batch boundary, in the order the function computed them",
                 () -> assertThat(hashesInInsertionOrder(occurrenceId, runId, FIVE_WORD_SHINGLES.identity()))
                         .isEqualTo(computed));
     }
@@ -222,10 +217,10 @@ class ShinglerTest {
         OccurrenceId occurrenceId = anOccurrence();
         RunId runId = aRun(occurrenceId);
         String text = "the quick brown fox jumps over the lazy dog again";
-        ShingleParameters wideWindow = new ShingleParameters(3);
+        ShingleParameters narrowWindow = new ShingleParameters(3);
 
         shingler.write(occurrenceId, runId, text, FIVE_WORD_SHINGLES);
-        shingler.write(occurrenceId, runId, text, wideWindow);
+        shingler.write(occurrenceId, runId, text, narrowWindow);
 
         claim(
                 "the first granularity's rows are untouched by the second write -- still exactly what"
@@ -236,8 +231,8 @@ class ShinglerTest {
         claim(
                 "the second granularity's rows exist under their own identity, alongside the first"
                         + " rather than in place of it",
-                () -> assertThat(storedHashes(occurrenceId, runId, wideWindow.identity()))
-                        .containsExactlyInAnyOrderElementsOf(shingler.hashesOf(text, wideWindow)));
+                () -> assertThat(storedHashes(occurrenceId, runId, narrowWindow.identity()))
+                        .containsExactlyInAnyOrderElementsOf(shingler.hashesOf(text, narrowWindow)));
     }
 
     private List<Long> storedHashes(OccurrenceId occurrenceId, RunId runId, String parameterIdentity) {

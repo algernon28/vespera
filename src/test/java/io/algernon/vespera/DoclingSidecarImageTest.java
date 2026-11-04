@@ -159,10 +159,8 @@ class DoclingSidecarImageTest {
         String install = installs.getFirst();
         claim(
                 "that instruction names one exact release with ==, so a rebuild can never pick up a"
-                        + " different parser, and conversions, unannounced",
-                () -> assertThat(pinnedParserVersion()).isNotNull());
-        claim(
-                "the release is " + MEASURED_PARSER + ", the one measured with no crash and no lost page in"
+                        + " different parser, and conversions, unannounced; the release is " + MEASURED_PARSER
+                        + ", the one measured with no crash and no lost page in"
                         + " 60 conversions from a cold start, where the release the base image ships"
                         + " crashed in 9 of 30 and lost pages in 30 of 60",
                 () -> assertThat(pinnedParserVersion()).isEqualTo(MEASURED_PARSER));

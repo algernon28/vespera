@@ -97,7 +97,7 @@ class ProgressPageChartsTest {
     /** What 257 samples are thinned to: those at even positions, the first and the latest among them. */
     private static final int AFTER_THINNING = 129;
 
-    /** How many times the page's clock must be asked before the test ends the job: more than 400 writes. */
+    /** How many times the page's clock must be asked before the test ends the job: once a write, so 800 writes. */
     private static final long CLOCK_ASKED_AT_LEAST = 800;
 
     /** The longest the test waits for writes it is counting or a page it is looking for. */
@@ -266,7 +266,7 @@ class ProgressPageChartsTest {
 
     @Test
     @Story("However long the invocation, the charts hold a bounded number of samples spanning all of it")
-    @DisplayName("After more than four hundred writes a second apart, the chart holds more than 128 samples and at most 256, from the job's start to the last write, in rising order, and the page of samples a row for each")
+    @DisplayName("After eight hundred writes a second apart, the chart holds more than 128 samples and at most 256, from the job's start to the last write, in rising order, and the page of samples a row for each")
     void theSamplesAreThinnedToAtMost256KeepingTheFirstAndTheLatest() throws IOException {
         Instant base = Instant.now();
         SteppingClock clock = new SteppingClock(base);

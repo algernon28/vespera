@@ -60,16 +60,16 @@ class RelevanceLabelFileTest {
         claim(
                 "every document that was sampled has an entry waiting for an answer, so the person"
                         + " labelling works through the file itself rather than keeping a list of their own",
-                () -> assertThat(SAMPLED_PATHS).allSatisfy(path -> assertThat(yaml).contains(path)));
+                () -> assertThat(scoresByPath(yaml).keySet()).containsExactlyElementsOf(SAMPLED_PATHS));
         claim(
                 "and with no recorded answers handed in, every one of those entries is blank: the"
                         + " engine never guesses an answer",
                 () -> assertThat(countOf(yaml, "relevant: null")).isEqualTo(SAMPLED_PATHS.size()));
         claim(
                 "each entry carries the score the document got, so the person can see what the engine"
-                        + " thought while they decide -- that is the context ADR-088 keeps beside a label,"
-                        + " never part of what identifies it",
-                () -> assertThat(yaml).contains("0.42"));
+                        + " thought while they decide -- context kept beside a label,"
+                        + " never part of what identifies it, each beside its own document",
+                () -> assertThat(scoresByPath(yaml).values()).containsExactly("0.42", "0.55", "0.61"));
     }
 
     @Test
@@ -80,13 +80,14 @@ class RelevanceLabelFileTest {
 
         claim(
                 "the file names the run it was generated under, which is what lets a file offered against"
-                        + " a different sample be refused outright rather than partially matched",
-                () -> assertThat(yaml).contains(SCORING_RUN));
+                        + " a different sample be refused outright rather than partially matched, under"
+                        + " generatedUnderRun",
+                () -> assertThat(YAML.readTree(yaml).path("generatedUnderRun").asString()).isEqualTo(SCORING_RUN));
         claim(
-                "and it names the embedder the scores came from: the same documents scored by a different"
-                        + " model are different numbers, so answers gathered against one are not answers"
-                        + " against the other",
-                () -> assertThat(yaml).contains(EMBEDDER));
+                "and it names the embedder the scores came from, under generatedUnderEmbedder: the same"
+                        + " documents scored by a different model are different numbers, so answers gathered"
+                        + " against one are not answers against the other",
+                () -> assertThat(YAML.readTree(yaml).path("generatedUnderEmbedder").asString()).isEqualTo(EMBEDDER));
     }
 
     @Test
@@ -141,6 +142,15 @@ class RelevanceLabelFileTest {
             }
         }
         return "(no entry)";
+    }
+
+    /** Each entry's path, and the score it shows as the file spells it, in the file's order. */
+    private static Map<String, String> scoresByPath(String yaml) {
+        Map<String, String> scores = new java.util.LinkedHashMap<>();
+        for (JsonNode entry : YAML.readTree(yaml).path("documents")) {
+            scores.put(entry.path("path").asString(), entry.path("score").asString());
+        }
+        return scores;
     }
 
     private static int countOf(String text, String needle) {

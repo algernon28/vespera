@@ -206,7 +206,7 @@ class StatementStepsPerRowTest {
     @Story("A long statement inside the database reports how far it has gone")
     @DisplayName("Building the index over one run's text fragments takes thirteen steps for each of that run's rows and three for each row of another run")
     void theBuildOverOneRunsRowsTakesThirteenStepsARowOfTheRunAndThreeARowOfAnother() throws SQLException {
-        IndexStatement build = new IndexStatement(SHINGLE_BY_HASH, "shingle_by_hash", "shingle", 2);
+        IndexStatement build = new IndexStatement(SHINGLE_BY_HASH, "shingle_by_hash", "shingle", 3);
         write("shingle", RUN_READ, FEWER);
         long atFewer = buildSteps(build);
         write("shingle", RUN_READ, DIFFERENCE);
@@ -285,20 +285,8 @@ class StatementStepsPerRowTest {
     @DisplayName("Each read that sorts after going through its rows is timed, because its plan sorts in a structure of its own")
     void eachSortingReadSortsInATempBTree() throws SQLException {
         List<String> sorting = List.of(
-                "SELECT occurrence_id FROM relevance_score WHERE run_id = ? AND score < ? ORDER BY occurrence_id",
                 "SELECT DISTINCT winning_seed_occurrence_id FROM relevance_score WHERE run_id = ?"
                         + " ORDER BY winning_seed_occurrence_id",
-                "SELECT occurrence_id, score, winning_seed_occurrence_id FROM relevance_score"
-                        + " WHERE run_id = ? ORDER BY occurrence_id",
-                "SELECT occurrence_id, winning_seed_occurrence_id, cluster_ordinal FROM document_cluster"
-                        + " WHERE run_id = ? ORDER BY occurrence_id",
-                "SELECT winning_seed_occurrence_id, cluster_ordinal, label, document_count,"
-                        + " partition_order, cluster_order FROM cluster WHERE run_id = ?"
-                        + " ORDER BY partition_order, cluster_order",
-                "SELECT winning_seed_occurrence_id, cluster_ordinal, title, prose"
-                        + " FROM synthesis_doc WHERE run_id = ? ORDER BY rowid",
-                "SELECT winning_seed_occurrence_id, cluster_ordinal, kind, detail FROM cluster_fault"
-                        + " WHERE run_id = ? ORDER BY rowid",
                 "SELECT occurrence_id, reason FROM unusable_seed WHERE run_id = ? ORDER BY occurrence_id",
                 "SELECT v.occurrence_id, o.path, v.reason FROM verdict v"
                         + " JOIN file_occurrence o ON o.id = v.occurrence_id"

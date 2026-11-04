@@ -2,6 +2,7 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
@@ -225,20 +226,17 @@ class ShingleHashIndexRemovalIsAnnouncedInvocationTest {
         openStageFoursGate();
         cli.run("run", root.toString());
 
-        claim(
-                "the first invocation finishes the redundancy check and ends with the hash index in place",
-                () -> assertThat(indexExists(BY_HASH)).isTrue());
+        assumeTrue(
+                indexExists(BY_HASH),
+                "the first invocation finishes the redundancy check and ends with the hash index in place;"
+                        + " ShingleHashIndexInvocationTest claims it, and that the second leaves it there");
 
         int before = output.getAll().length();
         cli.run("run", root.toString());
         String second = output.getAll().substring(before);
 
         claim(
-                "the second invocation leaves the hash index where it was, because an extraction with nothing to"
-                        + " write removes nothing",
-                () -> assertThat(indexExists(BY_HASH)).isTrue());
-        claim(
-                "and says nothing about removing it",
+                "the second invocation, with nothing to write, says nothing about removing the hash index",
                 () -> assertThat(second).doesNotContain(REMOVING).doesNotContain(REMOVED));
     }
 

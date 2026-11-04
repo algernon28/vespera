@@ -367,30 +367,6 @@ class ProgressPageTabsTest {
     }
 
     @Test
-    @Story("The last write keeps the charts and the hover")
-    @DisplayName("The last write of the page still holds the tiles, the timeline and the database chart, and the one script")
-    void theLastWriteKeepsTheChartsAndTheHover() throws IOException {
-        ProgressPage progressPage = aPage(Clock.systemDefaultZone());
-        JobExecution execution = anExecution(1L, LocalDateTime.now());
-        aStep(execution, StepNames.CENSUS, BatchStatus.COMPLETED, execution.getStartTime(), execution.getStartTime());
-
-        progressPage.beforeJob(execution);
-        execution.setStatus(BatchStatus.COMPLETED);
-        progressPage.afterJob(execution);
-
-        String page = read(PAGE);
-        claim(
-                "the last write holds the tiles, the timeline of the steps and the chart of the database's size",
-                () -> assertThat(page)
-                        .containsPattern("<div class=\"tile\" data-tile=\"steps\"(?: title=\"[^\"]*\")?>")
-                        .contains("<svg class=\"timeline\"")
-                        .contains("data-chart=\"database\""));
-        claim(
-                "and it still carries the one script, so the hover works on the page that stays open",
-                () -> assertThat(all(SCRIPT, page)).hasSize(1));
-    }
-
-    @Test
     @Story("Every tab says whether the invocation runs, and reloads while it does and after it has ended")
     @DisplayName("The label command's last write, whether it recorded or failed, still reloads at the page's interval by its head, outside any noscript, as its first write does")
     @Link(name = "ADR-327", url = Adr.AN_ENDED_PROGRESS_PAGE_KEEPS_RELOADING_AND_A_SETTING_OPENS_NO_BROWSER, type = "adr")

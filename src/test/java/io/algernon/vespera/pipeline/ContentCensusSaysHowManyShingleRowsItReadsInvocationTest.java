@@ -196,10 +196,7 @@ class ContentCensusSaysHowManyShingleRowsItReadsInvocationTest {
                 () -> assertThat(span).isLessThan(greatestShingleRow()));
 
         claim(
-                "the second content census starts and measures, which are the two lines the read falls between",
-                () -> assertThat(second).containsSubsequence(STARTING, MEASURED));
-        claim(
-                "between them it says that it is reading the saved word sequences, so a read lasting half an"
+                "the second content census starts and measures, and between those two lines it says that it is reading the saved word sequences, so a read lasting half an"
                         + " hour is not mistaken for an invocation that has stopped moving",
                 () -> assertThat(second).containsSubsequence(STARTING, READING, MEASURED));
         claim(

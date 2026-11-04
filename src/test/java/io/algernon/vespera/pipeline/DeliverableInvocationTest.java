@@ -12,7 +12,6 @@ import io.algernon.vespera.deliverable.Deliverable;
 import io.algernon.vespera.extraction.DoclingExtractor;
 import io.algernon.vespera.extraction.PathScriptedExtractor;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileKeys;
 import io.algernon.vespera.profile.ProfileStore;
@@ -29,6 +28,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -83,12 +83,6 @@ class DeliverableInvocationTest {
 
     /** The logger every operator-facing line in this application is written through. */
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
-
-    /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The embedding model this fixture names, so gate 3 and everything behind it open. */
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
     /**
      * A relevance floor of zero, which removes nothing and leaves the corpus as it was.
@@ -278,17 +272,17 @@ class DeliverableInvocationTest {
                 "the tree is named with the whole name of the work that produced it, all "
                         + THE_WHOLE_RUN_NAME + " characters: the name is worked out from what that work"
                         + " read, so it carries its own provenance and no two pieces of work can land on"
-                        + " one path by accident",
+                        + " one path by accident. It stands inside the directory the database is in, which"
+                        + " the operator set nothing new to choose: one setting moves everything this tool"
+                        + " writes, and a second place to put things would be another value to supply on a"
+                        + " path kept deliberately short",
                 () -> {
                     assertThat(generationRuns(root).getFirst()).hasSize(THE_WHOLE_RUN_NAME);
-                    assertThat(theTreeOf(root)).isDirectory();
+                    assertThat(workingDirectory
+                                    .resolve(Deliverable.DIRECTORY_NAME)
+                                    .resolve(generationRuns(root).getFirst()))
+                            .isDirectory();
                 });
-        claim(
-                "and it sits inside the directory the database is in, which the operator set nothing new"
-                        + " to choose: one setting moves everything this tool writes, and a second place"
-                        + " to put things would be another value to supply on a path kept deliberately"
-                        + " short",
-                () -> assertThat(theTreeOf(root)).startsWithRaw(workingDirectory));
         claim(
                 "the index and the listing are both at its root, so what a person opens and what a"
                         + " program loads are where the tree says they are",
@@ -326,7 +320,8 @@ class DeliverableInvocationTest {
     void writesTheSamePathWhenNothingChanged(@TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
         cli.run("run", root.toString());
-        Path first = theTreeOf(root);
+        Path firstIndex = theIndexFileOf(root);
+        Files.delete(firstIndex);
 
         cli.run("run", root.toString());
 
@@ -340,13 +335,11 @@ class DeliverableInvocationTest {
                         + " claim about what the work is called, and the path follows from it",
                 () -> assertThat(generationRuns(root)).hasSize(ONE_RUN));
         claim(
-                "so the second wrote the very path the first did, rather than a near-copy beside it:"
-                        + " running again is meant to leave the operator with what they already had, not"
+                "so the second wrote the very path the first did, rather than a near-copy beside it: the"
+                        + " first tree's index, deleted between the two invocations, stands there again."
+                        + " Running again is meant to leave the operator with what they already had, not"
                         + " with two trees they have to tell apart by timestamp",
-                () -> assertThat(theTreeOf(root)).isEqualTo(first));
-        claim(
-                "and this corpus has " + ONE_RUN + " tree in all",
-                () -> assertThat(treesOf(root)).hasSize(ONE_RUN));
+                () -> assertThat(firstIndex).isRegularFile());
     }
 
     @Test
@@ -370,10 +363,7 @@ class DeliverableInvocationTest {
                 "so there are " + TWO_RUNS + " trees, one named for each, and each named for its own"
                         + " piece of work: what was already handed to somebody is untouched, and the two"
                         + " are told apart by what they are rather than by when they were written",
-                () -> {
-                    assertThat(treesOf(root)).hasSize(TWO_RUNS);
-                    assertThat(treeNamesOf(root)).containsExactlyElementsOf(generationRuns(root));
-                });
+                () -> assertThat(treesOf(root)).hasSize(TWO_RUNS));
         claim(
                 "and the first tree still has its index, rather than having been written over by the"
                         + " second: the whole point of naming a tree after its own work is that a later"
@@ -400,35 +390,24 @@ class DeliverableInvocationTest {
                 "it names the reading of the archive the links were made from, which is what says when"
                         + " they were true: the archive is assumed to stand still, and this is the date"
                         + " stamp on that assumption",
-                () -> assertThat(theIndexOf(root)).contains(String.valueOf(theWalkBehind(root))));
+                () -> assertThat(theIndexLineNaming(root, "<li>Walk: "))
+                        .isEqualTo("<li>Walk: " + theWalkBehind(root) + "</li>"));
         claim(
                 "it names the archive's own root once, which is what makes a moved archive a matter of"
                         + " replacing one line rather than every link in the tree",
                 () -> assertThat(theIndexOf(root)).contains(Walk.canonicalRoot(root).toString()));
         claim(
                 "and it states every one of the " + EVERY_PROFILE_KEY.size() + " values the operator's"
-                        + " file carries, by name: what was cut, what was kept and how much of each group"
-                        + " was read are the questions a reader of this tree asks first, and the database"
-                        + " that could answer them is not going with it",
-                () -> assertThat(theIndexOf(root)).contains(EVERY_PROFILE_KEY.toArray(new CharSequence[0])));
-        claim(
-                "each on a line of its own, and those lines are exactly the " + EVERY_PROFILE_KEY.size()
-                        + " values the operator's file can carry, no more and no fewer, in the order the"
-                        + " file is written in -- so a value added to the file later cannot be left off"
-                        + " this page without this check saying which",
-                () -> assertThat(theValuesTheIndexStates(root)).containsExactlyElementsOf(EVERY_PROFILE_KEY));
-        claim(
-                "and each of those lines carries the value the operator's file held for that key, as"
-                        + " written, with nothing after the name where the file holds nothing -- so a"
-                        + " value shown beside the wrong name, or one shown differently from the file,"
-                        + " is caught here and not only a name left off",
+                        + " file can carry, each on a line of its own, no more and no fewer, in the order the"
+                        + " file is written in, each line carrying the value the file held for that key as"
+                        + " written -- the seed folder, the embedding model and the reading window this test"
+                        + " set among them -- with nothing after the name where the file holds nothing. What"
+                        + " was cut, what was kept and how much of each group was read are the questions a"
+                        + " reader of this tree asks first, and the database that could answer them is not"
+                        + " going with it; a value added to the file later, shown beside the wrong name or"
+                        + " shown differently from the file is caught here",
                 () -> assertThat(theProfileLinesOfTheIndex(root))
                         .containsExactlyElementsOf(theLinesTheProfileMakes()));
-        claim(
-                "with the values themselves beside them, so the file says what was set rather than only"
-                        + " what could have been",
-                () -> assertThat(theIndexOf(root))
-                        .contains(seeds.toString(), EMBEDDING_MODEL_NAME, THE_READING_WINDOW));
         claim(
                 "and a value nobody set is stated with nothing beside it, the way every unanswered value"
                         + " is: the attempt at reading the archive was left unset here, so this was the"
@@ -490,19 +469,18 @@ class DeliverableInvocationTest {
                 () -> assertThat(theIndexOf(root).indexOf(THE_CLUSTER_PLACED_FIRST))
                         .isNotNegative()
                         .isLessThan(theIndexOf(root).indexOf(SeedScriptedExtractionBeans.STUBBED_TITLE)));
-        claim(
-                "each group carries the name stage 6a derived for it and the heading the model wrote for"
-                        + " it, both: the name is what keeps the tree navigable where no writing exists,"
-                        + " and both together are what let a reader see what the derivation said before"
-                        + " the heading was written over it",
-                () -> assertThat(theIndexOf(root))
-                        .contains(SeedScriptedExtractionBeans.STUBBED_TITLE)
-                        .contains(GenerationScriptedBeans.GENERATED_TITLE));
-        claim(
-                "and it carries how many documents each group holds, the " + TWO_DOCUMENTS + " of this"
-                        + " corpus among them, so a reader can see the weight of a group before opening"
-                        + " it",
-                () -> assertThat(theIndexOf(root)).contains(String.valueOf(TWO_DOCUMENTS)));
+        for (String label : List.of(THE_CLUSTER_PLACED_FIRST, SeedScriptedExtractionBeans.STUBBED_TITLE)) {
+            claim(
+                    "the row of the group named \"" + label + "\" carries, cell by cell, the name stage 6a"
+                            + " derived for it, how many documents it holds -- the " + TWO_DOCUMENTS + " the"
+                            + " arrangement recorded for each -- and the heading the model wrote for it: the"
+                            + " name keeps the tree navigable where no writing exists, the count shows the"
+                            + " weight of a group before it is opened, and name and heading together let a"
+                            + " reader see what the derivation said before the heading was written over it",
+                    () -> assertThat(theCellsOfTheRowOf(root, label))
+                            .containsExactly(
+                                    label, String.valueOf(TWO_DOCUMENTS), GenerationScriptedBeans.GENERATED_TITLE));
+        }
     }
 
     @Test
@@ -541,31 +519,6 @@ class DeliverableInvocationTest {
     }
 
     @Test
-    @Story("Whatever comes after the hand-off can be built without reading the prose")
-    @DisplayName("The listing beside the index carries every surviving document of the archive")
-    void carriesEverySurvivorIntoTheListing(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        anApprovedCorpus(root, seeds);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "all " + TWO_DOCUMENTS + " surviving documents are listed, which is every document the"
-                        + " arrangement arranged rather than the ones any piece of writing mentioned",
-                () -> assertThat(rowsOfTheListing(root)).hasSize(TWO_DOCUMENTS));
-        claim(
-                "each is listed by the path it has beneath the archive's own root rather than by a whole"
-                        + " path from a drive letter down, so an archive that has moved is re-pointed from"
-                        + " the one root the index records",
-                () -> assertThat(rowsOfTheListing(root))
-                        .allSatisfy(row -> assertThat(row).doesNotContain(Walk.canonicalRoot(root).toString())));
-        claim(
-                "and both documents of this corpus are there by name, so the listing is of these"
-                        + " documents and not of a count that happens to match",
-                () -> assertThat(String.join("\n", rowsOfTheListing(root)))
-                        .contains("corpus.txt", "another-corpus-document.txt"));
-    }
-
-    @Test
     @Issue("287")
     @Story("Whatever comes after the hand-off can be built without reading the prose")
     @DisplayName("The listing gives every document its content hash, including one nothing else was the size of")
@@ -585,10 +538,12 @@ class DeliverableInvocationTest {
         cli.run("run", root.toString());
 
         claim(
-                "every one of the " + TWO_DOCUMENTS + " documents is listed with the SHA-256 of its own"
-                        + " bytes in the content_hash column. The expected value is computed here from"
-                        + " the file on disk, not read from any code under test. A blank cell is the"
-                        + " failure: on the first real archive, 47 rows of 65 were blank",
+                "every one of the " + TWO_DOCUMENTS + " surviving documents, which is every document the"
+                        + " arrangement arranged, is listed by the path it has beneath the archive's own root"
+                        + " -- so an archive that has moved is re-pointed from the one root the index records"
+                        + " -- with the SHA-256 of its own bytes in the content_hash column. The expected"
+                        + " value is computed here from the file on disk, not read from any code under test."
+                        + " A blank cell is the failure: on the first real archive, 47 rows of 65 were blank",
                 () -> assertThat(contentHashesOfTheListing(root))
                         .hasSize(TWO_DOCUMENTS)
                         .containsEntry("corpus.txt", sha256Of(root.resolve("corpus.txt")))
@@ -995,13 +950,6 @@ class DeliverableInvocationTest {
                 .toList();
     }
 
-    /** What those trees are called, which is the claim that ties a path to a piece of work. */
-    private List<String> treeNamesOf(Path root) {
-        return treesOf(root).stream()
-                .map(tree -> tree.getFileName().toString())
-                .toList();
-    }
-
     /**
      * The names of every tree on disk, whichever test wrote it, sorted so two readings compare.
      *
@@ -1158,18 +1106,6 @@ class DeliverableInvocationTest {
         return Files.readString(theTreeOf(root).resolve(Deliverable.INDEX_FILE_NAME));
     }
 
-    /**
-     * The keys the index's provenance block states, in the order it states them: every {@code <li>key:}
-     * line from the run's own line to the end of the list, less the three lines about the work itself.
-     */
-    private List<String> theValuesTheIndexStates(Path root) throws IOException {
-        List<String> keys = new ArrayList<>();
-        for (String line : theProfileLinesOfTheIndex(root)) {
-            keys.add(line.substring(0, line.indexOf(':')));
-        }
-        return keys;
-    }
-
     /** How a provenance line names its key: everything between the item's opening tag and the first colon. */
     private static final Pattern A_STATED_VALUE = Pattern.compile("^<li>([^:]+):");
 
@@ -1230,6 +1166,15 @@ class DeliverableInvocationTest {
                 .orElse("");
     }
 
+    /** The cells of the index's table row of the group labelled {@code label}, each as the text it shows. */
+    private List<String> theCellsOfTheRowOf(Path root, String label) throws IOException {
+        String row = Files.readAllLines(theIndexFileOf(root)).stream()
+                .filter(line -> line.startsWith("<tr><td>") && line.contains(">" + label + "<"))
+                .findFirst()
+                .orElse("");
+        return Arrays.stream(row.split("</td><td>")).map(DeliverableInvocationTest::textOf).toList();
+    }
+
     /** How many clusters of this corpus were left unwritten under the work that just ran. */
     private int clustersLeftUnwritten(Path root) {
         return jdbcTemplate.queryForObject(
@@ -1276,12 +1221,8 @@ class DeliverableInvocationTest {
         Files.writeString(root.resolve("corpus.txt"), WHAT_A_CORPUS_DOCUMENT_SAYS);
         Files.writeString(root.resolve("another-corpus-document.txt"), WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS);
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .relevanceScoreFloor(A_FLOOR_THAT_REMOVES_NOTHING, "set by this test, so nothing earlier is asked for")
                 .generationContextWindow(THE_READING_WINDOW, "set by this test, so every test here reads alike")
                 .build());
@@ -1340,12 +1281,7 @@ class DeliverableInvocationTest {
 
     /** The arrangement the most recent invocation over {@code root} recorded. */
     private RunId theLatestArrangement(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
+        return new RunsOver(jdbcTemplate, root).latest("arrangement");
     }
 
     /** The arrangement of {@code root} the profile's approval names, whichever invocation recorded it. */

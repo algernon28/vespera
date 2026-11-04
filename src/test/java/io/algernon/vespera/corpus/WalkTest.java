@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.abort;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
@@ -19,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -83,6 +85,9 @@ class WalkTest {
     /** The one file written by the size test, and its length. */
     private static final int SIZED_FILE_BYTES = 1234;
 
+    /** A last-modified time set on a file years before it is written, so it cannot be mistaken for its creation. */
+    private static final Instant LAST_MODIFIED_LONG_BEFORE_ITS_CREATION = Instant.parse("2001-02-03T04:05:06Z");
+
     /** Files written by the accounting test: one at the root, two nested. */
     private static final int FILES_WRITTEN = 3;
 
@@ -144,9 +149,12 @@ class WalkTest {
     void recordsSizeLastModifiedAndCreationTimeForEachOccurrence(@TempDir Path root) throws IOException {
         Path file = root.resolve("sized.bin");
         Files.write(file, new byte[SIZED_FILE_BYTES]);
+        Files.setLastModifiedTime(file, FileTime.from(LAST_MODIFIED_LONG_BEFORE_ITS_CREATION));
         BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class);
-        Instant lastModifiedOnDisk = attrs.lastModifiedTime().toInstant();
         Instant creationTimeOnDisk = attrs.creationTime().toInstant();
+        assumeFalse(
+                creationTimeOnDisk.equals(LAST_MODIFIED_LONG_BEFORE_ITS_CREATION),
+                "this filesystem keeps no creation time apart from the last-modified time");
 
         Recorder recorder = walk(root);
 
@@ -157,11 +165,12 @@ class WalkTest {
                 "the size recorded is the " + SIZED_FILE_BYTES + " bytes the test wrote to sized.bin",
                 () -> assertThat(recorder.sizes.get(0)).isEqualTo(SIZED_FILE_BYTES));
         claim(
-                "the last-modified time is the one the filesystem holds for sized.bin, not the clock at walk time",
-                () -> assertThat(recorder.modified.get(0)).isEqualTo(lastModifiedOnDisk));
+                "the last-modified time is the one set on sized.bin, years before it was written, not the clock at"
+                        + " walk time",
+                () -> assertThat(recorder.modified.get(0)).isEqualTo(LAST_MODIFIED_LONG_BEFORE_ITS_CREATION));
         claim(
-                "the creation time is the one the filesystem holds for sized.bin (ADR-069), read from the same"
-                        + " attributes call as the last-modified time, at no extra filesystem cost",
+                "the creation time is the one the filesystem holds for sized.bin (ADR-069), which is not its"
+                        + " last-modified time, read from the same attributes call at no extra filesystem cost",
                 () -> assertThat(recorder.created.get(0)).isEqualTo(creationTimeOnDisk));
     }
 
@@ -205,10 +214,8 @@ class WalkTest {
                 "of the two files written, only the storable name, ordinary.txt, became an occurrence",
                 () -> assertThat(recorder.occurrences).containsExactly("ordinary.txt"));
         claim(
-                "the other file was recorded rather than dropped: one anomaly",
-                () -> assertThat(recorder.anomalies).hasSize(1));
-        claim(
-                "that anomaly carries its reason, the name having no UTF-8 encoding",
+                "the other file was recorded rather than dropped, as an anomaly carrying its reason, the name having"
+                        + " no UTF-8 encoding",
                 () -> assertThat(recorder.anomalies.get(0)).contains("UTF-8"));
         claim(
                 "that anomaly is kinded as unencodable-path (ADR-053)",
@@ -235,18 +242,15 @@ class WalkTest {
         Recorder recorder = walk(root);
 
         claim(
-                "the one file behind the link was reached once, as real/hidden.txt, and not through the link",
+                "the one file behind the link was reached once, as real/hidden.txt, and not through the link, which"
+                        + " would double-count it",
                 () -> assertThat(recorder.occurrences).containsExactly("real/hidden.txt"));
-        claim("the link itself was recorded: one anomaly", () -> assertThat(recorder.anomalies).hasSize(1));
         claim(
-                "that anomaly carries its reason, the entry being a link",
+                "the link itself was recorded, as an anomaly carrying its reason, the entry being a link",
                 () -> assertThat(recorder.anomalies.get(0).toLowerCase()).contains("link"));
         claim(
                 "that anomaly is kinded as soft-link-not-followed (ADR-053)",
                 () -> assertThat(recorder.anomalyKinds).containsExactly(WalkAnomalyKind.SOFT_LINK_NOT_FOLLOWED));
-        claim(
-                "nothing was reached through the link, which would double-count the file behind it",
-                () -> assertThat(recorder.occurrences).doesNotContain("link/hidden.txt"));
     }
 
     /**

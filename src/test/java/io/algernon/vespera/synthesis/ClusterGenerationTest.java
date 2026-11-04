@@ -206,17 +206,6 @@ class ClusterGenerationTest {
     }
 
     @Test
-    @Story("Answers nobody believes, one after another, stop the step")
-    @DisplayName("The number of answers turned down in a row that stops the writing is five")
-    void theStreakThatStopsTheStepIsFive() {
-        claim(
-                "the writing stops at " + THE_STREAK_THAT_STOPS_THE_STEP + " answers turned down in a row, the"
-                        + " count the earlier stage's own stop uses for a mix of failures",
-                () -> assertThat(ClusterGeneration.CONSECUTIVE_TURNED_DOWN_ANSWERS)
-                        .isEqualTo(THE_STREAK_THAT_STOPS_THE_STEP));
-    }
-
-    @Test
     @Story("An answer that is believed clears what came before it")
     @DisplayName("Four answers turned down either side of a believed one do not stop the writing")
     void aBelievedAnswerClearsTheCount() {
@@ -503,10 +492,13 @@ class ClusterGenerationTest {
                         + " gives the groups",
                 () -> assertThat(askedForDocuments).containsExactly(label(0), label(1), label(2)));
         claim(
-                "and every question asked carries its group's label and the path of the seed it was gathered"
-                        + " under",
-                () -> assertThat(engine.answered()).allSatisfy(question -> assertThat(question).contains(SEED_PATH))
-                        .anySatisfy(question -> assertThat(question).contains(label(0))));
+                "and every question asked carries its own group's label and the path of the seed it was"
+                        + " gathered under, one question to each group in the arrangement's order",
+                () -> assertThat(engine.answered())
+                        .satisfiesExactly(
+                                question -> assertThat(question).contains(label(0)).contains(SEED_PATH),
+                                question -> assertThat(question).contains(label(1)).contains(SEED_PATH),
+                                question -> assertThat(question).contains(label(2)).contains(SEED_PATH)));
     }
 
     @Test

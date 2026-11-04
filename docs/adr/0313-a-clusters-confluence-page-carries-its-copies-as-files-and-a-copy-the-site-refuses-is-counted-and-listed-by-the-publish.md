@@ -60,7 +60,7 @@ The rendering's part is in `deliverable` and the publish's in `confluence`; neit
 | --- | --- |
 | `…eachCopyIsAFileOnItsClustersPage` (#620) | each copy the HTML tree carries for a cluster is listed as a file of that cluster's page, under the same name, its entry linking it (§1) |
 | `…aCopyTheSiteRefusesAsTooLargeIsSkippedCountedAndListed` (#633) | against a stub refusing one file as too large: the page is published without it, the closing line counts it, `confluence-not-carried.csv` lists it, and the rest are sent (§3) |
-| `…anotherRefusalOfAFileStopsThePublish` (#633) | a refusal for another reason stops the publish (§3) |
+| `…anotherRefusalOfAFileStopsThePublish` (not built: no test holds it, #684) (#633) | a refusal for another reason stops the publish (§3) |
 
 ## What this does not decide
 

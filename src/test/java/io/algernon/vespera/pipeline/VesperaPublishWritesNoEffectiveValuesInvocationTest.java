@@ -46,13 +46,13 @@ class VesperaPublishWritesNoEffectiveValuesInvocationTest {
 
     @Test
     @Story("The jar says what it would use")
-    @DisplayName("A publish writes no file of what the jar would use")
-    void aPublishWritesNoFile() {
+    @DisplayName("A publish refused before it sends writes no file of what the jar would use")
+    void aPublishRefusedBeforeItSendsWritesNoFile() {
         cli.run("publish");
 
-        claim("the publish was refused, nothing being drawn to send, as this test's slice means it to be",
+        claim("the publish was refused, nothing being drawn to send",
                 () -> assertThat(cli.getExitCode()).isNotZero());
-        claim("and no file of what the jar would use is in the working folder",
+        claim("no file of what the jar would use is in the working folder",
                 () -> assertThat(workingDirectory.resolve("effective-values.properties")).doesNotExist());
     }
 }

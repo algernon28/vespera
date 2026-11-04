@@ -140,7 +140,9 @@ The README's list of the working directory's files says `progress.html` is what 
 | `pipeline.LabelCommandThatThrowsTest.anExceptionReachesTheCallerAndThePageEndsFailed` | an exception from `LabelIngestion.ingest` reaches the label command's caller, and the page ends `failed` with no table of answers and not the exception's message; that it has no reload is amended by ADR-327 (corrected for [#664](https://github.com/algernon28/vespera/issues/664)) |
 | `pipeline.LocalLabellingInvocationTest.theAutoPageCountsTheAnswersInOrder` | after `vespera label --auto`, the page names the command with `--auto`, ends `recorded`, and counts `relevant`, `not relevant`, `left blank` and `answered by a person` in that order |
 | `pipeline.SystemPageOpenerTest.withNoDisplayOrUnderCiNothingIsOpened` | a Linux with neither display variable, and every system with `CI` set, open nothing |
-| `pipeline.NoTestOpensABrowserTest.theWholeApplicationsOpenerIsTheRecordingOne` | the whole application a test builds holds `SystemPageOpener`, and the `PageOpener` it hands out is `RecordingPageOpener` |
+| `pipeline.SystemPageOpenerTest.aBlankCiVariableIsReadAsNotSet` | a `CI` that is empty or only a space opens the page all the same, on Linux with a display and on Windows (#680) |
+| `pipeline.ProgressPageListenerTest.aFirstWriteThatFailsOpensNothingInThatInvocation` | a first write that fails, for `vespera run` and for `vespera label`, opens nothing in that invocation, though its last write succeeds (#680) |
+| `pipeline.NoTestOpensABrowserTest.theWholeApplicationsOpenerIsTheRecordingOne` | the whole application a test builds holds `SystemPageOpener`, assumed rather than claimed (#681), and the `PageOpener` it hands out is `RecordingPageOpener` |
 
 `PipelineHoldsOnlyTheRulesOnRecordTest` holds `PageOpener` and `SystemPageOpener` on record as holding no rule.
 

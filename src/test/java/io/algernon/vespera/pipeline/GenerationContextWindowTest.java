@@ -14,9 +14,13 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -113,28 +117,24 @@ class GenerationContextWindowTest {
     @Autowired
     private ProfileStore profileStore;
 
-    @Test
-    @Story("A number most people cannot reason about has an answer already")
-    @DisplayName("With nothing written, the window is the one the code ships with")
-    void fallsBackToTheShippedWindow() {
-        write(null);
-
-        claim(
-                "an unanswered key resolves to the shipped number rather than ending the invocation:"
-                        + " being stopped on the way to a first run, over a number whose right value"
-                        + " depends on the machine doing the serving, would teach nobody anything",
-                () -> assertThat(contextWindow.size()).isEqualTo(ClusterSynthesis.CONTEXT_WINDOW));
+    /** A key never written, and one opened and left empty: both are a key nobody answered. */
+    static Stream<Named<String>> unansweredKeys() {
+        return Stream.of(Named.of("nothing written", null), Named.of("a key left empty", BLANK));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("unansweredKeys")
     @Story("A number most people cannot reason about has an answer already")
-    @DisplayName("A key left empty is the same as one never written")
-    void treatsABlankAnswerAsNoAnswer() {
-        write(BLANK);
+    @DisplayName("With nothing written, or a key left empty, the window is the one the code ships with")
+    void fallsBackToTheShippedWindow(String unanswered) {
+        write(unanswered);
 
         claim(
-                "a key someone opened and left empty is a key nobody answered, which is what every other"
-                        + " value in this file already means by it",
+                "an unanswered key resolves to the shipped number rather than ending the invocation, and a"
+                        + " key someone opened and left empty is a key nobody answered, which is what every"
+                        + " other value in this file already means by it: being stopped on the way to a"
+                        + " first run, over a number whose right value depends on the machine doing the"
+                        + " serving, would teach nobody anything",
                 () -> assertThat(contextWindow.size()).isEqualTo(ClusterSynthesis.CONTEXT_WINDOW));
     }
 
@@ -151,19 +151,40 @@ class GenerationContextWindowTest {
                 () -> assertThat(contextWindow.size()).isEqualTo(AN_OPERATOR_CHOICE));
     }
 
-    @Test
+    /**
+     * Each value that is not a whole positive count of tokens, named by why it is not one.
+     *
+     * <p>The one too large for any window nearly shipped: the parse behind this key became a
+     * {@code double} under ADR-120, and {@code (int)} of anything past {@code Integer.MAX_VALUE}
+     * saturates rather than failing. Not-a-finite-number is the same hole at its widest.
+     */
+    static Stream<Named<String>> valuesThatAreNoWindow() {
+        return Stream.of(
+                Named.of("words, which are not a number", NOT_A_NUMBER),
+                Named.of("part of a token, which a window counted in whole ones cannot be", HALF_A_TOKEN),
+                Named.of("a number too large for any window, which would otherwise become the largest one",
+                        LARGER_THAN_ANY_WINDOW),
+                Named.of("a value that is not a finite number", NOT_A_FINITE_NUMBER),
+                Named.of("a window of nothing, which is whole and not positive", NO_TOKENS));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("valuesThatAreNoWindow")
     @Story("Whoever runs this can say how much their own machine will read")
-    @DisplayName("An answer that is not a number stops rather than being read past")
-    void refusesAnAnswerThatIsNotANumber() {
-        write(NOT_A_NUMBER);
+    @DisplayName("A value that is not a whole positive number of tokens stops rather than being read past, and quotes back what was typed")
+    @Issue("203")
+    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
+    void refusesAValueThatIsNoWindow(String typed) {
+        write(typed);
 
         claim(
-                "it stops, naming the key: somebody who wrote this meant to change how much gets read, and"
-                        + " carrying on under the shipped number would run their archive under a window"
-                        + " they did not choose without ever mentioning it",
+                "it stops, naming the key and quoting back exactly what was typed: somebody who wrote this"
+                        + " meant to change how much gets read, and carrying on under the shipped number, or"
+                        + " under one rounded or saturated from what they typed, would run their archive"
+                        + " under a window they did not choose without ever mentioning it",
                 () -> assertThatThrownBy(() -> contextWindow.size())
-                        .hasMessageContaining("generationContextWindow")
-                        .hasMessageContaining(NOT_A_NUMBER));
+                        .hasMessageContaining(KEY_IN_THE_PROFILE)
+                        .hasMessageContaining(typed));
     }
 
     @Test
@@ -182,72 +203,6 @@ class GenerationContextWindowTest {
                 () -> assertThat(contextWindow.size()).isEqualTo(AN_OPERATOR_CHOICE));
     }
 
-    @Test
-    @Story("Whoever runs this can say how much their own machine will read")
-    @DisplayName("Part of a token stops, because a window is counted in whole ones")
-    @Issue("203")
-    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
-    void refusesPartOfAToken() {
-        write(HALF_A_TOKEN);
-
-        claim(
-                "it stops and quotes back exactly what was typed, rather than rounding to a window the"
-                        + " person did not ask for",
-                () -> assertThatThrownBy(() -> contextWindow.size())
-                        .hasMessageContaining(KEY_IN_THE_PROFILE)
-                        .hasMessageContaining(HALF_A_TOKEN));
-    }
-
-    @Test
-    @Story("Whoever runs this can say how much their own machine will read")
-    @DisplayName("A number too large for any window stops instead of quietly becoming the largest one")
-    @Issue("203")
-    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
-    void refusesANumberTooLargeForAnyWindow() {
-        write(LARGER_THAN_ANY_WINDOW);
-
-        claim(
-                "it stops rather than saturating: this number is whole and positive, so every check but a"
-                        + " range check lets it through, and what it would have become is the largest"
-                        + " window the machine can name -- which is the archive generated under a number"
-                        + " nobody chose, the one outcome this key exists to prevent",
-                () -> assertThatThrownBy(() -> contextWindow.size())
-                        .hasMessageContaining(KEY_IN_THE_PROFILE)
-                        .hasMessageContaining(LARGER_THAN_ANY_WINDOW));
-    }
-
-    @Test
-    @Story("Whoever runs this can say how much their own machine will read")
-    @DisplayName("A value that is not a finite number stops as well")
-    @Issue("203")
-    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
-    void refusesAValueThatIsNotFinite() {
-        write(NOT_A_FINITE_NUMBER);
-
-        claim(
-                "the same hole at its widest is shut too, and for the same reason: there is no count of"
-                        + " tokens here to run anything under",
-                () -> assertThatThrownBy(() -> contextWindow.size())
-                        .hasMessageContaining(KEY_IN_THE_PROFILE));
-    }
-
-    @Test
-    @Story("Whoever runs this can say how much their own machine will read")
-    @DisplayName("A window of nothing stops, rather than becoming a call with no room in it")
-    @Issue("203")
-    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
-    void refusesAWindowOfNothing() {
-        write(NO_TOKENS);
-
-        claim(
-                "zero stops and is quoted back: it is a number and it is whole, so nothing but the"
-                        + " positive check stands between it and a call with no room to say anything --"
-                        + " and a run that generated nothing under a window the operator did type would"
-                        + " be the quietest failure this key has",
-                () -> assertThatThrownBy(() -> contextWindow.size())
-                        .hasMessageContaining(KEY_IN_THE_PROFILE)
-                        .hasMessageContaining(NO_TOKENS));
-    }
 
     @Test
     @Story("Whoever runs this can say how much their own machine will read")

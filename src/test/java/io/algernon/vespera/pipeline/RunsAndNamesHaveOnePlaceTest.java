@@ -119,7 +119,7 @@ class RunsAndNamesHaveOnePlaceTest {
                         .contains("ExtractorIdentity"));
         claim(
                 "no pipeline source holds an ObjectProvider of a type named ...Run. A stage reaches its run by"
-                        + " calling its StageRuns accessor after its own gate (ADR-157 §3, §4), and a provider"
+                        + " calling its StageRuns accessor after its own gate, and a provider"
                         + " of a run would be a second way in, one that mints wherever it is first called",
                 () -> assertThat(providedRuns).isEmpty());
     }
@@ -157,8 +157,8 @@ class RunsAndNamesHaveOnePlaceTest {
                 () -> assertThat(stepNamesLiterals).hasSize(16));
         claim(
                 "no pipeline source outside StageModules and StepNames writes a literal equal to a persisted"
-                        + " stage or step name. Each name is written in one table and read from there"
-                        + " (ADR-157 §7). The one exception is package-info.java, whose allowedDependencies"
+                        + " stage or step name. Each name is written in one table and read from there."
+                        + " The one exception is package-info.java, whose allowedDependencies"
                         + " names modules, and a module name is not a stage's or a step's",
                 () -> assertThat(written).isEmpty());
     }

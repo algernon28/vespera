@@ -44,10 +44,10 @@ import org.springframework.test.context.DynamicPropertySource;
  * therefore reads exactly the documents the second invocation could not be answered about from the
  * cache.
  *
- * <p>Fail today: the cache keeps the refusal, so the second invocation never asks the converter. In
- * the first test the refused document is faulted again. In the second the five stored refusals reach
- * the drain one after another and stop the step, with the converter never asked. In the third the
- * refusal an earlier build stored is served, and the document is faulted.
+ * <p>Each test fails where the cache keeps the refusal, so that the second invocation never asks the
+ * converter: in the first the refused document is faulted again; in the second the five stored refusals
+ * reach the drain one after another and stop the step, with the converter never asked; in the third the
+ * refusal an earlier build stored is served, and the document is faulted (#681).
  */
 @CascadeSliceTest
 @Import({ConverterStopsPartwayBeans.class, SuccessiveBuildsBeans.class})

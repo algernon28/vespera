@@ -97,15 +97,6 @@ class StatementProgressInvocationTest {
     private static final String TO_FIND_THEM_AND_A_STOP = " shingle rows to find them, and removing first any"
             + " shingle_by_hash built for another; stopping before it ends undoes the build";
 
-    /**
-     * What the line said of the build over every run's rows, the worst measured of that statement (ADR-193
-     * section 4.2). It is not said of this one, which nobody has run on that disk.
-     */
-    private static final String THE_WORST_MEASURED_OF_ANOTHER_BUILD = "39 minutes";
-
-    /** What it said before that, which understated the build of 2026-10-04. */
-    private static final String THE_OLD_UNDERSTATEMENT = "on a large database this takes minutes";
-
     /** Stage 4b's line after its build. */
     private static final String BUILT = "Stage 4b (redundancy resolution) built shingle_by_hash in";
 
@@ -218,14 +209,10 @@ class StatementProgressInvocationTest {
                 "the line before the build names the extraction whose word sequences it indexes, says it reads"
                         + " up to the " + tableRows + " rows the table holds at most to find them, that it"
                         + " removes first an index built for another extraction, and that a stop undoes the"
-                        + " build",
+                        + " build, and nothing more: neither how long a build of another kind once took nor that"
+                        + " it takes minutes",
                 () -> assertThat(building)
                         .endsWith(BUILDING + extractionRun + READING_UP_TO + tableRows + TO_FIND_THEM_AND_A_STOP));
-        claim(
-                "and it says neither how long a build of another kind once took nor that it takes minutes",
-                () -> assertThat(building)
-                        .doesNotContain(THE_WORST_MEASURED_OF_ANOTHER_BUILD)
-                        .doesNotContain(THE_OLD_UNDERSTATEMENT));
 
         int buildingAt = indexOf(lines, BUILDING);
         int builtAt = indexOf(lines, BUILT);
@@ -331,12 +318,9 @@ class StatementProgressInvocationTest {
 
         boolean handlerLeft = aHandlerIsLeftOnTheConnection();
         claim(
-                "a handler was set while the statements ran, since they reported their progress, and none is"
-                        + " left on the connection the test context's pool hands out",
-                () -> {
-                    assertThat(buildProgress).isNotEmpty();
-                    assertThat(handlerLeft).isFalse();
-                });
+                "the handler set while the statements ran, which the build's progress lines above show was set,"
+                        + " is not left on the connection the test context's pool hands out",
+                () -> assertThat(handlerLeft).isFalse());
     }
 
     @Test

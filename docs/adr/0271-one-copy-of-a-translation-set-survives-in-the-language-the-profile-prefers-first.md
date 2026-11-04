@@ -147,7 +147,7 @@ Every rule is `embedding`'s: `Languages`, §2's language folder and a stored Lin
 | Method | What it holds |
 | --- | --- |
 | `ledger.VerdictKindTest.isExactlyTheRecordedVocabulary` | ten kinds |
-| `ledger.VerdictKindTest.aTranslationRemovesTheCopy` | `TRANSLATION_OF` is blocking |
+| `ledger.VerdictKindTest.onlyOneVerdictIsNonBlocking` | `TRANSLATION_OF` is blocking, as every kind but `PASSED` is (#681) |
 | `embedding.LanguagesTest.aLowercaseCodeOfALanguageIsALanguageFolder` | `en`, `zh`, `it`, `de`, `ja` are folders of their language |
 | `embedding.LanguagesTest.aRegionOrAScriptAfterTheCodeKeepsItsLanguage` | `en_US`, `pt-BR`, `zh-cn`, `zh-Hans` are folders of `en`, `pt`, `zh`, `zh` |
 | `embedding.LanguagesTest.noOtherSegmentIsALanguageFolder` | `IT`, `HR`, `En`, `english`, `eng`, `xx`, `en-`, `en_USA`, `e` and the empty segment are none |

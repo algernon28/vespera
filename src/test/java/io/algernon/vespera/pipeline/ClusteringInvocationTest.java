@@ -5,8 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileKeys;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
@@ -50,12 +48,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-087", url = Adr.CLUSTERS_ARE_MODULARITY_COMMUNITIES, type = "adr")
 class ClusteringInvocationTest {
 
-    /** A floor of 1.0 opens stage 4's gate the same way {@link RelevanceScoringInvocationTest} does. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model this fixture names, so gate 3 -- and this ticket's own step -- open too. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
-
     /** How many corpus documents this fixture walks, all of which survive to be clustered. */
     private static final int CORPUS_DOCUMENTS = 3;
 
@@ -66,6 +58,9 @@ class ClusteringInvocationTest {
      * profile record rather than spelled out, so it is the one list every test compares with (ADR-186).
      */
     private static final List<String> THE_KNOWN_PROFILE_KEYS = ProfileKeys.everyKey();
+
+    /** The weakest, middle and strongest link of a partition, a cell each. */
+    private static final int LINK_COLUMNS = 3;
 
     @TempDir
     static Path workingDirectory;
@@ -159,18 +154,18 @@ class ClusteringInvocationTest {
                         + " a reader can find",
                 () -> assertThat(Files.readString(report)).contains("seed.txt"));
         claim(
-                "and it reports how alike the documents on the kept links were, which is the one thing"
-                        + " the sizes cannot say: a partition grouped by resemblance and one grouped"
-                        + " because k links every document to its nearest few produce the same rows"
-                        + " (ADR-096)",
+                "and its table has columns for how alike the documents on the kept links were, which is the"
+                        + " one thing the sizes cannot say: a partition grouped by resemblance and one grouped"
+                        + " because k links every document to its nearest few produce the same rows",
                 () -> assertThat(Files.readString(report))
                         .contains("Weakest link")
                         .contains("Strongest link"));
         claim(
-                "and this partition holds one document, so it shows no resemblance at all rather than"
-                        + " 0.00: there is no pair of documents for a number to describe, and a zero"
-                        + " would read as a document resembling nothing",
-                () -> assertThat(Files.readString(report)).contains("&mdash;"));
+                "and this partition holds one document, so its " + LINK_COLUMNS + " link cells show no"
+                        + " resemblance at all rather than 0.00: there is no pair of documents for a number to"
+                        + " describe, and a zero would read as a document resembling nothing",
+                () -> assertThat(Files.readString(report))
+                        .contains(ReportPage.numberCell(1) + ReportPage.numberCell("&mdash;").repeat(LINK_COLUMNS)));
     }
 
     @Test
@@ -199,13 +194,7 @@ class ClusteringInvocationTest {
 
     /** The seed folder named, stage 4's gate open, and gate 3 open too. */
     private void profile(Path seeds) {
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 
     /** The keys the profile file actually carries, read as text rather than through the record. */

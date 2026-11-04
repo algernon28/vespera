@@ -104,19 +104,11 @@ class OccurrencePathTest {
 
     @Test
     @Story("The stored form")
-    @DisplayName("A path is stored relative to the corpus root")
-    void storesThePathRelativeToTheCorpusRoot() {
-        claim(
-                "the root D:/Archive is dropped, leaving Reports/Q1.PDF as what identifies the occurrence in the corpus",
-                () -> assertThat(stored("Reports", "Q1.PDF")).isEqualTo("Reports/Q1.PDF"));
-    }
-
-    @Test
-    @Story("The stored form")
     @DisplayName("Separators are rewritten so the stored form is platform-neutral")
     void rewritesSeparatorsSoTheStoredFormIsPlatformNeutral() {
         claim(
-                "the Windows separators of a/b/c/d.txt are stored as forward slashes, whatever platform observed it",
+                "the root D:/Archive is dropped and the Windows separators of a/b/c/d.txt are stored as forward"
+                        + " slashes, whatever platform observed it",
                 () -> assertThat(stored("a", "b", "c", "d.txt")).isEqualTo("a/b/c/d.txt"));
     }
 
@@ -180,9 +172,9 @@ class OccurrencePathTest {
         String composed = "caf" + E_ACUTE + ".txt";
         String decomposed = "cafe" + COMBINING_ACUTE + ".txt";
 
-        claim(
-                "precondition: cafe with U+00E9 and cafe with e + U+0301 are different strings, though they look alike",
-                () -> assertThat(readable(composed)).isNotEqualTo(readable(decomposed)));
+        assumeTrue(
+                !composed.equals(decomposed),
+                "cafe with U+00E9 and cafe with e + U+0301 are different strings, though they look alike");
         claim(
                 "the two forms are stored as two different occurrences, because NTFS holds two different files",
                 () -> assertThat(readable(stored(composed))).isNotEqualTo(readable(stored(decomposed))));

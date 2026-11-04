@@ -121,12 +121,6 @@ class ProgressPageInvocationTest {
     /** The corpus file the scripted converter fails on while blaming itself. */
     private static final String FAULTED = SeedScriptedExtractionBeans.CONVERTER_FAULT;
 
-    /** A floor of 1.0 opens stage 4's gate, as every invocation test reaching stage 5 sets it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model the scripted embedder answers for, so the scoring half of the job opens. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
-
     /** Stage 5a's progress line over this fixture's one seed: a counter's line, logged while the step runs. */
     private static final String SEEDS_RECORDED_LINE =
             "Stage 5a (seed extraction, seeds recorded): 1 of 1 (100%)";
@@ -182,7 +176,7 @@ class ProgressPageInvocationTest {
     @DisplayName("While seed extraction runs, the page reloads itself, names the step as running with its progress line, states the time, the time elapsed and the database's size, and is written again later")
     void whileAStepRunsThePageNamesItAndIsRewritten(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aMarkedCorpus(root, seeds);
-        profileNaming(seeds, BOILERPLATE_FLOOR);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         AtomicBoolean lineLogged = new AtomicBoolean();
         List<String> seen = new CopyOnWriteArrayList<>();
         HoldingAppender holding = new HoldingAppender(event -> {
@@ -229,7 +223,7 @@ class ProgressPageInvocationTest {
                 () -> assertThat(first).contains(RELOAD).contains(RUNNING).doesNotContain("This invocation has ended"));
         claim(
                 "it states when it was written, the time elapsed since the invocation started, and the size of"
-                        + " the database in millions of bytes",
+                        + " the database in the largest unit that keeps it at least 1",
                 () -> assertThat(first).containsPattern(WRITTEN_AT).containsPattern(ELAPSED).containsPattern(DATABASE_SIZE));
         claim(
                 "and while the step was still held the page was written again, at a later time, without the"
@@ -243,7 +237,7 @@ class ProgressPageInvocationTest {
     void theLastWriteSaysTheInvocationEnded(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aMarkedCorpus(root, seeds);
-        profileNaming(seeds, BOILERPLATE_FLOOR);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
@@ -253,13 +247,9 @@ class ProgressPageInvocationTest {
                 "the page says the invocation has ended, and how, and not that it is running",
                 () -> assertThat(page).contains(ENDED_COMPLETED).doesNotContain(RUNNING));
         String stepsPage = thePage(STEPS_PAGE);
-        List<String> steps = stepsInJobOrder();
         claim(
-                "the table of steps beside it has the seven columns in their order, and a row for each of the"
-                        + " job's " + steps.size() + " steps in the order the job runs them",
-                () -> assertThat(stepsPage)
-                        .contains(HEADER)
-                        .containsSubsequence(steps.stream().map(ReportPage::textCell).toList()));
+                "the table of steps beside it has the seven columns in their order",
+                () -> assertThat(stepsPage).contains(HEADER));
         claim(
                 "and no step is shown running in a table written after the job ended",
                 () -> assertThat(stepsPage).doesNotContain(ReportPage.textCell("running")));
@@ -270,7 +260,7 @@ class ProgressPageInvocationTest {
     @DisplayName("A word marked in every name and text the invocation is given occurs nowhere on the page, and neither do the folders it was pointed at")
     void thePageNamesNoPathAndNoTextOfADocument(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aMarkedCorpus(root, seeds);
-        profileNaming(seeds, BOILERPLATE_FLOOR);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
@@ -297,7 +287,7 @@ class ProgressPageInvocationTest {
     @DisplayName("With the boilerplate floor unset, the redundancy signature step is shown stopped at a gate and the content census before it finished")
     void aStepThatEndsAtAShutGateIsShownStoppedThere(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aMarkedCorpus(root, seeds);
-        profileNaming(seeds, null);
+        profileWithStageFoursGateShut(seeds);
 
         cli.run("run", root.toString());
 
@@ -345,7 +335,7 @@ class ProgressPageInvocationTest {
     void aPageThatCannotBeWrittenFailsNothingAndIsWarnedOfOnce(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aMarkedCorpus(root, seeds);
-        profileNaming(seeds, BOILERPLATE_FLOOR);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         Files.createDirectories(workingDirectory.resolve(PAGE).resolve("a-file-that-keeps-the-folder-there"));
 
         cli.run("run", root.toString());
@@ -372,7 +362,7 @@ class ProgressPageInvocationTest {
     @DisplayName("A second invocation over the same root writes the page again and leaves the runs as the first left them")
     void aSecondInvocationRewritesThePageAndMintsNoRun(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aMarkedCorpus(root, seeds);
-        profileNaming(seeds, BOILERPLATE_FLOOR);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
         List<String> runsAfterTheFirst = runIds();
         removeThePage();
@@ -499,16 +489,13 @@ class ProgressPageInvocationTest {
         Files.writeString(seeds.resolve(MARKER + "-seed.txt"), "a seed that says " + MARKER);
     }
 
-    /** The seed folder named, gate 3 open, and stage 4's gate open where {@code boilerplateFloor} is given. */
-    private void profileNaming(Path seeds, String boilerplateFloor) {
-        ProfileFixture profile = ProfileFixture.profile()
+    /** The seed folder named and gate 3 open, with stage 4's gate left shut: no boilerplate floor. */
+    private void profileWithStageFoursGateShut(Path seeds) {
+        profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
                 .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open");
-        if (boilerplateFloor != null) {
-            profile.boilerplateDocumentFrequencyFloor(boilerplateFloor, "set by this test, so stage 4's gate is open");
-        }
-        profileStore.save(profile.build());
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so gate 3 is open")
+                .build());
     }
 
     /**

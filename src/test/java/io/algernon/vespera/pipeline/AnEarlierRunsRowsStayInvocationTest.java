@@ -77,9 +77,6 @@ class AnEarlierRunsRowsStayInvocationTest {
     /** Three commits' worth of stage 2, as {@code ShingleHashIndexInvocationTest} writes. */
     private static final int CORPUS_SIZE = 3 * ExtractionJobConfiguration.CHUNK_SIZE;
 
-    /** A boilerplate floor set only to open stage 4's gate. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
     /** Another floor, which mints a second run of stage 4 over the same stage-2 run. */
     private static final String ANOTHER_BOILERPLATE_FLOOR = "0.9";
 
@@ -119,7 +116,7 @@ class AnEarlierRunsRowsStayInvocationTest {
         ConverterStopsPartwayBeans.script(List.of(), List.of(), List.of());
         ConverterStopsPartwayBeans.keepAnswering();
         SuccessiveBuildsBeans.theFirstBuild();
-        openStageFoursGate(BOILERPLATE_FLOOR);
+        openStageFoursGate(EveryGateOpen.BOILERPLATE_FLOOR);
     }
 
     @AfterEach

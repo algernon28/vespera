@@ -34,8 +34,8 @@ import org.springframework.test.context.ActiveProfiles;
  * occurrencesChecked(int)} is called once after each page, with that page's number of occurrences, so the
  * calls add up to the occurrences of the walk. A run with no shingle row has no page and makes no call.
  *
- * <p>Every method of the recorder is written without {@code @Override}: the two old ones still have to be
- * implemented at {@code 4b99a03} and no longer exist after ADR-211, and the new one exists only after it.
+ * <p>Which passages earn a frequency row is {@code DocumentFrequencyIsCountedInTheDatabaseTest}'s to hold, not
+ * this class's.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -50,19 +50,22 @@ class FrequencyProgressTest {
     /** The window the application ships: five words (vespera.redundancy.shingle-words). */
     private static final ShingleParameters FIVE_WORD_SHINGLES = new ShingleParameters(5);
 
-    /** Hashes 0 to 9 and 5 to 14: five of them in both documents. */
-    private static final int FIVE_SHARED_HASHES = 5;
-
     /** The two documents of the collection, one page of them. */
     private static final int TWO_OCCURRENCES = 2;
+
+    /** The most documents one page of the check holds. */
+    private static final int A_FULL_PAGE = 1_000;
+
+    /** The documents past the first full page: the second page holds this many. */
+    private static final int PAST_THE_FIRST_PAGE = 1;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
     @Story("Measuring document frequency tells its caller how many documents it has checked")
-    @DisplayName("The collection's documents are reported as checked, a page at a time, and no loop over the distinct passages is announced")
-    void reportsTheOccurrencesCheckedAndNoLoopOverHashes() {
+    @DisplayName("The collection's documents, fewer than a page, are reported as checked once with their number")
+    void reportsTheOccurrencesChecked() {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-frequency"));
         RunId stage2 = ledger.runs().startRun("extraction", "abc123", "{}", walk, List.of());
@@ -75,15 +78,39 @@ class FrequencyProgressTest {
 
         claim(
                 "the one page of the collection's " + TWO_OCCURRENCES + " documents is reported as checked, once,"
-                        + " and nothing is said of the distinct passages",
+                        + " and nothing else is reported",
                 () -> assertThat(events).containsExactly("checked " + TWO_OCCURRENCES));
+    }
+
+    /**
+     * ADR-211 section 3: {@code occurrencesChecked} is called once after each page of 1,000, with that page's
+     * number, not once at the end with the walk's whole number.
+     */
+    @Test
+    @Story("Measuring document frequency tells its caller how many documents it has checked")
+    @DisplayName("Over more documents than one page holds, each page is reported as checked when it is, with its own number")
+    void eachPageOfOccurrencesIsReportedWithItsOwnCount() {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-frequency-pages"));
+        RunId stage2 = ledger.runs().startRun("extraction", "abc125", "{}", walk, List.of());
+        RunId stage3 = ledger.runs().startRun("content-census", "def458", "{}", walk, List.of(stage2));
+        document(ledger, walk, stage2, "a.txt", 0, 10);
+        document(ledger, walk, stage2, "b.txt", 5, 10);
+        for (int unshingled = TWO_OCCURRENCES; unshingled < A_FULL_PAGE + PAST_THE_FIRST_PAGE; unshingled++) {
+            ledger.occurrences()
+                    .fileOccurrence(walk, new OccurrencePath("plain-" + unshingled + ".txt"), 1, Instant.EPOCH, Instant.EPOCH);
+        }
+        List<String> events = new ArrayList<>();
+
+        new DocumentFrequency(jdbcTemplate, ledger).measure(stage3, stage2, recording(events));
+
         claim(
-                "and only the " + FIVE_SHARED_HASHES + " passages both documents hold earned a row",
-                () -> assertThat(jdbcTemplate.queryForObject(
-                                "SELECT COUNT(*) FROM shingle_document_frequency WHERE run_id = ?",
-                                Integer.class,
-                                stage3.value()))
-                        .isEqualTo(FIVE_SHARED_HASHES));
+                "the collection holds " + (A_FULL_PAGE + PAST_THE_FIRST_PAGE) + " documents, one more than a page of "
+                        + A_FULL_PAGE + ", so two calls are made: the full page's " + A_FULL_PAGE
+                        + " when it is checked, then the last page's " + PAST_THE_FIRST_PAGE
+                        + ", and not one call with the whole number at the end",
+                () -> assertThat(events)
+                        .containsExactly("checked " + A_FULL_PAGE, "checked " + PAST_THE_FIRST_PAGE));
     }
 
     @Test
@@ -106,15 +133,8 @@ class FrequencyProgressTest {
 
     private static FrequencyProgress recording(List<String> events) {
         return new FrequencyProgress() {
-            public void toGoThrough(long hashes) {
-                events.add("to-go-through " + hashes);
-            }
-
-            public void hashGoneThrough() {
-                events.add("gone-through");
-            }
-
             /** ADR-211's callback: after each page of the walk's occurrences, with the page's count. */
+            @Override
             public void occurrencesChecked(int occurrences) {
                 events.add("checked " + occurrences);
             }

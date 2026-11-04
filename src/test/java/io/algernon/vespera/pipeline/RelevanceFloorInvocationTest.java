@@ -21,9 +21,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -52,9 +57,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Issue("112")
 @Link(name = "ADR-088", url = Adr.RELEVANCE_THRESHOLD_IS_SIXTY_LABELS, type = "adr")
 class RelevanceFloorInvocationTest {
-
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** Above anything the scripted embedder can produce, so every scored document falls under it. */
     private static final String A_FLOOR_ABOVE_EVERY_SCORE = "1.5";
@@ -267,72 +269,44 @@ class RelevanceFloorInvocationTest {
                         .doesNotContain(theRunWithNoThreshold));
     }
 
-    @Test
-    @Story("A changed threshold is a different run")
-    @DisplayName("Invoking twice with the same threshold stays one scoring run")
-    @Issue("199")
-    @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
-    void anUnchangedFloorStaysOneScoringRun(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        profile(seeds, A_FLOOR_BELOW_EVERY_SCORE);
-        cli.run("run", root.toString());
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the second invocation carried on under the run the first one made, leaving"
-                        + " " + ONE_SCORING_RUN + " scoring run rather than two: nothing the run reads had"
-                        + " changed, so this is that work rather than another piece of work like it",
-                () -> assertThat(scoringRunIdsFor(root)).hasSize(ONE_SCORING_RUN));
+    /** Two thresholds, the first invocation's and the second's, that leave one scoring run between them. */
+    static Stream<Arguments> thresholdsThatAreOneRun() {
+        return Stream.of(
+                Arguments.of(Named.of("the same threshold twice: nothing the run reads had changed",
+                        A_FLOOR_BELOW_EVERY_SCORE), A_FLOOR_BELOW_EVERY_SCORE),
+                Arguments.of(Named.of("the same threshold written with a trailing zero: a run is named after the number"
+                        + " the removal is measured against, not the characters typed", A_FLOOR_BELOW_EVERY_SCORE),
+                        THE_SAME_FLOOR_WRITTEN_DIFFERENTLY),
+                Arguments.of(Named.of("no threshold, then one nobody can read as a number: the run does exactly what"
+                        + " it did when the key was blank, and the operator is told of the typo where they already"
+                        + " look", (String) null), A_FLOOR_THAT_IS_NOT_A_NUMBER));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("thresholdsThatAreOneRun")
     @Story("A changed threshold is a different run")
-    @DisplayName("The same threshold written two ways is one threshold")
+    @DisplayName("Invoking again with the same threshold, the same written two ways, or one that is not a number where there was none, stays one scoring run")
     @Issue("199")
     @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
-    void aThresholdWrittenDifferentlyIsOneThreshold(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    void thresholdsThatAreOneThresholdStayOneScoringRun(
+            String first, String second, @TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
-        profile(seeds, A_FLOOR_BELOW_EVERY_SCORE);
+        profile(seeds, first);
         cli.run("run", root.toString());
-        profile(seeds, THE_SAME_FLOOR_WRITTEN_DIFFERENTLY);
+        profile(seeds, second);
 
         cli.run("run", root.toString());
 
         claim(
-                "a trailing zero left " + ONE_SCORING_RUN + " scoring run standing: what a run is named"
-                        + " after is the number the removal will actually be measured against, not the"
-                        + " characters someone typed, and a second run here would remove exactly what the"
-                        + " first one did under a second name",
-                () -> assertThat(scoringRunIdsFor(root)).hasSize(ONE_SCORING_RUN));
-    }
-
-    @Test
-    @Story("A changed threshold is a different run")
-    @DisplayName("A threshold that is not a number is the same run as no threshold")
-    @Issue("199")
-    @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
-    void aThresholdThatIsNotANumberIsTheSameRunAsNoThreshold(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpus(root, seeds);
-        profile(seeds, null);
-        cli.run("run", root.toString());
-        profile(seeds, A_FLOOR_THAT_IS_NOT_A_NUMBER);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "a value nobody can read as a number left " + ONE_SCORING_RUN + " scoring run standing:"
-                        + " this run does exactly what it did when the key was blank -- it removes nothing"
-                        + " -- so the two are one piece of work, and the operator is told about the typo"
-                        + " where they are already looking rather than by a second run appearing",
+                "the second invocation carried on under the run the first one made, leaving " + ONE_SCORING_RUN
+                        + " scoring run rather than two: a second run here would do exactly what the first did"
+                        + " under a second name",
                 () -> assertThat(scoringRunIdsFor(root)).hasSize(ONE_SCORING_RUN));
         claim(
-                "and nothing was removed on the strength of it",
+                "and nothing was removed on the strength of either threshold",
                 () -> assertThat(belowThresholdCountFor(root)).isZero());
     }
 
-    /** The scoring runs the below-threshold verdicts over this corpus were written under. */
     @Test
     @Story("An answer given after the run is read by the next invocation")
     @DisplayName("Re-answering under the model this run used gets the threshold applied on the next invocation")
@@ -511,11 +485,8 @@ class RelevanceFloorInvocationTest {
 
     /** The seed folder named, stage 4's gate open, gate 3 open, and the threshold as given. */
     private void profile(Path seeds, String floor) {
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .relevanceScoreFloor(floor, floor == null ? null : "set by this test")
                 .build());
     }

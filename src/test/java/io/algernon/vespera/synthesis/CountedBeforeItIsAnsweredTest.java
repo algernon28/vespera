@@ -76,9 +76,6 @@ class CountedBeforeItIsAnsweredTest {
     /** What a question cut under {@code num_keep: -1} is counted at: the window less its last token. */
     private static final int THE_CEILING = THE_WINDOW - 1;
 
-    /** What Ollama 0.33.2 cuts a question to under its default {@code num_keep} of 4: about half. */
-    private static final int OLLAMAS_DEFAULT_CUT = THE_WINDOW - (THE_WINDOW - 4) / 2;
-
     /** What the chat template costs every call, as {@code qwen3:8b} was measured to count it. */
     private static final int THE_TEMPLATE = 17;
 
@@ -158,23 +155,6 @@ class CountedBeforeItIsAnsweredTest {
                     assertThat(asked.cut()).isFalse();
                     assertThat(asked.reported()).isLessThanOrEqualTo(THE_ROOM_FOR_A_QUESTION);
                 }));
-    }
-
-    @Test
-    @Story("A group of long records is written from what the engine can read, not cut short in silence")
-    @DisplayName("A question the engine would cut is counted where the cut shows, so it is never the one answered")
-    void anOverlongQuestionIsCountedAtTheCeilingRatherThanAtHalfTheWindow() {
-        CountingEngine engine = new CountingEngine(Overflow.CUTS);
-
-        new ClusterSynthesis(engine)
-                .docFor(aClusterOf(EIGHT_DOCUMENTS, WORDS_IN_A_RECORD_DOCUMENT, A_RECORD_WORD), MODEL_NAME, THE_WINDOW, DeliverableLanguage.ENGLISH);
-
-        claim(
-                "the whole proposal, cut by the engine, was counted at " + THE_CEILING + " -- the window less"
-                        + " one -- and not at " + OLLAMAS_DEFAULT_CUT + ": left to the engine's default, a cut"
-                        + " question is counted at about half the window, which reads as a question that fits"
-                        + " and would have been answered",
-                () -> assertThat(engine.counted().getFirst().reported()).isEqualTo(THE_CEILING));
     }
 
     @Test

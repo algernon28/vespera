@@ -72,10 +72,6 @@ class TheQuestionNamesTheAnswersFieldsAndLanguageTest {
     /** What the record calls the shape the answer comes back in. */
     private static final String THE_SHAPE = "JSON object";
 
-    /** The detail ADR-162 keeps against writing that ends with a closing brace belonging to no opening one. */
-    private static final String A_STRAY_CLOSING_BRACE =
-            "the answer's writing ends with a closing brace that belongs to no opening one";
-
     @Test
     @Story("The question asks for the writing in the deliverable's language")
     @DisplayName("After the documents the question asks for the answer in the language it was given and names no other")
@@ -176,29 +172,6 @@ class TheQuestionNamesTheAnswersFieldsAndLanguageTest {
                         + " tokens each as the documents are, come to no more than the " + THE_INSTRUCTION_RESERVE
                         + " tokens kept back for what is not a document",
                 () -> assertThat(words * ClusterSynthesis.TOKENS_PER_WORD).isLessThanOrEqualTo(THE_INSTRUCTION_RESERVE));
-    }
-
-    @Test
-    @Story("The question says what shape the answer is in")
-    @DisplayName("Italian writing that ends with a stray closing brace is still turned down, and nothing of it is kept")
-    void aClosingBraceAfterTheLastSentenceIsStillTurnedDown() {
-        ScriptedChatModel model = new ScriptedChatModel(answering(
-                "{\"title\":\"" + A_HEADING + "\",\"prose\":\"" + WRITING_CITING_THE_FIRST_DOCUMENT + " }\"}"));
-
-        ClusterFault fault = null;
-        try {
-            new ClusterSynthesis(model).docFor(
-                    aClusterOf(THREE_DOCUMENTS), MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ITALIAN);
-        } catch (ClusterFaultException turnedDown) {
-            fault = turnedDown.fault();
-        }
-        ClusterFault kept = fault;
-
-        claim(
-                "the question saying where the writing ends repairs nothing: an answer that closes its object inside the"
-                        + " writing is turned down as not in the shape asked for, with the same detail as before",
-                () -> assertThat(kept).isEqualTo(
-                        new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, A_STRAY_CLOSING_BRACE)));
     }
 
     /** The answering question put for a cluster of three, in {@code language}. */

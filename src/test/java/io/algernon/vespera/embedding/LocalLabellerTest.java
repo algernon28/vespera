@@ -20,8 +20,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -237,65 +242,45 @@ class LocalLabellerTest {
                 () -> assertThat(calls.get()).isZero());
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("modelsNotEstablishedAsLocal")
     @Story("No hosted endpoint is configurable for the labeller")
-    @DisplayName("A model whose tag ends in cloud is refused with no call made, though the endpoint is local")
-    void aCloudTaggedModelIsRefused() {
+    @DisplayName("A model not established as running on this machine is refused with no call made, though the endpoint is local")
+    void aModelNotEstablishedAsLocalIsRefusedWithNoCallMade(String model, OllamaClient client, List<String> reasonSays) {
         AtomicInteger calls = new AtomicInteger();
-        OllamaRelevanceLabeller labeller = new OllamaRelevanceLabeller(
-                saying("relevant", calls), "gpt-oss:120b-cloud", A_LOCAL_URL, unaskedClient());
+        OllamaRelevanceLabeller labeller =
+                new OllamaRelevanceLabeller(saying("relevant", calls), model, A_LOCAL_URL, client);
 
         Optional<Boolean> answer = labeller.answer(aQuestion());
 
         claim(
-                "the refusal names the model and says it is a cloud model: a loopback endpoint does not keep a"
-                        + " document here when the local daemon forwards it to a hosted service",
+                "the refusal says why the model is not taken for a local one: a loopback endpoint does not keep"
+                        + " a document here when the local daemon forwards it to a hosted service, and a model"
+                        + " is not assumed local when that cannot be checked",
                 () -> assertThat(labeller.refusal()).hasValueSatisfying(reason -> assertThat(reason)
-                        .contains("gpt-oss:120b-cloud")
-                        .contains("cloud")));
+                        .contains(reasonSays)));
         claim("no answer was given", () -> assertThat(answer).isEmpty());
         claim("the chat model was called zero times", () -> assertThat(calls.get()).isZero());
     }
 
-    @Test
-    @Story("No hosted endpoint is configurable for the labeller")
-    @DisplayName("A model Ollama reports as remote is refused with no call made, whatever its name")
-    void aModelReportedAsRemoteIsRefused() {
-        AtomicInteger calls = new AtomicInteger();
-        OllamaRelevanceLabeller labeller = new OllamaRelevanceLabeller(
-                saying("relevant", calls),
-                "qwen3:8b",
-                A_LOCAL_URL,
-                clientShowing("{\"remote_host\": \"https://ollama.com:443\", \"remote_model\": \"qwen3:8b\"}"));
-
-        Optional<Boolean> answer = labeller.answer(aQuestion());
-
-        claim(
-                "the refusal says the model is reported as remote",
-                () -> assertThat(labeller.refusal()).hasValueSatisfying(reason -> assertThat(reason)
-                        .contains("remote")));
-        claim("no answer was given", () -> assertThat(answer).isEmpty());
-        claim("the chat model was called zero times", () -> assertThat(calls.get()).isZero());
-    }
-
-    @Test
-    @Story("No hosted endpoint is configurable for the labeller")
-    @DisplayName("A model whose remoteness cannot be established is refused, not assumed local")
-    void aModelThatCannotBeCheckedIsRefused() {
-        AtomicInteger calls = new AtomicInteger();
-        RestClient.Builder builder = RestClient.builder().baseUrl(OLLAMA);
-        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo(OLLAMA + "/api/show")).andRespond(withServerError());
-        OllamaRelevanceLabeller labeller = new OllamaRelevanceLabeller(
-                saying("relevant", calls), "qwen3:8b", A_LOCAL_URL, new OllamaClient(builder.build()));
-
-        claim("it is refused", () -> assertThat(labeller.refusal()).isPresent());
-        claim(
-                "and nothing was asked of the chat model",
-                () -> {
-                    labeller.answer(aQuestion());
-                    assertThat(calls.get()).isZero();
-                });
+    static Stream<Arguments> modelsNotEstablishedAsLocal() {
+        RestClient.Builder failing = RestClient.builder().baseUrl(OLLAMA);
+        MockRestServiceServer.bindTo(failing).build()
+                .expect(requestTo(OLLAMA + "/api/show"))
+                .andRespond(withServerError());
+        return Stream.of(
+                Arguments.of(
+                        Named.of("a model whose tag ends in cloud, named with the reason", "gpt-oss:120b-cloud"),
+                        unaskedClient(),
+                        List.of("gpt-oss:120b-cloud", "is a cloud model")),
+                Arguments.of(
+                        Named.of("a model Ollama reports as remote, whatever its name", "qwen3:8b"),
+                        clientShowing("{\"remote_host\": \"https://ollama.com:443\", \"remote_model\": \"qwen3:8b\"}"),
+                        List.of("reports the model qwen3:8b as remote")),
+                Arguments.of(
+                        Named.of("a model whose remoteness cannot be established, not assumed local", "qwen3:8b"),
+                        new OllamaClient(failing.build()),
+                        List.of("could not be established", "is not assumed to be local")));
     }
 
     @Test

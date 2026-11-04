@@ -267,8 +267,9 @@ class ContentCensusTaskletTest {
         String html = Files.readString(reportFile);
         claim(
                 "the file now reflects only the second run's numbers -- the excellent bucket carries the"
-                        + " second run's two documents, not the first run's one plus the second's two",
-                () -> assertThat(html).contains(rowFragment("excellent", 2)));
+                        + " second run's two documents and the poor bucket none, where a report counting both"
+                        + " runs would put the first run's one poor document back",
+                () -> assertThat(html).contains(rowFragment("excellent", 2)).contains(rowFragment("poor", 0)));
         claim(
                 "and the first run's own count for excellent (zero, its one document was poor) is not"
                         + " what the file shows instead",

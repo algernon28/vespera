@@ -46,11 +46,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-271", url = Adr.ONE_COPY_OF_A_TRANSLATION_SET_SURVIVES, type = "adr")
 class TranslationsInvocationTest {
 
-    /** A floor of 1.0 opens stage 4's gate the way every other whole-job test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
-    /** The embedding model the scripted runtime serves, so the embedding-model gate and everything behind it open. */
-    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 
     /** The English copy of the guide. */
     private static final String ENGLISH_COPY = "en/guide.txt";
@@ -113,8 +109,8 @@ class TranslationsInvocationTest {
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
                 .build());
         cli.run("run", root.toString());
         unpreferred = latestScoringRun();
@@ -233,11 +229,7 @@ class TranslationsInvocationTest {
 
     /** The latest scoring run recorded over this test's corpus. */
     private String latestScoringRun() {
-        return jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = 'embedding-scoring' AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                Walk.canonicalRoot(root).toString());
+        return new RunsOver(jdbcTemplate, root).latest("embedding-scoring").value();
     }
 
     private List<String> kindsUnder(String run) {

@@ -17,6 +17,7 @@ import java.util.Arrays;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
@@ -66,16 +67,15 @@ class ClusterPageByteCeilingTest {
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"1", " 300000 ", "2.0", "1e3", "9223372036854775807"})
+    @CsvSource({"1, 1", "' 300000 ', 300000", "2.0, 2", "1e3, 1000", "9223372036854775807, 9223372036854775807"})
     @Story("The ceiling on a group's page, as the profile holds it")
     @DisplayName("A whole number of bytes from 1 up is the ceiling, read exactly from what is written, and the tree is handed it")
-    void aWholeNumberOfBytesIsTheCeiling(String written) {
+    void aWholeNumberOfBytesIsTheCeiling(String written, long bytes) {
         ClusterPageByteCeiling ceiling = ClusterPageByteCeiling.of(new NumericValue(written, WRITTEN_BY_THIS_TEST, null));
-        long bytes = new java.math.BigDecimal(written.trim()).longValueExact();
 
         claim(
-                "\"" + written + "\" is the ceiling of " + bytes + " bytes, read exactly, so the largest a long holds is"
-                        + " itself and not a number rounded to a double",
+                "\"" + written + "\" is the ceiling of " + bytes + " bytes, the number it writes worked out by hand, read"
+                        + " exactly, so the largest a long holds is itself and not a number rounded to a double",
                 () -> assertThat(ceiling).isEqualTo(new ClusterPageByteCeiling.Ceiling(bytes)));
         claim(
                 "and the tree is handed those bytes",

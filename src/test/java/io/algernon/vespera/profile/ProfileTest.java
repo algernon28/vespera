@@ -10,8 +10,14 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.lang.reflect.Constructor;
+import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The profile record itself, apart from {@link ProfileStoreTest}'s file round-trip: what a fresh
@@ -103,6 +109,47 @@ class ProfileTest {
                         + " assumed -- nothing may be written over an arrangement nobody has looked at, and"
                         + " an approval that defaulted to yes would be exactly that",
                 () -> assertThat(skeleton.arrangementApproved().isSet()).isFalse());
+    }
+
+    /** Keys an operator reads together, each with the key declared right after it. */
+    static Stream<Arguments> keysReadTogether() {
+        return Stream.of(
+                Arguments.of(
+                        Named.of(
+                                "the page ceiling comes right after the generation context window, the other number the"
+                                        + " drawing step reads",
+                                "generationContextWindow"),
+                        "clusterPageByteCeiling"),
+                Arguments.of(
+                        Named.of(
+                                "the word floor comes right after the confidence floor, the other floor of the same"
+                                        + " verdict",
+                                "degenerateOutputConfidenceFloor"),
+                        "degenerateOutputWordFloor"),
+                Arguments.of(
+                        Named.of(
+                                "the floor on the share of settings comes right before the pages' language",
+                                "configurationSettingShareFloor"),
+                        "deliverableLanguage"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("keysReadTogether")
+    @Story("What census writes to the profile")
+    @DisplayName("A key is declared beside the key it is read with")
+    @Issue("571")
+    @Issue("575")
+    @Issue("576")
+    @Link(name = "ADR-282", url = Adr.FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT, type = "adr")
+    @Link(name = "ADR-287", url = Adr.LOGS_AND_CONFIGURATION_FILES_ARE_TOLD_BY_THEIR_BYTES, type = "adr")
+    @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
+    void aKeyIsDeclaredBesideTheKeyItIsReadWith(String first, String second) {
+        List<String> keys = ProfileKeys.everyKey();
+
+        claim(
+                "the second key is the one declared right after the first, so the operator reads the two together"
+                        + " in profile.yaml and on the deliverable's index",
+                () -> assertThat(keys.subList(keys.indexOf(first) + 1, keys.size())).startsWith(second));
     }
 
     /**

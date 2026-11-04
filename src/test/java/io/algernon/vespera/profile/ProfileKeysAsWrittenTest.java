@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
 import org.junit.jupiter.api.DisplayName;
@@ -30,8 +30,8 @@ import org.junit.jupiter.api.io.TempDir;
  * is shown, mints generation again.
  *
  * <p>Compared with {@link ProfileKeys}, the test tree's one reading of the record, so that this claim is
- * not the record compared with itself by the same code. Written before {@code Profile.keysAsWritten}
- * exists, so this class does not compile until the build does.
+ * not the record compared with itself by the same code; each value is compared with the text this class
+ * wrote, or with empty, rather than worked out from the record (#681).
  */
 @Epic("Census")
 @Feature("Profile")
@@ -61,14 +61,19 @@ class ProfileKeysAsWrittenTest {
                         + " record gains is on the index with no change anywhere else",
                 () -> assertThat(new ArrayList<>(keys.keySet())).containsExactlyElementsOf(ProfileKeys.everyKey()));
         claim(
-                "each value is the text the operator wrote, not a number read back and printed again, and a"
-                        + " key with no value is empty rather than missing or the word null",
-                () -> assertThat(keys).containsExactlyEntriesOf(asWritten(profile)));
-        claim(
-                "the two set here are shown as written",
+                "the two set here are shown as the text the operator wrote, not a number read back and printed"
+                        + " again",
                 () -> assertThat(keys)
                         .containsEntry("seedFolder", SEED_FOLDER)
                         .containsEntry("relevanceScoreFloor", A_FLOOR_AS_WRITTEN));
+        claim(
+                "and every key with no value is empty rather than missing or the word null",
+                () -> assertThat(keys.entrySet().stream()
+                                .filter(key -> !List.of("seedFolder", "relevanceScoreFloor").contains(key.getKey()))
+                                .map(Map.Entry::getValue)
+                                .toList())
+                        .hasSize(keys.size() - 2)
+                        .containsOnly(""));
     }
 
     @Test
@@ -94,15 +99,8 @@ class ProfileKeysAsWrittenTest {
 
         claim(
                 "profile.yaml carries the keys the operator edits and nothing else: the reading of every key is"
-                        + " a method of the record, and saving it as an eleventh key would put a key in the"
+                        + " a method of the record, and saving it as a key of its own would put a key in the"
                         + " file nobody wrote and the record does not declare",
                 () -> assertThat(Files.readString(store.file())).doesNotContain("keysAsWritten"));
-    }
-
-    /** Every key of {@code profile} with its value as written, or empty, read through the test tree's helper. */
-    private static Map<String, String> asWritten(Profile profile) {
-        Map<String, String> expected = new LinkedHashMap<>();
-        ProfileKeys.valuesOf(profile).forEach((key, value) -> expected.put(key, value.value() == null ? "" : value.value()));
-        return expected;
     }
 }

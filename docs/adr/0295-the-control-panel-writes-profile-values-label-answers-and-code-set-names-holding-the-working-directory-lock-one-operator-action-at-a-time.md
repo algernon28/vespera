@@ -279,7 +279,7 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves.
 | `controlpanel.WorkingDirectoryWriteTest.aFolderOthersCanWriteInOrAnotherUserOwnsIsNotWrittenIn` | on POSIX, a working directory `rwxrwxrwx`, one refused for another user's name, a missing one and a file in its place, each with §1's line and nothing written (§1) |
 | `controlpanel.WorkingDirectoryWriteTest.theFileIsWrittenWholeByAMoveAndNothingIsLeftBesideIt` | the target holds the new text, no `.part` stays, and a stale `.part` is written over (§2) |
 | `controlpanel.WorkingDirectoryWriteTest.aRefusedChangeWritesNothing` | a file that is not there is given to the change as absent; the change's refusal is the line returned, and no file but `vespera.lock` is written (§2) |
-| `controlpanel.WorkingDirectoryWriteTest.onlyTheThreeFilesAreWritten` | a name outside the three throws, and nothing is written (§2) |
+| `controlpanel.WorkingDirectoryWriteTest.onlyTheFourFilesAreWritten` (#684) | a name outside the three throws, and nothing is written (§2) |
 | `controlpanel.ProfileKeyTest.eachKeyHasItsTypeAndEarliestRun` | the sixteen keys in order, each with §5's type and run (§5) |
 | `controlpanel.ProfileKeyTest.aChangeCostsItsRunAndEveryLaterOne` | the runs of the cost are the earliest and every later one in order; the approval closes for every key whose runs hold the arrangement, and for no other; the labels are refused for `seedFolder` alone (§5) |
 | `controlpanel.ProfileEditTest.oneKeyIsRewrittenAndEveryOtherByteKept` | the file outside the key's `value` and `provenance` lines, `measurement` and line ends included, is byte for byte as it was (§2, §3) |

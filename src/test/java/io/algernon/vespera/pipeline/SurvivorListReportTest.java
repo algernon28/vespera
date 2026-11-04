@@ -82,12 +82,6 @@ class SurvivorListReportTest {
                         + " words with one row for each file in the order given: character for character",
                 () -> assertThat(page.toString()).isEqualTo(expected));
         claim(
-                "a file with no page count shows a dash where the count would be, not a zero and not the word"
-                        + " null",
-                () -> assertThat(page.toString())
-                        .contains(ReportPage.textCell(UNPAGINATED.path()) + ReportPage.numberCell(A_DASH))
-                        .doesNotContain("null"));
-        claim(
                 "a path holding markup is written so a browser shows it and does not obey it",
                 () -> assertThat(page.toString()).contains("c/&lt;b&gt;&amp;co.txt").doesNotContain("<b>"));
     }

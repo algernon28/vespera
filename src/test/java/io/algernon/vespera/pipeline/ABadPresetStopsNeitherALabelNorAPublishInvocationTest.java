@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.embedding.RelevanceLabels;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -74,12 +73,6 @@ class ABadPresetStopsNeitherALabelNorAPublishInvocationTest {
 
     /** What a person typing an answer writes in its place. */
     private static final String ANSWERED = "relevant: true";
-
-    /** Above every measured document frequency here, so stage 4's gate is open. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model the scripted embedder answers for. */
-    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 
     private static volatile String topSimilarities = THE_BAD_VALUE;
 
@@ -164,11 +157,7 @@ class ABadPresetStopsNeitherALabelNorAPublishInvocationTest {
         topSimilarities = THE_SHIPPED_VALUE;
         Files.writeString(root.resolve("corpus-0.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
         Path labelFile = workingDirectory.resolve(RelevanceLabelFile.FILE_NAME);
         String asked = Files.readString(labelFile, StandardCharsets.UTF_8);

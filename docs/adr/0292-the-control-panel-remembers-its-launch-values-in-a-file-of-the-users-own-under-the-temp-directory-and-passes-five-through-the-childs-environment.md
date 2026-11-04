@@ -218,7 +218,7 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves. T
 | `controlpanel.LaunchValuesTest.anEmptyDoclingImageIsWarnedOfAndNothingElse` | one warning with no Docling image, none with one, none for any other empty value (§5) |
 | `controlpanel.ChildCommandTest.theChildGetsCiAndTheLaunchValuesInItsEnvironment` | `environment()` is `CI=1` and `toChildEnvironment()`, for `run` and `label`, and the process builder carries them; the command line is unchanged by them (§4, §7) |
 | `controlpanel.ChildCommandTest.aRefusedCommandIsNotBuilt` | `run` and `label` throw with the refusal's line where there is one (§5, §7) |
-| `controlpanel.ChildCommandTest.theLastSeedFolderReachesTheChildNowhere` | the last seed folder is in neither the command line nor the environment (§6) |
+| `controlpanel.ChildCommandTest.theChildGetsCiAndTheLaunchValuesInItsEnvironment` and `controlpanel.LaunchValuesTest.fiveValuesReachTheChildsEnvironmentUnderTheJarsVariableNames` | the last seed folder is in neither the command line nor the environment (§6), held by the exact environment and command line (#681) |
 
 ChildCommandTest's other tests build their commands from launch values naming the corpus root and the working directory alone. The owner check on Windows is not made (§3), and no test makes a folder owned by another user, which needs a privilege the build does not have.
 

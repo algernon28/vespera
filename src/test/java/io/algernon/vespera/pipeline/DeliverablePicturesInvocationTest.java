@@ -2,12 +2,12 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.deliverable.Deliverable;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -73,12 +74,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 @Link(name = "ADR-286", url = Adr.A_CLUSTERS_PAGE_IS_ONE_FILE_ITS_PICTURES_INLINED, type = "adr")
 class DeliverablePicturesInvocationTest {
-
-    /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The embedding model this fixture names, so gate 3 and everything behind it open. */
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** A relevance floor of zero, which removes nothing, so both corpus documents reach the tree. */
     private static final String A_FLOOR_THAT_REMOVES_NOTHING = "0.0";
@@ -251,6 +246,12 @@ class DeliverablePicturesInvocationTest {
     @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
     void showsAPdfsChartAndLeavesOutTheHeaderItRepeatsAtOnePlace(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
+        assumeFalse(
+                Arrays.equals(
+                        PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_ONE,
+                        PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_TWO),
+                "the header's two crops are different bytes, so the rule for a picture whose bytes recur"
+                        + " cannot be what leaves them out");
         anApprovedCorpusWithAReport(root, seeds);
 
         cli.run("run", root.toString());
@@ -265,11 +266,6 @@ class DeliverablePicturesInvocationTest {
                 shown(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_ONE),
                 shown(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_TWO));
 
-        claim(
-                "the header's two crops are different bytes, so the rule for a picture whose bytes recur"
-                        + " cannot be what leaves them out",
-                () -> assertThat(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_ONE)
-                        .isNotEqualTo(PictureScriptedExtractionBeans.THE_HEADER_ON_PAGE_TWO));
         claim(
                 "the chart is shown inside the report's own entry, its source exactly the pixels the converter"
                         + " returned",
@@ -383,12 +379,8 @@ class DeliverablePicturesInvocationTest {
      */
     private void approveTheCorpus(Path root, Path seeds, int arranged) throws IOException {
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .relevanceScoreFloor(A_FLOOR_THAT_REMOVES_NOTHING, "set by this test, so nothing earlier is asked for")
                 .generationContextWindow(THE_READING_WINDOW, "set by this test")
                 .build());
@@ -410,12 +402,7 @@ class DeliverablePicturesInvocationTest {
 
     /** The arrangement the most recent invocation over {@code root} recorded. */
     private RunId theLatestArrangement(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
+        return new RunsOver(jdbcTemplate, root).latest("arrangement");
     }
 
     /** Every record of stage 6b having run over {@code root}, oldest first, scoped to this walk. */

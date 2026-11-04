@@ -47,10 +47,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * answered about from the cache. The profile names nothing else, so stage 4's gate stays shut and every
  * invocation ends after stage 3.
  *
- * <p>The key is written through {@link ExtractionAttemptInProfile}, as YAML, so this compiles before
- * the key exists. Every test fails until it does: {@code ProfileStore} refuses a profile carrying a key
- * it does not know (the record is the schema, ADR-061, read with {@code FAIL_ON_UNKNOWN_PROPERTIES}), so
- * the invocation after the key is written runs no stage.
+ * <p>The key is written through {@link ExtractionAttemptInProfile}, as YAML, so a test can write it as
+ * an operator types it and take it out of the file as an operator does.
  */
 @CascadeSliceTest
 @Import({ConverterStopsPartwayBeans.class, SuccessiveBuildsBeans.class})
@@ -192,7 +190,7 @@ class ExtractionAttemptInvocationTest {
     @Test
     @Story("Raising the extraction attempt asks the converter again")
     @DisplayName("A raised extraction attempt has the content census done again under a run of its own")
-    void everyLaterStageWorksUnderARunOfItsOwn(@TempDir Path root) throws IOException {
+    void aRaisedAttemptHasTheContentCensusDoneAgainUnderARunOfItsOwn(@TempDir Path root) throws IOException {
         Attempts attempts = theFirstAttemptThenTheSecond(root, "later stages");
         List<String> censuses = contentCensusRunsOf(root);
 

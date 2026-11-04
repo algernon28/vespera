@@ -346,7 +346,7 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves, a
 | Method | What it holds |
 | --- | --- |
 | `controlpanel.PanelBrowserTest.aFormIsSentWithOnlyTheButtonPressedAndADisabledOneCannotBePressed` | `press` sends the button pressed, a `button` of type submit, one of no type and a submit input alike, and no other; `submit` sends none; a disabled or absent button fails the test and sends nothing (§9) |
-| `controlpanel.ControlPanelServerTest.theRightTokenIsExchangedForACookieTheBrowserDropsWhenItCloses` | the token is exchanged for `vespera-control-panel=<token>; Path=/; HttpOnly; SameSite=Lax`, on a first exchange and on one by a browser already holding the cookie (§12) |
+| `controlpanel.ControlPanelServerTest.theRightTokenIsExchangedForACookieTheBrowserDropsWhenItCloses` (removed: ADR-325 draws no token, #684) | the token is exchanged for `vespera-control-panel=<token>; Path=/; HttpOnly; SameSite=Lax`, on a first exchange and on one by a browser already holding the cookie (§12) |
 | `controlpanel.ControlPanelServerTest.aPageOpenedFromAnotherSiteIsRefusedButAReportIsNot` | a `GET` sent `Sec-Fetch-Site: cross-site`, `same-site` or `Cross-Site`, holding the cookie, and one holding the token, are answered 403 with ADR-291 §4's line and no `Set-Cookie`, a `HEAD` sent `cross-site` 403, no page's handler run; a `GET` sent `cross-site` to a page at `/report/progress.html` reaches it (§12) |
 | `controlpanel.ControlPanelServerTest.aPageAskedForFromItsOwnPagesTheAddressBarOrWithNoMarkIsServed` | `same-origin`, `none` and no `Sec-Fetch-Site` reach their pages in order, and the token sent `none` is exchanged (§12) |
 
@@ -374,6 +374,7 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves, a
 | `controlpanel.NextScreenTest.theWantedValuesAreSavedIntoTheProfile` | `save` writes both keys with their provenance (§8) |
 | `controlpanel.NextScreenTest.answersWantedLeadToTheQuestionsAndToLabelAuto` | `answer=true`: `labels-link` to `/labels`, `label-auto`, and no `next` (§8) |
 | `controlpanel.NextScreenTest.theArrangementToApproveIsOfferedByItsName` | `arrangementApproved` filled with the file's `arrangement`, its report linked and `arrangement-file` shown (§3, §8) |
+| `controlpanel.NextScreenTest.aChildThatEndedWithAnotherCodeOffersNoNextAct` | a child ending with 1 beside a file wanting two keys: `next-invocation` reads `unknown`, and no `next` (§8) (#680) |
 | `controlpanel.TheNotRelevantFoldersScreenTest` | in place of `LabelsScreenTest`, since ADR-334 §6: the list of folders not relevant, and the answers it gives (§8) |
 | `controlpanel.CodeSetsScreenTest.aCodeSetIsRenamedAndOneAddedAndTheListWritten` | `code-sets` lists the file's entries; one renamed and one added are written in order (§8) |
 | `controlpanel.TheProfileIsOneFormScreenTest` | in place of `ProfileScreenTest`'s two tests of a form per key, since ADR-334 §7: one form of every `ProfileKey`, iterated, in its order, a key the next run wants among them, with Save and Reset (§8) |

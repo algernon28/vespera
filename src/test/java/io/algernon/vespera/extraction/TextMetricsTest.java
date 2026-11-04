@@ -65,10 +65,11 @@ class TextMetricsTest {
     @Story("Garbage-text proxy counters")
     @DisplayName("A word with no vowel counts toward the vowelless total, one with a vowel does not")
     void vowellessWordsAreCountedSeparatelyFromWordsCarryingAVowel() {
-        List<String> words = TextMetrics.words(TextMetrics.normalizeWhitespace("xyz cat 123 a"));
+        List<String> words = TextMetrics.words(TextMetrics.normalizeWhitespace("xyz cat 123 a CAT E"));
 
         claim(
-                "\"xyz\" and \"123\" carry no vowel of either case, so both count",
+                "\"xyz\" and \"123\" carry no vowel of either case, so both count, and \"CAT\" and \"E\", whose"
+                        + " vowels are capitals, do not",
                 () -> assertThat(TextMetrics.vowellessWordCount(words)).isEqualTo(2));
     }
 

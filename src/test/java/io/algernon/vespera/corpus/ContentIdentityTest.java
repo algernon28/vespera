@@ -51,6 +51,7 @@ class ContentIdentityTest {
         ContentIdentity contentIdentity = new ContentIdentity(jdbcTemplate);
         OccurrenceId occurrenceId = anOccurrence();
         RunId runId = aRun(occurrenceId);
+        RunId anotherRun = aRun(occurrenceId);
 
         contentIdentity.recordHash(occurrenceId, runId, A_SHA256);
 
@@ -61,6 +62,10 @@ class ContentIdentityTest {
                 "an occurrence with no recorded hash under a run reads back as absent, not as an error",
                 () -> assertThat(contentIdentity.hashFor(new OccurrenceId(occurrenceId.value() + 1), runId))
                         .isEmpty());
+        claim(
+                "and the same occurrence read under another run, which recorded nothing, reads back as absent rather"
+                        + " than borrowing this run's hash",
+                () -> assertThat(contentIdentity.hashFor(occurrenceId, anotherRun)).isEmpty());
     }
 
     @Test
@@ -72,6 +77,7 @@ class ContentIdentityTest {
         OccurrenceId representative = anOccurrence();
         OccurrenceId superseded = anOccurrence();
         RunId runId = aRun(representative);
+        RunId anotherRun = aRun(representative);
 
         contentIdentity.recordSupersededBy(superseded, runId, representative);
 
@@ -81,6 +87,9 @@ class ContentIdentityTest {
         claim(
                 "the representative itself carries no pointer of its own -- it was never superseded",
                 () -> assertThat(representativesOf(representative, runId)).isEmpty());
+        claim(
+                "and under another run, which resolved nothing, the superseded occurrence carries no pointer",
+                () -> assertThat(representativesOf(superseded, anotherRun)).isEmpty());
     }
 
     /** What {@code superseded_by} records {@code occurrence} as superseded by under {@code run}: one, or none. */
@@ -105,10 +114,11 @@ class ContentIdentityTest {
         return ledger.occurrences().occurrenceId(walkId, new OccurrencePath(path)).orElseThrow();
     }
 
+    /** A run over the walk of {@code anyOccurrenceInTheWalk}, each call a run of its own: its version differs. */
     private RunId aRun(OccurrenceId anyOccurrenceInTheWalk) {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = new WalkId(jdbcTemplate.queryForObject(
                 "SELECT walk_id FROM file_occurrence WHERE id = ?", Long.class, anyOccurrenceInTheWalk.value()));
-        return ledger.runs().startRun("byte-level-reduction", "abc123", "{}", walkId, List.of());
+        return ledger.runs().startRun("byte-level-reduction", "abc" + System.nanoTime(), "{}", walkId, List.of());
     }
 }

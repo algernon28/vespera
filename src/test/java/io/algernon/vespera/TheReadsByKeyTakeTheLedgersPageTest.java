@@ -16,8 +16,12 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -40,6 +44,15 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-216", url = Adr.NOTHING_SHIPS_THAT_NO_DECISION_REQUIRES_AND_NOTHING_CALLS, type = "adr")
 class TheReadsByKeyTakeTheLedgersPageTest {
 
+    private static final Path MAIN_SOURCE = Path.of("src", "main", "java");
+
+    /** The types a page size could be kept as. */
+    private static final Set<Class<?>> A_NUMBER =
+            Set.of(int.class, long.class, short.class, Integer.class, Long.class, Short.class);
+
+    /** A page size written straight into a statement. */
+    private static final Pattern A_LIMIT_OF_ITS_OWN = Pattern.compile("LIMIT \\d");
+
     @Test
     @Story("A page asked by key is the ledger's page")
     @DisplayName("No class that asks a page of documents by their keys keeps a page size of its own")
@@ -58,16 +71,21 @@ class TheReadsByKeyTakeTheLedgersPageTest {
         for (Class<?> read : readsByKey) {
             for (Field field : read.getDeclaredFields()) {
                 int modifiers = field.getModifiers();
-                if (Modifier.isStatic(modifiers) && Modifier.isFinal(modifiers) && field.getType() == int.class) {
+                if (Modifier.isStatic(modifiers) && Modifier.isFinal(modifiers) && A_NUMBER.contains(field.getType())) {
                     ownPageSizes.add(read.getSimpleName() + "." + field.getName());
                 }
+            }
+            String source = Files.readString(MAIN_SOURCE.resolve(read.getName().replace('.', '/') + ".java"));
+            if (A_LIMIT_OF_ITS_OWN.matcher(source).find()) {
+                ownPageSizes.add(read.getSimpleName() + ", a limit written into a statement");
             }
         }
 
         claim(
                 "none of the reads that ask a page of documents by their keys, the content keys, the scores and"
                         + " their cache, the paths, the measures, their confidences and the counts of pieces, keeps a"
-                        + " number of its own for how many it asks at once: each asks a page of the ledger's size, so"
+                        + " number of its own for how many it asks at once, whole or long, nor writes one into a"
+                        + " statement: each asks a page of the ledger's size, so"
                         + " the pages cannot drift apart",
                 () -> assertThat(ownPageSizes).isEmpty());
     }

@@ -13,7 +13,9 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -67,16 +69,38 @@ class ProfileKeyTest {
             // ADR-334 §5.1: a list of folders outside the corpus root, entering byte-level reduction, the walk being another.
             new Row("codeSetFolders", Kind.FOLDERS, Run.BYTE_LEVEL_REDUCTION));
 
-    /** The fifteen keys whose runs include embedding scoring: a change of any draws the sample again. */
-    private static final List<String> THE_SAMPLE_DRAWN_AGAIN = List.of("seedFolder", "degenerateOutputConfidenceFloor",
-            "degenerateOutputWordFloor", "boilerplateDocumentFrequencyFloor", "embeddingModel", "relevanceScoreFloor",
-            "logTimestampShareFloor", "extractionAttempt", "codeNameEndings", "outOfScopeNameEndings",
-            "translationSimilarityFloor", "preferredLanguages", "configurationSettingShareFloor", "clusterResolution",
-            "codeSetFolders");
+    /** The runs from each run on, in the cascade's order, as ADR-295 §5's table spells them. */
+    private static final List<Run> FROM_BYTE_LEVEL_REDUCTION = List.of(Run.BYTE_LEVEL_REDUCTION, Run.EXTRACTION,
+            Run.CONTENT_CENSUS, Run.CONTENT_REDUNDANCY, Run.SEED_MEASUREMENT, Run.EMBEDDING_SCORING, Run.ARRANGEMENT,
+            Run.GENERATION);
 
-    /** The five keys whose runs lie after embedding scoring, or that enter no run: a change of any leaves the sample. */
-    private static final List<String> THE_SAMPLE_LEFT_ALONE = List.of("arrangementApproved", "generationModel",
-            "generationContextWindow", "clusterPageByteCeiling", "deliverableLanguage");
+    private static final List<Run> FROM_EXTRACTION = List.of(Run.EXTRACTION, Run.CONTENT_CENSUS,
+            Run.CONTENT_REDUNDANCY, Run.SEED_MEASUREMENT, Run.EMBEDDING_SCORING, Run.ARRANGEMENT, Run.GENERATION);
+
+    private static final List<Run> FROM_CONTENT_REDUNDANCY = List.of(Run.CONTENT_REDUNDANCY, Run.SEED_MEASUREMENT,
+            Run.EMBEDDING_SCORING, Run.ARRANGEMENT, Run.GENERATION);
+
+    private static final List<Run> FROM_SEED_MEASUREMENT = List.of(Run.SEED_MEASUREMENT, Run.EMBEDDING_SCORING,
+            Run.ARRANGEMENT, Run.GENERATION);
+
+    private static final List<Run> FROM_EMBEDDING_SCORING = List.of(Run.EMBEDDING_SCORING, Run.ARRANGEMENT,
+            Run.GENERATION);
+
+    private static final List<Run> FROM_GENERATION = List.of(Run.GENERATION);
+
+    /**
+     * A change of a key whose runs include embedding scoring: the arrangement is among them, so the approval closes,
+     * and the sample being answered is drawn again (ADR-330 §9, §10); the labels stand.
+     */
+    private static Cost scoringAgainFrom(List<Run> runs) {
+        return new Cost(runs, true, false, true);
+    }
+
+    /**
+     * Each key's cost, written out by hand from the records' tables: fifteen keys draw the sample again, the seed
+     * folder alone refuses the labels, the four generation keys close no approval and the page ceiling costs nothing.
+     */
+    private static final Map<String, Cost> COST_OF_EACH_KEY = costOfEachKey();
 
     @Test
     @Story("The control panel says what a change costs before it is saved")
@@ -92,35 +116,24 @@ class ProfileKeyTest {
 
     @Test
     @Story("The control panel says what a change costs before it is saved")
-    @DisplayName("A change costs its key's earliest run and every later one; the approval closes where the arrangement is among them, and the labels are refused after a seed folder change")
+    @DisplayName("A change costs its key's earliest run and every later one; the approval closes where the arrangement is among them, the labels are refused after a seed folder change, and the sample being answered is drawn again for the fifteen values whose runs include embedding scoring")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     void aChangeCostsItsRunAndEveryLaterOne() {
-        List<Run> cascade = List.of(Run.values());
+        Map<String, Cost> costs = new LinkedHashMap<>();
+        for (ProfileKey key : ProfileKey.values()) {
+            costs.put(key.key(), key.cost());
+        }
 
         claim("the runs, in the cascade's order, are byte-level reduction, extraction, content census, content"
                         + " redundancy, seed measurement, embedding scoring, arrangement and generation",
-                () -> assertThat(cascade).containsExactly(Run.BYTE_LEVEL_REDUCTION, Run.EXTRACTION,
+                () -> assertThat(Run.values()).containsExactly(Run.BYTE_LEVEL_REDUCTION, Run.EXTRACTION,
                         Run.CONTENT_CENSUS, Run.CONTENT_REDUNDANCY, Run.SEED_MEASUREMENT, Run.EMBEDDING_SCORING,
                         Run.ARRANGEMENT, Run.GENERATION));
-        for (ProfileKey key : ProfileKey.values()) {
-            List<Run> fromItsRunOn = key.earliestRun()
-                    .map(run -> cascade.subList(cascade.indexOf(run), cascade.size()))
-                    .orElse(List.of());
-            Cost expected = new Cost(fromItsRunOn, fromItsRunOn.contains(Run.ARRANGEMENT), key == ProfileKey.SEED_FOLDER,
-                    fromItsRunOn.contains(Run.EMBEDDING_SCORING));
-            claim("a change of " + key.key() + " costs " + fromItsRunOn + ", closes the approval only if the"
-                            + " arrangement is among them, refuses the labels only for the seed folder, and draws the"
-                            + " sample again only if embedding scoring is among them",
-                    () -> assertThat(key.cost()).isEqualTo(expected));
-        }
-        claim("a change of the page ceiling costs no run, closes no approval, refuses no labels and draws no sample: the"
-                        + " tree is drawn again by the next invocation that reaches it, and nothing is minted",
-                () -> assertThat(ProfileKey.CLUSTER_PAGE_BYTE_CEILING.cost())
-                        .isEqualTo(new Cost(List.of(), false, false, false)));
-        claim("so a change of the generation model leaves the approval open, and one of the embedding model closes it",
-                () -> {
-                    assertThat(ProfileKey.GENERATION_MODEL.cost().approvalCloses()).isFalse();
-                    assertThat(ProfileKey.EMBEDDING_MODEL.cost().approvalCloses()).isTrue();
-                });
+        claim("a change of each key costs its earliest run and every later one; it closes the approval only where the"
+                        + " arrangement is among them, refuses the labels only for the seed folder, and draws the"
+                        + " sample again for the fifteen whose runs include embedding scoring; the page ceiling costs"
+                        + " no run, closes no approval, refuses no labels and draws no sample",
+                () -> assertThat(costs).containsExactlyEntriesOf(COST_OF_EACH_KEY));
     }
 
     /**
@@ -141,28 +154,28 @@ class ProfileKeyTest {
                                 "deliverableLanguage", "clusterResolution"));
     }
 
-    /**
-     * A change of the scoring run's identity draws another sample from its id and writes the label file over (ADR-330
-     * §9, §10). Each key is named, so the table cannot move a key across the line unseen, as a rule read off its runs
-     * would let it.
-     */
-    @Test
-    @Story("The control panel says what a change costs before it is saved")
-    @DisplayName("A change draws the sample being answered again for the fifteen values whose runs include embedding scoring, and for no other of the twenty")
-    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-    void aChangeDrawsTheSampleAgainWhereItsRunsIncludeEmbeddingScoring() {
-        List<String> drawnAgain = Arrays.stream(ProfileKey.values())
-                .filter(key -> key.cost().sampleDrawnAgain())
-                .map(ProfileKey::key)
-                .toList();
-        List<String> leftAlone = Arrays.stream(ProfileKey.values())
-                .filter(key -> !key.cost().sampleDrawnAgain())
-                .map(ProfileKey::key)
-                .toList();
-
-        claim("a change of each of the fifteen values draws the sample again",
-                () -> assertThat(drawnAgain).containsExactlyInAnyOrderElementsOf(THE_SAMPLE_DRAWN_AGAIN));
-        claim("and a change of each of the other five leaves it",
-                () -> assertThat(leftAlone).containsExactlyInAnyOrderElementsOf(THE_SAMPLE_LEFT_ALONE));
+    private static Map<String, Cost> costOfEachKey() {
+        Map<String, Cost> costs = new LinkedHashMap<>();
+        costs.put("seedFolder", new Cost(FROM_SEED_MEASUREMENT, true, true, true));
+        costs.put("degenerateOutputConfidenceFloor", scoringAgainFrom(FROM_EXTRACTION));
+        costs.put("degenerateOutputWordFloor", scoringAgainFrom(FROM_EXTRACTION));
+        costs.put("boilerplateDocumentFrequencyFloor", scoringAgainFrom(FROM_CONTENT_REDUNDANCY));
+        costs.put("embeddingModel", scoringAgainFrom(FROM_EMBEDDING_SCORING));
+        costs.put("relevanceScoreFloor", scoringAgainFrom(FROM_EMBEDDING_SCORING));
+        costs.put("arrangementApproved", new Cost(FROM_GENERATION, false, false, false));
+        costs.put("generationModel", new Cost(FROM_GENERATION, false, false, false));
+        costs.put("generationContextWindow", new Cost(FROM_GENERATION, false, false, false));
+        costs.put("clusterPageByteCeiling", new Cost(List.of(), false, false, false));
+        costs.put("logTimestampShareFloor", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
+        costs.put("extractionAttempt", scoringAgainFrom(FROM_EXTRACTION));
+        costs.put("codeNameEndings", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
+        costs.put("outOfScopeNameEndings", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
+        costs.put("translationSimilarityFloor", scoringAgainFrom(FROM_EMBEDDING_SCORING));
+        costs.put("preferredLanguages", scoringAgainFrom(FROM_EMBEDDING_SCORING));
+        costs.put("configurationSettingShareFloor", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
+        costs.put("deliverableLanguage", new Cost(FROM_GENERATION, false, false, false));
+        costs.put("clusterResolution", scoringAgainFrom(FROM_EMBEDDING_SCORING));
+        costs.put("codeSetFolders", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
+        return costs;
     }
 }

@@ -245,10 +245,10 @@ Every file is built in the test, a few bytes or a page of markup in the shape §
 | Class | What it holds |
 | --- | --- |
 | `ledger.VerdictKindTest.isExactlyTheRecordedVocabulary` | eleven values |
-| `…codeTakesTheOccurrenceOutOfTheSurvivors` | `CODE` is a value, straight after `OUT_OF_SCOPE`, and blocks |
-| `profile.CodeNameEndingsInTheProfileTest.aFreshProfileCarriesTheKeyUnset` | census writes `codeNameEndings` into a fresh profile, unset, and the profile states it as empty |
-| `…theEndingsAreKeptAsWritten` | a value of mixed case, spaces and a comma loads, is stated as written, and is written back untouched |
-| `…aYamlListUnderTheValueIsRefusedNamingTheKey` | a YAML list under `value` fails the load naming the key |
+| `…codeComesStraightAfterOutOfScope` | `CODE` is a value, straight after `OUT_OF_SCOPE`; that it blocks is `…onlyOneVerdictIsNonBlocking` (#681) |
+| `profile.ProfileStoreTest.writesACompleteSkeletonForAFreshCorpus` | census writes `codeNameEndings`, with every key, into a fresh profile, unset, and the profile states it as empty (#682) |
+| `profile.ProfileStoreTest.anAnswerIsReadAndWrittenBackAsWritten` | a value of mixed case, spaces and a comma loads, is stated as written, and is written back untouched (#682) |
+| `profile.ProfileThatDoesNotLoadTest.aYamlListUnderTheValueIsRefusedNamingTheKey` | a YAML list under `value` fails the load naming the key (#682) |
 | `pipeline.NextActionTest.anUnreadableListOfCodeNameEndingsIsReported` | nine unreadable values each make the closing line name the key, say an ending begins with a dot and that nothing was kept as code, and quote the value back, in one line |
 | `…aReadableListOfCodeNameEndingsIsNotReported` | seven readable values are not reported |
 | `…anEndingBothListsHoldIsReported` | an ending in both lists is named with both keys in one line, which says its files were left out of scope; an ending in one list only is not named |

@@ -6,8 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.embedding.LabelQuestion;
 import io.algernon.vespera.embedding.RelevanceLabeller;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -20,6 +18,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,8 +63,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @ExtendWith(OutputCaptureExtension.class)
 class LabelAutoUnderAConfiguredRootInvocationTest {
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
     private static final String ONE_DOCUMENT_IN_THE_SAMPLE = "the fixture corpus holds one document";
 
     /** The words every scripted conversion carries, so finding them means a document's opening was put. */
@@ -73,9 +70,6 @@ class LabelAutoUnderAConfiguredRootInvocationTest {
 
     /** A name resolved under an empty temporary directory and never created, so nothing can be read under it. */
     private static final String A_FOLDER_NOBODY_CREATED = "a-configured-root-nobody-created";
-
-    /** How the refusal ADR-208 removed opened; with a root configured it was never reached. */
-    private static final String HOW_THE_REMOVED_REFUSAL_OPENS = "vespera label --auto named no root";
 
     /** The opening each question put to the scripted labeller, empty where none could be read. */
     static final List<Optional<String>> OPENINGS_PUT = new CopyOnWriteArrayList<>();
@@ -140,14 +134,11 @@ class LabelAutoUnderAConfiguredRootInvocationTest {
     @DisplayName("With the archive's folder set in configuration and missing from disk, the model still labels, and nothing asks for a folder")
     void labelsUnderAConfiguredRootThatDoesNotExistAndSaysNothingAboutIt(
             @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
-        claim(
+        Assumptions.assumeTrue(
+                configuredRoot().toString().equals(environment.getProperty(VesperaCommand.Run.ROOT_PROPERTY))
+                        && Files.notExists(configuredRoot()),
                 "configuration names a corpus root, and that folder does not exist: the precondition"
-                        + " every claim below rests on",
-                () -> {
-                    assertThat(environment.getProperty(VesperaCommand.Run.ROOT_PROPERTY))
-                            .isEqualTo(configuredRoot().toString());
-                    assertThat(configuredRoot()).doesNotExist();
-                });
+                        + " every claim below rests on");
         aScoredCorpus(root, seeds);
 
         cli.run("label", "--auto");
@@ -163,9 +154,10 @@ class LabelAutoUnderAConfiguredRootInvocationTest {
                                 .hasValueSatisfying(text ->
                                         assertThat(text).contains(WHAT_A_CONVERTED_DOCUMENT_OPENS_WITH))));
         claim(
-                "nothing on standard error asks for a folder: the command needs none, and the"
+                "nothing at all is written to standard error, so nothing there asks for a folder: the"
+                        + " command needs none, and the"
                         + " configured one is there for the command that reads the archive",
-                () -> assertThat(output.getErr()).doesNotContain(HOW_THE_REMOVED_REFUSAL_OPENS));
+                () -> assertThat(output.getErr()).isEmpty());
         claim(
                 "and the configured folder still does not exist afterwards",
                 () -> assertThat(configuredRoot()).doesNotExist());
@@ -175,13 +167,7 @@ class LabelAutoUnderAConfiguredRootInvocationTest {
     private void aScoredCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
     }
 }

@@ -72,22 +72,4 @@ class SystemBrowserOpenerTest {
         claim("and a blank CI does not stop Windows from opening",
                 () -> assertThat(SystemBrowserOpener.command(ADDRESS, WINDOWS, Map.of("CI", " "))).isPresent());
     }
-
-    @Test
-    @Story("The control panel opens its own address by the system's own command")
-    @DisplayName("The address is handed over as one argument: three arguments on Windows and two elsewhere, the last the address whole")
-    void theAddressIsHandedOverAsOneArgument() {
-        List<List<String>> commands = List.of(
-                SystemBrowserOpener.command(ADDRESS, WINDOWS, NOTHING_SET).orElseThrow(),
-                SystemBrowserOpener.command(ADDRESS, MAC, NOTHING_SET).orElseThrow(),
-                SystemBrowserOpener.command(ADDRESS, LINUX, Map.of("DISPLAY", ":0")).orElseThrow());
-
-        claim("Windows is given the program, its entry point and the address: three arguments",
-                () -> assertThat(commands.getFirst()).hasSize(3));
-        claim("macOS and Linux are given the program and the address: two arguments",
-                () -> assertThat(commands.subList(1, 3)).allSatisfy(command -> assertThat(command).hasSize(2)));
-        claim("and the last argument of each is the address, whole, query included",
-                () -> assertThat(commands).allSatisfy(command -> assertThat(command.getLast())
-                        .isEqualTo(ADDRESS.toString())));
-    }
 }

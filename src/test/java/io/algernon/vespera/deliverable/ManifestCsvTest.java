@@ -95,7 +95,7 @@ class ManifestCsvTest {
     void leavesMarkdownCharactersAlone() {
         claim(
                 "no Markdown escape reaches the manifest: a consumer loading it into a table gets the path as the"
-                        + " archive spells it, backslash, brackets and pipe included (ADR-136 §5, ADR-138 §6)",
+                        + " archive spells it, backslash, brackets and pipe included",
                 () -> assertThat(ManifestCsv.quoted("reports/a \\ [b] | c.pdf")).isEqualTo("reports/a \\ [b] | c.pdf"));
         claim(
                 "a field with nothing to quote is written as it is",
@@ -110,7 +110,7 @@ class ManifestCsvTest {
                 survivor(10, "reports/a.docx", FIRST_ORDINAL, 0.9), survivor(15, "reports/stray.pdf", 7, 0.4));
 
         claim(
-                "the arrangement is total over its survivors (ADR-105), so a row of 0,0 for the stray would be"
+                "the arrangement is total over its survivors, so a row of 0,0 for the stray would be"
                         + " two plausible numbers in a file built to be loaded into a table; the writer throws,"
                         + " naming the survivor, its cluster and its seed",
                 () -> assertThatThrownBy(() -> ListedArrangement.manifestContents(anArrangement(), withAStray))

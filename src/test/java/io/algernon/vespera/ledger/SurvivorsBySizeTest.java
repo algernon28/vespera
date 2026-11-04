@@ -99,22 +99,24 @@ class SurvivorsBySizeTest {
     void aVerdictWrittenMidReadRemovesNothingToCome() throws Exception {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus"));
+        List<OccurrenceId> recorded = new ArrayList<>();
         for (int i = 0; i < OCCURRENCES_RECORDED; i++) {
-            ledger.occurrences().fileOccurrence(walk, new OccurrencePath("f" + i + ".txt"), i % DISTINCT_SIZES, WHEN, WHEN);
+            OccurrencePath path = new OccurrencePath("f" + i + ".txt");
+            ledger.occurrences().fileOccurrence(walk, path, i % DISTINCT_SIZES, WHEN, WHEN);
+            recorded.add(ledger.occurrences().occurrenceId(walk, path).orElseThrow());
         }
         RunId run = ledger.runs().startRun("byte-level-reduction", "abc123", "{}", walk, List.of());
 
-        int seen = 0;
+        List<OccurrenceId> handedOut = new ArrayList<>();
         for (SizedOccurrence entry : ledger.verdicts().survivorsBySize(run)) {
             ledger.verdicts().verdict(entry.occurrenceId(), run, VerdictKind.BROKEN, "written while reading");
-            seen++;
+            handedOut.add(entry.occurrenceId());
         }
-        int seenAll = seen;
 
         claim(
-                "all " + OCCURRENCES_RECORDED + " occurrences were handed out although each had a blocking verdict"
-                        + " written the moment it arrived",
-                () -> assertThat(seenAll).isEqualTo(OCCURRENCES_RECORDED));
+                "every one of the " + OCCURRENCES_RECORDED + " occurrences was handed out, each once, although each"
+                        + " had a blocking verdict written the moment it arrived",
+                () -> assertThat(handedOut).containsExactlyInAnyOrderElementsOf(recorded));
     }
 
     @Test
@@ -148,12 +150,8 @@ class SurvivorsBySizeTest {
                         + " so the plans below are those of the statements the read really ran",
                 () -> assertThat(plans).hasSize(PAGES_READ));
         claim(
-                "each page's plan searches file_occurrence_by_walk_and_size, so each page is a range of it",
-                () -> assertThat(plans)
-                        .allSatisfy(plan -> assertThat(plan)
-                                .anyMatch(detail -> detail.contains("file_occurrence_by_walk_and_size"))));
-        claim(
-                "each page's search of that index is bounded below by the size as well as by the folder walked,"
+                "each page's plan searches file_occurrence_by_walk_and_size, so each page is a range of it, and its"
+                        + " search of that index is bounded below by the size as well as by the folder walked,"
                         + " so a page starts where the last one ended; a search bounded by the walk alone names"
                         + " the same index and sorts nothing, and goes through the walk from its smallest file"
                         + " on every page",

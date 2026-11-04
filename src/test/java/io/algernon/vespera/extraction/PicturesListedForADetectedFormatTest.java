@@ -22,9 +22,6 @@ import org.junit.jupiter.params.provider.EnumSource;
  * <p>A picture Docling crops from a standalone picture file, a BMP or a video's frame is a re-sampled part
  * of the original and not a second thing worth carrying beside it, so those three list none. Every other
  * format lists the pictures its conversion carries.
- *
- * <p>Written before {@code DocumentPicture.listedFor} exists, so this class does not compile until the
- * build does.
  */
 @Epic("Extraction")
 @Feature("A document's pictures")

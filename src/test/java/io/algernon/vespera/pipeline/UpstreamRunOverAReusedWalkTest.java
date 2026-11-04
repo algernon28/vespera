@@ -80,8 +80,6 @@ class UpstreamRunOverAReusedWalkTest {
      */
     private static final String A_CONFIDENCE_FLOOR = "0.5";
 
-    /** The model the scripted embedder answers for, so the embedding gate opens. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** The bean holding stage 2's confidence floor, read once when a process's context starts. */
     private static final String THE_CONFIDENCE_FLOOR_BEAN = "degenerateOutputConfidenceFloor";
@@ -304,7 +302,7 @@ class UpstreamRunOverAReusedWalkTest {
         profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .seedFolder(seeds.toString(), "set by this test")
                 .boilerplateDocumentFrequencyFloor(boilerplateFloor, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so the embedding gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so the embedding gate is open")
                 .build());
     }
 
@@ -334,12 +332,7 @@ class UpstreamRunOverAReusedWalkTest {
 
     /** The configuration each run of {@code stage} over this corpus recorded, in the order written. */
     private List<String> configurationsOf(Path root, String stage) {
-        return jdbcTemplate.queryForList(
-                "SELECT run.config_consumed FROM run JOIN walk w ON w.id = run.walk_id"
-                        + " WHERE run.stage = ? AND w.root = ? ORDER BY run.rowid",
-                String.class,
-                stage,
-                walkRoot(root));
+        return new RunsOver(jdbcTemplate, root).configConsumed(stage);
     }
 
     /** The run of {@code stage} written last over this corpus. */

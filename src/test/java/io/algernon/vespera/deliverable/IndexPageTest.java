@@ -94,6 +94,7 @@ class IndexPageTest {
     @Test
     @Story("The index lists every cluster under its partition")
     @DisplayName("The index is the provenance, then each partition's heading and one row per cluster, exactly as before")
+    @Link(name = "ADR-122", url = Adr.THE_VOCABULARY_BINDS_OUR_NAMES_NOT_RENDERED_PROSE, type = "adr")
     void writesTheWholeIndex() {
         List<RecordedCluster> arrangement = List.of(
                 new RecordedCluster(
@@ -133,16 +134,21 @@ class IndexPageTest {
                     new ClusterLabel("Group " + (ordinal + 1))));
             survivors.add(survivor(100 + ordinal, ordinal, "seeds/Seed One.pdf"));
         }
-        List<ListedDoc> written =
-                List.of(new ListedDoc(THE_SEED, 9, new SynthesisDoc("Tenth", "x", List.of())));
+        List<ListedDoc> written = List.of(
+                new ListedDoc(THE_SEED, 0, new SynthesisDoc("First", "x", List.of())),
+                new ListedDoc(THE_SEED, 9, new SynthesisDoc("Tenth", "x", List.of())));
 
         String index = ListedArrangement.indexContents(
                 new DeliverableProvenance("run-2", 3L, "/srv/archive", List.of()), arrangement, written, survivors);
 
         claim(
-                "the tenth group's page is index.html in the folder 10-group-10 under the partition's folder"
-                        + " 1-seed-one, and the first nine would be 01- to 09-, so a file listing sorts as 6a ordered"
-                        + " them",
+                "the first group's page is index.html in the folder 01-group-1 under the partition's folder"
+                        + " 1-seed-one, its place padded to the two digits of the tenth",
+                () -> assertThat(index).contains("<tr><td><a href=\"1-seed-one/01-group-1/index.html\">Group 1</a>"
+                        + "</td><td>1</td><td>First</td></tr>\n"));
+        claim(
+                "and the tenth group's is in the folder 10-group-10, so a file listing sorts as the groups were"
+                        + " ordered",
                 () -> assertThat(index).endsWith("<tr><td>Group 9</td><td>1</td>" + NOTHING_WRITTEN + "</tr>\n"
                         + "<tr><td><a href=\"1-seed-one/10-group-10/index.html\">Group 10</a></td><td>1</td><td>Tenth</td></tr>\n"
                         + "</table>\n" + Html.tail()));

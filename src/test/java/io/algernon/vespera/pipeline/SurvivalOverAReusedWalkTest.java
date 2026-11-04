@@ -59,9 +59,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
 class SurvivalOverAReusedWalkTest {
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
-
     /** Above anything the scripted embedder can produce, so every scored document falls under it. */
     private static final String A_STRICT_FLOOR = "1.5";
 
@@ -101,8 +98,8 @@ class SurvivalOverAReusedWalkTest {
 
     @Test
     @Story("Loosening a floor brings back what a stricter one removed")
-    @DisplayName("A floor lowered over a reused walk scores, clusters and arranges the documents a higher one removed")
-    void aLoweredFloorBringsTheDocumentsBack(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    @DisplayName("A floor lowered over a reused walk scores, clusters and arranges the documents a higher one removed, and putting the higher one back removes them again and mints nothing")
+    void aLoweredFloorBringsTheDocumentsBackAndTheStricterOneRemovesThemAgain(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
         profile(seeds, null);
         cli.run("run", root.toString());
@@ -148,29 +145,14 @@ class SurvivalOverAReusedWalkTest {
                 "while the loose run's survivors hold both",
                 () -> assertThat(ledger.verdicts().survivors(new RunId(theLooseRun)))
                         .hasSize(CORPUS_DOCUMENTS));
-    }
 
-    @Test
-    @Story("Loosening a floor brings back what a stricter one removed")
-    @DisplayName("Putting the stricter floor back removes the documents again, and mints nothing")
-    void puttingTheStricterFloorBackRemovesThemAgain(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        profile(seeds, null);
-        cli.run("run", root.toString());
-        String theRunWithNoFloor = theOnlyScoringRun(root);
-        anAnswerGivenUnderThisRunsModel(root, seeds);
         profile(seeds, A_STRICT_FLOOR);
-        cli.run("run", root.toString());
-        String theStrictRun = theScoringRunNotIn(root, List.of(theRunWithNoFloor));
-        profile(seeds, A_LOOSE_FLOOR);
-        cli.run("run", root.toString());
-        profile(seeds, A_STRICT_FLOOR);
-
         cli.run("run", root.toString());
 
         claim(
-                "the invocation completes and mints no scoring run: it re-derives the strict run's id and"
-                        + " continues it, so the corpus still carries " + THREE_SCORING_RUNS + " (ADR-115)",
+                "putting the strict floor back completes and mints no scoring run: it re-derives the strict"
+                        + " run's id and continues it, so the corpus still carries " + THREE_SCORING_RUNS
+                        + " (ADR-115)",
                 () -> {
                     assertThat(cli.getExitCode()).isZero();
                     assertThat(scoringRunIdsFor(root)).hasSize(THREE_SCORING_RUNS);
@@ -240,13 +222,10 @@ class SurvivalOverAReusedWalkTest {
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
     }
 
-    /** The seed folder named, stage 4's gate open, gate 3 open, and the threshold as given. */
+    /** Every gate up to the approval open, and the threshold as given. */
     private void profile(Path seeds, String floor) {
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .relevanceScoreFloor(floor, floor == null ? null : "set by this test")
                 .build());
     }
@@ -255,7 +234,7 @@ class SurvivalOverAReusedWalkTest {
     private void profileUpToStageFour() {
         profileStore.save(ProfileFixture.profile()
                 .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .build());
     }
 

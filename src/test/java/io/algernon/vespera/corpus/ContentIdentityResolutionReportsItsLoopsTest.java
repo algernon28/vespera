@@ -36,9 +36,8 @@ import org.springframework.test.context.ActiveProfiles;
  * drained) and {@code sized()} after each size read, and {@code supersededRecorded()}, with no total, after
  * each duplicate is recorded and verdicted.
  *
- * <p><b>Part (a) of ADR-192.</b> Does not compile until those methods exist; part (a) moves it into {@code
- * src/test}. {@code ContentIdentityResolutionTest}'s own recording class implements only the two methods
- * ADR-188 gave the interface, and compiles unchanged because the new ones have defaults.
+ * <p>{@code ContentIdentityResolutionTest}'s own recording class implements only the two methods ADR-188
+ * gave the interface, and compiles unchanged because the new ones have defaults.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

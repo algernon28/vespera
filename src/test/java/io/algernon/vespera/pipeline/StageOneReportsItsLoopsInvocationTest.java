@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.extraction.ConverterStopsPartwayBeans;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
@@ -40,8 +42,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * 8). It is pinned over {@value #COPIES} copies of one file, of which stage 1 records {@code COPIES - 1} as
  * superseded: one line, at 1,000.
  *
- * <p><b>Red until part (a) of ADR-192 lands</b>, at the claims that the counters' lines are there: on main
- * neither loop writes a line. Every line of both counters must come from {@code StageProgress}'s logger. The
+ * <p>Part (a) of ADR-192 gave both loops their counters; before it neither wrote a line (#681). Every line of
+ * both counters must come from {@code StageProgress}'s logger, and the lines expected are written out. The
  * contract by which {@code corpus} hands the counts over is pinned in {@code
  * ContentIdentityResolutionReportsItsLoopsTest}, which part (a) brings in.
  */
@@ -75,6 +77,9 @@ class StageOneReportsItsLoopsInvocationTest {
 
     @Autowired
     private ProfileStore profileStore;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger applicationLogger;
@@ -114,11 +119,10 @@ class StageOneReportsItsLoopsInvocationTest {
                         + " group them: a file whose size no other file shares is counted too, though it is"
                         + " never hashed",
                 () -> assertThat(ProgressLines.of(logged.list, SIZES))
-                        .containsExactlyElementsOf(ProgressLines.expected(SIZES, THREE_FILES)));
+                        .containsExactly(SIZES + ": 1 of 3 (33%)", SIZES + ": 2 of 3 (66%)", SIZES + ": 3 of 3 (100%)"));
         claim(
                 "and every one of those lines was written by the progress counter itself",
                 () -> assertThat(ProgressLines.loggersOf(logged.list, SIZES))
-                        .isNotEmpty()
                         .containsOnly(ProgressLines.theCountersLogger()));
     }
 
@@ -134,16 +138,26 @@ class StageOneReportsItsLoopsInvocationTest {
 
         stageOneRan();
         claim(
-                "stage 1 records " + (COPIES - 1) + " of the " + COPIES + " files as copies of the one it keeps,"
-                        + " so the running count writes exactly one line, at the thousandth: it has no total, so"
-                        + " it says how many so far and not what share",
-                () -> assertThat(ProgressLines.of(logged.list, DUPLICATES))
-                        .containsExactlyElementsOf(ProgressLines.expectedRunning(DUPLICATES, COPIES - 1)));
+                "stage 1 records " + (COPIES - 1) + " of the " + COPIES + " files as copies of the one it keeps",
+                () -> assertThat(copiesRecordedOver(root)).isEqualTo(COPIES - 1));
+        claim(
+                "so the running count writes exactly one line, at the thousandth: it has no total, so it says how"
+                        + " many so far and not what share",
+                () -> assertThat(ProgressLines.of(logged.list, DUPLICATES)).containsExactly(DUPLICATES + ": 1,000 so far"));
         claim(
                 "and the line was written by the progress counter itself",
                 () -> assertThat(ProgressLines.loggersOf(logged.list, DUPLICATES))
-                        .isNotEmpty()
                         .containsOnly(ProgressLines.theCountersLogger()));
+    }
+
+    /** The verdicts stage 1 wrote over {@code root} that set a file aside as a copy of another. */
+    private long copiesRecordedOver(Path root) {
+        Long copies = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM verdict v JOIN run r ON r.id = v.run_id JOIN walk w ON w.id = r.walk_id"
+                        + " WHERE w.root = ? AND UPPER(v.kind) IN ('DUPLICATE_OF', 'SUPERSEDED_BY')",
+                Long.class,
+                Walk.canonicalRoot(root).toString());
+        return copies == null ? 0 : copies;
     }
 
     /** That stage 1 did its work in this invocation, so a claim about a counter fails for the counter alone. */

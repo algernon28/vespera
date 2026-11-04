@@ -8,7 +8,6 @@ import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.pipeline.GenerationScriptedBeans.ScriptedAnswer;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.synthesis.ClusterFaultKind;
@@ -35,6 +34,7 @@ import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -61,9 +61,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * whose prose cited nothing at all and a cluster whose prose cited {@code [0]} may not leave the same
  * detail behind. The wording is fixed as {@code "no citation at all in the writing, against N
  * document(s) sent"} for the first and the existing {@code "citation 0 against N document(s) sent"}
- * for the second, and {@link #turnsDownWritingThatPointsAtNothingAtAll} and {@link
- * #turnsDownWritingThatPointsBelowTheFirstDocument} each claim their own reading and the absence of
- * the other's.
+ * for the second, and the two cases of {@link #turnsDownWritingThatPointsAtNothingAtAll} each claim
+ * their own reading and the absence of the other's.
  *
  * <p><b>The consecutive-run breaker is deliberately not reached here.</b> No test in this class
  * leaves five clusters turned down in a row, so nothing here depends on what happens when it fires;
@@ -93,11 +92,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-111", url = Adr.A_CLUSTER_FAULT_IS_A_ROW_IN_SYNTHESIS, type = "adr")
 class GenerationFaultInvocationTest {
 
-    /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The embedding model this fixture names, so gate 3 and everything behind it open. */
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
     /**
      * How much every call in this class may read, in tokens, written into the profile by the fixture
@@ -155,6 +149,12 @@ class GenerationFaultInvocationTest {
 
     /** The heading the membership list sits under on every group's page, written or not (ADR-104). */
     private static final String THE_MEMBERSHIP_HEADING = "<h2>The documents in this group</h2>";
+
+    /** The first of the two documents every test here walks, both in the one group the arrangement makes. */
+    private static final String THE_CORPUS_DOCUMENT = "corpus.txt";
+
+    /** The second of them. */
+    private static final String THE_OTHER_CORPUS_DOCUMENT = "another-corpus-document.txt";
 
     /**
      * An answer that reads back perfectly well and carries no writing: a title arrived, and the
@@ -488,16 +488,38 @@ class GenerationFaultInvocationTest {
                 () -> assertThat(writingKept(root)).isEmpty());
     }
 
-    @Test
+    /**
+     * Writing pointing at a number the call never sent, each case the prose scripted and the digits the
+     * reason has to carry: a number past the two the call sent, and a date written out in bracketed
+     * digits, too long to be read as a document number at all.
+     */
+    static Stream<Arguments> writingPointingAtANumberNeverSent() {
+        return Stream.of(
+                Arguments.of(
+                        Named.of("a number the call never sent", PROSE_POINTING_AT_NOTHING),
+                        String.valueOf(A_NUMBER_NO_DOCUMENT_WAS_SENT_UNDER)),
+                Arguments.of(
+                        Named.of("a number too long to be a document number", PROSE_POINTING_AT_A_NUMBER_TOO_LONG),
+                        A_NUMBER_TOO_LONG_TO_BE_A_DOCUMENT));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("writingPointingAtANumberNeverSent")
     @Story("Writing pointing at a document nobody sent is never published")
-    @DisplayName("Writing pointing at a number the call never sent leaves its group unwritten")
-    void turnsDownWritingThatPointsAtADocumentTheCallNeverSent(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
+    @DisplayName("Writing pointing at a number the call never sent leaves its group unwritten, and does not cost the invocation")
+    void turnsDownWritingThatPointsAtADocumentTheCallNeverSent(
+            String prose, String theNumberWritten, @TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
-        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_TITLE, PROSE_POINTING_AT_NOTHING);
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_TITLE, prose);
 
         cli.run("run", root.toString());
 
+        claim(
+                "the invocation reports success rather than falling over on a number it cannot read:"
+                        + " nothing bounds what a model puts between brackets, and a date written out in"
+                        + " bracketed digits is ordinary prose about audits -- so reading any number past"
+                        + " the last document has to end the same way",
+                () -> assertThat(cli.getExitCode()).isZero());
         claim(
                 "the reason kept says a number in the writing points at no document the call carried: the"
                         + " numbers are minted here, one call at a time, which is what makes a made-up one"
@@ -507,12 +529,13 @@ class GenerationFaultInvocationTest {
                                 kept.fault().kind())
                         .isEqualTo(ClusterFaultKind.CITATION_NOT_IN_RANGE)));
         claim(
-                "and it carries the number that failed, " + A_NUMBER_NO_DOCUMENT_WAS_SENT_UNDER
-                        + ", against a call that sent two documents under the numbers 1 and 2",
+                "and it carries the digits the model actually wrote, against a call that sent two"
+                        + " documents under the numbers 1 and 2, so somebody accounting for the group can"
+                        + " search the writing for that text and find it -- where a number this system"
+                        + " stood in for it instead is one they would search for and never find",
                 () -> assertThat(reasonsKept(root))
                         .singleElement()
-                        .satisfies(kept -> assertThat(kept.fault().detail())
-                                .contains(String.valueOf(A_NUMBER_NO_DOCUMENT_WAS_SENT_UNDER))));
+                        .satisfies(kept -> assertThat(kept.fault().detail()).contains(theNumberWritten)));
         claim(
                 "and the writing is not kept with the offending number quietly taken out of it: stripped,"
                         + " the text still reads as pointing at a source while the source is gone, which is"
@@ -521,127 +544,89 @@ class GenerationFaultInvocationTest {
                 () -> assertThat(writingKept(root)).isEmpty());
     }
 
-    @Test
+    /**
+     * Writing pointing at nothing, each case the prose scripted, the words its reason reads and the
+     * words of the other case's reason it must not: no bracketed number at all, and the number 0, below
+     * the first document, which the same prose with its brackets taken out would have been.
+     */
+    static Stream<Arguments> writingPointingAtNothing() {
+        return Stream.of(
+                Arguments.of(
+                        Named.of("writing that points at no document at all", PROSE_POINTING_AT_NOTHING_AT_ALL),
+                        THE_REASON_FOR_POINTING_AT_NOTHING_AT_ALL,
+                        THE_REASON_FOR_POINTING_BELOW_THE_FIRST_DOCUMENT),
+                Arguments.of(
+                        Named.of("writing pointing below the first document", PROSE_POINTING_BELOW_THE_FIRST_DOCUMENT),
+                        THE_REASON_FOR_POINTING_BELOW_THE_FIRST_DOCUMENT,
+                        THE_REASON_FOR_POINTING_AT_NOTHING_AT_ALL));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("writingPointingAtNothing")
     @Story("Writing pointing at nothing at all is never published")
-    @DisplayName("Writing that points at no document at all leaves its group unwritten")
-    void turnsDownWritingThatPointsAtNothingAtAll(@TempDir Path root, @TempDir Path seeds)
+    @DisplayName("Writing that points at no document at all leaves its group unwritten, and is told apart from writing pointing below the first document")
+    void turnsDownWritingThatPointsAtNothingAtAll(
+            String prose, String itsReason, String theOtherReason, @TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
-        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_TITLE, PROSE_POINTING_AT_NOTHING_AT_ALL);
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_TITLE, prose);
 
         cli.run("run", root.toString());
 
         claim(
-                "writing that points at no document at all is turned down, rather than passing a check"
-                        + " that had nothing to look at: every number in it being in range is satisfied by"
-                        + " there being no numbers, so this is the one case where the check passing would"
-                        + " mean nothing was checked",
+                "the writing is turned down, rather than passing a check that had nothing to look at: every"
+                        + " number in it being in range is satisfied by there being no numbers, and the"
+                        + " documents a call carries are numbered from one, so "
+                        + THE_NUMBER_BELOW_THE_FIRST_DOCUMENT + " is a number no call ever handed the model",
                 () -> assertThat(reasonsKept(root)).singleElement().satisfies(kept -> assertThat(
                                 kept.fault().kind())
                         .isEqualTo(ClusterFaultKind.CITATION_NOT_IN_RANGE)));
         claim(
-                "and the reason says the writing pointed at nothing at all -- it reads \""
-                        + THE_REASON_FOR_POINTING_AT_NOTHING_AT_ALL + "\" -- rather than naming a number,"
-                        + " so it cannot be read as writing that pointed at the number "
-                        + THE_NUMBER_BELOW_THE_FIRST_DOCUMENT + ". Those are two different things for the"
-                        + " archive's owner to do something about, and a reason that reads the same for"
-                        + " both leaves the record unable to say which happened",
+                "and the reason reads \"" + THE_REASON_FOR_POINTING_AT_NOTHING_AT_ALL + "\" for writing that"
+                        + " pointed at nothing and \"" + THE_REASON_FOR_POINTING_BELOW_THE_FIRST_DOCUMENT
+                        + "\" for writing that pointed at " + THE_NUMBER_BELOW_THE_FIRST_DOCUMENT
+                        + ", each and not the other: those are two different things for the archive's"
+                        + " owner to do something about, and a reason that reads the same for both leaves"
+                        + " the record unable to say which happened",
                 () -> assertThat(reasonsKept(root))
                         .singleElement()
                         .satisfies(kept -> assertThat(kept.fault().detail())
-                                .contains(THE_REASON_FOR_POINTING_AT_NOTHING_AT_ALL)
-                                .doesNotContain(THE_REASON_FOR_POINTING_BELOW_THE_FIRST_DOCUMENT)));
+                                .contains(itsReason)
+                                .doesNotContain(theOtherReason)));
         claim(
                 "and nothing was written over the group",
                 () -> assertThat(writingKept(root)).isEmpty());
     }
 
-    @Test
-    @Story("Writing pointing at nothing at all is never published")
-    @DisplayName("Writing pointing below the first document is told apart from writing pointing at nothing")
-    void turnsDownWritingThatPointsBelowTheFirstDocument(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        anApprovedCorpus(root, seeds);
-        GenerationScriptedBeans.answerFor(
-                theOnlyCluster(), A_TITLE, PROSE_POINTING_BELOW_THE_FIRST_DOCUMENT);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the group is left unwritten: the documents a call carries are numbered from one, so "
-                        + THE_NUMBER_BELOW_THE_FIRST_DOCUMENT + " is a number no call ever handed the"
-                        + " model and a reader following it would land on nothing",
-                () -> assertThat(reasonsKept(root)).singleElement().satisfies(kept -> assertThat(
-                                kept.fault().kind())
-                        .isEqualTo(ClusterFaultKind.CITATION_NOT_IN_RANGE)));
-        claim(
-                "and the reason names that number -- it reads \""
-                        + THE_REASON_FOR_POINTING_BELOW_THE_FIRST_DOCUMENT + "\" -- rather than reading"
-                        + " as writing that pointed at nothing at all, which is what the same writing"
-                        + " with the brackets taken out of it would have been turned down for",
-                () -> assertThat(reasonsKept(root))
-                        .singleElement()
-                        .satisfies(kept -> assertThat(kept.fault().detail())
-                                .contains(THE_REASON_FOR_POINTING_BELOW_THE_FIRST_DOCUMENT)
-                                .doesNotContain(THE_REASON_FOR_POINTING_AT_NOTHING_AT_ALL)));
-        claim(
-                "and nothing was written over the group",
-                () -> assertThat(writingKept(root)).isEmpty());
+    /** Each answer turned down for the group ahead, named by what is wrong with it. */
+    static Stream<Named<String>> answersTurnedDownAhead() {
+        return Stream.of(
+                Named.of("an answer nothing can read", AN_ANSWER_NOTHING_CAN_READ),
+                Named.of("an answer with no writing in it", AN_ANSWER_WITH_NO_WRITING_IN_IT),
+                Named.of("an answer with no heading on it", AN_ANSWER_WITH_NO_TITLE_ON_IT));
     }
 
-    @Test
-    @Story("Writing pointing at a document nobody sent is never published")
-    @DisplayName("A number too long to be a document number costs its group and not the invocation")
-    void turnsDownWritingThatPointsAtANumberTooLongToBeADocument(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        anApprovedCorpus(root, seeds);
-        GenerationScriptedBeans.answerFor(theOnlyCluster(), A_TITLE, PROSE_POINTING_AT_A_NUMBER_TOO_LONG);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation reports success rather than falling over on a number it cannot read: "
-                        + A_NUMBER_TOO_LONG_TO_BE_A_DOCUMENT + " is a date written out in bracketed digits,"
-                        + " which is ordinary prose about audits, and nothing bounds what a model puts"
-                        + " between brackets -- so reading it has to end the same way any other number past"
-                        + " the last document does",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "the group is left unwritten, for pointing at a document the call never carried",
-                () -> assertThat(reasonsKept(root)).singleElement().satisfies(kept -> assertThat(
-                                kept.fault().kind())
-                        .isEqualTo(ClusterFaultKind.CITATION_NOT_IN_RANGE)));
-        claim(
-                "and the reason carries the digits the model actually wrote, "
-                        + A_NUMBER_TOO_LONG_TO_BE_A_DOCUMENT + ", so somebody accounting for the group can"
-                        + " search the writing for that text and find it -- where a number this system"
-                        + " stood in for it instead is one they would search for and never find",
-                () -> assertThat(reasonsKept(root))
-                        .singleElement()
-                        .satisfies(kept -> assertThat(kept.fault().detail())
-                                .contains(A_NUMBER_TOO_LONG_TO_BE_A_DOCUMENT)));
-        claim(
-                "and nothing was written over the group",
-                () -> assertThat(writingKept(root)).isEmpty());
-    }
-
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("answersTurnedDownAhead")
+    @Issue("224")
+    @Issue("216")
     @Story("One answer nobody believes costs one group and no more")
     @DisplayName("The groups after a turned-down answer are still written over")
-    void carriesOnPastAClusterWhoseAnswerWasTurnedDown(@TempDir Path root, @TempDir Path seeds)
+    @Link(name = "ADR-124", url = Adr.BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED, type = "adr")
+    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
+    void carriesOnPastAClusterWhoseAnswerWasTurnedDown(String answerAhead, @TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
         aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
         thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
-        GenerationScriptedBeans.answerFor(
-                THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
+        GenerationScriptedBeans.answerFor(THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(answerAhead));
 
         cli.run("run", root.toString());
 
         claim(
                 "both groups were asked about, all " + TWO_CALLS + " of them: the first answer was turned"
-                        + " down and the group after it was still asked, where a run that stopped there"
-                        + " would have made only " + ONE_CALL,
+                        + " down and the group after it was still asked, where a run that stopped or fell"
+                        + " over there would have made only " + ONE_CALL,
                 () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(TWO_CALLS));
         claim(
                 "the group whose answer was believed carries its writing, " + ONE_PIECE_OF_WRITING
@@ -650,89 +635,73 @@ class GenerationFaultInvocationTest {
                 () -> assertThat(writingKept(root)).hasSize(ONE_PIECE_OF_WRITING));
         claim(
                 "and exactly " + ONE_REASON_KEPT + " reason is kept, for the one group whose answer was"
-                        + " turned down",
-                () -> assertThat(reasonsKept(root)).hasSize(ONE_REASON_KEPT));
+                        + " turned down, as an answer that did not come back in the shape the call asked for",
+                () -> assertThat(reasonsKept(root)).singleElement().satisfies(kept -> assertThat(
+                                kept.fault().kind())
+                        .isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION)));
         claim(
                 "and the invocation reports success",
                 () -> assertThat(cli.getExitCode()).isZero());
     }
 
-    @Test
+    /**
+     * Each unusable answer to the second group, after the first group's answer nobody could read, with
+     * the words its reason is kept in.
+     */
+    static Stream<Arguments> unusableAnswersAfterAReasonWasKept() {
+        return Stream.of(
+                Arguments.of(
+                        Named.of("a call that came back carrying no answer", ScriptedAnswer.carryingNoAnswerAtAll()),
+                        NO_ANSWER_AT_ALL),
+                Arguments.of(
+                        Named.of("an answer with no writing in it",
+                                ScriptedAnswer.arrivingAs(AN_ANSWER_WITH_NO_WRITING_IN_IT)),
+                        NO_WRITING_AT_ALL),
+                Arguments.of(
+                        Named.of("an answer with no heading on it",
+                                ScriptedAnswer.arrivingAs(AN_ANSWER_WITH_NO_TITLE_ON_IT)),
+                        NO_TITLE_AT_ALL));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("unusableAnswersAfterAReasonWasKept")
     @Issue("222")
+    @Issue("224")
+    @Issue("216")
     @Story("One answer nobody believes costs one group and no more")
-    @DisplayName("A call that came back carrying no answer leaves the reasons kept before it standing")
+    @DisplayName("An unusable answer leaves the reasons kept before it standing")
     @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
-    void keepsTheReasonsFromEarlierInTheStepPastACallThatCameBackCarryingNoAnswer(
-            @TempDir Path root, @TempDir Path seeds) throws IOException {
+    @Link(name = "ADR-124", url = Adr.BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED, type = "adr")
+    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
+    void keepsTheReasonsFromEarlierInTheStepPastAnUnusableAnswer(
+            ScriptedAnswer unusable, String itsReason, @TempDir Path root, @TempDir Path seeds) throws IOException {
         anApprovedCorpus(root, seeds);
         aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
         thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
         GenerationScriptedBeans.answerFor(
                 THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
-        GenerationScriptedBeans.answerFor(theOnlyCluster(), ScriptedAnswer.carryingNoAnswerAtAll());
+        GenerationScriptedBeans.answerFor(theOnlyCluster(), unusable);
 
         cli.run("run", root.toString());
 
         claim(
-                "both reasons are kept, all " + TWO_REASONS_KEPT + " of them: a call coming back with no"
-                        + " answer in it is turned down like any other unusable answer, where a failure"
-                        + " of another kind would have rolled the piece of work back and taken the reason"
-                        + " recorded before it with it -- leaving " + ONE_REASON_KEPT + " group looking"
-                        + " like one the run never reached",
+                "both reasons are kept, all " + TWO_REASONS_KEPT + " of them: the unusable answer is turned"
+                        + " down like any other, where a failure of another kind -- keeping it would mean"
+                        + " filing writing under a heading that does not exist, or with no writing at all"
+                        + " -- would have rolled the piece of work back and taken the reason recorded before"
+                        + " it with it, leaving " + ONE_REASON_KEPT + " group looking like one the run never"
+                        + " reached",
                 () -> assertThat(reasonsKept(root)).hasSize(TWO_REASONS_KEPT));
         claim(
-                "and the reason kept for the call that answered nothing says so in its own words, which"
-                        + " is what tells it apart from the group before it whose answer nobody could"
+                "and the reason kept for the unusable answer says what was wrong with it in its own words,"
+                        + " which is what tells it apart from the group before it whose answer nobody could"
                         + " read",
                 () -> assertThat(reasonsKept(root))
-                        .anySatisfy(kept -> assertThat(kept.fault().detail()).isEqualTo(NO_ANSWER_AT_ALL)));
+                        .anySatisfy(kept -> assertThat(kept.fault().detail()).isEqualTo(itsReason)));
         claim(
-                "both are recorded as an answer that could not be read into the shape the call imposed,"
-                        + " because nothing at all is the smallest case of that rather than a fifth way"
-                        + " an answer is turned down",
-                () -> assertThat(reasonsKept(root))
-                        .allSatisfy(kept -> assertThat(kept.fault().kind())
-                                .isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION)));
-        claim(
-                "and the invocation reports success, because a group left unwritten is not a run that"
-                        + " failed",
-                () -> assertThat(cli.getExitCode()).isZero());
-    }
-
-    @Test
-    @Issue("224")
-    @Story("One answer nobody believes costs one group and no more")
-    @DisplayName("An answer that came back with no writing in it leaves the reasons kept before it standing")
-    @Link(name = "ADR-124", url = Adr.BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED, type = "adr")
-    void keepsTheReasonsFromEarlierInTheStepPastAnAnswerWithNoWritingInIt(
-            @TempDir Path root, @TempDir Path seeds) throws IOException {
-        anApprovedCorpus(root, seeds);
-        aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
-        thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
-        GenerationScriptedBeans.answerFor(
-                THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
-        GenerationScriptedBeans.answerFor(
-                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_WITH_NO_WRITING_IN_IT));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "both reasons are kept, all " + TWO_REASONS_KEPT + " of them: an answer that came back"
-                        + " with no writing in it is turned down like any other unusable answer, where a"
-                        + " failure of another kind would have rolled the piece of work back and taken"
-                        + " the reason recorded before it with it -- leaving " + ONE_REASON_KEPT
-                        + " group looking like one the run never reached",
-                () -> assertThat(reasonsKept(root)).hasSize(TWO_REASONS_KEPT));
-        claim(
-                "and the reason kept for the answer with no writing says so in its own words, which is"
-                        + " what tells it apart from the group before it whose answer nobody could read",
-                () -> assertThat(reasonsKept(root))
-                        .anySatisfy(kept ->
-                                assertThat(kept.fault().detail()).isEqualTo(NO_WRITING_AT_ALL)));
-        claim(
-                "both are recorded as an answer that did not come back in the shape the call asked for,"
-                        + " rather than one of them being recorded as writing that pointed at no"
-                        + " document: nothing was written to point at anything with",
+                "both are recorded as an answer that did not come back in the shape the call asked for:"
+                        + " nothing at all is the smallest case of that rather than a fifth way an answer is"
+                        + " turned down, and writing and a heading are the two things the shape asks for",
                 () -> assertThat(reasonsKept(root))
                         .allSatisfy(kept -> assertThat(kept.fault().kind())
                                 .isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION)));
@@ -742,122 +711,6 @@ class GenerationFaultInvocationTest {
         claim(
                 "and the invocation reports success, because a group left unwritten is not a run that"
                         + " failed",
-                () -> assertThat(cli.getExitCode()).isZero());
-    }
-
-    @Test
-    @Issue("224")
-    @Story("One answer nobody believes costs one group and no more")
-    @DisplayName("The groups after an answer with no writing in it are still written over")
-    @Link(name = "ADR-124", url = Adr.BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED, type = "adr")
-    void carriesOnPastAnAnswerWithNoWritingInIt(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        anApprovedCorpus(root, seeds);
-        aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
-        thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
-        GenerationScriptedBeans.answerFor(
-                THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_WITH_NO_WRITING_IN_IT));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "both groups were asked about, all " + TWO_CALLS + " of them: the answer with no writing"
-                        + " in it was turned down and the group after it was still asked, where a run"
-                        + " that fell over on it would have made only " + ONE_CALL,
-                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(TWO_CALLS));
-        claim(
-                "the group whose answer was believed carries its writing, " + ONE_PIECE_OF_WRITING
-                        + " piece of it, so one answer arriving without its writing cost its own group"
-                        + " and nothing further along",
-                () -> assertThat(writingKept(root)).hasSize(ONE_PIECE_OF_WRITING));
-        claim(
-                "and exactly " + ONE_REASON_KEPT + " reason is kept, for the one group whose answer"
-                        + " carried no writing",
-                () -> assertThat(reasonsKept(root)).singleElement().satisfies(kept -> assertThat(
-                                kept.fault().kind())
-                        .isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION)));
-        claim(
-                "and the invocation reports success",
-                () -> assertThat(cli.getExitCode()).isZero());
-    }
-
-    @Test
-    @Issue("216")
-    @Story("One answer nobody believes costs one group and no more")
-    @DisplayName("An answer that came back with no heading on it leaves the reasons kept before it standing")
-    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
-    void keepsTheReasonsFromEarlierInTheStepPastAnAnswerWithNoTitleOnIt(
-            @TempDir Path root, @TempDir Path seeds) throws IOException {
-        anApprovedCorpus(root, seeds);
-        aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
-        thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
-        GenerationScriptedBeans.answerFor(
-                THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
-        GenerationScriptedBeans.answerFor(
-                theOnlyCluster(), ScriptedAnswer.arrivingAs(AN_ANSWER_WITH_NO_TITLE_ON_IT));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "both reasons are kept, all " + TWO_REASONS_KEPT + " of them: an answer that came back"
-                        + " with no heading on it is turned down like any other unusable answer, where"
-                        + " keeping it would have meant filing writing under a heading that does not"
-                        + " exist -- a failure of a kind that takes the whole piece of work back with it,"
-                        + " leaving " + ONE_REASON_KEPT + " group looking like one the run never reached",
-                () -> assertThat(reasonsKept(root)).hasSize(TWO_REASONS_KEPT));
-        claim(
-                "and the reason kept for the answer with no heading says so in its own words, which is"
-                        + " what tells it apart from the group before it whose answer nobody could read",
-                () -> assertThat(reasonsKept(root))
-                        .anySatisfy(kept -> assertThat(kept.fault().detail()).isEqualTo(NO_TITLE_AT_ALL)));
-        claim(
-                "both are recorded as an answer that did not come back in the shape the call asked for,"
-                        + " because a heading was part of that shape and one of the two things asked for",
-                () -> assertThat(reasonsKept(root))
-                        .allSatisfy(kept -> assertThat(kept.fault().kind())
-                                .isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION)));
-        claim(
-                "nothing was written over either group",
-                () -> assertThat(writingKept(root)).isEmpty());
-        claim(
-                "and the invocation reports success, because a group left unwritten is not a run that"
-                        + " failed",
-                () -> assertThat(cli.getExitCode()).isZero());
-    }
-
-    @Test
-    @Issue("216")
-    @Story("One answer nobody believes costs one group and no more")
-    @DisplayName("The groups after an answer with no heading on it are still written over")
-    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
-    void carriesOnPastAnAnswerWithNoTitleOnIt(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        anApprovedCorpus(root, seeds);
-        aSecondClusterAheadOfTheFirst(theApprovedArrangement(root));
-        thatClusterIsGivenADocumentItCanSend(theApprovedArrangement(root));
-        GenerationScriptedBeans.answerFor(
-                THE_CLUSTER_ANSWERED_BADLY, ScriptedAnswer.arrivingAs(AN_ANSWER_WITH_NO_TITLE_ON_IT));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "both groups were asked about, all " + TWO_CALLS + " of them: the answer with no heading"
-                        + " on it was turned down and the group after it was still asked, where a run"
-                        + " that fell over on it would have made only " + ONE_CALL,
-                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(TWO_CALLS));
-        claim(
-                "the group whose answer was believed carries its writing, " + ONE_PIECE_OF_WRITING
-                        + " piece of it, so one answer arriving without its heading cost its own group"
-                        + " and nothing further along",
-                () -> assertThat(writingKept(root)).hasSize(ONE_PIECE_OF_WRITING));
-        claim(
-                "and exactly " + ONE_REASON_KEPT + " reason is kept, for the one group whose answer"
-                        + " carried no heading",
-                () -> assertThat(reasonsKept(root)).singleElement().satisfies(kept -> assertThat(
-                                kept.fault().kind())
-                        .isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION)));
-        claim(
-                "and the invocation reports success",
                 () -> assertThat(cli.getExitCode()).isZero());
     }
 
@@ -938,7 +791,12 @@ class GenerationFaultInvocationTest {
         cli.run("run", root.toString());
 
         claim(
+                "the run kept writing for one group and a reason for another, so the two can be compared at all",
+                () -> assertThat(List.of(writingKept(root).isEmpty(), reasonsKept(root).isEmpty()))
+                        .containsExactly(false, false));
+        claim(
                 "no group has both writing kept for it and a reason it was left unwritten: those two"
+
                         + " records answer the same question in opposite directions, and a group carrying"
                         + " both leaves the finished work and the record of it disagreeing about whether it"
                         + " was ever written",
@@ -1063,8 +921,6 @@ class GenerationFaultInvocationTest {
 
         cli.run("run", root.toString());
 
-        ListedFault turnedDownFor =
-                reasonsKept(root).stream().findFirst().orElseThrow();
         GenerationScriptedBeans.answerFor(theOnlyCluster(), anOrdinaryAnswer());
 
         cli.run("run", root.toString());
@@ -1075,25 +931,14 @@ class GenerationFaultInvocationTest {
                         + " questions to compare",
                 () -> assertThat(questionsPut).hasSize(A_CALL_FOR_EACH_OF_TWO_INVOCATIONS));
         claim(
-                "and the second question is the first one word for word. Asking again is the same question"
+                "and the second question is the first one word for word, and the first was put before"
+                        + " any answer was turned down, so neither carries the check the first answer failed,"
+                        + " the detail kept against it or its text. Asking again is the same question"
                         + " put a second time, not a correction: a question that mentioned how the first"
                         + " answer fell short would have the model marking the model's own work, and what"
                         + " came back could no longer be read as an answer about the documents alone",
                 () -> assertThat(questionsPut.get(THE_QUESTION_ASKED_AGAIN))
                         .isEqualTo(questionsPut.get(THE_QUESTION_ASKED_FIRST)));
-        claim(
-                "neither question carries what the first answer was turned down for -- neither the check it"
-                        + " failed nor the detail kept against it -- so there was nothing of the first"
-                        + " attempt for the second to be steered by in the first place",
-                () -> assertThat(questionsPut)
-                        .allSatisfy(question -> assertThat(question)
-                                .doesNotContain(turnedDownFor.fault().kind().name())
-                                .doesNotContain(turnedDownFor.fault().detail())));
-        claim(
-                "and neither carries the text of the answer that was turned down, which is the thing a"
-                        + " retry loop would have put back in front of the model",
-                () -> assertThat(questionsPut)
-                        .allSatisfy(question -> assertThat(question).doesNotContain(AN_ANSWER_NOTHING_CAN_READ)));
     }
 
     @Test
@@ -1216,8 +1061,12 @@ class GenerationFaultInvocationTest {
                         .doesNotContain(ClusterFaultKind.CITATION_NOT_IN_RANGE.name())
                         .doesNotContain(reasonsKept(root).getFirst().fault().detail()));
         claim(
-                "the page still lists every document in the group, as it did before it said why",
-                () -> assertThat(UnwrittenPage.textOf(page)).contains(THE_MEMBERSHIP_HEADING));
+                "the page still lists every document in the group, both of them by name under the heading"
+                        + " of the list, as it did before it said why",
+                () -> assertThat(UnwrittenPage.textOf(page))
+                        .contains(THE_MEMBERSHIP_HEADING)
+                        .contains(THE_CORPUS_DOCUMENT)
+                        .contains(THE_OTHER_CORPUS_DOCUMENT));
         claim(
                 "the index row is unchanged: it still says nothing was written over the group, and still"
                         + " carries no link",
@@ -1388,19 +1237,15 @@ class GenerationFaultInvocationTest {
      * state every test here starts from, because none of them is about the gate in front of it.
      */
     private void anApprovedCorpus(Path root, Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
-        Files.writeString(root.resolve("another-corpus-document.txt"), "a second corpus document");
+        Files.writeString(root.resolve(THE_CORPUS_DOCUMENT), "a corpus document");
+        Files.writeString(root.resolve(THE_OTHER_CORPUS_DOCUMENT), "a second corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .generationContextWindow(THE_READING_WINDOW, "set by this test, so every test here reads in the same window")
                 .build());
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
     }
 
     /** Writes the reading window into the profile, leaving every other key as it was. */
@@ -1486,15 +1331,6 @@ class GenerationFaultInvocationTest {
                         > 0);
     }
 
-    /** The arrangement the most recent invocation over {@code root} recorded — the one its page names. */
-    private RunId theLatestArrangement(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
-    }
 
     /** The arrangement of {@code root} the profile's approval names, whichever invocation recorded it. */
     private RunId theApprovedArrangement(Path root) {

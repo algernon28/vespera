@@ -9,7 +9,6 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.pipeline.GenerationScriptedBeans.ScriptedAnswer;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -71,8 +70,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-190", url = Adr.STAGE_6_RULES_LIVE_IN_SYNTHESIS, type = "adr")
 class GenerationReportsItsProgressInvocationTest {
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
     private static final String THE_READING_WINDOW = "4096";
     private static final int THE_WINDOW = 4096;
     private static final int THE_CEILING = THE_WINDOW - 1;
@@ -116,8 +113,15 @@ class GenerationReportsItsProgressInvocationTest {
     private static final int ONE_ENTRY_PER_CLUSTER = 1;
 
     private static final String CLUSTERS = "Stage 6b (generation, clusters)";
-    /** The counter stage 6b no longer has since ADR-223: a score is read by its key in loops that count already. */
-    private static final String SCORES = "Stage 6b (generation, scores read)";
+    /** How every counter of stage 6b's opens its label. */
+    private static final String STAGE_SIX_B_COUNTERS = "Stage 6b (generation, ";
+
+    /**
+     * The word a counter over the scores read would carry, as the one stage 6b had until ADR-223 did:
+     * "Stage 6b (generation, scores read)".
+     */
+    private static final String A_SCORE = "score";
+
 
     /** The counter over the listing's rows, which are written in a read of their own since ADR-223. */
     private static final String MANIFEST = "Stage 6b (generation, manifest rows)";
@@ -359,8 +363,16 @@ class GenerationReportsItsProgressInvocationTest {
                             .containsExactlyElementsOf(ProgressLines.expected(MANIFEST, membership));
                 });
         claim(
-                "no counter is kept over the scores read: a score is read by its key in loops that count already",
-                () -> assertThat(progressOf(SCORES)).isEmpty());
+                "no counter is kept over the scores read, under any name: no counter line of stage 6b names a"
+                        + " score, since a score is read by its key in loops that count already",
+                () -> assertThat(logged.list.stream()
+                                .filter(event -> event.getLoggerName().equals(ProgressLines.theCountersLogger()))
+                                .map(ILoggingEvent::getFormattedMessage)
+                                .filter(line -> line.startsWith(STAGE_SIX_B_COUNTERS))
+                                .map(line -> line.substring(0, line.indexOf(':')))
+                                .toList())
+                        .isNotEmpty()
+                        .noneMatch(label -> label.contains(A_SCORE)));
         claim(
                 "the one partition is written, its " + clusters + " cluster files, and one membership entry in each",
                 () -> {
@@ -437,17 +449,13 @@ class GenerationReportsItsProgressInvocationTest {
             Files.writeString(root.resolve("corpus-" + document + ".txt"), "corpus document " + document);
         }
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .generationContextWindow(THE_READING_WINDOW, "set by this test, so every call here reads in the same window")
                 .build());
         cli.run("run", root.toString());
         profileStore.save(ProfileFixture.profileFrom(profileStore.load())
-                .arrangementApproved(ArrangementGate.shortNameOf(theLatestArrangement(root)), "read by this test")
+                .arrangementApproved(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")), "read by this test")
                 .build());
         oneClusterPerDocument(theApprovedArrangement(root), clusters, theClusterHoldingNothing, root);
     }
@@ -512,15 +520,6 @@ class GenerationReportsItsProgressInvocationTest {
                             String.class,
                             documents.get(theClusterHoldingNothing))));
         }
-    }
-
-    private RunId theLatestArrangement(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
     }
 
     private RunId theApprovedArrangement(Path root) {

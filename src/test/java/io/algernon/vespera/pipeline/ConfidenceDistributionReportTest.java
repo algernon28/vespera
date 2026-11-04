@@ -79,7 +79,8 @@ class ConfidenceDistributionReportTest {
         claim(
                 "and says what an unset key means, because this one ships unset and stays that way until"
                         + " someone reads a distribution like this one",
-                () -> assertThat(page).contains("unset"));
+                () -> assertThat(page).contains("The key ships unset, and while it is unset no score is low enough"
+                        + " to remove anything"));
     }
 
     @Test

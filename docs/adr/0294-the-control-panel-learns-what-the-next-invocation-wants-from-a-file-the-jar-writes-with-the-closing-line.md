@@ -105,6 +105,8 @@ The ticket that gives the control panel its screens (#561) reads this file and n
 | `pipeline.TheControlPanelReadsTheNextInvocationTheJarWritesTest` | each shape the jar writes is read by the control panel's `NextInvocation` as the same invocation, keys in the same order, answer and arrangement (§4) |
 | `controlpanel.NextInvocationTest` | the control panel's reading of the file: each of the three invocations, `wants` in order, `answer`, `arrangement`, an empty `wants`, a comment and any key order ignored, no file read as none, and each shape §4 calls unreadable refused |
 | `controlpanel.TheControlPanelLinksNoClassOfTheJarTest` | unchanged, and holding `NextInvocation` to its own package and `java.base` |
+| `pipeline.NextInvocationFileTest.aFileThatCannotBeWrittenIsLoggedAtWarn` | a file that cannot be written is said in one line at WARN naming the file (§3) (#680) |
+| `controlpanel.NextScreenTest.aChildThatEndedWithAnotherCodeOffersNoNextAct` | a child ending with 1 beside a file wanting two keys: `next-invocation` reads `unknown` and no `next` form (§4) (#680) |
 
 ## What this does not decide
 

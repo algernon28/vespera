@@ -71,6 +71,9 @@ class NextScreenTest {
             arrangement=%s
             """.formatted(ARRANGEMENT);
 
+    /** The code a run that failed or was refused ends with: 1, not 0. */
+    private static final int FAILED_OR_REFUSED = 1;
+
     @TempDir
     Path folder;
 
@@ -192,10 +195,37 @@ class NextScreenTest {
         }
     }
 
+    /**
+     * The file is read only after the control panel's own child ended with 0 (ADR-294 §4, ADR-302 §8): a child that
+     * ended with any other code leaves whatever file stands there unread, here one the child did not delete.
+     */
+    @Test
+    @Story("The operator writes the values the next invocation wants")
+    @DisplayName("After a child that failed, the file it found is not read, and no value is asked for")
+    void aChildThatEndedWithAnotherCodeOffersNoNextAct() throws IOException, InterruptedException {
+        Path workingDirectory = workingDirectoryWanting(SEED_AND_FLOOR, "exit " + FAILED_OR_REFUSED + " the closing line");
+        try (ScreenServer screens = ScreenServer.start(folder, values(workingDirectory))) {
+            Page page = screens.afterARunHasEnded().go("/next").page();
+
+            claim("the next act is not known, though the file names a run, and the page says the last run did not finish",
+                    () -> assertThat(List.of(byId(page, "next-invocation").attr("data-invocation"),
+                                    byId(page, "next-invocation").text()))
+                            .containsExactly("unknown",
+                                    "The last run did not finish, so there is no next step to suggest. The Invocation page says"
+                                            + " how it ended; start it again from the Launch page once that is put right."));
+            claim("and no value is asked for",
+                    () -> assertThat(page.document().select("form[name=next]")).isEmpty());
+        }
+    }
+
     private Path workingDirectoryWanting(String nextInvocation) throws IOException {
+        return workingDirectoryWanting(nextInvocation, "exit 0 the closing line");
+    }
+
+    private Path workingDirectoryWanting(String nextInvocation, String childWill) throws IOException {
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         Files.writeString(workingDirectory.resolve(NextInvocation.FILE_NAME), nextInvocation, StandardCharsets.UTF_8);
-        ScreenServer.childWill(workingDirectory, "exit 0 the closing line");
+        ScreenServer.childWill(workingDirectory, childWill);
         return workingDirectory;
     }
 

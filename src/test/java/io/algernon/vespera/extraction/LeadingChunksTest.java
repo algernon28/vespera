@@ -4,18 +4,22 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.StatementLog;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -140,8 +144,21 @@ class LeadingChunksTest {
                 NARROWER,
                 List.of(new Chunk(0, NARROWLY_CUT_OPENING, NARROWLY_CUT_OPENING_WORDS)));
         cache.put(CONTENT_HASH, CHUNKER, RULE, List.of(new Chunk(0, OPENING_TEXT, OPENING_WORDS)));
-        LeadingChunks leadingChunks = new LeadingChunks(jdbcTemplate);
+        StatementLog log = new StatementLog(new TransactionAwareDataSourceProxy(Objects.requireNonNull(jdbcTemplate.getDataSource())));
+        LeadingChunks leadingChunks = new LeadingChunks(log.jdbcTemplate());
+        Optional<Chunk> first = leadingChunks.forContentHash(CONTENT_HASH);
+        Optional<Chunk> second = leadingChunks.forContentHash(CONTENT_HASH);
 
+        claim(
+                "the read states its own order, by chunker, then rule, then place in the document, and takes the"
+                        + " first row of it, rather than taking whichever row the index the database chose comes"
+                        + " to first: the primary key gives the same row today, but that is the database's choice"
+                        + " and not something the read asked for",
+                () -> assertThat(log.said())
+                        .filteredOn(sql -> sql.contains("FROM chunk_cache"))
+                        .hasSize(2)
+                        .allSatisfy(sql -> assertThat(sql)
+                                .endsWith(" ORDER BY chunker_identity, chunking_rule_identity, ordinal LIMIT 1")));
         claim(
                 "one rule's opening chunk comes back whole — its "
                         + OPENING_WORDS
@@ -152,7 +169,9 @@ class LeadingChunksTest {
                         + " chunk on every reading, though that rule's rows were written second:"
                         + " one corpus asked twice gives one answer, or a deliverable built from it"
                         + " would change while the archive stood still",
-                () -> assertThat(leadingChunks.forContentHash(CONTENT_HASH))
-                        .contains(new Chunk(0, OPENING_TEXT, OPENING_WORDS)));
+                () -> assertThat(List.of(first, second))
+                        .containsExactly(
+                                Optional.of(new Chunk(0, OPENING_TEXT, OPENING_WORDS)),
+                                Optional.of(new Chunk(0, OPENING_TEXT, OPENING_WORDS))));
     }
 }

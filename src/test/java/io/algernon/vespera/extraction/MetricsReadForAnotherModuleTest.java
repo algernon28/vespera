@@ -59,6 +59,9 @@ class MetricsReadForAnotherModuleTest {
     /** The first run holds two rows written one after the other, so the span of its rows is two. */
     private static final long ROWS_OF_THE_FIRST_RUN = 2;
 
+    /** Two rows of one run written with one row of another run between them: their span is three rows. */
+    private static final long SPAN_OF_TWO_ROWS_WITH_ONE_BETWEEN = 3;
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -138,6 +141,31 @@ class MetricsReadForAnotherModuleTest {
         claim(
                 "a run that holds no row has no span, so its caller states no total",
                 () -> assertThat(fixture.metrics.metricRowsUpTo(fixture.runWithNoRow)).isEmpty());
+    }
+
+    /**
+     * ADR-199: the total is the span of the run's rowids, the greatest less the least plus one, asked as two
+     * statements, and not a count of its rows; so where another run's row was written between two of its own,
+     * the span takes that row in too.
+     */
+    @Test
+    @Story("Another module's work reads the metrics through the module that wrote them")
+    @DisplayName("The span of a run's rows takes in a row of another run written between them")
+    @Link(name = "ADR-199", url = Adr.THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE, type = "adr")
+    void theSpanOfARunsRowsTakesInAnotherRunsRowBetweenThem() {
+        Fixture fixture = new Fixture();
+        RunId interleavedRun = fixture.run("interleaved");
+        RunId runBetween = fixture.run("between");
+        fixture.row(fixture.first, interleavedRun, 0.5, 1, FIRST_COUNT, 1, 0, 0, "en");
+        fixture.row(fixture.first, runBetween, 0.5, 1, FIRST_COUNT, 1, 0, 0, "en");
+        fixture.row(fixture.second, interleavedRun, 0.5, 1, SECOND_COUNT, 1, 0, 0, "en");
+
+        claim(
+                "the run's two rows have one row of another run written between them, so the span from its first"
+                        + " row to its last is " + SPAN_OF_TWO_ROWS_WITH_ONE_BETWEEN + " and not the "
+                        + ROWS_OF_THE_FIRST_RUN + " rows it holds",
+                () -> assertThat(fixture.metrics.metricRowsUpTo(interleavedRun))
+                        .isEqualTo(OptionalLong.of(SPAN_OF_TWO_ROWS_WITH_ONE_BETWEEN)));
     }
 
     /** Three documents and three runs: two rows under the first run, one under the second, none under the third. */

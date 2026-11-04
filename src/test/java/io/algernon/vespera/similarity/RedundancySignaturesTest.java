@@ -66,10 +66,16 @@ class RedundancySignaturesTest {
         Fixture fixture = fixture();
         OccurrenceId document = fixture.occurrence("paper.pdf", Set.of(DISTINCTIVE_HASH, BOILERPLATE_HASH));
 
-        boolean signed = fixture.sign(document, Set.of(BOILERPLATE_HASH));
+        OccurrenceId distinctiveAlone = fixture.occurrence("distinctive-alone.pdf", Set.of(DISTINCTIVE_HASH));
 
-        claim("the document was signed, over what was left after boilerplate came out", () -> assertThat(signed)
-                .isTrue());
+        boolean signed = fixture.sign(document, Set.of(BOILERPLATE_HASH));
+        fixture.sign(distinctiveAlone, Set.of());
+
+        claim("the document was signed", () -> assertThat(signed).isTrue());
+        claim(
+                "over what was left after boilerplate came out: its bands are those of a document holding only"
+                        + " its distinctive shingle, with nothing stripped",
+                () -> assertThat(bandHashes(document)).isEqualTo(bandHashes(distinctiveAlone)));
         claim("one signature row exists for it", () -> assertThat(signatureCount(document))
                 .isEqualTo(1));
         claim(
@@ -103,6 +109,14 @@ class RedundancySignaturesTest {
     private int signatureCount(OccurrenceId occurrenceId) {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM minhash_signature WHERE occurrence_id = ?", Integer.class, occurrenceId.value());
+    }
+
+    /** The document's band hashes, in band order. */
+    private List<Long> bandHashes(OccurrenceId occurrenceId) {
+        return jdbcTemplate.queryForList(
+                "SELECT band_hash FROM signature_band WHERE occurrence_id = ? ORDER BY band_ordinal",
+                Long.class,
+                occurrenceId.value());
     }
 
     private int bandCount(OccurrenceId occurrenceId) {

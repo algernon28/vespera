@@ -7,17 +7,20 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
@@ -210,51 +213,56 @@ class NextActionTest {
                 () -> assertThat(line.split("document-frequency\\.html", -1)).hasSize(2));
     }
 
-    @Test
-    @Story("A threshold nobody can parse is not a threshold, and the line says so")
-    @DisplayName("A non-numeric threshold is reported as wanting a number, not as answered")
-    void aThresholdThatIsNotANumberIsNotAnAnswer() {
-        String line = NextAction.line(theFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
-
-        claim(
-                "the line does not call the path finished: the run read this value, failed to parse it"
-                        + " and removed nothing, so telling the operator there is nothing left to do"
-                        + " contradicts the step line above it",
-                () -> assertThat(line).doesNotContain("Nothing is left to set"));
-        claim(
-                "it names the key and says a number is wanted, which is the whole of the fix",
-                () -> assertThat(line).contains("relevanceScoreFloor").contains("number"));
-        claim(
-                "and quotes back what is written there, so the operator can see the comma or the stray"
-                        + " letter rather than hunting for it",
-                () -> assertThat(line).contains(A_MISTYPED_FLOOR));
+    /**
+     * Each floor whose value was mistyped as something that is not a number, with its key, beside every other value
+     * answered: the relevance threshold, the repetition floor, the conversion-quality floor, and the log floor, which
+     * applies no log rule while it is unreadable (ADR-171 §3).
+     */
+    static Stream<Arguments> floorsMistypedAsNoNumber() {
+        return Stream.of(
+                Arguments.of(Named.of("the relevance threshold", theFloorMistyped()), "relevanceScoreFloor"),
+                Arguments.of(Named.of("the repetition floor", theBoilerplateFloorMistyped()),
+                        "boilerplateDocumentFrequencyFloor"),
+                Arguments.of(Named.of("the conversion-quality floor", theConfidenceFloorMistyped()),
+                        "degenerateOutputConfidenceFloor"),
+                Arguments.of(Named.of("the log floor", theLogFloorMistyped()), "logTimestampShareFloor"));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("floorsMistypedAsNoNumber")
     @Story("A threshold nobody can parse is not a threshold, and the line says so")
-    @DisplayName("A non-numeric repetition floor is reported the same way the relevance one is")
+    @DisplayName("A non-numeric floor is reported as wanting a number, not as answered")
     @Issue("203")
+    @Issue("370")
     @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
-    void aMistypedBoilerplateFloorIsReportedToo() {
+    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
+    void aNonNumericFloorIsReportedAsWantingANumber(Profile mistyped, String key) {
         String line = NextAction.line(
-                theBoilerplateFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
+                mistyped, SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
 
         claim(
-                "the key is named and a number is asked for, exactly as for the other threshold: until"
-                        + " now a mistyped value here ended the invocation outright, which at least made"
-                        + " it impossible to miss -- now that it is ignored instead, saying so is the only"
-                        + " thing standing between ignored and silently dropped",
-                () -> assertThat(line).contains("boilerplateDocumentFrequencyFloor").contains("number"));
+                "the line does not call the path finished: the run read this value, failed to parse it and"
+                        + " applied nothing of it, so telling the operator there is nothing left to do contradicts"
+                        + " the step line above it",
+                () -> assertThat(line).doesNotContain("Nothing is left to set"));
         claim(
-                "and what was typed is quoted back, so the operator is looking at their own mistake"
-                        + " rather than at a description of one",
+                "it names the key and says a number is wanted, which is the whole of the fix: a mistyped value"
+                        + " here used to end the invocation, or stop the tool from starting, which at least made it"
+                        + " impossible to miss -- now that it is ignored instead, saying so is the only thing"
+                        + " standing between ignored and silently dropped",
+                () -> assertThat(line).contains(key).contains("number"));
+        claim(
+                "and quotes back what is written there, so the operator can see the comma or the stray letter"
+                        + " rather than hunting for it",
                 () -> assertThat(line).contains(A_MISTYPED_FLOOR));
         claim(
                 "and the same line does not also call the key answered: the run ignored it, so a sentence"
-                        + " crediting the operator with having set it would contradict the very clause"
-                        + " beside it telling them to go and write one",
-                () -> assertThat(line).doesNotContain("boilerplateDocumentFrequencyFloor is set")
-                        .doesNotContain("boilerplateDocumentFrequencyFloor are set"));
+                        + " crediting the operator with having set it would contradict the very clause beside it"
+                        + " telling them to go and write one",
+                () -> assertThat(line).doesNotContain(key + " is set").doesNotContain(key + " are set"));
+        claim(
+                "and it is still one line",
+                () -> assertThat(line.lines()).hasSize(1));
     }
 
     @Test
@@ -319,52 +327,6 @@ class NextActionTest {
         claim(
                 "it is still one line, because the state of every key has to fit in the sentence a person"
                         + " actually reads",
-                () -> assertThat(line.lines()).hasSize(1));
-    }
-
-    @Test
-    @Story("A threshold nobody can parse is not a threshold, and the line says so")
-    @DisplayName("A non-numeric conversion-quality floor is reported the same way")
-    @Issue("203")
-    @Link(name = "ADR-120", url = Adr.A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE, type = "adr")
-    void aMistypedConfidenceFloorIsReportedToo() {
-        String line = NextAction.line(
-                theConfidenceFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
-
-        claim(
-                "this key is named too, and it is the one where saying nothing would be worst: a"
-                        + " mistyped value here used to stop the tool from starting at all, so an operator"
-                        + " who fixed nothing would now get a run that quietly judged no document on the"
-                        + " quality of its conversion",
-                () -> assertThat(line).contains("degenerateOutputConfidenceFloor").contains("number"));
-        claim(
-                "and their own text is quoted back to them",
-                () -> assertThat(line).contains(A_MISTYPED_FLOOR));
-    }
-
-    /**
-     * ADR-171 §3: an unreadable log floor applies no log rule, and the closing line says so in the words
-     * it uses for the conversion-quality floor.
-     */
-    @Test
-    @Story("A threshold nobody can parse is not a threshold, and the line says so")
-    @DisplayName("A non-numeric log floor is reported the same way")
-    @Issue("370")
-    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
-    void aMistypedLogFloorIsReportedToo() {
-        String line = NextAction.line(
-                theLogFloorMistyped(), SIXTY_ANSWERED, QUESTIONS_WRITTEN, NOTHING_ARRANGED, THE_GENERATION_MODEL, NO_APPROVAL_MATCHES_THIS_INVOCATION);
-
-        claim(
-                "the log floor is named, with the word that says it is not a number, so an operator who"
-                        + " mistyped it learns that no file was left out as a log rather than assuming the"
-                        + " rule ran",
-                () -> assertThat(line).contains("logTimestampShareFloor").contains("number"));
-        claim(
-                "their own text is quoted back to them",
-                () -> assertThat(line).contains(A_MISTYPED_FLOOR));
-        claim(
-                "and it is still one line",
                 () -> assertThat(line.lines()).hasSize(1));
     }
 

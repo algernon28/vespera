@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.ledger.RunId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -23,6 +24,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 
 /**
@@ -220,11 +223,6 @@ class ShingleIndexesInTheSchemaTest {
         String withTheHashIndexBuilt = planOf(THE_GROUPING_PINNED, "a-stage-3-run", A_RUN);
 
         claim(
-                "the count planned below is written with the words that tell the database which index to read"
-                        + " through, placed after the table's name; it is otherwise the same count that"
-                        + " another check plans without those words",
-                () -> assertThat(THE_GROUPING_PINNED).contains("FROM shingle " + THE_PIN + " WHERE run_id = ?"));
-        claim(
                 "with no hash index, the count told to read through the index on the run does, and sorts the"
                         + " rows itself to count them: \"" + withoutTheHashIndex + "\"",
                 () -> assertThat(withoutTheHashIndex)
@@ -339,9 +337,10 @@ class ShingleIndexesInTheSchemaTest {
     @Story("When the index on word-sequence hashes exists")
     @DisplayName("The hash index holds the measurement settings, the hash and the document of one run's rows, and the database keeps the statement it was built with word for word")
     void theHashIndexIsOverTheRowsOfOneRunAndItsStatementIsKeptAsIssued() throws SQLException {
-        try (Statement statement = connection.createStatement()) {
-            statement.executeUpdate(BUILD_BY_HASH);
-        }
+        TheRunsHashIndex.buildFor(
+                new JdbcTemplate(new SingleConnectionDataSource(connection, true)),
+                new RunId(A_RUN),
+                SimilarityStatementProgress.NONE);
 
         claim(
                 "the index holds the measurement settings, the hash and the document, in that order, and not"
@@ -352,12 +351,9 @@ class ShingleIndexesInTheSchemaTest {
                 "it is an index over part of the table's rows",
                 () -> assertThat(partialIndexesOnShingle()).containsExactly(BY_HASH));
         claim(
-                "and the database keeps the statement that built it exactly as it was issued, which is how the"
-                        + " run it was built for is read back",
+                "and the database keeps the statement the redundancy check built it with exactly as it was issued,"
+                        + " the run's id written into it, which is how the run it was built for is read back",
                 () -> assertThat(storedStatementOf(BY_HASH)).isEqualTo(BUILD_BY_HASH));
-        claim(
-                "a statement for another run differs from it, so the two are told apart by comparing them",
-                () -> assertThat(BUILD_ANOTHER_RUNS).isNotEqualTo(BUILD_BY_HASH));
     }
 
     /**
@@ -388,7 +384,8 @@ class ShingleIndexesInTheSchemaTest {
         String distinct = planOf(A_DISTINCT_READ_OF_ONE_OCCURRENCE, ANY, A_RUN, FIVE_WORD_SHINGLES.identity());
 
         claim(
-                "the read as it ships, naming the index on the document, goes through that index: \"" + named
+                "the read naming the index on the document, as every shipped read of one document's word sequences"
+                        + " does, goes through that index: \"" + named
                         + "\"",
                 () -> assertThat(named).contains("shingle_by_occurrence").doesNotContain(BY_HASH));
         claim(

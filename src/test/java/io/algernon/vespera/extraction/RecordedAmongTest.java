@@ -40,8 +40,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>Over 2,500 occurrences, every other one measured under the run asked about and every one measured under
  * an earlier run of the same stage, as the table keeps after a run id moves: an occurrence measured only under
  * the earlier run is not one the run asked about recorded.
- *
- * <p>It names a method ADR-220 adds, so the test tree does not compile until that method exists.
  */
 @Epic("Extraction")
 @Feature("Stage 2 step")

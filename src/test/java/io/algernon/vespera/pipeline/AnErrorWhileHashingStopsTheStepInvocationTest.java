@@ -67,8 +67,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-207", url = Adr.A_FILE_IS_HASHED_THROUGH_A_FIXED_BUFFER, type = "adr")
 class AnErrorWhileHashingStopsTheStepInvocationTest {
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
     /** The file, in the archive or among the seeds, whose hashing raises the error once a test arms it. */
     private static final String RAISES_AN_ERROR_WHEN_HASHED = "raises-an-error-when-hashed.txt";
 
@@ -207,10 +205,9 @@ class AnErrorWhileHashingStopsTheStepInvocationTest {
                         + " seed extraction and nothing before it",
                 () -> assertThat(finishedSteps(root)).contains("extraction"));
         claim(
-                "nothing is recorded about the seeds: no run over them and so no seed recorded as one"
-                        + " whose file would not open. Only a file the file system would not hand over is"
-                        + " recorded that way; an error that is not about the file is not",
-                () -> assertThat(runsOver(seeds)).isEmpty());
+                "no seed is recorded as one whose file would not open. Only a file the file system would not"
+                        + " hand over is recorded that way; an error that is not about the file is not",
+                () -> assertThat(unusableSeedsUnder(seeds)).isEmpty());
         claim(
                 "the line the operator reads says seed extraction failed before it had read the whole"
                         + " seed folder, and carries what the error said",
@@ -237,10 +234,14 @@ class AnErrorWhileHashingStopsTheStepInvocationTest {
                 Walk.canonicalRoot(folder).toString());
     }
 
-    /** The stage of every run over the walk of {@code folder}. */
-    private List<String> runsOver(Path folder) {
+    /**
+     * Every seed under {@code folder} recorded as unusable, as path and reason, under whatever run: the seed
+     * measurement run is minted over the corpus root's walk, so the seed is found through the seed folder's own.
+     */
+    private List<String> unusableSeedsUnder(Path folder) {
         return jdbcTemplate.queryForList(
-                "SELECT r.stage FROM run r JOIN walk w ON w.id = r.walk_id WHERE w.root = ?",
+                "SELECT fo.path || ' -> ' || u.reason FROM unusable_seed u JOIN file_occurrence fo ON fo.id = u.occurrence_id"
+                        + " JOIN walk w ON w.id = fo.walk_id WHERE w.root = ?",
                 String.class,
                 Walk.canonicalRoot(folder).toString());
     }
@@ -256,7 +257,7 @@ class AnErrorWhileHashingStopsTheStepInvocationTest {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
                 .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .build());
     }
 }

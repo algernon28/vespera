@@ -63,12 +63,6 @@ class ArrangementApprovalOverAReusedWalkTest {
     /** The logger every operator-facing line in this application is written through. */
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
 
-    /** A floor of 1.0 opens stage 4's gate, so every stage up to the arrangement runs. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model the scripted embedder answers for, so the embedding gate opens. */
-    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
-
     /** The model the documents are written up with once an arrangement is approved. */
     private static final String GENERATION_MODEL = "a-named-writing-model:8b";
 
@@ -311,8 +305,8 @@ class ArrangementApprovalOverAReusedWalkTest {
     private void everyGateOpenAtTheRelevanceFloor(Path seeds, String floor) {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so the embedding gate is open")
                 .relevanceScoreFloor(floor, "set by this test")
                 .build());
     }
@@ -325,18 +319,12 @@ class ArrangementApprovalOverAReusedWalkTest {
 
     /** Approves {@code arrangement} the way an operator does: its short name, and a model to write with. */
     private void approve(String arrangement) {
-        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
-                .arrangementApproved(shortNameOf(arrangement), "read arrangement.html, set by this test")
-                .generationModel(GENERATION_MODEL, "set by this test")
-                .build());
+        EveryGateOpen.approve(profileStore, shortNameOf(arrangement), GENERATION_MODEL);
     }
 
     /** Approves every arrangement ahead of time, the way an operator who does not read each one does. */
     private void approveAutomatically() {
-        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
-                .arrangementApproved(ArrangementGate.AUTOMATIC, "every arrangement, unread, set by this test")
-                .generationModel(GENERATION_MODEL, "set by this test")
-                .build());
+        EveryGateOpen.approve(profileStore, ArrangementGate.AUTOMATIC, GENERATION_MODEL);
     }
 
     private static String shortNameOf(String arrangement) {

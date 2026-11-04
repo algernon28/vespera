@@ -87,8 +87,8 @@ class TheTranslationsPageStatesTheKeysAsTheRunReadThemInvocationTest {
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor("1.0", "set by this test, so stage 4's gate is open")
-                .embeddingModel("qwen3-embedding:0.6b", "set by this test, so the embedding-model gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
                 .translationSimilarityFloor(NOT_A_NUMBER, "set by this test, so the floor is unreadable")
                 .preferredLanguages(NOT_A_CODE, "set by this test, so the languages are unreadable")
                 .build());

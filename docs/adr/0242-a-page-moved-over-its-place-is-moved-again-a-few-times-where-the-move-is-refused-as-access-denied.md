@@ -56,7 +56,7 @@ The change touches `ledger` (`ReplacingMove`, new), `pipeline` (`ArrangementTask
 | --- | --- |
 | `EveryPageIsMovedIntoPlaceByTheMoveThatTriesAgainTest`, new | that no shipped class but `ReplacingMove` names `ATOMIC_MOVE` |
 | `ledger.AMoveRefusedForAMomentIsTriedAgainTest`, new, three tests | that a move refused twice is made on the third attempt after two waits, the second longer than the first and neither over a second; that one refused every time gives up after five attempts and four waits, together no more than two seconds, throwing the refusal and leaving the page beside its place; and that any other failure is thrown after one attempt and no wait |
-| `synthesis.TreeWhoseIndexIsRefusedForAMomentIsStillPutInPlaceTest`, new | that a tree whose index's move is refused twice is finished, its index and manifest the bytes a write with no refusal gives, and no `.part` file left |
+| `deliverable.TreeWhoseIndexIsRefusedForAMomentIsStillPutInPlaceTest` (#684), new | that a tree whose index's move is refused twice is finished, its index and manifest the bytes a write with no refusal gives, and no `.part` file left |
 | `pipeline.ReviewListRefusedForAMomentIsStillPutInPlaceTest`, new | that a review list whose move is refused twice is put in its place whole, with the line that says where it is and no error line |
 
 **What no test here holds**: Windows. CI's NTFS job runs the suite on NTFS, where each move is made once and none is refused; what a scanner, an indexer or a folder kept in step with a cloud does to a move is known from how `MoveFileEx` reports a file held open, not from a run.

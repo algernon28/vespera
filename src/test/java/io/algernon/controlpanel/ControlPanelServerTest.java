@@ -133,8 +133,12 @@ class ControlPanelServerTest {
                 () -> assertThat(address.getAddress())
                         .isInstanceOf(Inet4Address.class)
                         .isEqualTo(InetAddress.getByAddress(new byte[] {127, 0, 0, 1})));
-        claim("at a port the system picked, so not 0, which asks for one",
-                () -> assertThat(address.getPort()).isBetween(1, 65_535));
+        ControlPanelServer second = ControlPanelServer.start(Map.of());
+        int secondPort = second.address().getPort();
+        second.close();
+        claim("at a port the system picked, not one of its own: a second control panel started beside it listens at"
+                        + " another port",
+                () -> assertThat(secondPort).isNotEqualTo(address.getPort()));
         claim("and the IPv6 loopback ::1, and every address of the machine that is not loopback, accepts no"
                         + " connection on that port",
                 () -> assertThat(others.stream().filter(other -> accepts(other, port)).toList()).isEmpty());

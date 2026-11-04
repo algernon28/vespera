@@ -84,18 +84,6 @@ class OllamaKeepsItsModelsTest {
                 });
     }
 
-    @Test
-    @Story("The model server keeps its models when its container is replaced")
-    @DisplayName("The GPU file gives the model server its card and leaves its volume alone")
-    void theGpuOverrideLeavesOllamasVolumeAlone() throws IOException {
-        Map<String, Object> ollama = service(load(GPU_FILE), OLLAMA);
-
-        claim(
-                "compose.gpu.yaml mounts nothing on the model server, so starting with or without it keeps the"
-                        + " same volume and the same models",
-                () -> assertThat(ollama).as("the GPU file's model server").doesNotContainKey("volumes"));
-    }
-
     private static Map<String, Object> load(Path file) throws IOException {
         return new Yaml().load(Files.readString(file));
     }

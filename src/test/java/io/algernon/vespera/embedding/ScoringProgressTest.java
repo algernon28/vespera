@@ -11,6 +11,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,13 +31,11 @@ import org.springframework.test.context.ActiveProfiles;
  * {@code to...} is called once, with the loop's total, before its first item, and each completion after an
  * item, whatever became of it.
  *
- * <p>No score is written for this fixture, on purpose: an occurrence with no score is absent from the
- * result and is still an item the loop went through, so it is reported. A vector is written for each seed,
+ * <p>One of the three occurrences whose scores are read is scored and the other two are not: an occurrence
+ * with no score is absent from the result and is still an item the loop went through, so it is reported,
+ * and so is the one that is scored. A vector is written for each seed,
  * each seed being given as having one chunk, since a seed with a chunk and no vector stops the read (ADR-231, #496) and is held by {@code
  * ASeedWithNoVectorStopsScoringTest}.
- *
- * <p><b>Part (c) of ADR-192.</b> Does not compile until {@code ScoringProgress} and the two overloads exist;
- * part (c) moves it into {@code src/test}.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -50,6 +49,9 @@ class ScoringProgressTest {
     private static final String MODEL = "qwen3-embedding:0.6b";
     private static final String CHUNKER_IDENTITY = "docling-hybrid-chunker-v1";
     private static final String CHUNKING_RULE_IDENTITY = "words-512-v1";
+
+    /** The score recorded for the one occurrence of three that is scored. */
+    private static final double A_SCORE = 0.5;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -85,17 +87,23 @@ class ScoringProgressTest {
     @Story("Scoring tells its caller how many seeds and scores it will read")
     @DisplayName("Reading the scores of three occurrences is announced once with three, and each is reported, scored or not")
     void announcesTheScoresOnceAndReportsEachOneWhetherOrNotItIsScored() {
+        long walkId = insertWalk();
+        RunId run = insertRun(walkId);
+        OccurrenceId seed = insertOccurrence(walkId, "seeds/exemplar.pdf");
+        OccurrenceId unscoredBefore = insertOccurrence(walkId, "a.txt");
+        OccurrenceId scored = insertOccurrence(walkId, "b.txt");
+        OccurrenceId unscoredAfter = insertOccurrence(walkId, "c.txt");
+        new RelevanceScoreCache(jdbcTemplate).record(scored, run, new RelevanceScore(A_SCORE, seed));
         List<String> events = new ArrayList<>();
 
-        Map<OccurrenceId, Double> scores = scoring().scoresFor(
-                new RunId("no-such-run"),
-                List.of(new OccurrenceId(1), new OccurrenceId(2), new OccurrenceId(3)),
-                recording(events));
+        Map<OccurrenceId, Double> scores =
+                scoring().scoresFor(run, List.of(unscoredBefore, scored, unscoredAfter), recording(events));
 
         claim(
-                "no occurrence is scored under that run, so none is in the result, and all three are reported",
+                "only the middle occurrence is scored under that run, so it alone is in the result, and all"
+                        + " three are reported, the scored one as much as the two that are not",
                 () -> {
-                    assertThat(scores).isEmpty();
+                    assertThat(scores).containsExactly(Map.entry(scored, A_SCORE));
                     assertThat(events).containsExactly("to-read-scores 3", "score-read", "score-read", "score-read");
                 });
     }
@@ -113,6 +121,33 @@ class ScoringProgressTest {
         claim(
                 "each method is reached with an empty set, so each announces zero, once, and reports nothing",
                 () -> assertThat(events).containsExactly("to-read-seeds 0", "to-read-scores 0"));
+    }
+
+    private long insertWalk() {
+        jdbcTemplate.update("INSERT INTO walk (root, finished) VALUES (?, 1)", "C:/scoring-progress");
+        return jdbcTemplate.queryForObject("SELECT id FROM walk ORDER BY id DESC LIMIT 1", Long.class);
+    }
+
+    private RunId insertRun(long walkId) {
+        String runId = "scoring-progress-test-" + System.nanoTime();
+        jdbcTemplate.update(
+                "INSERT INTO run (id, stage, implementation_version, config_consumed, walk_id)"
+                        + " VALUES (?, 'embedding-scoring', 'test', '{}', ?)",
+                runId,
+                walkId);
+        return new RunId(runId);
+    }
+
+    private OccurrenceId insertOccurrence(long walkId, String path) {
+        jdbcTemplate.update(
+                "INSERT INTO file_occurrence (walk_id, path, size_bytes, last_modified, creation_time)"
+                        + " VALUES (?, ?, 1, ?, ?)",
+                walkId,
+                path,
+                Instant.EPOCH.toString(),
+                Instant.EPOCH.toString());
+        return new OccurrenceId(
+                jdbcTemplate.queryForObject("SELECT id FROM file_occurrence ORDER BY id DESC LIMIT 1", Long.class));
     }
 
     private RelevanceScoring scoring() {

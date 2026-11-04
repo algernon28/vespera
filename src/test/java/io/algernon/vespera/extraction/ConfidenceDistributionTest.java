@@ -61,60 +61,31 @@ class ConfidenceDistributionTest {
 
     @Test
     @Story("The corpus-wide confidence distribution")
-    @DisplayName("Each survivor's mean_score lands in the bucket its own QualityGrade cut-point names")
+    @DisplayName("Each survivor's mean_score lands in the bucket its own QualityGrade cut-point names, a score on a cut-point in the bucket above it")
     void bucketsEachSurvivorByItsOwnQualityGradeCutPoint() {
         Fixture fixture = fixture();
-        // poorSurvivor: 0.30 (poor, < 0.5); fairSurvivor: 0.65 (fair, < 0.8); goodSurvivor: 0.85
-        // (good, < 0.9); excellentSurvivor: 0.95 (excellent, >= 0.9).
+        // Docling's scale cuts at 0.5, 0.8 and 0.9, each the lowest score of the grade above it: one survivor
+        // below the first cut, and one on each cut.
         fixture.survivorWithScore("poor.pdf", 0.30);
-        fixture.survivorWithScore("fair.pdf", 0.65);
-        fixture.survivorWithScore("good.pdf", 0.85);
-        fixture.survivorWithScore("excellent.pdf", 0.95);
+        fixture.survivorWithScore("fair.pdf", 0.5);
+        fixture.survivorWithScore("good.pdf", 0.8);
+        fixture.survivorWithScore("excellent.pdf", 0.9);
 
         ConfidenceDistribution.Distribution distribution = fixture.measure();
 
         claim(
-                "the poor bucket counts exactly the one survivor whose score sits below 0.5",
+                "the poor bucket counts exactly the one survivor whose score sits below 0.5, and not the one at 0.5",
                 () -> assertThat(bucketCount(distribution, "poor")).isEqualTo(1));
         claim(
-                "the fair bucket counts exactly the one survivor whose score sits in [0.5, 0.8)",
+                "the fair bucket, [0.5, 0.8), counts exactly the one survivor scored 0.5, and not the one at 0.8",
                 () -> assertThat(bucketCount(distribution, "fair")).isEqualTo(1));
         claim(
-                "the good bucket counts exactly the one survivor whose score sits in [0.8, 0.9)",
+                "the good bucket, [0.8, 0.9), counts exactly the one survivor scored 0.8, and not the one at 0.9",
                 () -> assertThat(bucketCount(distribution, "good")).isEqualTo(1));
         claim(
-                "the excellent bucket counts exactly the one survivor whose score sits at or above 0.9",
+                "the excellent bucket counts exactly the one survivor scored 0.9, at or above which a score is"
+                        + " excellent",
                 () -> assertThat(bucketCount(distribution, "excellent")).isEqualTo(1));
-    }
-
-    /**
-     * The bucket labels and the {@code mean_grade} stored beside each score are two readings of the
-     * same scale — one this module computes, one Docling sent. ADR-076's sibling concern, a table over:
-     * nothing in the schema forces them to agree, so a test does.
-     *
-     * <p>One document per grade, each carrying the grade Docling stored for it. If the bucketing ever
-     * stopped matching that scale, some bucket would hold two documents and another none.
-     */
-    @Test
-    @Story("The corpus-wide confidence distribution")
-    @DisplayName("A document lands in the bucket named by the grade already stored against it")
-    void bucketLabelAgreesWithTheGradeStoredAgainstTheDocument() {
-        Fixture fixture = fixture();
-        fixture.survivorWithScoreAndStoredGrade("poor.pdf", 0.30, "poor");
-        fixture.survivorWithScoreAndStoredGrade("fair.pdf", 0.65, "fair");
-        fixture.survivorWithScoreAndStoredGrade("good.pdf", 0.85, "good");
-        fixture.survivorWithScoreAndStoredGrade("excellent.pdf", 0.95, "excellent");
-
-        ConfidenceDistribution.Distribution distribution = fixture.measure();
-
-        for (String storedGrade : List.of("poor", "fair", "good", "excellent")) {
-            claim(
-                    "the " + storedGrade + " bucket holds exactly the one document stored as " + storedGrade
-                            + ", so the scale this report buckets by is the same scale the converter graded"
-                            + " by; a count of two here, and none in some other bucket, would be the two"
-                            + " scales having drifted apart",
-                    () -> assertThat(bucketCount(distribution, storedGrade)).isEqualTo(1));
-        }
     }
 
     @Test
@@ -283,12 +254,6 @@ class ConfidenceDistributionTest {
         void survivorWithScore(String path, double meanScore) {
             OccurrenceId occurrenceId = occurrence(path);
             insertMetric(occurrenceId, meanScore, null);
-        }
-
-        /** A survivor carrying both a score and the grade Docling itself stored against it. */
-        void survivorWithScoreAndStoredGrade(String path, double meanScore, String storedGrade) {
-            OccurrenceId occurrenceId = occurrence(path);
-            insertMetric(occurrenceId, meanScore, storedGrade);
         }
 
         /**

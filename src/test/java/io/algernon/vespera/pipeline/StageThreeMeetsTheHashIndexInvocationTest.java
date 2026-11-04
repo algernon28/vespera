@@ -9,6 +9,7 @@ import io.algernon.vespera.extraction.ConverterStopsPartwayBeans;
 import io.algernon.vespera.ledger.SuccessiveBuildsBeans;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
+import io.algernon.vespera.similarity.TheRunsHashIndex;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -294,11 +295,13 @@ class StageThreeMeetsTheHashIndexInvocationTest {
 
         openStageFoursGate();
         cli.run("run", finished.toString());
+        String finishedExtraction = onlyRunOf(finished, StageModules.EXTRACTION);
 
         claim(
                 "the first folder, invoked again with the redundancy check opened, ends with the hash index"
-                        + " built over every word sequence the database holds, the second folder's included",
-                () -> assertThat(indexExists()).isTrue());
+                        + " built over the word sequences of its own extraction alone, not the second folder's",
+                () -> assertThat(TheRunsHashIndex.statementInTheDatabase(jdbcTemplate))
+                        .contains(TheRunsHashIndex.statementFor(finishedExtraction)));
 
         jdbcTemplate.update("DELETE FROM hash_index_as_the_grouping_found_it");
         ConverterStopsPartwayBeans.keepAnswering();
@@ -323,9 +326,9 @@ class StageThreeMeetsTheHashIndexInvocationTest {
                 "and every row it wrote was written with the hash index in the database",
                 () -> assertThat(howTheGroupingFoundTheIndexUnder(stoppedCensus)).containsExactly(PRESENT));
         claim(
-                "and with the hash index there the database still plans that count through the index by run,"
-                        + " which the count names, and sorts the rows itself to count them, as it does where"
-                        + " there is no hash index",
+                "and with the hash index there, the count as written out here, naming the index by run, is"
+                        + " planned through that index and sorts the rows itself to count them: the hash index in"
+                        + " the database does not change the plan of a count that names its index",
                 () -> assertThat(planOfTheGroupingOver(stoppedExtraction))
                         .contains("USING INDEX " + BY_RUN_ID)
                         .contains("FOR GROUP BY")

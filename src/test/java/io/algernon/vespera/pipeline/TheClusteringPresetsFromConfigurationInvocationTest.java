@@ -56,11 +56,7 @@ class TheClusteringPresetsFromConfigurationInvocationTest {
     /** The one member ending it where the profile's resolution is the shipped one, in place of the configured one. */
     private static final String THE_NEIGHBOURS_ALONE = ",\"clusterNeighbours\":" + CONFIGURED_NEIGHBOURS + "}";
 
-    /** Above every measured document frequency here, so stage 4's gate is open. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
-    /** The model the scripted embedder answers for. */
-    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 
     @TempDir
     static Path workingDirectory;
@@ -149,8 +145,8 @@ class TheClusteringPresetsFromConfigurationInvocationTest {
     private void everyGateOpen() {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
                 .build());
     }
 

@@ -20,9 +20,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * When a run stops rather than continues (ADR-071's consecutive-service-scope-failure breaker): a
- * converter that has set aside a run of documents in a row is read as broken, and the run stops with
- * a cause rather than finishing having examined nothing.
+ * When a run stops rather than continues (ADR-071's consecutive-service-scope-failure breaker, as ADR-184
+ * changed it): a converter that has set aside a run of documents in a row is sent the control conversion,
+ * and is read as broken only if that does not convert; the run then stops with a cause rather than
+ * finishing having examined nothing. The breaker here is built with no converter to send the control
+ * conversion to ({@code ControlConversion.never()}), so a streak that is reached stops: what a converted
+ * control conversion earns is {@code ControlConversionInvocationTest}'s question.
  *
  * <p>Consecutive, not cumulative, is the whole of what this class defends. Spring Batch's own
  * {@code skipLimit} counts every skip over the life of a step, which a long run with sparse harmless
@@ -39,11 +42,13 @@ import org.junit.jupiter.api.Test;
 @Feature("Stage 2 step")
 @Issue("47")
 @Link(name = "ADR-071", url = Adr.DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL, type = "adr")
+@Link(name = "ADR-184", url = Adr.FIVE_FAILURES_IN_A_ROW_STOP_STAGE_2_ONLY_AFTER_A_FAILED_CONTROL_CONVERSION, type = "adr")
 class ExtractionCircuitBreakerTest {
 
     /**
-     * How many documents set aside in a row read as a broken converter (ADR-071), read off the
-     * counter rather than repeated, so this class cannot disagree with the rule it is claiming.
+     * How many documents set aside in a row send the control conversion, and so stop a run whose control
+     * conversion fails (ADR-071, ADR-184), read off the counter rather than repeated, so this class cannot
+     * disagree with the rule it is claiming.
      */
     private static final int SET_ASIDE_IN_A_ROW_THAT_STOPS_THE_RUN =
             FailuresInARow.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT;
@@ -75,7 +80,7 @@ class ExtractionCircuitBreakerTest {
 
     @Test
     @Story("When a run stops instead of continuing")
-    @DisplayName("A converter that has set aside document after document is read as broken, and the run stops")
+    @DisplayName("A converter that has set aside document after document, and then fails the control conversion, is read as broken, and the run stops")
     void stopsTheRunOnceEnoughDocumentsAreSetAsideInARow() {
         ExtractionCircuitBreaker breaker = new ExtractionCircuitBreaker();
 
@@ -87,7 +92,8 @@ class ExtractionCircuitBreakerTest {
                         .doesNotThrowAnyException());
         claim(
                 "the next one -- " + SET_ASIDE_IN_A_ROW_THAT_STOPS_THE_RUN + " in a row, each for a different"
-                        + " reason than the last -- stops the run, because a run that completes having"
+                        + " reason than the last -- sends the control conversion, which this breaker has no"
+                        + " converter to convert, and so stops the run, because a run that completes having"
                         + " examined nothing reports success and looks exactly like one that worked",
                 () -> assertThatThrownBy(() -> setAside(breaker, 1))
                         .isInstanceOf(ExtractorStoppedAnsweringException.class));

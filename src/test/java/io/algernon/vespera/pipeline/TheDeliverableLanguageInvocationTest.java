@@ -8,7 +8,6 @@ import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.deliverable.Deliverable;
 import io.algernon.vespera.deliverable.ItalianWordingOnRecord;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -45,11 +44,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
 class TheDeliverableLanguageInvocationTest {
 
-    /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
-    /** The embedding model this fixture names, so gate 3 and everything behind it open. */
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** What the profile says for an Italian deliverable. */
     private static final String ITALIAN = "it";
@@ -182,13 +177,7 @@ class TheDeliverableLanguageInvocationTest {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(root.resolve("another-corpus-document.txt"), "a second corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
         profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .arrangementApproved(ArrangementGate.shortNameOf(theLatestArrangement(root)), "read by this test")
@@ -209,12 +198,7 @@ class TheDeliverableLanguageInvocationTest {
 
     /** The arrangement the most recent invocation over {@code root} recorded. */
     private RunId theLatestArrangement(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
+        return new RunsOver(jdbcTemplate, root).latest("arrangement");
     }
 
     /** Every generation run over {@code root}, oldest first, scoped to its walk as {@link GenerationInvocationTest} scopes it. */

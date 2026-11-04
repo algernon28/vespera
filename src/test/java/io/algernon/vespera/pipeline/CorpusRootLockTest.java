@@ -50,6 +50,15 @@ class CorpusRootLockTest {
     /** The arguments the invocation in these tests was started with, as the holder line records them. */
     private static final String[] ARGUMENTS = {"run", "archive-root"};
 
+    /** Arguments holding a line break, and a Windows one, as an argument pasted from a file might. */
+    private static final String[] ARGUMENTS_WITH_LINE_BREAKS = {"run", "archive\nroot", "label\r\nfile"};
+
+    /** Those arguments as the holder line records them: each line break one space. */
+    private static final String COMMAND_WITH_LINE_BREAKS_AS_SPACES = "run archive root label file";
+
+    /** The nanoseconds of a time written to the whole second. */
+    private static final int NO_FRACTION_OF_A_SECOND = 0;
+
     /** ADR-177's three fields, then the key and the working directory. */
     private static final Pattern HOLDER_LINE =
             Pattern.compile("pid=(\\d+) started=(\\S+) command=(.*) root=(.*) working-directory=(.*)");
@@ -123,6 +132,51 @@ class CorpusRootLockTest {
                 () -> assertThat(holder.group(5)).isEqualTo(workingDirectory.toAbsolutePath().toString()));
     }
 
+    /**
+     * ADR-279 §4: line breaks in the arguments become spaces, so the holder line stays one line whatever the
+     * invocation was started with. A Windows line break is one break, and becomes one space.
+     */
+    @Test
+    @Story("An invocation holds its corpus root until it ends")
+    @DisplayName("Line breaks in the command become spaces, so the holder line stays one line")
+    void lineBreaksInTheCommandBecomeSpaces(@TempDir Path temporary) throws IOException {
+        Path folder = temporary.resolve("locks");
+        Path root = Files.createDirectories(temporary.resolve("corpus"));
+        Path workingDirectory = Files.createDirectories(temporary.resolve("working-directory"));
+
+        new CorpusRootLock(folder).take(root, workingDirectory, ARGUMENTS_WITH_LINE_BREAKS);
+
+        List<String> lines = Files.readAllLines(
+                folder.resolve(CorpusRootLock.fileName(CorpusRootLock.key(root))), StandardCharsets.UTF_8);
+        claim("the file holds exactly one line, though the arguments held two line breaks",
+                () -> assertThat(lines).hasSize(1));
+        Matcher holder = HOLDER_LINE.matcher(lines.getFirst());
+        claim("of the holder line's shape", () -> assertThat(holder.matches()).isTrue());
+        claim("its command the arguments joined by spaces, each line break, a Windows one of two characters"
+                        + " included, written as one space",
+                () -> assertThat(holder.group(3)).isEqualTo(COMMAND_WITH_LINE_BREAKS_AS_SPACES));
+    }
+
+    /**
+     * ADR-279 §4: the holder line gives the start "to the second", as ADR-177's does, so it carries no fraction
+     * of a second. A clock finer than a second would leave one there almost always.
+     */
+    @Test
+    @Story("An invocation holds its corpus root until it ends")
+    @DisplayName("The holder's start time is written to the whole second, with no fraction")
+    void theStartIsWrittenToTheSecond(@TempDir Path temporary) throws IOException {
+        Path folder = temporary.resolve("locks");
+        Path root = Files.createDirectories(temporary.resolve("corpus"));
+
+        new CorpusRootLock(folder).take(root, Files.createDirectories(temporary.resolve("working-directory")), ARGUMENTS);
+
+        Matcher holder = HOLDER_LINE.matcher(holderLine(folder, root));
+        claim("the holder line has its shape", () -> assertThat(holder.matches()).isTrue());
+        OffsetDateTime started = OffsetDateTime.parse(holder.group(2));
+        claim("and its start time has no part of a second below the whole second",
+                () -> assertThat(started.getNano()).isEqualTo(NO_FRACTION_OF_A_SECOND));
+    }
+
     @Test
     @Story("The lock's file lies outside every working directory")
     @DisplayName("The folder holds only files named by the rule, never vespera.lock or vespera.db")
@@ -135,10 +189,9 @@ class CorpusRootLockTest {
 
         List<String> names = names(folder);
         claim("two roots taken leave two files in the folder", () -> assertThat(names).hasSize(2));
-        claim("each named by sixteen hexadecimal digits and .lock",
+        claim("each named by sixteen hexadecimal digits and .lock, so the folder holds neither file the agent"
+                        + " guard knows a working directory by",
                 () -> assertThat(names).allMatch(name -> name.matches(FILE_NAME_SHAPE)));
-        claim("so the folder holds neither file the agent guard knows a working directory by",
-                () -> assertThat(names).doesNotContain(WorkingDirectoryLock.FILE_NAME, "vespera.db"));
     }
 
     @Test

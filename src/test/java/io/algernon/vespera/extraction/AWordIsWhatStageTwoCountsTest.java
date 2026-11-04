@@ -57,7 +57,11 @@ class AWordIsWhatStageTwoCountsTest {
             + "{\"text\":\"Quarterly report 2026\",\"label\":\"page_header\"},"
             + "{\"text\":\"OK\",\"label\":\"text\"}]}}}";
 
-    /** The words of {@link #TWO_WORDS_OF_CYRILLIC}. */
+    /** Two words of one character each, "I" and "a". */
+    private static final String TWO_ONE_CHARACTER_WORDS = "{\"document\":{\"json_content\":{\"texts\":["
+            + "{\"text\":\"I a\",\"label\":\"text\"}]}}}";
+
+    /** The words of {@link #TWO_WORDS_OF_CYRILLIC}, and of {@link #TWO_ONE_CHARACTER_WORDS}. */
     private static final long TWO_WORDS = 2;
 
     /** The three words of the page header and the one of the body of {@link #ONE_WORD_UNDER_A_PAGE_HEADER}. */
@@ -125,6 +129,33 @@ class AWordIsWhatStageTwoCountsTest {
         claim(
                 "the stored count is every item's words, the page header's included: " + FOUR_WORDS,
                 () -> assertThat(storedWords(occurrence, run)).isEqualTo(FOUR_WORDS));
+        claim(
+                "and the floor reads that count, so the conversion clears a floor of " + A_WORD_FLOOR_OF_TWO,
+                () -> assertThat(verdict).isEqualTo(DegeneracyVerdict.notDegenerate()));
+    }
+
+    @Test
+    @Story("A word is what stage 2 counts")
+    @DisplayName("Two words of one character each are two words, and clear a word floor of two")
+    void oneCharacterWordsAreWords() {
+        OccurrenceId occurrence = anOccurrence("one-character-words.txt");
+        RunId run = aRun("one-character-words");
+
+        DegeneracyVerdict verdict = metrics()
+                .writeAndJudge(occurrence, run, converted(TWO_ONE_CHARACTER_WORDS), null, A_WORD_FLOOR_OF_TWO);
+
+        claim(
+                "the measurement counts both as one-character words, so words net of that count would be none",
+                () -> assertThat(jdbcTemplate.queryForObject(
+                                "SELECT single_character_word_count FROM extraction_metric"
+                                        + " WHERE occurrence_id = ? AND run_id = ?",
+                                Long.class,
+                                occurrence.value(),
+                                run.value()))
+                        .isEqualTo(TWO_WORDS));
+        claim(
+                "the stored count holds both: " + TWO_WORDS + " words",
+                () -> assertThat(storedWords(occurrence, run)).isEqualTo(TWO_WORDS));
         claim(
                 "and the floor reads that count, so the conversion clears a floor of " + A_WORD_FLOOR_OF_TWO,
                 () -> assertThat(verdict).isEqualTo(DegeneracyVerdict.notDegenerate()));

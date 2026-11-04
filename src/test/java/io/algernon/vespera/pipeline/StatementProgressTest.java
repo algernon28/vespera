@@ -12,9 +12,9 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,8 +33,8 @@ import org.slf4j.LoggerFactory;
  * <p>Each test hands the class the steps SQLite's handler would report, a hundred thousand at a time, and
  * reads what it logged. Rows are {@code ⌊steps ÷ r⌋}, capped at N; a line falls when they have gone at
  * least ADR-192 section 8's interval over N beyond the last line; a build's line that its rows are gone
- * through falls at the first report within {@code ⌈100,000 ÷ r⌉} rows of N, and nothing after it.
- * {@link #expected} restates that rule rather than reading it off the class.
+ * through falls at the first report within {@code ⌈100,000 ÷ r⌉} rows of N, and nothing after it. The
+ * expected lines are written out from that rule worked by hand, not worked out by a copy of it (#681).
  */
 @Epic("Pipeline")
 @Feature("Progress reporting")
@@ -57,6 +57,15 @@ class StatementProgressTest {
 
     /** The shingle rows stage 4b's line stated on 2026-10-04: the largest build on record. */
     private static final long THE_ARCHIVES_BUILD = 42_833_917L;
+
+    /** Reports of a hundred thousand steps enough for every row of {@link #THE_ARCHIVES_BUILD} at 11 steps a row. */
+    private static final int REPORTS_OVER_THE_ARCHIVES_BUILD = 4_712;
+
+    /**
+     * The share no line of the archive's build states: its lines fall 436,363 rows apart, a little over one
+     * percent of 42,833,917, and by the fifty-third line the drift has passed a whole percent.
+     */
+    private static final int THE_SHARE_A_LINE_PAST_ONE_PERCENT_SKIPS = 54;
 
     /** A small table, over which every report writes a line. */
     private static final long SIXTY_THOUSAND = 60_000L;
@@ -120,23 +129,19 @@ class StatementProgressTest {
     @DisplayName("The build of 2026-10-04 would write no more than a hundred lines, the last saying its rows are gone through")
     void theArchivesBuildWritesAtMostAHundredLines() {
         StatementProgress progress = StatementProgress.ofBuild(BUILD, THE_ARCHIVES_BUILD, BUILD_STEPS_PER_ROW);
-        int reports = (int) (THE_ARCHIVES_BUILD * BUILD_STEPS_PER_ROW / STEPS_PER_CALLBACK) + 1;
-        report(progress, reports);
-        List<String> lines = lines();
+        report(progress, REPORTS_OVER_THE_ARCHIVES_BUILD);
 
         claim(
-                "over " + reports + " reports it writes exactly the lines the rule gives",
-                () -> assertThat(lines).containsExactlyElementsOf(
-                        expected(BUILD, THE_ARCHIVES_BUILD, BUILD_STEPS_PER_ROW, true, reports)));
-        claim(
-                "no more than " + AT_MOST_A_HUNDRED_LINES + " of them",
-                () -> assertThat(lines).hasSizeLessThanOrEqualTo(AT_MOST_A_HUNDRED_LINES));
-        claim(
-                "and the last says the rows are gone through, the only line that does",
-                () -> {
-                    assertThat(lines.getLast()).isEqualTo(BUILD + ": all 42,833,917" + GONE_THROUGH);
-                    assertThat(lines.stream().filter(line -> line.endsWith(GONE_THROUGH))).hasSize(1);
-                });
+                "over 4,712 reports, enough steps at 11 a row for every row, it writes 99 lines: a line every 48th"
+                        + " report, 436,363 rows, the first past the 428,340 a line needs over 42,833,917, so the"
+                        + " shares run from 1 to 99 percent with 54 skipped, and the last line, the only one of its"
+                        + " kind, says the rows are gone through",
+                () -> assertThat(lines()).containsExactlyElementsOf(Stream.concat(
+                                IntStream.rangeClosed(1, AT_MOST_A_HUNDRED_LINES - 1)
+                                        .filter(share -> share != THE_SHARE_A_LINE_PAST_ONE_PERCENT_SKIPS)
+                                        .mapToObj(share -> BUILD + ": about " + share + "% of 42,833,917 rows"),
+                                Stream.of(BUILD + ": all 42,833,917" + GONE_THROUGH))
+                        .toList()));
     }
 
     @Test
@@ -190,32 +195,5 @@ class StatementProgressTest {
 
     private List<String> lines() {
         return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
-    }
-
-    /** ADR-193 sections 4 and 5, restated: what {@code reports} reports of a statement over {@code total}. */
-    private static List<String> expected(String label, long total, int stepsPerRow, boolean build, int reports) {
-        List<String> lines = new ArrayList<>();
-        if (total == 0) {
-            return lines;
-        }
-        long interval = ProgressLines.intervalOver(total);
-        long withinOneReport = total - (STEPS_PER_CALLBACK + stepsPerRow - 1) / stepsPerRow;
-        long reportedAt = 0;
-        for (long report = 1; report <= reports; report++) {
-            long rows = Math.min(total, report * STEPS_PER_CALLBACK / stepsPerRow);
-            if (build && rows >= withinOneReport) {
-                lines.add(label + ": all " + grouped(total) + GONE_THROUGH);
-                return lines;
-            }
-            if (rows - reportedAt >= interval) {
-                lines.add(label + ": about " + rows * 100 / total + "% of " + grouped(total) + " rows");
-                reportedAt = rows;
-            }
-        }
-        return lines;
-    }
-
-    private static String grouped(long value) {
-        return String.format(Locale.ROOT, "%,d", value);
     }
 }

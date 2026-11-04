@@ -6,9 +6,11 @@ import static io.algernon.vespera.deliverable.ListedTree.slotOf;
 import static io.algernon.vespera.deliverable.ListedTree.survivor;
 import static io.algernon.vespera.deliverable.ListedTree.writing;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
+import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.synthesis.ClusterSlot;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
@@ -21,6 +23,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -51,6 +54,12 @@ class TheClusterPageSizesReportTest {
 
     /** The report's name, in the working directory beside the other reports. */
     private static final String THE_REPORT = "cluster-page-sizes.html";
+
+    /** The tree's index, which is put in place before the report. */
+    private static final String THE_INDEX = "index.html";
+
+    /** What a file is called while it is written beside its place. */
+    private static final String WHILE_IT_IS_WRITTEN = ".part";
 
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
 
@@ -149,6 +158,9 @@ class TheClusterPageSizesReportTest {
         Path tree = drawTheFixture(base.resolve("split"), new ClusterPageCeiling.Bytes(A_CEILING));
         List<Drawn> drawn = withThePagesOf(whole, drawnIn(tree));
         String report = Files.readString(base.resolve("split").resolve("work").resolve(THE_REPORT), StandardCharsets.UTF_8);
+        List<Row> rowsWithNoCeiling = labelledRowsOf(
+                Files.readString(base.resolve("whole").resolve("work").resolve(THE_REPORT), StandardCharsets.UTF_8));
+        List<Row> sizeRowsWithNoCeiling = rowsWithNoCeiling.subList(1, rowsWithNoCeiling.size());
         long pagesWritten = everyPageOf(tree).size();
         long pagesLarger = everyPageOf(tree).stream().filter(page -> sizeOf(page) > A_CEILING).count();
         long largestClustersPages = drawn.stream().mapToLong(Drawn::pages).max().orElseThrow();
@@ -161,14 +173,15 @@ class TheClusterPageSizesReportTest {
         claim(
                 "the report states the ceiling, the sizes the groups' pages take written whole, the same as with no"
                         + " ceiling, and then the groups it split, the pages written in all and those larger than it",
-                () -> assertThat(labelledRowsOf(report)).containsSubsequence(
-                        new Row("clusterPageByteCeiling", String.valueOf(A_CEILING)),
-                        new Row("Groups", String.valueOf(EVERY_CLUSTER)),
-                        new Row("Largest, in bytes", String.valueOf(
-                                whole.stream().mapToLong(Drawn::onePageSize).max().orElseThrow())),
-                        new Row("Groups split", "1"),
-                        new Row("Pages written", String.valueOf(pagesWritten)),
-                        new Row("Pages larger than the ceiling", String.valueOf(pagesLarger))));
+                () -> {
+                    List<Row> expected = new ArrayList<>();
+                    expected.add(new Row("clusterPageByteCeiling", String.valueOf(A_CEILING)));
+                    expected.addAll(sizeRowsWithNoCeiling);
+                    expected.add(new Row("Groups split", "1"));
+                    expected.add(new Row("Pages written", String.valueOf(pagesWritten)));
+                    expected.add(new Row("Pages larger than the ceiling", String.valueOf(pagesLarger)));
+                    assertThat(labelledRowsOf(report)).containsExactlyElementsOf(expected);
+                });
         claim(
                 "the largest ranks first with the " + largestClustersPages + " pages it was written as, and every other of"
                         + " the ten with one",
@@ -198,8 +211,8 @@ class TheClusterPageSizesReportTest {
 
     @Test
     @Story("Every drawing reports how large the groups' pages are")
-    @DisplayName("A ceiling that is ignored is stated as ignored, its text not quoted, and nothing is said of splitting")
-    void anIgnoredCeilingIsStatedAsIgnoredAndNotQuoted(@TempDir Path base) throws IOException {
+    @DisplayName("A ceiling that is ignored is stated as ignored, and nothing is said of splitting")
+    void anIgnoredCeilingIsStatedAsIgnored(@TempDir Path base) throws IOException {
         drawTheFixture(base, new ClusterPageCeiling.Ignored());
         String report = Files.readString(base.resolve("work").resolve(THE_REPORT), StandardCharsets.UTF_8);
 
@@ -237,6 +250,122 @@ class TheClusterPageSizesReportTest {
         claim(
                 "and no row of the largest",
                 () -> assertThat(rankedRowsOf(report)).isEmpty());
+    }
+
+    /**
+     * The report is written beside its place and moved there by the drawing's own move, after the tree's index (ADR-303
+     * §8, ADR-286 §3): a report written straight to its name could be read half written.
+     */
+    @Test
+    @Story("Every drawing reports how large the groups' pages are")
+    @DisplayName("The report is written beside its place and moved there after the tree's index, and nothing is left beside it")
+    void theReportIsMovedIntoPlaceAfterTheIndex(@TempDir Path base) throws IOException {
+        Path work = base.resolve("work");
+        List<String> movedInto = new ArrayList<>();
+        ReplacingMove recording = new ReplacingMove(
+                (from, to) -> {
+                    if (to.equals(work.resolve(THE_REPORT)) || to.equals(treeUnder(base).resolve(THE_INDEX))) {
+                        movedInto.add(from.getFileName() + " to " + to.getFileName());
+                    }
+                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                },
+                millis -> {});
+
+        drawASmallTree(base, recording);
+
+        claim(
+                "the tree's index is moved into place first, then the report from the name it was written under, its"
+                        + " own name with .part after it",
+                () -> assertThat(movedInto).containsExactly(
+                        THE_INDEX + WHILE_IT_IS_WRITTEN + " to " + THE_INDEX,
+                        THE_REPORT + WHILE_IT_IS_WRITTEN + " to " + THE_REPORT));
+        claim(
+                "the report stands in the working directory, and nothing is left under the name it was written under",
+                () -> {
+                    assertThat(work.resolve(THE_REPORT)).isRegularFile();
+                    assertThat(work.resolve(THE_REPORT + WHILE_IT_IS_WRITTEN)).doesNotExist();
+                });
+    }
+
+    /**
+     * A report that cannot be put in place fails nothing, and its {@code .part} is removed (ADR-303 §8): the tree is
+     * already in place, and the report is the operator's evidence, not part of it.
+     */
+    @Test
+    @Story("Every drawing reports how large the groups' pages are")
+    @DisplayName("A report whose move is refused fails nothing: the tree is drawn, no report stands, and nothing is left beside its place")
+    void aReportThatCannotBeMovedFailsNothingAndLeavesNoPart(@TempDir Path base) {
+        Path work = base.resolve("work");
+        ReplacingMove refusingTheReport = new ReplacingMove(
+                (from, to) -> {
+                    if (to.equals(work.resolve(THE_REPORT))) {
+                        throw new IOException("the report's place refuses it");
+                    }
+                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                },
+                millis -> {});
+
+        Throwable thrown = catchThrowable(() -> drawASmallTree(base, refusingTheReport));
+        Path tree = treeUnder(base);
+
+        claim(
+                "the drawing throws nothing",
+                () -> assertThat(thrown).isNull());
+        claim(
+                "the tree's index is in place",
+                () -> assertThat(tree.resolve(THE_INDEX)).isRegularFile());
+        claim(
+                "no report stands in the working directory, and no file is left under the name it was written under",
+                () -> {
+                    assertThat(work.resolve(THE_REPORT)).doesNotExist();
+                    assertThat(work.resolve(THE_REPORT + WHILE_IT_IS_WRITTEN)).doesNotExist();
+                });
+    }
+
+    /**
+     * A drawing that fails writes no report (ADR-303 §8): the report states the tree the operator is handed, and a
+     * drawing that fails hands none.
+     */
+    @Test
+    @Story("Every drawing reports how large the groups' pages are")
+    @DisplayName("A drawing that fails writes no report, nor anything beside its place")
+    void aDrawingThatFailsWritesNoReport(@TempDir Path base) {
+        Path work = base.resolve("work");
+        ReplacingMove refusingTheIndex = new ReplacingMove(
+                (from, to) -> {
+                    if (to.equals(treeUnder(base).resolve(THE_INDEX))) {
+                        throw new IOException("the index's place refuses it");
+                    }
+                    Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                },
+                millis -> {});
+
+        Throwable thrown = catchThrowable(() -> drawASmallTree(base, refusingTheIndex));
+
+        claim(
+                "the drawing fails, its index refused",
+                () -> assertThat(thrown).isInstanceOf(java.io.UncheckedIOException.class));
+        claim(
+                "and no report stands in the working directory, nor a file under the name it is written under",
+                () -> {
+                    assertThat(work.resolve(THE_REPORT)).doesNotExist();
+                    assertThat(work.resolve(THE_REPORT + WHILE_IT_IS_WRITTEN)).doesNotExist();
+                });
+    }
+
+    /** Where {@link #drawASmallTree} draws its tree under {@code base}. */
+    private static Path treeUnder(Path base) {
+        return DeliverableRoot.UNNAMED.treeOf(base.resolve("work"), ListedTree.provenance(base.resolve("archive")).runId());
+    }
+
+    /** One group of two short documents, written over, drawn under {@code base} with no ceiling, put in place by {@code moves}. */
+    private static Path drawASmallTree(Path base, ReplacingMove moves) {
+        RecordedCluster small = cluster(THE_SEED, 0, "Alarm panel", 1, 2);
+        long[] next = {1_000};
+        return ListedTree.writeWithCeiling(
+                base.resolve("work"), base.resolve("archive"), List.of(small),
+                Map.of(slotOf(small), writing("Alarm panel", "Panels [1] and bells [2].", 1_000, 1_001)),
+                members(0, 2, false, next), Map.of(), new ClusterPageCeiling.Unset(), DeliverableProgress.NONE, moves);
     }
 
     /**

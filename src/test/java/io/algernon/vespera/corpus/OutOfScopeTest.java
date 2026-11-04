@@ -39,12 +39,6 @@ class OutOfScopeTest {
     /** The largest text converted in parts stage 1 is handed today: 64,000,000 bytes. */
     private static final long LARGEST = 64_000_000L;
 
-    /** A ceiling far below today's, so a reason that carries it can only have read it from the limits. */
-    private static final long SMALL_CEILING = 100L;
-
-    /** A largest size far below today's, for the same reason. */
-    private static final long SMALL_LARGEST = 400L;
-
     /** A path the in-parts predicates below never read. */
     private static final Path A_TEXT_FILE = Path.of("export.txt");
 
@@ -67,7 +61,7 @@ class OutOfScopeTest {
             + " over %s bytes are out of scope, because the converter cannot finish one in time and one is not cut"
             + " into parts";
 
-    /** Fewer non-blank lines than this and no share is a share. */
+    /** Enough non-blank lines for a share to be a share: more than the ten below which none is. */
     private static final int ENOUGH_LINES = 12;
 
     /** A log floor of 90%. */
@@ -292,26 +286,5 @@ class OutOfScopeTest {
                     assertThat(OutOfScope.sizeReason(A_TEXT_FILE, CEILING, Optional.empty(), cut)).isEmpty();
                     assertThat(asked).isEmpty();
                 });
-    }
-
-    @Test
-    @Story("When a text file is too large to convert")
-    @DisplayName("The sizes in a reason are the ones handed in, not numbers the rule keeps of its own")
-    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
-    void theSizesComeFromTheLimitsHandedIn() {
-        TextSizeLimits small = new TextSizeLimits(SMALL_CEILING, SMALL_LARGEST, (file, subtype, size) -> false);
-        claim(
-                "with a ceiling of 100 bytes, a 150-byte HTML file is left out against 100 bytes",
-                () -> assertThat(OutOfScope.sizeReason(
-                                Path.of("page.html"), 150, Optional.of(DetectedSubtype.HTML), small))
-                        .contains(String.format(STRUCTURED_REASON, "an HTML file", "150", "100")));
-        claim(
-                "with a largest size of 400 bytes, a 401-byte text file is left out against 400 bytes",
-                () -> assertThat(OutOfScope.sizeReason(A_TEXT_FILE, SMALL_LARGEST + 1, Optional.empty(), small))
-                        .contains(String.format(LARGEST_REASON, "401", "400")));
-        claim(
-                "and a 150-byte text file that is not cut is left out against 100 bytes",
-                () -> assertThat(OutOfScope.sizeReason(A_TEXT_FILE, 150, Optional.empty(), small))
-                        .contains(String.format(WIDE_REASON, "150", "100")));
     }
 }

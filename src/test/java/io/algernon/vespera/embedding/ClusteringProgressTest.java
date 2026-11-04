@@ -34,9 +34,6 @@ import org.springframework.test.context.ActiveProfiles;
  * <p>The graph is built directly over vectors held in the test, with a block size of two, so a partition of
  * five documents is three blocks and six pairs: the fixture the previous draft of ADR-192 found no way to
  * reach through the 4,096-document block a real partition needs.
- *
- * <p><b>Part (c) of ADR-192.</b> Does not compile until {@code ClusteringProgress} and the overloads of {@code
- * build} and {@code clusterAndRecord} exist; part (c) moves it into {@code src/test}.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

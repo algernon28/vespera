@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
+import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
@@ -107,6 +108,7 @@ class OllamaGpuOverrideTest {
     @DisplayName("The GPU file gives the model server and the document converter every NVIDIA GPU, and nothing else")
     @Link(name = "ADR-170", url = Adr.DOCLING_RUNS_ON_THE_GPU_WITH_AN_IMAGE_TAG_OF_ITS_OWN, type = "adr")
     @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
+    @Issue("373")
     void theOverrideGivesOllamaAndDoclingEveryNvidiaGpu() throws IOException {
         claim(
                 "compose.gpu.yaml sits beside compose.yaml, for an operator with an NVIDIA GPU to name"
@@ -123,8 +125,8 @@ class OllamaGpuOverrideTest {
                 () -> assertThat(services(COMPOSE_FILE)).containsKeys(OLLAMA, DOCLING));
         Map<String, Object> ollama = overridden.get(OLLAMA);
         claim(
-                "for the model server the only thing it adds is the device request, so the image, the port"
-                        + " and the restart policy stay the ones compose.yaml names",
+                "for the model server the only thing it adds is the device request, so the image, the port,"
+                        + " the restart policy and the volume its models live in stay the ones compose.yaml names",
                 () -> assertThat(ollama).containsOnlyKeys("deploy"));
         claim(
                 "the model server's request is one device request, for every GPU the NVIDIA driver can"

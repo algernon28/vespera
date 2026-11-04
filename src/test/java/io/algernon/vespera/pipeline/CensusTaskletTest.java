@@ -14,7 +14,6 @@ import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Measurement;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
@@ -85,8 +84,11 @@ class CensusTaskletTest {
                 "the " + CORPUS_FILES + " files under the corpus root were recorded as occurrences",
                 () -> assertThat(ledger.occurrences().occurrenceCount(onlyWalk())).isEqualTo(CORPUS_FILES));
         claim(
-                "the profile now exists, carrying the seed-folder key nobody has answered",
-                () -> assertThat(profileStore.load().seedFolder().isSet()).isFalse());
+                "the profile now exists as a file, carrying the seed-folder key nobody has answered",
+                () -> {
+                    assertThat(profileStore.file()).isRegularFile();
+                    assertThat(profileStore.load().seedFolder().isSet()).isFalse();
+                });
         claim(
                 "and census said so in the measurement, rather than leaving the key looking unmeasured",
                 () -> assertThat(profileStore.load().seedFolder().measurement())

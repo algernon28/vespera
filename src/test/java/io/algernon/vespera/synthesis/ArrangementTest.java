@@ -44,6 +44,12 @@ class ArrangementTest {
     /** A score further from the seed than {@link #TOP_SCORE}, held by every document it is given to. */
     private static final double LOWER_SCORE = 0.4;
 
+    /** A score just short of {@link #TOP_SCORE}. */
+    private static final double NEARLY_THE_TOP_SCORE = 0.85;
+
+    /** A score further from the seed than {@link #LOWER_SCORE}. */
+    private static final double A_FAR_SCORE = 0.3;
+
     /** The lower of two numbers two indistinguishable clusters were given when they were formed. */
     private static final int FIRST_ORDINAL = 2;
 
@@ -90,17 +96,18 @@ class ArrangementTest {
     @Story("Groups of documents are ordered ahead of lone documents")
     @DisplayName("Within a tier, the group closest to the seed is placed first")
     void ordersEachTierByHowCloseItsDocumentsAreToTheSeed() {
-        Cluster further = new Cluster(0, scores(LOWER_SCORE, LOWER_SCORE));
-        Cluster closer = new Cluster(1, scores(TOP_SCORE, TOP_SCORE));
+        Cluster further = new Cluster(0, scores(LOWER_SCORE, LOWER_SCORE, TOP_SCORE));
+        Cluster closer = new Cluster(1, scores(A_FAR_SCORE, NEARLY_THE_TOP_SCORE, NEARLY_THE_TOP_SCORE));
         Partition partition = new Partition(new OccurrenceId(1), "safety.docx", List.of(further, closer));
 
         List<ArrangedCluster> arranged = arranged(List.of(partition));
 
         claim(
                 "of two groups the same size, the one whose documents average closer to the seed comes"
-                        + " first -- averaged rather than taking each group's best, so that one unusually"
-                        + " close document cannot carry a group that is otherwise off-topic to the top of"
-                        + " a page claiming to be about it",
+                        + " first -- averaged rather than taking each group's best or its worst: the group"
+                        + " placed second holds the closest document of the two and the furthest is not in"
+                        + " it, so that one unusually close document cannot carry a group that is otherwise"
+                        + " off-topic to the top of a page claiming to be about it",
                 () -> assertThat(clusterOrderOf(arranged, closer)).isLessThan(clusterOrderOf(arranged, further)));
     }
 

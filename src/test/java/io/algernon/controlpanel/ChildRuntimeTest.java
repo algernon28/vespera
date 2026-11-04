@@ -141,8 +141,9 @@ class ChildRuntimeTest {
                 .map(JavaClass::getSimpleName)
                 .toList();
 
-        claim("the control panel's compiled texts hold java.home and os.name, which name the runtime it runs on",
-                () -> assertThat(texts).contains("java.home", "os.name"));
+        claim("the control panel's start, which finds the child's runtime, holds java.home and os.name, which name the"
+                        + " runtime it runs on",
+                () -> assertThat(textsOfEachClass.get("ControlPanel")).contains("java.home", "os.name"));
         claim("no class holds JAVA_HOME, in any case, which could name an older Java than the one running it",
                 () -> assertThat(texts).noneMatch("JAVA_HOME"::equalsIgnoreCase));
         claim("the word PATH, in any case, is held by the browser opener, which finds a browser with it, and by the"

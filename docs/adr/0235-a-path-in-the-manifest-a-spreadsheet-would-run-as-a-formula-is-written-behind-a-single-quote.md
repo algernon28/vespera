@@ -21,4 +21,4 @@
 
 ## Tests
 
-- `synthesis.ManifestCsvTest.aPathASpreadsheetWouldRunIsWrittenBehindAQuote`.
+- `deliverable.ManifestCsvTest.aPathASpreadsheetWouldRunIsWrittenBehindAQuote` (#684).

@@ -44,25 +44,19 @@ class TheControlPanelOpensTheBrowserAsTheJarOpensItsPageTest {
                 .getDeclaredMethod("command", URI.class, String.class, Map.class);
         controlPanelCommand.setAccessible(true);
         List<String> differing = new ArrayList<>();
-        int compared = 0;
         for (String system : SYSTEMS) {
             for (Map<String, String> environment : ENVIRONMENTS) {
                 Optional<List<String>> jar = SystemPageOpener.command(JAR_PAGE, system, environment);
                 @SuppressWarnings("unchecked")
                 Optional<List<String>> controlPanel = (Optional<List<String>>) controlPanelCommand.invoke(null,
                         CONTROL_PANEL_PAGE, system, environment);
-                compared++;
                 if (!withoutTheAddress(jar, JAR_PAGE).equals(withoutTheAddress(controlPanel, CONTROL_PANEL_PAGE))) {
                     differing.add(system + " " + environment + ": " + jar + " against " + controlPanel);
                 }
             }
         }
-        int total = compared;
-
-        claim("every system and environment of the table was compared", () -> assertThat(total)
-                .isEqualTo(SYSTEMS.size() * ENVIRONMENTS.size()));
-        claim("and none chose a different command, or none where the other chose one", () -> assertThat(differing)
-                .isEmpty());
+        claim("for no system and environment of the table did one opener choose a different command, or none where"
+                + " the other chose one", () -> assertThat(differing).isEmpty());
     }
 
     private static Optional<List<String>> withoutTheAddress(Optional<List<String>> command, URI address) {

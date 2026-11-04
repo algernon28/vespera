@@ -660,6 +660,120 @@ class ConfigurationFilesTaskletTest {
                 });
     }
 
+    /**
+     * A configuration file lying in no code set is logged with the line ADR-287 §4 gives it, whole, once: the one line
+     * the operator reads of a file left out by this pass.
+     */
+    @Test
+    @Story("A configuration file is told from its content")
+    @DisplayName("A configuration file lying in no code set is said once in the log, in a line naming it and why it is left out")
+    void aConfigurationFileOutsideEveryCodeSetIsLoggedAsLeftOut(@TempDir Path temp, @TempDir Path workingDirectory)
+            throws Exception {
+        Path root = namedRoot(temp);
+        write(root, "impostazioni/server.properties", settings("server"));
+        ConfigurationSettingShareFloorInProfile.write(new ProfileStore(workingDirectory), FLOOR, SET_BY_THIS_TEST);
+
+        List<String> logged = logging(() -> stageOne(root, workingDirectory));
+
+        claim(
+                "the file of settings in a folder of no code is logged once, in the whole of the line that says it was"
+                        + " checked for configuration and is out of scope, with the reason it was left out with",
+                () -> assertThat(logged).containsOnlyOnce("[byte-level-reduction] checked "
+                        + occurrenceIdOf("impostazioni/server.properties") + " for configuration -> out of scope: "
+                        + BY_ITS_SHARE.formatted(100)));
+    }
+
+    /**
+     * The format-mix page's sentences on configuration files, word for word, where the floor is set (ADR-287 §8): the
+     * out-of-scope paragraph's added sentence and its count, the code sets' sentence, the settings section's opening
+     * paragraph and its answered paragraph, and the example under what the page cannot see; the page names no file
+     * and no folder.
+     */
+    @Test
+    @Story("What the format-mix page shows of configuration files")
+    @DisplayName("With the floor set, the page says in whole sentences what a configuration file is, where it goes, and how many were found, naming no file and no folder")
+    void theFormatMixPageSaysWhatTheRuleIsInWholeSentences(@TempDir Path temp, @TempDir Path workingDirectory)
+            throws Exception {
+        Path root = namedRoot(temp);
+        write(root, "shop/Main.java", "class Main {}\n");
+        write(root, "shop/app.properties", settings("shop"));
+        write(root, "impostazioni/server.properties", settings("server"));
+        CodeNameEndingsInProfile.write(new ProfileStore(workingDirectory), CODE_ENDINGS, SET_BY_THIS_TEST);
+
+        stageOne(root, workingDirectory, FLOOR);
+
+        // One file of settings in the one code set, beside its one file of code; one in a folder of no code.
+        int keptWithTheSet = 1;
+        int leftOut = 1;
+        int codeSets = 1;
+        int filesOfCode = 1;
+        String html = formatMix(workingDirectory);
+        claim(
+                "the out-of-scope paragraph says a configuration file lying in no code set is out of scope once the"
+                        + " floor is set, and ends its count with the one configuration file left out",
+                () -> {
+                    assertThat(html).contains("So is a configuration file that lies in no code set, once"
+                            + " configurationSettingShareFloor is set in profile.yaml.");
+                    assertThat(html).contains(", files left out for the ending of their name: 0, and configuration files: "
+                            + leftOut + ".");
+                });
+        claim(
+                "the code sets' sentence counts the one set, its one file of code, no build file, the one configuration"
+                        + " file kept with it, and no file of a generated reference tree",
+                () -> assertThat(html).contains("Code sets: " + codeSets + ", whose members are files of code: "
+                        + filesOfCode + ", build files: 0, configuration files: " + keptWithTheSet
+                        + ", and files of generated reference trees: 0."));
+        String settings = section(html, SETTINGS_SECTION);
+        claim(
+                "the settings section opens by saying which files were read and how a setting line is counted",
+                () -> assertThat(settings).contains("Each text file of no finer kind, and each file of no known kind"
+                        + " whose start and end read as text, still kept after what was kept as code and with the code"
+                        + " sets, was read from its start and its end, and its lines shaped as a setting, a name"
+                        + " followed by = or by a colon and a space, or a [section] heading, were counted against the"
+                        + " lines read that are neither blank nor a comment. A line ending with a backslash is read with"
+                        + " the line after it. The share is that count in whole percent, rounded down."));
+        claim(
+                "then says what the floor of 80% makes a configuration file, and counts the two found, one kept with"
+                        + " its code set and one left out",
+                () -> assertThat(settings).contains("The floor is 80%: a file of ten lines or more at or above it, or"
+                        + " whose first element is one of those below, is a configuration file. Configuration files: "
+                        + (keptWithTheSet + leftOut) + ", of which kept with their code set: " + keptWithTheSet
+                        + ", and left out: " + leftOut + "."));
+        claim(
+                "what the page cannot see is illustrated by an editor's leftover backup, no longer by a folder's"
+                        + " settings file",
+                () -> {
+                    assertThat(html).contains("an editor's leftover backup");
+                    assertThat(html).doesNotContain("a folder settings file");
+                });
+        claim(
+                "and the page names neither file of settings nor either folder",
+                () -> {
+                    for (String name : List.of("app.properties", "server.properties", "impostazioni", "shop/")) {
+                        assertThat(html).as(name).doesNotContain(name);
+                    }
+                });
+    }
+
+    /** The settings section's paragraph where the floor is unset, word for word (ADR-287 §8). */
+    @Test
+    @Story("What the format-mix page shows of configuration files")
+    @DisplayName("With no floor set, the page says no file was found to be a configuration file and what setting the floor would do")
+    void withNoFloorSetThePageSaysWhatSettingItWouldDo(@TempDir Path temp, @TempDir Path workingDirectory) throws Exception {
+        Path root = namedRoot(temp);
+        write(root, "impostazioni/server.properties", settings("server"));
+
+        stageOne(root, workingDirectory);
+
+        claim(
+                "the settings section says, in two whole sentences, that no floor is set so none was found, and that"
+                        + " setting it keeps a configuration file with its code set or leaves it out",
+                () -> assertThat(section(formatMix(workingDirectory), SETTINGS_SECTION)).contains(
+                        "No floor is set, so no file was found to be a configuration file. Setting"
+                                + " configurationSettingShareFloor in profile.yaml turns the rule on: a configuration"
+                                + " file is then kept with its code set where it lies in one, and left out otherwise."));
+    }
+
     @Test
     @Story("A configuration file is told from its content")
     @DisplayName("A floor that is not a number finds no configuration file and is recorded as unset")

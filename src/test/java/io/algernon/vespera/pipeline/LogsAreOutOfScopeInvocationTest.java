@@ -53,7 +53,7 @@ class LogsAreOutOfScopeInvocationTest {
     /** How many of the archive's files are logs at that floor: the four the claims below name. */
     private static final int LOGS = 4;
 
-    /** Lines a share needs before it is called one, and so the length of the files that must count. */
+    /** The length of the files that must count: twice the ten non-blank lines a share needs before it is called one. */
     private static final int ENOUGH_LINES = 20;
 
     /** The bytes read from each end of a file too large to read whole. */
@@ -151,12 +151,11 @@ class LogsAreOutOfScopeInvocationTest {
         claim(
                 "the settings stage 1 records name the floor of " + FLOOR + " this profile sets, so a changed"
                         + " floor is a new piece of work",
-                () -> assertThat(jdbcTemplate.queryForObject(
-                                "SELECT r.config_consumed FROM run r JOIN walk w ON w.id = r.walk_id"
-                                        + " WHERE r.stage = 'byte-level-reduction' AND w.root = ?",
-                                String.class,
-                                Walk.canonicalRoot(root).toString()))
+                () -> assertThat(new RunsOver(jdbcTemplate, root).configConsumed("byte-level-reduction"))
+                        .singleElement()
+                        .asString()
                         .contains("\"logTimestampShareFloor\":" + FLOOR));
+
         String html = Files.readString(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
         claim(
                 "the page counts the " + LOGS + " logs among the files left out",

@@ -8,7 +8,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.embedding.RelevanceLabels;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
@@ -66,16 +66,15 @@ class BrowserNotOpenedWhenSetInvocationTest {
     /** The loggers of the application, whose last line is the closing line. */
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
-
     private static final String A_FLOOR_THAT_REMOVES_NOTHING = "0.0";
 
     private static final String THE_READING_WINDOW = "4096";
 
     /** The file a scoring run writes for a person to answer. */
     private static final String LABEL_FILE = "relevance-labels.yaml";
+
+    /** What the label file says of a document nobody has answered for. */
+    private static final String UNANSWERED = "relevant: null";
 
     @TempDir
     static Path workingDirectory;
@@ -97,6 +96,9 @@ class BrowserNotOpenedWhenSetInvocationTest {
 
     @Autowired
     private RecordingPageOpener opener;
+
+    @Autowired
+    private RelevanceLabels relevanceLabels;
 
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger rootLogger;
@@ -157,13 +159,20 @@ class BrowserNotOpenedWhenSetInvocationTest {
     @DisplayName("With opening the browser turned off, the label command records its answers, opens nothing, and still names the progress page on its first line")
     void vesperaLabelOpensNothingAndStillNamesThePageFirst(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aScoredCorpus(root, seeds);
-        answerEveryQuestion();
+        int typed = answerEveryQuestion();
+        int recordedBefore = recordedFor(seeds);
         opener.forget();
         logged.list.clear();
 
         cli.run("label");
 
         claim("the label command reported success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "each of the " + typed + " answers typed in the file was recorded",
+                () -> {
+                    assertThat(typed).isPositive();
+                    assertThat(recordedFor(seeds)).isEqualTo(recordedBefore + typed);
+                });
         claim("the opener was asked nothing", () -> assertThat(opener.requests()).isEmpty());
         claim(
                 "the label command's first line is still \"" + PATH_LINE + "\" and the page's absolute path, at the"
@@ -197,18 +206,13 @@ class BrowserNotOpenedWhenSetInvocationTest {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
                 .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so gate 3 is open")
                 .relevanceScoreFloor(A_FLOOR_THAT_REMOVES_NOTHING, "set by this test, so nothing earlier is asked for")
                 .generationContextWindow(THE_READING_WINDOW, "set by this test, so every test here reads alike")
                 .build());
         cli.run("run", root.toString());
-        String approval = ArrangementGate.shortNameOf(new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString())));
+        String approval = ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement"));
         profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .arrangementApproved(approval, "read by this test")
                 .build());
@@ -228,18 +232,21 @@ class BrowserNotOpenedWhenSetInvocationTest {
     private void aScoredCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
     }
 
-    /** Fills in every blank answer, the way a person working through the file would. */
-    private static void answerEveryQuestion() throws IOException {
+    /** Fills in every blank answer, the way a person working through the file would, and says how many there were. */
+    private static int answerEveryQuestion() throws IOException {
         Path labels = workingDirectory.resolve(LABEL_FILE);
-        Files.writeString(labels, Files.readString(labels).replace("relevant: null", "relevant: true"));
+        String asked = Files.readString(labels);
+        int blank = (int) asked.lines().filter(line -> line.contains(UNANSWERED)).count();
+        Files.writeString(labels, asked.replace(UNANSWERED, "relevant: true"));
+        return blank;
+    }
+
+    /** How many answers are recorded against the seed set of {@code seeds}. */
+    private int recordedFor(Path seeds) {
+        return relevanceLabels.forSeedSet(Walk.canonicalRoot(seeds).toString()).size();
     }
 }
