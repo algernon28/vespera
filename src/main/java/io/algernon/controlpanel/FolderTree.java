@@ -11,7 +11,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -40,9 +39,6 @@ final class FolderTree {
     private static final String HINT_OF_A_NAME =
             "The name the pages give this set of code. Left empty, it is the folder's own name.";
 
-    private static final boolean NAMES_IGNORE_CASE =
-            System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");
-
     private final ControlPanelState state;
 
     FolderTree(ControlPanelState state) {
@@ -60,7 +56,6 @@ final class FolderTree {
     // ---- drawing
 
     ValuePages.Section form(String tree) {
-        String problem = null;
         FilesStated files;
         try {
             files = filesStated();
@@ -95,7 +90,7 @@ final class FolderTree {
         html.append(ControlPanelPage.costElement(FORM + "-", ProfileKey.FOLDERS_NOT_WALKED)).append('\n');
         html.append(ControlPanelPage.button("save", "Save", false)).append('\n')
                 .append(ControlPanelPage.button("reset", "Reset", false)).append("\n</form>\n");
-        return new ValuePages.Section(html.toString(), problem);
+        return new ValuePages.Section(html.toString(), null);
     }
 
     private static String wordsOf(String data) {
@@ -312,11 +307,20 @@ final class FolderTree {
     private String walkedOf(String folder, FilesStated files, ControlPanelState.TreeHold held) {
         List<String> effective = effectiveList(files.listed(), held);
         for (String listed : effective) {
-            if (!listed.equals(folder) && NotRelevantFolders.lies(folder, listed)) {
+            if (!same(listed, folder) && NotRelevantFolders.lies(folder, listed)) {
                 return NOT_WALKED_ABOVE;
             }
         }
-        return effective.contains(folder) ? NOT_WALKED : WALKED;
+        return containsFolder(effective, folder) ? NOT_WALKED : WALKED;
+    }
+
+    /** Whether two folders are the same, compared element by element, without regard to case where the walk does. */
+    private static boolean same(String a, String b) {
+        return NotRelevantFolders.lies(a, b) && NotRelevantFolders.lies(b, a);
+    }
+
+    private static boolean containsFolder(List<String> list, String folder) {
+        return list.stream().anyMatch(each -> same(each, folder));
     }
 
     /** The list as the files state it, each folder the tree holds ticked out of it and each held unticked in it. */
@@ -324,8 +328,8 @@ final class FolderTree {
         List<String> effective = new ArrayList<>(listed);
         held.walked().forEach((folder, walked) -> {
             if (walked) {
-                effective.remove(folder);
-            } else if (!effective.contains(folder)) {
+                effective.removeIf(each -> same(each, folder));
+            } else if (!containsFolder(effective, folder)) {
                 effective.add(folder);
             }
         });
@@ -407,7 +411,7 @@ final class FolderTree {
             String drawn = fields.getOrDefault("drawn-" + i, absolute ? OUTSIDE : fileWalkedOf(folder, files));
             if (drawn.equals(WALKED) || drawn.equals(NOT_WALKED)) {
                 boolean ticked = fields.containsKey("walk-" + i);
-                boolean read = !files.listed().contains(folder);
+                boolean read = !containsFolder(files.listed(), folder);
                 if (ticked == read) {
                     walked.remove(folder);
                 } else {
@@ -433,11 +437,11 @@ final class FolderTree {
 
     private static String fileWalkedOf(String folder, FilesStated files) {
         for (String listed : files.listed()) {
-            if (!listed.equals(folder) && NotRelevantFolders.lies(folder, listed)) {
+            if (!same(listed, folder) && NotRelevantFolders.lies(folder, listed)) {
                 return NOT_WALKED_ABOVE;
             }
         }
-        return files.listed().contains(folder) ? NOT_WALKED : WALKED;
+        return containsFolder(files.listed(), folder) ? NOT_WALKED : WALKED;
     }
 
     // ---- Save
@@ -448,8 +452,8 @@ final class FolderTree {
         List<String> added = new ArrayList<>();
         held.walked().forEach((folder, walked) -> {
             if (walked) {
-                list.remove(folder);
-            } else if (!list.contains(folder)) {
+                list.removeIf(each -> same(each, folder));
+            } else if (!containsFolder(list, folder)) {
                 added.add(folder);
             }
         });

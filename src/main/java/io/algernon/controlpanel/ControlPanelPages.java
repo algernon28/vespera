@@ -40,6 +40,16 @@ public final class ControlPanelPages {
         return pages(new ControlPanelState(runtime, launchValuesFile, corpusRootLockFolder, userName));
     }
 
+    /**
+     * The same pages, the folder the control panel was started in being {@code currentDirectory}.
+     *
+     * @param currentDirectory the folder the control panel was started in
+     */
+    public static Map<String, HttpHandler> pages(ChildRuntime runtime, Path launchValuesFile,
+            Path corpusRootLockFolder, String userName, Path currentDirectory) {
+        return pages(new ControlPanelState(runtime, launchValuesFile, corpusRootLockFolder, userName, currentDirectory));
+    }
+
     /** The same pages, reading and changing {@code state}, which {@code ControlPanel.serve} ends its child through. */
     static Map<String, HttpHandler> pages(ControlPanelState state) {
         Map<String, HttpHandler> pages = new HashMap<>();
