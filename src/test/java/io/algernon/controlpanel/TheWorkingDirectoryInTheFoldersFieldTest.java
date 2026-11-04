@@ -37,7 +37,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  * The working directory the Folders section's field names is the one whose files the window reads and writes (ADR-341
  * §1, §3): the profile, the folders not relevant, the reports and {@code progress.json}. That holds where the field
  * started from the environment or from {@code .env} and no launch value names it, after a Run that kept nothing of it
- * (ADR-341 §3's "What is kept"), and where the operator types another folder in the field.
+ * (ADR-341 §3's "What is kept"), and where the operator types another folder in the field. Publish stands beside Run and
+ * Stop where the folders the fields name hold a Confluence rendering (ADR-341 §1, ADR-308 §6), whatever is kept.
  *
  * <p>Each test gives the window's state its sources itself, so that no variable of the test JVM and no file of the
  * checkout is read. A Run starts {@link SleepingJar}'s child, which the test then stops.
@@ -51,6 +52,9 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
 
     /** A report the working directory holds, which a key's row and the Reports section name. */
     private static final String A_REPORT = "format-mix.html";
+
+    /** A generation run's folder, as the trees under the working directory's {@code deliverable} folder are named. */
+    private static final String A_RUN = "abcdef0123456789";
 
     /** A step's progress as the jar writes it: three of four done, so its bar stands at three quarters. */
     private static final String PROGRESS = "{\"ended\": true, \"steps\": [{\"name\": \"extraction\", \"state\": \"failed\","
@@ -161,6 +165,101 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
                 () -> assertThat(seen.links()).containsExactly(A_REPORT));
         claim("and the Inclusions tab draws Old unticked, as the second working directory's file lists it",
                 () -> assertThat(seen.oldTicked()).isFalse());
+    }
+
+    /**
+     * Publish stands in the action row where a Confluence rendering is drawn (ADR-341 §1, ADR-308 §6), asked of the
+     * folders the fields name and not of the launch values held: the working directory named only by the environment or
+     * by {@code .env}, never kept (ADR-341 §3), holds a rendering in a generation run's folder under its
+     * {@code deliverable}, so Publish is in the row as the window opens, and stays there after a Run that kept nothing.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("whereTheFoldersComeFrom")
+    @Story("The operator publishes from the control panel")
+    @DisplayName("Publish stands beside Run and Stop where the working directory the field names holds a rendering, before a Run that kept nothing and after it")
+    @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
+    void publishStandsInTheActionRowWhereTheFieldsWorkingDirectoryHoldsARendering(boolean fromTheEnvironment,
+            @TempDir Path folder) throws Exception {
+        Path corpus = Files.createDirectories(folder.resolve("corpus"));
+        Path workingDirectory = Files.createDirectories(folder.resolve("working"));
+        aRenderingDrawnAtTheTopOf(workingDirectory.resolve("deliverable").resolve(A_RUN));
+        Map<String, String> named = Map.of("VESPERA_CORPUS_ROOT", corpus.toString(), "VESPERA_WORKING_DIR",
+                workingDirectory.toString());
+        ControlPanelState state = WindowForTests.aState(folder, SleepingJar.runtime());
+        state.useSources(new StartingValues.Sources(Map.of(), fromTheEnvironment ? named : Map.of(),
+                fromTheEnvironment ? Map.of() : named, Map.of()));
+
+        boolean before;
+        boolean after;
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            String startedAt = window.read(root -> WindowForTests.node(root, "vespera.working-dir", TextField.class)
+                    .getText());
+            assumeThat(startedAt).as("the field starts from the source the test gave")
+                    .isEqualTo(workingDirectory.toString());
+            before = window.awaiting(TheWorkingDirectoryInTheFoldersFieldTest::publishInTheActionRow,
+                    Boolean::booleanValue);
+
+            window.act(root -> WindowForTests.node(root, "run", Button.class).fire());
+            boolean started = WindowForTests.within(state::childRuns);
+            assumeThat(started).as("Run started the sleeping child").isTrue();
+            state.stop();
+            assumeThat(state.values().workingDirectory()).as("the Run kept no working directory").isNullOrEmpty();
+            after = window.awaiting(TheWorkingDirectoryInTheFoldersFieldTest::publishInTheActionRow,
+                    Boolean::booleanValue);
+        }
+
+        claim("before any Run, Publish stands in the row of Run and Stop, the working directory the field names holding a"
+                        + " rendering in a run's folder under its deliverable folder",
+                () -> assertThat(before).isTrue());
+        claim("and after a Run that kept nothing of the working directory it is still there",
+                () -> assertThat(after).isTrue());
+    }
+
+    /**
+     * As {@link #publishStandsInTheActionRowWhereTheFieldsWorkingDirectoryHoldsARendering}, for an output folder the
+     * environment names (ADR-341 §3, ADR-276 §1): the tree itself, holding the rendering's page list at its own top.
+     */
+    @Test
+    @Story("The operator publishes from the control panel")
+    @DisplayName("Publish stands beside Run and Stop where the output folder the environment names holds a rendering at its top")
+    @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
+    void publishStandsInTheActionRowWhereTheOutputFolderFromTheEnvironmentHoldsARendering(@TempDir Path folder)
+            throws Exception {
+        Path corpus = Files.createDirectories(folder.resolve("corpus"));
+        Path workingDirectory = Files.createDirectories(folder.resolve("working"));
+        Path tree = folder.resolve("tree");
+        aRenderingDrawnAtTheTopOf(tree);
+        ControlPanelState state = WindowForTests.aState(folder,
+                new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")));
+        state.useSources(new StartingValues.Sources(Map.of(), Map.of(
+                StartingValues.variableOf("vespera.corpus-root"), corpus.toString(),
+                StartingValues.variableOf("vespera.working-dir"), workingDirectory.toString(),
+                StartingValues.variableOf("vespera.deliverable-root"), tree.toString()), Map.of(), Map.of()));
+
+        boolean shown;
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            String startedAt = window.read(root -> WindowForTests.node(root, "vespera.deliverable-root",
+                    TextField.class).getText());
+            assumeThat(startedAt).as("the output folder's field starts from the environment").isEqualTo(tree.toString());
+            shown = window.awaiting(TheWorkingDirectoryInTheFoldersFieldTest::publishInTheActionRow,
+                    Boolean::booleanValue);
+        }
+
+        claim("Publish stands in the row of Run and Stop, the output folder the environment names holding a rendering at"
+                        + " its top",
+                () -> assertThat(shown).isTrue());
+    }
+
+    /** Whether a node whose id is {@code publish} is a child of the row holding {@code run} and {@code stop}. */
+    private static boolean publishInTheActionRow(Parent root) {
+        Parent row = WindowForTests.node(root, "run", Button.class).getParent();
+        return row.getChildrenUnmodifiable().stream().anyMatch(child -> "publish".equals(child.getId()));
+    }
+
+    /** A Confluence rendering's page list at the top of {@code tree}, as each run's tree holds it (ADR-312, ADR-316 §1). */
+    private static void aRenderingDrawnAtTheTopOf(Path tree) throws IOException {
+        Path confluence = Files.createDirectories(tree.resolve("confluence"));
+        Files.writeString(confluence.resolve("pages.json"), "{}", StandardCharsets.UTF_8);
     }
 
     /** A working directory at {@code folder} whose profile states the generation model {@code model}. */

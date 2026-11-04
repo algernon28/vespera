@@ -11,11 +11,13 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.stage.WindowEvent;
 import org.junit.jupiter.api.DisplayName;
@@ -26,7 +28,8 @@ import org.junit.jupiter.api.io.TempDir;
  * Stop, and closing the window while its child runs, ask first (ADR-278 §6, ADR-285 §5, ADR-341 §7): each asks with the
  * one sentence a stop is confirmed by, {@link Child#STOP_CONFIRMATION}, through the window's dialogs, which a test
  * answers (ADR-339 §6). Stop ends the child only on the answer that goes on, from the action card's {@code stop} and from
- * the running step's {@code stop-step} alike. Closing asks once, with the two answers ADR-341 §7 names; Keep the window
+ * the running step's {@code stop-step} alike, which stands shown on that step's row, as {@code progress.json} names it,
+ * and on no other: every row holds a {@code stop-step}, so it is looked up inside the row. Closing asks once, with the two answers ADR-341 §7 names; Keep the window
  * keeps it open and the child running. A close with no child running asks nothing.
  *
  * <p>The child is {@link SleepingJar}'s, started by the state as Run starts it. Stop and close, which ends the JVM, is
@@ -43,20 +46,39 @@ class StopAndCloseAskFirstTest {
     /** How long the test leaves a Stop answered no to show that it stopped nothing. */
     private static final long A_MOMENT_MILLIS = 1_000;
 
+    /** The step {@link #EXTRACTION_RUNNING} says runs: not the first row, so a Stop of the first row is not it. */
+    private static final String RUNNING_STEP = "extraction";
+
+    /** The progress the jar writes while extraction runs, the census before it finished. */
+    private static final String EXTRACTION_RUNNING = "{\"ended\": false, \"steps\": ["
+            + "{\"name\": \"census\", \"state\": \"finished\", \"done\": null, \"total\": null},"
+            + " {\"name\": \"byte-level-reduction\", \"state\": \"finished\", \"done\": null, \"total\": null},"
+            + " {\"name\": \"" + RUNNING_STEP + "\", \"state\": \"running\", \"done\": 1, \"total\": 4}],"
+            + " \"charts\": []}";
+
     @Test
     @Story("The control panel stops only its own child")
     @DisplayName("Stop asks with the one sentence a stop is confirmed by, and stops the child only on the answer that goes on")
     void stopAsksWithItsSentenceAndStopsTheChildOnlyOnTheAnswerThatGoesOn(@TempDir Path folder) throws Exception {
+        ControlPanelState state = aStateOver(folder);
+        Files.writeString(folder.resolve("working").resolve(ProgressFile.FILE_NAME), EXTRACTION_RUNNING,
+                StandardCharsets.UTF_8);
         List<String> askedOnNo;
         boolean runsAfterNo;
         boolean endedAfterYes;
         Optional<Ending> ending;
-        try (WindowForTests window = WindowForTests.shown(aStateOver(folder))) {
+        boolean shownOnTheRunningRow;
+        List<String> rowsShowingAStop;
+        try (WindowForTests window = WindowForTests.shown(state)) {
             started(window);
+            shownOnTheRunningRow = window.awaiting(root -> stopOfTheRow(root, RUNNING_STEP).isVisible(),
+                    Boolean::booleanValue);
+            rowsShowingAStop = window.read(root -> StopCosts.ROWS.stream().map(StopCosts.StopCost::step)
+                    .filter(step -> stopOfTheRow(root, step).isVisible()).toList());
             window.dialogs.answer = false;
             window.act(root -> {
                 WindowForTests.node(root, "stop", Button.class).fire();
-                WindowForTests.node(root, "stop-step", Button.class).fire();
+                stopOfTheRow(root, RUNNING_STEP).fire();
             });
             Thread.sleep(A_MOMENT_MILLIS);
             askedOnNo = window.dialogs.asked.stream().map(AnsweringDialogs.Asked::sentence).toList();
@@ -68,6 +90,11 @@ class StopAndCloseAskFirstTest {
             ending = window.state.ending();
         }
 
+        claim("the running step's row, as progress.json names it, shows its own Stop, and no other row shows one",
+                () -> {
+                    assertThat(shownOnTheRunningRow).isTrue();
+                    assertThat(rowsShowingAStop).containsExactly(RUNNING_STEP);
+                });
         claim("Stop on the action card and Stop on the running step's row each ask, with the sentence a stop is"
                         + " confirmed by",
                 () -> assertThat(askedOnNo).containsExactly(Child.STOP_CONFIRMATION, Child.STOP_CONFIRMATION));
@@ -128,6 +155,17 @@ class StopAndCloseAskFirstTest {
         boolean enabled = window.awaiting(root -> !WindowForTests.node(root, "stop", Button.class).isDisabled(),
                 Boolean::booleanValue);
         assumeThat(enabled).as("the window's Stop is enabled once the child runs").isTrue();
+    }
+
+    /**
+     * The {@code stop-step} of the row {@code step-<step>}, looked up inside that row: every row holds one, by the same
+     * id, so a lookup over the whole window finds the first row's whichever step runs.
+     */
+    private static Button stopOfTheRow(Parent root, String step) {
+        List<Button> found = WindowForTests.every(root, "step-" + step, Button.class).stream()
+                .filter(button -> "stop-step".equals(button.getId())).toList();
+        assertThat(found).as("the row of %s holds one Stop of its own", step).hasSize(1);
+        return found.getFirst();
     }
 
     /** A state starting {@link SleepingJar}'s child over a corpus root and a working directory under {@code folder}. */

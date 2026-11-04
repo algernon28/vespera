@@ -2,6 +2,7 @@ package io.algernon.controlpanel;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -16,8 +17,12 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
+import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBoxTreeItem;
+import javafx.scene.control.TextField;
+import javafx.scene.control.TreeItem;
+import javafx.scene.control.TreeView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
@@ -32,6 +37,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * its subfolders were listed. A folder whose subfolders the operator unticked, the only one or every one, stands
  * half-ticked, since the files lying in it directly are still wanted, and only those subfolders are written. A folder the
  * file lists, below another, comes back from a Save as it was, and one the file lists that is no longer there is kept.
+ * The tree is the folders of the corpus root the field names now, and Save writes paths under that one.
  *
  * <p>Each test draws the window over a corpus root and a working directory of its own, held as launch values, ticks and
  * unticks the tree's boxes as the operator does, presses Save and reads the file the working directory then holds. The
@@ -153,6 +159,54 @@ class TheFoldersToIncludeTest {
                 () -> assertThat(ticked).containsExactly(true, false, true));
         claim("and the two folders listed that are no longer there are still listed after a Save",
                 () -> assertThat(listedIn(workingDirectory)).containsExactlyInAnyOrder("Gone", "A/Gone"));
+    }
+
+    /**
+     * The tree is the folders of the corpus root the field names (ADR-341 §1, read with §3: the field is what the window
+     * reads): a window drawn over one corpus root, its field then set to another, draws the other's folders and none of
+     * the first's, and its Save writes the folders unticked as paths under the other.
+     */
+    @Test
+    @Story("The operator says which folders hold nothing they want")
+    @DisplayName("Another corpus root set in the field is the one whose folders the tree draws and whose paths Save writes")
+    void anotherCorpusRootSetInTheFieldIsTheTreeDrawnAndSaved(@TempDir Path folder) throws Exception {
+        Path first = Files.createDirectories(folder.resolve("corpus-a"));
+        Files.createDirectories(first.resolve("A1"));
+        Files.createDirectories(first.resolve("A2"));
+        Path other = Files.createDirectories(folder.resolve("corpus-b"));
+        Files.createDirectories(other.resolve("B1").resolve("Deep"));
+        Path workingDirectory = Files.createDirectories(folder.resolve("working"));
+        ControlPanelState state = WindowForTests.aState(folder,
+                new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")));
+        state.hold(new LaunchValues(first.toString(), workingDirectory.toString(), "", "", "", "", "", ""));
+
+        List<String> drawnFirst;
+        List<String> drawnAfter;
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            drawnFirst = window.read(TheFoldersToIncludeTest::topFolders);
+            assumeThat(drawnFirst).as("the window opens on the first corpus root's folders").containsExactly("A1", "A2");
+            window.act(root -> WindowForTests.node(root, "vespera.corpus-root", TextField.class)
+                    .setText(other.toString()));
+            drawnAfter = window.read(TheFoldersToIncludeTest::topFolders);
+            window.act(root -> {
+                if (topFolders(root).contains("B1")) {
+                    WindowForTests.folder(root, "B1", "Deep").setSelected(false);
+                }
+            });
+            save(window);
+        }
+
+        claim("with the field set to the other corpus root, the tree draws its folder B1 and no folder of the first",
+                () -> assertThat(drawnAfter).containsExactly("B1"));
+        claim("and Save writes the folder unticked as a path under the other corpus root",
+                () -> assertThat(listedIn(workingDirectory)).containsExactly("B1/Deep"));
+    }
+
+    /** The names of the tree's top folders, the corpus root's own, in the order drawn; none where no tree is drawn. */
+    @SuppressWarnings("unchecked")
+    private static List<String> topFolders(Parent root) {
+        TreeItem<String> top = WindowForTests.node(root, "inclusions-tree", TreeView.class).getRoot();
+        return top == null ? List.of() : top.getChildren().stream().map(TreeItem::getValue).toList();
     }
 
     /**

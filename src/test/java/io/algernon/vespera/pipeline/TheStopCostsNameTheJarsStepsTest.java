@@ -11,7 +11,9 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -60,5 +62,34 @@ class TheStopCostsNameTheJarsStepsTest {
                 () -> assertThat(rows).containsExactlyElementsOf(steps));
         claim("and each row says in words what a stop there costs",
                 () -> assertThat(StopCosts.ROWS).allSatisfy(row -> assertThat(row.cost()).isNotBlank()));
+    }
+
+    /**
+     * Each row of the window's steps shows its stage (ADR-341 §1): the stage under whose runs the jar records the step's
+     * completion, as the progress page's tab of runs reads it (ADR-269 §5), and none for a step the jar records under no
+     * stage's run, the census, which mints none, and the relevance floor and report, which record no completion
+     * (ADR-118). The window holds the rule as text, linking no class of the jar (ADR-285 §3); this holds it to the jar's.
+     */
+    @Test
+    @Story("The operator stops an invocation from the control panel")
+    @DisplayName("The stage the window shows beside each step is the one the jar records the step's completion under, and none where it records it under none")
+    @Link(name = "ADR-269", url = Adr.THE_PROGRESS_PAGE_IS_FOUR_TABS_AND_LISTS_THE_RUNS_THE_WORKING_DIRECTORY_HOLDS, type = "adr")
+    void theStageShownBesideEachStepIsTheOneTheJarRecordsItUnder() {
+        Map<String, String> byTheJar = new LinkedHashMap<>();
+        Map<String, String> byTheWindow = new LinkedHashMap<>();
+        for (String step : ((SimpleJob) vesperaJob).getStepNames()) {
+            byTheJar.put(step, ProgressPage.STEPS_OF_A_STAGE.entrySet().stream()
+                    .filter(stage -> stage.getValue().contains(step)).map(Map.Entry::getKey).findFirst().orElse(""));
+            byTheWindow.put(step, StopCosts.stageOf(step));
+        }
+
+        claim("for each step of the job, the window's stage is the one the jar records the step's completion under, empty"
+                        + " where the jar records it under no stage's run",
+                () -> assertThat(byTheWindow).containsExactlyEntriesOf(byTheJar));
+        claim("and the jar records each of its steps under a stage but the census, the relevance floor and the relevance"
+                        + " report",
+                () -> assertThat(byTheJar.entrySet().stream().filter(each -> each.getValue().isEmpty())
+                        .map(Map.Entry::getKey).toList())
+                        .containsExactly("census", "relevance-floor", "relevance-report"));
     }
 }

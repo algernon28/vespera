@@ -37,8 +37,9 @@ import org.junit.jupiter.api.io.TempDir;
  * The control panel's writes and its starts one at a time (ADR-295 §1, ADR-306 §1): the server answers each request on
  * a thread of its own, and since a holder line of the control panel's own process reads as held by nobody, only the
  * {@link ControlPanelState}'s monitor keeps a start from passing its checks while a write holds the working-directory
- * lock. The state also tells whether a Confluence rendering is drawn, and reads the working directory's
- * {@code deliverable} folder, named as the output folder, as no folder named (ADR-334 §1).
+ * lock. The state also tells whether a Confluence rendering is drawn under the working directory and the output folder
+ * it is given, as the window's fields name them and not as the launch values hold them (ADR-341 §1, §3), and reads the
+ * working directory's {@code deliverable} folder, named as the output folder, as no folder named (ADR-334 §1).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -117,7 +118,6 @@ class ControlPanelStateTest {
     @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
     void theDefaultFolderNamedFindsARenderingAsNoneNamedDoes(@TempDir Path folder) throws IOException {
         Path workingDirectory = Files.createDirectory(folder.resolve("working"));
-        Path corpusRoot = Files.createDirectory(folder.resolve("corpus"));
         Path theDefault = workingDirectory.resolve("deliverable");
         aRenderingDrawnAtTheTopOf(theDefault.resolve(A_RUN));
         Path elsewhere = folder.resolve("elsewhere");
@@ -134,7 +134,7 @@ class ControlPanelStateTest {
         named.put("another folder named, holding a rendering at its own top", aTree.toString());
         ControlPanelState state = aState(folder);
 
-        Map<String, Boolean> drawn = drawnFor(state, corpusRoot, workingDirectory, named);
+        Map<String, Boolean> drawn = drawnFor(state, workingDirectory, named);
 
         claim("with none named, and with the working directory's deliverable folder named however it is spelt, the"
                         + " rendering in a run's folder under it is found; another folder named is the tree itself, so"
@@ -156,12 +156,11 @@ class ControlPanelStateTest {
     @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
     void onWindowsTheDefaultFolderInCapitalsFindsARendering(@TempDir Path folder) throws IOException {
         Path workingDirectory = Files.createDirectory(folder.resolve("working"));
-        Path corpusRoot = Files.createDirectory(folder.resolve("corpus"));
         aRenderingDrawnAtTheTopOf(workingDirectory.resolve("deliverable").resolve(A_RUN));
         Map<String, String> named = new LinkedHashMap<>();
         named.put("the deliverable folder named in capitals", workingDirectory.resolve("DELIVERABLE").toString());
 
-        Map<String, Boolean> drawn = drawnFor(aState(folder), corpusRoot, workingDirectory, named);
+        Map<String, Boolean> drawn = drawnFor(aState(folder), workingDirectory, named);
 
         claim("the folder named in capitals is the working directory's deliverable folder, and the rendering in a run's"
                         + " folder under it is found",
@@ -240,14 +239,15 @@ class ControlPanelStateTest {
                 new LaunchValues("", "", "", "", "", "", "", ""), Map.of(), null);
     }
 
-    /** Whether a rendering is drawn, by what each output folder named is called, the state holding it as launch value. */
-    private static Map<String, Boolean> drawnFor(ControlPanelState state, Path corpusRoot, Path workingDirectory,
+    /**
+     * Whether a rendering is drawn, by what each output folder named is called, asked of the working directory and the
+     * output folder as the window's fields name them, whatever the launch values hold (ADR-341 §1, §3).
+     */
+    private static Map<String, Boolean> drawnFor(ControlPanelState state, Path workingDirectory,
             Map<String, String> named) {
         Map<String, Boolean> drawn = new LinkedHashMap<>();
         for (Map.Entry<String, String> each : named.entrySet()) {
-            state.hold(new LaunchValues(corpusRoot.toString(), workingDirectory.toString(), each.getValue(), "", "", "",
-                    "", ""));
-            drawn.put(each.getKey(), state.aRenderingIsDrawn());
+            drawn.put(each.getKey(), state.aRenderingIsDrawn(Optional.of(workingDirectory), each.getValue()));
         }
         return drawn;
     }
