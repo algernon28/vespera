@@ -81,7 +81,7 @@ final class WebsiteDelivery {
             return delivery.refresh();
         } catch (StoppedException stop) {
             return delivery.stopped(stop.getMessage());
-        } catch (IOException | RuntimeException failure) {
+        } catch (IOException | java.io.UncheckedIOException | tools.jackson.core.JacksonException failure) {
             return delivery.stopped("a file could not be read or written (" + failure.getClass().getSimpleName() + ")");
         }
     }
@@ -247,6 +247,9 @@ final class WebsiteDelivery {
             if (!Files.isRegularFile(file)) {
                 continue;
             }
+            if (isCurrent(file, stay)) {
+                continue;
+            }
             if (dropped.getValue().contains(ListedFile.sha256Of(file))) {
                 Files.delete(file);
                 removed++;
@@ -260,6 +263,17 @@ final class WebsiteDelivery {
             }
         }
         return new int[] {removed, kept};
+    }
+
+    /** Whether {@code file} is the same file some current path resolves to, as a copy renamed by case alone is. */
+    private boolean isCurrent(Path file, Set<String> stay) throws IOException {
+        for (String path : stay) {
+            Path current = folder.resolve(path);
+            if (Files.exists(current) && Files.isSameFile(current, file)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isEmpty(Path directory) throws IOException {

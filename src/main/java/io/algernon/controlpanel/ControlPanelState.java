@@ -41,11 +41,6 @@ final class ControlPanelState {
         }
     }
 
-    /**
-     * The list of each destination's rendering, found in that destination's folder at a tree's root, as the jar writes
-     * them (ADR-312, ADR-316 §1, ADR-333 §3). The folder is the destination's name.
-     */
-
     private static final Duration LOOK = Duration.ofMillis(50);
 
     private static final Duration ENDING_BOUND = Duration.ofSeconds(10);
