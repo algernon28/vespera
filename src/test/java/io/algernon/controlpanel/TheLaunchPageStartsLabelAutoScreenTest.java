@@ -14,7 +14,6 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -27,9 +26,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The launch page starts {@code vespera label --auto} beside Label (ADR-336 §1), and every control the control panel's
- * table of the jar's arguments names is a control of the form its entry names, the launch form or the invocation
- * page's Publish (ADR-336 §2, ADR-339 §1).
+ * Label starts {@code vespera label --auto} with the top bar's box Autolabel ticked (ADR-336 §1, as ADR-340 §1 amends
+ * it), and every control the control panel's table of the jar's arguments names is a control of the form its entry
+ * names: the top bar's, the launch values' or the invocation page's Publish (ADR-336 §2, ADR-339 §1).
  *
  * <p>The child is the jar for the screen tests, told to print its arguments first ({@link
  * JarForScreenTests#SAY_THE_ARGUMENTS}), so that the command line it was started with is read off the invocation
@@ -41,14 +40,20 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
 class TheLaunchPageStartsLabelAutoScreenTest {
 
-    /** The launch form's submit buttons, in order: Run, Label, Have the local model answer, Check. */
-    private static final List<String> THE_FOUR_BUTTONS = List.of("run", "label", "label-auto", "check");
+    /** The top bar's submit buttons, in order: Run, Label, Check (ADR-340 §1). */
+    private static final List<String> THE_THREE_BUTTONS = List.of("run", "label", "check");
 
-    /** The button that starts {@code label --auto}, on the launch page and on the next page alike. */
+    /** The top bar's box Autolabel, with which Label starts {@code label --auto} (ADR-340 §1). */
     private static final String LABEL_AUTO = "label-auto";
 
-    /** The launch page's form, which holds the seven launch values and the four buttons (ADR-302 §2, ADR-292 §1). */
+    /** What the box sends ticked, carrying no value. */
+    private static final Map<String, String> TICKED = Map.of(LABEL_AUTO, "on");
+
+    /** The top bar's form, which holds Run, Label, the Autolabel box and Check (ADR-340 §1). */
     private static final String LAUNCH = "launch";
+
+    /** The drawer's form of the seven launch values (ADR-340 §3, ADR-292 §1). */
+    private static final String LAUNCH_VALUES = "launch-values";
 
     /** The invocation page's form that starts a publish, drawn once a rendering is (ADR-333 §6). */
     private static final String PUBLISH = "publish";
@@ -63,48 +68,46 @@ class TheLaunchPageStartsLabelAutoScreenTest {
     /** A child that prints its arguments and runs until it is killed. */
     private static final String SAYS_ITS_ARGUMENTS_AND_RUNS = JarForScreenTests.SAY_THE_ARGUMENTS + "sleep";
 
-    /** Answers to the questions wanted, and no value, as a scoring run's closing line leaves the next act. */
-    private static final String ANSWERS = """
-            invocation=label
-            wants=
-            answer=true
-            """;
-
     @TempDir
     Path folder;
 
     @Test
     @Story("The operator starts an invocation from the control panel")
-    @DisplayName("The launch form holds Have the local model answer after Label and before Check, in the top row, enabled while nothing holds a folder")
+    @DisplayName("The top bar holds the Autolabel box after Label and before Check, enabled while nothing holds a folder")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void theLaunchFormHoldsLabelAutoAfterLabelAndBeforeCheck() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
             Page page = screens.browser().page();
             Element launch = form(page, "launch");
+            List<String> inOrder = launch.select("button, input[type=checkbox]").eachAttr("name");
 
-            claim("the launch form's buttons are Run, Label, Have the local model answer and Check, in that order",
-                    () -> assertThat(buttonNames(launch)).containsExactlyElementsOf(THE_FOUR_BUTTONS));
-            claim("the four stand in the top row",
-                    () -> assertThat(launch.select("#top-row button").eachAttr("name"))
-                            .containsExactlyElementsOf(THE_FOUR_BUTTONS));
+            claim("the top bar's form holds Run, Label, the Autolabel box and Check, in that order",
+                    () -> assertThat(inOrder).containsExactly("run", "label", LABEL_AUTO, "check"));
+            claim("its buttons are the three, the box being a checkbox and no button",
+                    () -> assertThat(List.of(buttonNames(launch), launch.selectFirst("[name=" + LABEL_AUTO + "]")
+                                    .attr("type")))
+                            .containsExactly(THE_THREE_BUTTONS, "checkbox"));
+            claim("the four stand in the top bar",
+                    () -> assertThat(launch.closest("#top-bar")).isNotNull());
             claim("and with no folder held and no child running, none of them is disabled",
-                    () -> assertThat(THE_FOUR_BUTTONS.stream()
-                                    .map(button -> launch.select("[name='" + button + "']").hasAttr("disabled")))
+                    () -> assertThat(List.of("run", "label", LABEL_AUTO, "check").stream()
+                                    .map(control -> launch.select("[name='" + control + "']").hasAttr("disabled")))
                             .containsOnly(false));
         }
     }
 
     @Test
     @Story("The operator has the local model answer the relevance questions")
-    @DisplayName("Have the local model answer on the launch page starts label --auto on the working folder, and lands on the invocation page")
+    @DisplayName("Label with Autolabel ticked starts label --auto on the working folder, and lands on the invocation page")
     void labelAutoStartsLabelWithAutoOnTheWorkingDirectory() throws IOException, InterruptedException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         ScreenServer.childWill(workingDirectory, SAYS_ITS_ARGUMENTS_AND_ENDS);
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
             PanelBrowser browser = screens.browser();
-            Page landed = browser.press("launch", LABEL_AUTO, Map.of()).page();
+            Page landed = browser.press("launch", "label", TICKED).page();
             Page ended = whenTheChildHasEnded(browser);
 
             claim("the press lands on the invocation page, a child started",
@@ -126,7 +129,7 @@ class TheLaunchPageStartsLabelAutoScreenTest {
      */
     @Test
     @Story("The operator has the local model answer the relevance questions")
-    @DisplayName("While the control panel's own command runs, Have the local model answer is disabled, and pressed from a page drawn before it is refused and starts nothing")
+    @DisplayName("While the control panel's own command runs, the Autolabel box is disabled with Label, and Label with it ticked from a page drawn before is refused and starts nothing")
     void labelAutoIsDisabledWhileTheControlPanelsChildRunsAndRefusedFromAPageDrawnBefore() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
@@ -135,12 +138,12 @@ class TheLaunchPageStartsLabelAutoScreenTest {
             PanelBrowser drawnBefore = screens.browser();
             Page started = screens.browser().press("launch", "run", Map.of()).page();
             Element drawnWhileItRuns = form(screens.browser().page(), "launch");
-            Page landed = drawnBefore.press("launch", LABEL_AUTO, Map.of()).page();
+            Page landed = drawnBefore.press("launch", "label", TICKED).page();
             Page invocation = screens.browser().go("/invocation").page();
 
             claim("a run was started first, and runs",
                     () -> assertThat(byId(started, "child").attr("data-ending")).isEqualTo("running"));
-            claim("the launch page drawn while it runs holds Have the local model answer disabled, as Run and Label",
+            claim("the page drawn while it runs holds the Autolabel box disabled, as Run and Label",
                     () -> assertThat(List.of("run", "label", LABEL_AUTO).stream()
                                     .map(button -> drawnWhileItRuns.select("[name='" + button + "']").hasAttr("disabled")))
                             .containsOnly(true));
@@ -156,58 +159,41 @@ class TheLaunchPageStartsLabelAutoScreenTest {
         }
     }
 
+    /**
+     * With the work folder left empty, Label starts on the jar's default, {@code .vespera} in the control panel's
+     * current directory (ADR-340 §6), which is the test's folder, holding none.
+     */
     @Test
     @Story("The operator has the local model answer the relevance questions")
-    @DisplayName("Have the local model answer with no working folder named is refused with the line naming what it needs, and starts nothing")
+    @DisplayName("Label with Autolabel ticked and the work folder left empty is refused by the line of the default folder, which is not there, and starts nothing")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void labelAutoIsRefusedWithTheLineOfTheValueItNeeds() throws IOException {
+        Path theDefault = ScreenServer.defaultWorkingDirectoryIn(folder);
         LaunchValues values = new LaunchValues("", "", "", "", "", "", "", "");
         try (ScreenServer screens = ScreenServer.start(folder, values)) {
             PanelBrowser browser = screens.browser();
-            Page landed = browser.press("launch", LABEL_AUTO, Map.of()).page();
+            Page landed = browser.press("launch", "label", TICKED).page();
             Page invocation = browser.go("/invocation").page();
 
-            claim("the press lands back on the launch page, with the line Label gives for the value it needs",
+            claim("the press lands back on the home page, with the line of a work folder that is no folder, naming the"
+                            + " default",
                     () -> assertThat(List.of(landed.address().getPath(), byId(landed, "outcome").text()))
-                            .containsExactly("/", "Label needs the working directory"));
+                            .containsExactly("/", "Label is not started: the working directory " + theDefault
+                                    + " is no folder that is there"));
             claim("and no child was started",
                     () -> assertThat(byId(invocation, "child").attr("data-ending")).isEqualTo("none"));
         }
     }
 
-    @Test
-    @Story("The operator has the local model answer the relevance questions")
-    @DisplayName("The next page's Have the local model answer stays, and starts the same command as the launch page's")
-    void theNextPagesLabelAutoStaysAndStartsTheSameCommand() throws IOException, InterruptedException {
-        Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        Files.writeString(workingDirectory.resolve(NextInvocation.FILE_NAME), ANSWERS, StandardCharsets.UTF_8);
-        ScreenServer.childWill(workingDirectory, SAYS_ITS_ARGUMENTS_AND_ENDS);
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            PanelBrowser browser = screens.afterARunHasEnded().go("/next");
-            Element nextForm = form(browser.page(), LABEL_AUTO);
-            Page landed = browser.press(LABEL_AUTO, LABEL_AUTO, Map.of()).page();
-            Page ended = whenTheChildHasEnded(browser);
-
-            claim("the next page still holds its own form, posted to its own path, with the one button",
-                    () -> assertThat(List.of(nextForm.attr("action"), buttonNames(nextForm)))
-                            .containsExactly("/label-auto", List.of(LABEL_AUTO)));
-            claim("pressed, it lands on the invocation page",
-                    () -> assertThat(landed.address().getPath()).isEqualTo("/invocation"));
-            claim("and the child was started with the launch page's command line, label with --auto on the working"
-                            + " folder",
-                    () -> assertThat(tailOf(ended))
-                            .contains("label --auto --db-dir=" + workingDirectory.toAbsolutePath()));
-        }
-    }
-
     /**
-     * Each control the table names is looked for in the form its entry names (ADR-339 §1): the launch form on {@code /},
-     * and the form {@code publish} on {@code /invocation}, which stands only once a rendering is drawn, so both
-     * renderings' lists are laid in a tree of the working directory first.
+     * Each control the table names is looked for in the form its entry names (ADR-339 §1, as ADR-340 §1 and §3 split
+     * the launch form): the top bar's and the launch values' on {@code /}, and the form {@code publish} on
+     * {@code /invocation}, which stands only once a rendering is drawn, so both renderings' lists are laid in a tree of
+     * the working directory first.
      */
     @Test
     @Story("Every option of the jar's commands is set from the control panel or said not to be")
-    @DisplayName("Each control the control panel's table of the jar's arguments names is a control or a button of the form its entry names, the launch form or Publish, and the destinations are no control of the launch form")
+    @DisplayName("Each control the control panel's table of the jar's arguments names is a control or a button of the form its entry names, the top bar's, the launch values' or Publish, and the destinations are no control of either launch form")
     @Link(name = "ADR-339", url = Adr.AN_ARGUMENT_NAMES_THE_FORM_ITS_CONTROL_STANDS_ON_AND_THE_WEBSITE_IS_BUILT_AS_RECORDED, type = "adr")
     void everyControlTheTableNamesIsOnTheFormItsEntryNames() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
@@ -226,31 +212,35 @@ class TheLaunchPageStartsLabelAutoScreenTest {
         }
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
             PanelBrowser browser = screens.browser();
-            Element launch = form(browser.page(), LAUNCH);
+            Page home = browser.page();
+            Element launch = form(home, LAUNCH);
+            Element values = form(home, LAUNCH_VALUES);
             Element publish = form(browser.go("/invocation").page(), PUBLISH);
-            Map<String, Element> forms = Map.of(LAUNCH, launch, PUBLISH, publish);
+            Map<String, Element> forms = Map.of(LAUNCH, launch, LAUNCH_VALUES, values, PUBLISH, publish);
             List<String> notOnTheirForm = new ArrayList<>();
             namedByForm.forEach((name, controls) -> controls.stream()
                     .filter(control -> !forms.containsKey(name)
                             || forms.get(name).select("[name='" + control + "']").isEmpty())
                     .forEach(control -> notOnTheirForm.add(control + " on " + name)));
 
-            claim("the table names the two forms, the launch form and Publish, and no other",
-                    () -> assertThat(namedByForm.keySet()).containsExactlyInAnyOrder(LAUNCH, PUBLISH));
-            claim("on the launch form it names the corpus root's field, the working directory's and the local model's"
-                            + " button among others",
-                    () -> assertThat(namedByForm.get(LAUNCH))
-                            .contains("vespera.corpus-root", "vespera.working-dir", LABEL_AUTO));
+            claim("the table names the three forms, the top bar's, the launch values' and Publish, and no other",
+                    () -> assertThat(namedByForm.keySet()).containsExactlyInAnyOrder(LAUNCH, LAUNCH_VALUES, PUBLISH));
+            claim("on the top bar's form it names the Autolabel box alone",
+                    () -> assertThat(namedByForm.get(LAUNCH)).containsExactly(LABEL_AUTO));
+            claim("on the launch values' form it names the corpus root's field and the working directory's",
+                    () -> assertThat(namedByForm.get(LAUNCH_VALUES))
+                            .containsExactlyInAnyOrder("vespera.corpus-root", "vespera.working-dir"));
             claim("on Publish it names the destinations' checkboxes, to, alone",
                     () -> assertThat(namedByForm.get(PUBLISH)).containsExactly(DESTINATIONS));
             claim("each control it names is drawn in the form its entry names",
                     () -> assertThat(notOnTheirForm).as("controls the table names that their form does not hold")
                             .isEmpty());
-            claim("and the destinations' checkboxes are no control of the launch form, whose values stay seven"
+            claim("and the destinations' checkboxes are no control of either launch form, whose values stay seven"
                             + " (ADR-292 §1)",
-                    () -> assertThat(launch.select("[name='" + DESTINATIONS + "']"))
-                            .as("the launch form's controls named " + DESTINATIONS)
-                            .isEmpty());
+                    () -> assertThat(List.of(launch.select("[name='" + DESTINATIONS + "']").size(),
+                                    values.select("[name='" + DESTINATIONS + "']").size()))
+                            .as("the launch forms' controls named " + DESTINATIONS)
+                            .containsOnly(0));
         }
     }
 

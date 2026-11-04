@@ -62,16 +62,20 @@ class NativePickersScreenTest {
     /** An arrangement to approve, twelve hexadecimal characters, for the next act's file that wants its approval. */
     private static final String ARRANGEMENT = "0123456789ab";
 
-    /** The six pages the sidebar leads to that hold a form, every one but the progress page's, and the folder page. */
-    private static final int PAGES_THAT_HOLD_A_FORM = 7;
+    /**
+     * The pages that hold a form: the home page before a run, its run settings in the drawer, and after one, its next
+     * step among them, the invocation page and the folder page (ADR-340 §2, §3).
+     */
+    private static final int PAGES_THAT_HOLD_A_FORM = 4;
 
     /** The folder under which the pages below were asked for, once for the class. */
     @TempDir
     static Path folderOfThePages;
 
     /**
-     * By path, the pages the tests that write nothing read, with a next act wanting every key: {@code /profile} before
-     * a child ended, while it holds every key's form, and every other after one.
+     * By path, the pages the tests that write nothing read, with a next act wanting every key: {@code /profile}, which
+     * lands on the home page's run settings, before a child ended, and every other after one, the home page holding the
+     * next step's form of every key beside the run settings' then.
      */
     private static Map<String, Page> pagesWantingEveryKey;
 
@@ -87,8 +91,7 @@ class NativePickersScreenTest {
                 ScreenServer.values(corpusRoot, workingDirectory))) {
             pages.put("/profile", screens.browser().go("/profile").page());
             PanelBrowser afterARun = screens.afterARunHasEnded();
-            for (String path : List.of("/", "/invocation", "/next", "/labels", "/code-sets",
-                    "/folders?for=vespera.corpus-root")) {
+            for (String path : List.of("/", "/invocation", "/folders?for=vespera.corpus-root")) {
                 pages.put(path, afterARun.go(path).page());
             }
         }
@@ -105,7 +108,7 @@ class NativePickersScreenTest {
             Page page = screens.browser().page();
 
             claim("the label model's field names the list of models",
-                    () -> assertThat(form(page, "launch").select("[name='vespera.label.model']").attr("list"))
+                    () -> assertThat(form(page, "launch-values").select("[name='vespera.label.model']").attr("list"))
                             .isEqualTo(MODELS_LIST));
             claim("the list holds each model the service reports, in the order it reports them",
                     () -> assertThat(byId(page, MODELS_LIST).select("option").eachAttr("value"))
@@ -128,31 +131,31 @@ class NativePickersScreenTest {
             claim("the list is there, with no model in it",
                     () -> assertThat(byId(page, MODELS_LIST).select("option")).isEmpty());
             claim("and the field is a text field still",
-                    () -> assertThat(form(page, "launch").select("[name='vespera.label.model']").attr("type"))
+                    () -> assertThat(form(page, "launch-values").select("[name='vespera.label.model']").attr("type"))
                             .isEqualTo("text"));
         }
     }
 
-    /** Only the launch page asks (ADR-302 §5): a page's models are what it was last told, and a suggestion in any case. */
+    /**
+     * The run settings and the next step stand on the home page, which asks the model service as it is drawn (ADR-302 §5,
+     * ADR-340 §2, §3), so both forms offer the names it was just told; that no other page asks is held by the invocation
+     * page's test of the checks it shows.
+     */
     @Test
     @Story("The operator picks a model")
-    @DisplayName("The embedding model and the generation model offer the same list on the profile page and the next act's, asking the model service nothing more")
+    @DisplayName("The embedding model and the generation model offer the same list in the run settings and the next step")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void theEmbeddingAndGenerationModelsOfferTheSameList() throws IOException, InterruptedException {
         Path workingDirectory = wantingEveryKey(folder);
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         try (SidecarsForTests sidecars = SidecarsForTests.answering("an-image", MODELS);
                 ScreenServer screens = ScreenServer.start(folder, new LaunchValues(corpusRoot.toString(),
                         workingDirectory.toString(), "", "", "", sidecars.address(), "", ""))) {
-            PanelBrowser browser = screens.browser();
-            int askedBeforeTheProfilePage = sidecars.tagsAsked();
-            Page profile = browser.go("/profile").page();
-            int askedAfterTheProfilePage = sidecars.tagsAsked();
-            PanelBrowser afterARun = screens.afterARunHasEnded();
-            int askedBeforeTheNextPage = sidecars.tagsAsked();
-            Page next = afterARun.go("/next").page();
-            int askedAfterTheNextPage = sidecars.tagsAsked();
+            Page home = screens.afterARunHasEnded().go("/").page();
+            Page profile = home;
+            Page next = home;
 
-            claim("on the profile page, each names the list, and the list holds the models",
+            claim("in the run settings, each names the list, and the list holds the models",
                     () -> {
                         assertThat(List.of(form(profile, "profile").select("[name=embeddingModel]").attr("list"),
                                         form(profile, "profile").select("[name=generationModel]").attr("list")))
@@ -160,17 +163,10 @@ class NativePickersScreenTest {
                         assertThat(byId(profile, MODELS_LIST).select("option").eachAttr("value"))
                                 .containsExactlyElementsOf(MODELS);
                     });
-            claim("on the next act's page, the same",
-                    () -> {
-                        assertThat(List.of(form(next, "next").select("[name=embeddingModel]").attr("list"),
-                                        form(next, "next").select("[name=generationModel]").attr("list")))
-                                .containsOnly(MODELS_LIST);
-                        assertThat(byId(next, MODELS_LIST).select("option").eachAttr("value"))
-                                .containsExactlyElementsOf(MODELS);
-                    });
-            claim("and neither page asked the service: the launch page's answer is what they offer",
-                    () -> assertThat(List.of(askedAfterTheProfilePage, askedAfterTheNextPage))
-                            .containsExactly(askedBeforeTheProfilePage, askedBeforeTheNextPage));
+            claim("and in the next step, the same list",
+                    () -> assertThat(List.of(form(next, "next").select("[name=embeddingModel]").attr("list"),
+                                    form(next, "next").select("[name=generationModel]").attr("list")))
+                            .containsOnly(MODELS_LIST));
         }
     }
 
@@ -188,7 +184,7 @@ class NativePickersScreenTest {
             Page page = screens.browser().page();
 
             claim("the field names the list of images",
-                    () -> assertThat(form(page, "launch").select("[name='vespera.docling.image']").attr("list"))
+                    () -> assertThat(form(page, "launch-values").select("[name='vespera.docling.image']").attr("list"))
                             .isEqualTo("docling-images"));
             claim("the list offers the GPU image and then the processor image, each labelled and each whole, as the"
                             + " files that run them name them, the GPU image first since the control panel preselects it",
@@ -245,7 +241,7 @@ class NativePickersScreenTest {
     void theApprovalOffersAuto() {
         String approvalKey = ProfileKey.ARRANGEMENT_APPROVED.key();
         Page profile = pagesWantingEveryKey.get("/profile");
-        Page next = pagesWantingEveryKey.get("/next");
+        Page next = pagesWantingEveryKey.get("/");
         Element onTheProfile = form(profile, "profile").select("[name=" + approvalKey + "]").first();
         Element onTheNext = form(next, "next").select("[name=" + approvalKey + "]").first();
 
@@ -272,7 +268,7 @@ class NativePickersScreenTest {
         pagesWantingEveryKey.forEach((path, each) ->
                 slidersOnEachPage.put(path, each.document().select("input[type=range]").size()));
         assumeTrue(slidersOnEachPage.size() == PAGES_THAT_HOLD_A_FORM,
-                "the fixture holds the six pages the sidebar leads to and the folder page");
+                "the fixture holds the home page before and after a run, the invocation page and the folder page");
         Map<String, List<String>> shapes = new LinkedHashMap<>();
         Map<String, List<String>> expected = new LinkedHashMap<>();
         for (ProfileKey key : ProfileKey.values()) {
@@ -287,7 +283,7 @@ class NativePickersScreenTest {
 
         claim("each value's control has the type its kind gives it, a number any step and no bounds",
                 () -> assertThat(shapes).containsExactlyEntriesOf(expected));
-        claim("and no page holds a slider, of the six the sidebar leads to that hold a form and the folder page",
+        claim("and no page holds a slider: the home page, the invocation page and the folder page",
                 () -> assertThat(slidersOnEachPage.values()).containsOnly(0));
     }
 
@@ -316,7 +312,7 @@ class NativePickersScreenTest {
     @DisplayName("Each value's control is the same on the profile page and the next act's: the same element, type, step, list and example")
     void eachValuesControlIsTheSameOnBothPages() {
         Page profile = pagesWantingEveryKey.get("/profile");
-        Page next = pagesWantingEveryKey.get("/next");
+        Page next = pagesWantingEveryKey.get("/");
         Map<String, List<String>> onTheProfile = new LinkedHashMap<>();
         Map<String, List<String>> onTheNext = new LinkedHashMap<>();
         for (ProfileKey key : ProfileKey.values()) {

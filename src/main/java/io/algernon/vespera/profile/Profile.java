@@ -137,7 +137,11 @@ package io.algernon.vespera.profile;
  *     number above 0 that overrides the preset {@code vespera.clustering.resolution}. Ships unset; unset, blank,
  *     unreadable or a number that is none of that, the preset applies as configuration resolves it, and no provenance
  *     is written when it does (ADR-298 §4). Not a gate. It enters the embedding-scoring run's identity where it is not
- *     1.0. No {@link Measurement} pointer. The last component.
+ *     1.0. No {@link Measurement} pointer.
+ * @param foldersNotWalked the folders of the corpus the walk counts and never enters (ADR-340 §8): pieces relative to the
+ *     corpus root, separated by the system's path separator. Ships unset; unset or unreadable, every folder is read.
+ *     It enters byte-level reduction's identity, a walk that leaves a folder out being another walk. No
+ *     {@link Measurement} pointer. The last component.
  */
 public record Profile(
         TextValue seedFolder,
@@ -159,7 +163,8 @@ public record Profile(
         NumericValue configurationSettingShareFloor,
         TextValue deliverableLanguage,
         NumericValue clusterResolution,
-        FoldersValue codeSetFolders) {
+        FoldersValue codeSetFolders,
+        CorpusFoldersValue foldersNotWalked) {
 
     public Profile {
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
@@ -187,6 +192,7 @@ public record Profile(
         deliverableLanguage = deliverableLanguage == null ? TextValue.unset() : deliverableLanguage;
         clusterResolution = clusterResolution == null ? NumericValue.unset() : clusterResolution;
         codeSetFolders = codeSetFolders == null ? FoldersValue.unset() : codeSetFolders;
+        foldersNotWalked = foldersNotWalked == null ? CorpusFoldersValue.unset() : foldersNotWalked;
     }
 
     /**
@@ -215,7 +221,7 @@ public record Profile(
     static Profile skeleton() {
         return new Profile(
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -240,7 +246,8 @@ public record Profile(
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
-                codeSetFolders);
+                codeSetFolders,
+                foldersNotWalked);
     }
 
     /**
@@ -269,7 +276,8 @@ public record Profile(
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
-                codeSetFolders);
+                codeSetFolders,
+                foldersNotWalked);
     }
 
     /** The same profile, with stage 3's pointer to {@code word-count-distribution.html} brought up to date (ADR-282). */
@@ -294,7 +302,8 @@ public record Profile(
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
-                codeSetFolders);
+                codeSetFolders,
+                foldersNotWalked);
     }
 
     /**
@@ -322,7 +331,8 @@ public record Profile(
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
-                codeSetFolders);
+                codeSetFolders,
+                foldersNotWalked);
     }
 
     /**
@@ -355,7 +365,8 @@ public record Profile(
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
-                codeSetFolders);
+                codeSetFolders,
+                foldersNotWalked);
     }
 
     /**
@@ -383,7 +394,8 @@ public record Profile(
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
-                codeSetFolders);
+                codeSetFolders,
+                foldersNotWalked);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-171). */
@@ -408,7 +420,8 @@ public record Profile(
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
-                codeSetFolders);
+                codeSetFolders,
+                foldersNotWalked);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-256). */
@@ -433,7 +446,8 @@ public record Profile(
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
-                codeSetFolders);
+                codeSetFolders,
+                foldersNotWalked);
     }
 
     /** The same profile, with the pointer to {@code translations.html} brought up to date (ADR-271 §6). */
@@ -458,7 +472,8 @@ public record Profile(
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
-                codeSetFolders);
+                codeSetFolders,
+                foldersNotWalked);
     }
 
     /** The same profile, with the pointer to {@code translations.html} brought up to date (ADR-271 §6). */
@@ -483,7 +498,8 @@ public record Profile(
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
-                codeSetFolders);
+                codeSetFolders,
+                foldersNotWalked);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-277 §2). */
@@ -508,7 +524,8 @@ public record Profile(
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
-                codeSetFolders);
+                codeSetFolders,
+                foldersNotWalked);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-287 §7). */
@@ -533,6 +550,7 @@ public record Profile(
                 configurationSettingShareFloor.measuredBy(measurement),
                 deliverableLanguage,
                 clusterResolution,
-                codeSetFolders);
+                codeSetFolders,
+                foldersNotWalked);
     }
 }

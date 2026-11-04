@@ -114,7 +114,7 @@ class LaunchImageScreenTest {
                 claim("the sidecar's image is shown beside the field",
                         () -> assertThat(byId(browser.page(), "docling-running").attr("data-image")).isEqualTo(CARD_IMAGE));
 
-                Page checked = browser.press("launch", "check", Map.of("vespera.docling.image", CARD_IMAGE)).page();
+                Page checked = browser.press("launch-values", "check", Map.of("vespera.docling.image", CARD_IMAGE)).page();
                 claim("typed, the check finds it matches",
                         () -> assertThat(byId(checked, "docling-check").attr("data-check")).isEqualTo("matches"));
             }

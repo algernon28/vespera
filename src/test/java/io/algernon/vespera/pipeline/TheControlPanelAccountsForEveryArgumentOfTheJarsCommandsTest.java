@@ -66,14 +66,17 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
     /** The launch form's control for the working directory, which sets every command's {@code --db-dir}. */
     private static final String THE_WORKING_DIRECTORY = "vespera.working-dir";
 
-    /** The launch page's form, whose controls set every argument the control panel passes but the destinations. */
+    /** The top bar's form, whose box Autolabel sets {@code label --auto} (ADR-340 §1). */
     private static final String LAUNCH = "launch";
+
+    /** The drawer's form of the launch values, whose folder fields set the root and {@code --db-dir} (ADR-340 §3). */
+    private static final String LAUNCH_VALUES = "launch-values";
 
     /** The invocation page's form that starts a publish, whose checkboxes set {@code --to} (ADR-333 §6). */
     private static final String PUBLISH = "publish";
 
-    /** The forms a control of the table stands on (ADR-339 §1). */
-    private static final Set<String> THE_FORMS = Set.of(LAUNCH, PUBLISH);
+    /** The forms a control of the table stands on (ADR-339 §1, as ADR-340 amends it). */
+    private static final Set<String> THE_FORMS = Set.of(LAUNCH, LAUNCH_VALUES, PUBLISH);
 
     @Test
     @Story("Every option of the jar's commands is set from the control panel or said not to be")
@@ -133,16 +136,17 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
                         "publish db-dir", THE_WORKING_DIRECTORY,
                         "label auto", "label-auto",
                         "publish to", "to")));
-        claim("each of those controls stands on the launch form, but the destinations', which stand on the invocation"
-                        + " page's Publish, the launch values staying seven (ADR-292 §1, ADR-339 §1)",
+        claim("the folder fields stand on the launch values' form, the Autolabel box on the top bar's, and the"
+                        + " destinations on the invocation page's Publish, the launch values staying seven (ADR-292 §1,"
+                        + " ADR-339 §1, ADR-340 §1 and §3)",
                 () -> assertThat(forms).containsAllEntriesOf(Map.of(
-                        "run <root>", LAUNCH,
-                        "run db-dir", LAUNCH,
-                        "label db-dir", LAUNCH,
-                        "publish db-dir", LAUNCH,
+                        "run <root>", LAUNCH_VALUES,
+                        "run db-dir", LAUNCH_VALUES,
+                        "label db-dir", LAUNCH_VALUES,
+                        "publish db-dir", LAUNCH_VALUES,
                         "label auto", LAUNCH,
                         "publish to", PUBLISH)));
-        claim("an argument names a form exactly where it names a control, and the form is the launch form or Publish",
+        claim("an argument names a form exactly where it names a control, and the form is the top bar's, the launch values' or Publish",
                 () -> assertThat(withAFormOutOfPlace).as("arguments whose form does not go with their control")
                         .isEmpty());
         claim("and the arguments never passed are vespera's help and version options, and label's file, and no other",

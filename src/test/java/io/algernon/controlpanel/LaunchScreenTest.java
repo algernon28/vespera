@@ -72,8 +72,9 @@ class LaunchScreenTest {
 
     @Test
     @Story("The operator starts an invocation from the control panel")
-    @DisplayName("The launch form holds the seven values by their names, as last started, with Run, Label, Have the local model answer and Check")
+    @DisplayName("The launch values' form holds the seven values by their names, as last started, and the top bar Run, Label, Autolabel and Check")
     @Link(name = "ADR-336", url = Adr.THE_LAUNCH_PAGE_STARTS_LABEL_AUTO_AND_EVERY_ARGUMENT_OF_THE_JAR_IS_ACCOUNTED_FOR, type = "adr")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void theLaunchFormHoldsTheSevenLaunchValuesByTheirKeysAsLastStarted() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
@@ -83,9 +84,10 @@ class LaunchScreenTest {
                 deliverableRoot.toString(), IMAGE_NAMED, nobody, nobody, MODEL_NOT_SERVED, "");
         try (ScreenServer screens = ScreenServer.start(folder, values)) {
             Page page = screens.browser().page();
-            Element launch = form(page, "launch");
+            Element launch = form(page, "launch-values");
+            Element starts = form(page, "launch");
 
-            claim("the launch form is posted to its own path",
+            claim("the launch values' form is posted to the launch path",
                     () -> assertThat(List.of(launch.attr("method").toLowerCase(), launch.attr("action")))
                             .containsExactly("post", "/launch"));
             claim("it holds one control per launch value, named by the value's key, in their order",
@@ -94,8 +96,9 @@ class LaunchScreenTest {
                     () -> assertThat(THE_SEVEN_KEYS.stream().map(key -> launch.select("[name='" + key + "']").val()))
                             .containsExactly(corpusRoot.toString(), workingDirectory.toString(),
                                     deliverableRoot.toString(), IMAGE_NAMED, nobody, nobody, MODEL_NOT_SERVED));
-            claim("its buttons are Run, Label, Have the local model answer and Check, in that order",
-                    () -> assertThat(buttonNames(launch)).containsExactly("run", "label", "label-auto", "check"));
+            claim("the top bar's buttons are Run, Label and Check, in that order, the Autolabel box its one control",
+                    () -> assertThat(List.of(buttonNames(starts), controlNames(starts)))
+                            .containsExactly(List.of("run", "label", "check"), List.of("label-auto")));
         }
     }
 
@@ -159,7 +162,7 @@ class LaunchScreenTest {
 
             claim("the holder line of the working folder's lock, held by another live process, is shown whole",
                     () -> assertThat(byId(page, "holder-working-directory").text()).isEqualTo(holderLine));
-            claim("Run, Label and Have the local model answer are disabled and Check is not",
+            claim("Run, Label and the Autolabel box are disabled and Check is not",
                     () -> assertThat(List.of("run", "label", "label-auto", "check").stream()
                                     .map(button -> launch.select("[name='" + button + "']").hasAttr("disabled")))
                             .containsExactly(true, true, true, false));
@@ -220,44 +223,10 @@ class LaunchScreenTest {
                     () -> assertThat(List.of(byId(page, "holder-corpus-root").text(),
                                     byId(page, "holder-working-directory").text()))
                             .containsExactly(holderLine, ""));
-            claim("Run, Label and Have the local model answer are disabled and Check is not",
+            claim("Run, Label and the Autolabel box are disabled and Check is not",
                     () -> assertThat(List.of("run", "label", "label-auto", "check").stream()
                                     .map(button -> launch.select("[name='" + button + "']").hasAttr("disabled")))
                             .containsExactly(true, true, true, false));
-        }
-    }
-
-    @Test
-    @Story("The operator writes the values the next invocation wants")
-    @DisplayName("The seed folder has a form of its own, filled with the last one, and saving it writes it into the profile with its provenance")
-    void theSeedFolderIsAFormOfItsOwnFilledFromTheLastSeedFolderAndSavedIntoTheProfile() throws IOException {
-        Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        Path seedFolder = Files.createDirectories(folder.resolve("seeds"));
-        String provenance = "the exemplars the operator chose";
-        LaunchValues values = new LaunchValues(corpusRoot.toString(), workingDirectory.toString(), "", "", "", "",
-                "", seedFolder.toString());
-        try (ScreenServer screens = ScreenServer.start(folder, values)) {
-            PanelBrowser browser = screens.browser();
-            Element seedForm = form(browser.page(), "seed-folder");
-
-            claim("the seed folder's form holds the folder and its provenance, and one Save",
-                    () -> assertThat(List.of(controlNames(seedForm), buttonNames(seedForm)))
-                            .containsExactly(List.of("seedFolder", "provenance"), List.of("save")));
-            claim("the folder is filled with the last seed folder, and the provenance is left for the operator",
-                    () -> assertThat(List.of(seedForm.select("[name=seedFolder]").val(),
-                                    seedForm.select("[name=provenance]").val()))
-                            .containsExactly(seedFolder.toString(), ""));
-
-            Page landed = browser.press("seed-folder", "save", Map.of("provenance", provenance)).page();
-            Map<ProfileKey, ProfileEdit.Stated> profile = ProfileEdit.read(
-                    Files.readString(workingDirectory.resolve(ProfileEdit.FILE_NAME), StandardCharsets.UTF_8));
-
-            claim("saving lands back on the launch page",
-                    () -> assertThat(landed.address().getPath()).isEqualTo("/"));
-            claim("and the profile in the working folder holds the seed folder with the provenance given",
-                    () -> assertThat(profile.get(ProfileKey.SEED_FOLDER))
-                            .isEqualTo(new ProfileEdit.Stated(seedFolder.toString(), provenance)));
         }
     }
 
@@ -296,7 +265,7 @@ class LaunchScreenTest {
                 claim("and Run stays enabled",
                         () -> assertThat(form(page, "launch").select("[name=run]").hasAttr("disabled")).isFalse());
 
-                Page checked = browser.press("launch", "check",
+                Page checked = browser.press("launch-values", "check",
                         Map.of("vespera.docling.base-url", nobody, "spring.ai.ollama.base-url", nobody)).page();
                 claim("checked again at addresses nobody answers, both are shown as not answering",
                         () -> assertThat(List.of(byId(checked, "docling-check").attr("data-check"),
@@ -324,11 +293,12 @@ class LaunchScreenTest {
         Files.writeString(workingDirectory.resolve(CodeSetRenames.FILE_NAME), "--- []\n", StandardCharsets.UTF_8);
         ScreenServer.childWill(workingDirectory, "sleep");
         List<String> asked = List.of("/", "/invocation", "/stop", "/next", "/labels", "/code-sets", "/profile",
-                "/launch", "/launch?run=",
+                "/progress", "/launch", "/launch?run=", "/launch?label=&label-auto=on",
                 "/seed-folder?seedFolder=" + URLEncoder.encode(seedFolder.toString(), StandardCharsets.UTF_8)
                         + "&provenance=p&save=",
                 "/label-auto?label-auto=", "/publish?publish=", "/stop?stop=", "/next?save-then-run=",
                 "/code-sets?new-folder=app&new-name=app&save=",
+                "/folders-to-process?folder-1=app&code-set-1=on&save=",
                 "/profile?key=extractionAttempt&value=2&provenance=p&save=");
         Map<Path, byte[]> before = contents(workingDirectory);
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
@@ -386,7 +356,7 @@ class LaunchScreenTest {
 
             claim("the launch page shows the working folder held by nobody",
                     () -> assertThat(byId(launchPage, "holder-working-directory").text()).isEmpty());
-            claim("and Run, Label, Have the local model answer and Check are all enabled",
+            claim("and Run, Label, the Autolabel box and Check are all enabled",
                     () -> assertThat(List.of("run", "label", "label-auto", "check").stream()
                                     .map(button -> launch.select("[name='" + button + "']").hasAttr("disabled")))
                             .containsExactly(false, false, false, false));

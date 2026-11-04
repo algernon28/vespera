@@ -10,8 +10,9 @@ import java.util.Map;
 /**
  * The command line, environment and current directory of the child the control panel starts (ADR-278 §1, ADR-285 §5):
  * only the jar's {@code run}, {@code label} and {@code publish} commands (ADR-308 §6), after both encoding flags, with
- * absolute paths and {@code CI=1}. A publish's child inherits the five values it reads from the operator's environment,
- * as every child inherits it; the control panel adds none of them.
+ * absolute paths and {@code CI=1}. A child inherits the operator's environment less the eight variables that name the
+ * working directory (ADR-340 §6), so that the folder passed is the folder the jar opens; a publish's child still
+ * inherits the five values it reads, and the control panel adds none of them.
  */
 public final class ChildCommand {
 
@@ -26,16 +27,18 @@ public final class ChildCommand {
                             + " nothing the control panel reads."),
             new Argument("vespera", "version", "", "",
                     "Never passed (ADR-278 §1): it boots the context, takes the lock and prints no version."),
-            new Argument("run", "<root>", "launch", "vespera.corpus-root", "The corpus root field, made absolute."),
-            new Argument("run", "db-dir", "launch", "vespera.working-dir",
-                    "The working directory field, made absolute; also the child's current directory."),
+            new Argument("run", "<root>", "launch-values", "vespera.corpus-root",
+                    "The Documents folder field, made absolute."),
+            new Argument("run", "db-dir", "launch-values", "vespera.working-dir",
+                    "The Work folder field, made absolute, or its default where the field is empty; also the child's"
+                            + " current directory."),
             new Argument("label", "auto", "launch", "label-auto",
-                    "Passed by Have the local model answer, here and on the next page; Label passes none."),
+                    "Passed by Label when the box Autolabel in the top bar is ticked; Label passes none otherwise."),
             new Argument("label", "<file>", "", "",
-                    "Never passed: label reads the label file the last run wrote in the working directory, which the"
-                            + " Relevance page answers."),
-            new Argument("label", "db-dir", "launch", "vespera.working-dir", "As for run."),
-            new Argument("publish", "db-dir", "launch", "vespera.working-dir",
+                    "Never passed: label reads the label file the last run wrote in the work folder, which the"
+                            + " Relevance section of Settings answers."),
+            new Argument("label", "db-dir", "launch-values", "vespera.working-dir", "As for run."),
+            new Argument("publish", "db-dir", "launch-values", "vespera.working-dir",
                     "As for run; Publish stands on the invocation page."),
             new Argument("publish", "to", "publish", "to",
                     "The checkboxes of the invocation page's Publish, one for each destination drawn (ADR-333 §6); not"
@@ -132,9 +135,22 @@ public final class ChildCommand {
         return directory;
     }
 
+    private static final List<String> NAMING_THE_WORKING_DIRECTORY = List.of("VESPERA_WORKINGDIR",
+            "VESPERA_WORKING_DIR", "vespera_workingdir", "vespera_working_dir", "DBDIR", "DB_DIR", "dbdir", "db_dir");
+
+    /** The child's whole environment where the control panel's is {@code inherited}: it less the eight, {@link #environment()} over it (ADR-340 §6). */
+    public Map<String, String> environmentFrom(Map<String, String> inherited) {
+        Map<String, String> whole = new LinkedHashMap<>(inherited);
+        NAMING_THE_WORKING_DIRECTORY.forEach(whole::remove);
+        whole.putAll(environment());
+        return whole;
+    }
+
     public ProcessBuilder processBuilder() {
         ProcessBuilder builder = new ProcessBuilder(command);
-        builder.environment().putAll(environment());
+        Map<String, String> whole = environmentFrom(new LinkedHashMap<>(builder.environment()));
+        builder.environment().clear();
+        builder.environment().putAll(whole);
         builder.directory(directory.toFile());
         return builder;
     }

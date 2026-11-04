@@ -75,8 +75,8 @@ class TheProfileIsOneFormScreenTest {
             Page page = screens.browser().go("/profile").page();
             Element profile = form(page, FORM);
 
-            claim("the page holds one form, the profile's",
-                    () -> assertThat(page.document().select("form").eachAttr("name")).containsExactly(FORM));
+            claim("the drawer's run settings hold one form, the profile's",
+                    () -> assertThat(byId(page, "values-profile").select("form").eachAttr("name")).containsExactly(FORM));
             claim("it holds, for every value in the profile's order, what the page drew it from, the value and its"
                             + " provenance, each named by the value",
                     () -> assertThat(controlNames(profile)).containsExactlyElementsOf(expected));
@@ -129,8 +129,9 @@ class TheProfileIsOneFormScreenTest {
                             .replace("value: \"2\"", "value: \"3\"")
                             .replace("a second attempt", "a third attempt")));
             claim("and the save lands on the profile page, at the first value written",
-                    () -> assertThat(List.of(landed.address().getPath(), String.valueOf(landed.address().getFragment())))
-                            .containsExactly("/profile", "key-relevanceScoreFloor"));
+                    () -> assertThat(List.of(landed.address().getPath(), String.valueOf(landed.address().getQuery()),
+                                    String.valueOf(landed.address().getFragment())))
+                            .containsExactly("/", "open=values-profile", "key-relevanceScoreFloor"));
         }
     }
 
@@ -171,8 +172,9 @@ class TheProfileIsOneFormScreenTest {
 
             Page reset = browser.press(FORM, "reset", Map.of()).page();
 
-            claim("Reset lands on the profile page",
-                    () -> assertThat(reset.address().getPath()).isEqualTo("/profile"));
+            claim("Reset lands on the run settings of the home page's drawer",
+                    () -> assertThat(List.of(reset.address().getPath(), String.valueOf(reset.address().getQuery())))
+                            .containsExactly("/", "open=values-profile"));
             claim("every control holds what the file states, and nothing that was typed",
                     () -> assertThat(List.of(control(reset, "relevanceScoreFloor").val(),
                                     control(reset, "relevanceScoreFloor.provenance").val(),

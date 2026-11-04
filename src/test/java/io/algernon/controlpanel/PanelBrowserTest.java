@@ -79,6 +79,12 @@ class PanelBrowserTest {
               <input type="submit" name="check" value="Check">
               <button type="submit" name="held" value="go" disabled>Held</button>
             </form>
+            <form name="boxes" method="post" action="/echo">
+              <input type="checkbox" name="read" checked>
+              <input type="checkbox" name="code">
+              <input type="checkbox" name="kept" value="yes">
+              <input type="checkbox" name="above" checked disabled>
+            </form>
             </body></html>
             """;
 
@@ -250,6 +256,27 @@ class PanelBrowserTest {
                         .hasMessage("the form 'buttons' holds no button named 'stop'"));
         claim("and neither sent a request: the forms page, opened first, is the only page that ran",
                 () -> assertThat(RAN).containsExactly("GET " + FORMS));
+    }
+
+    /**
+     * A browser sends a checkbox ticked, by its value or {@code on} where it carries none, sends none unticked, and
+     * none disabled (ADR-340 §10).
+     */
+    @Test
+    @Story("The control panel's screens are tested as a browser uses them")
+    @DisplayName("A checkbox set to its value is sent ticked, one set to anything else is not sent, and one left alone is sent as the page drew it")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
+    void aCheckboxNamedIsTickedByItsValueAndUntickedByAnyOther() {
+        List<String> asDrawn = fields(PanelBrowser.opening(server.firstAddress()).submit("boxes", Map.of()).page());
+        List<String> changed = fields(PanelBrowser.opening(server.firstAddress())
+                .submit("boxes", Map.of("read", "", "code", "on", "kept", "yes")).page());
+
+        claim("left alone, the ticked box is sent as on, having no value, and neither the unticked one nor the disabled"
+                        + " one is sent",
+                () -> assertThat(asDrawn).containsExactly("read=on"));
+        claim("set, the ticked box set to nothing is no longer sent, the box set to on is sent, and the box set to its"
+                        + " own value is sent with it; the disabled one is still not sent",
+                () -> assertThat(changed).containsExactly("code=on", "kept=yes"));
     }
 
     private static String text(Page page, String id) {

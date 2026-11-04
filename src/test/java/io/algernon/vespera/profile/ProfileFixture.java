@@ -298,6 +298,7 @@ public final class ProfileFixture {
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
-                codeSetFolders);
+                codeSetFolders,
+                CorpusFoldersValue.unset());
     }
 }

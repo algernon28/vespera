@@ -16,7 +16,8 @@ import java.util.List;
  * One observation of a filesystem, producing file occurrences.
  *
  * <p>The walk is accountable for every entry beneath the root it was given: each one is recorded as
- * a file occurrence, recorded as a walk anomaly, or — a readable directory only — descended into.
+ * a file occurrence, recorded as a walk anomaly, or — a readable directory only — descended into, or
+ * counted as a folder the profile's {@code foldersNotWalked} names and not entered (ADR-340 section 8.2).
  * That is what makes "excludes nothing" a claim anyone can check rather than assert, and
  * {@link Progress} carries the counts the check needs (ADR-056).
  *
@@ -83,18 +84,32 @@ public final class Walk {
          * <p>A no-op by default: an observer that reports nothing has nothing to say.
          */
         default void entryWalked(Progress progress) {}
+
+        /**
+         * A folder of the corpus the walk met and did not enter because the profile's {@code foldersNotWalked} names it
+         * (ADR-340 section 8.3), by its path from the root with {@code /} between its elements. Written with the entries
+         * around it, so that a walk killed before its checkpoint takes it back with them.
+         */
+        default void folderNotEntered(String path) {}
     }
 
     /**
      * What a walk has counted. {@code entriesSeen} counts every entry beneath the root, so the
-     * accounting identity is {@code entriesSeen == occurrences + anomalies + directoriesEntered - 1}
-     * — the root itself being entered but not an entry beneath itself.
+     * accounting identity is
+     * {@code entriesSeen == occurrences + anomalies + directoriesEntered + foldersNotWalked - 1}
+     * — the root itself being entered but not an entry beneath itself, and a folder not walked being
+     * an entry the walk saw and did not enter (ADR-340 section 8.3).
      *
      * <p>These are one session's counts. Across a resumed walk they are added to what earlier
      * sessions recorded, which is why a resumed session counts neither the root nor anything it
      * skipped: those were counted once already.
      */
-    record Progress(long entriesSeen, long directoriesEntered, long occurrences, long anomalies) {
+    record Progress(long entriesSeen, long directoriesEntered, long occurrences, long anomalies, long foldersNotWalked) {
+
+        /** The counts of a walk that met no folder it did not enter. */
+        Progress(long entriesSeen, long directoriesEntered, long occurrences, long anomalies) {
+            this(entriesSeen, directoriesEntered, occurrences, anomalies, 0);
+        }
 
         /**
          * Whether the accounting identity holds: every entry met is one of the three things.
@@ -115,7 +130,7 @@ public final class Walk {
          * because a rule spelled out twice is a rule that can come apart.
          */
         public long unaccountedFor() {
-            return entriesSeen - (occurrences + anomalies + directoriesEntered - 1);
+            return entriesSeen - (occurrences + anomalies + directoriesEntered + foldersNotWalked - 1);
         }
     }
 
@@ -195,9 +210,23 @@ public final class Walk {
      * @param folder the folder this root is, or {@code null} for the corpus root
      */
     static Outcome walk(Path root, Observer observer, Checkpoint resumeFrom, Folder folder) throws IOException {
+        return walk(root, observer, resumeFrom, folder, List.of());
+    }
+
+    /**
+     * Walks {@code root} as {@link #walk(Path, Observer, Checkpoint, Folder)} does, counting as an entry and not
+     * entering each directory beneath it whose path from {@code root}, compared element by element and without regard to
+     * case on Windows, is one of {@code foldersNotWalked} (ADR-340 section 8.2). A folder outside the corpus root is
+     * walked as before, a relative piece naming nothing in it.
+     *
+     * @param foldersNotWalked folders relative to the root with {@code /} between their elements; none for a walk of a
+     *     folder outside the corpus root
+     */
+    static Outcome walk(Path root, Observer observer, Checkpoint resumeFrom, Folder folder,
+            List<String> foldersNotWalked) throws IOException {
         Path canonical = canonicalRoot(root);
 
-        Visitor visitor = new Visitor(canonical, observer, resumeFrom, folder);
+        Visitor visitor = new Visitor(canonical, observer, resumeFrom, folder, foldersNotWalked);
         try {
             Files.walkFileTree(canonical, visitor);
         } catch (IOException e) {
@@ -248,6 +277,10 @@ public final class Walk {
         private long directoriesEntered;
         private long occurrences;
         private long anomalies;
+        private long foldersNotWalked;
+
+        /** The folders not walked, each as its elements, compared with a directory's path from the root. */
+        private final List<List<String>> notWalked;
 
         /** Whether the checkpointed directory was met, which is how a changed tree is caught. */
         private boolean foundTheCheckpoint;
@@ -255,8 +288,10 @@ public final class Walk {
         /** The folder outside the corpus root this walk is of, or {@code null} for the corpus root. */
         private final Folder folder;
 
-        private Visitor(Path root, Observer observer, Checkpoint resumeFrom, Folder folder) {
+        private Visitor(Path root, Observer observer, Checkpoint resumeFrom, Folder folder,
+                List<String> foldersNotWalked) {
             this.root = root;
+            this.notWalked = foldersNotWalked.stream().map(piece -> List.of(piece.split("/"))).toList();
             this.observer = observer;
             this.resumeFrom = resumeFrom;
             this.folder = folder;
@@ -264,7 +299,7 @@ public final class Walk {
         }
 
         Progress progress() {
-            return new Progress(entriesSeen, directoriesEntered, occurrences, anomalies);
+            return new Progress(entriesSeen, directoriesEntered, occurrences, anomalies, foldersNotWalked);
         }
 
         @Override
@@ -299,6 +334,14 @@ public final class Walk {
                     entriesSeen++;
                     if (isSoftLink(attrs)) {
                         report(dir, WalkAnomalyKind.SOFT_LINK_NOT_FOLLOWED, "a soft link was skipped rather than followed");
+                        observer.entryWalked(progress());
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    if (isAFolderNotWalked(dir)) {
+                        // An entry the walk saw and does not enter: nothing below it is met, so nothing below it
+                        // is an occurrence, an anomaly or an entry counted (ADR-340 section 8.2).
+                        foldersNotWalked++;
+                        observer.folderNotEntered(root.relativize(dir).toString().replace(java.io.File.separatorChar, '/'));
                         observer.entryWalked(progress());
                         return FileVisitResult.SKIP_SUBTREE;
                     }
@@ -389,6 +432,33 @@ public final class Walk {
                         new Checkpoint(completed, render(root, dir), folder == null ? 0 : folder.ordinal()), progress());
             }
             return FileVisitResult.CONTINUE;
+        }
+
+        /**
+         * Whether the directory's path from the root is one the profile lists, element by element: names compared
+         * without regard to case on Windows, exactly elsewhere (ADR-340 section 8.2).
+         */
+        private boolean isAFolderNotWalked(Path dir) {
+            if (notWalked.isEmpty() || folder != null) {
+                return false;
+            }
+            Path below = root.relativize(dir);
+            int count = below.getNameCount();
+            boolean withoutRegardToCase = java.io.File.separatorChar != '/';
+            for (List<String> listed : notWalked) {
+                if (listed.size() != count) {
+                    continue;
+                }
+                boolean same = true;
+                for (int i = 0; i < count && same; i++) {
+                    String name = below.getName(i).toString();
+                    same = withoutRegardToCase ? name.equalsIgnoreCase(listed.get(i)) : name.equals(listed.get(i));
+                }
+                if (same) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /** The ordinal path of the next entry of the directory being listed. */
