@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.StreamSupport;
+import org.jsoup.nodes.Element;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -134,6 +135,61 @@ class CodeSetFoldersOutsideTheCorpusRootScreenTest {
                                         path -> assertThat(path).isEqualTo("/code-sets"),
                                         line -> assertThat(line).contains("is not added")));
                 claim("and the profile is not written", () -> assertThat(work.resolve(ProfileEdit.FILE_NAME)).doesNotExist());
+            }
+        }
+    }
+
+    /** The form's heading and its cost, ADR-334 §5.2: the cost of the key as {@code /profile} draws it for every key. */
+    @Test
+    @Story("The operator keeps code that lies outside the archive")
+    @DisplayName("The form of the folders outside the corpus root stands below the code sets' own under its heading, and says what a change costs as the profile page says it")
+    void theFormIsHeadedAndSaysWhatAChangeCosts() throws IOException {
+        Path work = workingDirectory();
+        try (ScreenServer screens = start(work)) {
+            Page codeSets = screens.browser().go("/code-sets").page();
+            Page profile = screens.browser().go("/profile").page();
+
+            claim("the page holds the code sets' own form, then the one of the folders outside the corpus root",
+                    () -> assertThat(codeSets.document().select("form").eachAttr("name"))
+                            .containsSubsequence("code-sets", FORM));
+            claim("which is headed Folders outside the corpus root",
+                    () -> assertThat(form(codeSets, FORM).select("h2").eachText())
+                            .containsExactly("Folders outside the corpus root"));
+            claim("and says, inside it, what saving the folders costs, word for word as the profile page says it of the"
+                            + " same value, and whether the sample is drawn again as that page says",
+                    () -> {
+                        Element here = form(codeSets, FORM).selectFirst("#cost-" + KEY);
+                        Element there = byId(profile, "cost-" + KEY);
+                        assertThat(here).isNotNull();
+                        assertThat(List.of(here.text(), here.attr("data-sample-drawn-again")))
+                                .containsExactly(there.text(), there.attr("data-sample-drawn-again"));
+                        assertThat(here.text()).isNotBlank();
+                    });
+        }
+    }
+
+    @Test
+    @Story("The operator keeps code that lies outside the archive")
+    @DisplayName("Save with no folder typed adds none, says so in one line, writes nothing and keeps the reason typed")
+    void saveWithNoFolderTypedAddsNone() throws IOException {
+        Path work = workingDirectory();
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("an empty field", "");
+        fields.put("a field of spaces alone, its trailing white space lost", "   ");
+        try (ScreenServer screens = start(work)) {
+            PanelBrowser browser = screens.browser().go("/code-sets");
+            for (Map.Entry<String, String> each : fields.entrySet()) {
+                Page landed = browser.press(FORM, "save", Map.of(NEW_FOLDER, each.getValue(), PROVENANCE, WHY_BILLING))
+                        .page();
+
+                claim(each.getKey() + " lands back on the code sets with the one line saying no folder is added, none"
+                                + " being typed",
+                        () -> assertThat(List.of(landed.address().getPath(), byId(landed, "outcome").text()))
+                                .containsExactly("/code-sets", "no folder is added: none is typed in the field"));
+                claim("the profile is not written", () -> assertThat(work.resolve(ProfileEdit.FILE_NAME)).doesNotExist());
+                claim("and the reason typed stands in its field",
+                        () -> assertThat(form(landed, FORM).select("[name='" + PROVENANCE + "']").val())
+                                .isEqualTo(WHY_BILLING));
             }
         }
     }

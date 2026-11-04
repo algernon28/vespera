@@ -156,8 +156,7 @@ public final class WorkingDirectoryWrite {
                     Path part = folder.resolve(changes.get(i).fileName() + ".part");
                     parts.add(part);
                     Files.writeString(part, texts.get(i), UTF_8);
-                    Files.move(part, folder.resolve(changes.get(i).fileName()), StandardCopyOption.ATOMIC_MOVE,
-                            StandardCopyOption.REPLACE_EXISTING);
+                    moves.move(part, folder.resolve(changes.get(i).fileName()));
                 } catch (IOException | RuntimeException failed) {
                     deleteParts(parts);
                     if (moved.isEmpty()) {
@@ -188,7 +187,7 @@ public final class WorkingDirectoryWrite {
      * Puts each file already moved back as it was read, or removes it where it was not there (ADR-334 §6), and returns
      * the one line: neither file is changed, or the file that could not be put back and why.
      */
-    private static String putBack(Path folder, List<Change> changes, List<Optional<String>> asRead, List<Integer> moved,
+    private String putBack(Path folder, List<Change> changes, List<Optional<String>> asRead, List<Integer> moved,
             String failedFile, Exception failed) {
         String refusal = couldNotWrite(failedFile, failed).orElseThrow();
         StringBuilder notBack = new StringBuilder();
@@ -199,13 +198,12 @@ public final class WorkingDirectoryWrite {
                     Path part = folder.resolve(name + ".part");
                     try {
                         Files.writeString(part, asRead.get(index).get(), UTF_8);
-                        Files.move(part, folder.resolve(name), StandardCopyOption.ATOMIC_MOVE,
-                                StandardCopyOption.REPLACE_EXISTING);
+                        moves.move(part, folder.resolve(name));
                     } finally {
                         Files.deleteIfExists(part);
                     }
                 } else {
-                    Files.deleteIfExists(folder.resolve(name));
+                    moves.deleteIfExists(folder.resolve(name));
                 }
             } catch (IOException | RuntimeException e) {
                 notBack.append(notBack.length() == 0 ? "" : "; ").append("could not put ").append(name)
@@ -235,9 +233,41 @@ public final class WorkingDirectoryWrite {
     private final String userName;
     private volatile boolean holdsTheLock;
 
+    private final FileMoves moves;
+
+    /**
+     * How a file is moved over its target and how one is removed, which the all-or-none write and its put-back carry
+     * (ADR-334 §6). It is a seam for the tests to fail a move, as no file system fails a put-back that did not fail
+     * the write before it.
+     */
+    interface FileMoves {
+
+        void move(Path from, Path to) throws IOException;
+
+        void deleteIfExists(Path file) throws IOException;
+    }
+
+    /** The moves and removals as the file system does them. */
+    static final FileMoves ON_DISK = new FileMoves() {
+        @Override
+        public void move(Path from, Path to) throws IOException {
+            Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        }
+
+        @Override
+        public void deleteIfExists(Path file) throws IOException {
+            Files.deleteIfExists(file);
+        }
+    };
+
     public WorkingDirectoryWrite(BooleanSupplier anInvocationItStartedRuns, String userName) {
+        this(anInvocationItStartedRuns, userName, ON_DISK);
+    }
+
+    WorkingDirectoryWrite(BooleanSupplier anInvocationItStartedRuns, String userName, FileMoves moves) {
         this.anInvocationItStartedRuns = anInvocationItStartedRuns;
         this.userName = userName;
+        this.moves = moves;
     }
 
     /**

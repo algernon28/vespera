@@ -58,6 +58,30 @@ class WorkingDirectoryWriteTest {
 
     private static final WorkingDirectoryWrite NO_CHILD_RUNS = new WorkingDirectoryWrite(() -> false, USER);
 
+    /** The list of folders not relevant, written first of the two, and the questions, written after it. */
+    private static final String THE_LIST = NotRelevantFolders.FILE_NAME;
+
+    private static final String THE_QUESTIONS = LabelAnswers.FILE_NAME;
+
+    private static final String LIST_BEFORE = "---\n- folder: \"a\"\n";
+
+    private static final String LIST_AFTER = "---\n- folder: \"a\"\n- folder: \"b/flows\"\n";
+
+    private static final String QUESTIONS_BEFORE = "the questions as they stood";
+
+    private static final String QUESTIONS_AFTER = "the questions answered";
+
+    /** Why the test's move of the questions fails. */
+    private static final String THE_MOVE_FAILS = "the test fails the move of the questions";
+
+    /** What the fake file moves record of the list: a move onto it, or its removal. */
+    private static final String MOVE = "a move onto the list";
+
+    private static final String DELETE = "a removal of the list";
+
+    /** Why the test's put-back of the list fails. */
+    private static final String THE_PUT_BACK_FAILS = "the test fails the put-back of the list";
+
     @Test
     @Story("The control panel writes into a working directory")
     @DisplayName("A write holds the working directory's lock while it changes the file, and leaves its own holder line")
@@ -291,6 +315,113 @@ class WorkingDirectoryWriteTest {
                 () -> assertThat(workingDirectory.resolve(first)).hasContent("the first text"));
         claim("the second holds the text it was made of",
                 () -> assertThat(workingDirectory.resolve(second)).hasContent("the second text"));
+    }
+
+    /**
+     * The list of folders not relevant and the questions are one write, all or none (ADR-334 §6): where the second file
+     * cannot be moved over its target and the first, moved already, cannot be put back as it was read either, the one
+     * line names both and why. The moves are failed through the package-private {@link WorkingDirectoryWrite.FileMoves}
+     * seam, as no file system fails a put-back that did not fail the write before it. Here the first file was there, so
+     * it is put back by a move.
+     */
+    @Test
+    @Story("The control panel writes into a working directory")
+    @DisplayName("Where the second file cannot be written and the first, which was there, cannot be put back, the one line names both and why")
+    @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
+    void aFirstFileThatWasThereAndCannotBePutBackIsSaid(@TempDir Path workingDirectory) throws IOException {
+        Path list = Files.writeString(workingDirectory.resolve(THE_LIST), LIST_BEFORE, UTF_8);
+        Path questions = Files.writeString(workingDirectory.resolve(THE_QUESTIONS), QUESTIONS_BEFORE, UTF_8);
+
+        FailingThePutBack moves = new FailingThePutBack();
+
+        Optional<String> said = new WorkingDirectoryWrite(() -> false, USER, moves).write(workingDirectory, bothFiles());
+
+        claim("the one line says the questions could not be written and why, and that the list could not be put back"
+                        + " as it stood, and why",
+                () -> assertThat(said).contains(neitherPutBack()));
+        claim("the list, which was there, was put back by a move over it after the move that wrote it, and was never"
+                        + " removed",
+                () -> assertThat(moves.onTheList).containsExactly(MOVE, MOVE));
+        claim("the list holds what was written, not having been put back, and the questions are as they stood",
+                () -> assertThat(List.of(Files.readString(list, UTF_8), Files.readString(questions, UTF_8)))
+                        .containsExactly(LIST_AFTER, QUESTIONS_BEFORE));
+    }
+
+    /**
+     * As {@link #aFirstFileThatWasThereAndCannotBePutBackIsSaid}, where the first file was not there before the write,
+     * so it is put back by removing it (ADR-334 §6), and the removal fails.
+     */
+    @Test
+    @Story("The control panel writes into a working directory")
+    @DisplayName("Where the second file cannot be written and the first, which was not there, cannot be removed again, the one line names both and why")
+    @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
+    void aFirstFileThatWasNotThereAndCannotBeRemovedIsSaid(@TempDir Path workingDirectory) throws IOException {
+        Path questions = Files.writeString(workingDirectory.resolve(THE_QUESTIONS), QUESTIONS_BEFORE, UTF_8);
+
+        FailingThePutBack moves = new FailingThePutBack();
+
+        Optional<String> said = new WorkingDirectoryWrite(() -> false, USER, moves).write(workingDirectory, bothFiles());
+
+        claim("the one line says the questions could not be written and why, and that the list could not be put back"
+                        + " as it stood, and why",
+                () -> assertThat(said).contains(neitherPutBack()));
+        claim("the list, which was not there, was put back by removing it after the move that wrote it, and was not"
+                        + " moved over again",
+                () -> assertThat(moves.onTheList).containsExactly(MOVE, DELETE));
+        claim("the list is there, holding what was written, not having been removed, and the questions are as they"
+                        + " stood",
+                () -> assertThat(List.of(Files.readString(workingDirectory.resolve(THE_LIST), UTF_8),
+                                Files.readString(questions, UTF_8)))
+                        .containsExactly(LIST_AFTER, QUESTIONS_BEFORE));
+    }
+
+    /** The list, then the questions, each changed to its text after: the order of a save of the folders not relevant. */
+    private static List<WorkingDirectoryWrite.Change> bothFiles() {
+        return List.of(new WorkingDirectoryWrite.Change(THE_LIST, current -> LIST_AFTER),
+                new WorkingDirectoryWrite.Change(THE_QUESTIONS, current -> QUESTIONS_AFTER));
+    }
+
+    /** The whole line said where the questions are not written and the list is not put back. */
+    private static String neitherPutBack() {
+        return "the control panel could not write " + THE_QUESTIONS + ": IOException: " + THE_MOVE_FAILS
+                + ", and could not put " + THE_LIST + " back as it stood: IOException: " + THE_PUT_BACK_FAILS;
+    }
+
+    /**
+     * File moves that move and remove as the control panel's own on disk do, {@link WorkingDirectoryWrite#ON_DISK}
+     * doing it, but fail every move onto the questions, every move onto the list after the first, which is the
+     * put-back, and every removal of the list, which is the put-back of a list that was not there. A part file is moved
+     * and removed as usual. What was asked of the list itself, a move onto it or its removal, is kept in order, so a
+     * test can tell which put-back was tried.
+     */
+    private static final class FailingThePutBack implements WorkingDirectoryWrite.FileMoves {
+
+        /** Each move onto the list and each removal of it, in the order asked, failed or not. */
+        private final List<String> onTheList = new ArrayList<>();
+
+        @Override
+        public void move(Path from, Path to) throws IOException {
+            String onto = to.getFileName().toString();
+            if (onto.equals(THE_QUESTIONS)) {
+                throw new IOException(THE_MOVE_FAILS);
+            }
+            if (onto.equals(THE_LIST)) {
+                onTheList.add(MOVE);
+                if (onTheList.size() > 1) {
+                    throw new IOException(THE_PUT_BACK_FAILS);
+                }
+            }
+            WorkingDirectoryWrite.ON_DISK.move(from, to);
+        }
+
+        @Override
+        public void deleteIfExists(Path file) throws IOException {
+            if (file.getFileName().toString().equals(THE_LIST)) {
+                onTheList.add(DELETE);
+                throw new IOException(THE_PUT_BACK_FAILS);
+            }
+            WorkingDirectoryWrite.ON_DISK.deleteIfExists(file);
+        }
     }
 
     private static Optional<String> writeWhileHeld(Path workingDirectory, Path lockFile) throws IOException {
