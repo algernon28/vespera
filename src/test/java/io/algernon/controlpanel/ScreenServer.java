@@ -70,15 +70,27 @@ final class ScreenServer implements AutoCloseable {
      * with the screens' pages, reading corpus-root locks in a folder of the test's own, everything under
      * {@code folder}, which is the control panel's current directory: a work folder left empty is
      * {@link #defaultWorkingDirectoryIn(Path) its .vespera} (ADR-340 §6), never one under the directory the tests run in.
+     * It is given no system property and no environment variable, so that it never reads the folder the machine
+     * running the tests names for the jar.
      */
     static ScreenServer start(Path folder, LaunchValues values) throws IOException {
+        return start(folder, values, Map.of(), Map.of());
+    }
+
+    /**
+     * As {@link #start(Path, LaunchValues)}, the control panel started with {@code systemProperties} and in
+     * {@code environment} in place of the test JVM's, as {@code ControlPanel.main} reads its own (ADR-340 §6).
+     */
+    static ScreenServer start(Path folder, LaunchValues values, Map<String, String> systemProperties,
+            Map<String, String> environment) throws IOException {
         String userName = System.getProperty("user.name");
         Path launchValuesFile = storedIn(folder, values, userName);
         ChildRuntime runtime = runtime();
         Set<Started> runningBefore = snapshot(ProcessHandle.current().descendants());
         Path corpusRootLockFolder = Files.createDirectories(folder.resolve("root-locks"));
         return new ScreenServer(ControlPanelServer.start(pages(runtime, launchValuesFile, corpusRootLockFolder,
-                userName, folder)), runningBefore, corpusRootLockFolder);
+                userName, WorkingDirectoryDefault.of(folder, systemProperties, environment))), runningBefore,
+                corpusRootLockFolder);
     }
 
     /**
@@ -124,12 +136,14 @@ final class ScreenServer implements AutoCloseable {
     }
 
     /**
-     * The screens' pages, by path, as {@code ControlPanel.main} starts the server with them (ADR-302 §10), the control
-     * panel's current directory being {@code currentDirectory} in place of the test JVM's (ADR-340 §6).
+     * The screens' pages, by path, as {@code ControlPanel.main} starts the server with them (ADR-302 §10), the work
+     * folder left empty being {@code workingDirectoryDefault}, resolved from the test's current directory, system
+     * properties and environment in place of the test JVM's (ADR-340 §6).
      */
     private static Map<String, HttpHandler> pages(ChildRuntime runtime, Path launchValuesFile,
-            Path corpusRootLockFolder, String userName, Path currentDirectory) {
-        return ControlPanelPages.pages(runtime, launchValuesFile, corpusRootLockFolder, userName, currentDirectory);
+            Path corpusRootLockFolder, String userName, WorkingDirectoryDefault workingDirectoryDefault) {
+        return ControlPanelPages.pages(runtime, launchValuesFile, corpusRootLockFolder, userName,
+                workingDirectoryDefault);
     }
 
     /**

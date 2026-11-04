@@ -1,6 +1,6 @@
 # ADR-335 — The control panel shows the progress page on a page of its own, in a frame, and its pages are drawn to one compact scale of space, type, corners and controls
 
-> **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of §1: `/progress` is no page; the home page holds `#progress-view`, its frame and its states, and never asks to be loaded again, and `/progress` answers `303` to `/#progress-view`. Of §4: `#progress` links `/#progress-view`. Of §5: the sidebar's rule, `#shell`'s columns, goes with the sidebar, the scale's seventeen steps staying as they are, and `main.two-columns` gives way to the home page's columns. The rest of this record stands.
+> **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of §1: `/progress` is no page; the home page holds `#progress-view`, its frame and its states, and the script reloads it every 15 seconds while the operator is not at work on it, and `/progress` answers `303` to `/#progress-view`. Of §4: `#progress` links `/#progress-view`. Of §5: the sidebar's rule, `#shell`'s columns, goes with the sidebar, the scale's seventeen steps staying as they are, and `main.two-columns` gives way to the home page's columns. The rest of this record stands.
 
 - **Date**: 2026-11-03
 - **Status**: accepted on 2026-11-03.

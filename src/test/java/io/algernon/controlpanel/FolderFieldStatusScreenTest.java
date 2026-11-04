@@ -365,8 +365,9 @@ class FolderFieldStatusScreenTest {
 
             claim("the hint tied to the field is the one the record gives, in plain words",
                     () -> assertThat(byId(page, tiedTo).text()).isEqualTo("Where Vespera keeps its database, its reports"
-                            + " and profile.yaml. Left empty, it is the .vespera folder of the folder the control panel was"
-                            + " started from, as shown. If it is not there yet, the first value you save makes it."));
+                            + " and profile.yaml. Left empty, it is the folder this machine is set to use, or else the"
+                            + " .vespera folder of the folder the control panel was started from, as shown. If it is not"
+                            + " there yet, the first value you save makes it."));
         }
     }
 

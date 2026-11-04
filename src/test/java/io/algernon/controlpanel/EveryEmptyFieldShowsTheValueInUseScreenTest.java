@@ -27,8 +27,9 @@ import org.junit.jupiter.api.io.TempDir;
  * Every field left empty shows the value in use where one exists, and keeps its example and its Browse button where
  * none does (ADR-340 §6): a value of the profile the jar says lies beneath it shows that value; the documents folder,
  * the seed folder and a code set folder, none of which has a default the control panel would use, keep their examples;
- * and the work folder is {@code .vespera} under the control panel's current directory, which Run, Label and Publish
- * pass and start in. The field stays empty either way, so that nothing the operator did not type is saved.
+ * and the work folder is the one the jar would use on this machine, named by a system property or an environment
+ * variable, or else {@code .vespera} under the control panel's current directory, which Run, Label and Publish pass and
+ * start in. The field stays empty either way, so that nothing the operator did not type is saved.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -122,9 +123,11 @@ class EveryEmptyFieldShowsTheValueInUseScreenTest {
             claim("the field stays empty, its placeholder the default in use",
                     () -> assertThat(List.of(field.val(), field.attr("placeholder")))
                             .containsExactly("", "in use: " + theDefault));
-            claim("and beside it the page says the default is in use, at that folder",
-                    () -> assertThat(List.of(inUse.attr("data-value"), inUse.attr("data-source")))
-                            .containsExactly(theDefault.toString(), "default"));
+            claim("and beside it the page says the default is in use, at that folder, named after no property or variable",
+                    () -> assertThat(List.of(inUse.attr("data-value"), inUse.attr("data-source"),
+                                    inUse.hasAttr("data-source-name"), inUse.text()))
+                            .containsExactly(theDefault.toString(), "default", false, "In use: " + theDefault
+                                    + ", the .vespera folder of the folder the control panel was started from."));
             claim("Run no longer asks for a work folder: it starts on the default, which is not there, and is refused"
                             + " by the line of a work folder that is no folder, naming it",
                     () -> assertThat(List.of(refused.address().getPath(), byId(refused, "outcome").text()))
@@ -167,6 +170,73 @@ class EveryEmptyFieldShowsTheValueInUseScreenTest {
             claim("and so did Publish",
                     () -> assertThat(publish).containsPattern("publish --to \\S+ --db-dir="
                             + java.util.regex.Pattern.quote(theDefault.toString())));
+        }
+    }
+
+    /**
+     * The machine names its own work folder by {@code VESPERA_WORKING_DIR}, as Spring's relaxed binding reads
+     * {@code vespera.working-dir} (ADR-340 §6): the field left empty shows that folder, and Run passes it and starts in
+     * it, never in {@code .vespera} under the current directory, which would override the machine's folder.
+     */
+    @Test
+    @Story("The operator sees the value in use and where it came from")
+    @DisplayName("With the work folder left empty, the folder this machine's environment names is in use, which Run passes and starts in")
+    void anEmptyWorkFolderIsTheOneTheEnvironmentNamesWhichRunPassesAndStartsIn()
+            throws IOException, InterruptedException {
+        Path configured = Files.createDirectories(folder.resolve("this-machines-work-folder"));
+        Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
+        ScreenServer.childWill(configured, SAYS_ITS_ARGUMENTS_AND_ENDS);
+        try (ScreenServer screens = ScreenServer.start(folder,
+                new LaunchValues(corpusRoot.toString(), "", "", "", "", "", "", ""), Map.of(),
+                Map.of("VESPERA_WORKING_DIR", configured.toString()))) {
+            PanelBrowser browser = screens.browser();
+            Page home = browser.page();
+            Element field = form(home, "launch-values").selectFirst("[name='vespera.working-dir']");
+            Element inUse = byId(home, "in-use-vespera.working-dir");
+            String run = byId(ScreenServer.whenTheChildHasEnded(browser.press("launch", "run", Map.of())), "tail")
+                    .text();
+
+            claim("the field stays empty, its placeholder the folder the environment names",
+                    () -> assertThat(List.of(field.val(), field.attr("placeholder")))
+                            .containsExactly("", "in use: " + configured));
+            claim("and beside it the page says that folder is in use, from the environment variable it names",
+                    () -> assertThat(List.of(inUse.attr("data-value"), inUse.attr("data-source"),
+                                    inUse.attr("data-source-name"), inUse.text()))
+                            .containsExactly(configured.toString(), "environment", "VESPERA_WORKING_DIR",
+                                    "In use: " + configured + ", from the environment variable VESPERA_WORKING_DIR."));
+            claim("Run passed that folder as the working directory, and was started in it",
+                    () -> assertThat(run).contains("run " + corpusRoot.toAbsolutePath() + " --db-dir=" + configured));
+            claim("and nothing made .vespera under the current directory",
+                    () -> assertThat(ScreenServer.defaultWorkingDirectoryIn(folder)).doesNotExist());
+        }
+    }
+
+    @Test
+    @Story("The operator sees the value in use and where it came from")
+    @DisplayName("A system property naming the work folder comes before the environment's, and Label passes it")
+    void aSystemPropertyNamingTheWorkFolderComesBeforeTheEnvironmentAndLabelPassesIt()
+            throws IOException, InterruptedException {
+        Path byProperty = Files.createDirectories(folder.resolve("named-by-a-property"));
+        Path byVariable = Files.createDirectories(folder.resolve("named-by-a-variable"));
+        ScreenServer.childWill(byProperty, SAYS_ITS_ARGUMENTS_AND_ENDS);
+        try (ScreenServer screens = ScreenServer.start(folder,
+                new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), "", "", "", "", "", "",
+                        ""),
+                Map.of("vespera.working-dir", byProperty.toString()),
+                Map.of("VESPERA_WORKING_DIR", byVariable.toString()))) {
+            PanelBrowser browser = screens.browser();
+            Element inUse = byId(browser.page(), "in-use-vespera.working-dir");
+            String label = byId(ScreenServer.whenTheChildHasEnded(browser.press("launch", "label", Map.of())), "tail")
+                    .text();
+
+            claim("the folder in use is the system property's, and the page says so in words",
+                    () -> assertThat(List.of(inUse.attr("data-value"), inUse.attr("data-source"),
+                                    inUse.attr("data-source-name"), inUse.text()))
+                            .containsExactly(byProperty.toString(), "system-property", "vespera.working-dir",
+                                    "In use: " + byProperty + ", from the system property vespera.working-dir the"
+                                            + " control panel was started with."));
+            claim("and Label passed it as the working directory, started in it",
+                    () -> assertThat(label).contains("label --db-dir=" + byProperty));
         }
     }
 

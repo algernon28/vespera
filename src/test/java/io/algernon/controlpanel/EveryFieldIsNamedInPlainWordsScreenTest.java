@@ -126,9 +126,9 @@ class EveryFieldIsNamedInPlainWordsScreenTest {
         words.put("vespera.corpus-root", List.of("Documents folder",
                 "The folder with the documents to process. Vespera only reads it and never changes anything in it."));
         words.put("vespera.working-dir", List.of("Work folder",
-                "Where Vespera keeps its database, its reports and profile.yaml. Left empty, it is the .vespera folder"
-                        + " of the folder the control panel was started from, as shown. If it is not there yet, the"
-                        + " first value you save makes it."));
+                "Where Vespera keeps its database, its reports and profile.yaml. Left empty, it is the folder this"
+                        + " machine is set to use, or else the .vespera folder of the folder the control panel was"
+                        + " started from, as shown. If it is not there yet, the first value you save makes it."));
         words.put("vespera.deliverable-root", List.of("Output folder",
                 "Leave it empty to put each run's pages in a folder of their own under the work folder, as shown; a"
                         + " folder named here holds one run's pages, so name an empty one."));

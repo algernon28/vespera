@@ -19,6 +19,8 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.jsoup.nodes.Element;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,8 +29,9 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * The page the control panel opens on is the home page (ADR-340 §2): the reports in a foldable box on its left, the four
  * tiles and the progress page in its middle, the next step, the checklist of what Run needs and what this machine runs
- * with on its right. It never asks to be loaded again, since it holds every form; the pages it took in answer at their
- * old addresses with where their content now stands (§3).
+ * with on its right. The one script reloads it every 15 seconds, but not while the operator is at work on it, nor while
+ * it shows the line of a press; the pages it took in answer at their old addresses with where their content now stands
+ * (§3).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -43,6 +46,14 @@ class TheHomePageScreenTest {
     /** The five rows of the preflight, in its order (ADR-331 §3). */
     private static final List<String> THE_FIVE_ROWS = List.of("corpus-root", "working-directory", "docling", "ollama",
             "locks");
+
+    /** How often the script reloads the home page, while the operator is not at work on it (ADR-340 §2). */
+    private static final String EVERY_FIFTEEN_SECONDS = "15";
+
+    /** The script listening for a field typed in, and for a box ticked or a choice made. */
+    private static final Pattern LISTENS_FOR_INPUT = Pattern.compile("addEventListener\\(\\s*['\"]input['\"]");
+
+    private static final Pattern LISTENS_FOR_CHANGE = Pattern.compile("addEventListener\\(\\s*['\"]change['\"]");
 
     @TempDir
     Path folder;
@@ -112,27 +123,79 @@ class TheHomePageScreenTest {
         }
     }
 
+    /**
+     * The home page keeps itself current by the one script alone (ADR-340 §2): a browser running no script cannot tell
+     * whether a reload would lose what the operator is doing, so the page asks the browser for no refresh of its own.
+     */
     @Test
     @Story("The operator watches an invocation from the control panel")
-    @DisplayName("The home page shows the progress page where one is written, says why where none is, and never asks to be loaded again")
-    void theProgressPageIsShownOnTheHomePageWhichNeverAsksToBeLoadedAgain() throws IOException {
+    @DisplayName("The home page shows the progress page where one is written, says why where none is, and the script alone reloads it every 15 seconds")
+    void theProgressPageIsShownOnTheHomePageWhichTheScriptReloadsEveryFifteenSeconds() throws IOException {
         Path work = work();
         try (ScreenServer screens = aServer(work)) {
             PanelBrowser browser = screens.browser();
             Page before = browser.go("/").page();
             Files.writeString(work.resolve("progress.html"), A_PROGRESS_PAGE, UTF_8);
             Page after = browser.go("/").page();
+            Page aSectionNamed = browser.go("/?open=values-profile").page();
 
             claim("before the progress page is written the home page says so, and once it is, shows it in its frame",
                     () -> assertThat(List.of(byId(before, "progress-view").attr("data-progress"),
                                     byId(after, "progress-view").attr("data-progress"),
                                     byId(after, "progress-frame").attr("src")))
                             .containsExactly("not-written", "shown", "/report/progress.html"));
-            claim("and neither time does the home page ask to be loaded again, by the script or by the browser",
-                    () -> assertThat(List.of(before, after).stream()
+            claim("each time, and with a section of the drawer named, the page asks the script to reload it every 15"
+                            + " seconds and asks the browser for no refresh of its own",
+                    () -> assertThat(Stream.of(before, after, aSectionNamed)
                                     .map(page -> List.of(refresh(page), page.document().body().attr("data-refresh-seconds")))
                                     .toList())
-                            .containsOnly(List.of("", "")));
+                            .containsOnly(List.of("", EVERY_FIFTEEN_SECONDS)));
+        }
+    }
+
+    /** The line of a press is shown once (ADR-340 §1), so a reload would lose it before it is read (§2). */
+    @Test
+    @Story("The operator watches an invocation from the control panel")
+    @DisplayName("A home page showing the line of a press asks no reload, and loaded again without it, asks one")
+    void aHomePageShowingTheLineOfAPressAsksNoReloadUntilLoadedAgain() throws IOException {
+        try (ScreenServer screens = ScreenServer.start(folder,
+                new LaunchValues("", work().toString(), "", "", "", "", "", ""))) {
+            PanelBrowser browser = screens.browser();
+            Page refused = browser.press("launch", "run", Map.of()).page();
+            Page again = browser.go("/").page();
+
+            claim("Run, with no corpus root, is refused onto the home page, which shows its line",
+                    () -> assertThat(List.of(refused.address().getPath(),
+                                    byId(refused, "outcome").text().contains("Run needs the corpus root")))
+                            .containsExactly("/", true));
+            claim("that page asks no reload, so that the line stays until the operator leaves it",
+                    () -> assertThat(refused.document().body().hasAttr("data-refresh-seconds")).isFalse());
+            claim("and the home page loaded again, the line no longer shown, asks the script to reload it every 15 seconds",
+                    () -> assertThat(again.document().body().attr("data-refresh-seconds")).isEqualTo(EVERY_FIFTEEN_SECONDS));
+        }
+    }
+
+    /**
+     * No test runs the script (ADR-325 §9): its text is read for what it looks at to tell that the operator is at work on
+     * the page, and the reload waits while they are (ADR-340 §2).
+     */
+    @Test
+    @Story("The operator watches an invocation from the control panel")
+    @DisplayName("The script waits to reload the page while the drawer is open, a field or the frame has the focus, a field has changed or a box is folded otherwise than drawn")
+    void theScriptWaitsToReloadWhileTheOperatorIsAtWorkOnThePage() throws IOException {
+        try (ScreenServer screens = aServer(work())) {
+            InetSocketAddress server = screens.server().address();
+            String text = RawHttp.send(server, "GET", TabPaths.SCRIPT, List.of("Host: 127.0.0.1:" + server.getPort(),
+                    "Sec-Fetch-Site: same-origin")).body();
+
+            claim("the script tells that the drawer is shown, the element the address names being the drawer or inside it",
+                    () -> assertThat(text).contains("#values:target").contains("#values :target"));
+            claim("that the focus is on a field or on the progress page's frame",
+                    () -> assertThat(text).contains("activeElement").containsIgnoringCase("iframe"));
+            claim("that a field has been typed in, ticked or chosen since the page loaded",
+                    () -> assertThat(text).containsPattern(LISTENS_FOR_INPUT).containsPattern(LISTENS_FOR_CHANGE));
+            claim("and that a box of the page is folded otherwise than it was drawn",
+                    () -> assertThat(text).contains("details"));
         }
     }
 

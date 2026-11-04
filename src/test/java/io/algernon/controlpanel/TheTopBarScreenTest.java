@@ -17,6 +17,7 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +60,12 @@ class TheTopBarScreenTest {
     /** The style's rule of the top bar: its selector alone, then its declarations. */
     private static final Pattern THE_TOP_BARS_RULE = Pattern.compile("(?m)^\\s*#top-bar\\s*\\{([^}]*)}");
 
+    /** Every rule of the top bar alone, wherever it stands in the style, inside a narrow window's rule or not. */
+    private static final Pattern EVERY_RULE_OF_THE_TOP_BAR = Pattern.compile("(?<![\\w#.-])#top-bar\\s*\\{([^{}]*)}");
+
+    /** A declaration of {@code position}, its value in its group. */
+    private static final Pattern A_POSITION = Pattern.compile("(?<![\\w-])position\\s*:\\s*([^;]+)");
+
     @TempDir
     Path folder;
 
@@ -99,6 +106,33 @@ class TheTopBarScreenTest {
 
             claim("the style has a rule of the top bar alone, which keeps it in view as the page scrolls, at the very top",
                     () -> assertThat(declarations).contains("position: sticky").contains("top: 0"));
+        }
+    }
+
+    /**
+     * A narrow window wraps the bar's content onto more lines, and keeps it at the top all the same (ADR-340 §1): no
+     * rule of the bar alone, a narrow window's among them, sets its position to anything but sticky. The style is read
+     * as text (ADR-297), every rule of the bar wherever it stands.
+     */
+    @Test
+    @Story("The operator starts an invocation from the control panel")
+    @DisplayName("The top bar stays at the top of the window at every width, a narrow window's included")
+    void theTopBarStaysAtTheTopOfTheWindowAtEveryWidth() throws IOException {
+        try (ScreenServer screens = aServer()) {
+            String style = String.join("\n",
+                    screens.browser().page().document().select("style").stream().map(Element::data).toList());
+            List<String> positions = new ArrayList<>();
+            Matcher rule = EVERY_RULE_OF_THE_TOP_BAR.matcher(style);
+            while (rule.find()) {
+                Matcher position = A_POSITION.matcher(rule.group(1));
+                while (position.find()) {
+                    positions.add(position.group(1).strip());
+                }
+            }
+
+            claim("the rules of the top bar set its position, and every one of them, a narrow window's included, keeps it"
+                            + " sticky, so that Run, Label and Check stay in reach however narrow the window",
+                    () -> assertThat(positions).isNotEmpty().containsOnly("sticky"));
         }
     }
 
