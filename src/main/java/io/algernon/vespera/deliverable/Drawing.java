@@ -14,7 +14,7 @@ import java.util.Optional;
  */
 public interface Drawing extends AutoCloseable {
 
-    /** A seed partition's groups are about to be drawn. */
+    /** A seed partition's clusters are about to be drawn. */
     void partitionStarted(ListedPartition partition, int partitionCount) throws IOException;
 
     /** Opens one cluster's entries; {@code clusterFolder} is its folder in the HTML tree, where its copies stand. */
@@ -35,7 +35,7 @@ public interface Drawing extends AutoCloseable {
             boolean writingFinished)
             throws IOException;
 
-    /** The seed partition's last group is drawn. */
+    /** The seed partition's last cluster is drawn. */
     void partitionEnded() throws IOException;
 
     /** Every seed partition is drawn and {@code manifest}, {@code documents.csv}, stands. */

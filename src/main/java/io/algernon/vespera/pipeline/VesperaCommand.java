@@ -553,7 +553,7 @@ public class VesperaCommand implements Callable<Integer> {
             + " operator's Confluence Cloud site, as the VESPERA_CONFLUENCE_* variables name it.")
     public static class Publish implements Callable<Integer> {
 
-        private static final String DESTINATION = "confluence";
+        private static final String DESTINATION = Publisher.RENDERING_FOLDER;
 
         private final Ledger ledger;
         private final Plugin plugin;
