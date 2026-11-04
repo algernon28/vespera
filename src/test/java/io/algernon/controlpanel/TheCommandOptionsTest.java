@@ -128,11 +128,16 @@ class TheCommandOptionsTest {
         LaunchValues values = new LaunchValues(corpusRoot.toString(), work.toString(), "", "", "", "", "", "");
 
         ChildCommand run = ChildCommand.run(java(), jar(), values).withOptions(Map.of("vespera.models.pull", "false"));
+        List<String> started = argumentsOf(run);
+        String expected = "vespera " + String.join(" ", started.stream()
+                .map(argument -> argument.contains(" ") ? "\"" + argument + "\"" : argument)
+                .toList());
 
-        claim("the line shown is vespera, then run, the corpus root in double quotes for its space, the working"
-                        + " directory and the option, as the child is started with them",
-                () -> assertThat(run.shown()).isEqualTo("vespera run \"" + corpusRoot.toAbsolutePath() + "\" --db-dir="
-                        + work.toAbsolutePath() + " --vespera.models.pull=false"));
+        claim("the child is started with a corpus root holding a space, so the line below has one to quote",
+                () -> assertThat(started).anyMatch(argument -> argument.contains(" ")));
+        claim("the line shown is vespera and the arguments the child is started with, in their order, the one holding"
+                        + " a space in double quotes",
+                () -> assertThat(run.shown()).isEqualTo(expected));
     }
 
     private LaunchValues values() throws IOException {

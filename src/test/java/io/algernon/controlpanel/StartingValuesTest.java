@@ -157,27 +157,35 @@ class StartingValuesTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("valuesAndWhatTheChildReads")
     @Story("The window passes and keeps only what the operator chose")
-    @DisplayName("A value is passed to the child only where it is set and the child would read another without it")
-    void aValueIsPassedOnlyWhereTheChildWouldReadAnother(String value, Sources sources, boolean passed) {
-        claim("a value is passed where it is not blank and differs from the environment's, or else application.yaml's,"
-                        + " which the child reads with nothing passed",
-                () -> assertThat(StartingValues.passed(ADDRESS, value, sources)).isEqualTo(passed));
+    @DisplayName("A value is passed to the child where it is set and either kept or not what the child would read without it")
+    void aValueIsPassedOnlyWhereTheChildWouldReadAnother(String value, Starting starting, Sources sources,
+            boolean passed) {
+        claim("a value is passed where it is not blank and is either kept, a launch value or one the operator changed,"
+                        + " or differs from the environment's, or else application.yaml's, which the child reads with"
+                        + " nothing passed",
+                () -> assertThat(StartingValues.passed(ADDRESS, value, starting, sources)).isEqualTo(passed));
     }
 
     static Stream<Arguments> valuesAndWhatTheChildReads() {
-        Map<String, String> yaml = Map.of(ADDRESS, "http://localhost:5001");
+        String shipped = "http://localhost:5001";
+        Map<String, String> yaml = Map.of(ADDRESS, shipped);
         Sources yamlAlone = new Sources(Map.of(), Map.of(), Map.of(), yaml);
         Sources withTheEnvironment = new Sources(Map.of(), Map.of(ADDRESS_VARIABLE, "http://environment:2"), Map.of(), yaml);
         Sources withDotEnv = new Sources(Map.of(), Map.of(), Map.of(ADDRESS_VARIABLE, "http://dot-env:3"), yaml);
+        Starting fromYaml = new Starting(shipped, Source.APPLICATION_YAML);
         return Stream.of(
-                Arguments.of(Named.of("application.yaml's own value, left as it started", "http://localhost:5001"),
+                Arguments.of(Named.of("application.yaml's own value, left as it started", shipped), fromYaml,
                         yamlAlone, false),
-                Arguments.of(Named.of("the environment's own value", "http://environment:2"), withTheEnvironment, false),
-                Arguments.of(Named.of("application.yaml's value under an environment naming another",
-                        "http://localhost:5001"), withTheEnvironment, true),
-                Arguments.of(Named.of(".env's value, which the child does not read", "http://dot-env:3"), withDotEnv, true),
-                Arguments.of(Named.of("a value the operator typed", "http://elsewhere:9"), yamlAlone, true),
-                Arguments.of(Named.of("an emptied field", "  "), yamlAlone, false));
+                Arguments.of(Named.of("the environment's own value, left as it started", "http://environment:2"),
+                        new Starting("http://environment:2", Source.ENVIRONMENT), withTheEnvironment, false),
+                Arguments.of(Named.of(".env's value, which the child does not read", "http://dot-env:3"),
+                        new Starting("http://dot-env:3", Source.DOT_ENV), withDotEnv, true),
+                Arguments.of(Named.of("a value the operator typed", "http://elsewhere:9"), fromYaml, yamlAlone, true),
+                Arguments.of(Named.of("a launch value equal to application.yaml's", shipped),
+                        new Starting(shipped, Source.LAUNCH_VALUE), yamlAlone, true),
+                Arguments.of(Named.of("a launch value the operator changed back to application.yaml's", shipped),
+                        new Starting("http://launched:1", Source.LAUNCH_VALUE), yamlAlone, true),
+                Arguments.of(Named.of("an emptied field", "  "), fromYaml, yamlAlone, false));
     }
 
     @ParameterizedTest(name = "{0}")

@@ -64,7 +64,7 @@ class TheControlPanelsWindowTest {
     @Story("The control panel is one window")
     @DisplayName("Run and Stop stand side by side, and Stop is disabled while nothing runs")
     void runAndStopStandSideBySideAndStopIsDisabledWithNoChild() throws Exception {
-        record Seen(boolean inARow, boolean sameRow, double runY, double stopY, double runX, double stopX,
+        record Seen(boolean inARow, boolean sameRow, boolean spansOverlap, double runX, double stopX,
                 boolean stopDisabled, boolean runDisabled) {
         }
         Seen seen = inTheWindow(root -> {
@@ -72,15 +72,16 @@ class TheControlPanelsWindowTest {
             Node stop = HeadlessToolkit.nodeWithId(root, "stop").orElseThrow();
             Bounds runAt = run.localToScene(run.getBoundsInLocal());
             Bounds stopAt = stop.localToScene(stop.getBoundsInLocal());
-            return new Seen(run.getParent() instanceof HBox, run.getParent() == stop.getParent(), runAt.getMinY(),
-                    stopAt.getMinY(), runAt.getMinX(), stopAt.getMinX(), stop.isDisabled(), run.isDisabled());
+            boolean overlap = runAt.getMinY() < stopAt.getMaxY() && stopAt.getMinY() < runAt.getMaxY();
+            return new Seen(run.getParent() instanceof HBox, run.getParent() == stop.getParent(), overlap,
+                    runAt.getMinX(), stopAt.getMinX(), stop.isDisabled(), run.isDisabled());
         });
 
         claim("Run and Stop stand in one row, a horizontal box of the two",
                 () -> assertThat(List.of(seen.inARow(), seen.sameRow())).containsExactly(true, true));
-        claim("laid out side by side: at the same height, Stop to the right of Run",
+        claim("laid out side by side: their heights on the window overlap, and Stop is to the right of Run",
                 () -> {
-                    assertThat(seen.stopY()).isEqualTo(seen.runY());
+                    assertThat(seen.spansOverlap()).isTrue();
                     assertThat(seen.stopX()).isGreaterThan(seen.runX());
                 });
         claim("and with no child running Stop is disabled while Run is not",

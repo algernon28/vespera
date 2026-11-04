@@ -37,7 +37,7 @@ import org.springframework.core.env.SystemEnvironmentPropertySource;
 @Link(name = "ADR-279", url = Adr.ONE_VESPERA_RUN_PER_CORPUS_ROOT, type = "adr")
 class CorpusRootLockFileTest {
 
-    /** The home folder the control panel is given, as {@code ControlPanel.main} gives it the user's. */
+    /** The home folder the control panel is given, as its start gives it the user's. */
     private static final String USER_HOME = System.getProperty("user.home");
 
     @Test

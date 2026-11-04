@@ -2,7 +2,7 @@
 
 > **Partly amended — see [ADR-340](0340-the-note-saved-with-a-profile-value-is-filled-in-for-the-operator-set-in-the-control-panel-or-the-provenance-already-saved-and-a-value-changed-under-its-old-note-is-saved-with-the-filled-in-one.md).** Of §7: the provenance field's hint asking for a reason beside each value changed goes; each value has a note filled in for the operator. The rest of this record stands.
 
-> **Partly amended — see [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §2: each field of the services starts from the launch values, the environment, `.env`, the GPU preselection or `application.yaml`, and passes nothing where it holds what the child would read anyway; `in use` stays beside a field no source names. The rest of this record stands.
+> **Partly amended — see [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §2: each field of the services starts from the launch values, the environment, `.env`, the GPU preselection or `application.yaml`, and passes nothing where it holds, unchosen, what the child would read anyway; `in use` stays beside a field no source names. Of §11: an image the environment or `.env` names comes before the GPU preselection, which comes before `application.yaml`'s. The rest of this record stands.
 
 - **Date**: 2026-11-03
 - **Status**: accepted on 2026-11-03.
