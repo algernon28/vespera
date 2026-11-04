@@ -912,9 +912,9 @@ function markerPattern(source, whole = false) {
       reasons.push(`the fetch of origin/main failed: ${fetched.err}`);
     }
   }
-  const tree = run("git", ["ls-tree", "-r", "--name-only", "origin/main", "--", ADR_DIR]);
+  const tree = run("git", ["ls-tree", "-r", "-z", "--name-only", "origin/main", "--", ADR_DIR]);
   if (!tree.ok && !fetchFailed) reasons.push(`origin/main cannot be resolved: ${tree.err}`);
-  const main = tree.ok && !fetchFailed ? tree.out.split(/\r?\n/).filter(Boolean) : null;
+  const main = tree.ok && !fetchFailed ? tree.out.split("\0").filter(Boolean) : null;
 
   let added = null;
   const base = run("git", ["merge-base", "origin/main", "HEAD"]);

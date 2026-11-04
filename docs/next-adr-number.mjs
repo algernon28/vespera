@@ -20,12 +20,12 @@ const run = (cmd, args) => {
 };
 
 const fetchMain = run("git", ["fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main"]);
-const tree = run("git", ["ls-tree", "-r", "--name-only", "origin/main", "--", "docs/adr"]);
+const tree = run("git", ["ls-tree", "-r", "-z", "--name-only", "origin/main", "--", "docs/adr"]);
 if (!tree.ok) {
   console.error(`origin/main cannot be resolved: ${tree.err}`);
   process.exit(1);
 }
-const main = tree.out.split(/\r?\n/).filter(Boolean);
+const main = tree.out.split("\0").filter(Boolean);
 const branchTree = readdirSync("docs/adr").map((f) => `docs/adr/${f}`);
 
 let branchName = run("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
