@@ -3,6 +3,7 @@ package io.algernon.vespera;
 import io.algernon.vespera.pipeline.CorpusRootLock;
 import io.algernon.vespera.pipeline.MisshapenProfileRefusal;
 import io.algernon.vespera.pipeline.ProfileShapeCheck;
+import io.algernon.vespera.pipeline.ServeCommand;
 import io.algernon.vespera.pipeline.SidecarStarter;
 import io.algernon.vespera.pipeline.TemporaryFilesInTheWorkingDirectory;
 import io.algernon.vespera.pipeline.WorkingDirectoryInUseRefusal;
@@ -16,6 +17,13 @@ import org.springframework.context.ConfigurableApplicationContext;
 public class VesperaApplication {
 
     public static void main(String[] args) {
+        // `vespera serve` is handed on before SpringApplication is built (ADR-333 section 8): no context, none of the
+        // four listeners below, no datasource, no lock and no log file. Any other first argument goes to Spring.
+        java.util.Optional<java.util.List<String>> served = ServeCommand.handedOn(args);
+        if (served.isPresent()) {
+            System.exit(new ServeCommand().call(served.get().toArray(String[]::new)));
+            return;
+        }
         SpringApplication application = new SpringApplication(VesperaApplication.class);
         // Registered here rather than as beans: each has to run while the environment is being
         // prepared, which is before any bean exists — the preparer before the datasource opens a file

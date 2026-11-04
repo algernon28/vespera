@@ -39,7 +39,10 @@ public final class ChildCommand {
                     "As for run; Publish stands on the invocation page."),
             new Argument("publish", "to", "publish", "to",
                     "The checkboxes of the invocation page's Publish, one for each destination drawn (ADR-333 §6); not"
-                            + " a control of the launch form."));
+                            + " a control of the launch form."),
+            new Argument("serve", "db-dir", "", "",
+                    "Never passed: the control panel starts no vespera serve (ADR-333 section 8), a reader's server being a"
+                            + " command the operator starts and ends."));
 
     /**
      * The destinations the control panel offers, which {@code publish --to} names, in the order the invocation page
