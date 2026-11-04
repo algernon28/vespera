@@ -188,6 +188,41 @@ class TheTopBarScreenTest {
         }
     }
 
+    /**
+     * The folders held shrink to the room their line leaves (ADR-340 §1): {@code #values-held} keeps one line, cut with
+     * an ellipsis, its whole text in its {@code title}, so that long folders never push the links onto a line past the
+     * bar's cap. The style is read as text (ADR-297), the narrow window's rule setting none of these again.
+     */
+    @Test
+    @Story("The operator starts an invocation from the control panel")
+    @DisplayName("The folders Run starts on take one line of the top bar at most, cut where they are long and whole in their title, so the links stay in the bar")
+    void theFoldersHeldShrinkToOneLineSoTheLinksStayInTheBar() throws IOException {
+        Path corpusRoot = Files.createDirectories(folder.resolve("a corpus whose folder name is long enough to wrap"));
+        Path workingDirectory = Files.createDirectories(folder.resolve("a work folder whose name is long as well"));
+        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
+            Page page = screens.browser().page();
+            String style = String.join("\n", page.document().select("style").stream().map(Element::data).toList());
+            Pattern everyRuleOfTheFoldersHeld = Pattern.compile("(?<![\\w#.-])#values-held\\s*\\{([^{}]*)}");
+            Map<String, String> expected = new LinkedHashMap<>();
+            expected.put("flex", "1 1 0");
+            expected.put("min-width", "0");
+            expected.put("white-space", "nowrap");
+            expected.put("overflow", "hidden");
+            expected.put("text-overflow", "ellipsis");
+            Map<String, String> declared = new LinkedHashMap<>();
+            expected.keySet().forEach(property ->
+                    declared.put(property, lastDeclared(style, everyRuleOfTheFoldersHeld, property)));
+            Element held = byId(page, "values-held");
+
+            claim("#values-held may shrink below its text's width, and keeps one line, cut with an ellipsis",
+                    () -> assertThat(declared).containsExactlyEntriesOf(expected));
+            claim("and its whole text stands in its title, naming both folders",
+                    () -> assertThat(held.attr("title")).isEqualTo(held.text())
+                            .contains(corpusRoot.toAbsolutePath().toString(),
+                                    workingDirectory.toAbsolutePath().toString()));
+        }
+    }
+
     /** The index of the brace closing the one at {@code open}; -1 where none does. */
     private static int closingBrace(String text, int open) {
         int depth = 0;

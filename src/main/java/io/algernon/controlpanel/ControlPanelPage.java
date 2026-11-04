@@ -138,7 +138,8 @@ final class ControlPanelPage {
             .brand { margin: 0; color: var(--sun); font-weight: 700; letter-spacing: .06em; }
             form[name=launch] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin: 0; }
             .autolabel { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; font-weight: 400; }
-            #values-held { margin: 0 0 0 auto; color: var(--dim); font-size: var(--text-sm); }
+            #values-held { margin: 0 0 0 auto; color: var(--dim); font-size: var(--text-sm);
+              flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             #top-links { display: flex; gap: var(--space-3); }
             #top-links a { padding: var(--space-2) var(--space-3); border-radius: var(--radius); color: var(--ink);
               text-decoration: none; }
@@ -292,7 +293,7 @@ final class ControlPanelPage {
                 + " name=\"label-auto\"" + (disabled ? " disabled" : "") + "> Autolabel</label>"
                 + button("check", "Check", false) + "\n</form>\n"
                 + "<p id=\"values-held\" data-corpus-root=\"" + escape(values.corpusRoot()) + "\" data-working-directory=\""
-                + escape(workingDirectory) + "\">" + escape(held) + "</p>\n"
+                + escape(workingDirectory) + "\" title=\"" + escape(held) + "\">" + escape(held) + "</p>\n"
                 + "<div id=\"top-links\">"
                 + link("to-home", "/", "Home", here.equals("/"))
                 + link("to-invocation", "/invocation", "Invocation", here.equals("/invocation"))
