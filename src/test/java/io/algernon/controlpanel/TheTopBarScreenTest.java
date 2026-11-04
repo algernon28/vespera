@@ -66,6 +66,17 @@ class TheTopBarScreenTest {
     /** A declaration of {@code position}, its value in its group. */
     private static final Pattern A_POSITION = Pattern.compile("(?<![\\w-])position\\s*:\\s*([^;]+)");
 
+    /** Every rule of the drawer alone, {@code #values} its whole selector. */
+    private static final Pattern EVERY_RULE_OF_THE_DRAWER = Pattern.compile("(?<![\\w#.-])#values\\s*\\{([^{}]*)}");
+
+    /** The narrow window's rule, up to its opening brace; its body is read to the brace that closes it. */
+    private static final String THE_NARROW_WINDOWS_RULE = "@media (max-width: 800px)";
+
+    /** The width the narrow window's rule names, at and below which its values hold. */
+    private static final String NARROW = "at most 800px";
+
+    private static final String WIDE = "wider than 800px";
+
     @TempDir
     Path folder;
 
@@ -134,6 +145,74 @@ class TheTopBarScreenTest {
                             + " sticky, so that Run, Label and Check stay in reach however narrow the window",
                     () -> assertThat(positions).isNotEmpty().containsOnly("sticky"));
         }
+    }
+
+    /**
+     * The drawer opens below the top bar at every width (ADR-340 §1): at each width the style names, the bar is
+     * {@code max-height} as tall as the drawer's {@code top} at most, one value, and scrolls within itself past it,
+     * so that however many lines its content wraps onto, it never covers the drawer's head. The style is read as text
+     * (ADR-297): the rules outside the narrow window's rule, then those inside it, the last declaration of each winning.
+     */
+    @Test
+    @Story("The operator starts an invocation from the control panel")
+    @DisplayName("At every width the top bar is as tall as the drawer's offset at most, so the drawer opens below it")
+    void theDrawerOpensBelowTheTopBarAtEveryWidth() throws IOException {
+        try (ScreenServer screens = aServer()) {
+            String style = String.join("\n",
+                    screens.browser().page().document().select("style").stream().map(Element::data).toList());
+            int start = style.indexOf(THE_NARROW_WINDOWS_RULE);
+            int open = start < 0 ? -1 : style.indexOf('{', start);
+            int close = open < 0 ? -1 : closingBrace(style, open);
+            String narrow = close < 0 ? "" : style.substring(open + 1, close);
+            String wide = close < 0 ? style : style.substring(0, start) + style.substring(close + 1);
+            Map<String, List<String>> atEachWidth = new LinkedHashMap<>();
+            for (Map.Entry<String, String> width : Map.of(WIDE, wide, NARROW, narrow).entrySet()) {
+                atEachWidth.put(width.getKey(), List.of(
+                        lastDeclared(width.getValue(), EVERY_RULE_OF_THE_TOP_BAR, "max-height"),
+                        lastDeclared(width.getValue(), EVERY_RULE_OF_THE_TOP_BAR, "overflow-y"),
+                        lastDeclared(width.getValue(), EVERY_RULE_OF_THE_DRAWER, "top")));
+            }
+
+            claim("the style has a narrow window's rule, " + THE_NARROW_WINDOWS_RULE,
+                    () -> assertThat(close).as("the narrow window's rule, read to its closing brace").isPositive());
+            for (String width : List.of(WIDE, NARROW)) {
+                List<String> declared = atEachWidth.get(width);
+                claim("in a window " + width + ", the top bar's max-height is the drawer's top, one value named",
+                        () -> assertThat(declared.get(0))
+                                .as("#top-bar's max-height against #values' top, in a window %s: %s", width, declared)
+                                .isNotEmpty().isEqualTo(declared.get(2)));
+                claim("and there the bar scrolls within itself past that height, rather than covering the drawer",
+                        () -> assertThat(declared.get(1)).as("#top-bar's overflow-y in a window %s", width)
+                                .isEqualTo("auto"));
+            }
+        }
+    }
+
+    /** The index of the brace closing the one at {@code open}; -1 where none does. */
+    private static int closingBrace(String text, int open) {
+        int depth = 0;
+        for (int i = open; i < text.length(); i++) {
+            if (text.charAt(i) == '{') {
+                depth++;
+            } else if (text.charAt(i) == '}' && --depth == 0) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** The value of the last declaration of {@code property} in {@code text}'s rules {@code rules} finds; empty where none. */
+    private static String lastDeclared(String text, Pattern rules, String property) {
+        Pattern declaration = Pattern.compile("(?<![\\w-])" + Pattern.quote(property) + "\\s*:\\s*([^;]+)");
+        String last = "";
+        Matcher rule = rules.matcher(text);
+        while (rule.find()) {
+            Matcher value = declaration.matcher(rule.group(1));
+            while (value.find()) {
+                last = value.group(1).strip();
+            }
+        }
+        return last;
     }
 
     @Test

@@ -145,6 +145,45 @@ class ChildCommandTest {
                 });
     }
 
+    /**
+     * Every child is given {@code --db-dir}, which the jar reads only as {@code application.yaml}'s fallback for
+     * {@code vespera.working-dir}: a spelling of that key in the environment it inherits comes before it, and the jar then
+     * refuses the start, the folder opened not being the one given (ADR-340 §6). So the child inherits the control
+     * panel's environment less the four spellings of {@code vespera.working-dir} and the four of {@code db-dir}.
+     */
+    @Test
+    @Story("The control panel passes its launch values to the jar")
+    @DisplayName("The child inherits no variable naming the working directory or db-dir, so the folder it is given is the one it opens")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
+    @Link(name = "ADR-292", url = Adr.THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES, type = "adr")
+    void theChildInheritsNoVariableNamingTheWorkingDirectory() {
+        List<String> theEight = List.of("VESPERA_WORKINGDIR", "VESPERA_WORKING_DIR", "vespera_workingdir",
+                "vespera_working_dir", "DBDIR", "DB_DIR", "dbdir", "db_dir");
+        Map<String, String> theControlPanels = new HashMap<>();
+        for (String name : theEight) {
+            theControlPanels.put(name, "D:\\another\\work\\folder");
+        }
+        theControlPanels.put("PATH", "the-path");
+        theControlPanels.put("CI", "0");
+        Map<String, String> expected = new HashMap<>(EVERY_VALUE.toChildEnvironment());
+        expected.put("CI", "1");
+        expected.put("PATH", "the-path");
+        for (ChildCommand command : List.of(ChildCommand.run(JAVA, JAR, EVERY_VALUE),
+                ChildCommand.label(JAVA, JAR, false, EVERY_VALUE),
+                ChildCommand.publish(JAVA, JAR, EVERY_VALUE, List.of(ChildCommand.DESTINATIONS.getFirst())))) {
+            String which = command.command().get(BEFORE_THE_COMMAND.size());
+            claim(which + "'s environment, over a control panel's carrying all eight, is that environment less the eight,"
+                            + " with CI=1 and the launch values' five added",
+                    () -> assertThat(command.environmentFrom(theControlPanels)).isEqualTo(expected));
+            claim("what it adds names none of the eight",
+                    () -> assertThat(command.environment()).doesNotContainKeys(theEight.toArray(String[]::new)));
+            claim("and its process builder's environment is the one over the control panel's own, none of the eight in it",
+                    () -> assertThat(command.processBuilder().environment())
+                            .isEqualTo(command.environmentFrom(System.getenv()))
+                            .doesNotContainKeys(theEight.toArray(String[]::new)));
+        }
+    }
+
     @Test
     @Story("The control panel refuses what it cannot start")
     @DisplayName("Run without a corpus root is not built, the refusal given")

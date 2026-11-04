@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.jsoup.nodes.Element;
@@ -54,6 +55,17 @@ class TheHomePageScreenTest {
     private static final Pattern LISTENS_FOR_INPUT = Pattern.compile("addEventListener\\(\\s*['\"]input['\"]");
 
     private static final Pattern LISTENS_FOR_CHANGE = Pattern.compile("addEventListener\\(\\s*['\"]change['\"]");
+
+    /**
+     * The function that tells the operator is at work on the page, its body in group 1, up to the {@code return false}
+     * it ends on where nothing it looks at says so.
+     */
+    private static final Pattern THE_AT_WORK_FUNCTION = Pattern.compile(
+            "function\\s+atWork\\s*\\(\\s*\\)\\s*\\{(.*?)return\\s+false\\s*;", Pattern.DOTALL);
+
+    /** The reload's condition once the page's seconds have passed: those seconds, and the operator not at work. */
+    private static final Pattern THE_TIMED_RELOAD_WAITS_FOR_THE_OPERATOR = Pattern.compile(
+            "seconds\\s*\\*\\s*1000\\s*&&\\s*!\\s*atWork\\s*\\(\\s*\\)");
 
     @TempDir
     Path folder;
@@ -187,15 +199,25 @@ class TheHomePageScreenTest {
             InetSocketAddress server = screens.server().address();
             String text = RawHttp.send(server, "GET", TabPaths.SCRIPT, List.of("Host: 127.0.0.1:" + server.getPort(),
                     "Sec-Fetch-Site: same-origin")).body();
+            Matcher atWork =THE_AT_WORK_FUNCTION.matcher(text);
+            String body = atWork.find() ? atWork.group(1) : "";
 
-            claim("the script tells that the drawer is shown, the element the address names being the drawer or inside it",
-                    () -> assertThat(text).contains("#values:target").contains("#values :target"));
+            claim("the script has one function that tells the operator is at work on the page",
+                    () -> assertThat(body).as("the body of function atWork() in the script:%n%s", text).isNotBlank());
+            claim("and the reload once the page's seconds have passed is asked only where that function says the"
+                            + " operator is not at work",
+                    () -> assertThat(text).as("the reload's condition beside seconds * 1000 calls !atWork()")
+                            .containsPattern(THE_TIMED_RELOAD_WAITS_FOR_THE_OPERATOR));
+            claim("the function tells that the drawer is shown, the element the address names being the drawer or inside"
+                            + " it",
+                    () -> assertThat(body).contains("#values:target").contains("#values :target"));
             claim("that the focus is on a field or on the progress page's frame",
-                    () -> assertThat(text).contains("activeElement").containsIgnoringCase("iframe"));
-            claim("that a field has been typed in, ticked or chosen since the page loaded",
+                    () -> assertThat(body).contains("activeElement").containsIgnoringCase("iframe"));
+            claim("that a field has been typed in, ticked or chosen since the page loaded, which the script's listeners"
+                            + " of input and change mark",
                     () -> assertThat(text).containsPattern(LISTENS_FOR_INPUT).containsPattern(LISTENS_FOR_CHANGE));
             claim("and that a box of the page is folded otherwise than it was drawn",
-                    () -> assertThat(text).contains("details"));
+                    () -> assertThat(body).contains(".open"));
         }
     }
 

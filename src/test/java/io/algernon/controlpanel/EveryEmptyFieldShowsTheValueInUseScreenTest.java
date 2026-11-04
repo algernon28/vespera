@@ -240,6 +240,46 @@ class EveryEmptyFieldShowsTheValueInUseScreenTest {
         }
     }
 
+    /**
+     * A value the machine names that no path can hold is the work folder as it stands (ADR-340 §6): the page names it as
+     * given, a character below U+0020 in it written as {@code U+} and four hexadecimal digits, says no working directory
+     * this system can hold is chosen and holds no folder in use, and Run refuses it as it refuses such a folder typed.
+     */
+    @Test
+    @Story("The operator sees the value in use and where it came from")
+    @DisplayName("A work folder the environment names that no path can hold is named as given, no working directory is chosen, and Run refuses it")
+    void aWorkFolderTheEnvironmentNamesThatNoPathCanHoldIsNamedAndRunRefusesIt() throws IOException {
+        try (ScreenServer screens = ScreenServer.start(folder,
+                new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), "", "", "", "", "", "",
+                        ""),
+                Map.of(), Map.of("VESPERA_WORKING_DIR", "not\0a-path"))) {
+            PanelBrowser browser = screens.browser();
+            Page home = browser.page();
+            Element field = form(home, "launch-values").selectFirst("[name='vespera.working-dir']");
+            Element inUse = byId(home, "in-use-vespera.working-dir");
+            Element progress = byId(home, "progress-view");
+            Page refused = browser.press("launch", "run", Map.of()).page();
+
+            claim("the page names the value the environment variable gives, as given, and says no working directory this"
+                            + " system can hold is chosen, holding no folder in use",
+                    () -> assertThat(List.of(inUse.attr("data-value"), inUse.attr("data-source"),
+                                    inUse.attr("data-source-name"), inUse.text()))
+                            .containsExactly("", "environment", "VESPERA_WORKING_DIR",
+                                    "None in use: the environment variable VESPERA_WORKING_DIR names notU+0000a-path,"
+                                            + " which is no path this system can hold, so no working directory is"
+                                            + " chosen."));
+            claim("the field stays empty and shows the example, there being no folder in use to show",
+                    () -> assertThat(List.of(field.val(), field.attr("placeholder")))
+                            .containsExactly("", "e.g. D:\\vespera\\work"));
+            claim("the progress view says no working directory this system can hold is chosen",
+                    () -> assertThat(progress.attr("data-progress")).isEqualTo("no-working-directory"));
+            claim("and Run is refused as it refuses such a folder typed, landing on the home page",
+                    () -> assertThat(List.of(refused.address().getPath(), byId(refused, "outcome").text()))
+                            .containsExactly("/",
+                                    "Run is not started: the working directory is no path this system can hold"));
+        }
+    }
+
     private static String placeholderOf(Element form, String name) {
         Element field = form.selectFirst("[name='" + name + "']");
         if (field == null) {
