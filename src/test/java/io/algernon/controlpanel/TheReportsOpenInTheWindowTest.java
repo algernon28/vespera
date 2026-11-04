@@ -22,6 +22,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TextField;
+import javafx.scene.web.WebView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -31,10 +32,11 @@ import org.junit.jupiter.api.io.TempDir;
  * Reports section or beside a key, opens it in a closable tab of its own, {@code report-<file name>}, beside Profile
  * and Inclusions, whose viewer {@code viewer-<file name>} runs the report's own script and whose
  * {@code reload-<file name>} reads it again; a report already open is selected, not opened twice. A link inside a
- * report to another report of the working directory opens that report in its own tab; a link to any other file is
- * handed to the system; and a link to a report not written yet, or to an address of another scheme, opens nothing and
- * is answered on the outcome line; the viewer staying on its report each time. The tabs are the working directory's:
- * another one named in the field closes them.
+ * report to another report of the working directory opens that report in its own tab; a link to any other file, one of
+ * the working directory that is no report among them, is handed to the system; and a link to a report not written yet,
+ * or to an address of another scheme, opens nothing and is answered on the outcome line; the viewer loading its own
+ * report again from its file each time. The tabs are the working directory's: another one named in the field closes
+ * them.
  *
  * <p>The viewer is JavaFX's own {@code WebView}, on the Headless platform as every window test is (ADR-339 §6); a link
  * inside a report is pressed by the page's own {@code click()}, and what is handed to the system is answered by the
@@ -70,6 +72,18 @@ class TheReportsOpenInTheWindowTest {
 
     /** The id, inside a report the test writes, of its link to {@link #A_WEB_ADDRESS}. */
     private static final String THE_WEB_LINK = "the-web-link";
+
+    /** The id, inside a report the test writes, of a second link it presses. */
+    private static final String THE_OTHER_LINK = "the-other-link";
+
+    /** The id, inside a report the test writes, of its link to {@link #THE_FRAGMENT} of itself. */
+    private static final String THE_FRAGMENT_LINK = "the-fragment-link";
+
+    /** The id of an element of a report the test writes, which its own fragment link names. */
+    private static final String THE_FRAGMENT = "below";
+
+    /** A file the working directory holds that is no report of the jar's. */
+    private static final String PROFILE = "profile.yaml";
 
     /** The title a report the test writes is given by its own script, so that a viewer showing it ran that script. */
     private static final String TITLE_ITS_SCRIPT_SETS = "drawn by its own script";
@@ -247,9 +261,9 @@ class TheReportsOpenInTheWindowTest {
         }
 
         claim("the link to a report the working directory does not hold is answered on the outcome line, naming it",
-                () -> assertThat(saidOfTheReport).contains(NOT_WRITTEN));
-        claim("the link to a web address is answered on the outcome line, naming its host",
-                () -> assertThat(saidOfTheWeb).contains("example.invalid"));
+                () -> assertThat(saidOfTheReport).isEqualTo(NOT_WRITTEN + " is not written yet, so it is not opened"));
+        claim("the link to a web address is answered on the outcome line, naming the address",
+                () -> assertThat(saidOfTheWeb).isEqualTo("not opened: " + A_WEB_ADDRESS + " is not a file of this computer"));
         claim("neither opens a tab",
                 () -> assertThat(tabs).containsExactly("profile", "inclusions", "report-" + OVERVIEW));
         claim("the viewer stays on the overview",
@@ -257,6 +271,88 @@ class TheReportsOpenInTheWindowTest {
                         tab -> assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(OVERVIEW))));
         claim("and nothing is handed to the system to open",
                 () -> assertThat(handed).isEmpty());
+    }
+
+    @Test
+    @Story("The operator reads the reports inside the window")
+    @DisplayName("A link inside a report to a file of the working directory that is no report, or to a report's name in a folder below it, is handed to the system")
+    void aFileOfTheWorkingDirectoryThatIsNoReportIsHandedToTheSystem(@TempDir Path folder) throws Exception {
+        Path workingDirectory = Files.createDirectories(folder.resolve("working"));
+        Path profile = Files.writeString(workingDirectory.resolve(PROFILE), "# written by the test\n", StandardCharsets.UTF_8);
+        Path below = Files.createDirectories(workingDirectory.resolve("deliverable")).resolve(OVERVIEW);
+        write(below, "a page named as a report, in a folder below the working directory", "");
+        write(workingDirectory.resolve(ARRANGEMENT), "Arrangement",
+                "<a id=\"" + THE_LINK + "\" href=\"" + PROFILE + "\">profile</a>"
+                        + "<a id=\"" + THE_OTHER_LINK + "\" href=\"deliverable/" + OVERVIEW + "\">below</a>");
+
+        List<URI> handed;
+        Optional<WindowForTests.ReportTab> arrangement;
+        List<String> tabs;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
+            window.act(root -> WindowForTests.pressReportLink(root, "reports-list", ARRANGEMENT));
+            boolean shown = WindowForTests.loaded(
+                    window.awaiting(root -> WindowForTests.reportTab(root, ARRANGEMENT), WindowForTests::loaded));
+            assumeThat(shown).as("the arrangement is shown in its tab before its links are pressed").isTrue();
+            window.act(root -> WindowForTests.clickInsideTheReport(root, ARRANGEMENT, THE_LINK));
+            WindowForTests.within(() -> window.dialogs.handed.size() == 1);
+            boolean back = WindowForTests.loaded(
+                    window.awaiting(root -> WindowForTests.reportTab(root, ARRANGEMENT), WindowForTests::loaded));
+            assumeThat(back).as("the arrangement is shown again before its second link is pressed").isTrue();
+            window.act(root -> WindowForTests.clickInsideTheReport(root, ARRANGEMENT, THE_OTHER_LINK));
+            WindowForTests.within(() -> window.dialogs.handed.size() == 2);
+            handed = List.copyOf(window.dialogs.handed);
+            arrangement = window.awaiting(root -> WindowForTests.reportTab(root, ARRANGEMENT), WindowForTests::loaded);
+            tabs = window.read(WindowForTests::tabIds);
+        }
+
+        claim("the file of the working directory that is no report, and the page named as a report in a folder below it,"
+                + " are each handed to the system, once, by their files' addresses",
+                () -> assertThat(handed).map(Path::of).containsExactly(profile, below));
+        claim("the viewer stays on the arrangement",
+                () -> assertThat(arrangement).hasValueSatisfying(
+                        tab -> assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(ARRANGEMENT))));
+        claim("and no tab is opened for either",
+                () -> assertThat(tabs).containsExactly("profile", "inclusions", "report-" + ARRANGEMENT));
+    }
+
+    @Test
+    @Story("The operator reads the reports inside the window")
+    @DisplayName("A link a viewer does not follow loads its own report again from its file, by the file's address alone")
+    void aLinkNotFollowedLoadsTheViewersReportAgainFromItsFile(@TempDir Path folder) throws Exception {
+        Path workingDirectory = Files.createDirectories(folder.resolve("working"));
+        Path overviewFile = workingDirectory.resolve(OVERVIEW);
+        String links = "<a id=\"" + THE_FRAGMENT_LINK + "\" href=\"#" + THE_FRAGMENT + "\">below</a>"
+                + "<a id=\"" + THE_LINK + "\" href=\"" + NOT_WRITTEN + "\">Runs</a>"
+                + "<p id=\"" + THE_FRAGMENT + "\">below</p>";
+        write(overviewFile, "Overview", links);
+
+        String onTheFragment;
+        String location;
+        Optional<WindowForTests.ReportTab> overview;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
+            window.act(root -> WindowForTests.pressReportLink(root, "reports-list", OVERVIEW));
+            boolean shown = WindowForTests.loaded(
+                    window.awaiting(root -> WindowForTests.reportTab(root, OVERVIEW), WindowForTests::loaded));
+            assumeThat(shown).as("the overview is shown in its tab before its links are pressed").isTrue();
+            window.act(root -> WindowForTests.clickInsideTheReport(root, OVERVIEW, THE_FRAGMENT_LINK));
+            onTheFragment = window.awaiting(root -> locationOf(root, OVERVIEW),
+                    at -> at != null && at.endsWith("#" + THE_FRAGMENT));
+            write(overviewFile, "Overview, written again", links);
+            window.act(root -> WindowForTests.clickInsideTheReport(root, OVERVIEW, THE_LINK));
+            overview = window.awaiting(root -> WindowForTests.reportTab(root, OVERVIEW),
+                    tab -> WindowForTests.loaded(tab) && "Overview, written again".equals(tab.get().title()));
+            location = window.read(root -> locationOf(root, OVERVIEW));
+        }
+
+        assumeThat(onTheFragment).as("the viewer followed the link to a fragment of its own report")
+                .endsWith("#" + THE_FRAGMENT);
+        claim("the link not followed, to a report not written, has the viewer read its own report again from its file",
+                () -> assertThat(overview).hasValueSatisfying(tab -> {
+                    assertThat(tab.title()).isEqualTo("Overview, written again");
+                    assertThat(tab.shows()).isEqualTo(overviewFile);
+                }));
+        claim("by the file's address alone, so the fragment it was on, and the place it was scrolled to, are left behind",
+                () -> assertThat(URI.create(location).getFragment()).isNull());
     }
 
     @Test
@@ -310,6 +406,11 @@ class TheReportsOpenInTheWindowTest {
     /** The line the window's {@code outcome} shows. */
     private static String outcome(Parent root) {
         return String.valueOf(WindowForTests.node(root, "outcome", Label.class).getText());
+    }
+
+    /** The address {@code report}'s viewer is on, its fragment kept; null before it is on any. */
+    private static String locationOf(Parent root, String report) {
+        return WindowForTests.node(root, "viewer-" + report, WebView.class).getEngine().getLocation();
     }
 
     /** Writes a page titled {@code title} whose body holds {@code body}, as a report of the working directory. */
