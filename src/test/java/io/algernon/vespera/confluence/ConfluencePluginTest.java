@@ -54,12 +54,12 @@ class ConfluencePluginTest {
         Plugin plugin = new ConfluencePlugin(new Recording(new Publisher.Outcome(true, "")));
 
         claim(
-                "its name is confluence, the folder the rendering lies in at the tree's root, and lowercase letters"
-                        + " a to z alone",
-                () -> assertThat(plugin.name()).isEqualTo(Publisher.RENDERING_FOLDER).matches("[a-z]+"));
+                "its name is confluence, the folder the rendering lies in at the tree's root (ADR-312 §1), which"
+                        + " --to confluence and every tree drawn before name, and lowercase letters a to z alone",
+                () -> assertThat(plugin.name()).isEqualTo("confluence").matches("[a-z]+"));
         claim(
-                "and its list is the page list, pages.json",
-                () -> assertThat(plugin.listName()).isEqualTo(Publisher.PAGE_LIST_FILE_NAME));
+                "and its list is the page list, pages.json (ADR-316 §1), which every rendering drawn before carries",
+                () -> assertThat(plugin.listName()).isEqualTo("pages.json"));
     }
 
     @Test

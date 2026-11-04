@@ -140,19 +140,19 @@ The titles, keys, root page's heading and page list are drawn in `deliverable`, 
 
 ## Tests
 
-`deliverable` holds the rendering's half and runs in the `test` phase; the publish's half is tagged `confluence` and runs under a local `verify` (ADR-320 §6), against `StubConfluence`, which gains a trash, into which a page's `DELETE` takes whatever stands under it, as the worst a site could do; the children's listings; a label's removal; a page's update refused where another page holds its title, as its creation is; and answers set by a test, to a folder's read, a listing, a label's removal and a label's search's order.
+`confluence` holds the rendering's half, untagged, and runs in the `test` phase (it named `deliverable` before this correction, and the nine rows of the rendering's half named `deliverable.TheConfluenceRenderingTest`, `deliverable.AnItalianTreeIsDrawnInItalianTest` and `deliverable.ItalianWordingTest`, before the rendering moved into the `confluence` module) (ADR-338, ADR-333 step 1); the publish's half is tagged `confluence` and runs under a local `verify` (ADR-320 §6), against `StubConfluence`, which gains a trash, into which a page's `DELETE` takes whatever stands under it, as the worst a site could do; the children's listings; a label's removal; a page's update refused where another page holds its title, as its creation is; and answers set by a test, to a folder's read, a listing, a label's removal and a label's search's order.
 
 | Method | What it holds |
 | --- | --- |
-| `deliverable.TheConfluenceRenderingTest.everyPageIsTitledByItsTextAndItsPlace` | the root page is `Vespera`, the seed partition's and the groups' titles end with their place alone (§1) |
-| `deliverable.TheConfluenceRenderingTest.aLongTitleIsCutInItsTextAndItsSuffixIsKeptWhole` | the cut, the folding and the empty text with the suffix of §1 (§1; ADR-310 §4) |
-| `deliverable.TheConfluenceRenderingTest.noPageCarriesTheRunsIdOrItsMarkerAndTheHtmlIndexStillNamesTheRun` | no title, key, body or file name of the rendering holds the run's id or its marker, and the HTML index's heading still names the run (§2, §8) |
-| `deliverable.TheConfluenceRenderingTest.aKeyIsItsPlaceUnpaddedAndATitleItsPlacePadded` | ten groups in one seed partition are keyed `1.1` to `1.10` and titled `(1.01)` to `(1.10)` (§3) |
-| `deliverable.TheConfluenceRenderingTest.thePageListListsEveryPageParentsFirstAndEveryPathStands` | format 2, keys `root`, `1`, `1.1`, `1.2` (§3) |
-| `deliverable.TheConfluenceRenderingTest.theRootPageLinksEveryPageAndCarriesDocumentsCsv` | the root page opens `<h1>Deliverable</h1>` (§2) |
-| `deliverable.AnItalianTreeIsDrawnInItalianTest.thePageListTitlesTheLaterPagesWithPagina` | `(1.1 pagina K)`, and `Vespera` (§1) |
-| `deliverable.AnItalianTreeIsDrawnInItalianTest.theConfluenceRootAndPartitionPagesAreInItalian` | the root page opens `<h1>Base di conoscenza</h1>` (§2) |
-| `deliverable.ItalianWordingTest.aSplitClustersConfluenceTitleSaysPagina` | an Italian later page is titled `TEXT (P.C pagina K)`, its first page `TEXT (P.C)`, and an English later page still says `page`, none with a marker (§1) |
+| `confluence.TheConfluenceRenderingTest.everyPageIsTitledByItsTextAndItsPlace` | the root page is `Vespera`, the seed partition's and the groups' titles end with their place alone (§1) |
+| `confluence.TheConfluenceRenderingTest.aLongTitleIsCutInItsTextAndItsSuffixIsKeptWhole` | the cut, the folding and the empty text with the suffix of §1 (§1; ADR-310 §4) |
+| `confluence.TheConfluenceRenderingTest.noPageCarriesTheRunsIdOrItsMarkerAndTheHtmlIndexStillNamesTheRun` | no title, key, body or file name of the rendering holds the run's id or its marker, and the HTML index's heading still names the run (§2, §8) |
+| `confluence.TheConfluenceRenderingTest.aKeyIsItsPlaceUnpaddedAndATitleItsPlacePadded` | ten groups in one seed partition are keyed `1.1` to `1.10` and titled `(1.01)` to `(1.10)` (§3) |
+| `confluence.TheConfluenceRenderingTest.thePageListListsEveryPageParentsFirstAndEveryPathStands` | format 2, keys `root`, `1`, `1.1`, `1.2` (§3) |
+| `confluence.TheConfluenceRenderingTest.theRootPageLinksEveryPageAndCarriesDocumentsCsv` | the root page opens `<h1>Deliverable</h1>` (§2) |
+| `confluence.TheConfluenceRenderingIsDrawnInItalianTest.thePageListTitlesTheLaterPagesWithPagina` | `(1.1 pagina K)`, and `Vespera` (§1) |
+| `confluence.TheConfluenceRenderingIsDrawnInItalianTest.theConfluenceRootAndPartitionPagesAreInItalian` | the root page opens `<h1>Base di conoscenza</h1>` (§2) |
+| `confluence.TheConfluenceRenderingIsDrawnInItalianTest.aSplitClustersConfluenceTitleSaysPagina` | an Italian later page is titled `TEXT (P.C pagina K)`, its first page `TEXT (P.C)`, and an English later page still says `page`, none with a marker (§1) |
 | `confluence.PublishSendsEachPageWholeIT.aPageIsFilledBeforeTheNextIsCreated` | each page labelled `vespera` alone and keyed by its place (§4) |
 | `confluence.PublishUpdatesOneTreeInPlaceIT.aLaterRunsRenderingUpdatesTheSameTreeInPlace` | another generation run's rendering creates no page, keeps every page's id, and retitles the page of a place to the group now there (§4) |
 | `confluence.PublishUpdatesOneTreeInPlaceIT.aPageTheRenderingNoLongerHasIsMovedToTheTrash` | after the last body, a `DELETE` with no `purge`, its lines and the closing line's clause (§5) |

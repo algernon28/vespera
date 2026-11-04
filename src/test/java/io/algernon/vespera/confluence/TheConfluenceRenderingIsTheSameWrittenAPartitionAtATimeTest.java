@@ -102,10 +102,11 @@ class TheConfluenceRenderingIsTheSameWrittenAPartitionAtATimeTest {
                     assertThat(paged.keySet()).containsExactlyElementsOf(whole.keySet());
                 });
         claim(
-                "both drawings finished: drawing.txt says drawn in each",
+                "both drawings finished: drawing.txt says drawn in each, the word ADR-333 §11 has a finished drawing"
+                        + " write",
                 () -> {
-                    assertThat(paged.get(FOLDER + Plugin.DRAWING_STATE_FILE_NAME).strip()).isEqualTo(Plugin.DRAWN);
-                    assertThat(whole.get(FOLDER + Plugin.DRAWING_STATE_FILE_NAME).strip()).isEqualTo(Plugin.DRAWN);
+                    assertThat(paged.get(FOLDER + Plugin.DRAWING_STATE_FILE_NAME).strip()).isEqualTo("drawn");
+                    assertThat(whole.get(FOLDER + Plugin.DRAWING_STATE_FILE_NAME).strip()).isEqualTo("drawn");
                 });
         for (Map.Entry<String, String> file : whole.entrySet()) {
             claim(

@@ -23,8 +23,9 @@ import java.util.function.Consumer;
  * #FINISH} or {@value #CLOSE}, followed where it has them by what it was handed, in words of the test's.
  *
  * <p>It writes beneath its own folder alone, adding that folder to {@code written} as ADR-312 §4 asks of a plugin,
- * and writes one file there, {@value #ITS_FILE}, at {@code finish}, so that a test can tell a drawing that went to
- * its end from one that did not.
+ * unless told {@link #addingNoFolderOfItsOwn()}, so that a test can tell what the drawing itself counts as written
+ * from what a plugin adds; and writes one file there, {@value #ITS_FILE}, at {@code finish}, so that a test can tell
+ * a drawing that went to its end from one that did not.
  */
 public final class ScriptedPlugin implements Plugin {
 
@@ -71,11 +72,18 @@ public final class ScriptedPlugin implements Plugin {
     private String failingAt;
     private Failure failure;
     private Plugin.DrawingContext context;
+    private boolean addsItsFolder = true;
 
     /** A plugin named {@code name}, writing down what it hears in {@code heard}. */
     public ScriptedPlugin(String name, List<String> heard) {
         this.name = name;
         this.heard = heard;
+    }
+
+    /** This plugin, told to add nothing to {@code written}, its own folder included. */
+    public ScriptedPlugin addingNoFolderOfItsOwn() {
+        this.addsItsFolder = false;
+        return this;
     }
 
     /** This plugin, told to throw {@code failure} at the first call of {@code call}. */
@@ -118,7 +126,9 @@ public final class ScriptedPlugin implements Plugin {
     public Drawing drawing(Plugin.DrawingContext context) throws IOException {
         this.context = context;
         heard(DRAWING, DRAWING);
-        context.written().add(name);
+        if (addsItsFolder) {
+            context.written().add(name);
+        }
         return new ScriptedDrawing(context.tree().resolve(name));
     }
 

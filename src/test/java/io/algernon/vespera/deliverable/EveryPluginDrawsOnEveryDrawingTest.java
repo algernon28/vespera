@@ -124,11 +124,13 @@ class EveryPluginDrawsOnEveryDrawingTest {
             }
         };
 
-        TwoClustersWithPictures.draw(base, List.of(new ScriptedPlugin("alpha", new ArrayList<>())), hearing);
+        TwoClustersWithPictures.draw(
+                base, List.of(new ScriptedPlugin("alpha", new ArrayList<>()).addingNoFolderOfItsOwn()), hearing);
 
         claim(
-                "a first drawing with a plugin counts no folder left by an earlier drawing: the plugin's folder is"
-                        + " this drawing's (ADR-312 §4 as ADR-333 §2 has it of every plugin)",
+                "a first drawing with a plugin that adds nothing to what this drawing wrote counts no folder left by"
+                        + " an earlier drawing: the drawing itself takes the plugin's folder as this drawing's, so no"
+                        + " plugin need (ADR-312 §4 as ADR-333 §2 has it of every plugin)",
                 () -> assertThat(told[0]).isZero());
     }
 

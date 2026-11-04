@@ -36,7 +36,7 @@ The moved `ConfluencePage` splits a cluster's page at the same entries as the HT
 | --- | --- |
 | `DeliverableRulesHaveOneHomeTest.eachCollaboratorIsInItsModuleAndOnlyThoseAPluginReadsArePublic` | each collaborator is a class of `deliverable`, and it is public exactly where a plugin reads it, `ManifestCsv` not (§1) |
 | `confluence.TheConfluenceRenderingTest.aSplitClustersCitationNamesThePageItsEntryIsOn` | a cluster split by the ceiling: a citation names the Confluence page its entry is on, which `ConfluencePage` finds from the HTML page's breaks through `firstEntryOf`, as it finds each page's first and last entry (§2) |
-| `confluence.TheConfluenceRenderingIsTheSameWrittenAPartitionAtATimeTest` | after a drawing that finished, `drawing.txt` says `Plugin.DRAWN` (§3) |
+| `confluence.TheConfluenceRenderingIsTheSameWrittenAPartitionAtATimeTest` | after a drawing that finished, `drawing.txt` says `drawn`, the value of `Plugin.DRAWN` (§3) |
 | `pipeline.PublishRefusesARenderingWhoseDrawingDidNotFinishTest` | the publish delivers a rendering whose `drawing.txt` says `drawn`, or which has no `drawing.txt`, and delivers none that says `drawing` or `failed` (§3) |
 | `confluence.TheConfluenceRenderingTest.theRootPageLinksEveryPageAndCarriesDocumentsCsv`, `confluence.TheConfluenceRenderingIsDrawnInItalianTest.theConfluenceRootAndPartitionPagesAreInItalian` | the root page's sentence in English, read from `ConfluencePages.THE_ROOT_PAGES_SENTENCE`, and in Italian, as it is on record (§4) |
 
