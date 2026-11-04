@@ -1633,8 +1633,12 @@ cases.push(
 // read as the path it names, as every relative token is: against each folder the command names, and
 // judged by the allow list like any path. A token after any other program, the target of a redirect, a
 // value after = and a token of a command that holds ( ) or a backtick keep docs/adr/0217's refusal on
-// Windows. docs/adr/0196's drive of one letter and docs/adr/0217's refusal of a name made only of
-// spaces, which the user kept, stand in a git segment as anywhere.
+// Windows. So does every token of a command where the guard's cut into segments is not the shell's: a
+// ; & | or line break inside quotes, a quote left unpaired, in Bash a backslash before a quote or one of
+// those breaks, and in PowerShell a typographic quote or --%. A piece of a token cut at , { or }, two
+// halves joined at an escaped space and a bare word with a quote inside it are not given the reading.
+// docs/adr/0196's drive of one letter and docs/adr/0217's refusal of a name made only of spaces, which
+// the user kept, stand in a git segment as anywhere.
 const NOT_A_STREAM_ELSEWHERE = "a name made only of a stream name is refused on Windows alone (docs/adr/0217 section 2)";
 
 cases.push(
@@ -1647,6 +1651,7 @@ cases.push(
   ["O106", "git push of a refspec that deletes a branch, whose rest is read as a path in the checkout", "Bash", { command: "git push origin :claude/x" }, ALLOWED],
   ["O107", "git show of a quoted index path whose name holds a space", "Bash", { command: "git show ':my notes/readme.txt'" }, ALLOWED],
   ["O108", "git show of a file in the index in a second segment whose program is git", "Bash", { command: "git status && git show :README.md" }, ALLOWED],
+  ["O109", "git show of a file in the index after a git segment whose quoted message holds no segment break", "Bash", { command: `git commit -m "fix it" && git show :README.md` }, ALLOWED],
 
   /* O2. Refused: the rest is read as every path is, and lies outside the allow list. */
   ["O201", "git show of an index path that climbs out of the checkout", "Bash", { command: "git show :../outside/doc.txt" }, REFUSED],
@@ -1664,6 +1669,11 @@ cases.push(
   ["O307", "git show of a command substitution that cats a token that begins with a colon", "Bash", { command: "git show $(cat :README.md)" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
   ["O308", "a sed label, which docs/adr/0217 refuses and this record keeps", "Bash", { command: "sed ':a;N;$!ba;s/x/y/g' README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
   ["O309", "a JSON value written after its colon with no space", "Bash", { command: `echo '{"a":1}'` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O310", "git show redirected for reading and writing, <>, into a token that begins with a colon", "Bash", { command: "git show :README.md <> :out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O311", "git show redirected through a named descriptor, {fd}>, into a token that begins with a colon", "Bash", { command: "git show {fd}> :out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O312", "git show with every stream redirected, *>, into a token that begins with a colon, in PowerShell", "PowerShell", { command: "git show :README.md *> :out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O313", "git show with every stream appended, *>>, to a token that begins with a colon, in PowerShell", "PowerShell", { command: "git show :README.md *>> :out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O314", "git show whose index path has the redirect written onto its end, into a token that begins with a colon", "Bash", { command: "git show :README.md> :out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
 
   /* O4. docs/adr/0196's drive of one letter, kept on the user's word: one letter and a colon at the head
      of a token is a drive, in a git segment too and in the rest of an index path. */
@@ -1676,6 +1686,24 @@ cases.push(
   ["O501", "sed whose program holds a name made only of a space between two slashes", "Bash", { command: "sed 's/ /_/g' README.md" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["O502", "cat of a quoted path one of whose names is a space", "Bash", { command: "cat 'scratch/ /note.txt'" }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
   ["O503", "git show of a quoted index path one of whose names is a space", "Bash", { command: "git show ': /x.md'" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+
+  /* O6. A command the guard would cut where the shell does not has no git segment: a token that begins
+     with a colon in it is refused on Windows, as after any other program. Each but O603 and O606 is a
+     command in which the shell gives that token to cat or another program, not to git. */
+  ["O601", "cat of a quoted string that holds ; git and of a token that begins with a colon", "Bash", { command: `cat "a; git show" :README.md` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O602", "cat of an escaped quote, a double-quoted string that holds ; git, and a token that begins with a colon", "Bash", { command: `cat \\' "x' ; git show" :README.md` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O603", "git show of a file in the index after a git commit whose quoted message holds a ;", "Bash", { command: `git commit -m "a;b" && git show :README.md` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O604", "cat of a word that ends in an escaped ;, then git, show and a token that begins with a colon", "Bash", { command: "cat a\\; git show :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O605", "cat, a line continued by a backslash, then git, show and a token that begins with a colon", "Bash", { command: "cat \\\ngit show :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O606", "git show of a file in the index in a command whose quote is left unpaired", "Bash", { command: `git show :README.md "` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O607", "cat of a string in typographic double quotes that holds ; git, in PowerShell", "PowerShell", { command: "cat “a; git show” :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O608", "a native command whose --% passes ; git and a token that begins with a colon on, in PowerShell", "PowerShell", { command: "findstr --% x a; git show :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+
+  /* O7. A token git is given, which the guard does not read as git's word: refused on Windows. */
+  ["O701", "git show of a token cut at a comma into two pieces, the second of which begins with a colon", "Bash", { command: "git show :a,:b" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O702", "git show of a brace list whose members begin with a colon", "Bash", { command: "git show {:README.md,:src/Example.java}" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O703", "git show of an index path whose space is escaped by a backslash", "Bash", { command: "git show :my\\ notes/r.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O704", "git show of a bare word that begins with a colon and holds a quoted part", "Bash", { command: `git show :a"b"` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {

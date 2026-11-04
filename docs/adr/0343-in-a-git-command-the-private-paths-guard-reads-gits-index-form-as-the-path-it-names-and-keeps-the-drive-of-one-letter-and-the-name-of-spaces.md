@@ -8,7 +8,7 @@
   - its "Decided here" 5 and "What this does not decide", "whether the costs of §2 are kept": they are kept but for that form (§3 and §4 below).
 - **Keeps**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md) §4, its "path on a drive with no separator after the colon", read on Windows from a token headed by one letter and a colon (§3 below); every other reading of §4, its bounds and §6. The rest of an index path is read by those readings, and by nothing looser. Its §5's list of what the hook does not cover gains §5 below, and nothing of it is struck.
 - **Keeps**: [ADR-201](0201-the-private-paths-guard-reads-a-climb-out-of-a-link-both-ways-and-refuses-a-name-it-cannot-follow.md): the rest is read as text and as walked, and a name of it that is there and cannot be followed refuses.
-- **Keeps**: [ADR-264](0264-the-private-paths-guard-refuses-only-what-reads-or-writes-outside-the-allow-list-and-a-working-directory-is-open-as-the-place-it-lies-in.md) §3: `git` is no lister, and the refusal "outside the allow list" is lifted for no reading this record adds. Its §3(a) cuts a command into segments, and §1 below cuts it the same way.
+- **Keeps**: [ADR-264](0264-the-private-paths-guard-refuses-only-what-reads-or-writes-outside-the-allow-list-and-a-working-directory-is-open-as-the-place-it-lies-in.md) §3: `git` is no lister, and the refusal "outside the allow list" is lifted for no reading this record adds. Its §3(a) cuts a command into segments, and §1 below cuts it the same way, but finds no git segment in a command where that cut may not be the shell's.
 
 ## Context
 
@@ -29,25 +29,40 @@ The user was asked three questions and answered each:
 - `:../../outside.md` failed with "'../../outside.md' is outside repository".
 - As a pathspec, `git ls-files -- :adr/README.md` listed `adr/README.md` and `:AGENTS.md` listed nothing: a pathspec's leading colon with no magic letter after it is taken off, and the rest read from the current directory. `:/AGENTS.md` listed `../AGENTS.md`: the `/` after the colon is the pathspec's "from the top".
 - `git rev-parse --verify :/ADR-342` printed a commit: as a revision, `:/<text>` names the newest commit whose message matches the text, and no path.
+- `git -c "alias.z=!echo given" z :y`, run from the checkout by a script, printed `given :y`: a `!` alias hands the words after it to a shell command, so `git -c alias.z=!cat z :y` gives `:y` to `cat`.
+
+**The draft guard as first built for this record**, on Windows, by `src/test/hooks/private-paths-guard.test.mjs`: it let through `cat "a; git show" :README.md` and `cat \' "x' ; git show" :README.md`, in each of which Bash gives `:README.md` to `cat`, and the eleven other commands O310 to O314 and O602 to O608 hold (§7). Its cut at `;`, `&`, `|` and the line break found a segment headed by `git` that the shell does not run, and its list of redirect operators held `>`, `>>` and `<` alone. Each of those commands with `README.md` in the place of `:README.md` was let through, so the colon token was what the reading changed.
 
 ### Read, and not executed
 
 - `gitrevisions(7)`: ":[<n>:]<path> … A colon, optionally followed by a stage number (0 to 3) and a colon, followed by a path, names a blob object in the index at the given path." A stage number of 4 or more makes no stage form, and `:4:x` is the path `4:x`.
+- PowerShell's `about_Quoting_Rules` and `about_Parsing`: PowerShell takes the typographic quotes ‘ ’ ‚ ‛ as single quotes and “ ” „ as double quotes, and after the stop-parsing token `--%` passes the rest of the line to a native command as written, a `;` among it, up to a line break or a pipe.
 
 ## Decision
 
-### 1. In a git segment, a token that begins with the index form is read as its path
+### 1. In a git segment, a token that begins with the index form is read as its rest
 
 The command is cut into segments as ADR-264 §3(a) cuts it, at `;`, `&&`, `||`, `|`, `&` and the line break, without regard to quotes. **A segment's program is `git`** where its first word is the bare word `git`: no separator in it and no quotes around it, compared character for character in a Bash command and with its case folded in a PowerShell command, as ADR-264 §3(d) compares a lister. An assignment before it, a word that runs another program (`env git`, `command git`), `git.exe` and a path to git are not `git`. **A command that holds `(`, `)` or a backtick, or in PowerShell `{` or `}`, has no git segment**, as ADR-264 §3(b) holds of a listed command: a substitution can run another program inside the segment, and that program would be given the reading.
 
-**In a git segment, a token that begins with `:` is read as its rest**: the token with its leading `:<N>:` taken off, where N is one digit from 0 to 3, or else with its leading `:` taken off. A token here is each token ADR-196 §4 reads, as amended: a token cut at white space and the shell's punctuation, a quoted string read whole, two halves joined at an escaped space, and a piece cut at `,`, `{` or `}`. **The rest is read as every token of the command is**: a drive path, a bare drive, a drive of one letter with no separator after the colon on Windows, a home path, a variable at its head, a Git Bash or UNC path, and otherwise a relative path, read against each folder the command names (ADR-196 §4), as text and as walked (ADR-201 §1), and on Windows as Windows opens its names (ADR-217 §1). Each reading is judged by the allow list, its `read` lines, the closed `.claude` folders, a deliverable tree's marker and every other check as any path's is. An empty rest is no path, as a token left empty by trimming its punctuation is none.
+**Nor has a command whose cut may not be the shell's.** For a list of listers a cut in too many places fails closed, since each segment must be a lister and a piece of one is not. Here it fails open: a cut inside quotes makes the words after a quoted `; git` a git segment, and the shell gives them to another program. So a command has no git segment when:
+
+- **a segment break falls inside a quoted string**: a `;`, `&`, `|`, CR or LF between a quote and the quote that closes it, the quotes paired from left to right, `'` with the next `'` and `"` with the next `"`;
+- **a quote is left unpaired** by that pairing;
+- **in a Bash command, a backslash stands directly before a quote, a `;`, `&` or `|`, a CR or a LF**: the escaped quote is no quote to the shell, the escaped break is a character of a word, and a backslash before a line break joins two lines into one command;
+- **in a PowerShell command, it holds a typographic quote** (‘ ’ ‚ ‛ “ ” „), which PowerShell pairs as it pairs `'` and `"` (Read, and not executed), **or the stop-parsing token `--%`**, after which a `;` is passed on as text.
+
+So `cat "a; git show" :README.md`, `cat \' "x' ; git show" :README.md`, `cat a\; git show :README.md` and a line ended by a backslash before `git show :README.md` give `:README.md` no reading, and it is refused on Windows as ADR-217 §2 has it. **So is `git commit -m "a;b" && git show :README.md`**, in which git is given both: the `;` inside the message's quotes leaves the command with no git segment. A quoted string that holds no break, as in `git commit -m "fix it" && git show :README.md`, takes nothing away.
+
+**In a git segment, a token that begins with `:` is read as its rest**: the token with its leading `:<N>:` taken off, where N is one digit from 0 to 3, or else with its leading `:` taken off. A token here is **a word of the segment that the shell's punctuation and white space end, read from the word's start, or a quoted string read whole**, as ADR-196 §4 reads each. **The rest is read as every token of the command is**: a drive path, a bare drive, a drive of one letter with no separator after the colon on Windows, a home path, a variable at its head, a Git Bash or UNC path, and otherwise a relative path, read against each folder the command names (ADR-196 §4), as text and as walked (ADR-201 §1), and on Windows as Windows opens its names (ADR-217 §1). The rest is cut at `,`, `{` and `}` as any token is, and each piece of it read as ADR-217 has it. Each reading is judged by the allow list, its `read` lines, the closed `.claude` folders, a deliverable tree's marker and every other check as any path's is. An empty rest is no path, as a token left empty by trimming its punctuation is none.
 
 **On Windows the token is read as its rest and not as written**: as written, its first name is made only of a stream name and ADR-217 §2 refuses it, which is the cost this record lifts. **Elsewhere it is read both as written and as its rest, and either refuses**: as written it is the name ADR-217 §7 says a colon makes, read as before, and the rest adds a reading of the place git reads.
 
-**Three tokens of a git segment are not given the reading, and keep ADR-217 §2's refusal on Windows:**
+**These tokens of a git segment are not given the reading, and keep ADR-217 §2's refusal on Windows:**
 
-- **the target of a redirect**, a token that `<` or `>` stands directly before, with or without white space between: the shell opens it, not git;
+- **the target of a redirect**: the word after a bare word that holds `<` or `>`, which takes in `>`, `>>`, `<`, `<>`, `2>`, `{fd}>`, PowerShell's `*>` and `*>>`, and a word with the operator written onto its end, as `:README.md>`; and a token that `<` or `>` stands directly before inside a word. The shell opens it, not git. A quoted `">"` is no operator;
 - **a value after `=`**, which ADR-196 §4 reads as a token of its own: `git diff --output=:out.txt` names a file git writes by that name, and a value is not git's index form;
+- **a token that does not begin a word**: a piece of a word cut at `,`, `{` or `}`, as `:b` in `git show :a,:b` and both members of `git show {:a,:b}`, which Bash expands into two words; and the path two halves joined at an escaped space make, as `git show :my\ notes/r.txt`, read as ADR-217 has it. The quoted form, `git show ':my notes/r.txt'`, is given the reading;
+- **a bare word with a quote inside it**, as `:a"b"`, which the shell gives git as `:ab` and the guard reads in pieces; none of them is the word git is given;
 - **a token that does not begin with the colon**: `HEAD:README.md` is read as before.
 
 **Relative to the repository.** git reads a rest that begins with `./` or `../` from the current directory, and any other from the top of the working tree (Measured). The guard reads every rest against each folder the command names, the current directory and a `git -C` folder among them, as it reads every relative token. Where git runs in the top of its working tree the two are one place. Where it runs beneath it, git reads a name from a folder above the one the guard reads it against; that is §5's.
@@ -70,6 +85,7 @@ On the user's word (Context, question 3), "a name made only of spaces stays refu
 
 - **A rest git reads from the top of a working tree that lies above the current directory.** The guard reads it from the current directory. It is the gap `HEAD:<path>` already has, read since ADR-196 §4 as a relative token `HEAD:...` and on Windows as `HEAD` with a stream name. What git reads by the index form is a blob of the repository it runs in, and git refuses a path outside that repository (Measured).
 - **A token of a git segment that git opens as a file by its name as written**: an option's value given as the next word, as in `git commit -F :msg.txt`, or a path given to `git apply` or `git diff --no-index`. On Windows the guard reads the rest alone, and what Windows opens for a name that begins with a colon is not measured (ADR-217 §5). Elsewhere the token as written is read too.
+- **A token of a git segment that another program is given.** git runs other programs: an alias that begins with `!` hands the words after it to a shell command, whether the alias is set in the user's or the repository's configuration or by `-c alias.<name>=!<command>` or `--config-env` in the command itself (Measured), and the pager, a difftool, an external diff, a textconv filter and the hooks run programs of the configuration's choosing. The shell can run another program by the name `git` too: a Bash alias or a function named `git` defined earlier in the command, PowerShell's `Set-Alias git`, or a `git` earlier on the `PATH`. Such a program may open the token as written. The rest is still read and judged by the allow list, so what is left open is ADR-217 §5's unknown, what Windows opens for a name that begins with a colon.
 - **`:/<text>`**, which is a commit's message to `git show` and the pathspec's "from the top" to `git add`. Its rest begins with `/`, a path rooted on the current drive without its letter, which ADR-196 §4 leaves unread unless it is a Git Bash drive path. As a revision it names no path; as a pathspec, a path inside the repository.
 
 None of these has a case, on ADR-196 §4's ground that a case would hold the gap in place.
@@ -80,29 +96,35 @@ A token that begins with a colon after any other program, in a segment whose pro
 
 ### 7. The test
 
-`src/test/hooks/private-paths-guard.test.mjs` gains 27 cases, O101 to O108, O201 to O204, O301 to O309, O401 to O403 and O501 to O503.
+`src/test/hooks/private-paths-guard.test.mjs` gains 45 cases, O101 to O109, O201 to O204, O301 to O314, O401 to O403, O501 to O503, O601 to O608 and O701 to O704.
 
-- **O101 to O108**, let through on every platform: `git show :AGENTS.md`, `git show :0:docs/x.md`, `git diff :2:src/a.java`, `git show :README.md` in a PowerShell command, `git -C src show :Example.java`, `git push origin :claude/x` (§2), a quoted index path whose name holds a space, and a git segment after another.
+- **O101 to O109**, let through on every platform: `git show :AGENTS.md`, `git show :0:docs/x.md`, `git diff :2:src/a.java`, `git show :README.md` in a PowerShell command, `git -C src show :Example.java`, `git push origin :claude/x` (§2), a quoted index path whose name holds a space, a git segment after another, and one after a git segment whose quoted message holds no break.
 - **O201 to O204**, refused: a rest that climbs out of the checkout, a rest that is a drive path, a stage's rest on a drive no allowed root is on, and a rest headed by `$HOME` that lies outside the allow list. O202 and O203 are started on Windows alone, O201 and O204 everywhere.
-- **O301 to O309**, refused on Windows: the same token after `cat`, after `echo` with `git` as an argument, in a segment after a git one, in a command quoted for `bash -c`, as a redirect's target, as a value after `=`, inside `$(...)`; `sed ':a…'`; and `echo '{"a":1}'`.
+- **O301 to O314**, refused on Windows: the same token after `cat`, after `echo` with `git` as an argument, in a segment after a git one, in a command quoted for `bash -c`, as a redirect's target, as a value after `=`, inside `$(...)`; `sed ':a…'`; `echo '{"a":1}'`; and as the target of `<>`, `{fd}>`, PowerShell's `*>` and `*>>`, and a `>` written onto the end of the word before it.
 - **O401 to O403**, refused on Windows (§3): `lambda m:m.group(0)`, `git show Q:x`, `git show :0:Q:x`.
 - **O501 to O503**, refused on Windows (§4): `sed 's/ /_/g'`, `cat 'scratch/ /note.txt'`, `git show ': /x.md'`.
+- **O601 to O608**, refused on Windows, a command with no git segment (§1): `cat "a; git show" :README.md`, `cat \' "x' ; git show" :README.md`, `git commit -m "a;b" && git show :README.md`, `cat a\; git show :README.md`, a line ended by a backslash before `git show :README.md`, `git show :README.md "`, PowerShell's `cat “a; git show” :README.md` and `findstr --% x a; git show :README.md`.
+- **O701 to O704**, refused on Windows, a token that does not begin a word or holds a quote (§1): `git show :a,:b`, `git show {:README.md,:src/Example.java}`, `git show :my\ notes/r.txt`, `git show :a"b"`.
 
-Against the draft before this record, O101 to O108 are refused on Windows; on Linux they are let through already, and O201 and O204 are let through there, since `:..` and `:$HOME` were names and not a climb or a variable.
+Against the draft before this record, O101 to O108 are refused on Windows; on Linux they are let through already, and O201 and O204 are let through there, since `:..` and `:$HOME` were names and not a climb or a variable. Against the draft as first built for it, O310 to O314 and O601 to O608 are let through on Windows (Measured), and the rest pass.
 
 ## Decided here
 
 1. **§1: the rest is read on every platform**, and elsewhere beside the token as written. The user's answer named the form, and Windows is where its cost fell; reading the rest elsewhere refuses what git reads outside the allow list there too.
 2. **§1: a git segment is cut and recognised as ADR-264 §3 recognises a lister's**, a command holding `(`, `)` or a backtick, or a PowerShell brace, having none.
-3. **§1: a redirect's target and a value after `=` are not given the reading.**
+3. **§1: a redirect's target and a value after `=` are not given the reading**, a redirect's target being the word after any bare word that holds `<` or `>`.
 4. **§1: the rest is read against each folder the command names**, and not against the top of the working tree, which the guard would have to find by asking the file system or git; §5 records the difference.
 5. **§2: a refspec takes the index form's reading**, where the user left it as ADR-217 has it unless this record decided otherwise.
+6. **§1: a command whose cut may not be the shell's has no git segment**: a break inside quotes, an unpaired quote, in Bash a backslash before a quote or a break, in PowerShell a typographic quote or `--%`. `git commit -m "a;b" && git show :README.md` goes this way and is refused on Windows.
+7. **§1: a piece of a word cut at `,`, `{` or `}`, two halves joined at an escaped space, and a bare word with a quote inside it are not given the reading**, which is what the draft as first built does: each is a token the guard reads apart from the word git is given.
+8. **§5: what git or the shell hands to another program is recorded, and refuses nothing more.** A refusal of the reading in a segment that holds `-c` or `--config-env` would close one spelling of a gap that the user's and the repository's configuration hold open whatever the command says, and the rest is judged by the allow list either way.
 
 ## Consequences
 
 - **On Windows `git show :<path>`, `git show :<N>:<path>`, `git diff :<N>:<path>` and `git push origin :<branch>` run from the checkout**, where the rest lies inside the allow list.
 - **A rest outside the allow list is refused on every platform**, `:../outside/doc.txt` and `:$HOME/Documents/x.txt` on Linux among them, where before they were names that began with a colon.
 - **On Windows these are still refused, each to be reworded as ADR-217 says**: a token that begins with a colon after any program but git, a JSON value written after `":` with no space, a `sed` label, a redirect's target or an option's value that begins with a colon, and any such token in a command that holds `(`, `)` or a backtick. So is `m:m.group`, `Q:x`, and a `sed` or `awk` program that holds a name made only of spaces between separators.
+- **On Windows these are refused too, though git alone is given the token**: an index path in a command whose quotes hold a `;`, `&`, `|` or line break, as a commit message with a `;` does, or whose quote is unpaired or escaped; an index path in a brace or comma list; an index path whose space is escaped, which is quoted instead; and a bare word with a quote inside it. A commit message is written with `-F`, or the `git show` run as a command of its own.
 - **Nothing under `src/main` changes, and no run id moves.**
 
 ## Alternatives weighed
@@ -111,6 +133,9 @@ Against the draft before this record, O101 to O108 are refused on Windows; on Li
 - **Reading the rest from the top of the working tree**, found by walking up to `.git`. Rejected for this record: it asks the file system before the allow list is judged, against ADR-196 §2, or starts git, which ADR-217 weighed and rejected for Windows; and it closes a gap `HEAD:<path>` has open already.
 - **The reading for any program**, not git alone. Rejected: `cat :x` opens a name that begins with a colon, whose opening on Windows is not known (ADR-217 §2), and the user's answer named git.
 - **Loosening the drive of one letter, or the name made only of spaces.** Refused by the user (Context, questions 1 and 3).
+- **A cut that honours quotes and escapes**, so that `git commit -m "a;b" && git show :x` keeps its reading (§1). Rejected: it is a second parser of each shell's quoting, here-strings, `$'…'` and stop-parsing included, and where it errs it fails open. A command the guard cannot cut as the shell does is refused the reading, which costs a rewording.
+- **Giving the reading to a piece, to joined halves and to a word with a quote inside it** (§1). Rejected: each is read apart from the word the shell gives git, so the guard would give the reading to a text no program is given.
+- **No reading in a segment that holds `-c` or `--config-env`** (§5). Rejected, Decided here 8.
 
 ## What this does not decide
 
@@ -120,7 +145,7 @@ Against the draft before this record, O101 to O108 are refused on Windows; on Li
 
 ## What the implementation changes
 
-1. `.claude/hooks/private-paths-guard.mjs`, drafted as `docs/agents/guard-draft/hooks/private-paths-guard.mjs` and put in place by the operator (ADR-215 §7): §1's git segments and the reading of a token's rest, and its header comment.
+1. `.claude/hooks/private-paths-guard.mjs`, drafted as `docs/agents/guard-draft/hooks/private-paths-guard.mjs` and put in place by the operator (ADR-215 §7): §1's git segments and the reading of a token's rest, and its header comment; in the draft as first built, `gitIndexForms` finds no git segment in a command §1 says has none, and takes the word after any bare word that holds `<` or `>` for a redirect's target.
 2. `src/test/hooks/private-paths-guard.test.mjs`: §7's cases and its header comment, written before the guard.
 3. ADR-217 takes a pointer to this record at its top. Its decisions are not edited.
 4. `docs/agents/private-paths-guard.md`: the sentence on a token that begins with a colon.
