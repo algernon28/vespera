@@ -1,6 +1,8 @@
 // docs/check-claims-lib.mjs holds what the claims check and docs/next-adr-number.mjs compute without reading a file or
 // asking the network (ADR-342): AGENTS.md's size as git stores it, and a decision record's number, read, shared, taken
-// and chosen. The last three tests run docs/check-claims.mjs itself, without --with-network, and read its lines.
+// and chosen, the open pull requests read in full or cut short, and the claim of the numbers this branch adds, which
+// never passes where it did not read. One test asks git whether it stores AGENTS.md as text. The last three run
+// docs/check-claims.mjs itself, without --with-network, and read its lines.
 //
 //   node --test src/test/docs/check-claims.test.mjs
 
@@ -13,10 +15,18 @@ const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 // Imported in each test, so that each one reports its own failure while the module is missing.
 const lib = () => import(new URL("../../../docs/check-claims-lib.mjs", import.meta.url).href);
 
-const PR = (number, headRefName, ...files) => ({
+// A pull request as `gh pr list --json number,headRefName,changedFiles,files` gives it, read in full unless changedFiles
+// is given above the files' count.
+const PR = (number, headRefName, ...files) => {
+  const listed = files.map((f) => (typeof f === "string" ? { path: f, changeType: "ADDED" } : f));
+  return { number, headRefName, changedFiles: listed.length, files: listed };
+};
+// A pull request gh cut short: 100 files listed of the 175 it changes, as #676 was.
+const CUT = (number, headRefName) => ({
   number,
   headRefName,
-  files: files.map((f) => (typeof f === "string" ? { path: f, changeType: "ADDED" } : f)),
+  changedFiles: 175,
+  files: Array.from({ length: 100 }, (_, i) => ({ path: `src/main/java/F${i}.java`, changeType: "MODIFIED" })),
 });
 
 /* ---------- AGENTS.md's size ---------- */
@@ -40,6 +50,11 @@ test("the size is in UTF-8 bytes, and a CR standing alone is counted as it stand
   const { agentsMdSize } = await lib();
   // é is two bytes, the CRLF one, b one, the lone CR one: five.
   assert.deepEqual(agentsMdSize("é\r\nb\r"), { size: 5, within: true });
+});
+
+test("git stores AGENTS.md as text, so its blob has LF endings and counting each CRLF as one byte is its stored size", () => {
+  const attr = execFileSync("git", ["check-attr", "text", "--", "AGENTS.md"], { cwd: ROOT, encoding: "utf8" }).trim();
+  assert.equal(attr, "AGENTS.md: text: set", "the .gitattributes line /AGENTS.md text is what makes ADR-342 §1's measure exact");
 });
 
 /* ---------- a record's number ---------- */
@@ -90,6 +105,11 @@ test("the next number passes over what this branch and every open pull request h
     nextAdrNumber({ main: MAIN, branch: [...MAIN, "docs/adr/0342-mine.md"], prs: [PR(704, "x", "docs/adr/0343-x.md")] }),
     344,
   );
+  // A copy is a new path, and takes its number as an added file does.
+  assert.equal(
+    nextAdrNumber({ main: MAIN, branch: MAIN, prs: [PR(704, "x", { path: "docs/adr/0342-x.md", changeType: "COPIED" })] }),
+    343,
+  );
   // An open pull request that skipped 342 leaves it free.
   assert.equal(nextAdrNumber({ main: MAIN, branch: MAIN, prs: [PR(704, "x", "docs/adr/0344-x.md")] }), 342);
 });
@@ -107,20 +127,27 @@ test("a record this branch adds collides with one origin/main holds under anothe
   assert.deepEqual(found, [{ number: 342, added: "docs/adr/0342-mine.md", other: "docs/adr/0342-theirs.md", where: "origin/main" }]);
 });
 
-test("a record this branch adds collides with one an open pull request adds or renames to, under another name", async () => {
+test("a record this branch adds collides with one an open pull request adds, renames to or copies to, under another name", async () => {
   const { adrCollisions } = await lib();
   const prs = [
     PR(704, "theirs", "docs/adr/0342-theirs.md"),
     PR(705, "moved", { path: "docs/adr/0343-moved.md", changeType: "RENAMED" }),
+    PR(706, "copied", { path: "docs/adr/0344-copied.md", changeType: "COPIED" }),
   ];
-  const found = adrCollisions({ added: ["docs/adr/0342-mine.md", "docs/adr/0343-also-mine.md"], main: MAIN, prs, branch: "mine" });
+  const found = adrCollisions({
+    added: ["docs/adr/0342-mine.md", "docs/adr/0343-also-mine.md", "docs/adr/0344-mine-too.md"],
+    main: MAIN,
+    prs,
+    branch: "mine",
+  });
   assert.deepEqual(found, [
     { number: 342, added: "docs/adr/0342-mine.md", other: "docs/adr/0342-theirs.md", where: "#704" },
     { number: 343, added: "docs/adr/0343-also-mine.md", other: "docs/adr/0343-moved.md", where: "#705" },
+    { number: 344, added: "docs/adr/0344-mine-too.md", other: "docs/adr/0344-copied.md", where: "#706" },
   ]);
 });
 
-test("a file of the same name, this branch's own pull request, and a file a pull request only edits or deletes collide with nothing", async () => {
+test("a file of the same name, this branch's own pull request, and a file a pull request only edits, changes, leaves or deletes collide with nothing", async () => {
   const { adrCollisions } = await lib();
   const found = adrCollisions({
     added: ["docs/adr/0342-mine.md", "docs/adr/README.md"],
@@ -130,21 +157,29 @@ test("a file of the same name, this branch's own pull request, and a file a pull
       PR(704, "same", "docs/adr/0342-mine.md", "docs/adr/README.md"),
       PR(705, "edits", { path: "docs/adr/0342-edited.md", changeType: "MODIFIED" }),
       PR(706, "deletes", { path: "docs/adr/0342-deleted.md", changeType: "DELETED" }),
+      PR(707, "changes", { path: "docs/adr/0342-changed.md", changeType: "CHANGED" }),
+      PR(708, "leaves", { path: "docs/adr/0342-unchanged.md", changeType: "UNCHANGED" }),
     ],
     branch: "mine",
   });
   assert.deepEqual(found, []);
 });
 
-test("a pull request file with no changeType is read as added", async () => {
+test("a pull request file with no changeType, or with one GitHub may add later, is read as added", async () => {
   const { adrCollisions } = await lib();
   const found = adrCollisions({
-    added: ["docs/adr/0342-mine.md"],
+    added: ["docs/adr/0342-mine.md", "docs/adr/0343-mine.md"],
     main: MAIN,
-    prs: [{ number: 704, headRefName: "theirs", files: [{ path: "docs/adr/0342-theirs.md" }] }],
+    prs: [
+      { number: 704, headRefName: "theirs", changedFiles: 1, files: [{ path: "docs/adr/0342-theirs.md" }] },
+      PR(705, "new", { path: "docs/adr/0343-new.md", changeType: "SOME_TYPE_NOT_YET_KNOWN" }),
+    ],
     branch: "mine",
   });
-  assert.deepEqual(found, [{ number: 342, added: "docs/adr/0342-mine.md", other: "docs/adr/0342-theirs.md", where: "#704" }]);
+  assert.deepEqual(found, [
+    { number: 342, added: "docs/adr/0342-mine.md", other: "docs/adr/0342-theirs.md", where: "#704" },
+    { number: 343, added: "docs/adr/0343-mine.md", other: "docs/adr/0343-new.md", where: "#705" },
+  ]);
 });
 
 test("collisions are listed by number, origin/main's before the pull requests', and the pull requests' by number", async () => {
@@ -161,6 +196,91 @@ test("collisions are listed by number, origin/main's before the pull requests', 
     "342 #705 docs/adr/0342-p.md",
     "343 #706 docs/adr/0343-r.md",
   ]);
+});
+
+/* ---------- the open pull requests, read in full or cut short ---------- */
+
+test("a pull request whose files are fewer than its changedFiles, or that gives no changedFiles, is cut short, this branch's own aside", async () => {
+  const { unreadPullRequests } = await lib();
+  const noCount = { number: 702, headRefName: "no-count", files: [{ path: "a.md", changeType: "ADDED" }] };
+  const prs = [CUT(705, "cut"), PR(704, "whole", "docs/adr/0342-x.md"), noCount, CUT(703, "mine")];
+  assert.deepEqual(unreadPullRequests({ prs, limit: 100, branch: "mine" }), { full: false, incomplete: [702, 705] });
+});
+
+test("a list of open pull requests as long as its --limit may have left some out", async () => {
+  const { unreadPullRequests } = await lib();
+  const prs = [PR(704, "a", "x.md"), PR(705, "b", "y.md")];
+  assert.deepEqual(unreadPullRequests({ prs, limit: 2, branch: "mine" }), { full: true, incomplete: [] });
+  assert.deepEqual(unreadPullRequests({ prs, limit: 3, branch: "mine" }), { full: false, incomplete: [] });
+});
+
+/* ---------- the claim of the numbers this branch adds ---------- */
+
+// Every part read in full: the branch adds 0342-mine.md, origin/main holds MAIN, and #704 adds 0343-theirs.md.
+const READ = () => ({
+  added: ["docs/adr/0342-mine.md"],
+  main: MAIN,
+  prs: [PR(704, "theirs", "docs/adr/0343-theirs.md")],
+  branch: "mine",
+  limit: 100,
+});
+
+test("the claim passes where origin/main, the branch's added files and every open pull request were read in full and nothing collides", async () => {
+  const { adrCollisionClaim } = await lib();
+  assert.equal(adrCollisionClaim(READ()).state, "PASS");
+});
+
+test("a collision fails the claim, naming the number, both files and where the other is held", async () => {
+  const { adrCollisionClaim } = await lib();
+  const { state, detail } = adrCollisionClaim({ ...READ(), prs: [PR(704, "theirs", "docs/adr/0342-theirs.md")] });
+  assert.equal(state, "FAIL");
+  for (const named of ["342", "docs/adr/0342-mine.md", "docs/adr/0342-theirs.md", "#704"]) assert.ok(detail.includes(named), `"${detail}" names ${named}`);
+});
+
+test("a collision found in what was read fails the claim, though another part was not read", async () => {
+  const { adrCollisionClaim } = await lib();
+  const onMain = { ...READ(), main: [...MAIN, "docs/adr/0342-theirs.md"], prs: null };
+  assert.equal(adrCollisionClaim(onMain).state, "FAIL");
+  const inACutList = { ...READ(), prs: [PR(704, "theirs", "docs/adr/0342-theirs.md"), CUT(705, "cut")], limit: 2 };
+  assert.equal(adrCollisionClaim(inACutList).state, "FAIL");
+});
+
+test("where the open pull requests were not read, gh absent or answering with an error, the claim is not checked", async () => {
+  const { adrCollisionClaim } = await lib();
+  const { state, detail } = adrCollisionClaim({ ...READ(), prs: null });
+  assert.equal(state, "NOT CHECKED");
+  assert.match(detail, /open pull requests/);
+});
+
+test("where origin/main cannot be resolved, the claim is not checked", async () => {
+  const { adrCollisionClaim } = await lib();
+  const { state, detail } = adrCollisionClaim({ ...READ(), main: null });
+  assert.equal(state, "NOT CHECKED");
+  assert.match(detail, /origin\/main/);
+});
+
+test("where the merge base of origin/main and HEAD cannot be resolved, as in a shallow checkout, the claim is not checked", async () => {
+  const { adrCollisionClaim } = await lib();
+  const { state, detail } = adrCollisionClaim({ ...READ(), added: null });
+  assert.equal(state, "NOT CHECKED");
+  assert.match(detail, /merge base/);
+});
+
+test("where the list of open pull requests fills its --limit, the claim is not checked and names the limit", async () => {
+  const { adrCollisionClaim } = await lib();
+  const { state, detail } = adrCollisionClaim({ ...READ(), prs: [PR(704, "a", "x.md"), PR(705, "b", "y.md")], limit: 2 });
+  assert.equal(state, "NOT CHECKED");
+  assert.match(detail, /limit/);
+  assert.match(detail, /\b2\b/);
+});
+
+test("where gh cut an open pull request's files short, the claim is not checked and names the pull request", async () => {
+  const { adrCollisionClaim } = await lib();
+  const { state, detail } = adrCollisionClaim({ ...READ(), prs: [PR(704, "theirs", "docs/adr/0343-theirs.md"), CUT(705, "cut")] });
+  assert.equal(state, "NOT CHECKED");
+  assert.match(detail, /#705\b/);
+  // This branch's own pull request, cut short, is not read against it, so leaves the claim checked.
+  assert.equal(adrCollisionClaim({ ...READ(), prs: [...READ().prs, CUT(703, "mine")] }).state, "PASS");
 });
 
 /* ---------- what docs/check-claims.mjs reports ---------- */
