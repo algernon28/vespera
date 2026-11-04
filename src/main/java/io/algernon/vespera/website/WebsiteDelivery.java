@@ -1,5 +1,6 @@
 package io.algernon.vespera.website;
 
+import io.algernon.vespera.deliverable.CopyNames;
 import io.algernon.vespera.deliverable.Deliverable;
 import io.algernon.vespera.deliverable.DeliverableRoot;
 import io.algernon.vespera.deliverable.Plugin;
@@ -13,14 +14,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
-import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -247,7 +246,10 @@ final class WebsiteDelivery {
         }
         Map<String, List<Path>> currentByKey = new LinkedHashMap<>();
         for (String path : stay) {
-            currentByKey.computeIfAbsent(caseKey(path), key -> new ArrayList<>()).add(folder.resolve(path));
+            Path resolved = folder.resolve(path);
+            for (String key : CopyNames.keysOf(path)) {
+                currentByKey.computeIfAbsent(key, k -> new ArrayList<>()).add(resolved);
+            }
         }
         int removed = 0;
         int kept = 0;
@@ -274,17 +276,17 @@ final class WebsiteDelivery {
         return new int[] {removed, kept};
     }
 
-    /** The path as a file system that folds case and composition would see it: NFC, lower case. */
-    private static String caseKey(String path) {
-        return Normalizer.normalize(path, Normalizer.Form.NFC).toLowerCase(Locale.ROOT);
-    }
-
     /**
-     * Whether {@code file} is the same file some current path resolves to, as a copy renamed by case alone is. Only the
-     * current paths sharing its {@link #caseKey} are asked, so the cost is one stat per path, not one per pair.
+     * Whether {@code file} is the same file some current path resolves to, as a copy renamed by case alone is. The key is
+     * ADR-280 section 1.4's ({@link CopyNames#keysOf}), held once; only the current paths sharing a key of the dropped
+     * path are asked, so the cost is one stat per path, not one per pair.
      */
     private static boolean isCurrent(Path file, String path, Map<String, List<Path>> currentByKey) throws IOException {
-        for (Path current : currentByKey.getOrDefault(caseKey(path), List.of())) {
+        Set<Path> candidates = new LinkedHashSet<>();
+        for (String key : CopyNames.keysOf(path)) {
+            candidates.addAll(currentByKey.getOrDefault(key, List.of()));
+        }
+        for (Path current : candidates) {
             if (Files.exists(current) && Files.isSameFile(current, file)) {
                 return true;
             }
