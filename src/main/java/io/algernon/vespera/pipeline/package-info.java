@@ -9,5 +9,5 @@
  */
 @org.springframework.modulith.ApplicationModule(
         allowedDependencies = {"ledger", "corpus", "profile", "extraction", "similarity", "embedding", "synthesis", "deliverable",
-                "confluence"})
+                "confluence", "website"})
 package io.algernon.vespera.pipeline;

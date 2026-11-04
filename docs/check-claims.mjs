@@ -44,6 +44,17 @@ const POM = "pom.xml";
 const APPLICATION_YAML = "src/main/resources/application.yaml";
 const COMPOSE = "compose.yaml";
 const COMMANDS = MAIN + "/pipeline/VesperaCommand.java";
+/**
+ * VesperaCommand.java, a command named by a constant, `name = ServeCommand.NAME` (ADR-333 §8), written as the text the
+ * constant holds, read from that class in `pipeline`, so that the checks reading `@Command(name = "...")` see it.
+ */
+function commandsSource() {
+  return readFileSync(COMMANDS, "utf8").replace(/(@Command\(\s*name = )([A-Z]\w*)\.([A-Z_]+)\b/g, (whole, head, cls, constant) => {
+    const file = `${MAIN}/pipeline/${cls}.java`;
+    const held = existsSync(file) && new RegExp(`\\b${constant} = "(\\w+)";`).exec(readFileSync(file, "utf8"));
+    return held ? `${head}"${held[1]}"` : whole;
+  });
+}
 const WORKING_DIRECTORY_OPTION = MAIN + "/pipeline/WorkingDirectoryOption.java";
 const PROFILE = MAIN + "/profile/Profile.java";
 // No trailing slash: the list form is /issues?labels=..., and /issues/?labels=... is a 404.
@@ -314,7 +325,7 @@ function readmeSection(heading, name) {
   const section = readmeSection("## Commands", NAME);
   if (section) {
     const named = [...section.matchAll(/^vespera (\w+)/gm)].map((c) => c[1]).sort();
-    const real = [...readFileSync(COMMANDS, "utf8").matchAll(/@Command\(name = "(\w+)"/g)]
+    const real = [...commandsSource().matchAll(/@Command\(name = "(\w+)"/g)]
       .map((c) => c[1])
       .sort();
     const wrong = [];
@@ -335,7 +346,7 @@ function readmeSection(heading, name) {
     const given = [...section.matchAll(/^vespera (\w+) .*--db-dir=<path>/gm)].map((c) => c[1]).sort();
     const option = /names = "(--[\w-]+)"/.exec(readFileSync(WORKING_DIRECTORY_OPTION, "utf8"));
     // Each subcommand's source runs from its @Command to the next one.
-    const source = readFileSync(COMMANDS, "utf8");
+    const source = commandsSource();
     const bodies = new Map(
       source
         .split(/(?=@Command\(\s*name = ")/)
@@ -355,6 +366,36 @@ function readmeSection(heading, name) {
     }
     if (wrong.length) fail(NAME, wrong.join("; "));
     else pass(NAME, given.map((c) => `vespera ${c}`).join(", "));
+  }
+}
+
+{
+  // ADR-333 §8, §15: README names vespera.serve.port and the port vespera serve listens at where nothing names one, and
+  // says vespera serve reads no YAML file, application-local.yaml among them. The port and the property are read off
+  // ServeCommand, and "reads no YAML file" holds only while ServeCommand's code, its comments aside, names none.
+  const NAME = "what README says of vespera serve";
+  const SERVE_COMMAND = MAIN + "/pipeline/ServeCommand.java";
+  if (!existsSync(SERVE_COMMAND)) fail(NAME, `${SERVE_COMMAND} is not there, and README's vespera serve is read against it`);
+  else {
+    const source = readFileSync(SERVE_COMMAND, "utf8");
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const port = /DEFAULT_PORT = (\d+);/.exec(source);
+    const key = /PORT_PROPERTY = "([\w.-]+)";/.exec(source);
+    const paragraphs = readme.split(/\r?\n[ \t]*\r?\n/);
+    const naming = key ? paragraphs.filter((p) => p.includes("`" + key[1] + "`")) : [];
+    const wrong = [];
+    if (!port) wrong.push(`${SERVE_COMMAND} declares no DEFAULT_PORT`);
+    if (!key) wrong.push(`${SERVE_COMMAND} declares no PORT_PROPERTY`);
+    else if (!naming.length) wrong.push(`${README} names \`${key[1]}\` nowhere`);
+    else if (port && !naming.some((p) => new RegExp(`\\b${port[1]}\\b`).test(p))) {
+      wrong.push(`no paragraph of ${README} naming \`${key[1]}\` gives ${port[1]}, the port vespera serve listens at where nothing names one`);
+    }
+    if (!paragraphs.some((p) => p.includes("vespera serve") && p.includes("application-local.yaml"))) {
+      wrong.push(`no paragraph of ${README} says, beside vespera serve, what it makes of application-local.yaml`);
+    }
+    if (/\.ya?ml\b/.test(code)) wrong.push(`${SERVE_COMMAND} names a YAML file in its code, and README says vespera serve reads none`);
+    if (wrong.length) fail(NAME, wrong.join("; "));
+    else pass(NAME, `\`${key[1]}\`, ${port[1]} where nothing names one, and no YAML file read`);
   }
 }
 
@@ -673,7 +714,7 @@ function markerPattern(source, whole = false) {
   const NAME = "the tests the decision records name";
   const FIRST = 50;
   // Accepted records whose code is not built yet. A number leaves this set in the change that builds its record.
-  const NOT_YET_BUILT = new Set([333]);
+  const NOT_YET_BUILT = new Set([]);
   const testFiles = new Map();
   (function walk(dir) {
     for (const e of readdirSync(dir, { withFileTypes: true })) {

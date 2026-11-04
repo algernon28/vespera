@@ -2429,6 +2429,15 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED =
             FILE + "0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md";
 
+    /**
+     * ADR-341 -- {@code vespera serve} tells a page, an asset or the listing from a copy by {@code vespera-website.json}
+     * and the file's name together; {@code serve}'s {@code --db-dir} is a fourth argument the control panel never
+     * passes; and its refusal of a port that is no port, its exit 2, its blank values, its environment names, its 301,
+     * 403, 405 and 500 and its rereading of the list are as built (amends ADR-333 §8, ADR-336 §2 and ADR-339 §1).
+     */
+    public static final String SERVE_TELLS_A_PAGE_FROM_A_COPY_BY_THE_LIST_AND_THE_NAME = FILE
+            + "0341-vespera-serve-tells-a-page-from-a-copy-by-the-websites-list-and-the-files-name-serves-working-directory-is-never-passed-and-its-refusals-answers-and-readings-are-as-built.md";
+
     private Adr() {
     }
 }

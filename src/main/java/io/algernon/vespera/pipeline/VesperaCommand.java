@@ -62,7 +62,12 @@ import picocli.CommandLine.Spec;
 @Command(
         name = "vespera",
         mixinStandardHelpOptions = true,
-        subcommands = {VesperaCommand.Run.class, VesperaCommand.Label.class, VesperaCommand.Publish.class},
+        subcommands = {
+            VesperaCommand.Run.class,
+            VesperaCommand.Label.class,
+            VesperaCommand.Publish.class,
+            VesperaCommand.Serve.class
+        },
         description = "Curates a local archive into a publication-ready knowledge base.")
 public class VesperaCommand implements Callable<Integer> {
 
@@ -128,6 +133,31 @@ public class VesperaCommand implements Callable<Integer> {
                 return CommandLine.defaultFactory().create(type);
             }
         });
+    }
+
+    /**
+     * Serves the website folder of the working directory on loopback (ADR-333 §8). An entry of the tree so that help
+     * lists it and so that {@link ServeCommand} parses the same {@code --db-dir} mixin; it is never executed through
+     * Spring, since {@code VesperaApplication.main} hands {@code serve} to {@link ServeCommand} before any context
+     * exists.
+     */
+    @Command(name = ServeCommand.NAME, description = "Serves the website folder of the working directory at"
+            + " 127.0.0.1, until this process ends. Takes no lock and opens no database.")
+    public static class Serve implements Callable<Integer> {
+
+        @Mixin
+        private WorkingDirectoryOption databaseDirectory = new WorkingDirectoryOption();
+
+        /** The option picocli parsed into this command, which {@link ServeCommand} asks for its refusal. */
+        WorkingDirectoryOption databaseDirectory() {
+            return databaseDirectory;
+        }
+
+        @Override
+        public Integer call() {
+            System.err.println("vespera serve is started by the jar's main before Spring, and is not run through it.");
+            return CommandLine.ExitCode.SOFTWARE;
+        }
     }
 
     /** Walks a corpus and takes it as far as the next missing value: the whole job, each step behind its own gate (ADR-101). */

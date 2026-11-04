@@ -99,13 +99,15 @@ class NothingShippedReachesConfluenceTest {
      * The options of each command of the tree, beside the standard help ones, by their longest names: {@code
      * vespera} none, {@code run} the working directory, {@code label} the local labeller and the working directory,
      * {@code publish} the working directory and the destinations, {@code --to}, which names plugins and never a site,
-     * a space or a credential (ADR-333 §6).
+     * a space or a credential (ADR-333 §6), {@code serve} the working directory alone, its port being a property and
+     * no option (ADR-333 §8).
      */
     private static final Map<String, Set<String>> THE_OPTIONS = Map.of(
             "vespera", Set.of(),
             "run", Set.of("--db-dir"),
             "label", Set.of("--auto", "--db-dir"),
-            "publish", Set.of("--db-dir", "--to"));
+            "publish", Set.of("--db-dir", "--to"),
+            "serve", Set.of("--db-dir"));
 
     /**
      * Builds each command without calling its constructor, whose collaborators are the application's, so that
@@ -202,10 +204,16 @@ class NothingShippedReachesConfluenceTest {
                 () -> assertThat(ATLASSIANS_GROUP.matcher(pom).find()).isFalse());
     }
 
+    /**
+     * The command tree (ADR-308 §5, ADR-333 §6, §8): {@code serve} is an entry of it, so that help lists it, though
+     * {@code VesperaApplication.main} hands {@code serve} on before any context exists; it replaces
+     * {@code theCommandHasRunLabelAndPublish}.
+     */
     @Test
     @Story("Only the publisher sends to Confluence")
-    @DisplayName("The command tree is run, label and publish under vespera, with no other command and no option beyond the ones it has")
-    void theCommandHasRunLabelAndPublish() {
+    @DisplayName("The command tree is run, label, publish and serve under vespera, with no other command and no option beyond the ones it has")
+    @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+    void theCommandHasRunLabelPublishAndServe() {
         CommandSpec vespera = new CommandLine(VesperaCommand.class, WITHOUT_ITS_COLLABORATORS).getCommandSpec();
         Map<String, Set<String>> options = new LinkedHashMap<>();
         Map<String, Set<String>> subcommands = new LinkedHashMap<>();
@@ -216,17 +224,18 @@ class NothingShippedReachesConfluenceTest {
                         + " operator types, its mixins and argument groups included",
                 () -> assertThat(vespera.name()).isEqualTo("vespera"));
         claim(
-                "vespera has run, label and publish, and none has a subcommand of its own, so publish is the one"
-                        + " command that sends the rendering anywhere",
+                "vespera has run, label, publish and serve, and none has a subcommand of its own, so publish is the one"
+                        + " command that sends the rendering anywhere, serve reading one folder on this machine",
                 () -> assertThat(subcommands).containsExactlyInAnyOrderEntriesOf(Map.of(
-                        "vespera", Set.of("run", "label", "publish"),
+                        "vespera", Set.of("run", "label", "publish", "serve"),
                         "run", Set.of(),
                         "label", Set.of(),
-                        "publish", Set.of())));
+                        "publish", Set.of(),
+                        "serve", Set.of())));
         claim(
                 "each command has exactly the options it has beside the standard help ones: vespera none, run --db-dir,"
                         + " label --auto and --db-dir, publish --db-dir and --to, the destinations by their plugins'"
-                        + " names, so no option names a site, a space or a credential",
+                        + " names, and serve --db-dir, so no option names a site, a space or a credential",
                 () -> assertThat(options).containsExactlyInAnyOrderEntriesOf(THE_OPTIONS));
     }
 

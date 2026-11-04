@@ -188,6 +188,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "SeedExtractionJobConfiguration",
             "SeedExtractionOutcome",
             "SeedGate",
+            // ADR-333 §8: resolves the working directory and the port of vespera serve and starts the website's server;
+            // it reads no row and writes no text of the deliverable.
+            "ServeCommand",
             "ServiceScopeFailureException",
             // ADR-265: records which step ended at a shut gate; the gate's decision is the gate's.
             "ShutGates",

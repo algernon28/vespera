@@ -62,7 +62,7 @@ final class WorkingDirectoryOption {
         if (typed.equals(actual)) {
             return null;
         }
-        return ("%s was given --db-dir %s but the database and profile were opened in %s;"
+        return ("%s was given --db-dir %s but the working directory in use is %s;"
                         + " --db-dir has to be given as --db-dir=<path>, because it is read as the db-dir"
                         + " property %s is resolved from, before this command is parsed")
                 .formatted(command.qualifiedName(), typed, actual, WorkingDirectoryPreparer.PROPERTY);
