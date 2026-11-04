@@ -168,7 +168,7 @@ and its controls, `i` from 1 in the rows' order:
 | Control | Name | Holds |
 | --- | --- | --- |
 | hidden | `folder-<i>` | the folder as `data-folder` spells it |
-| hidden | `drawn-<i>` | the row's `data-walked` as the page drew it, which a post is compared with: a row posted as drawn holds nothing, and one drawn `not-walked-above` or `outside` changes no list |
+| hidden | `drawn-<i>` | the row's `data-walked` as the page drew it, which decides which of its boxes a post is read for: Read where it is `walked` or `not-walked`, Code where it is `walked` or `outside`; a row drawn `not-walked-above` changes nothing |
 | checkbox, *Read* | `walk-<i>` | ticked where `data-walked` is `walked`; drawn `disabled` where it is `not-walked-above`; not drawn where it is `outside` |
 | checkbox, *Code* | `code-set-<i>` | ticked where `data-code-set` is `marked`; `disabled` where the folder is not walked |
 | text, *Name shown in the pages* | `code-set-name-<i>` | the name `code-set-names.yaml` gives the folder, empty where it gives none |
