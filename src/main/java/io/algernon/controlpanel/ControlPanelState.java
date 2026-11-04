@@ -45,7 +45,6 @@ final class ControlPanelState {
      * The list of each destination's rendering, found in that destination's folder at a tree's root, as the jar writes
      * them (ADR-312, ADR-316 §1, ADR-333 §3). The folder is the destination's name.
      */
-    private static final Map<String, String> LISTS = Map.of("confluence", "pages.json", "website", "files.json");
 
     private static final Duration LOOK = Duration.ofMillis(50);
 
@@ -123,7 +122,8 @@ final class ControlPanelState {
 
     private boolean isDrawn(String destination) {
         LaunchValues now = values;
-        String list = LISTS.get(destination);
+        String list = java.util.Objects.requireNonNull(
+                ChildCommand.DESTINATION_LISTS.get(destination), "no list named for destination " + destination);
         try {
             if (now.deliverableRoot() != null && !now.deliverableRoot().isBlank() && !namesTheDefaultFolder(now)) {
                 return Files.isRegularFile(

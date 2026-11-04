@@ -38,20 +38,20 @@ a {
   color: var(--accent);
 }
 
-.site-header {
+.website-header {
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   padding: 0.75em 1.5em;
 }
 
-.site-header nav {
+.website-header nav {
   display: flex;
   flex-wrap: wrap;
   gap: 1em;
   align-items: center;
 }
 
-.site-header .where {
+.website-header .where {
   color: var(--muted);
 }
 
@@ -137,7 +137,7 @@ img {
 }
 
 @media (max-width: 40em) {
-  .site-header {
+  .website-header {
     padding: 0.6em 1em;
   }
 

@@ -16,28 +16,28 @@ import java.util.Map;
 public final class ChildCommand {
 
     /** One option or positional argument of picocli's model of the jar's commands, and how the control panel sets it (ADR-336 §2). */
-    public record Argument(String command, String name, String control, String reason) {
+    public record Argument(String command, String name, String form, String control, String reason) {
     }
 
-    /** Every option and positional argument of {@code vespera} and of each of its commands, each once (ADR-336 §2). */
+    /** Every option and positional argument of {@code vespera} and of each of its commands, each once (ADR-336 §2, ADR-339 §1). */
     public static final List<Argument> ARGUMENTS = List.of(
-            new Argument("vespera", "help", "",
+            new Argument("vespera", "help", "", "",
                     "Never passed (ADR-278 §1): it boots the context and takes the working directory's lock, and prints"
                             + " nothing the control panel reads."),
-            new Argument("vespera", "version", "",
+            new Argument("vespera", "version", "", "",
                     "Never passed (ADR-278 §1): it boots the context, takes the lock and prints no version."),
-            new Argument("run", "<root>", "vespera.corpus-root", "The corpus root field, made absolute."),
-            new Argument("run", "db-dir", "vespera.working-dir",
+            new Argument("run", "<root>", "launch", "vespera.corpus-root", "The corpus root field, made absolute."),
+            new Argument("run", "db-dir", "launch", "vespera.working-dir",
                     "The working directory field, made absolute; also the child's current directory."),
-            new Argument("label", "auto", "label-auto",
+            new Argument("label", "auto", "launch", "label-auto",
                     "Passed by Have the local model answer, here and on the next page; Label passes none."),
-            new Argument("label", "<file>", "",
+            new Argument("label", "<file>", "", "",
                     "Never passed: label reads the label file the last run wrote in the working directory, which the"
                             + " Relevance page answers."),
-            new Argument("label", "db-dir", "vespera.working-dir", "As for run."),
-            new Argument("publish", "db-dir", "vespera.working-dir",
+            new Argument("label", "db-dir", "launch", "vespera.working-dir", "As for run."),
+            new Argument("publish", "db-dir", "launch", "vespera.working-dir",
                     "As for run; Publish stands on the invocation page."),
-            new Argument("publish", "to", "to",
+            new Argument("publish", "to", "publish", "to",
                     "The checkboxes of the invocation page's Publish, one for each destination drawn (ADR-333 §6); not"
                             + " a control of the launch form."));
 
@@ -46,7 +46,17 @@ public final class ChildCommand {
      * offers them: a closed list of the control panel's own, which names no class of the jar (ADR-285 §3, ADR-333 §6).
      * A test holds it to the names of the plugins compiled into the jar.
      */
-    public static final List<String> DESTINATIONS = List.of("confluence", "website");
+    public static final List<String> DESTINATIONS = List.copyOf(destinationLists().keySet());
+
+    /** The file of each destination's rendering that says it is drawn, kept beside {@link #DESTINATIONS}, whose order it fixes. */
+    static final Map<String, String> DESTINATION_LISTS = destinationLists();
+
+    private static Map<String, String> destinationLists() {
+        Map<String, String> lists = new LinkedHashMap<>();
+        lists.put("confluence", "pages.json");
+        lists.put("website", "files.json");
+        return Collections.unmodifiableMap(lists);
+    }
 
     private final List<String> command;
     private final Path directory;

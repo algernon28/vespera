@@ -43,7 +43,7 @@ final class WebsitePage {
                 + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>" + Html.escape(title)
                 + "</title>\n<link rel=\"stylesheet\" href=\"" + up + "website.css\">\n<script src=\"" + up
                 + "search-index.js\" defer></script>\n<script src=\"" + up + "website.js\" defer></script>\n</head>\n"
-                + "<body>\n<header class=\"site-header\">\n<nav>\n<a href=\"" + up + "index.html\">"
+                + "<body>\n<header class=\"website-header\">\n<nav>\n<a href=\"" + up + "index.html\">"
                 + Html.escape(FixedWords.contents(language)) + "</a>\n<input type=\"search\" id=\"search\" placeholder=\""
                 + search + "\" aria-label=\"" + search + "\" data-root=\"" + up + "\" data-none=\""
                 + Html.escape(FixedWords.searchFoundNothing(language))

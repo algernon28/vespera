@@ -646,7 +646,7 @@ public class VesperaCommand implements Callable<Integer> {
                 return CommandLine.ExitCode.SOFTWARE;
             }
             boolean bare = destinations == null || destinations.isEmpty();
-            List<Plugin> targets = new java.util.ArrayList<>();
+            List<Plugin> chosen = new java.util.ArrayList<>();
             for (String name : bare ? List.of(DESTINATION) : destinations) {
                 Optional<Plugin> named = plugins.stream().filter(candidate -> candidate.name().equals(name.strip())).findFirst();
                 if (named.isEmpty()) {
@@ -655,14 +655,14 @@ public class VesperaCommand implements Callable<Integer> {
                             + ".");
                     return CommandLine.ExitCode.USAGE;
                 }
-                if (!targets.contains(named.get())) {
-                    targets.add(named.get());
+                if (!chosen.contains(named.get())) {
+                    chosen.add(named.get());
                 }
             }
             Map<String, Set<String>> finished = ledger.runs().finishedSteps();
             List<Runs.Listed> runs = ledger.runs().listed();
             int exit = CommandLine.ExitCode.OK;
-            for (Plugin plugin : targets) {
+            for (Plugin plugin : chosen) {
                 if (!deliverTo(plugin, bare, finished, runs)) {
                     exit = CommandLine.ExitCode.SOFTWARE;
                 }
