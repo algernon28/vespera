@@ -1,0 +1,59 @@
+/* PROTOTYPE stylesheet, shared by every variant. Colours follow the browser panel's ok/warn/bad/idle. */
+.root { -fx-font-family: "Segoe UI", sans-serif; -fx-font-size: 13px; -fx-background-color: #f6f7f9; }
+
+.card { -fx-background-color: white; -fx-background-radius: 8; -fx-border-color: #e1e4e8; -fx-border-radius: 8; -fx-padding: 14; }
+.card-title { -fx-font-size: 15px; -fx-font-weight: bold; }
+.page-title { -fx-font-size: 22px; -fx-font-weight: bold; }
+.headline { -fx-font-size: 18px; -fx-font-weight: bold; }
+.field-name { -fx-font-weight: bold; }
+.key-name { -fx-font-size: 16px; -fx-font-weight: bold; -fx-font-family: "Consolas", monospace; }
+.hint { -fx-text-fill: #6a737d; }
+.cost { -fx-text-fill: #8a5a00; -fx-font-style: italic; }
+.outcome { -fx-background-color: #fff3cd; -fx-padding: 6 10; -fx-background-radius: 6; -fx-text-fill: #664d03; }
+.ok-text { -fx-text-fill: #1a7f37; }
+
+.pill { -fx-padding: 4 12; -fx-background-radius: 999; -fx-font-weight: bold; }
+.pill.ok { -fx-background-color: #dafbe1; -fx-text-fill: #1a7f37; }
+.pill.warn { -fx-background-color: #fff3cd; -fx-text-fill: #8a5a00; }
+.pill.bad { -fx-background-color: #ffebe9; -fx-text-fill: #cf222e; }
+.pill.idle { -fx-background-color: #eaeef2; -fx-text-fill: #57606a; }
+
+.button.primary { -fx-background-color: #0969da; -fx-text-fill: white; -fx-font-weight: bold; }
+.button.danger { -fx-background-color: #cf222e; -fx-text-fill: white; -fx-font-weight: bold; }
+.button.big { -fx-font-size: 16px; -fx-padding: 10 20; }
+
+.console { -fx-font-family: "Consolas", monospace; -fx-control-inner-background: #0d1117; -fx-text-fill: #c9d1d9; }
+
+/* Variant A */
+.nav { -fx-background-color: #24292f; -fx-padding: 16 8; -fx-pref-width: 190; }
+.brand { -fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: bold; -fx-padding: 0 8 14 8; }
+.nav-item { -fx-background-color: transparent; -fx-text-fill: #d0d7de; -fx-alignment: center-left; -fx-padding: 8 12; }
+.nav-item:selected { -fx-background-color: #0969da; -fx-text-fill: white; }
+.tile { -fx-background-color: white; -fx-background-radius: 8; -fx-border-color: #e1e4e8; -fx-border-radius: 8; -fx-padding: 10 14; }
+.tile-name { -fx-text-fill: #6a737d; -fx-font-size: 11px; }
+.tile-value { -fx-font-weight: bold; }
+
+/* Variant B */
+.cockpit-header { -fx-background-color: #24292f; -fx-padding: 10 14; }
+.cockpit-header .hint { -fx-text-fill: #d0d7de; }
+.brand-dark { -fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold; }
+.chip { -fx-padding: 3 8; -fx-background-radius: 4; -fx-font-size: 11px; }
+.chip-todo { -fx-background-color: #3d444d; -fx-text-fill: #9198a1; }
+.chip-done { -fx-background-color: #1a7f37; -fx-text-fill: white; }
+.chip-running { -fx-background-color: #d4a72c; -fx-text-fill: black; -fx-font-weight: bold; }
+.chip-reached { -fx-background-color: #0969da; -fx-text-fill: white; -fx-font-weight: bold; }
+
+/* Variant C */
+.wizard-page { -fx-background-color: white; -fx-background-radius: 12; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 18, 0, 0, 4); }
+.wizard-title { -fx-font-size: 22px; -fx-font-weight: bold; }
+.crumb { -fx-padding: 6 14; -fx-background-radius: 999; }
+.crumb-done { -fx-background-color: #dafbe1; -fx-text-fill: #1a7f37; }
+.crumb-now { -fx-background-color: #0969da; -fx-text-fill: white; -fx-font-weight: bold; }
+.crumb-todo { -fx-background-color: #eaeef2; -fx-text-fill: #57606a; }
+
+/* The switcher: deliberately not part of any design. */
+.switcher { -fx-background-color: rgba(20,20,20,0.88); -fx-background-radius: 999; -fx-padding: 6 10;
+            -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 12, 0, 0, 3); }
+.switcher .label { -fx-text-fill: white; -fx-font-weight: bold; }
+.switcher .button { -fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 14px; }
+.switcher .button:hover { -fx-background-color: rgba(255,255,255,0.15); -fx-background-radius: 999; }
