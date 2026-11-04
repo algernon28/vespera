@@ -22,6 +22,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Stream;
@@ -58,13 +59,7 @@ class LaunchValuesTest {
     /** The deliverable root relative, so that it must be made absolute before it reaches the child. */
     private static final String RELATIVE_DELIVERABLE_ROOT = "out";
 
-    private static final String RUN_NEEDS_BOTH = "Run needs the corpus root and the working directory";
-
     private static final String RUN_NEEDS_THE_CORPUS_ROOT = "Run needs the corpus root";
-
-    private static final String RUN_NEEDS_THE_WORKING_DIRECTORY = "Run needs the working directory";
-
-    private static final String LABEL_NEEDS_THE_WORKING_DIRECTORY = "Label needs the working directory";
 
     private static final String NO_DOCLING_IMAGE = "no Docling image is named, so the jar expects the sidecar to run"
             + " its own default image, and stops before converting anything where it runs another";
@@ -342,16 +337,17 @@ class LaunchValuesTest {
 
     @Test
     @Story("The control panel refuses what it cannot start")
-    @DisplayName("Run is refused without the corpus root or the working directory, and not with both")
-    void runIsRefusedWithoutTheCorpusRootOrTheWorkingDirectory() {
-        claim("with neither, Run needs both",
-                () -> assertThat(withRootAndDirectory(EVERY_VALUE, "", "").refusalToRun()).contains(RUN_NEEDS_BOTH));
+    @DisplayName("Run is refused without the corpus root, and not for a working directory left empty, which is the jar's default")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
+    void runIsRefusedWithoutTheCorpusRootAndNotForAnEmptyWorkingDirectory() {
+        claim("with neither, Run needs the corpus root alone",
+                () -> assertThat(withRootAndDirectory(EVERY_VALUE, "", "").refusalToRun())
+                        .contains(RUN_NEEDS_THE_CORPUS_ROOT));
         claim("with no corpus root, Run needs the corpus root",
                 () -> assertThat(withRootAndDirectory(EVERY_VALUE, "", "/work").refusalToRun())
                         .contains(RUN_NEEDS_THE_CORPUS_ROOT));
-        claim("with no working directory, Run needs the working directory",
-                () -> assertThat(withRootAndDirectory(EVERY_VALUE, "/archive", "").refusalToRun())
-                        .contains(RUN_NEEDS_THE_WORKING_DIRECTORY));
+        claim("with no working directory, Run is not refused, the default being used",
+                () -> assertThat(withRootAndDirectory(EVERY_VALUE, "/archive", "").refusalToRun()).isEmpty());
         claim("with both, and every other value empty, Run is not refused",
                 () -> assertThat(withRootAndDirectory(LaunchValues.none(), "/archive", "/work").refusalToRun())
                         .isEmpty());
@@ -359,15 +355,13 @@ class LaunchValuesTest {
 
     @Test
     @Story("The control panel refuses what it cannot start")
-    @DisplayName("Label is refused without the working directory, whatever the corpus root, and not with it")
-    void labelIsRefusedWithoutTheWorkingDirectory() {
-        claim("with no working directory, Label needs it, a corpus root or none",
-                () -> {
-                    assertThat(withRootAndDirectory(EVERY_VALUE, "/archive", "").refusalToLabel())
-                            .contains(LABEL_NEEDS_THE_WORKING_DIRECTORY);
-                    assertThat(withRootAndDirectory(EVERY_VALUE, "", "").refusalToLabel())
-                            .contains(LABEL_NEEDS_THE_WORKING_DIRECTORY);
-                });
+    @DisplayName("Label is not refused for a working directory left empty, which is the jar's default, whatever the corpus root")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
+    void labelIsNotRefusedForAnEmptyWorkingDirectory() {
+        claim("with no working directory, Label is not refused, a corpus root or none",
+                () -> assertThat(List.of(withRootAndDirectory(EVERY_VALUE, "/archive", "").refusalToLabel(),
+                                withRootAndDirectory(EVERY_VALUE, "", "").refusalToLabel()))
+                        .containsOnly(Optional.empty()));
         claim("with the working directory and no corpus root, Label is not refused",
                 () -> assertThat(withRootAndDirectory(LaunchValues.none(), "", "/work").refusalToLabel()).isEmpty());
     }

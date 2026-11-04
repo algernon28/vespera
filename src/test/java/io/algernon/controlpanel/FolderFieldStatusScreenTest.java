@@ -87,13 +87,15 @@ class FolderFieldStatusScreenTest {
 
     @Test
     @Story("The operator sees whether a folder will do")
-    @DisplayName("With no folder named, each folder field of the launch page says not chosen")
+    @DisplayName("With no folder named, the corpus root and the output folder say not chosen, and the work folder says what its default is")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void withNoFolderNamedEachFieldSaysNotChosen() throws IOException {
         try (ScreenServer screens = ScreenServer.start(folder, LaunchValues.none())) {
             Page page = screens.browser().page();
 
-            claim("the corpus root, the working directory, the deliverable root and the seed folder each say not chosen",
-                    () -> assertThat(launchStatuses(page)).containsOnly(NOT_CHOSEN).hasSize(4));
+            claim("the corpus root and the output folder say not chosen, and the work folder, read as its default"
+                            + " .vespera folder, which is not there, says no such folder",
+                    () -> assertThat(launchStatuses(page)).containsExactly(NOT_CHOSEN, NO_SUCH_FOLDER, NOT_CHOSEN));
         }
     }
 
@@ -103,13 +105,13 @@ class FolderFieldStatusScreenTest {
     void foldersThatExistSayFoundWithTheFreeSpaceInGib() throws IOException {
         Path found = Files.createDirectories(folder.resolve("found"));
         LaunchValues values = new LaunchValues(found.toString(), found.toString(), found.toString(), "", "", "", "",
-                found.toString());
+                "");
         try (ScreenServer screens = ScreenServer.start(folder, values)) {
             Page page = screens.browser().page();
-            List<String> texts = List.of("vespera.corpus-root", "vespera.working-dir", "vespera.deliverable-root",
-                    "seedFolder").stream().map(field -> byId(page, "status-" + field).text()).toList();
+            List<String> texts = List.of("vespera.corpus-root", "vespera.working-dir", "vespera.deliverable-root")
+                    .stream().map(field -> byId(page, "status-" + field).text()).toList();
 
-            claim("all four say found", () -> assertThat(launchStatuses(page)).containsOnly(FOUND).hasSize(4));
+            claim("all three say found", () -> assertThat(launchStatuses(page)).containsOnly(FOUND).hasSize(3));
             claim("each gives the free space as a number with one decimal and GiB, and says nothing of bytes",
                     () -> assertThat(texts).allSatisfy(text -> assertThat(text)
                             .containsPattern("\\d+\\.\\d GiB").doesNotContain("bytes")));
@@ -124,9 +126,9 @@ class FolderFieldStatusScreenTest {
         Path notThere = folder.resolve("not-there");
         Path aFile = Files.writeString(folder.resolve("a-file.txt"), "not a folder", StandardCharsets.UTF_8);
         LaunchValues missing = new LaunchValues(notThere.toString(), notThere.toString(), notThere.toString(), "", "",
-                "", "", notThere.toString());
+                "", "", "");
         LaunchValues files = new LaunchValues(aFile.toString(), aFile.toString(), aFile.toString(), "", "", "", "",
-                aFile.toString());
+                "");
         List<String> statusesOfMissing;
         try (ScreenServer screens = ScreenServer.start(folder, missing)) {
             statusesOfMissing = launchStatuses(screens.browser().page());
@@ -136,12 +138,11 @@ class FolderFieldStatusScreenTest {
             statusesOfFiles = launchStatuses(screens.browser().page());
         }
 
-        claim("not there: the corpus root, the working directory and the seed folder must already be there, and the"
-                        + " deliverable root will be created",
-                () -> assertThat(statusesOfMissing)
-                        .containsExactly(NO_SUCH_FOLDER, NO_SUCH_FOLDER, WILL_BE_CREATED, NO_SUCH_FOLDER));
-        claim("a file in the place of each: no such folder, for all four",
-                () -> assertThat(statusesOfFiles).containsOnly(NO_SUCH_FOLDER).hasSize(4));
+        claim("not there: the corpus root and the working directory must already be there, and the deliverable root"
+                        + " will be created",
+                () -> assertThat(statusesOfMissing).containsExactly(NO_SUCH_FOLDER, NO_SUCH_FOLDER, WILL_BE_CREATED));
+        claim("a file in the place of each: no such folder, for all three",
+                () -> assertThat(statusesOfFiles).containsOnly(NO_SUCH_FOLDER).hasSize(3));
     }
 
     @Test
@@ -196,80 +197,6 @@ class FolderFieldStatusScreenTest {
         }
     }
 
-    /** A code set's folder is relative to the corpus root, so it is that folder the status is of. */
-    @Test
-    @Story("The operator names the code sets")
-    @DisplayName("A code set's new folder says not chosen while empty and found once chosen, read from the corpus root")
-    void aCodeSetsNewFolderIsReadFromTheCorpusRoot() throws IOException {
-        Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
-        Files.createDirectories(corpusRoot.resolve("tools"));
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot,
-                Files.createDirectories(folder.resolve("work"))))) {
-            PanelBrowser browser = screens.browser();
-            Page empty = browser.go("/code-sets").page();
-            browser.go("/folders?for=new-folder&path=tools");
-            Page chosen = browser.press("use-folder", "use", Map.of()).page();
-
-            claim("while the field is empty it says not chosen",
-                    () -> assertThat(byId(empty, "status-new-folder").attr("data-status")).isEqualTo(NOT_CHOSEN));
-            claim("and once a folder under the corpus root is chosen into it, found",
-                    () -> assertThat(byId(chosen, "status-new-folder").attr("data-status")).isEqualTo(FOUND));
-        }
-    }
-
-    /**
-     * Browse then Back leaves what was typed in the field. Each value names a folder that is on the disk, so the field
-     * says no such folder for where it lies, and not because nothing is there.
-     */
-    @Test
-    @Story("The operator names the code sets")
-    @DisplayName("A code set's new folder that climbs out of the corpus root says no such folder, though a folder is there")
-    void aCodeSetsNewFolderThatClimbsOutSaysNoSuchFolder() throws IOException {
-        Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
-        Files.createDirectories(corpusRoot.resolve("tools"));
-        Path outside = Files.createDirectories(folder.resolve("outside"));
-        List<String> climbing = List.of("../outside", "tools/../../outside", outside.toString(),
-                outside.toString().replace('\\', '/'));
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot,
-                Files.createDirectories(folder.resolve("work"))))) {
-            PanelBrowser browser = screens.browser();
-            for (String typed : climbing) {
-                browser.go("/code-sets").press("code-sets", "browse-new-folder", Map.of("new-folder", typed));
-                Page back = browser.go("/code-sets").page();
-
-                claim("'" + typed + "' stands in the field, which says no such folder",
-                        () -> assertThat(List.of(form(back, "code-sets").select("[name=new-folder]").val(),
-                                        byId(back, "status-new-folder").attr("data-status")))
-                                .containsExactly(typed, NO_SUCH_FOLDER));
-            }
-        }
-    }
-
-    /**
-     * Named by {@code src}, which lies under the current directory the tests run in: a field read anywhere but under a
-     * corpus root would say found.
-     */
-    @Test
-    @Story("The operator names the code sets")
-    @DisplayName("With no corpus root named, a code set's new folder says not chosen while empty, and no such folder once a folder stands in its field")
-    void aCodeSetsNewFolderSaysNoSuchFolderWithNoCorpusRootNamed() throws IOException {
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        LaunchValues noCorpusRoot = new LaunchValues("", workingDirectory.toString(), "", "", "", "", "", "");
-        try (ScreenServer screens = ScreenServer.start(folder, noCorpusRoot)) {
-            PanelBrowser browser = screens.browser();
-            Page empty = browser.go("/code-sets").page();
-            browser.press("code-sets", "browse-new-folder", Map.of("new-folder", "src"));
-            Page held = browser.go("/code-sets").page();
-
-            claim("while the field is empty it says not chosen",
-                    () -> assertThat(byId(empty, "status-new-folder").attr("data-status")).isEqualTo(NOT_CHOSEN));
-            claim("and with a folder in it, there being no corpus root to read it under, no such folder",
-                    () -> assertThat(List.of(form(held, "code-sets").select("[name=new-folder]").val(),
-                                    byId(held, "status-new-folder").attr("data-status")))
-                            .containsExactly("src", NO_SUCH_FOLDER));
-        }
-    }
-
     /**
      * Each of the two fields, pressed by Browse and by Check, in a server of its own, the other field naming a folder
      * that is there, so that the status and the row are paired with the field that holds the path.
@@ -285,7 +212,7 @@ class FolderFieldStatusScreenTest {
                 Path own = Files.createDirectories(folder.resolve("own-" + button + "-" + field));
                 try (ScreenServer screens = ScreenServer.start(own, ScreenServer.values(corpusRoot, workingDirectory))) {
                     PanelBrowser browser = screens.browser();
-                    pressed(browser, "launch", button, Map.of(field, A_PATH_NO_SYSTEM_CAN_HOLD));
+                    pressed(browser, "launch-values", button, Map.of(field, A_PATH_NO_SYSTEM_CAN_HOLD));
                     Map<String, String> answers = new LinkedHashMap<>();
                     for (String path : ANSWER_OF_EACH_PAGE.keySet()) {
                         answers.put(path, answerAt(browser, path));
@@ -331,7 +258,8 @@ class FolderFieldStatusScreenTest {
                     PanelBrowser browser = screens.browser();
                     Path launchValues = LaunchValues.fileIn(own.resolve("tmp"), System.getProperty("user.name"));
                     byte[] keptBefore = Files.readAllBytes(launchValues);
-                    String answered = pressed(browser, "launch", button, Map.of(field, A_PATH_NO_SYSTEM_CAN_HOLD));
+                    pressed(browser, "launch-values", "check", Map.of(field, A_PATH_NO_SYSTEM_CAN_HOLD));
+                    String answered = pressed(browser, "launch", button, Map.of());
 
                     claim(button + " with " + field + " holding it is answered",
                             () -> assertThat(answered).isEqualTo(ANSWERED));
@@ -374,7 +302,8 @@ class FolderFieldStatusScreenTest {
                     PanelBrowser browser = screens.browser();
                     Path launchValues = LaunchValues.fileIn(own.resolve("tmp"), System.getProperty("user.name"));
                     byte[] keptBefore = Files.readAllBytes(launchValues);
-                    Page landed = browser.press("launch", button, Map.of(WORKING_DIRECTORY, named.toString())).page();
+                    Page landed = ScreenServer.holdThenPress(browser, button,
+                            Map.of(WORKING_DIRECTORY, named.toString())).page();
                     Page invocation = browser.go("/invocation").page();
                     byte[] keptAfter = Files.readAllBytes(launchValues);
 
@@ -411,7 +340,7 @@ class FolderFieldStatusScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder, withARendering)) {
             PanelBrowser browser = screens.browser();
             byte[] keptBefore = Files.readAllBytes(launchValues());
-            pressed(browser, "launch", "check", Map.of(WORKING_DIRECTORY, notThere.toString()));
+            pressed(browser, "launch-values", "check", Map.of(WORKING_DIRECTORY, notThere.toString()));
             Page landed = browser.go("/invocation").press("publish", "publish", Map.of()).page();
 
             claimTheStartWasRefusedInTheLine("Publish is not started: the working directory " + notThere
@@ -431,11 +360,14 @@ class FolderFieldStatusScreenTest {
     void theWorkingDirectorysHintSaysTheFirstValueSavedMakesIt() throws IOException {
         try (ScreenServer screens = ScreenServer.start(folder, LaunchValues.none())) {
             Page page = screens.browser().page();
-            String tiedTo = form(page, "launch").select("[name='" + WORKING_DIRECTORY + "']").attr("aria-describedby");
+            String tiedTo = form(page, "launch-values").select("[name='" + WORKING_DIRECTORY + "']")
+                    .attr("aria-describedby");
 
-            claim("the hint tied to the field is the one the record gives",
-                    () -> assertThat(byId(page, tiedTo).text()).isEqualTo("Where the database, the reports and"
-                            + " profile.yaml live. The first value saved makes it if it is not there yet."));
+            claim("the hint tied to the field is the one the record gives, in plain words",
+                    () -> assertThat(byId(page, tiedTo).text()).isEqualTo("Where Vespera keeps its database, its reports"
+                            + " and profile.yaml. Left empty, it is the folder this machine is set to use, or else the"
+                            + " .vespera folder of the folder the control panel was started from, as shown. If it is not"
+                            + " there yet, the first value you save makes it."));
         }
     }
 
@@ -455,7 +387,7 @@ class FolderFieldStatusScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder, withARendering)) {
             PanelBrowser browser = screens.browser();
             byte[] keptBefore = Files.readAllBytes(launchValues());
-            pressed(browser, "launch", "check", Map.of(CORPUS_ROOT, A_PATH_NO_SYSTEM_CAN_HOLD));
+            pressed(browser, "launch-values", "check", Map.of(CORPUS_ROOT, A_PATH_NO_SYSTEM_CAN_HOLD));
             Page landed = browser.go("/invocation").press("publish", "publish", Map.of()).page();
 
             claimTheStartWasRefused("Publish", "/invocation", landed, "none", browser, keptBefore);
@@ -465,7 +397,7 @@ class FolderFieldStatusScreenTest {
     /** A second child would end with another code, so an ended page shows the first child's ending alone. */
     @Test
     @Story("The operator writes the values the next invocation wants")
-    @DisplayName("Save, then Run refuses a corpus root the system cannot hold, in the one line saying Run, back on the next act's page, starts nothing and keeps nothing")
+    @DisplayName("Save, then Run refuses a corpus root the system cannot hold, in the one line saying Run, back on the home page, starts nothing and keeps nothing")
     void saveThenRunRefusesACorpusRootTheSystemCannotHold() throws IOException, InterruptedException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = wanting("""
@@ -478,18 +410,18 @@ class FolderFieldStatusScreenTest {
             PanelBrowser browser = screens.afterARunHasEnded();
             byte[] keptBefore = Files.readAllBytes(launchValues());
             ScreenServer.childWill(workingDirectory, A_SECOND_CHILD);
-            pressed(browser.go("/"), "launch", "check", Map.of(CORPUS_ROOT, A_PATH_NO_SYSTEM_CAN_HOLD));
+            pressed(browser.go("/"), "launch-values", "check", Map.of(CORPUS_ROOT, A_PATH_NO_SYSTEM_CAN_HOLD));
             Page landed = browser.go("/next").press("next", "save-then-run",
                     Map.of("seedFolder", seeds, "seedFolder.provenance", "a reason")).page();
 
-            claimTheStartWasRefused("Run", "/next", landed, "ended", browser, keptBefore);
+            claimTheStartWasRefused("Run", "/", landed, "ended", browser, keptBefore);
         }
     }
 
-    /** {@code label --auto} is offered where the next act wants answers, and its name on the line is Label's. */
+    /** {@code label --auto} is started by Label with Autolabel ticked (ADR-340 §1), and its name on the line is Label's. */
     @Test
     @Story("The operator answers the relevance questions")
-    @DisplayName("Having the local model answer refuses a corpus root the system cannot hold, in the one line saying Label, back on the next act's page, starts nothing and keeps nothing")
+    @DisplayName("Label with Autolabel ticked refuses a corpus root the system cannot hold, in the one line saying Label, back on the home page, starts nothing and keeps nothing")
     void labelAutoRefusesACorpusRootTheSystemCannotHold() throws IOException, InterruptedException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = wanting("""
@@ -501,16 +433,16 @@ class FolderFieldStatusScreenTest {
             PanelBrowser browser = screens.afterARunHasEnded();
             byte[] keptBefore = Files.readAllBytes(launchValues());
             ScreenServer.childWill(workingDirectory, A_SECOND_CHILD);
-            pressed(browser.go("/"), "launch", "check", Map.of(CORPUS_ROOT, A_PATH_NO_SYSTEM_CAN_HOLD));
-            Page landed = browser.go("/next").press("label-auto", "label-auto", Map.of()).page();
+            pressed(browser.go("/"), "launch-values", "check", Map.of(CORPUS_ROOT, A_PATH_NO_SYSTEM_CAN_HOLD));
+            Page landed = browser.press("launch", "label", Map.of("label-auto", "on")).page();
 
-            claimTheStartWasRefused("Label", "/next", landed, "ended", browser, keptBefore);
+            claimTheStartWasRefused("Label", "/", landed, "ended", browser, keptBefore);
         }
     }
 
     @Test
     @Story("The operator answers the relevance questions")
-    @DisplayName("Save, then Label refuses a corpus root the system cannot hold, in the one line saying Label, back on the questions, starts nothing and keeps nothing")
+    @DisplayName("Save, then Label refuses a corpus root the system cannot hold, in the one line saying Label, back on the relevance section, starts nothing and keeps nothing")
     void saveThenLabelRefusesACorpusRootTheSystemCannotHold() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
@@ -518,11 +450,12 @@ class FolderFieldStatusScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
             PanelBrowser browser = screens.browser();
             byte[] keptBefore = Files.readAllBytes(launchValues());
-            pressed(browser, "launch", "check", Map.of(CORPUS_ROOT, A_PATH_NO_SYSTEM_CAN_HOLD));
-            // ADR-334 §6: the questions are answered by the list of folders not relevant, saved by the form not-relevant.
+            pressed(browser, "launch-values", "check", Map.of(CORPUS_ROOT, A_PATH_NO_SYSTEM_CAN_HOLD));
+            // ADR-334 §6: the questions are answered by the list of folders not relevant, saved by the form not-relevant,
+            // in the drawer's relevance section since ADR-340 §3.
             Page landed = browser.go("/labels").press("not-relevant", "save-then-label", Map.of()).page();
 
-            claimTheStartWasRefused("Label", "/labels", landed, "none", browser, keptBefore);
+            claimTheStartWasRefused("Label", "/", landed, "none", browser, keptBefore);
         }
     }
 
@@ -562,28 +495,25 @@ class FolderFieldStatusScreenTest {
     /** A working directory that cannot be held is one none is named by: each save says so, as it does of none named. */
     @Test
     @Story("The operator writes a profile value")
-    @DisplayName("With a working directory the system cannot hold, a save on the launch page and on the profile page is answered with one line, and writes nothing")
+    @DisplayName("With a working directory the system cannot hold, a save of the run settings is answered with one line, and writes nothing")
     void aSaveWithAWorkingDirectoryTheSystemCannotHoldIsAnsweredWithOneLine() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         String seeds = Files.createDirectories(folder.resolve("seeds")).toString();
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
             PanelBrowser browser = screens.browser();
-            String answered = pressed(browser, "launch", "check", Map.of(WORKING_DIRECTORY, A_PATH_NO_SYSTEM_CAN_HOLD));
+            String answered = pressed(browser, "launch-values", "check",
+                    Map.of(WORKING_DIRECTORY, A_PATH_NO_SYSTEM_CAN_HOLD));
 
-            claim("the launch page answers, with that held", () -> assertThat(answered).isEqualTo(ANSWERED));
+            claim("the home page answers, with that held", () -> assertThat(answered).isEqualTo(ANSWERED));
 
-            Page afterTheLaunchPagesSave = browser.press("seed-folder", "save",
-                    Map.of("seedFolder", seeds, "provenance", "a reason")).page();
-            Page afterTheProfilePagesSave = browser.go("/profile").press("profile", "save",
+            Page afterTheProfilesSave = browser.go("/profile").press("profile", "save",
                     Map.of("seedFolder", seeds, "seedFolder.provenance", "a reason")).page();
 
-            claim("each save lands back on its page, with the one line it gives where no working directory is named",
-                    () -> assertThat(List.of(afterTheLaunchPagesSave, afterTheProfilePagesSave))
-                            .extracting(page -> page.address().getPath(), page -> byId(page, "outcome").text())
-                            .containsExactly(
-                                    tuple("/", "seedFolder is not saved: the working directory is not named"),
-                                    tuple("/profile", "the working directory is not named, on the launch page")));
+            claim("the save lands back on the home page, with the one line it gives where no working directory is named",
+                    () -> assertThat(List.of(afterTheProfilesSave.address().getPath(),
+                                    byId(afterTheProfilesSave, "outcome").text()))
+                            .containsExactly("/", "the working directory is not named, on the launch page"));
             claim("and no profile was written",
                     () -> assertThat(Files.exists(workingDirectory.resolve(ProfileEdit.FILE_NAME))).isFalse());
         }
@@ -627,9 +557,9 @@ class FolderFieldStatusScreenTest {
         }
     }
 
-    /** The statuses of the corpus root, the working directory, the deliverable root and the seed folder, in that order. */
+    /** The statuses of the corpus root, the working directory and the deliverable root, in that order. */
     private static List<String> launchStatuses(Page page) {
-        return List.of("vespera.corpus-root", "vespera.working-dir", "vespera.deliverable-root", "seedFolder").stream()
+        return List.of("vespera.corpus-root", "vespera.working-dir", "vespera.deliverable-root").stream()
                 .map(field -> byId(page, "status-" + field).attr("data-status"))
                 .toList();
     }
@@ -659,7 +589,8 @@ class FolderFieldStatusScreenTest {
     private static Map<String, String> answerOfEachPage() {
         Map<String, String> answers = new LinkedHashMap<>();
         for (String page : List.of("/", "/invocation", "/next", "/labels", "/code-sets", "/profile",
-                "/folders?for=" + CORPUS_ROOT, "/folders?for=" + WORKING_DIRECTORY, "/folders?for=new-folder")) {
+                "/folders?for=" + CORPUS_ROOT, "/folders?for=" + WORKING_DIRECTORY, "/folders?for=code-set-folder",
+                "/?open=values-corpus")) {
             answers.put(page, ANSWERED);
         }
         answers.put("/report/progress.html", "404");

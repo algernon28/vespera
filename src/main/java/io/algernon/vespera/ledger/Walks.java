@@ -76,6 +76,44 @@ public class Walks {
         return walkId;
     }
 
+    /**
+     * Mints the identity of a walk of {@code root} that also reads {@code folders} and does not enter
+     * {@code foldersNotWalked}, and records both lists with it (ADR-334 section 5.3, ADR-340 section 8.3): the folders not
+     * walked under their ordinals from 1, each as the profile states it.
+     */
+    public WalkId startWalk(Path root, List<Path> folders, List<String> foldersNotWalked) {
+        WalkId walkId = startWalk(root, folders);
+        for (int i = 0; i < foldersNotWalked.size(); i++) {
+            jdbcTemplate.update(
+                    "INSERT INTO walk_folder_not_walked (walk_id, ordinal, folder) VALUES (?, ?, ?)",
+                    walkId.value(),
+                    i + 1,
+                    foldersNotWalked.get(i));
+        }
+        return walkId;
+    }
+
+    /** Records a folder of the corpus the walk met and did not enter (ADR-340 section 8.3), by its path from the root. */
+    public void folderNotEntered(WalkId walkId, String path) {
+        jdbcTemplate.update(
+                "INSERT INTO walk_folder_not_entered (walk_id, path) VALUES (?, ?)", walkId.value(), path);
+    }
+
+    /** How many folders not walked {@code walkId} recorded as rows: the independent count of the reconciliation. */
+    public long foldersNotEnteredCount(WalkId walkId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM walk_folder_not_entered WHERE walk_id = ?", Long.class, walkId.value());
+        return count == null ? 0 : count;
+    }
+
+    /** The folders {@code walkId} does not enter, as the profile stated them, in its order; none for an ordinary walk. */
+    public List<String> foldersNotWalkedOf(WalkId walkId) {
+        return jdbcTemplate.query(
+                "SELECT folder FROM walk_folder_not_walked WHERE walk_id = ? ORDER BY ordinal",
+                (resultSet, rowNumber) -> resultSet.getString("folder"),
+                walkId.value());
+    }
+
     /** The folders {@code walkId} reads besides its root, in the order it reads them; none for an ordinary walk. */
     public List<Path> foldersOf(WalkId walkId) {
         return jdbcTemplate.query(
@@ -121,8 +159,8 @@ public class Walks {
     public WalkCounts countsFor(WalkId walkId) {
         WalkCounts counts = jdbcTemplate.queryForObject(
                 "SELECT entries_seen, directories_entered FROM walk WHERE id = ?",
-                (resultSet, rowNumber) ->
-                        new WalkCounts(resultSet.getLong("entries_seen"), resultSet.getLong("directories_entered")),
+                (resultSet, rowNumber) -> new WalkCounts(
+                        resultSet.getLong("entries_seen"), resultSet.getLong("directories_entered")),
                 walkId.value());
         if (counts == null) {
             throw new IllegalArgumentException("no walk is recorded under id " + walkId.value());
@@ -179,6 +217,8 @@ public class Walks {
     public void discardWalk(WalkId walkId) {
         jdbcTemplate.update("DELETE FROM file_occurrence WHERE walk_id = ?", walkId.value());
         jdbcTemplate.update("DELETE FROM walk_folder WHERE walk_id = ?", walkId.value());
+        jdbcTemplate.update("DELETE FROM walk_folder_not_walked WHERE walk_id = ?", walkId.value());
+        jdbcTemplate.update("DELETE FROM walk_folder_not_entered WHERE walk_id = ?", walkId.value());
         jdbcTemplate.update("DELETE FROM walk WHERE id = ?", walkId.value());
     }
 }

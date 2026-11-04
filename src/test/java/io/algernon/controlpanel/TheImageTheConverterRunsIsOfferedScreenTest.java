@@ -73,18 +73,18 @@ class TheImageTheConverterRunsIsOfferedScreenTest {
                             assertThat(row.text()).contains(RUNNING, PRESELECTED);
                         });
                 claim("and the launch form offers the image the converter runs",
-                        () -> assertThat(buttonNames(form(page, "launch"))).contains(USE_THE_RUNNING_IMAGE));
+                        () -> assertThat(buttonNames(form(page, "launch-values"))).contains(USE_THE_RUNNING_IMAGE));
 
-                Page offered = browser.press("launch", USE_THE_RUNNING_IMAGE, Map.of()).page();
+                Page offered = browser.press("launch-values", USE_THE_RUNNING_IMAGE, Map.of()).page();
 
                 claim("pressing it lands back on the launch page with the converter's image in the field",
                         () -> assertThat(List.of(offered.address().getPath(),
-                                        form(offered, "launch").select("[name='" + IMAGE_FIELD + "']").val()))
+                                        form(offered, "launch-values").select("[name='" + IMAGE_FIELD + "']").val()))
                                 .containsExactly("/", RUNNING));
                 claim("the check then finds they match, and the offer is gone",
                         () -> {
                             assertThat(byId(offered, "docling-check").attr("data-check")).isEqualTo("matches");
-                            assertThat(buttonNames(form(offered, "launch"))).doesNotContain(USE_THE_RUNNING_IMAGE);
+                            assertThat(buttonNames(form(offered, "launch-values"))).doesNotContain(USE_THE_RUNNING_IMAGE);
                         });
                 claim("and nothing was started or written: the working directory, which a child's start would write"
                                 + " into, is still empty",
@@ -115,7 +115,7 @@ class TheImageTheConverterRunsIsOfferedScreenTest {
                         () -> assertThat(byId(page, "preflight").selectFirst("[data-row=docling]").attr("data-state"))
                                 .isNotEqualTo("bad"));
                 claim("and nothing is offered",
-                        () -> assertThat(buttonNames(form(page, "launch"))).doesNotContain(USE_THE_RUNNING_IMAGE));
+                        () -> assertThat(buttonNames(form(page, "launch-values"))).doesNotContain(USE_THE_RUNNING_IMAGE));
             }
         } finally {
             docling.stop(0);

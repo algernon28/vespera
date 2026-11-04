@@ -77,6 +77,9 @@ class TheJarReadsWhatTheControlPanelWritesTest {
 
     private static final long CHILD_BOUND_SECONDS = 60;
 
+    /** The key ADR-340 §8.1 adds, by the name profile.yaml spells. */
+    private static final String FOLDERS_NOT_WALKED = "foldersNotWalked";
+
     /** A resolution no sample names, so that the jar's reading it back says the profile's was not the one acted on. */
     private static final double A_RESOLUTION_ONLY_CONFIGURATION_NAMES = 7.25;
 
@@ -84,12 +87,14 @@ class TheJarReadsWhatTheControlPanelWritesTest {
     @Story("The jar reads what the control panel writes")
     @DisplayName("The control panel's table of keys is the profile's keys and types in order, and its runs are the jar's stages in order")
     void theKeyTableIsTheProfilesComponentsAndTheRunsAreTheStagesModules() {
-        Map<Class<?>, ProfileKey.Kind> kindOf = Map.of(
-                TextValue.class, ProfileKey.Kind.TEXT,
-                NumericValue.class, ProfileKey.Kind.NUMBER,
-                NameEndingsValue.class, ProfileKey.Kind.NAME_ENDINGS,
-                LanguagesValue.class, ProfileKey.Kind.LANGUAGES,
-                FoldersValue.class, ProfileKey.Kind.FOLDERS);
+        // By name, so that the kind ADR-340 §8.1 adds, CORPUS_FOLDERS, read as a CorpusFoldersValue, compiles before both.
+        Map<String, String> kindOf = Map.of(
+                TextValue.class.getSimpleName(), ProfileKey.Kind.TEXT.name(),
+                NumericValue.class.getSimpleName(), ProfileKey.Kind.NUMBER.name(),
+                NameEndingsValue.class.getSimpleName(), ProfileKey.Kind.NAME_ENDINGS.name(),
+                LanguagesValue.class.getSimpleName(), ProfileKey.Kind.LANGUAGES.name(),
+                FoldersValue.class.getSimpleName(), ProfileKey.Kind.FOLDERS.name(),
+                "CorpusFoldersValue", "CORPUS_FOLDERS");
 
         claim("the control panel's keys are the profile's components, in the profile's order",
                 () -> assertThat(Arrays.stream(ProfileKey.values()).map(ProfileKey::key).toList())
@@ -97,9 +102,9 @@ class TheJarReadsWhatTheControlPanelWritesTest {
                                 .map(RecordComponent::getName)
                                 .toList()));
         claim("each key's type is the type of its component's value",
-                () -> assertThat(Arrays.stream(ProfileKey.values()).map(ProfileKey::kind).toList())
+                () -> assertThat(Arrays.stream(ProfileKey.values()).map(key -> key.kind().name()).toList())
                         .containsExactlyElementsOf(Arrays.stream(Profile.class.getRecordComponents())
-                                .map(component -> kindOf.get(component.getType()))
+                                .map(component -> kindOf.get(component.getType().getSimpleName()))
                                 .toList()));
         claim("the control panel's runs are the jar's stages, by name and in the cascade's order",
                 () -> assertThat(Arrays.stream(ProfileKey.Run.values()).map(ProfileKey.Run::stageName).toList())
@@ -172,6 +177,9 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         // ADR-334 §5.1: a piece that is not an absolute path makes the whole list unreadable.
         refused.put(ProfileKey.CODE_SET_FOLDERS,
                 List.of("code/billing", temp.toAbsolutePath() + java.io.File.pathSeparator + "code/billing"));
+        // ADR-340 §8.1: a piece that is not a folder below the corpus root, spelt with /, makes the whole list unreadable.
+        refused.put(foldersNotWalked(), List.of("../outside", temp.toAbsolutePath().toString(), "archive\\old",
+                "archive/old-flows" + java.io.File.pathSeparator + "/archive", "archive//old", "archive/old/"));
 
         ProfileStore store = new ProfileStore(workingDirectory);
         for (Map.Entry<ProfileKey, List<String>> samples : refused.entrySet()) {
@@ -398,7 +406,31 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         samples.put(ProfileKey.CODE_SET_FOLDERS, List.of(seeds.toAbsolutePath().toString(),
                 " " + elsewhere.toAbsolutePath() + " ",
                 seeds.toAbsolutePath() + java.io.File.pathSeparator + elsewhere.toAbsolutePath()));
+        // ADR-340 §8.1: folders below the corpus root, one or two, a piece naming no folder that is there among them.
+        samples.put(foldersNotWalked(), List.of("archive/old-flows",
+                "archive/old-flows" + java.io.File.pathSeparator + "tools/build", " gone "));
         return samples;
+    }
+
+    /**
+     * The control panel's key of ADR-340 §8.1, found by the name profile.yaml spells, so that this compiles before the
+     * table has it; a table without it fails the test naming it.
+     */
+    private static ProfileKey foldersNotWalked() {
+        return Arrays.stream(ProfileKey.values()).filter(key -> key.key().equals(FOLDERS_NOT_WALKED)).findFirst()
+                .orElseThrow(() -> new AssertionError("the control panel's table of keys has no " + FOLDERS_NOT_WALKED));
+    }
+
+    /**
+     * Whether the jar's own reading of {@code loaded} is an answer, as each value type of a list reads to {@code Answered}
+     * or {@code Unreadable} (ADR-340 §8.1), asked by name so that this compiles before the type of the new key exists.
+     */
+    private static boolean readsAsAnswered(ProfileValue loaded) {
+        try {
+            return loaded.getClass().getMethod("reading").invoke(loaded).getClass().getSimpleName().equals("Answered");
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(loaded.getClass().getSimpleName() + " has no reading", e);
+        }
     }
 
     /**
@@ -406,6 +438,9 @@ class TheJarReadsWhatTheControlPanelWritesTest {
      * of the value's type, and for each key with a rule of its own, that rule.
      */
     private static boolean readAsAnAnswerByTheJar(ProfileKey key, ProfileValue loaded, ProfileStore store) {
+        if (key.key().equals(FOLDERS_NOT_WALKED)) {
+            return readsAsAnswered(loaded);
+        }
         return switch (key) {
             case SEED_FOLDER -> {
                 try {
@@ -483,14 +518,18 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         return newProfile(components);
     }
 
+    /**
+     * The value of {@code key}'s component, built by the component's own type, which takes the value, the provenance and
+     * the measurement as every value type does, so that a kind a record adds needs no case here.
+     */
     private static ProfileValue valueOfKind(ProfileKey key, String value, String provenance, Measurement measurement) {
-        return switch (key.kind()) {
-            case TEXT -> new TextValue(value, provenance, measurement);
-            case NUMBER -> new NumericValue(value, provenance, measurement);
-            case NAME_ENDINGS -> new NameEndingsValue(value, provenance, measurement);
-            case LANGUAGES -> new LanguagesValue(value, provenance, measurement);
-            case FOLDERS -> new FoldersValue(value, provenance, measurement);
-        };
+        Class<?> type = Profile.class.getRecordComponents()[key.ordinal()].getType();
+        try {
+            return (ProfileValue) type.getConstructor(String.class, String.class, Measurement.class)
+                    .newInstance(value, provenance, measurement);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(type.getSimpleName() + " takes no value, provenance and measurement", e);
+        }
     }
 
     private static Profile newProfile(Object[] components) {

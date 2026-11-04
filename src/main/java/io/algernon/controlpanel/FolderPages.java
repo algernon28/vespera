@@ -27,15 +27,16 @@ final class FolderPages {
 
     /** The fields the folder page chooses for, each with the form it is in, its control and the page it returns to (ADR-331 §5). */
     enum Target {
-        CORPUS_ROOT("vespera.corpus-root", "launch", "vespera.corpus-root", "/"),
-        WORKING_DIRECTORY("vespera.working-dir", "launch", "vespera.working-dir", "/"),
-        DELIVERABLE_ROOT("vespera.deliverable-root", "launch", "vespera.deliverable-root", "/"),
-        SEED_FOLDER("seedFolder", "seed-folder", "seedFolder", "/"),
-        NEXT_SEED_FOLDER("next-seedFolder", "next", "seedFolder", "/next"),
-        PROFILE_SEED_FOLDER("profile-seedFolder", "profile", "seedFolder", "/profile#key-seedFolder"),
-        NEW_FOLDER("new-folder", "code-sets", "new-folder", "/code-sets"),
-        CODE_SET_FOLDER("code-set-folder", "code-set-folders", "new-code-set-folder", "/code-sets"),
-        NOT_RELEVANT_FOLDER("not-relevant-folder", "not-relevant", "new-not-relevant-folder", "/labels");
+        CORPUS_ROOT("vespera.corpus-root", "launch-values", "vespera.corpus-root", "/?open=values-folders#values"),
+        WORKING_DIRECTORY("vespera.working-dir", "launch-values", "vespera.working-dir", "/?open=values-folders#values"),
+        DELIVERABLE_ROOT("vespera.deliverable-root", "launch-values", "vespera.deliverable-root",
+                "/?open=values-folders#values"),
+        NEXT_SEED_FOLDER("next-seedFolder", "next", "seedFolder", "/#next-step"),
+        PROFILE_SEED_FOLDER("profile-seedFolder", "profile", "seedFolder", "/?open=values-profile#key-seedFolder"),
+        CODE_SET_FOLDER("code-set-folder", "code-set-folders", "new-code-set-folder",
+                "/?open=values-corpus#values-corpus"),
+        NOT_RELEVANT_FOLDER("not-relevant-folder", "not-relevant", "new-not-relevant-folder",
+                "/?open=values-relevance#values-relevance");
 
         private final String forName;
         private final String form;
@@ -66,7 +67,7 @@ final class FolderPages {
 
         /** Whether the folder page lists from the corpus root down, by paths relative to it, and nowhere else. */
         boolean fromTheCorpusRoot() {
-            return this == NEW_FOLDER || this == NOT_RELEVANT_FOLDER;
+            return this == NOT_RELEVANT_FOLDER;
         }
 
         static Optional<Target> named(String forName) {
@@ -84,10 +85,10 @@ final class FolderPages {
     }
 
     /** How a code set's folder stands under the corpus root. */
-    private enum Standing { NO_CORPUS_ROOT, OUTSIDE, NO_SUCH_FOLDER, FOUND }
+    enum Standing { NO_CORPUS_ROOT, OUTSIDE, NO_SUCH_FOLDER, FOUND }
 
     /** A code set's folder: how it stands, its folder where found, and the path from the corpus root written with {@code /}. */
-    private record Under(Standing standing, Path folder, String relative) {
+    record Under(Standing standing, Path folder, String relative) {
     }
 
     private static final double BYTES_IN_A_GIB = 1024d * 1024d * 1024d;
@@ -229,11 +230,20 @@ final class FolderPages {
             Exchanges.notFound(exchange, NOT_A_FIELD);
             return;
         }
-        Exchanges.page(exchange, ControlPanelPage.render(exchange, "Folder", 0,
+        Exchanges.page(exchange, ControlPanelPage.render(exchange, state, "Folder", 0,
                 page(target.get(), query.getOrDefault("path", ""))));
     }
 
     private static final String NOT_A_FIELD = "the folder page chooses a folder for none of the fields it was asked for";
+
+    /** The query of a request, empty where it is malformed (ADR-340 §3: the home page reads {@code open} and {@code tree}). */
+    static Map<String, String> queryOf(String raw) {
+        try {
+            return query(raw);
+        } catch (IllegalArgumentException malformed) {
+            return new LinkedHashMap<>();
+        }
+    }
 
     private static Map<String, String> query(String raw) {
         Map<String, String> query = new LinkedHashMap<>();
@@ -266,8 +276,8 @@ final class FolderPages {
         if (target.fromTheCorpusRoot()) {
             Under under = under(state.values().corpusRoot(), path);
             if (under.standing() != Standing.FOUND) {
-                state.say(target.back, switch (under.standing()) {
-                    case NO_CORPUS_ROOT -> "the folder is not chosen: the corpus root is not named, on the launch page";
+                state.say("/", switch (under.standing()) {
+                    case NO_CORPUS_ROOT -> "the folder is not chosen: the corpus root is not named, in Settings";
                     case OUTSIDE -> "the folder is not chosen: a code set's folder lies under the corpus root, and"
                             + " the one named does not";
                     default -> "the folder is not chosen: there is no such folder under the corpus root";
@@ -277,7 +287,7 @@ final class FolderPages {
             }
             path = under.relative();
         }
-        if (target.form.equals("launch")) {
+        if (target.form.equals("launch-values")) {
             LaunchValues held = state.heldValues();
             state.hold(new LaunchValues(
                     target == Target.CORPUS_ROOT ? path : held.corpusRoot(),
@@ -342,7 +352,7 @@ final class FolderPages {
         String corpusRoot = state.values().corpusRoot();
         Under under = under(corpusRoot, path);
         if (under.standing() == Standing.NO_CORPUS_ROOT) {
-            heading(body, "no-corpus-root", "", "The corpus root is not named, on the launch page.");
+            heading(body, "no-corpus-root", "", "The corpus root is not named, in Settings.");
             body.append("<ul id=\"folder-roots\"></ul>\n");
             return;
         }
@@ -426,7 +436,7 @@ final class FolderPages {
     }
 
     /** The names of the folders in {@code folder}, in name order without regard to case; empty where it cannot be read. */
-    private static Optional<List<String>> subfolders(Path folder) {
+    static Optional<List<String>> subfolders(Path folder) {
         List<String> names = new ArrayList<>();
         try (DirectoryStream<Path> entries = Files.newDirectoryStream(folder)) {
             for (Path entry : entries) {
@@ -458,7 +468,7 @@ final class FolderPages {
      * A code set's folder {@code relative} to the corpus root (ADR-331 §5): written with {@code /}, not absolute, with
      * no {@code ..} element and no backslash, and whose real path, links followed, lies under the corpus root's.
      */
-    private static Under under(String corpusRoot, String relative) {
+    static Under under(String corpusRoot, String relative) {
         if (corpusRoot == null || corpusRoot.isBlank()) {
             return new Under(Standing.NO_CORPUS_ROOT, null, "");
         }

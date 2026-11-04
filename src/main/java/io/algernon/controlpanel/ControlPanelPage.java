@@ -11,8 +11,9 @@ import java.util.stream.Stream;
  * The one owner of the control panel's pages' skeleton, styling and escaping (ADR-302 §10; ADR-285 §4): every page is
  * written through {@link #render}, every text a page shows from outside it goes through {@link #escape}, and no page
  * holds a script but the control panel's own, by its address, or an attribute of an event (ADR-325 §4.1). The layout is
- * ADR-331 §3's: a sidebar, a top row, tiles and cards, written with no framework and nothing fetched. The words and
- * styling of a page are no decision's (ADR-302, What this does not decide) but for what ADR-331 §8 gives.
+ * ADR-340's: a top bar that stays at the top of the window, a home page of three columns and a drawer of values that
+ * opens by the style alone, written with no framework and nothing fetched. The words and styling of a page are no
+ * decision's (ADR-302, What this does not decide) but for what ADR-331 §8 and ADR-340 §7 give.
  */
 final class ControlPanelPage {
 
@@ -24,7 +25,10 @@ final class ControlPanelPage {
      * and {@code data-refresh-seconds}, polls {@code /alive} one second after the last poll settled, never on an
      * interval and never from inside another timer's callback, reloads the page where the server answers a mark that
      * is not the page's, and, where the page asks, once the server has answered the page's mark and the page's seconds
-     * have passed. It writes nothing into the page.
+     * have passed, unless the operator is at work on the page: the drawer is shown, the focus is on a field or the
+     * progress page's frame, an {@code input} or {@code change} event has reached the document, or a {@code <details>}
+     * is open or closed otherwise than drawn (ADR-340 §2); a reload onto a later start is never held. It reads these and
+     * keeps no data, and writes nothing into the page.
      */
     static final String SCRIPT = """
             (function () {
@@ -49,6 +53,21 @@ final class ControlPanelPage {
                   } catch (ignored) { }
                 });
               }
+              var touched = false;
+              document.addEventListener('input', function () { touched = true; });
+              document.addEventListener('change', function () { touched = true; });
+              var folds = Array.prototype.slice.call(document.querySelectorAll('details'));
+              var drawn = folds.map(function (fold) { return fold.open; });
+              function atWork() {
+                if (document.querySelector('#values:target, #values :target')) { return true; }
+                var focus = document.activeElement;
+                if (focus && /^(input|select|textarea|iframe)$/.test(focus.nodeName.toLowerCase())) { return true; }
+                if (touched) { return true; }
+                for (var i = 0; i < folds.length; i++) {
+                  if (folds[i].open !== drawn[i]) { return true; }
+                }
+                return false;
+              }
               if (!start) { return; }
               function poll() {
                 var reloading = false;
@@ -61,7 +80,8 @@ final class ControlPanelPage {
                   .then(function (response) { return response.status === 200 ? response.text() : null; })
                   .then(function (answer) {
                     if (answer === null || !/^[A-Za-z0-9_-]{22}$/.test(answer)) { return; }
-                    if (answer !== start || (seconds > 0 && Date.now() - loadedAt >= seconds * 1000)) {
+                    if (answer !== start
+                        || (seconds > 0 && Date.now() - loadedAt >= seconds * 1000 && !atWork())) {
                       reloading = true;
                       window.location.reload();
                     }
@@ -111,26 +131,25 @@ final class ControlPanelPage {
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--ink); font: var(--text-md)/1.4 system-ui, "Segoe UI", sans-serif; }
             a { color: var(--accent); }
-            #shell { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); min-height: 100vh; }
-            #sidebar { position: sticky; top: 0; align-self: start; height: 100vh; padding: var(--space-5) var(--space-3);
-              background: var(--surface); border-right: 1px solid var(--rule); }
-            .brand { margin: 0 var(--space-3) var(--space-5); color: var(--sun); font-weight: 700; letter-spacing: .06em; }
-            #sidebar nav { display: flex; flex-direction: column; gap: var(--space-1); }
-            #sidebar nav a { padding: var(--space-2) var(--space-3); border-radius: var(--radius); color: var(--ink); text-decoration: none; }
-            #sidebar nav a:hover { background: var(--surface2); }
-            #sidebar nav a[aria-current=page] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+            #top-bar {
+              position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center;
+              gap: var(--space-3); padding: var(--space-3) var(--space-5); background: var(--surface);
+              border-bottom: 1px solid var(--rule); max-height: 3rem; overflow-y: auto; }
+            .brand { margin: 0; color: var(--sun); font-weight: 700; letter-spacing: .06em; }
+            form[name=launch] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin: 0; }
+            .autolabel { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; font-weight: 400; }
+            #values-held { margin: 0 0 0 auto; color: var(--dim); font-size: var(--text-sm);
+              flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            #top-links { display: flex; gap: var(--space-3); }
+            #top-links a { padding: var(--space-2) var(--space-3); border-radius: var(--radius); color: var(--ink);
+              text-decoration: none; }
+            #top-links a:hover { background: var(--surface2); }
+            #top-links a[aria-current=page] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
             main { min-width: 0; padding: 0 var(--space-5) var(--space-6); overflow-wrap: anywhere; }
-            main.two-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4);
-              grid-auto-flow: dense; align-items: start; align-content: start; }
-            #top-row { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center;
-              justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; background: var(--bg);
-              border-bottom: 1px solid var(--rule); margin-bottom: var(--space-4); }
-            form[name=launch] { display: contents; }
-            main.two-columns #top-row, main.two-columns #tiles, main.two-columns .outcome { grid-column: 1 / -1; }
-            main.two-columns #top-row { margin-bottom: 0; }
-            [data-column=left] { grid-column: 1; }
-            [data-column=right] { grid-column: 2; }
-            #card-preflight { grid-row: span 3; }
+            .home { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
+              gap: var(--space-4); align-items: start; }
+            .column { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+            .column > #tiles { margin: 0; }
             h1 { margin: 0; font-size: var(--text-xl); }
             h2 { margin: 0 0 var(--space-3); font-size: var(--text-lg); }
             .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
@@ -138,7 +157,7 @@ final class ControlPanelPage {
               padding: var(--space-4); min-width: 0; }
             fieldset { margin: 0 0 var(--space-4); }
             .card { margin-bottom: var(--space-4); }
-            main.two-columns .card { margin-bottom: 0; }
+            .column > .card { margin-bottom: 0; }
             #tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-4) 0; }
             .tile { display: flex; flex-direction: column; padding: var(--space-3) var(--space-4); border-left: 4px solid var(--rule); }
             .tile-name { color: var(--dim); font-size: var(--text-xs); letter-spacing: .06em; text-transform: uppercase; }
@@ -155,11 +174,12 @@ final class ControlPanelPage {
               background: var(--state-soft); color: var(--state); font-weight: 600; }
             .field { margin: 0 0 var(--space-3); }
             label { display: block; margin: 0 0 var(--space-1); font-weight: 600; }
+            .key { margin: 0 0 0 var(--space-3); color: var(--dim); font-size: var(--text-xs); font-weight: 400; }
             .control { display: flex; gap: var(--space-2); }
             input[type=text], input[type=number], select, button { height: var(--control-height); padding: 0 var(--space-3);
               border: 1px solid var(--rule); border-radius: var(--radius); font: inherit; }
             input[type=text], input[type=number], select { width: 100%; min-width: 0; background: var(--surface); color: var(--ink); }
-            input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
+            input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible {
               outline: 2px solid var(--accent); outline-offset: 1px; }
             .hint { margin: var(--space-2) 0 0; color: var(--dim); font-size: var(--text-sm); }
             .status { margin: var(--space-1) 0 0; font-size: var(--text-sm); font-weight: 600; color: var(--dim); }
@@ -168,24 +188,44 @@ final class ControlPanelPage {
             .status[data-status=no-such-folder] { color: var(--bad); }
             button { padding: 0 var(--space-5); background: var(--surface2); color: var(--ink); cursor: pointer; }
             button[name=run] { border-color: var(--sun); background: var(--sun); color: var(--sun-ink); font-weight: 600; }
-            button[name=save], button[name=save-then-run], button[name=save-then-label], button[name=use] {
+            button[name=save], button[name=save-then-run], button[name=save-then-label], button[name=use], button[name=check] {
               border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+            #top-bar button[name=check] { border-color: var(--rule); background: var(--surface2); color: var(--ink); }
             button:disabled { opacity: .5; cursor: not-allowed; }
             .browse { flex: none; }
             .outcome { margin: var(--space-4) 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius); background: var(--warn-soft);
               color: var(--warn); font-weight: 600; }
-            .warnings { margin: 0 0 var(--space-4); padding-left: var(--space-5); }
+            .warnings { margin: 0 0 var(--space-4); padding: 0 0 0 var(--space-5); }
             .warnings li { color: var(--warn); }
-            .profile { display: grid; grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr); gap: var(--space-4);
-              align-items: start; }
-            #profile-list { margin: 0; padding: 0; list-style: none; }
+            #values { position: fixed; top: 3rem; right: 0; bottom: 0; z-index: 2; width: 36rem; max-width: 100%;
+              overflow-y: auto; padding: var(--space-4) var(--space-5); background: var(--bg);
+              border-left: 1px solid var(--rule); visibility: hidden; transform: translateX(100%);
+              transition: transform .2s ease-out, visibility .2s; }
+            #values:target, #values:has(:target) { visibility: visible; transform: translateX(0); }
+            #values .drawer-head { display: flex; align-items: center; justify-content: space-between; margin: 0 0 var(--space-3); }
+            #values .drawer-head h2 { margin: 0; }
+            details { margin: 0 0 var(--space-3); border: 1px solid var(--rule); border-radius: var(--radius-lg);
+              background: var(--surface); }
+            details > summary { padding: var(--space-3) var(--space-4); font-weight: 600; cursor: pointer; }
+            details > :not(summary) { margin-left: var(--space-4); margin-right: var(--space-4); }
+            details > :last-child { margin-bottom: var(--space-4); }
+            #values-folders > p.hint, #values-services > p.hint, #values-corpus > p.hint, #values-relevance > p.hint,
+            #values-profile > p.hint { margin-top: 0; margin-bottom: var(--space-3); }
+            #profile-list { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 var(--space-3); padding: 0; list-style: none; }
             #profile-list a { display: block; padding: var(--space-2) var(--space-3); border-radius: var(--radius); color: var(--ink);
-              text-decoration: none; }
-            #profile-list a:hover { background: var(--surface2); }
+              text-decoration: none; background: var(--surface2); }
+            #profile-list a:hover { background: var(--accent-soft); }
             #profile-list .current { display: block; color: var(--dim); font-size: var(--text-xs); }
-            .sections > section { display: none; }
-            .sections > section:target { display: block; }
-            .sections:not(:has(> :target)) > section:first-child { display: block; }
+            .sections > section { margin: 0 0 var(--space-3); padding: var(--space-3); border: 1px solid var(--rule);
+              border-radius: var(--radius); }
+            #tree-path { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 var(--space-3); }
+            #tree-rows { margin: 0 0 var(--space-3); padding: 0; list-style: none; }
+            #tree-rows li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3);
+              padding: var(--space-2) 0; border-bottom: 1px solid var(--rule); }
+            #tree-rows li[data-walked=not-walked], #tree-rows li[data-walked=not-walked-above] { color: var(--dim); }
+            #tree-rows .folder-name { flex: 1 1 8rem; font-weight: 600; }
+            #tree-rows label { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; font-weight: 400; }
+            #tree-rows .code-set-name { flex: 1 1 10rem; }
             #folder-roots, #folder-list { margin: 0 0 var(--space-4); padding: 0; list-style: none; display: flex;
               flex-wrap: wrap; gap: var(--space-2); }
             #folder-roots a, #folder-list a, #folder-up, #folder-back { display: inline-block; padding: var(--space-2) var(--space-3);
@@ -198,64 +238,72 @@ final class ControlPanelPage {
               border-radius: var(--radius); background: var(--surface); }
             #progress-view p { margin: var(--space-3) 0 0; }
             @media (max-width: 800px) {
-              #shell { grid-template-columns: 1fr; }
-              #sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
-              #sidebar nav { flex-direction: row; flex-wrap: wrap; }
-              main.two-columns, .profile { grid-template-columns: 1fr; }
-              [data-column] { grid-column: 1; }
-              #card-preflight { grid-row: auto; }
-              #tiles { grid-template-columns: 1fr; }
+              #top-bar { max-height: 9rem; overflow-y: auto; }
+              #values-held { margin: 0; }
+              .home, #tiles { grid-template-columns: 1fr; }
+              #values { top: 9rem; width: 100%; }
             }
             """;
-
-    /** The pages the sidebar leads to, by path and name. */
-    private static final List<String[]> NAVIGATION = List.of(new String[] {"/", "Launch"},
-            new String[] {"/invocation", "Invocation"}, new String[] {"/progress", "Progress"},
-            new String[] {"/next", "Next"},
-            new String[] {"/labels", "Relevance"}, new String[] {"/code-sets", "Code sets"},
-            new String[] {"/profile", "Profile"});
 
     private ControlPanelPage() {
     }
 
     /**
      * The whole page, carrying the start's mark the server gave the exchange, the control panel's one
-     * script by its address, and, where it asks to be loaded again, the script's refresh and the browser's own inside
-     * {@code <noscript>} (ADR-325 §4.1, §5); a sidebar of the six pages and a top row holding {@code title} (ADR-331 §3).
+     * script by its address, and, where it asks to be loaded again, the script's refresh and, except on the home page,
+     * the browser's own inside {@code <noscript>} (ADR-325 §4.1, §5; ADR-340 §2); a top bar holding {@code title}, the four starts and the way to the other
+     * pages and the values (ADR-340 §1), and no page menu.
      *
      * @param exchange the request the page answers, which the server marked with the start's mark
+     * @param state what the control panel holds, which says whether the starts are disabled and which values they start on
      * @param refreshSeconds how often the page asks to be loaded again, none where it is not above zero
      * @param body the page's content, already escaped
      */
-    static String render(HttpExchange exchange, String title, int refreshSeconds, String body) {
-        return render(exchange, title, refreshSeconds, "", "", false, body);
-    }
-
-    /**
-     * The whole page as {@link #render(HttpExchange, String, int, String)} writes it, with {@code before} written
-     * before the top row, {@code actions} in it beside the title, and the content in two columns where {@code columns}
-     * is set: the launch page's form wraps its top row so that Run, Label and Check stand in it (ADR-331 §3).
-     */
-    static String render(HttpExchange exchange, String title, int refreshSeconds, String before, String actions,
-            boolean columns, String body) {
-        String refresh = refreshSeconds > 0
+    static String render(HttpExchange exchange, ControlPanelState state, String title, int refreshSeconds, String body) {
+        // the home page's browser never reloads it of its own: one running no script cannot tell what would be lost (ADR-340 §2)
+        boolean home = exchange.getRequestURI().getPath().equals("/");
+        String refresh = refreshSeconds > 0 && !home
                 ? "<noscript><meta http-equiv=\"refresh\" content=\"" + refreshSeconds + "\"></noscript>\n" : "";
         String marks = " data-start=\"" + escape(attribute(exchange, ControlPanelServer.MARK_ATTRIBUTE)) + "\""
                 + (refreshSeconds > 0 ? " data-refresh-seconds=\"" + refreshSeconds + "\"" : "");
-        String here = exchange.getRequestURI().getPath();
-        String navigation = NAVIGATION.stream()
-                .map(entry -> "<a href=\"" + entry[0] + "\"" + (entry[0].equals(here) ? " aria-current=\"page\"" : "")
-                        + ">" + entry[1] + "</a>")
-                .collect(Collectors.joining("\n"));
         return "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
                 + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" + refresh
                 + "<script src=\"" + SCRIPT_PATH + "\" defer></script>\n"
                 + "<title>" + escape(title + " · Vespera") + "</title>\n<style>\n" + STYLE + "</style>\n</head>\n<body" + marks
-                + ">\n<div id=\"shell\">\n<aside id=\"sidebar\">\n<div class=\"brand\">VESPERA</div>\n"
-                + "<nav aria-label=\"Pages\">\n" + navigation + "\n</nav>\n</aside>\n<main"
-                + (columns ? " class=\"two-columns\"" : "") + ">\n" + before + "<header id=\"top-row\"><h1>"
-                + escape(title) + "</h1>" + (actions.isEmpty() ? "" : "<div class=\"actions\">" + actions + "</div>")
-                + "</header>\n" + body + "\n</main>\n</div>\n</body>\n</html>\n";
+                + ">\n" + topBar(exchange, state, title) + "<main>\n" + body + "\n</main>\n</body>\n</html>\n";
+    }
+
+    /**
+     * {@code #top-bar} (ADR-340 §1): the program's name and the page's one heading, the form {@code launch} holding
+     * Run, Label, the box Autolabel and Check and no text field, what Run would start on, and the three links, the
+     * page's own marked.
+     */
+    private static String topBar(HttpExchange exchange, ControlPanelState state, String title) {
+        boolean disabled = state.holders().any() || state.childRuns();
+        LaunchValues values = state.values();
+        String here = exchange.getRequestURI().getPath();
+        String workingDirectory = state.effectiveWorkingDirectory();
+        String held = "Run starts on the documents folder "
+                + (values.corpusRoot().isEmpty() ? "not named" : values.corpusRoot()) + " and the work folder "
+                + (workingDirectory.isEmpty() ? "not named" : workingDirectory) + ".";
+        return "<header id=\"top-bar\">\n<span class=\"brand\">VESPERA</span>\n<h1>" + escape(title) + "</h1>\n"
+                + "<form name=\"launch\" method=\"post\" action=\"/launch\">\n"
+                + button("run", "Run", disabled) + button("label", "Label", disabled)
+                + "<label class=\"autolabel\" for=\"f-label-auto\"><input type=\"checkbox\" id=\"f-label-auto\""
+                + " name=\"label-auto\"" + (disabled ? " disabled" : "") + "> Autolabel</label>"
+                + button("check", "Check", false) + "\n</form>\n"
+                + "<p id=\"values-held\" data-corpus-root=\"" + escape(values.corpusRoot()) + "\" data-working-directory=\""
+                + escape(workingDirectory) + "\" title=\"" + escape(held) + "\">" + escape(held) + "</p>\n"
+                + "<div id=\"top-links\">"
+                + link("to-home", "/", "Home", here.equals("/"))
+                + link("to-invocation", "/invocation", "Invocation", here.equals("/invocation"))
+                + link("open-values", "/#values", "Settings", false)
+                + "</div>\n</header>\n";
+    }
+
+    private static String link(String id, String address, String words, boolean current) {
+        return "<a id=\"" + id + "\" href=\"" + address + "\"" + (current ? " aria-current=\"page\"" : "") + ">" + words
+                + "</a>";
     }
 
     private static String attribute(HttpExchange exchange, String name) {
@@ -312,6 +360,7 @@ final class ControlPanelPage {
         private String list = "";
         private String browse = "";
         private String after = "";
+        private String key = "";
 
         private Field(String name, String label) {
             this.name = name;
@@ -381,9 +430,16 @@ final class ControlPanelPage {
             return this;
         }
 
+        /** The key or control name written beside the label's name, as secondary text (ADR-340 §7). */
+        Field key(String key) {
+            this.key = key;
+            return this;
+        }
+
         String html() {
             StringBuilder html = new StringBuilder("<div class=\"field\">\n<label for=\"").append(escape(id))
-                    .append("\">").append(escape(label)).append("</label>\n<div class=\"control\"><input type=\"")
+                    .append("\">").append(escape(label)).append(keyBeside(key))
+                    .append("</label>\n<div class=\"control\"><input type=\"")
                     .append(type).append("\" id=\"").append(escape(id)).append("\" name=\"").append(escape(name))
                     .append("\" value=\"").append(escape(value)).append('"');
             if (type.equals("number")) {
@@ -413,6 +469,11 @@ final class ControlPanelPage {
         }
     }
 
+    /** {@code <small class="key">} holding {@code key} after a label's name; nothing where it is empty (ADR-340 §7). */
+    static String keyBeside(String key) {
+        return key.isEmpty() ? "" : " <small class=\"key\">" + escape(key) + "</small>";
+    }
+
     /** A submit button named {@code browse-<forName>} that posts its form without asking its required fields (ADR-331 §5). */
     static String browseButton(String forName) {
         String name = "browse-" + forName;
@@ -421,10 +482,11 @@ final class ControlPanelPage {
     }
 
     /** A select named {@code name} offering {@code options}, {@code selected} chosen where it is among them. */
-    static String choice(String name, String id, String label, List<String> options, String selected, String hintId,
-            String hint) {
+    static String choice(String name, String id, String label, String key, List<String> options, String selected,
+            String hintId, String hint) {
         StringBuilder html = new StringBuilder("<div class=\"field\">\n<label for=\"").append(escape(id)).append("\">")
-                .append(escape(label)).append("</label>\n<div class=\"control\"><select id=\"").append(escape(id))
+                .append(escape(label)).append(keyBeside(key)).append("</label>\n<div class=\"control\"><select id=\"")
+                .append(escape(id))
                 .append("\" name=\"").append(escape(name)).append("\" aria-describedby=\"").append(escape(hintId))
                 .append("\">");
         for (String option : options) {
@@ -464,31 +526,39 @@ final class ControlPanelPage {
      * {@code auto} where the key takes them, and a text field otherwise; each with its example and its hint
      * {@code hint-<key>}.
      *
+     * @param idPrefix written before the ids of the control's hint, so that the home page, which draws a key's control
+     *     twice, holds no id twice (ADR-340 §3, §4)
+     * @param inUse the value in use shown in the empty control in place of the example, none where it is empty
      * @param browse the field a Browse button beside it chooses a folder for, none where it is empty
      * @param after markup written under the hint
      */
-    static String keyControl(ProfileKey key, String name, String id, String label, String value, String browse,
-            String after) {
-        return keyControl(key, name, id, label, value, browse, after, false);
+    static String keyControl(ProfileKey key, String name, String id, String idPrefix, String value, String inUse,
+            String browse, String after) {
+        return keyControl(key, name, id, idPrefix, value, inUse, browse, after, false);
     }
 
     /**
-     * As {@link #keyControl(ProfileKey, String, String, String, String, String, String)}, with the deliverable's language
-     * offering a first choice of none, {@code not set}, where {@code withNone} is set: the profile page's, so that a save
-     * of other values leaves an unset language unset (ADR-334 §7).
+     * As {@link #keyControl(ProfileKey, String, String, String, String, String, String, String)}, with the deliverable's
+     * language offering a first choice of none, {@code not set}, where {@code withNone} is set: the run settings', so that
+     * a save of other values leaves an unset language unset (ADR-334 §7).
      */
-    static String keyControl(ProfileKey key, String name, String id, String label, String value, String browse,
-            String after, boolean withNone) {
-        String hintId = "hint-" + key.key();
+    static String keyControl(ProfileKey key, String name, String id, String idPrefix, String value, String inUse,
+            String browse, String after, boolean withNone) {
+        String hintId = idPrefix + "hint-" + key.key();
         if (key == ProfileKey.DELIVERABLE_LANGUAGE) {
             List<String> options = value.isEmpty() || LANGUAGES.contains(value) ? LANGUAGES
                     : Stream.concat(LANGUAGES.stream(), Stream.of(value)).toList();
             if (withNone) {
                 options = Stream.concat(Stream.of(""), options.stream()).toList();
             }
-            return choice(name, id, label, options, value, hintId, hintOf(key));
+            return choice(name, id, key.plainName(), key.key(), options, value, hintId, hintOf(key));
         }
-        Field field = Field.of(name, label).id(id).value(value).example(key.example()).hint(hintId, hintOf(key));
+        Field field = Field.of(name, key.plainName()).key(key.key()).id(id).value(value).hint(hintId, hintOf(key));
+        if (inUse.isEmpty()) {
+            field.example(key.example());
+        } else {
+            field.inUse(inUse);
+        }
         if (key.kind() == ProfileKey.Kind.NUMBER && (value.isEmpty() || A_NUMBER_OF_HTML.matcher(value).matches())) {
             field.type("number");
         }
@@ -583,7 +653,12 @@ final class ControlPanelPage {
      * @param words the child in words
      */
     static String tiles(SidecarChecks.Checks checks, String freeSpace, String how, String words) {
-        return "<div id=\"tiles\">\n"
+        return tiles(checks, freeSpace, how, words, "");
+    }
+
+    /** As {@link #tiles(SidecarChecks.Checks, String, String, String)}, in the column {@code column} of the home page (ADR-340 §2). */
+    static String tiles(SidecarChecks.Checks checks, String freeSpace, String how, String words, String column) {
+        return "<div id=\"tiles\"" + (column.isEmpty() ? "" : " data-column=\"" + column + "\"") + ">\n"
                 + tile("docling", stateOf(checks.docling().result()), "Docling", "docling-check",
                         checks.docling().result().attribute(), describe(checks.docling().result()))
                 + tile("ollama", stateOf(checks.ollama().result()), "Ollama", "ollama-check",
@@ -607,7 +682,12 @@ final class ControlPanelPage {
      * {@code false}, on every page that shows a key's cost (ADR-330 §9).
      */
     static String costElement(ProfileKey key) {
-        return "<p id=\"cost-" + escape(key.key()) + "\" data-sample-drawn-again=\"" + key.cost().sampleDrawnAgain()
+        return costElement("", key);
+    }
+
+    /** As {@link #costElement(ProfileKey)}, its id written after {@code idPrefix} (ADR-340 §3, §4). */
+    static String costElement(String idPrefix, ProfileKey key) {
+        return "<p id=\"" + escape(idPrefix) + "cost-" + escape(key.key()) + "\" data-sample-drawn-again=\"" + key.cost().sampleDrawnAgain()
                 + "\">" + escape(cost(key)) + "</p>";
     }
 

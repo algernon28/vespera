@@ -84,7 +84,8 @@ final class PanelBrowser {
 
     /**
      * Submits the page's one form named {@code formName}, each of {@code fields} set by its control's name; a control
-     * not named in {@code fields} sends what the page gave it, as a browser sends it untouched.
+     * not named in {@code fields} sends what the page gave it, as a browser sends it untouched. A checkbox named is
+     * ticked where the value given is its value, {@code on} where it carries none, and unticked otherwise (ADR-340 §10).
      *
      * @throws AssertionError where the page holds no form or more than one by that name, the form no control named
      *                        as a field is, or the form's action leaves the panel's origin
@@ -148,7 +149,15 @@ final class PanelBrowser {
                         + field.getKey() + "'");
             }
             for (Element control : controls) {
-                if (control.nameIs("select")) {
+                if (control.nameIs("input") && control.attr("type").equalsIgnoreCase("checkbox")) {
+                    // a browser sends a checkbox ticked, by its value or "on" where it carries none, and none unticked
+                    String sent = control.hasAttr("value") ? control.attr("value") : "on";
+                    if (sent.equals(field.getValue())) {
+                        control.attr("checked", true);
+                    } else {
+                        control.removeAttr("checked");
+                    }
+                } else if (control.nameIs("select")) {
                     for (Element option : control.select("option")) {
                         option.attr("selected", option.val().equals(field.getValue()));
                     }

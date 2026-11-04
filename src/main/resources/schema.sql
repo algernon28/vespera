@@ -50,6 +50,30 @@ CREATE TABLE IF NOT EXISTS walk_folder (
     PRIMARY KEY (walk_id, ordinal)
 );
 
+-- The folders below the corpus root a walk counts and does not enter, in the profile's order (ADR-340 section 8.3):
+-- the profile's foldersNotWalked as it stood when the walk started, recorded with the walk so that an unfinished walk
+-- is continued with the list it began with and a walk given another list is told from a repetition (ADR-115). folder
+-- is the piece as the profile states it. Additive, so no module's schema version moves: a database written before it
+-- builds it empty at start-up. The primary key leads with walk_id, so ADR-173 asks no other index.
+-- owner: ledger
+CREATE TABLE IF NOT EXISTS walk_folder_not_walked (
+    walk_id INTEGER NOT NULL REFERENCES walk (id),
+    ordinal INTEGER NOT NULL,
+    folder TEXT NOT NULL,
+    PRIMARY KEY (walk_id, ordinal)
+);
+
+-- The folders of the corpus a walk met and did not enter because the profile's foldersNotWalked names them (ADR-340
+-- section 8.3), one row each, path being the folder's path from the corpus root with / between its elements. Written in
+-- the transaction of the entries around it, and counted at finish as the occurrences and the anomalies are. Additive,
+-- and no column is added to walk, so a database written before it opens and walks with no upgrade.
+-- owner: ledger
+CREATE TABLE IF NOT EXISTS walk_folder_not_entered (
+    walk_id INTEGER NOT NULL REFERENCES walk (id),
+    path TEXT NOT NULL,
+    PRIMARY KEY (walk_id, path)
+);
+
 -- UNIQUE (walk_id, path) is ADR-051 as a constraint: within one walk a path identifies exactly one
 -- file occurrence. It is also what makes a resumed walk safe to get wrong loudly -- re-recording an
 -- entry a previous session already recorded fails here rather than silently doubling the corpus.

@@ -44,6 +44,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Issue("561")
 @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
 @Link(name = "ADR-325", url = Adr.THE_CONTROL_PANEL_OPENS_THE_BROWSER_AND_A_TAB_OF_ITS_LAST_START_COMES_BACK, type = "adr")
+@Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
 class EveryPageHoldsOnlyTheControlPanelsScriptTest {
 
     /** The child's last line: a script, and an image whose failure to load runs one. */
@@ -63,12 +64,18 @@ class EveryPageHoldsOnlyTheControlPanelsScriptTest {
 
     /**
      * A folder not relevant, closing its attribute and adding an event attribute: since ADR-334 §6 the questions'
-     * paths are counted on {@code /labels} and not shown, and the folders listed are.
+     * paths are counted and not shown, and the folders listed are, in the drawer's relevance section since ADR-340.
      */
     private static final String MARKUP_FOLDER = "a/\" onfocus=\"alert(7)\" autofocus=\"b";
 
     /** What the attribute of an event begins with. */
     private static final String EVENT = "on";
+
+    /**
+     * The tree of folders to process opened at {@code tools}, whose row {@code tools/build} carries the code set's name
+     * (ADR-340 §5), as the code-sets page did.
+     */
+    private static final String THE_TREE_AT_TOOLS = "/?open=values-corpus&tree=tools";
 
     /** The two states each page is asked for in: after a child ended, and while one runs. */
     private static final int STATES = 2;
@@ -81,6 +88,7 @@ class EveryPageHoldsOnlyTheControlPanelsScriptTest {
     @DisplayName("Every page the control panel writes holds one script, its own by its address and with no text, and no event attribute, after an invocation ended and while one runs, though the text it shows holds markup")
     void everyPageHoldsOneScriptByItsAddressAndNoEventAttribute() throws IOException, InterruptedException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
+        Files.createDirectories(corpusRoot.resolve("tools").resolve("build"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         writeTheWorkingDirectory(workingDirectory);
         List<String> paths = ScreenServer.pathsOfItsOwnPages(folder);
@@ -89,9 +97,11 @@ class EveryPageHoldsOnlyTheControlPanelsScriptTest {
                 "", "", MARKUP_MODEL, "");
         Page ended;
         Page running;
+        Page tree;
         try (ScreenServer screens = ScreenServer.start(folder, values)) {
             PanelBrowser browser = screens.afterARunHasEnded();
             ended = browser.go("/invocation").page();
+            tree = browser.go(THE_TREE_AT_TOOLS).page();
             for (String path : paths) {
                 pages.add(browser.go(path).page());
             }
@@ -102,9 +112,9 @@ class EveryPageHoldsOnlyTheControlPanelsScriptTest {
                 pages.add(browser.go(path).page());
             }
         }
-        Page labels = pages.get(paths.indexOf("/labels"));
-        Page codeSets = pages.get(paths.indexOf("/code-sets"));
         Page launch = pages.get(paths.indexOf("/"));
+        List<Page> everyPage = new ArrayList<>(pages);
+        everyPage.add(tree);
 
         claim("every page of the control panel's own was asked for after the child ended and while the second ran,"
                         + " and each was answered with a page",
@@ -114,12 +124,12 @@ class EveryPageHoldsOnlyTheControlPanelsScriptTest {
                 () -> assertThat(byId(running, "child").attr("data-ending")).isEqualTo("running"));
         claim("every page holds one script element, whose address is the control panel's script and which holds no"
                         + " text, and no attribute whose name begins with on",
-                () -> assertThat(scriptsOtherThanItsOwnAndEventAttributesOf(pages)).isEmpty());
+                () -> assertThat(scriptsOtherThanItsOwnAndEventAttributesOf(everyPage)).isEmpty());
         claim("while the text from outside the control panel reached the pages as text: the child's last line,"
                         + " the code set's name, the folder not relevant and the two launch values, each whole",
                 () -> assertThat(List.of(byId(ended, "last-line").text(),
-                                codeSets.document().select("[name=name-1]").val(),
-                                labels.document().select("[name=folder-1]").val(),
+                                tree.document().select("form[name=folders-to-process] [name=code-set-name-1]").val(),
+                                launch.document().select("form[name=not-relevant] [name=folder-1]").val(),
                                 launch.document().select("[name='vespera.docling.image']").val(),
                                 launch.document().select("[name='vespera.label.model']").val()))
                         .containsExactly(MARKUP_LINE, MARKUP_NAME, MARKUP_FOLDER, MARKUP_IMAGE, MARKUP_MODEL));

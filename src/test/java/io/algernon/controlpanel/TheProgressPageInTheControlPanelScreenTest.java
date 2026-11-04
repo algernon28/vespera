@@ -26,9 +26,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The progress page inside the control panel's window (ADR-335 §1, §2): {@code /progress} frames the progress page the
- * jar writes, at its report path, where the working directory holds one, and says in words why there is nothing to show
- * where it holds none or none is named, reloading itself only while it waits for one to be written.
+ * The progress page inside the control panel's window (ADR-335 §1, §2): the home page frames the progress page the jar
+ * writes, at its report path, where the working directory holds one, and says in words why there is nothing to show
+ * where it holds none or the one named cannot be held; the one script reloads the home page every 15 seconds, and the
+ * browser is asked for no refresh of its own, since a reload must wait while the operator is at work on a form (ADR-340
+ * §2); {@code /progress} is no page any more.
  *
  * <p>What a browser does with the frame, and that the page in it reloads itself, is on no test (ADR-297): what is held
  * is the markup the page writes, read by {@code id} and attribute, and the words §1 gives the two states that have no
@@ -37,10 +39,17 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-335", url = Adr.THE_CONTROL_PANEL_SHOWS_THE_PROGRESS_PAGE_AND_ITS_PAGES_ARE_DRAWN_TO_ONE_COMPACT_SCALE, type = "adr")
+@Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
 class TheProgressPageInTheControlPanelScreenTest {
 
-    /** The control panel's page that shows the progress page. */
-    private static final String PROGRESS = "/progress";
+    /** The control panel's page that shows the progress page: the home page (ADR-340 §2). */
+    private static final String PROGRESS = "/";
+
+    /** The address the progress page had a page of its own at, which no longer takes a post. */
+    private static final String THE_OLD_ADDRESS = "/progress";
+
+    /** A working directory no system can hold, a NUL in it (ADR-331 §6). */
+    private static final String NO_PATH = "not\0a-path";
 
     /** Where the control panel re-serves the progress page the jar writes, which the frame shows. */
     private static final String THE_PROGRESS_PAGES_REPORT_PATH = "/report/progress.html";
@@ -48,12 +57,10 @@ class TheProgressPageInTheControlPanelScreenTest {
     /** The file the jar writes the progress page's first tab in, in the working directory. */
     private static final String PROGRESS_FILE = "progress.html";
 
-    /** How often the page asks to be loaded again while it waits for a progress page: every 2 seconds. */
-    private static final String EVERY_TWO_SECONDS = "2";
-
-    /** The words with no working directory chosen. */
-    private static final String NO_WORKING_DIRECTORY = "No working directory is chosen, so there is no progress page to"
-            + " show. Choose one on the Launch page, and the progress page of what runs there is shown here.";
+    /** The words with no working directory this system can hold chosen. */
+    private static final String NO_WORKING_DIRECTORY = "No working directory this system can hold is chosen, so there is"
+            + " no progress page to show. Choose one under Settings, and the progress page of what runs there is shown"
+            + " here.";
 
     /** The words with a working directory that holds no progress page yet. */
     private static final String NOT_WRITTEN = "This working directory holds no progress page yet. It is shown here once"
@@ -63,17 +70,21 @@ class TheProgressPageInTheControlPanelScreenTest {
     private static final String A_PROGRESS_PAGE = "<!doctype html><html><head><title>Vespera progress</title></head>"
             + "<body><h1>Vespera progress</h1></body></html>";
 
+    /** How often the script reloads the home page, while the operator is not at work on it (ADR-340 §2). */
+    private static final String EVERY_FIFTEEN_SECONDS = "15";
+
     @TempDir
     Path folder;
 
     @Test
     @Story("The operator watches an invocation from the control panel")
-    @DisplayName("With no working folder chosen, the progress page says so in words, shows no frame and does not reload itself")
+    @DisplayName("With a working folder no system can hold, the home page says there is none in words, shows no frame, and only the script reloads it")
     void withNoWorkingDirectoryThePageSaysSoAndShowsNoFrame() throws IOException {
         try (ScreenServer screens = ScreenServer.start(folder, LaunchValues.none())) {
-            Page page = screens.browser().go(PROGRESS).page();
+            Page page = screens.browser().press("launch-values", "check", Map.of("vespera.working-dir", NO_PATH))
+                    .go(PROGRESS).page();
 
-            claim("the page is answered at its own path",
+            claim("the page is answered at the home page's path",
                     () -> assertThat(List.of(page.status(), page.address().getPath())).containsExactly(200, PROGRESS));
             claim("it says there is no working folder, in the words decided for it",
                     () -> assertThat(List.of(byId(page, "progress-view").attr("data-progress"),
@@ -83,15 +94,15 @@ class TheProgressPageInTheControlPanelScreenTest {
                     () -> assertThat(List.of(page.document().select("iframe").size(),
                                     page.document().select("#progress-own-window").size()))
                             .containsExactly(0, 0));
-            claim("and it does not ask to be loaded again, by the script or by the browser",
+            claim("and it asks the script to reload it every 15 seconds, and the browser for no refresh of its own",
                     () -> assertThat(List.of(refresh(page), page.document().body().attr("data-refresh-seconds")))
-                            .containsExactly("", ""));
+                            .containsExactly("", EVERY_FIFTEEN_SECONDS));
         }
     }
 
     @Test
     @Story("The operator watches an invocation from the control panel")
-    @DisplayName("A working folder that holds no progress page yet is said so in words, and the page reloads every 2 seconds until one is written, then shows it and stops reloading")
+    @DisplayName("A working folder that holds no progress page yet is said so in words, the script reloading the home page, and once one is written the next load shows it")
     void aWorkingDirectoryWithNoProgressPageSaysSoAndReloadsUntilOneIsWritten() throws IOException {
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         try (ScreenServer screens = ScreenServer.start(folder,
@@ -109,23 +120,24 @@ class TheProgressPageInTheControlPanelScreenTest {
                     () -> assertThat(List.of(waiting.document().select("iframe").size(),
                                     waiting.document().select("#progress-own-window").size()))
                             .containsExactly(0, 0));
-            claim("and it asks to be loaded again every 2 seconds, by the script and by the browser's own refresh",
+            claim("and it asks the script to reload it every 15 seconds, so that the progress page is shown once"
+                            + " written, and the browser for no refresh, which would not wait for the operator's forms",
                     () -> assertThat(List.of(refresh(waiting), waiting.document().body().attr("data-refresh-seconds")))
-                            .containsExactly(EVERY_TWO_SECONDS, EVERY_TWO_SECONDS));
+                            .containsExactly("", EVERY_FIFTEEN_SECONDS));
             claim("once the progress page is written, the next load shows it in the frame",
                     () -> assertThat(List.of(byId(written, "progress-view").attr("data-progress"),
                                     written.document().select("iframe#progress-frame").size()))
                             .containsExactly("shown", 1));
-            claim("and no longer asks to be loaded again, the page in the frame reloading itself",
+            claim("and still asks the script alone to reload it, the page in the frame reloading itself",
                     () -> assertThat(List.of(refresh(written), written.document().body().attr("data-refresh-seconds")))
-                            .containsExactly("", ""));
+                            .containsExactly("", EVERY_FIFTEEN_SECONDS));
         }
     }
 
     /** The frame is the one element of the page that fetches anything beside the control panel's script (ADR-335 §1). */
     @Test
     @Story("The operator watches an invocation from the control panel")
-    @DisplayName("A progress page written is shown in one sandboxed frame of its report path, with a link to open it alone, and the page does not reload itself before a command runs or while one runs")
+    @DisplayName("A progress page written is shown in one sandboxed frame of its report path, with a link to open it alone, and the script alone reloads the page before a command runs and while one runs")
     void aProgressPageWrittenIsShownInAFrameOfItsReportPath() throws IOException {
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         Files.writeString(workingDirectory.resolve(PROGRESS_FILE), A_PROGRESS_PAGE, StandardCharsets.UTF_8);
@@ -157,19 +169,19 @@ class TheProgressPageInTheControlPanelScreenTest {
                             .containsExactly(TabPaths.SCRIPT));
             claim("the command was running when the page was asked for again, so the next claim is about a running one",
                     () -> assertThat(childWhileShown).isEqualTo("running"));
-            claim("before any command and while one runs the frame is shown, and the page asks to be loaded again"
-                            + " neither time, so that the tab chosen in the frame is kept",
+            claim("before any command and while one runs the frame is shown, and the page asks the script alone to"
+                            + " reload it, which waits while the focus is in the frame, so that the tab chosen there is kept",
                     () -> assertThat(Stream.of(beforeAnyCommand, whileOneRuns)
                                     .map(page -> List.of(byId(page, "progress-view").attr("data-progress"), refresh(page),
                                             page.document().body().attr("data-refresh-seconds")))
                                     .toList())
-                            .containsOnly(List.of("shown", "", "")));
+                            .containsOnly(List.of("shown", "", EVERY_FIFTEEN_SECONDS)));
         }
     }
 
     @Test
     @Story("The operator watches an invocation from the control panel")
-    @DisplayName("The progress page answers only a GET, and a post to it changes nothing")
+    @DisplayName("The progress page's old address answers only a GET, and a post to it changes nothing")
     void theProgressPageChangesNothingAndAnswersOnlyAGet() throws IOException {
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         Files.writeString(workingDirectory.resolve(PROGRESS_FILE), A_PROGRESS_PAGE, StandardCharsets.UTF_8);
@@ -178,7 +190,7 @@ class TheProgressPageInTheControlPanelScreenTest {
             InetSocketAddress server = screens.server().address();
             String origin = "http://127.0.0.1:" + server.getPort();
             Map<String, String> before = everyFileUnder(folder);
-            RawHttp.Response posted = RawHttp.send(server, "POST", PROGRESS, List.of(
+            RawHttp.Response posted = RawHttp.send(server, "POST", THE_OLD_ADDRESS, List.of(
                     "Host: 127.0.0.1:" + server.getPort(), "Origin: " + origin,
                     "Content-Type: application/x-www-form-urlencoded"));
             Map<String, String> after = everyFileUnder(folder);

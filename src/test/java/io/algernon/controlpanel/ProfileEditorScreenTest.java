@@ -270,7 +270,7 @@ class ProfileEditorScreenTest {
 
     @Test
     @Story("The operator edits what the file states")
-    @DisplayName("Each field holds the value and provenance the file states, and a value the jar ships stays out of the field")
+    @DisplayName("Each field holds the value and provenance the file states, and a value the jar ships stays out of the field, shown as the value in use")
     void theFieldsHoldTheFilesOwnWordsAndADefaultStaysOutOfThem() throws IOException {
         Path work = workingDirectory();
         theJarSaid(work, Map.of("embeddingModel", SHIPPED_EMBEDDING_MODEL, "embeddingModel.source", "shipped"));
@@ -287,8 +287,9 @@ class ProfileEditorScreenTest {
                     () -> assertThat(List.of(valueOf(page, "embeddingModel").val(),
                                     control(form(page, "profile"), "embeddingModel.provenance").val()))
                             .containsExactly("", ""));
-            claim("and its placeholder stays an example, not what the jar ships",
-                    () -> assertThat(valueOf(page, "embeddingModel").attr("placeholder")).startsWith("e.g. "));
+            claim("and its placeholder is what the jar ships, in use",
+                    () -> assertThat(valueOf(page, "embeddingModel").attr("placeholder"))
+                            .isEqualTo("in use: " + SHIPPED_EMBEDDING_MODEL));
         }
     }
 
@@ -826,9 +827,10 @@ class ProfileEditorScreenTest {
         try (ScreenServer screens = start(work)) {
             Page opened = screens.browser().go("/profile-repair").page();
 
-            claim("opened, it lands on the profile's page",
-                    () -> assertThat(List.of(opened.status(), opened.address().getPath()))
-                            .containsExactly(200, "/profile"));
+            claim("opened, it lands on the run settings of the home page's drawer",
+                    () -> assertThat(List.of(opened.status(), opened.address().getPath(),
+                                    String.valueOf(opened.address().getQuery())))
+                            .containsExactly(200, "/", "open=values-profile"));
             claim("it wrote nothing into the file",
                     () -> assertThat(profileText(work)).isEqualTo(NOT_IN_FORM_BUT_CERTAIN));
             claim("and made no copy",

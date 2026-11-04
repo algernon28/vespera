@@ -40,9 +40,8 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-335", url = Adr.THE_CONTROL_PANEL_SHOWS_THE_PROGRESS_PAGE_AND_ITS_PAGES_ARE_DRAWN_TO_ONE_COMPACT_SCALE, type = "adr")
 class TheCompactScaleScreenTest {
 
-    /** The seven pages of the sidebar and the folder page, each of which carries the style. */
-    private static final List<String> EVERY_PAGE = List.of("/", "/invocation", "/progress", "/next", "/labels",
-            "/code-sets", "/profile", "/folders?for=vespera.corpus-root");
+    /** The home page, the invocation page and the folder page, each of which carries the style (ADR-340 §2, §3). */
+    private static final List<String> EVERY_PAGE = List.of("/", "/invocation", "/folders?for=vespera.corpus-root");
 
     /** The scale, by property, in the order the record gives it. */
     private static final Map<String, String> THE_SCALE = theScale();
@@ -105,9 +104,9 @@ class TheCompactScaleScreenTest {
             }
         }
 
-        claim("each of the seven pages of the sidebar and the folder page carries one style",
+        claim("the home page, the invocation page and the folder page each carry one style",
                 () -> assertThat(styles.values()).hasSize(EVERY_PAGE.size()).containsOnly(1));
-        claim("and it is the launch page's, word for word",
+        claim("and it is the home page's, word for word",
                 () -> assertThat(theSame.values()).containsOnly(true));
     }
 
@@ -237,22 +236,12 @@ class TheCompactScaleScreenTest {
 
     @Test
     @Story("The control panel's pages share one layout")
-    @DisplayName("The sidebar is as wide as the scale's sidebar width, and the page takes the rest of the window")
-    void theSidebarIsAsWideAsTheScaleSays() {
-        claim("the shell's first column is the sidebar's width, and its second the rest",
-                () -> assertThat(lastOutsideAMediaBlock("#shell", "grid-template-columns"))
-                        .isEqualTo("var(--sidebar-width) minmax(0, 1fr)"));
-    }
-
-    @Test
-    @Story("The control panel's pages share one layout")
-    @DisplayName("Cards are padded one step of the scale, the two columns of cards stand one step apart, and the tiles a step closer")
+    @DisplayName("Cards are padded one step of the scale, and the tiles stand a step closer")
     void cardsAndTilesStandOneStepApart() {
-        claim("a card's padding, the gap of the two columns and the gap of the tiles are the steps the record gives",
+        claim("a card's padding and the gap of the tiles are the steps the record gives",
                 () -> assertThat(List.of(lastOutsideAMediaBlock(".card", "padding"),
-                                lastOutsideAMediaBlock("main.two-columns", "gap"),
                                 lastOutsideAMediaBlock("#tiles", "gap")))
-                        .containsExactly("var(--space-4)", "var(--space-4)", "var(--space-3)"));
+                        .containsExactly("var(--space-4)", "var(--space-3)"));
     }
 
     @Test

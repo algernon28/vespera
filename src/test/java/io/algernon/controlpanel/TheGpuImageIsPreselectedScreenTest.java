@@ -47,13 +47,13 @@ class TheGpuImageIsPreselectedScreenTest {
 
     @Test
     @Story("The operator runs on the graphics card without choosing it")
-    @DisplayName("With no image named, the launch page holds the GPU image, offers it first and the processor image after it, and says the control panel chose it")
+    @DisplayName("With no image named, the drawer's launch values hold the GPU image, offers it first and the processor image after it, and says the control panel chose it")
     void theGpuImageIsPreselectedAndListedFirst() throws IOException {
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus(), work()))) {
             Page page = screens.browser().page();
 
             claim("the field holds the GPU image",
-                    () -> assertThat(form(page, "launch").select("[name='" + IMAGE_FIELD + "']").val()).isEqualTo(GPU));
+                    () -> assertThat(form(page, "launch-values").select("[name='" + IMAGE_FIELD + "']").val()).isEqualTo(GPU));
             claim("the list offers the GPU image first, then the processor image, each by its label",
                     () -> assertThat(byId(page, "docling-images").select("option"))
                             .extracting(option -> option.attr("label"), option -> option.attr("value"))
@@ -107,21 +107,21 @@ class TheGpuImageIsPreselectedScreenTest {
         Path corpus = corpus();
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus, work()))) {
             PanelBrowser browser = screens.browser();
-            Page checked = browser.press("launch", "check", Map.of()).page();
-            browser.press("launch", ScreenServer.BROWSE + FolderPages.Target.CORPUS_ROOT.forName(), Map.of());
+            Page checked = browser.press("launch-values", "check", Map.of()).page();
+            browser.press("launch-values", ScreenServer.BROWSE + FolderPages.Target.CORPUS_ROOT.forName(), Map.of());
             Page browsed = browser.go("/").page();
 
             claim("after Check the field holds the GPU image, which the page says the control panel chose",
-                    () -> assertThat(List.of(form(checked, "launch").select("[name='" + IMAGE_FIELD + "']").val(),
+                    () -> assertThat(List.of(form(checked, "launch-values").select("[name='" + IMAGE_FIELD + "']").val(),
                                     byId(checked, "in-use-" + IMAGE_FIELD).attr("data-source")))
                             .containsExactly(GPU, "preselected"));
             claim("and so it does after a Browse button was pressed and the launch page opened again",
-                    () -> assertThat(List.of(form(browsed, "launch").select("[name='" + IMAGE_FIELD + "']").val(),
+                    () -> assertThat(List.of(form(browsed, "launch-values").select("[name='" + IMAGE_FIELD + "']").val(),
                                     byId(browsed, "in-use-" + IMAGE_FIELD).attr("data-source")))
                             .containsExactly(GPU, "preselected"));
 
-            browser.press("launch", "check", Map.of(IMAGE_FIELD, CPU));
-            Page namedAgain = browser.press("launch", "check", Map.of(IMAGE_FIELD, GPU)).page();
+            browser.press("launch-values", "check", Map.of(IMAGE_FIELD, CPU));
+            Page namedAgain = browser.press("launch-values", "check", Map.of(IMAGE_FIELD, GPU)).page();
 
             claim("but the GPU image picked once another image was named is the operator's, named as typed",
                     () -> assertThat(byId(namedAgain, "in-use-" + IMAGE_FIELD).attr("data-source"))
@@ -134,10 +134,10 @@ class TheGpuImageIsPreselectedScreenTest {
     @DisplayName("The processor image picked is held and passed as picked")
     void theProcessorImagePickedIsHeld() throws IOException {
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus(), work()))) {
-            Page checked = screens.browser().press("launch", "check", Map.of(IMAGE_FIELD, CPU)).page();
+            Page checked = screens.browser().press("launch-values", "check", Map.of(IMAGE_FIELD, CPU)).page();
 
             claim("the field holds the processor image, named by the operator",
-                    () -> assertThat(List.of(form(checked, "launch").select("[name='" + IMAGE_FIELD + "']").val(),
+                    () -> assertThat(List.of(form(checked, "launch-values").select("[name='" + IMAGE_FIELD + "']").val(),
                                     byId(checked, "in-use-" + IMAGE_FIELD).attr("data-source")))
                             .containsExactly(CPU, "launch-value"));
         }

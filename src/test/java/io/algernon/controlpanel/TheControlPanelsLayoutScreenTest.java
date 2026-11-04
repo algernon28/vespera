@@ -36,9 +36,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The control panel's pages as a cockpit, through {@code ControlPanelPage} and its style (ADR-331 §3): a sidebar in
- * place of the top navigation, a top row, the tiles, the launch page's two columns of cards with its preflight, the
- * invocation page's status, and the profile as a list and one value's form. Every id, attribute and name ADR-302 §9 has
+ * The control panel's pages as a cockpit, through {@code ControlPanelPage} and its style (ADR-331 §3, as ADR-340 §1 to
+ * §3 lays them out: a top bar, the home page and its drawer, which {@code TheTopBarScreenTest},
+ * {@code TheHomePageScreenTest} and {@code TheValuesDrawerScreenTest} hold): each page's title, the colours, a narrow
+ * window, the tiles, the preflight, the invocation page's status, and the run settings as a list and one form. Every id, attribute and name ADR-302 §9 has
  * a test read stays where those tests read it, and what is added here is read the same way, by {@code id} and attribute,
  * never by words, a page's {@code <title>} apart, whose words §3 gives.
  *
@@ -48,10 +49,11 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-331", url = Adr.THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT, type = "adr")
+@Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
 class TheControlPanelsLayoutScreenTest {
 
-    /** The seven pages of the sidebar, by path and in its order, each with the name it goes by there (ADR-335 §1). */
-    private static final Map<String, String> THE_SEVEN_PAGES = sevenPages();
+    /** The control panel's two pages, by path, each with the name its top bar gives it (ADR-340 §1, §2). */
+    private static final Map<String, String> THE_PAGES = thePages();
 
     /** The image the launch values name in a test where Docling runs it. */
     private static final String IMAGE = "vespera/docling-serve-cpu-libreoffice:v1";
@@ -70,86 +72,28 @@ class TheControlPanelsLayoutScreenTest {
 
     @Test
     @Story("The control panel's pages share one layout")
-    @DisplayName("Every page has the seven pages in a sidebar, in order, in place of a navigation along the top, the page it is marked as the current one")
-    @Link(name = "ADR-335", url = Adr.THE_CONTROL_PANEL_SHOWS_THE_PROGRESS_PAGE_AND_ITS_PAGES_ARE_DRAWN_TO_ONE_COMPACT_SCALE, type = "adr")
-    void everyPageHasTheSevenPagesInASidebarWithItsOwnMarked() throws IOException {
-        try (ScreenServer screens = aServer()) {
-            PanelBrowser browser = screens.browser();
-            Map<String, List<String>> linked = new LinkedHashMap<>();
-            Map<String, List<String>> marked = new LinkedHashMap<>();
-            Map<String, Integer> navigations = new LinkedHashMap<>();
-            for (String path : THE_SEVEN_PAGES.keySet()) {
-                Page page = browser.go(path).page();
-                Element sidebar = byId(page, "sidebar");
-                linked.put(path, sidebar.select("nav a").eachAttr("href"));
-                marked.put(path, sidebar.select("nav a[aria-current=page]").eachAttr("href"));
-                navigations.put(path, page.document().select("nav").size() - sidebar.select("nav").size());
-            }
-            Page folderPage = browser.go("/folders?for=vespera.corpus-root").page();
-
-            claim("each of the seven pages links the seven, in the sidebar's order, the progress page after the invocation's",
-                    () -> assertThat(linked.values()).containsOnly(List.copyOf(THE_SEVEN_PAGES.keySet())));
-            claim("and each marks itself, and no other, as the current page",
-                    () -> assertThat(marked).containsExactlyEntriesOf(ownPathOfEach()));
-            claim("no page holds a navigation outside its sidebar",
-                    () -> assertThat(navigations.values()).containsOnly(0));
-            claim("the folder page, which is none of the seven, has the sidebar and marks none as current",
-                    () -> assertThat(List.of(byId(folderPage, "sidebar").select("nav a").eachAttr("href"),
-                                    byId(folderPage, "sidebar").select("nav a[aria-current]").eachAttr("href")))
-                            .containsExactly(List.copyOf(THE_SEVEN_PAGES.keySet()), List.of()));
-        }
-    }
-
-    @Test
-    @Story("The control panel's pages share one layout")
-    @DisplayName("Every page has a top row holding its title, named as the sidebar names it, and on the launch page Run, Label, Have the local model answer and Check")
-    @Link(name = "ADR-336", url = Adr.THE_LAUNCH_PAGE_STARTS_LABEL_AUTO_AND_EVERY_ARGUMENT_OF_THE_JAR_IS_ACCOUNTED_FOR, type = "adr")
-    void everyPageHasATopRowHoldingItsTitleAndTheLaunchPageItsFourButtons() throws IOException {
-        try (ScreenServer screens = aServer()) {
-            PanelBrowser browser = screens.browser();
-            Map<String, String> titles = new LinkedHashMap<>();
-            List<String> buttonsElsewhere = new ArrayList<>();
-            for (String path : THE_SEVEN_PAGES.keySet()) {
-                Page page = browser.go(path).page();
-                titles.put(path, String.join("|", byId(page, "top-row").select("h1").eachText()));
-                if (!path.equals("/")) {
-                    buttonsElsewhere.addAll(byId(page, "top-row")
-                            .select("[name=run], [name=label], [name=label-auto], [name=check]").eachAttr("name"));
-                }
-            }
-            Page launch = browser.go("/").page();
-
-            claim("each page's top row holds one title, the name the sidebar gives that page",
-                    () -> assertThat(titles).containsExactlyEntriesOf(THE_SEVEN_PAGES));
-            claim("on the launch page it holds Run, Label, Have the local model answer and Check, as buttons of the"
-                            + " launch form",
-                    () -> assertThat(form(launch, "launch").select("#top-row button").eachAttr("name"))
-                            .containsExactly("run", "label", "label-auto", "check"));
-            claim("and on no other page does it hold any of the four",
-                    () -> assertThat(buttonsElsewhere).isEmpty());
-        }
-    }
-
-    @Test
-    @Story("The control panel's pages share one layout")
     @DisplayName("Every page's title is the page's name and then the program's, so that a window with no address bar and the taskbar name the program")
     void everyPageIsTitledWithItsNameThenTheProgramsName() throws IOException {
         try (ScreenServer screens = aServer()) {
             PanelBrowser browser = screens.browser();
             Map<String, String> expected = new LinkedHashMap<>();
             Map<String, String> titles = new LinkedHashMap<>();
-            for (Map.Entry<String, String> sidebarEntry : THE_SEVEN_PAGES.entrySet()) {
-                expected.put(sidebarEntry.getKey(), sidebarEntry.getValue() + " · Vespera");
-                titles.put(sidebarEntry.getKey(), browser.go(sidebarEntry.getKey()).page().document().title());
+            Map<String, String> headings = new LinkedHashMap<>();
+            for (Map.Entry<String, String> each : THE_PAGES.entrySet()) {
+                Page page = browser.go(each.getKey()).page();
+                expected.put(each.getKey(), each.getValue() + " · Vespera");
+                titles.put(each.getKey(), page.document().title());
+                headings.put(each.getKey(), String.join("|", byId(page, "top-bar").select("h1").eachText()));
             }
             Page folderPage = browser.go("/folders?for=vespera.corpus-root").page();
 
-            claim("each of the seven pages is titled with the name the sidebar gives it, then the program's",
+            claim("each page's top bar holds one heading, its name",
+                    () -> assertThat(headings).containsExactlyEntriesOf(THE_PAGES));
+            claim("each page is titled with that name, then the program's",
                     () -> assertThat(titles).containsExactlyEntriesOf(expected));
-            claim("and the folder page, which is none of the seven, with its own name, Folder, which its top row gives"
-                            + " it, then the program's",
+            claim("and the folder page with its own name, Folder, which its top bar gives it, then the program's",
                     () -> assertThat(List.of(folderPage.document().title(),
-                                    byId(folderPage, "top-row").select("h1").text()))
+                                    byId(folderPage, "top-bar").select("h1").text()))
                             .containsExactly("Folder · Vespera", "Folder"));
         }
     }
@@ -163,10 +107,10 @@ class TheControlPanelsLayoutScreenTest {
             PanelBrowser browser = screens.browser();
             List<String> fetched = new ArrayList<>();
             List<String> outside = new ArrayList<>();
-            for (String path : THE_SEVEN_PAGES.keySet()) {
+            for (String path : THE_PAGES.keySet()) {
                 Page page = browser.go(path).page();
                 page.document().select("link, img, iframe, object, embed, video, audio, source").stream()
-                        .filter(element -> !(path.equals("/progress") && element.id().equals("progress-frame")))
+                        .filter(element -> !(path.equals("/") && element.id().equals("progress-frame")))
                         .forEach(element -> fetched.add(path + ": " + element.tagName()));
                 String style = styleOf(page);
                 for (String word : List.of("url(", "@import", "@font-face")) {
@@ -220,8 +164,8 @@ class TheControlPanelsLayoutScreenTest {
 
     @Test
     @Story("The control panel's pages share one layout")
-    @DisplayName("The top row stays at the top, and a narrow window has one column: a rule for it sets each grid of the style to one")
-    void theTopRowStaysAtTheTopAndANarrowWindowHasOneColumn() throws IOException {
+    @DisplayName("A narrow window has one column: a rule for it sets each grid of the style to one")
+    void aNarrowWindowHasOneColumn() throws IOException {
         try (ScreenServer screens = aServer()) {
             String style = styleOf(screens.browser().page());
             String[] aroundTheNarrowRule = NARROW_WINDOW_RULE.split(style, 2);
@@ -230,8 +174,6 @@ class TheControlPanelsLayoutScreenTest {
                     : selectorsSetting(blockOpenedBefore(aroundTheNarrowRule[1]),
                             Pattern.compile("grid-template-columns\\s*:\\s*1fr\\s*(;|$)"));
 
-            claim("the style keeps the top row in view as a page scrolls",
-                    () -> assertThat(style).containsPattern("#top-row[^{}]*\\{[^}]*position\\s*:\\s*sticky"));
             claim("the style's grids were read, the tiles among them, so the next claim is about something",
                     () -> assertThat(grids).contains("#tiles"));
             claim("and a rule for a narrow window sets each of them to one column",
@@ -273,11 +215,11 @@ class TheControlPanelsLayoutScreenTest {
                     workingDirectory.toString(), "", IMAGE, stub, stub, MODEL, ""))) {
                 PanelBrowser browser = screens.browser();
                 Page holds = browser.page();
-                Page differs = browser.press("launch", "check", Map.of("vespera.docling.image", ANOTHER_IMAGE,
+                Page differs = browser.press("launch-values", "check", Map.of("vespera.docling.image", ANOTHER_IMAGE,
                         "vespera.label.model", MODEL_NOT_SERVED)).page();
-                Page silent = browser.press("launch", "check", Map.of("vespera.docling.base-url", nobody,
+                Page silent = browser.press("launch-values", "check", Map.of("vespera.docling.base-url", nobody,
                         "spring.ai.ollama.base-url", nobody)).page();
-                Page nothingNamed = browser.press("launch", "check", Map.of("vespera.docling.image", "",
+                Page nothingNamed = browser.press("launch-values", "check", Map.of("vespera.docling.image", "",
                         "vespera.docling.base-url", "", "spring.ai.ollama.base-url", "", "vespera.label.model", ""))
                         .page();
 
@@ -376,39 +318,7 @@ class TheControlPanelsLayoutScreenTest {
 
     @Test
     @Story("The operator starts an invocation from the control panel")
-    @DisplayName("The launch page has two columns of cards: the folders, the services and the seed folder on the left, the preflight and the reports on the right")
-    void theLaunchPageHasTwoColumnsOfCards() throws IOException {
-        try (ScreenServer screens = aServer()) {
-            Page page = screens.browser().page();
-
-            claim("the cards stand in this order, each marked with its column",
-                    () -> assertThat(page.document().select("[data-column]"))
-                            .extracting(card -> card.id(), card -> card.attr("data-column"))
-                            .containsExactly(tuple("card-folders", "left"), tuple("card-services", "left"),
-                                    tuple("card-seed-folder", "left"), tuple("card-preflight", "right"),
-                                    tuple("card-reports", "right")));
-            claim("the folders' card holds the corpus root, the working directory and the deliverable root, in that order",
-                    () -> assertThat(byId(page, "card-folders").select("input").eachAttr("name"))
-                            .containsExactly("vespera.corpus-root", "vespera.working-dir", "vespera.deliverable-root"));
-            claim("the services' card holds the image, the two addresses and the label model, in that order",
-                    () -> assertThat(byId(page, "card-services").select("input").eachAttr("name"))
-                            .containsExactly("vespera.docling.image", "vespera.docling.base-url",
-                                    "spring.ai.ollama.base-url", "vespera.label.model"));
-            claim("the seed folder's card holds its own form, the preflight's its rows, the warnings and the two lock"
-                            + " lines, and the reports' the reports",
-                    () -> assertThat(List.of(byId(page, "card-seed-folder").select("form[name=seed-folder]").size(),
-                                    byId(page, "card-preflight").select("#preflight").size(),
-                                    byId(page, "card-preflight").select("#warnings").size(),
-                                    byId(page, "card-preflight").select("#holder-working-directory").size(),
-                                    byId(page, "card-preflight").select("#holder-corpus-root").size(),
-                                    byId(page, "card-reports").select("#reports").size()))
-                            .containsOnly(1));
-        }
-    }
-
-    @Test
-    @Story("The operator starts an invocation from the control panel")
-    @DisplayName("The preflight is red for a corpus root or working directory not chosen, not there or a file, and that does not disable Run")
+    @DisplayName("The preflight is red for a corpus root not chosen or a working directory left to a default that is not there, for either not there or a file, and that does not disable Run")
     void thePreflightIsRedForAFolderRunNeeds() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path aFile = Files.writeString(folder.resolve("a-file.txt"), "not a folder", StandardCharsets.UTF_8);
@@ -416,18 +326,18 @@ class TheControlPanelsLayoutScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder, LaunchValues.none())) {
             PanelBrowser browser = screens.browser();
             Page nothingChosen = browser.page();
-            Page bothMissing = browser.press("launch", "check", Map.of("vespera.corpus-root", notThere.toString(),
+            Page bothMissing = browser.press("launch-values", "check", Map.of("vespera.corpus-root", notThere.toString(),
                     "vespera.working-dir", notThere.toString())).page();
-            Page bothFiles = browser.press("launch", "check", Map.of("vespera.corpus-root", aFile.toString(),
+            Page bothFiles = browser.press("launch-values", "check", Map.of("vespera.corpus-root", aFile.toString(),
                     "vespera.working-dir", aFile.toString())).page();
-            Page bothFound = browser.press("launch", "check", Map.of("vespera.corpus-root", corpusRoot.toString(),
+            Page bothFound = browser.press("launch-values", "check", Map.of("vespera.corpus-root", corpusRoot.toString(),
                     "vespera.working-dir", corpusRoot.toString())).page();
 
             claim("the preflight's rows stand in this order: the two folders, the converter, the model service and the"
                             + " locks",
                     () -> assertThat(preflight(nothingChosen).keySet())
                             .containsExactly("corpus-root", "working-directory", "docling", "ollama", "locks"));
-            claim("neither folder chosen is red for both",
+            claim("no corpus root chosen is red, and so is the working directory's default .vespera folder, not there",
                     () -> assertThat(foldersOf(nothingChosen)).containsExactly("bad", "bad"));
             claim("a corpus root that is not there is red, and so is a working directory that is not there, which no"
                             + " child can be started in",
@@ -460,9 +370,9 @@ class TheControlPanelsLayoutScreenTest {
                     workingDirectory.toString(), "", IMAGE, stub, stub, MODEL, ""))) {
                 PanelBrowser browser = screens.browser();
                 Page holds = browser.page();
-                Page differs = browser.press("launch", "check", Map.of("vespera.docling.image", ANOTHER_IMAGE,
+                Page differs = browser.press("launch-values", "check", Map.of("vespera.docling.image", ANOTHER_IMAGE,
                         "vespera.label.model", MODEL_NOT_SERVED)).page();
-                Page nothingNamed = browser.press("launch", "check", Map.of("vespera.docling.image", "",
+                Page nothingNamed = browser.press("launch-values", "check", Map.of("vespera.docling.image", "",
                         "vespera.docling.base-url", "", "spring.ai.ollama.base-url", "", "vespera.label.model", ""))
                         .page();
 
@@ -509,13 +419,12 @@ class TheControlPanelsLayoutScreenTest {
     }
 
     /**
-     * The list and the one form of every value are written whole into one page, so that every read of
-     * {@code ProfileScreenTest} finds the form {@code profile} on {@code /profile}, and the style shows the section the
-     * address's fragment names (ADR-331 §4, ADR-334 §7).
+     * The list and the one form of every value are written whole into the drawer's run settings, every section shown
+     * (ADR-331 §4, ADR-334 §7, ADR-340 §3); the profile's old address lands there.
      */
     @Test
     @Story("The operator writes a profile value")
-    @DisplayName("The profile page lists every value, each linked to its section of the one form, in the profile's order, and the style shows the section linked to")
+    @DisplayName("The run settings list every value, each linked to its section of the one form, in the profile's order")
     void theProfilePageListsEveryValueAndLinksToItsForm() throws IOException {
         List<String> keys = Arrays.stream(ProfileKey.values()).map(ProfileKey::key).toList();
         try (ScreenServer screens = aServer()) {
@@ -533,25 +442,6 @@ class TheControlPanelsLayoutScreenTest {
                         assertThat(keys.stream().map(key -> byId(page, "key-" + key).select("form").size()))
                                 .containsOnly(0);
                     });
-            claim("the style shows a section through the address's fragment, with no script",
-                    () -> assertThat(styleOf(page)).contains(":target"));
-        }
-    }
-
-    @Test
-    @Story("The operator writes a profile value")
-    @DisplayName("Saving a value lands on the profile page at that value, so the section just saved stays open")
-    void savingAValueLandsOnThatValuesSection() throws IOException {
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        try (ScreenServer screens = ScreenServer.start(folder,
-                ScreenServer.values(Files.createDirectories(folder.resolve("corpus")), workingDirectory))) {
-            String key = ProfileKey.EXTRACTION_ATTEMPT.key();
-            Page landed = screens.browser().go("/profile").press("profile", "save",
-                    Map.of(key, "2", key + ".provenance", "the converter was busy on the first attempt")).page();
-
-            claim("the address lands on the profile page, at the section of the value saved",
-                    () -> assertThat(List.of(landed.address().getPath(), String.valueOf(landed.address().getFragment())))
-                            .containsExactly("/profile", "key-" + key));
         }
     }
 
@@ -560,22 +450,11 @@ class TheControlPanelsLayoutScreenTest {
                 Files.createDirectories(folder.resolve("work"))));
     }
 
-    private static Map<String, String> sevenPages() {
+    private static Map<String, String> thePages() {
         Map<String, String> pages = new LinkedHashMap<>();
-        pages.put("/", "Launch");
+        pages.put("/", "Home");
         pages.put("/invocation", "Invocation");
-        pages.put("/progress", "Progress");
-        pages.put("/next", "Next");
-        pages.put("/labels", "Relevance");
-        pages.put("/code-sets", "Code sets");
-        pages.put("/profile", "Profile");
         return pages;
-    }
-
-    private static Map<String, List<String>> ownPathOfEach() {
-        Map<String, List<String>> own = new LinkedHashMap<>();
-        THE_SEVEN_PAGES.keySet().forEach(path -> own.put(path, List.of(path)));
-        return own;
     }
 
     private static String styleOf(Page page) {

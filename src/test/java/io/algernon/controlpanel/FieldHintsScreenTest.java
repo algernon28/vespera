@@ -35,9 +35,10 @@ import org.junit.jupiter.api.io.TempDir;
  * profile key being what the README's table of values says of it. The words are no test's but where a record decides
  * them: a test reads that the example and the hint are there, tied to their field, and the hint of a key to its row.
  *
- * <p>The pages are asked for in the state each shows its most fields: {@code /profile} before any next act is read,
- * {@code /next} after a child ended with 0 beside a file wanting every key, {@code /code-sets} with one entry, and
- * {@code /labels} with one question.
+ * <p>Every field stands on the home page and its drawer since ADR-340 §2 and §3, which is asked for in the state it
+ * shows the most fields: after a child ended with 0 beside a file wanting every key, so that the next step's box holds
+ * a field of each, with one code set named, one question, and a folder in the corpus for the tree to list. A checkbox
+ * carries its label and no example (ADR-340 §7).
  *
  * <p>A field whose value in use the page knows shows that value in place of an example, after {@code in use: }
  * (ADR-334 §1, §2): the Output folder always, the working directory being named here. Such a placeholder is no example,
@@ -47,6 +48,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Link(name = "ADR-331", url = Adr.THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT, type = "adr")
 @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
+@Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
 class FieldHintsScreenTest {
 
     /** The operator's guide, at the root of the repository the tests run in. */
@@ -61,9 +63,12 @@ class FieldHintsScreenTest {
     /** What a placeholder showing the value in use begins with, in place of an example. */
     private static final String IN_USE = "in use: ";
 
-    private static final List<String> THE_FIELDS_OF_THE_LAUNCH_PAGE = List.of("vespera.corpus-root",
+    /** The fields of the home page and its drawer, one of each kind: the launch values, then one of each other form. */
+    private static final List<String> THE_FIELDS_OF_THE_HOME_PAGE = List.of("vespera.corpus-root",
             "vespera.working-dir", "vespera.deliverable-root", "vespera.docling.image", "vespera.docling.base-url",
-            "spring.ai.ollama.base-url", "vespera.label.model", "seedFolder", "provenance");
+            "spring.ai.ollama.base-url", "vespera.label.model", "seedFolder", "seedFolder.provenance",
+            "new-code-set-folder", "codeSetFolders.provenance", "new-not-relevant-folder", "code-set-name-1",
+            "foldersNotWalked.provenance");
 
     /** The folder under which the pages below were asked for, once for the class. */
     @TempDir
@@ -95,13 +100,9 @@ class FieldHintsScreenTest {
             }
         }
 
-        claim("the launch page's fields were among those read",
-                () -> assertThat(read).containsAll(THE_FIELDS_OF_THE_LAUNCH_PAGE.stream().map(name -> "/ " + name).toList()));
-        claim("the fields of the code sets, the questions, the profile and the next act's were read too",
-                () -> assertThat(read).contains("/code-sets new-folder", "/code-sets new-name", "/code-sets name-1",
-                        "/code-sets new-code-set-folder", "/code-sets codeSetFolders.provenance",
-                        "/labels new-not-relevant-folder", "/profile seedFolder", "/profile seedFolder.provenance",
-                        "/next seedFolder", "/next seedFolder.provenance"));
+        claim("the fields of the launch values, the run settings, the next step, the code set folders, the folders not"
+                        + " relevant and the tree were among those read",
+                () -> assertThat(read).containsAll(THE_FIELDS_OF_THE_HOME_PAGE.stream().map(name -> "/ " + name).toList()));
         claim("and each field has what it should: an example beginning e.g., or the value in use, which a choice has no"
                         + " room for, a hint it is tied to, and a label",
                 () -> assertThat(faults).isEmpty());
@@ -130,16 +131,15 @@ class FieldHintsScreenTest {
      */
     @Test
     @Story("The operator is told what each field wants")
-    @DisplayName("Every profile value's hint, on the profile page and on the next act's, is what the operator's guide says that value is read from")
+    @DisplayName("Every profile value's hint, in the run settings and in the next step, is what the operator's guide says that value is read from")
     void everyProfileKeyHasTheHintTheReadmesTableGivesIt() throws IOException {
         Map<String, String> table = readOffTheReadmesTable();
-        Page profile = pageAt("/profile");
-        Page next = pageAt("/next");
+        Page home = pageAt("/");
         Map<String, String> onTheProfile = new TreeMap<>();
         Map<String, String> onTheNext = new TreeMap<>();
         for (ProfileKey key : ProfileKey.values()) {
-            onTheProfile.put(key.key(), plain(byId(profile, "hint-" + key.key()).text()));
-            onTheNext.put(key.key(), plain(byId(next, "hint-" + key.key()).text()));
+            onTheProfile.put(key.key(), plain(byId(home, "hint-" + key.key()).text()));
+            onTheNext.put(key.key(), plain(byId(home, "next-hint-" + key.key()).text()));
         }
         Map<String, String> expected = new TreeMap<>();
         for (ProfileKey key : ProfileKey.values()) {
@@ -149,25 +149,25 @@ class FieldHintsScreenTest {
         claim("the guide's table has a row for every profile value",
                 () -> assertThat(table.keySet()).containsAll(
                         Arrays.stream(ProfileKey.values()).map(ProfileKey::key).toList()));
-        claim("on the profile page each value's hint is its own row's words",
+        claim("in the run settings each value's hint is its own row's words",
                 () -> assertThat(onTheProfile).isEqualTo(expected));
-        claim("and on the next act's page too",
+        claim("and in the next step too",
                 () -> assertThat(onTheNext).isEqualTo(expected));
     }
 
     @Test
     @Story("The operator is told what each field wants")
-    @DisplayName("The deliverable root is called the output folder on the launch page")
+    @DisplayName("The deliverable root is called the output folder in the drawer's folders")
     void theDeliverableRootIsCalledTheOutputFolder() throws IOException {
         try (ScreenServer screens = ScreenServer.start(folder, LaunchValues.none())) {
             Page page = screens.browser().page();
-            String id = form(page, "launch").select("[name='vespera.deliverable-root']").attr("id");
+            String id = form(page, "launch-values").select("[name='vespera.deliverable-root']").attr("id");
 
-            claim("its label reads Output folder",
-                    () -> assertThat(page.document().select("label[for='" + id + "']").text())
+            claim("its label reads Output folder, the key beside it apart",
+                    () -> assertThat(page.document().select("label[for='" + id + "']").first().ownText())
                             .isEqualTo("Output folder"));
             claim("and its hint does not call it by the project's own name for it",
-                    () -> assertThat(byId(page, form(page, "launch").select("[name='vespera.deliverable-root']")
+                    () -> assertThat(byId(page, form(page, "launch-values").select("[name='vespera.deliverable-root']")
                             .attr("aria-describedby")).text().toLowerCase(Locale.ROOT))
                             .doesNotContain("deliverable root"));
         }
@@ -225,11 +225,12 @@ class FieldHintsScreenTest {
 
     /** The fields of the page's forms the operator sees: text, number and select, buttons and hidden fields apart. */
     private static List<Element> fieldsOf(Page page) {
-        return page.document().select("form input:not([type=hidden]):not([type=submit]), form select");
+        return page.document().select("form input:not([type=hidden]):not([type=submit]):not([type=checkbox]), form select");
     }
 
     private static List<Page> thePagesWithTheirFields(Path folder) throws IOException, InterruptedException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
+        Files.createDirectories(corpusRoot.resolve("tools"));
         Path workingDirectory = wantingEveryKey(folder);
         Files.writeString(workingDirectory.resolve(CodeSetRenames.FILE_NAME), """
                 ---
@@ -249,13 +250,7 @@ class FieldHintsScreenTest {
                   relevant: null
                 """, StandardCharsets.UTF_8);
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            PanelBrowser browser = screens.browser();
-            Page launch = browser.page();
-            Page profile = browser.go("/profile").page();
-            Page codeSets = browser.go("/code-sets").page();
-            Page labels = browser.go("/labels").page();
-            Page next = screens.afterARunHasEnded().go("/next").page();
-            return List.of(launch, profile, codeSets, labels, next);
+            return List.of(screens.afterARunHasEnded().go("/").page());
         }
     }
 

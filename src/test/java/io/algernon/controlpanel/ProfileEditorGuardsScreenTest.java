@@ -152,7 +152,8 @@ class ProfileEditorGuardsScreenTest {
         Path work = Files.createDirectories(folder.resolve("work"));
         ScreenServer.childWill(work, "exit 0 the closing line");
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus(), work))) {
-            PanelBrowser browser = screens.browser().press("launch", "run", Map.of("vespera.docling.image", AN_IMAGE));
+            PanelBrowser browser = ScreenServer.holdThenPress(screens.browser(), "run",
+                    Map.of("vespera.docling.image", AN_IMAGE));
             ScreenServer.whenTheChildHasEnded(browser);
 
             String user = System.getProperty("user.name");

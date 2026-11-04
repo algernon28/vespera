@@ -59,6 +59,12 @@ public record LaunchValues(String corpusRoot, String workingDirectory, String de
                 labelModel, lastSeedFolder);
     }
 
+    /** The same values with the working directory {@code folder}. */
+    LaunchValues withWorkingDirectory(String folder) {
+        return new LaunchValues(corpusRoot, folder, deliverableRoot, doclingImage, doclingBaseUrl, ollamaBaseUrl,
+                labelModel, lastSeedFolder);
+    }
+
     public static LaunchValues none() {
         return new LaunchValues("", "", "", "", "", "", "", "");
     }
@@ -164,18 +170,14 @@ public record LaunchValues(String corpusRoot, String workingDirectory, String de
         return environment;
     }
 
+    /** Run needs the corpus root alone: a work folder left empty is the jar's default, which Run passes (ADR-340 §6). */
     public Optional<String> refusalToRun() {
-        if (corpusRoot.isEmpty() && workingDirectory.isEmpty()) {
-            return Optional.of("Run needs the corpus root and the working directory");
-        }
-        if (corpusRoot.isEmpty()) {
-            return Optional.of("Run needs the corpus root");
-        }
-        return workingDirectory.isEmpty() ? Optional.of("Run needs the working directory") : Optional.empty();
+        return corpusRoot.isEmpty() ? Optional.of("Run needs the corpus root") : Optional.empty();
     }
 
+    /** Label, as Publish, needs nothing named: a work folder left empty is the jar's default (ADR-340 §6). */
     public Optional<String> refusalToLabel() {
-        return workingDirectory.isEmpty() ? Optional.of("Label needs the working directory") : Optional.empty();
+        return Optional.empty();
     }
 
     public List<String> warningsToRun() {

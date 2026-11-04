@@ -66,9 +66,9 @@ class InvocationScreenTest {
                             .containsExactly("/invocation", "running"));
             claim("the page asks to be loaded again every 2 seconds",
                     () -> assertThat(refresh(page)).isEqualTo(EVERY_TWO_SECONDS));
-            claim("the progress page is linked at the control panel's own page for it, to open in the same window",
+            claim("the progress page is linked where the home page shows it, to open in the same window",
                     () -> assertThat(List.of(progress.attr("href"), progress.hasAttr("target")))
-                            .containsExactly("/progress", false));
+                            .containsExactly("/#progress-view", false));
             claim("and the child can be stopped, by a form leading to the confirmation",
                     () -> assertThat(List.of(ScreenServer.form(page, "stop").attr("action"),
                                     buttonNames(ScreenServer.form(page, "stop"))))

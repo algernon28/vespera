@@ -9,7 +9,7 @@ The vocabulary below is the project's own. Decisions that established these term
 ### Identity
 
 **Entry**:
-Anything a walk finds beneath a corpus root, before anything has been decided about it. The denominator a walk is accountable for: every entry is either recorded as a file occurrence, recorded as a walk anomaly, or — a readable directory only — descended into, which is what makes "excludes nothing" a claim anyone can check rather than assert.
+Anything a walk finds beneath a corpus root, before anything has been decided about it. The denominator a walk is accountable for: every entry is either recorded as a file occurrence, recorded as a walk anomaly, or — a readable directory only — descended into, or, a folder not walked, counted and not entered (ADR-340), which is what makes "excludes nothing" a claim anyone can check rather than assert.
 _Avoid_: node, item, dirent
 
 **File occurrence**:
@@ -163,7 +163,7 @@ _Renders as_: the one sentence ADR-174 gives its case, in italics under the grou
 ### Measurement
 
 **Census**:
-A verdict-free measurement pass. It renders no verdicts, excludes nothing, and mutates nothing; it produces re-analyzable data and a draft profile with thresholds left unset.
+A verdict-free measurement pass. It renders no verdicts, excludes nothing but the folders not walked (ADR-340), and mutates nothing; it produces re-analyzable data and a draft profile with thresholds left unset.
 _Avoid_: scan, audit, inventory
 
 **Observe before enforce**:
@@ -209,7 +209,7 @@ The operator's files as they lie on disk, whether or not any walk has observed t
 _Avoid_: knowledge base (what Vespera makes from an archive, never the archive itself), repository (this project's git checkout), dataset, source folder
 
 **Corpus root**:
-The directory a walk starts from: the one `vespera run <root>` names, or `vespera.corpus-root` when the command names none (ADR-066). A path, and the whole of a corpus's identity (ADR-054), but for the code set folders outside it the profile names, which the same walk reads after it and records with it, the corpus root staying the path the walk is found by (ADR-334). The root is where a walk enters an archive, and the corpus is the part of the archive beneath it.
+The directory a walk starts from: the one `vespera run <root>` names, or `vespera.corpus-root` when the command names none (ADR-066). A path, and the whole of a corpus's identity (ADR-054), but for the code set folders outside it the profile names, which the same walk reads after it and records with it, the corpus root staying the path the walk is found by (ADR-334). The root is where a walk enters an archive, and the corpus is the part of the archive beneath it, less the folders not walked (ADR-340).
 _Avoid_: archive root, archive (the files, where this is the path), input directory, base path
 
 **Working directory**:
@@ -234,6 +234,10 @@ _Not to be confused with_: SQLite's **WAL checkpoint**, which copies its write-a
 **Walk anomaly**:
 An entry a walk encountered and did not record as a file occurrence, carrying the reason. Not an error — most are not failures — and not a verdict: a verdict needs an occurrence to attach to, and an anomaly is exactly the case where none exists. Kinds are observations rather than policy, which is what makes the first walk of an archive a measurement.
 _Avoid_: error, skip, exclusion, warning
+
+**Folder not walked**:
+A folder below the corpus root that the profile's `foldersNotWalked` lists, by its path from the corpus root: the walk counts it as an entry and does not enter it, so nothing below it is a file occurrence, a walk anomaly or an entry of the walk (ADR-340). A profile value, since it changes what a corpus is: a walk given another list is another walk, and every run over it is new. The operator unticks it in the control panel's tree of the corpus's folders. Not a walk anomaly, which is an observation of the archive, and not out of scope, which is a verdict on a file the walk recorded.
+_Avoid_: excluded folder, skipped folder, ignored folder, filtered folder
 
 **Stage**:
 One step of the cascade, identified by the verdicts it writes. The two measurement stages write none. There are seven, ending at generation (6b), and nothing follows them.

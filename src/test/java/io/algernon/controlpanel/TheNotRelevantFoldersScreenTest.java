@@ -130,8 +130,9 @@ class TheNotRelevantFoldersScreenTest {
 
             Page landed = browser.press(FORM, "save", Map.of()).page();
 
-            claim("saving lands back on the page",
-                    () -> assertThat(landed.address().getPath()).isEqualTo("/labels"));
+            claim("saving lands back on the drawer's relevance section",
+                    () -> assertThat(List.of(landed.address().getPath(), String.valueOf(landed.address().getQuery())))
+                            .containsExactly("/", "open=values-relevance"));
             claim("the list is written, holding none",
                     () -> assertThat(Files.readString(work.resolve(THE_LIST), UTF_8)).isEqualTo("--- []\n"));
             claim("and every question is answered relevant, the one not answered and the one answered not relevant too",
@@ -213,9 +214,10 @@ class TheNotRelevantFoldersScreenTest {
             browser.go("/folders?for=" + FOR + "&path=b/flows");
             Page back = browser.press("use-folder", "use", Map.of()).page();
 
-            claim("the folder chosen stands in the field, by its path from the corpus root, on the page it came from",
-                    () -> assertThat(List.of(back.address().getPath(), form(back, FORM).select("[name=" + NEW_FOLDER + "]").val()))
-                            .containsExactly("/labels", "b/flows"));
+            claim("the folder chosen stands in the field, by its path from the corpus root, in the section it came from",
+                    () -> assertThat(List.of(back.address().getPath(), String.valueOf(back.address().getQuery()),
+                                    form(back, FORM).select("[name=" + NEW_FOLDER + "]").val()))
+                            .containsExactly("/", "open=values-relevance", "b/flows"));
             claim("and nothing is written by choosing it",
                     () -> assertThat(work.resolve(THE_LIST)).doesNotExist());
         }

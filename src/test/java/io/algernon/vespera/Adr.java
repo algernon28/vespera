@@ -2417,6 +2417,19 @@ public final class Adr {
             FILE + "0339-an-argument-of-the-control-panels-table-names-the-form-its-control-stands-on-six-members-of-cluster-page-are-public-for-the-website-and-its-lists-stops-and-pages-are-as-recorded.md";
 
     /**
+     * ADR-340 -- the control panel is one home page under a top bar holding Run, Label, Check and a box Autolabel on
+     * every page, the reports, the progress page, the preflight and the next step on it, and every value it edits in
+     * one drawer of foldable sections, the folders not relevant among them; an empty field shows the value in use, an
+     * empty work folder being the jar's default, which Run passes; every field is named in plain words; and a folder
+     * the profile's {@code foldersNotWalked} names, unticked in a tree of the corpus's folders, is counted by the walk
+     * and never entered (amends ADR-302 §2, §4, §8 and §9, ADR-292 §5, ADR-331 §3, §5, §6 and §8, ADR-334 §1 to §3,
+     * §5.2, §5.5, §6 and §7, ADR-335 §1, §4 and §5, ADR-330 §2, §4 and §12, ADR-336 §1, ADR-050, ADR-054, ADR-055, ADR-056
+     * and ADR-115).
+     */
+    public static final String THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED =
+            FILE + "0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md";
+
+    /**
      * ADR-341 -- {@code vespera serve} tells a page, an asset or the listing from a copy by {@code vespera-website.json}
      * and the file's name together; {@code serve}'s {@code --db-dir} is a fourth argument the control panel never
      * passes; and its refusal of a port that is no port, its exit 2, its blank values, its environment names, its 301,

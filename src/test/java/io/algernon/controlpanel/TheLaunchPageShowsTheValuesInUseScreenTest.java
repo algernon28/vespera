@@ -70,7 +70,7 @@ class TheLaunchPageShowsTheValuesInUseScreenTest {
         Path theDefault = work.toAbsolutePath().normalize().resolve("deliverable");
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus(), work))) {
             Page page = screens.browser().page();
-            Element field = form(page, "launch").selectFirst("[name='" + DELIVERABLE_ROOT + "']");
+            Element field = form(page, "launch-values").selectFirst("[name='" + DELIVERABLE_ROOT + "']");
 
             claim("the field is empty, so nothing is passed for it",
                     () -> assertThat(field.val()).isEmpty());
@@ -92,8 +92,8 @@ class TheLaunchPageShowsTheValuesInUseScreenTest {
         Path another = folder.resolve("handover");
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus(), work))) {
             PanelBrowser browser = screens.browser();
-            Page typedTheDefault = browser.press("launch", "check", Map.of(DELIVERABLE_ROOT, theDefault.toString())).page();
-            Page typedAnother = browser.press("launch", "check", Map.of(DELIVERABLE_ROOT, another.toString())).page();
+            Page typedTheDefault = browser.press("launch-values", "check", Map.of(DELIVERABLE_ROOT, theDefault.toString())).page();
+            Page typedAnother = browser.press("launch-values", "check", Map.of(DELIVERABLE_ROOT, another.toString())).page();
 
             claim("the default folder typed is the default, which a run draws in as it does when nothing is typed",
                     () -> assertThat(inUse(typedTheDefault, DELIVERABLE_ROOT))
@@ -117,7 +117,7 @@ class TheLaunchPageShowsTheValuesInUseScreenTest {
             Map<String, String> held = new LinkedHashMap<>();
             Map<String, String> expectedPlaceholders = new LinkedHashMap<>();
             for (String name : WHAT_THE_JAR_SAID.keySet()) {
-                Element field = form(page, "launch").selectFirst("[name='" + name + "']");
+                Element field = form(page, "launch-values").selectFirst("[name='" + name + "']");
                 shown.put(name, inUse(page, name));
                 placeholders.put(name, field.attr("placeholder"));
                 held.put(name, field.val());
@@ -141,7 +141,7 @@ class TheLaunchPageShowsTheValuesInUseScreenTest {
         Path work = workingDirectory();
         theJarSaid(work);
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus(), work))) {
-            Page checked = screens.browser().press("launch", "check",
+            Page checked = screens.browser().press("launch-values", "check",
                     Map.of("vespera.label.model", "a-model-typed:1b")).page();
 
             claim("the label model typed is the one in use, from this page",
@@ -159,7 +159,7 @@ class TheLaunchPageShowsTheValuesInUseScreenTest {
             Page page = screens.browser().page();
             List<String> sources = WHAT_THE_JAR_SAID.keySet().stream().map(name -> inUse(page, name).getLast()).toList();
             List<String> placeholders = WHAT_THE_JAR_SAID.keySet().stream()
-                    .map(name -> form(page, "launch").selectFirst("[name='" + name + "']").attr("placeholder"))
+                    .map(name -> form(page, "launch-values").selectFirst("[name='" + name + "']").attr("placeholder"))
                     .toList();
 
             claim("each says the value is not known, which is not the same as none",

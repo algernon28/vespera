@@ -1,5 +1,7 @@
 # ADR-339 — An argument of the control panel's table names the form its control stands on, six members of `ClusterPage` are public for the website rendering, and the website's lists, stops and pages are as recorded here
 
+> **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of §1: the forms an entry names gain `launch-values`, where the corpus root's and the working directory's fields stand; `launch`, the top bar's form, holds `label-auto` alone. The rest of this record stands.
+
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.
 - **Decided**: here. Each choice is one that building ADR-333's second step needed, which ADR-333's Decided line leaves to its building; none is a ruling of the operator's. §1 settles a conflict between ADR-336 §2 and ADR-333 §6 by the reading that keeps both rulings and ADR-292 §1 whole.
