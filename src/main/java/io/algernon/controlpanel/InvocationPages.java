@@ -60,8 +60,14 @@ final class InvocationPages {
      * where it did not.
      */
     static String startAndSay(ControlPanelState state, ControlPanelState.Start kind, String refusedAt) {
+        return startAndSay(state, kind, refusedAt, List.of());
+    }
+
+    /** As above, a publish delivering to {@code destinations}, the boxes checked (ADR-333 §6). */
+    static String startAndSay(
+            ControlPanelState state, ControlPanelState.Start kind, String refusedAt, List<String> destinations) {
         List<String> stored = new ArrayList<>();
-        Optional<String> refusal = state.start(kind, stored);
+        Optional<String> refusal = state.start(kind, stored, destinations);
         if (refusal.isPresent()) {
             state.say(refusedAt, refusal.get());
             return refusedAt;
@@ -91,9 +97,17 @@ final class InvocationPages {
             body.append("<form name=\"stop\" method=\"get\" action=\"/stop\">")
                     .append(ControlPanelPage.button("stop", "Stop", false)).append("</form>\n");
         }
-        if (!runs && state.aRenderingIsDrawn()) {
-            body.append("<form name=\"publish\" method=\"post\" action=\"/publish\">")
-                    .append(ControlPanelPage.button("publish", "Publish", false)).append("</form>\n");
+        List<String> drawn = state.destinationsDrawn();
+        if (!runs && !drawn.isEmpty()) {
+            body.append("<form name=\"publish\" method=\"post\" action=\"/publish\">");
+            for (String destination : drawn) {
+                // Confluence's checked, as a publish was before it had a choice; the website's is the operator's to ask for.
+                body.append("<label><input type=\"checkbox\" name=\"to\" value=\"")
+                        .append(ControlPanelPage.escape(destination)).append('"')
+                        .append(destination.equals("confluence") ? " checked" : "")
+                        .append("> ").append(ControlPanelPage.escape(capitalised(destination))).append("</label> ");
+            }
+            body.append(ControlPanelPage.button("publish", "Publish", false)).append("</form>\n");
         }
         body.append("<h2>Output</h2>\n<pre id=\"tail\">")
                 .append(ControlPanelPage.escape(String.join("\n", state.tail()))).append("</pre>\n");
@@ -187,8 +201,12 @@ final class InvocationPages {
             Exchanges.redirect(exchange, "/invocation");
             return;
         }
-        Exchanges.form(exchange);
-        Exchanges.redirect(exchange, startAndSay(state, ControlPanelState.Start.PUBLISH, "/invocation"));
+        List<String> checked = Exchanges.formOfEach(exchange).getOrDefault("to", List.of());
+        Exchanges.redirect(exchange, startAndSay(state, ControlPanelState.Start.PUBLISH, "/invocation", checked));
+    }
+
+    private static String capitalised(String destination) {
+        return destination.isEmpty() ? destination : Character.toUpperCase(destination.charAt(0)) + destination.substring(1);
     }
 
     /** How the child is, as {@code data-ending} has it: {@code none}, {@code running}, or how it ended. */

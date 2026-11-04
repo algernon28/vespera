@@ -1,0 +1,157 @@
+/* The website's theme (ADR-333 section 3): ours, shipped inside the website, with no font, image or sheet
+   fetched from anywhere. Light by default and dark by the reader's preferred colour scheme; a narrow window
+   takes one column. */
+:root {
+  color-scheme: light dark;
+  --background: #ffffff;
+  --text: #1c1e21;
+  --muted: #5f6368;
+  --line: #d6d9dd;
+  --accent: #0b57d0;
+  --panel: #f3f5f8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #16181c;
+    --text: #e6e8eb;
+    --muted: #a0a6ad;
+    --line: #3a3f46;
+    --accent: #8ab4f8;
+    --panel: #20242a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  margin: 0;
+}
+
+a {
+  color: var(--accent);
+}
+
+.site-header {
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  padding: 0.75em 1.5em;
+}
+
+.site-header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1em;
+  align-items: center;
+}
+
+.site-header .where {
+  color: var(--muted);
+}
+
+#search {
+  background: var(--background);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text);
+  font: inherit;
+  margin-left: auto;
+  padding: 0.3em 0.6em;
+  width: 22em;
+  max-width: 100%;
+}
+
+#search-results {
+  list-style: none;
+  margin: 0.5em 0 0;
+  padding: 0;
+}
+
+#search-results:empty {
+  display: none;
+}
+
+#search-results > li {
+  border-top: 1px solid var(--line);
+  padding: 0.4em 0;
+}
+
+#search-results ul {
+  color: var(--muted);
+  margin: 0.2em 0 0;
+}
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0 auto;
+  max-width: 62em;
+  padding: 1em 1.5em 3em;
+}
+
+table {
+  border-collapse: collapse;
+  margin-bottom: 1.5em;
+  width: 100%;
+}
+
+td,
+th {
+  border: 1px solid var(--line);
+  padding: 0.3em 0.8em;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--panel);
+}
+
+blockquote {
+  color: var(--muted);
+  font-style: italic;
+  margin: 0.4em 0 0 1em;
+}
+
+code {
+  background: var(--panel);
+  padding: 0.1em 0.3em;
+}
+
+li {
+  margin-bottom: 0.6em;
+}
+
+img {
+  max-width: 100%;
+}
+
+.pages {
+  color: var(--muted);
+}
+
+@media (max-width: 40em) {
+  .site-header {
+    padding: 0.6em 1em;
+  }
+
+  #search {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  main {
+    padding: 0.8em 1em 2em;
+  }
+
+  td,
+  th {
+    padding: 0.25em 0.5em;
+  }
+}

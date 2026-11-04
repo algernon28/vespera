@@ -36,7 +36,17 @@ public final class ChildCommand {
                             + " Relevance page answers."),
             new Argument("label", "db-dir", "vespera.working-dir", "As for run."),
             new Argument("publish", "db-dir", "vespera.working-dir",
-                    "As for run; Publish stands on the invocation page."));
+                    "As for run; Publish stands on the invocation page."),
+            new Argument("publish", "to", "to",
+                    "The checkboxes of the invocation page's Publish, one for each destination drawn (ADR-333 §6); not"
+                            + " a control of the launch form."));
+
+    /**
+     * The destinations the control panel offers, which {@code publish --to} names, in the order the invocation page
+     * offers them: a closed list of the control panel's own, which names no class of the jar (ADR-285 §3, ADR-333 §6).
+     * A test holds it to the names of the plugins compiled into the jar.
+     */
+    public static final List<String> DESTINATIONS = List.of("confluence", "website");
 
     private final List<String> command;
     private final Path directory;
@@ -71,12 +81,25 @@ public final class ChildCommand {
                 auto ? List.of("label", "--auto") : List.of("label"));
     }
 
-    /** @throws IllegalArgumentException with {@link LaunchValues#refusalToLabel()}'s line where there is one: a publish, as a label, needs the working directory alone */
-    public static ChildCommand publish(Path java, Path jar, LaunchValues values) {
+    /**
+     * {@code publish --to <destinations>}, joined by commas in the order given (ADR-333 §6).
+     *
+     * @throws IllegalArgumentException with {@link LaunchValues#refusalToLabel()}'s line where there is one: a publish,
+     *     as a label, needs the working directory alone; or with a line of its own where {@code destinations} is empty
+     *     or names one outside {@link #DESTINATIONS}
+     */
+    public static ChildCommand publish(Path java, Path jar, LaunchValues values, List<String> destinations) {
         values.refusalToLabel().ifPresent(line -> {
             throw new IllegalArgumentException(line);
         });
-        return new ChildCommand(java, jar, values, Path.of(values.workingDirectory()), List.of("publish"));
+        if (destinations.isEmpty()) {
+            throw new IllegalArgumentException("no destination is checked");
+        }
+        if (!DESTINATIONS.containsAll(destinations)) {
+            throw new IllegalArgumentException("a destination outside the ones the control panel offers was named");
+        }
+        return new ChildCommand(java, jar, values, Path.of(values.workingDirectory()),
+                List.of("publish", "--to", String.join(",", destinations)));
     }
 
     public List<String> command() {
