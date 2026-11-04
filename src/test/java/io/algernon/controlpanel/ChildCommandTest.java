@@ -167,21 +167,38 @@ class ChildCommandTest {
     @Test
     @Story("The control panel starts the jar as shipped")
     @Issue("633")
-    @DisplayName("Publish is the jar's publish command with the working directory absolute, and adds no Confluence value to the child's environment")
+    @DisplayName("Publish is the jar's publish command with its destinations and the working directory absolute, and adds no Confluence value to the child's environment")
+    @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
     void publishIsTheJarsPublishCommandAndAddsNoConfluenceValue() {
-        ChildCommand publish = ChildCommand.publish(JAVA, JAR, EVERY_VALUE);
+        ChildCommand publish = ChildCommand.publish(JAVA, JAR, EVERY_VALUE, List.of("confluence"));
 
-        claim("the command line ends with publish and --db-dir",
-                () -> assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO).command())
-                        .containsExactlyElementsOf(with("publish", DB_DIR)));
+        claim("the command line ends with publish, --to and the destinations checked, joined by commas in the order"
+                        + " given, and --db-dir",
+                () -> {
+                    assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("confluence")).command())
+                            .containsExactlyElementsOf(with("publish", "--to", "confluence", DB_DIR));
+                    assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("confluence", "website")).command())
+                            .containsExactlyElementsOf(with("publish", "--to", "confluence,website", DB_DIR));
+                    assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("website")).command())
+                            .containsExactlyElementsOf(with("publish", "--to", "website", DB_DIR));
+                });
         claim("and no variable the control panel adds names Confluence: the child inherits the five values from the"
                         + " operator's environment, and the control panel holds none of them",
                 () -> assertThat(publish.environment().keySet()).noneMatch(name -> name.contains("CONFLUENCE")));
         LaunchValues noWorkingDirectory = new LaunchValues(CORPUS_ROOT.toString(), "", "", "", "", "", "", "");
         claim("a publish with no working directory is not built, the label's refusal given as the message",
-                () -> assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR, noWorkingDirectory))
+                () -> assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR, noWorkingDirectory, List.of("confluence")))
                         .isInstanceOf(IllegalArgumentException.class)
                         .hasMessage(noWorkingDirectory.refusalToLabel().orElseThrow()));
+        claim("a publish to no destination, or to a name outside the control panel's closed list, is not built",
+                () -> {
+                    assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR, THE_TWO, List.of()))
+                            .isInstanceOf(IllegalArgumentException.class);
+                    assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("confluence", "nowhere")))
+                            .isInstanceOf(IllegalArgumentException.class);
+                });
+        claim("the closed list is the two destinations, in the order the invocation page offers them",
+                () -> assertThat(ChildCommand.DESTINATIONS).containsExactly("confluence", "website"));
     }
 
     @Test

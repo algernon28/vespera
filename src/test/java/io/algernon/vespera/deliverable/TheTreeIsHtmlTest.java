@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.synthesis.RecordedCluster;
+import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.Unwritten;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -27,6 +28,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -45,6 +47,12 @@ import org.junit.jupiter.api.io.TempDir;
  * pages, which are written whatever became of the copies. {@code EverySurvivorIsCopiedTest} holds the copies. The one
  * test of every source and link (ADR-286 §5) draws over an archive that holds every document, so each link has a
  * copy to land on.
+ *
+ * <p><b>The HTML tree's pages alone</b> (ADR-333 §3): ADR-286 §5 holds of the HTML tree, and a plugin's rendering
+ * beside it, under {@code website/} or {@code confluence/} at the tree's root, is held by its own plugin's tests. So
+ * every tree here is drawn with two stand-in plugins named {@code website} and {@code confluence}, each drawing pages
+ * of its own that load a script and a stylesheet and link out of the tree, and every claim that walks the tree's pages
+ * reads the HTML tree's and leaves those two folders out: a walk that read them would fail here.
  */
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
@@ -112,6 +120,16 @@ class TheTreeIsHtmlTest {
     /** A citation as the model wrote it, standing anywhere but as the text of the link it became. */
     private static final Pattern A_RAW_CITATION = Pattern.compile("(?<!>)\\[\\d+\\](?!</a>)");
 
+    /** The folders of the two renderings beside the HTML tree, which no claim here reads (ADR-333 §3). */
+    private static final List<String> THE_PLUGINS_FOLDERS = List.of("confluence/", "website/");
+
+    /**
+     * Two stand-ins for the plugins, named as the two compiled into the jar are, each drawing pages no page of the
+     * HTML tree may be: a script, a stylesheet loaded from elsewhere and a link out of the tree.
+     */
+    private static final List<Plugin> BESIDE_THE_TREE =
+            List.of(new PagesOfItsOwn("confluence"), new PagesOfItsOwn("website"));
+
     @Test
     @Story("The tree is a set of web pages")
     @DisplayName("The tree is an HTML index and one HTML page for each group, with the listing beside them, and no Markdown")
@@ -122,7 +140,7 @@ class TheTreeIsHtmlTest {
                 "the pages of the tree are exactly index.html at its root and one page for each of its groups,"
                         + " index.html in the group's folder in the partition's folder, the group's folder named by its"
                         + " place and its label",
-                () -> assertThat(filesUnder(tree).stream().filter(name -> name.endsWith(".html")))
+                () -> assertThat(htmlTreePagesOf(tree))
                         .containsExactly(
                                 PARTITION_FOLDER + "/1-fire-doors/index.html",
                                 PARTITION_FOLDER + "/2-smoke-dampers/index.html",
@@ -140,7 +158,7 @@ class TheTreeIsHtmlTest {
     @DisplayName("Every page carries its own styling and no script, and loads no stylesheet from elsewhere")
     void everyPageStandsAlone(@TempDir Path base) throws IOException {
         Path tree = theFixtureWritten(base);
-        List<String> pages = filesUnder(tree).stream().filter(name -> name.endsWith(".html")).toList();
+        List<String> pages = htmlTreePagesOf(tree);
 
         claim(
                 "the " + PAGES_OF_THE_FIXTURE + " pages, the index and one for each group, are there to be read, so the"
@@ -192,7 +210,7 @@ class TheTreeIsHtmlTest {
                 survivor(10, "reports/doors a.docx", ListedTree.sha256Of(firstDocument), THE_SEED, SEED_PATH, 0, 0.9),
                 survivor(11, "reports/doors b.docx", ListedTree.sha256Of(secondDocument), THE_SEED, SEED_PATH, 0, 0.8),
                 survivor(12, "scans/damper #2.png", ListedTree.sha256Of(aDamperScan), THE_SEED, SEED_PATH, 1, 0.7));
-        Path tree = ListedTree.write(
+        Path tree = ListedTree.writeWithCeiling(
                 base.resolve("work"),
                 archive,
                 List.of(WRITTEN, UNWRITTEN),
@@ -203,7 +221,9 @@ class TheTreeIsHtmlTest {
                         ? List.of(
                                 new ListedPicture("image/png", ListedTree.anImage("png", 5, 5), false, ""),
                                 new ListedPicture("image/jpeg", ListedTree.anImage("jpg", 7, 3), false, ""))
-                        : List.of());
+                        : List.of(),
+                new ClusterPageCeiling.Unset(),
+                BESIDE_THE_TREE);
         List<String> imagesNamingAFile = new ArrayList<>();
         Set<String> kindsSeen = everySourceAndLinkOf(tree, imagesNamingAFile);
 
@@ -265,14 +285,14 @@ class TheTreeIsHtmlTest {
                 Map.of(slotOf(UNWRITTEN), Unwritten.NO_SENDABLE_DOCUMENT),
                 SurvivorPictures.none(),
                 new ClusterPageCeiling.Bytes(1),
-                DeliverableProgress.NONE);
+                BESIDE_THE_TREE);
         List<String> imagesNamingAFile = new ArrayList<>();
 
         Set<String> kindsSeen = everySourceAndLinkOf(tree, imagesNamingAFile);
 
         claim(
                 "the written group has two pages, a page an entry, and the other group, of one document, one",
-                () -> assertThat(filesUnder(tree).stream().filter(name -> name.endsWith(".html")))
+                () -> assertThat(htmlTreePagesOf(tree))
                         .containsExactly(
                                 PARTITION_FOLDER + "/1-fire-doors/index-2.html",
                                 PARTITION_FOLDER + "/1-fire-doors/index.html",
@@ -316,14 +336,16 @@ class TheTreeIsHtmlTest {
         ListedPicture captioned =
                 new ListedPicture("image/png", ListedTree.anImage("png", 2, 2), false, "Caption " + FIVE_HOSTILE);
 
-        Path tree = ListedTree.write(
+        Path tree = ListedTree.writeWithCeiling(
                 base.resolve("work"),
                 base.resolve("archive"),
                 List.of(hostile),
                 Map.of(slotOf(hostile), writing("Title " + FIVE_HOSTILE, "Prose [1].", 10)),
                 List.of(member),
                 Map.of(),
-                survivor -> List.of(captioned));
+                survivor -> List.of(captioned),
+                new ClusterPageCeiling.Unset(),
+                BESIDE_THE_TREE);
         String index = Files.readString(tree.resolve("index.html"), StandardCharsets.UTF_8);
         String page = Files.readString(theOnePageUnder(tree), StandardCharsets.UTF_8);
 
@@ -404,14 +426,15 @@ class TheTreeIsHtmlTest {
                 cluster(THE_SEED, 0, "Annual inspection of every fire door in the north and south stairwells", 1, 1);
         ListedSurvivor member = survivor(10, "reports/a.docx", "0".repeat(64), THE_SEED, longSeed, 0, 0.9);
 
-        Path tree = ListedTree.write(
-                base.resolve("work"), base.resolve("archive"), List.of(longLabel), Map.of(), List.of(member), Map.of());
+        Path tree = ListedTree.writeWithCeiling(
+                base.resolve("work"), base.resolve("archive"), List.of(longLabel), Map.of(), List.of(member), Map.of(),
+                SurvivorPictures.none(), new ClusterPageCeiling.Unset(), BESIDE_THE_TREE);
 
         claim(
                 "the partition's folder is its place and the first " + SLUG_LENGTH + " characters of its seed's"
                         + " slug, and the group's folder, holding its page, its place and the first " + SLUG_LENGTH
                         + " of its label's, less the hyphen the cut left at its end",
-                () -> assertThat(filesUnder(tree).stream().filter(name -> name.endsWith(".html")))
+                () -> assertThat(htmlTreePagesOf(tree))
                         .containsExactly(
                                 "1-building-regulations-approved-document-b/1-annual-inspection-of-every-fire-door-in"
                                         + "/index.html",
@@ -424,7 +447,7 @@ class TheTreeIsHtmlTest {
      * the kinds met, and adds each image naming a file to {@code imagesNamingAFile}.
      */
     private static Set<String> everySourceAndLinkOf(Path tree, List<String> imagesNamingAFile) throws IOException {
-        List<String> pages = filesUnder(tree).stream().filter(name -> name.endsWith(".html")).toList();
+        List<String> pages = htmlTreePagesOf(tree);
         Set<String> kindsSeen = new TreeSet<>();
 
         for (String name : pages) {
@@ -499,19 +522,33 @@ class TheTreeIsHtmlTest {
                 survivor(10, "reports/doors a.docx", "0".repeat(64), THE_SEED, SEED_PATH, 0, 0.9),
                 survivor(11, "reports/doors b.docx", "1".repeat(64), THE_SEED, SEED_PATH, 0, 0.8),
                 survivor(12, "reports/dampers.pdf", "2".repeat(64), THE_SEED, SEED_PATH, 1, 0.7));
-        return ListedTree.write(
+        return ListedTree.writeWithCeiling(
                 base.resolve("work"),
                 base.resolve("archive"),
                 List.of(WRITTEN, UNWRITTEN),
                 Map.of(slotOf(WRITTEN), writing("Fire doors and their inspection", PROSE, 10, 11)),
                 survivors,
-                Map.of(slotOf(UNWRITTEN), Unwritten.NO_SENDABLE_DOCUMENT));
+                Map.of(slotOf(UNWRITTEN), Unwritten.NO_SENDABLE_DOCUMENT),
+                SurvivorPictures.none(),
+                new ClusterPageCeiling.Unset(),
+                BESIDE_THE_TREE);
     }
 
-    /** The one page beneath {@code tree} that is not the tree's own index. */
+    /**
+     * The HTML tree's pages beneath {@code tree}, sorted: every {@code .html} file but those of the renderings beside
+     * it, under {@code website/} and {@code confluence/} at its root (ADR-333 §3).
+     */
+    private static List<String> htmlTreePagesOf(Path tree) throws IOException {
+        return filesUnder(tree).stream()
+                .filter(name -> name.endsWith(".html"))
+                .filter(name -> THE_PLUGINS_FOLDERS.stream().noneMatch(name::startsWith))
+                .toList();
+    }
+
+    /** The one page of the HTML tree beneath {@code tree} that is not the tree's own index. */
     private static Path theOnePageUnder(Path tree) throws IOException {
-        List<String> pages = filesUnder(tree).stream()
-                .filter(name -> name.endsWith(".html") && !name.equals("index.html"))
+        List<String> pages = htmlTreePagesOf(tree).stream()
+                .filter(name -> !name.equals("index.html"))
                 .toList();
         if (pages.size() != 1) {
             throw new IllegalStateException("one group was arranged, and the tree holds pages " + pages);
@@ -527,5 +564,76 @@ class TheTreeIsHtmlTest {
             throw new IllegalStateException("the index names no group " + label);
         }
         return index.substring(index.lastIndexOf("<tr", at), index.indexOf("</tr>", at));
+    }
+
+    /**
+     * A stand-in for a plugin named {@code name}: at the end of the drawing it writes, beneath its own folder, an index
+     * and a group's page that load a script and a stylesheet from elsewhere and link out of the tree, which no page of
+     * the HTML tree may do, so that a claim reading them would fail.
+     */
+    private static final class PagesOfItsOwn implements Plugin {
+
+        private final String name;
+
+        PagesOfItsOwn(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public String listName() {
+            return "pages-of-its-own.json";
+        }
+
+        @Override
+        public Drawing drawing(DrawingContext context) {
+            context.written().add(name);
+            Path folder = context.tree().resolve(name);
+            return new Drawing() {
+                @Override
+                public void partitionStarted(ListedPartition partition, int partitionCount) {}
+
+                @Override
+                public Entries entriesOf(
+                        ListedPartition partition, RecordedCluster recorded, List<ListedSurvivor> members,
+                        Path clusterFolder, Copies copies) {
+                    return Entries.NONE;
+                }
+
+                @Override
+                public void clusterDrawn(
+                        ListedPartition partition, RecordedCluster recorded, Optional<SynthesisDoc> doc, Unwritten why,
+                        int entryCount, Optional<ClusterPage.PageBreaks> breaks, Entries entries,
+                        boolean writingFinished) {}
+
+                @Override
+                public void partitionEnded() {}
+
+                @Override
+                public void finish(Path manifest) throws IOException {
+                    String page = "<!DOCTYPE html>\n<html lang=\"en\"><head><meta charset=\"UTF-8\">"
+                            + "<link rel=\"stylesheet\" href=\"https://example.invalid/its.css\">"
+                            + "<script src=\"https://example.invalid/its.js\"></script><style></style><style></style>"
+                            + "</head><body><a href=\"../../../outside-the-tree.html\">out</a>"
+                            + "<img src=\"its-own-picture.png\"></body></html>\n";
+                    Path cluster = Files.createDirectories(folder.resolve(PARTITION_FOLDER).resolve("1-fire-doors"));
+                    Files.writeString(folder.resolve("index.html"), page, StandardCharsets.UTF_8);
+                    Files.writeString(cluster.resolve("index.html"), page, StandardCharsets.UTF_8);
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public Delivery deliver(
+                Path rendering, String generationRun, Path workingDirectory, java.util.function.Consumer<String> out) {
+            return new Delivery(false, name + " delivers nothing here");
+        }
     }
 }

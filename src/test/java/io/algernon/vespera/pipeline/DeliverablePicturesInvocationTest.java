@@ -317,9 +317,12 @@ class DeliverablePicturesInvocationTest {
 
     /** The one cluster page of that tree: the one HTML file that is not the tree's own index (ADR-280 §0). */
     private Path theOnePageOf(Path root) throws IOException {
-        List<Path> pages = everyFileIn(theTreeOf(root)).stream()
+        Path tree = theTreeOf(root);
+        List<Path> pages = everyFileIn(tree).stream()
                 .filter(file -> file.getFileName().toString().endsWith(".html"))
-                .filter(file -> !file.equals(theTreeOf(root).resolve(Deliverable.INDEX_FILE_NAME)))
+                .filter(file -> !file.equals(tree.resolve(Deliverable.INDEX_FILE_NAME)))
+                // The HTML tree's pages alone: the plugins' renderings beside it are their own (ADR-333 §3).
+                .filter(file -> !tree.relativize(file).getName(0).toString().matches("website|confluence"))
                 .toList();
         if (pages.size() != ONE_PAGE) {
             throw new IllegalStateException(

@@ -5,7 +5,9 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -29,11 +31,18 @@ final class Exchanges {
 
     /** The fields of the {@code POST}'s urlencoded body, the first value of a name winning, in the order written. */
     static Map<String, String> form(HttpExchange exchange) throws IOException {
+        Map<String, String> fields = new LinkedHashMap<>();
+        formOfEach(exchange).forEach((name, values) -> fields.put(name, values.getFirst()));
+        return fields;
+    }
+
+    /** Every value of every field of the {@code POST}'s urlencoded body, in the order written: a checkbox group's boxes. */
+    static Map<String, List<String>> formOfEach(HttpExchange exchange) throws IOException {
         byte[] body = exchange.getRequestBody().readNBytes(LARGEST_FORM + 1);
         if (body.length > LARGEST_FORM) {
             throw new IOException("a form larger than " + LARGEST_FORM + " bytes");
         }
-        Map<String, String> fields = new LinkedHashMap<>();
+        Map<String, List<String>> fields = new LinkedHashMap<>();
         String text = new String(body, StandardCharsets.UTF_8);
         if (text.isEmpty()) {
             return fields;
@@ -42,7 +51,7 @@ final class Exchanges {
             int equals = pair.indexOf('=');
             String name = URLDecoder.decode(equals < 0 ? pair : pair.substring(0, equals), StandardCharsets.UTF_8);
             String value = equals < 0 ? "" : URLDecoder.decode(pair.substring(equals + 1), StandardCharsets.UTF_8);
-            fields.putIfAbsent(name, value);
+            fields.computeIfAbsent(name, each -> new ArrayList<>()).add(value);
         }
         return fields;
     }

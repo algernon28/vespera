@@ -224,4 +224,28 @@ public final class FixedWords {
             case ITALIAN -> " pagina ";
         };
     }
+
+    /** The website's search: what its query box is named and shows before anything is typed (ADR-333 §3, §9). */
+    public static String search(DeliverableLanguage language) {
+        return switch (language) {
+            case ENGLISH -> "Search";
+            case ITALIAN -> "Cerca";
+        };
+    }
+
+    /** The website's search: what it says when nothing matches the words typed. */
+    public static String searchFoundNothing(DeliverableLanguage language) {
+        return switch (language) {
+            case ENGLISH -> "Nothing found";
+            case ITALIAN -> "Nessun risultato";
+        };
+    }
+
+    /** The website's link from a page back to its contents, the index. */
+    public static String contents(DeliverableLanguage language) {
+        return switch (language) {
+            case ENGLISH -> "Contents";
+            case ITALIAN -> "Indice";
+        };
+    }
 }

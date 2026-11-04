@@ -41,11 +41,6 @@ final class ControlPanelState {
         }
     }
 
-    /** The rendering's folder at a tree's root, and its page list, as the jar writes them (ADR-312, ADR-316 §1). */
-    private static final String RENDERING = "confluence";
-
-    private static final String PAGE_LIST = "pages.json";
-
     private static final Duration LOOK = Duration.ofMillis(50);
 
     private static final Duration ENDING_BOUND = Duration.ofSeconds(10);
@@ -109,11 +104,25 @@ final class ControlPanelState {
      * {@code deliverable/}. Read from the files alone, as the control panel links no class of the jar (ADR-285).
      */
     boolean aRenderingIsDrawn() {
+        return !destinationsDrawn().isEmpty();
+    }
+
+    /**
+     * The destinations, of {@link ChildCommand#DESTINATIONS} and in its order, whose rendering's list is found where the
+     * launch values say the tree lies (ADR-333 §6): what the invocation page's Publish offers a checkbox for.
+     */
+    List<String> destinationsDrawn() {
+        return ChildCommand.DESTINATIONS.stream().filter(this::isDrawn).toList();
+    }
+
+    private boolean isDrawn(String destination) {
         LaunchValues now = values;
+        String list = java.util.Objects.requireNonNull(
+                ChildCommand.DESTINATION_LISTS.get(destination), "no list named for destination " + destination);
         try {
             if (now.deliverableRoot() != null && !now.deliverableRoot().isBlank() && !namesTheDefaultFolder(now)) {
                 return Files.isRegularFile(
-                        Path.of(now.deliverableRoot().stripTrailing()).resolve(RENDERING).resolve(PAGE_LIST));
+                        Path.of(now.deliverableRoot().stripTrailing()).resolve(destination).resolve(list));
             }
             if (now.workingDirectory() == null || now.workingDirectory().isBlank()) {
                 return false;
@@ -123,7 +132,7 @@ final class ControlPanelState {
                 return false;
             }
             try (Stream<Path> runs = Files.list(trees)) {
-                return runs.anyMatch(tree -> Files.isRegularFile(tree.resolve(RENDERING).resolve(PAGE_LIST)));
+                return runs.anyMatch(tree -> Files.isRegularFile(tree.resolve(destination).resolve(list)));
             }
         } catch (IOException | RuntimeException unreadable) {
             return false;
@@ -332,6 +341,15 @@ final class ControlPanelState {
      * @return the refusal, empty where the child was started
      */
     synchronized Optional<String> start(Start kind, List<String> stored) {
+        return start(kind, stored, List.of());
+    }
+
+    /**
+     * As {@link #start(Start, List)}, a publish delivering to {@code destinations}, the boxes checked on the invocation
+     * page (ADR-333 §6); the other kinds take none. A publish naming none, or one outside {@link
+     * ChildCommand#DESTINATIONS}, is refused in one line and starts nothing.
+     */
+    synchronized Optional<String> start(Start kind, List<String> stored, List<String> destinations) {
         if (controlPanelEnds) {
             return Optional.of(kind.name + " is not started: the control panel is ending");
         }
@@ -371,7 +389,7 @@ final class ControlPanelState {
                 case RUN -> ChildCommand.run(runtime.java(), runtime.jar(), now);
                 case LABEL -> ChildCommand.label(runtime.java(), runtime.jar(), false, now);
                 case LABEL_AUTO -> ChildCommand.label(runtime.java(), runtime.jar(), true, now);
-                case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now);
+                case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now, destinations);
             };
         } catch (RuntimeException notBuilt) {
             return Optional.of(kind.name + " is not started: " + (notBuilt.getMessage() == null
