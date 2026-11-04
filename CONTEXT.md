@@ -193,7 +193,7 @@ _Avoid_: fallback, oracle, champion, second opinion
 ### Operation
 
 **Profile**:
-The per-corpus record of every judgement the engine cannot make for itself. Authored by a person, never guessed at; each value carries how it was arrived at.
+The per-corpus record of every judgement the engine cannot make for itself. Authored by a person, never guessed at; each value carries its provenance, the reason the operator wrote or, for a value set in the control panel and given none, the control panel's filled-in note, `set in the control panel` (ADR-340).
 _Avoid_: config, settings, parameters
 
 **Unreadable**:
@@ -273,7 +273,7 @@ _Avoid_: phase (the Stage entry's rejected word), stage (there are seven, and a 
 _Renders as_: its own name, and **part** in prose written for the operator.
 
 **Control panel**:
-The program on the operator's machine that starts one invocation at a time as its own child, shows how it goes and how it ended, and stops it by ending its process (ADR-278). It runs the command as shipped (ADR-278), judges nothing, and passes only values the operator typed or confirmed. What the next invocation wants it reads from `next-invocation.properties`, which the jar writes with the closing line, and never from the line's words (ADR-294). What applies where the profile names nothing it reads from the effective values, since it reads no configuration of the jar's; each value of the profile it edits in a form filled from what the file states, a save of `profile.yaml` making a working directory that is not there and a file not in the jar's form shown, and repaired only where a repair loses nothing (ADR-330).
+The JavaFX window inside the Vespera jar, opened by starting the jar with no argument, that starts one invocation at a time as its own child, from the jar it runs from, shows how it goes and how it ended, and stops it by ending its process (ADR-278, ADR-339). A start of the jar with any argument is the command line, and `--headless` as the first argument never opens the window (ADR-339). It listens on no port and serves nothing. It runs the command as shipped (ADR-278), judges nothing, and passes a value only where the operator set it or the child would otherwise read another; each field starts from the launch values, the environment, `.env`, the GPU image or the jar's own `application.yaml`, and says which (ADR-341). What the next invocation wants it reads from `next-invocation.properties`, which the jar writes with the closing line, and never from the line's words (ADR-294); the steps and the progress page's charts from `progress.json`, which the jar writes beside `progress.html` (ADR-341). What applies where the profile names nothing it reads from the effective values; each value of the profile it edits in a form filled from what the file states, each with the note saved as its provenance filled in (ADR-340), a save of `profile.yaml` making a working directory that is not there and a file not in the jar's form shown, and repaired only where a repair loses nothing (ADR-330).
 _Avoid_: console (the jar's standard output, ADR-093), launcher (ADR-158; the Docling image's `launcher.py`, ADR-179), GUI, dashboard, front-end, app, UI, wrapper. Also "panel" alone, in a name of ours.
 
 **Launch value**:
