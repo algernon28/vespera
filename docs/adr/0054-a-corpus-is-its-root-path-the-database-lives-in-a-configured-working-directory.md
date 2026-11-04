@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-334](0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md).** A walk of the corpus root also reads the code set folders the profile's `codeSetFolders` names, recorded with the walk in `walk_folder`; the corpus root stays the path a walk is found by. The rest of this record stands.
 
+> **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of *"A corpus is identified by its root path alone"*: the profile's `foldersNotWalked` names folders below the corpus root that a walk counts and does not enter, so a walk given another list is another walk. The rest of this record stands.
+
 - **Date**: 2026-08-29
 - **Status**: accepted
 

@@ -35,15 +35,26 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
 class ProfileKeyTest {
 
-    /** One row of the table: the key as profile.yaml spells it, its type and the earliest run it enters, if any. */
-    private record Row(String key, Kind kind, Optional<Run> earliestRun) {
+    /**
+     * One row of the table: the key as profile.yaml spells it, the name of its type and the earliest run it enters, if
+     * any. The type is held by its name, so that a kind a record adds before the table has it fails this test alone.
+     */
+    private record Row(String key, String kind, Optional<Run> earliestRun) {
 
         Row(String key, Kind kind, Run earliestRun) {
+            this(key, kind.name(), Optional.of(earliestRun));
+        }
+
+        Row(String key, Kind kind, Optional<Run> earliestRun) {
+            this(key, kind.name(), earliestRun);
+        }
+
+        Row(String key, String kind, Run earliestRun) {
             this(key, kind, Optional.of(earliestRun));
         }
     }
 
-    /** The twenty keys in the profile's order, with the type and run the records' tables give each. */
+    /** The twenty-one keys in the profile's order, with the type and run the records' tables give each. */
     private static final List<Row> TABLE = List.of(
             new Row("seedFolder", Kind.TEXT, Run.SEED_MEASUREMENT),
             new Row("degenerateOutputConfidenceFloor", Kind.NUMBER, Run.EXTRACTION),
@@ -67,7 +78,10 @@ class ProfileKeyTest {
             // ADR-330 §9: last of the profile, entering the scoring run, where a cluster's identity lies.
             new Row("clusterResolution", Kind.NUMBER, Run.EMBEDDING_SCORING),
             // ADR-334 §5.1: a list of folders outside the corpus root, entering byte-level reduction, the walk being another.
-            new Row("codeSetFolders", Kind.FOLDERS, Run.BYTE_LEVEL_REDUCTION));
+            new Row("codeSetFolders", Kind.FOLDERS, Run.BYTE_LEVEL_REDUCTION),
+            // ADR-340 §8.1: folders below the corpus root the walk never enters, entering byte-level reduction, the walk
+            // that leaves them out being another.
+            new Row("foldersNotWalked", "CORPUS_FOLDERS", Run.BYTE_LEVEL_REDUCTION));
 
     /** The runs from each run on, in the cascade's order, as ADR-295 §5's table spells them. */
     private static final List<Run> FROM_BYTE_LEVEL_REDUCTION = List.of(Run.BYTE_LEVEL_REDUCTION, Run.EXTRACTION,
@@ -97,16 +111,17 @@ class ProfileKeyTest {
     }
 
     /**
-     * Each key's cost, written out by hand from the records' tables: fifteen keys draw the sample again, the seed
+     * Each key's cost, written out by hand from the records' tables: sixteen keys draw the sample again, the seed
      * folder alone refuses the labels, the four generation keys close no approval and the page ceiling costs nothing.
      */
     private static final Map<String, Cost> COST_OF_EACH_KEY = costOfEachKey();
 
     @Test
     @Story("The control panel says what a change costs before it is saved")
-    @DisplayName("Each of the twenty profile keys, in the profile's order, has its type and the earliest run it enters, the page ceiling entering none")
+    @DisplayName("Each of the twenty-one profile keys, in the profile's order, has its type and the earliest run it enters, the page ceiling entering none")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void eachKeyHasItsTypeAndEarliestRun() {
-        claim("the table holds the twenty keys in the profile's order, each with its type and earliest run, and the"
+        claim("the table holds the twenty-one keys in the profile's order, each with its type and earliest run, and the"
                         + " page ceiling with none",
                 () -> assertThat(Arrays.stream(ProfileKey.values())
                                 .map(key -> new Row(key.key(), key.kind(), key.earliestRun()))
@@ -116,7 +131,7 @@ class ProfileKeyTest {
 
     @Test
     @Story("The control panel says what a change costs before it is saved")
-    @DisplayName("A change costs its key's earliest run and every later one; the approval closes where the arrangement is among them, the labels are refused after a seed folder change, and the sample being answered is drawn again for the fifteen values whose runs include embedding scoring")
+    @DisplayName("A change costs its key's earliest run and every later one; the approval closes where the arrangement is among them, the labels are refused after a seed folder change, and the sample being answered is drawn again for the sixteen values whose runs include embedding scoring")
     @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     void aChangeCostsItsRunAndEveryLaterOne() {
         Map<String, Cost> costs = new LinkedHashMap<>();
@@ -131,7 +146,7 @@ class ProfileKeyTest {
                         Run.ARRANGEMENT, Run.GENERATION));
         claim("a change of each key costs its earliest run and every later one; it closes the approval only where the"
                         + " arrangement is among them, refuses the labels only for the seed folder, and draws the"
-                        + " sample again for the fifteen whose runs include embedding scoring; the page ceiling costs"
+                        + " sample again for the sixteen whose runs include embedding scoring; the page ceiling costs"
                         + " no run, closes no approval, refuses no labels and draws no sample",
                 () -> assertThat(costs).containsExactlyEntriesOf(COST_OF_EACH_KEY));
     }
@@ -176,6 +191,7 @@ class ProfileKeyTest {
         costs.put("deliverableLanguage", new Cost(FROM_GENERATION, false, false, false));
         costs.put("clusterResolution", scoringAgainFrom(FROM_EMBEDDING_SCORING));
         costs.put("codeSetFolders", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
+        costs.put("foldersNotWalked", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
         return costs;
     }
 }

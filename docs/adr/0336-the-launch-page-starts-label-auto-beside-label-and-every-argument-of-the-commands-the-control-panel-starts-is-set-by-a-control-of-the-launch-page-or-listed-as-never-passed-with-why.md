@@ -1,5 +1,7 @@
 # ADR-336 — The launch page starts `vespera label --auto` beside Label, and every argument of the commands the control panel starts is set by a control of the launch page or listed as never passed, with why
 
+> **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of §1: the button `label-auto`, Have the local model answer, gives way to the top bar's box `label-auto`, Autolabel, Label with it ticked starting `label --auto` by the same checks; it is kept nowhere, and the next step's form `label-auto` goes. The rest of this record stands.
+
 - **Date**: 2026-11-03
 - **Status**: accepted on 2026-11-03.
 - **Decided**: by the operator, that the control panel sets the options of the jar's commands too, `--auto` named among them; that `--auto` is started by a button of its own and not by a choice beside Label (§1); that the button is drawn where the working directory holds no label file (§1); that Publish is not added to the launch page (§3); and that the table names an option without its leading `--`, so that ADR-278 §1's scan of the control panel's texts stands as it is (§2). The rest, the button's name, its words and where it stands, the table that accounts for every option and positional argument, where it lives and the two tests that hold it, and which arguments stay unpassed, was decided by Claude for the operator, who asked for the feature without naming them.

@@ -1,5 +1,7 @@
 # ADR-056 — "Excludes nothing" is checked by reconciliation at finish
 
+> **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** The identity is `entriesSeen == occurrences + anomalies + directoriesEntered + foldersNotWalked - 1`: a folder the profile's `foldersNotWalked` names is counted, in `walk.folders_not_walked`, and not entered. The rest of this record stands.
+
 - **Date**: 2026-08-29
 - **Status**: accepted
 

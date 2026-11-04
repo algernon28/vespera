@@ -8,6 +8,8 @@
 
 > **Partly amended — see [ADR-336](0336-the-launch-page-starts-label-auto-beside-label-and-every-argument-of-the-commands-the-control-panel-starts-is-set-by-a-control-of-the-launch-page-or-listed-as-never-passed-with-why.md).** Of §3: the launch page's `#top-row` holds four buttons of the form `launch`, `run`, `label`, `label-auto` and `check`. Of §6: a refusal of `label --auto` lands on `/next` where it was pressed there, and on `/` where it was pressed on the launch page. The rest of this record stands.
 
+> **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of §3: `#sidebar`, its `nav` and `#top-row` give way to a sticky `#top-bar` on every page, and the cards to the home page's three columns and the drawer `#values`. Of §5: the closed list's pages returned to are the home page's sections, and `seedFolder` and `new-folder` leave it. Of §6: an empty working directory is the jar's default, not `not-chosen`. Of §8: each field is named in plain words with its key beside it, and an empty one shows `in use: ` wherever a value in use is known. The rest of this record stands.
+
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone, and starts the window by `ProcessBuilder`, `java.desktop` not added (§1). Its §4: one class owns the pages' skeleton, styling and escaping (§3).

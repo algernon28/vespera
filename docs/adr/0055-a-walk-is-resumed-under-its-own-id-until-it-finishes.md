@@ -1,5 +1,7 @@
 # ADR-055 — A walk is resumed under its own id until it finishes
 
+> **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** An unfinished walk is continued with the folders not walked it recorded as it started, in `walk_folder_not_walked`, whatever the profile now names; a list changed since applies from the next walk. The rest of this record stands.
+
 - **Date**: 2026-08-29
 - **Status**: accepted
 

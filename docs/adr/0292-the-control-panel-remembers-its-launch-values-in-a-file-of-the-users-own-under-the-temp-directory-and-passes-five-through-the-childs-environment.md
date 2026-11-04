@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-295](0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md).** Of What this does not decide: writing the confirmed seed folder into `profile.yaml` is decided there.
 
+> **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of §5: `Run needs the working directory`, `Run needs the corpus root and the working directory` and `Label needs the working directory` are no longer said; an empty working directory is `.vespera` under the control panel's current directory, which Run, Label and Publish pass as `--db-dir`. Autolabel, the top bar's box, is no launch value and is kept nowhere. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-047](0047-the-pipeline-never-blocks.md), two commands and no new option: the values beyond the corpus root and the working directory reach the child through its environment, not its command line (§4).

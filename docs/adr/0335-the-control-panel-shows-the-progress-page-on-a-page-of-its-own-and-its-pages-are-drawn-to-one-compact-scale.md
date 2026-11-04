@@ -1,5 +1,7 @@
 # ADR-335 — The control panel shows the progress page on a page of its own, in a frame, and its pages are drawn to one compact scale of space, type, corners and controls
 
+> **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of §1: `/progress` is no page; the home page holds `#progress-view`, its frame and its states, and never asks to be loaded again, and `/progress` answers `303` to `/#progress-view`. Of §4: `#progress` links `/#progress-view`. The rest of this record stands.
+
 - **Date**: 2026-11-03
 - **Status**: accepted on 2026-11-03.
 - **Decided**: by the operator, that the progress page is shown inside the control panel's window, and that the window's pages are more compact and modern; and, on 2026-11-03, that the four tabs of the progress page may be framed by the control panel's own pages, reversing ADR-302's refusal of a report in an `iframe` for them (§1, §3). The rest, where the page stands, what stands in its place before a progress page exists, its states, the scale and its values, and the words, was decided by Claude for the operator, who asked for the feature without naming them.
