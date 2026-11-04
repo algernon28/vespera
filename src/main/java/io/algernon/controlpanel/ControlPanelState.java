@@ -199,22 +199,16 @@ final class ControlPanelState {
         return writer.write(workingDirectory, changes);
     }
 
-    /** The working directory held, empty where none is named. */
-    Optional<Path> workingDirectory() {
-        String named = values.workingDirectory();
-        return named.isEmpty() ? Optional.empty() : pathOf(named);
-    }
-
     /**
      * What the jar last said it would use where the profile names nothing, read at each request that shows it
      * (ADR-330 §1); empty where no working directory is held or the file is absent or cannot be read.
      */
-    Optional<EffectiveValues> effectiveValues() {
-        return EffectiveValues.read(workingDirectory(), runtime.jar());
+    Optional<EffectiveValues> effectiveValues(Optional<Path> workingDirectory) {
+        return EffectiveValues.read(workingDirectory, runtime.jar());
     }
 
     /** {@code text} as a path, empty where the system refuses it: a value it refuses names no folder (ADR-331 §6). */
-    private static Optional<Path> pathOf(String text) {
+    static Optional<Path> pathOf(String text) {
         try {
             return Optional.of(Path.of(text));
         } catch (InvalidPathException refused) {
@@ -229,13 +223,17 @@ final class ControlPanelState {
         }
     }
 
-    Holders holders() {
-        Optional<String> working = workingDirectory()
+    /** Who holds the working directory and the corpus root named here, which the caller reads from what it is about to use. */
+    Holders holders(Optional<Path> workingDirectory, Optional<Path> corpusRoot) {
+        Optional<String> working = workingDirectory
                 .flatMap(folder -> heldByAnother(folder.resolve(WorkingDirectoryWrite.LOCK_FILE_NAME)));
-        Optional<String> root = values.corpusRoot().isEmpty() ? Optional.empty()
-                : pathOf(values.corpusRoot())
-                        .flatMap(corpus -> held(CorpusRootLockFile.in(corpusRootLockFolder, corpus)));
+        Optional<String> root = corpusRoot
+                .flatMap(corpus -> held(CorpusRootLockFile.in(corpusRootLockFolder, corpus)));
         return new Holders(working, root);
+    }
+
+    private static Optional<Path> folderOf(String named) {
+        return named == null || named.isBlank() ? Optional.empty() : pathOf(named.stripTrailing());
     }
 
     /**
@@ -373,7 +371,7 @@ final class ControlPanelState {
         if (childRuns()) {
             return Optional.of(kind.name + " is not started while the invocation the control panel started runs");
         }
-        Holders holders = holders();
+        Holders holders = holders(folderOf(now.workingDirectory()), folderOf(now.corpusRoot()));
         if (holders.workingDirectory().isPresent()) {
             return Optional.of(kind.name + " is not started: the working directory " + now.workingDirectory()
                     + " is held by another Vespera invocation (" + holders.workingDirectory().get() + ")");

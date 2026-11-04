@@ -16,7 +16,6 @@ import java.util.regex.Pattern;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
-import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -94,6 +93,7 @@ final class Cockpit {
     private final List<ProfileRow> profileRows = new ArrayList<>();
     private final List<ProfileRow> wantedRows = new ArrayList<>();
     private ProfileRow seedRow;
+    private boolean seedStated;
     private final InclusionsTree inclusions = new InclusionsTree();
     private final Label inclusionsOutcome = new Label();
     private final VBox codeSets = new VBox();
@@ -242,9 +242,8 @@ final class Cockpit {
         publish.setOnAction(event -> begin(ControlPanelState.Start.PUBLISH, "Publish"));
         label.setOnAction(event -> begin(ControlPanelState.Start.LABEL, "Record my answers"));
         labelAuto.setOnAction(event -> begin(ControlPanelState.Start.LABEL_AUTO, "Let the local model answer"));
-        stop.setOnAction(event -> stopTheChild());
+        stop.setOnAction(event -> stopAfterConfirming());
         actions.getChildren().addAll(run, stop);
-        actions.setSpacing(8);
         actions.getStyleClass().add("actions");
         wanted.setId("wanted");
         wanted.getStyleClass().add("wanted");
@@ -257,7 +256,7 @@ final class Cockpit {
         fields.get("vespera.label.model").input.textProperty().addListener(
                 (observed, was, now) -> autoWords.setText(autoSentence(now)));
         autoWords.setText(autoSentence(fields.get("vespera.label.model").text()));
-        VBox actionCard = new VBox(8, actions, wanted, new HBox(8, label, recordWords), new HBox(8, labelAuto, autoWords));
+        VBox actionCard = new VBox(actions, wanted, row(label, recordWords), row(labelAuto, autoWords));
         actionCard.getStyleClass().add("card");
 
         steps.setId("steps");
@@ -271,9 +270,9 @@ final class Cockpit {
         split.setOrientation(Orientation.HORIZONTAL);
         split.setDividerPositions(0.5);
         ((ScrollPane) split.getItems().getFirst()).setFitToWidth(true);
-        split.setPrefHeight(300);
+        split.getStyleClass().add("steps-and-output");
 
-        HBox chartRow = new HBox(8, chart("database-chart", "Database size over time", "Database size"),
+        HBox chartRow = new HBox(chart("database-chart", "Database size over time", "Database size"),
                 chart("counts-chart", "Counts of the running step", "Count"),
                 chart("verdicts-chart", "Verdicts by kind", "Verdicts"));
         chartRow.getStyleClass().add("charts");
@@ -285,9 +284,9 @@ final class Cockpit {
         profileTab.setContent(profileTabContent());
         inclusionsTab.setContent(inclusionsTabContent());
         tabs.getTabs().addAll(profileTab, inclusionsTab);
-        tabs.setPrefHeight(420);
+        tabs.getStyleClass().add("form-tabs");
 
-        VBox main = new VBox(8, header, outcome, actionCard, split, chartRow, tabs);
+        VBox main = new VBox(header, outcome, actionCard, split, chartRow, tabs);
         main.getStyleClass().add("main");
         VBox.setVgrow(tabs, Priority.ALWAYS);
         ScrollPane scroll = new ScrollPane(main);
@@ -314,8 +313,8 @@ final class Cockpit {
         stopHere.setId("stop-step");
         stopHere.setVisible(false);
         stopHere.setManaged(false);
-        stopHere.setOnAction(event -> stopTheChild());
-        HBox row = new HBox(8, stage, name, bar, stateWords, stopHere, costWords);
+        stopHere.setOnAction(event -> stopAfterConfirming());
+        HBox row = new HBox(stage, name, bar, stateWords, stopHere, costWords);
         row.setId("step-" + cost.step());
         row.getStyleClass().add("step");
         StepRow made = new StepRow(row, bar, stateWords, costWords, stopHere);
@@ -349,7 +348,7 @@ final class Cockpit {
         chart.setTitle(title);
         chart.setAnimated(false);
         chart.setCreateSymbols(false);
-        chart.setPrefHeight(240);
+        chart.getStyleClass().add("progress-chart");
         HBox.setHgrow(chart, Priority.ALWAYS);
         charts.put(id, chart);
         return chart;
@@ -423,6 +422,25 @@ final class Cockpit {
         refresh();
     }
 
+    /** Stop is confirmed with the one sentence a stop is confirmed by (ADR-278 §6); the child is stopped only on the answer that goes on. */
+    private void stopAfterConfirming() {
+        if (dialogs.confirm(Child.STOP_CONFIRMATION, "Stop", "Keep it running")) {
+            stopTheChild();
+        }
+    }
+
+    private static HBox row(Node... children) {
+        HBox box = new HBox(children);
+        box.getStyleClass().add("spaced-row");
+        return box;
+    }
+
+    private static VBox tight(Node... children) {
+        VBox box = new VBox(children);
+        box.getStyleClass().add("tight-column");
+        return box;
+    }
+
     private void stopTheChild() {
         Thread.ofPlatform().daemon().name("the control panel stops its child").start(() -> {
             try {
@@ -455,7 +473,6 @@ final class Cockpit {
         sidebar.setExpandedPane(sections.get("folders"));
         ScrollPane scroll = new ScrollPane(sidebar);
         scroll.setFitToWidth(true);
-        scroll.setPrefWidth(420);
         scroll.getStyleClass().add("sidebar");
         return scroll;
     }
@@ -474,7 +491,7 @@ final class Cockpit {
         Label hint = new Label(LaunchValues.hintOf(field.property));
         hint.setWrapText(true);
         hint.getStyleClass().add("small");
-        HBox line = new HBox(8, field.input);
+        HBox line = row(field.input);
         HBox.setHgrow(field.input, Priority.ALWAYS);
         if (browse) {
             Button button = new Button("Browse");
@@ -483,7 +500,7 @@ final class Cockpit {
                     field.input.getText()).ifPresent(chosen -> field.input.setText(chosen.toString())));
             line.getChildren().add(button);
         }
-        VBox box = new VBox(2, heading, line, field.status, field.startingLine, hint);
+        VBox box = tight(heading, line, field.status, field.startingLine, hint);
         box.getStyleClass().add("field");
         return box;
     }
@@ -497,7 +514,7 @@ final class Cockpit {
             where();
             loadFiles();
         });
-        VBox pane = new VBox(8, fieldBox(corpus, "Corpus root", true), fieldBox(working, "Working directory", true),
+        VBox pane = new VBox(fieldBox(corpus, "Corpus root", true), fieldBox(working, "Working directory", true),
                 fieldBox(deliverable, "Output folder", true));
         pane.getStyleClass().add("section");
         return pane;
@@ -545,12 +562,12 @@ final class Cockpit {
         gpu.setOnAction(event -> image.input.setText(StartingValues.DOCLING_IMAGE_GPU));
         cpu.setOnAction(event -> image.input.setText(StartingValues.DOCLING_IMAGE_CPU));
         follow.run();
-        VBox images = new VBox(2, gpu, gpuName, cpu, cpuName, other);
+        VBox images = tight(gpu, gpuName, cpu, cpuName, other);
         images.setId("docling-images");
         Label hint = new Label(LaunchValues.hintOf(image.property));
         hint.setWrapText(true);
         hint.getStyleClass().add("small");
-        VBox pane = new VBox(8, new Label("Converter's image"), images, image.input, image.startingLine, hint,
+        VBox pane = new VBox(new Label("Converter's image"), images, image.input, image.startingLine, hint,
                 fieldBox(converter, "Converter's address", false), fieldBox(ollama, "Ollama's address", false),
                 fieldBox(model, "Label model", false));
         pane.getStyleClass().add("section");
@@ -559,18 +576,18 @@ final class Cockpit {
 
     private Node seedPane() {
         seedRow = new ProfileRow(ProfileKey.SEED_FOLDER, "seed-", List.of(), Optional.empty(), dialogs, null,
-                this::openReport, Map.of());
+                this::openReport, writtenReports());
         Button save = new Button("Save");
         save.setId("seed-folder-save");
         seedOutcome.setId("seed-folder-outcome");
         seedOutcome.setWrapText(true);
         save.setOnAction(event -> {
-            ProfileRow.Saved saved = ProfileRow.save(state, List.of(seedRow));
+            ProfileRow.Saved saved = ProfileRow.save(state, workingDirectory(), List.of(seedRow));
             seedOutcome.setText(saved.line());
             loadFiles();
             showBadges();
         });
-        VBox pane = new VBox(8, seedRow.node(), save, seedOutcome);
+        VBox pane = new VBox(seedRow.node(), save, seedOutcome);
         pane.getStyleClass().add("section");
         return pane;
     }
@@ -605,14 +622,35 @@ final class Cockpit {
         codeSetOutcome.setId("code-set-outcome");
         codeSetOutcome.setWrapText(true);
         HBox.setHgrow(folder, Priority.ALWAYS);
-        VBox pane = new VBox(8, codeSets, new HBox(8, folder, browse, add), name,
-                new HBox(8, new Label("Note saved with the folders outside"), codeSetNote), save, codeSetOutcome);
+        VBox pane = new VBox(codeSets, row(folder, browse, add), name,
+                row(new Label("Note saved with the folders outside"), codeSetNote), save, codeSetOutcome);
         pane.getStyleClass().add("section");
         return pane;
     }
 
+    /** The corpus root as the field names it now, which the window uses wherever it reads or holds one (ADR-341 §3). */
     private Optional<Path> corpusRoot() {
-        return InclusionsTree.pathOf(fields.get("vespera.corpus-root").text());
+        return folderOf(fields.get("vespera.corpus-root"));
+    }
+
+    /** The working directory as the field names it now: it is what a Run is passed, whether or not it is ever remembered. */
+    private Optional<Path> workingDirectory() {
+        return folderOf(fields.get("vespera.working-dir"));
+    }
+
+    private static Optional<Path> folderOf(LaunchField field) {
+        String named = field == null ? "" : field.text();
+        return named.isEmpty() ? Optional.empty() : ControlPanelState.pathOf(named);
+    }
+
+    /** Which of the reports the working directory holds now. */
+    private Map<String, Boolean> writtenReports() {
+        Map<String, Boolean> written = new HashMap<>();
+        Optional<Path> folder = workingDirectory();
+        for (String report : Reports.ALL) {
+            written.put(report, folder.isPresent() && Files.isRegularFile(folder.get().resolve(report)));
+        }
+        return written;
     }
 
     private Optional<String> addCodeSet(String typed, String name) {
@@ -629,10 +667,6 @@ final class Cockpit {
             Path realRoot = realOf(root.get());
             if (real.startsWith(realRoot) && !real.equals(realRoot)) {
                 String relative = realRoot.relativize(real).toString().replace('\\', '/');
-                if (name.isEmpty()) {
-                    return Optional.of("the folder " + typed + " lies under the corpus root: give it a name for the"
-                            + " deliverable");
-                }
                 codeSetEntries.add(new CodeSet(relative, name, false));
                 drawCodeSets();
                 return Optional.empty();
@@ -669,23 +703,25 @@ final class Cockpit {
         codeSets.getChildren().clear();
         for (CodeSet each : new ArrayList<>(codeSetEntries)) {
             Label words = new Label(each.outside() ? each.folder() + "  (outside the corpus root)"
+                    : each.name().isEmpty() ? each.folder() + "  (under the corpus root, no name)"
                     : each.folder() + "  named " + each.name());
             Button remove = new Button("Remove");
             remove.setOnAction(event -> {
                 codeSetEntries.remove(each);
                 drawCodeSets();
             });
-            codeSets.getChildren().add(new HBox(8, words, remove));
+            codeSets.getChildren().add(row(words, remove));
         }
     }
 
     private void saveCodeSets() {
-        Optional<Path> folder = state.workingDirectory();
+        Optional<Path> folder = workingDirectory();
         if (folder.isEmpty()) {
             codeSetOutcome.setText("name the working directory first");
             return;
         }
-        List<CodeSetRenames.Rename> renames = codeSetEntries.stream().filter(each -> !each.outside())
+        List<CodeSetRenames.Rename> renames = codeSetEntries.stream()
+                .filter(each -> !each.outside() && !each.name().isEmpty())
                 .map(each -> new CodeSetRenames.Rename(each.folder(), each.name())).toList();
         String outside = String.join(java.io.File.pathSeparator,
                 codeSetEntries.stream().filter(CodeSet::outside).map(CodeSet::folder).toList());
@@ -724,14 +760,14 @@ final class Cockpit {
         browse.setOnAction(event -> dialogs.file("Choose the label file", "")
                 .ifPresent(chosen -> labelFile.setText(chosen.toString())));
         HBox.setHgrow(labelFile, Priority.ALWAYS);
-        VBox pane = new VBox(8, new Label("Label file"), new HBox(8, labelFile, browse));
+        VBox pane = new VBox(new Label("Label file"), row(labelFile, browse));
         for (ChildCommand.Option option : ChildCommand.OPTIONS) {
             Preset preset = new Preset(option.property());
             Label words = new Label(option.property() + "  (" + String.join(", ", option.commands()) + ")");
             words.getStyleClass().add("small");
             Label from = new Label(startingWords(preset.starting));
             from.getStyleClass().add("small");
-            pane.getChildren().add(new VBox(2, words, preset.control, from));
+            pane.getChildren().add(tight(words, preset.control, from));
         }
         Button defaults = new Button("Back to the defaults");
         defaults.setId("options-defaults");
@@ -767,9 +803,9 @@ final class Cockpit {
 
     private void drawReports() {
         reportsList.getChildren().clear();
-        Optional<Path> folder = state.workingDirectory();
+        Map<String, Boolean> written = writtenReports();
         for (String report : Reports.ALL) {
-            if (folder.isPresent() && Files.isRegularFile(folder.get().resolve(report))) {
+            if (written.get(report)) {
                 Hyperlink link = new Hyperlink(report);
                 link.setOnAction(event -> openReport(report));
                 reportsList.getChildren().add(link);
@@ -782,7 +818,7 @@ final class Cockpit {
     }
 
     private void openReport(String report) {
-        state.workingDirectory().ifPresent(folder -> dialogs.open(folder.resolve(report)));
+        workingDirectory().ifPresent(folder -> dialogs.open(folder.resolve(report)));
     }
 
     private Node preflightPane() {
@@ -791,7 +827,7 @@ final class Cockpit {
         Button check = new Button("Check");
         check.setId("check");
         check.setOnAction(event -> askTheSidecars());
-        VBox pane = new VBox(8, preflight, check);
+        VBox pane = new VBox(preflight, check);
         pane.getStyleClass().add("section");
         return pane;
     }
@@ -824,7 +860,7 @@ final class Cockpit {
 
     private void drawPreflight() {
         preflight.getChildren().clear();
-        ControlPanelState.Holders holders = state.holders();
+        ControlPanelState.Holders holders = state.holders(workingDirectory(), corpusRoot());
         SidecarChecks.Checks checks = state.lastChecks();
         String working = fields.get("vespera.working-dir").text();
         List<String> lines = new ArrayList<>(List.of(
@@ -850,7 +886,7 @@ final class Cockpit {
         Button reset = new Button("Reset");
         reset.setId("profile-reset");
         save.setOnAction(event -> {
-            ProfileRow.Saved saved = ProfileRow.save(state, profileRows);
+            ProfileRow.Saved saved = ProfileRow.save(state, workingDirectory(), profileRows);
             profileOutcome.setText(saved.line());
             if (saved.written()) {
                 loadFiles();
@@ -865,8 +901,8 @@ final class Cockpit {
         ScrollPane scroll = new ScrollPane(profileBody);
         scroll.setFitToWidth(true);
         VBox.setVgrow(scroll, Priority.ALWAYS);
-        VBox content = new VBox(8, profileOutcome, scroll, new HBox(8, save, reset));
-        content.setPadding(new Insets(8));
+        VBox content = new VBox(profileOutcome, scroll, row(save, reset));
+        content.getStyleClass().add("tab-content");
         return content;
     }
 
@@ -884,14 +920,14 @@ final class Cockpit {
         inclusionsOutcome.setId("inclusions-outcome");
         inclusionsOutcome.setWrapText(true);
         VBox.setVgrow(inclusions.view(), Priority.ALWAYS);
-        VBox content = new VBox(8, new Label("Untick a folder holding nothing you want."), inclusions.view(),
-                inclusionsOutcome, new HBox(8, save, reset));
-        content.setPadding(new Insets(8));
+        VBox content = new VBox(new Label("Untick a folder holding nothing you want."), inclusions.view(),
+                inclusionsOutcome, row(save, reset));
+        content.getStyleClass().add("tab-content");
         return content;
     }
 
     private Optional<String> readFile(String name) throws IOException {
-        Optional<Path> folder = state.workingDirectory();
+        Optional<Path> folder = workingDirectory();
         if (folder.isEmpty() || !Files.isRegularFile(folder.get().resolve(name))) {
             return Optional.empty();
         }
@@ -909,7 +945,7 @@ final class Cockpit {
     }
 
     private void saveInclusions() {
-        Optional<Path> folder = state.workingDirectory();
+        Optional<Path> folder = workingDirectory();
         if (folder.isEmpty()) {
             inclusionsOutcome.setText("name the working directory first");
             return;
@@ -940,16 +976,12 @@ final class Cockpit {
         } catch (IOException | IllegalArgumentException unreadable) {
             problem = String.valueOf(unreadable.getMessage());
         }
-        Optional<EffectiveValues> effective = state.effectiveValues();
-        Map<String, Boolean> written = new HashMap<>();
-        Optional<Path> folder = state.workingDirectory();
-        for (String report : Reports.ALL) {
-            written.put(report, folder.isPresent() && Files.isRegularFile(folder.get().resolve(report)));
-        }
+        Optional<EffectiveValues> effective = state.effectiveValues(workingDirectory());
+        Map<String, Boolean> written = writtenReports();
         List<String> models = state.lastChecks().ollama().models();
         profileRows.clear();
         profileBody.getChildren().clear();
-        if (state.workingDirectory().isEmpty()) {
+        if (workingDirectory().isEmpty()) {
             profileBody.getChildren().add(new Label("Name the working directory: profile.yaml lies in it."));
         }
         if (notInForm.isPresent()) {
@@ -969,11 +1001,12 @@ final class Cockpit {
             profileBody.getChildren().add(row.node());
         }
         seedRow.load(Optional.ofNullable(stated.get(ProfileKey.SEED_FOLDER)));
-        if (seedRow.value().isBlank()) {
-            seedRow.load(Optional.<ProfileEdit.Stated>empty());
-            if (!state.values().lastSeedFolder().isEmpty()) {
-                seedRow.load(Optional.of(new ProfileEdit.Stated(state.values().lastSeedFolder(), null)));
-            }
+        seedRow.showReports(written);
+        wantedRows.forEach(each -> each.showReports(written));
+        seedStated = !seedRow.value().isBlank();
+        if (seedRow.value().isBlank() && !state.values().lastSeedFolder().isEmpty()) {
+            // offered for the operator to confirm, not stated by the file: a save writes it (ADR-292 §6)
+            seedRow.offer(state.values().lastSeedFolder());
         }
         codeSetEntries.clear();
         try {
@@ -996,7 +1029,8 @@ final class Cockpit {
     }
 
     private Node formProblem(String text, ProfileRepair.Analysis analysis) {
-        VBox box = new VBox(4);
+        VBox box = new VBox();
+        box.getStyleClass().add("repair");
         box.setId("profile-problem");
         box.getChildren().add(new Label(ProfileEdit.FILE_NAME + " is not in the form the jar writes it: the first line"
                 + " that is not is line " + analysis.firstLine() + "."
@@ -1015,7 +1049,7 @@ final class Cockpit {
     }
 
     private void repair(String drawn) {
-        Optional<Path> folder = state.workingDirectory();
+        Optional<Path> folder = workingDirectory();
         if (folder.isEmpty()) {
             return;
         }
@@ -1054,7 +1088,8 @@ final class Cockpit {
         } catch (IOException | IllegalArgumentException unreadable) {
             // the Profile tab says so
         }
-        Optional<EffectiveValues> effective = state.effectiveValues();
+        Optional<EffectiveValues> effective = state.effectiveValues(workingDirectory());
+        Map<String, Boolean> written = writtenReports();
         wanted.getChildren().add(new Label("The next invocation wants these values:"));
         for (String want : next.get().wants()) {
             Optional<ProfileKey> key = ProfileKey.named(want);
@@ -1064,7 +1099,7 @@ final class Cockpit {
             Optional<EffectiveValues.Value> beneath = key.get().hasAValueBeneath()
                     ? effective.flatMap(said -> said.named(key.get().key())) : Optional.empty();
             ProfileRow row = new ProfileRow(key.get(), "wanted-", state.lastChecks().ollama().models(), beneath,
-                    dialogs, null, this::openReport, Map.of());
+                    dialogs, null, this::openReport, written);
             row.load(Optional.ofNullable(stated.get(key.get())));
             wantedRows.add(row);
             wanted.getChildren().add(row.node());
@@ -1072,7 +1107,7 @@ final class Cockpit {
         Button save = new Button("Save");
         save.setId("wanted-save");
         save.setOnAction(event -> {
-            ProfileRow.Saved saved = ProfileRow.save(state, wantedRows);
+            ProfileRow.Saved saved = ProfileRow.save(state, workingDirectory(), wantedRows);
             say(saved.line());
             if (saved.written()) {
                 loadFiles();
@@ -1090,7 +1125,7 @@ final class Cockpit {
         badge("services", fields.get("vespera.docling.base-url").text().isEmpty()
                 || fields.get("spring.ai.ollama.base-url").text().isEmpty()
                 || fields.get("vespera.label.model").text().isEmpty());
-        badge("seed-folder", seedRow != null && seedRow.value().isBlank());
+        badge("seed-folder", seedRow != null && !seedStated);
         profileTab.setText(wantedRows.isEmpty() ? "Profile" : "Profile (" + NEEDS_A_VALUE + ")");
     }
 
@@ -1112,7 +1147,7 @@ final class Cockpit {
         }
         boolean runs = state.childRuns();
         Optional<Ending> ending = state.ending();
-        ControlPanelState.Holders holders = state.holders();
+        ControlPanelState.Holders holders = state.holders(workingDirectory(), corpusRoot());
         boolean busy = runs || holders.any();
         run.setDisable(busy);
         label.setDisable(busy);
@@ -1137,6 +1172,11 @@ final class Cockpit {
         readProgress(runs, ending);
         if (ending.isPresent() && ending.get() != wantedFor) {
             wantedFor = ending.get();
+            Map<String, Boolean> written = writtenReports();
+            profileRows.forEach(each -> each.showReports(written));
+            wantedRows.forEach(each -> each.showReports(written));
+            seedRow.showReports(written);
+            drawReports();
             if (ending.get().howItEnded() == HowItEnded.ENDED) {
                 readNext();
             }
@@ -1163,7 +1203,7 @@ final class Cockpit {
     }
 
     private void readNext() {
-        Optional<Path> folder = state.workingDirectory();
+        Optional<Path> folder = workingDirectory();
         if (folder.isEmpty()) {
             return;
         }
@@ -1176,7 +1216,7 @@ final class Cockpit {
     }
 
     private void readProgress(boolean runs, Optional<Ending> ending) {
-        Optional<Path> folder = state.workingDirectory();
+        Optional<Path> folder = workingDirectory();
         boolean justEnded = ending.isPresent() && ending.get() != reportedEnding;
         if (folder.isEmpty() || !(runs || justEnded)) {
             return;

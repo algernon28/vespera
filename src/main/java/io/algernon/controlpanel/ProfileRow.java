@@ -12,7 +12,6 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -48,6 +47,8 @@ final class ProfileRow {
     private final VBox node = new VBox();
     private final TextField note = new TextField();
     private final Label inUse = new Label();
+    private final HBox links = new HBox();
+    private Consumer<String> opensReport;
     private Supplier<String> value = () -> "";
     private Consumer<String> setValue = text -> {
     };
@@ -82,7 +83,7 @@ final class ProfileRow {
             opens.setOnAction(event -> opensSection.accept(key));
             value = shown::getText;
             setValue = shown::setText;
-            node.getChildren().addAll(new HBox(8, shown, opens));
+            node.getChildren().addAll(spaced(shown, opens));
         } else {
             node.getChildren().add(controlFor(models, dialogs));
         }
@@ -94,22 +95,11 @@ final class ProfileRow {
         cost.setWrapText(true);
         cost.getStyleClass().add("small");
         node.getChildren().add(cost);
-        List<String> reports = Reports.OF_A_KEY.getOrDefault(key.key(), List.of());
-        if (!reports.isEmpty()) {
-            HBox links = new HBox(8, new Label("Reports:"));
-            for (String report : reports) {
-                if (reportsWritten.getOrDefault(report, false)) {
-                    Hyperlink link = new Hyperlink(report);
-                    link.setOnAction(event -> opensReport.accept(report));
-                    links.getChildren().add(link);
-                } else {
-                    Label grey = new Label(report + " (not written yet)");
-                    grey.getStyleClass().add("grey");
-                    links.getChildren().add(grey);
-                }
-            }
-            links.getStyleClass().add("reports-of-a-key");
+        this.opensReport = opensReport;
+        if (!Reports.OF_A_KEY.getOrDefault(key.key(), List.of()).isEmpty()) {
+            links.getStyleClass().addAll("spaced-row", "reports-of-a-key");
             node.getChildren().add(links);
+            showReports(reportsWritten);
         }
         Label noteLabel = new Label("Note saved with it");
         note.setId(idPrefix + key.key() + ".provenance");
@@ -119,8 +109,36 @@ final class ProfileRow {
                 + " value came from. You may write how you chose the value instead.");
         hint.setWrapText(true);
         hint.getStyleClass().add("small");
-        node.getChildren().addAll(new HBox(8, noteLabel, note), hint);
-        node.setPadding(new Insets(6, 0, 10, 0));
+        HBox noteLine = spaced(noteLabel, note);
+        node.getChildren().addAll(noteLine, hint);
+    }
+
+    /** Draws the key's reports, each a link where the working directory holds it and grey where it does not (ADR-341 §6). */
+    void showReports(Map<String, Boolean> written) {
+        links.getChildren().setAll(new Label("Reports:"));
+        for (String report : Reports.OF_A_KEY.getOrDefault(key.key(), List.of())) {
+            if (written.getOrDefault(report, false)) {
+                Hyperlink link = new Hyperlink(report);
+                link.setOnAction(event -> opensReport.accept(report));
+                links.getChildren().add(link);
+            } else {
+                Label grey = new Label(report + " (not written yet)");
+                grey.getStyleClass().add("grey");
+                links.getChildren().add(grey);
+            }
+        }
+    }
+
+    /** Offers {@code text} in the control for the operator to confirm, leaving what the file stated as it was loaded. */
+    void offer(String text) {
+        setValue.accept(text);
+    }
+
+    /** A row of nodes spaced by the stylesheet. */
+    private static HBox spaced(Node... children) {
+        HBox box = new HBox(children);
+        box.getStyleClass().add("spaced-row");
+        return box;
     }
 
     Node node() {
@@ -172,8 +190,7 @@ final class ProfileRow {
      * Saves every row ADR-340 §2 says to write, under ADR-295's lock and the checks of ADR-330 §5: all refused before any
      * is written, the first refusal said.
      */
-    static Saved save(ControlPanelState state, List<ProfileRow> rows) {
-        Optional<Path> folder = state.workingDirectory();
+    static Saved save(ControlPanelState state, Optional<Path> folder, List<ProfileRow> rows) {
         if (folder.isEmpty()) {
             return new Saved("name the working directory first: profile.yaml lies in it", false);
         }
@@ -253,7 +270,7 @@ final class ProfileRow {
         browse.setOnAction(event -> dialogs.folder("Choose the folder of documents you know are relevant",
                 field.getText()).ifPresent(chosen -> field.setText(chosen.toString())));
         HBox.setHgrow(field, Priority.ALWAYS);
-        return new HBox(8, field, browse);
+        return spaced(field, browse);
     }
 
     private Node choice(List<String> offered) {
@@ -300,7 +317,7 @@ final class ProfileRow {
         value = list::getText;
         setValue = list::setText;
         HBox.setHgrow(list, Priority.ALWAYS);
-        return new HBox(8, list, add, plus);
+        return spaced(list, add, plus);
     }
 
     private Node numberControl() {
@@ -333,7 +350,7 @@ final class ProfileRow {
             parse(text).ifPresent(number -> factory.setValue(Math.max(smallest, Math.min(largest, number))));
             spinner.getEditor().setText(named ? text.strip() : formatted(factory.getValue(), whole));
         };
-        return new HBox(8, set, spinner);
+        return spaced(set, spinner);
     }
 
     private static Optional<Double> parse(String text) {

@@ -4,9 +4,6 @@ import java.net.URL;
 import javafx.application.Application;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonBar;
-import javafx.scene.control.ButtonType;
 import javafx.stage.Stage;
 
 /**
@@ -49,28 +46,21 @@ public final class ControlPanelWindow extends Application {
 
     @Override
     public void start(Stage stage) {
-        ControlPanelState state = opening;
-        Dialogs dialogs = Dialogs.of(() -> stage.getScene() == null ? null : stage.getScene().getWindow(),
-                uri -> getHostServices().showDocument(uri));
+        shownOn(stage, opening, Dialogs.of(() -> stage.getScene() == null ? null : stage.getScene().getWindow(),
+                uri -> getHostServices().showDocument(uri)));
+    }
+
+    /** Draws {@code state} on {@code stage}, asks through {@code dialogs} and shows it: what {@link #start} does, for a test to do too. */
+    static void shownOn(Stage stage, ControlPanelState state, Dialogs dialogs) {
         Cockpit cockpit = drawn(state, dialogs);
         stage.setTitle("Vespera control panel");
         stage.setScene(new Scene(cockpit.root(), WIDTH, HEIGHT));
         stage.setOnCloseRequest(event -> {
-            if (cockpit.childRuns() && !stopAndClose()) {
+            if (cockpit.childRuns() && !dialogs.confirm(Child.STOP_CONFIRMATION, "Stop and close", "Keep the window")) {
                 event.consume();
             }
         });
         stage.setOnHidden(event -> cockpit.closed());
         stage.show();
-    }
-
-    /** ADR-341 §7: asks once, with two answers; true where the operator answers Stop and close. */
-    private static boolean stopAndClose() {
-        ButtonType stopAndClose = new ButtonType("Stop and close", ButtonBar.ButtonData.OK_DONE);
-        ButtonType keep = new ButtonType("Keep the window", ButtonBar.ButtonData.CANCEL_CLOSE);
-        Alert ask = new Alert(Alert.AlertType.CONFIRMATION,
-                "The invocation the control panel started is still running. Closing the window ends it.", stopAndClose,
-                keep);
-        return ask.showAndWait().filter(answer -> answer == stopAndClose).isPresent();
     }
 }

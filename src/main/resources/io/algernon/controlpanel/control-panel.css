@@ -82,6 +82,40 @@
 
 .profile-row {
     -fx-border-color: transparent transparent -vespera-rule transparent;
+    -fx-padding: 6px 0 10px 0;
+}
+
+.spaced-row,
+.actions,
+.charts,
+.card,
+.step {
+    -fx-spacing: 8px;
+}
+
+.tight-column {
+    -fx-spacing: 2px;
+}
+
+.repair {
+    -fx-spacing: 4px;
+}
+
+.tab-content {
+    -fx-padding: 8px;
+    -fx-spacing: 8px;
+}
+
+.steps-and-output {
+    -fx-pref-height: 300px;
+}
+
+.form-tabs {
+    -fx-pref-height: 420px;
+}
+
+.progress-chart {
+    -fx-pref-height: 240px;
 }
 
 .step {
@@ -104,5 +138,6 @@
 }
 
 .sidebar {
+    -fx-pref-width: 420px;
     -fx-background-color: -vespera-surface;
 }

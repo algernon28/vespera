@@ -5,6 +5,9 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
@@ -25,8 +28,16 @@ interface Dialogs {
     /** Opens the report in the system's default browser. */
     void open(Path report);
 
+    /** Asks {@code sentence} with two answers; true where the operator gives {@code yes}, the one that goes on. */
+    boolean confirm(String sentence, String yes, String no);
+
     /** Dialogs that open nothing and choose nothing: what a window drawn without a stage holds. */
     Dialogs NONE = new Dialogs() {
+        @Override
+        public boolean confirm(String sentence, String yes, String no) {
+            return false;
+        }
+
         @Override
         public Optional<Path> folder(String title, String initial) {
             return Optional.empty();
@@ -46,6 +57,18 @@ interface Dialogs {
     /** The system's dialogs over {@code owner}, a report opened by {@code showDocument} with its file's URI. */
     static Dialogs of(Supplier<Window> owner, Consumer<String> showDocument) {
         return new Dialogs() {
+            @Override
+            public boolean confirm(String sentence, String yes, String no) {
+                ButtonType goOn = new ButtonType(yes, ButtonBar.ButtonData.OK_DONE);
+                ButtonType keep = new ButtonType(no, ButtonBar.ButtonData.CANCEL_CLOSE);
+                Alert ask = new Alert(Alert.AlertType.CONFIRMATION, sentence, goOn, keep);
+                Window over = owner.get();
+                if (over != null) {
+                    ask.initOwner(over);
+                }
+                return ask.showAndWait().filter(answer -> answer == goOn).isPresent();
+            }
+
             @Override
             public Optional<Path> folder(String title, String initial) {
                 DirectoryChooser chooser = new DirectoryChooser();

@@ -60,7 +60,7 @@ final class ProgressPage implements JobExecutionListener {
     static final String FILE_NAME = "progress.html";
 
     /** What the page's steps and charts are written as beside it, for the control panel's window (ADR-341 section 2). */
-    static final String DATA_FILE_NAME = "progress.json";
+    static final String NUMBERS_FILE_NAME = "progress.json";
 
     private static final Logger log = LoggerFactory.getLogger(ProgressPage.class);
 
@@ -582,15 +582,15 @@ final class ProgressPage implements JobExecutionListener {
                 put(SAMPLES_FILE_NAME, pages[1]);
                 put(RUNS_FILE_NAME, pages[2]);
                 put(FILE_NAME, pages[3]);
-                put(DATA_FILE_NAME, pages[4]);
+                put(NUMBERS_FILE_NAME, pages[4]);
             } else {
                 put(FILE_NAME, renderCommand(last, outcome, counts));
-                put(DATA_FILE_NAME, commandData(last));
+                put(NUMBERS_FILE_NAME, commandData(last));
             }
             warned = false;
             return true;
         } catch (IOException | RuntimeException e) {
-            for (String name : List.of(STEPS_FILE_NAME, SAMPLES_FILE_NAME, RUNS_FILE_NAME, FILE_NAME, DATA_FILE_NAME)) {
+            for (String name : List.of(STEPS_FILE_NAME, SAMPLES_FILE_NAME, RUNS_FILE_NAME, FILE_NAME, NUMBERS_FILE_NAME)) {
                 try {
                     Files.deleteIfExists(workingDirectory.resolve(name + ".part"));
                 } catch (IOException | RuntimeException ignored) {
@@ -616,7 +616,7 @@ final class ProgressPage implements JobExecutionListener {
         }
     }
 
-    /** The pages of one write and the data file beside them, from one reading: steps, samples, runs, progress, data. */
+    /** The pages of one write and progress.json beside them, from one reading: steps, samples, runs, progress, numbers. */
     private String[] render(boolean last) {
         JobExecution job = jobExecution;
         Instant now = clock.instant();
@@ -1088,7 +1088,7 @@ final class ProgressPage implements JobExecutionListener {
                 + databaseChart() + (card ? counts : "") + verdictsChart() + "</div>\n" + (card ? "" : counts);
     }
 
-    /** A chart's numbers before they are drawn: the page draws them as a figure and the data file writes them (ADR-341 section 2). */
+    /** A chart's numbers before they are drawn: the page draws them as a figure and progress.json writes them (ADR-341 section 2). */
     private record ChartData(
             String key, String title, String caption, List<Long> seconds, List<Line> lines, Axis axis,
             DoubleFunction<String> show) {}
@@ -1404,7 +1404,7 @@ final class ProgressPage implements JobExecutionListener {
     }
 
     /**
-     * The data file of a write, from the reading the page was drawn from (ADR-341 section 2): whether the invocation
+     * The file the window reads, progress.json, of a write, from the reading the page was drawn from (ADR-341 section 2): whether the invocation
      * has ended, each step of the job in order with its state and, where its last progress line is a counter, how far
      * it has got, and the charts the page draws now with the series the page's own rules picked. Numbers and the
      * page's own words: no path and no text of a document.
@@ -1449,7 +1449,7 @@ final class ProgressPage implements JobExecutionListener {
         return json.append("]}\n").toString();
     }
 
-    /** The data file of a command that starts no job: every step waiting and no chart to draw. */
+    /** The file the window reads, for a command that starts no job: every step waiting and no chart to draw. */
     private static String commandData(boolean last) {
         StringBuilder json = new StringBuilder("{\"ended\":").append(last).append(",\"steps\":[");
         for (int i = 0; i < STEPS_IN_JOB_ORDER.size(); i++) {

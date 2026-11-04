@@ -26,7 +26,15 @@ final class InclusionsTree {
     private static final boolean NAMES_IGNORE_CASE =
             System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");
 
-    /** A folder of the tree, whose subfolders are read the first time it is opened. */
+    /** Set while the tree moves boxes itself, so that a box it moves is not read as the operator's tick. */
+    private static boolean adjusting;
+
+    /**
+     * A folder of the tree, whose subfolders are read the first time it is opened. Each item is independent, because
+     * JavaFX's dependent mode marks a parent unticked once every child is, and that would write the parent: a tick or
+     * untick here is copied down to the folders loaded below by this class, and each folder above is half-ticked while
+     * any below it is unticked, and never unticked because of what is below it.
+     */
     private static final class Folder extends CheckBoxTreeItem<String> {
 
         private final Path path;
@@ -37,7 +45,41 @@ final class InclusionsTree {
             super(path.getFileName() == null ? path.toString() : path.getFileName().toString());
             this.path = path;
             this.relative = relative;
+            setIndependent(true);
             setSelected(selected);
+            selectedProperty().addListener((observed, was, now) -> ticked(now));
+        }
+
+        private void ticked(boolean now) {
+            if (adjusting) {
+                return;
+            }
+            adjusting = true;
+            try {
+                setIndeterminate(false);
+                copyDown(this, now);
+                for (TreeItem<String> up = getParent(); up instanceof Folder above; up = up.getParent()) {
+                    if (!now) {
+                        above.setIndeterminate(true);
+                    } else {
+                        boolean oneBelowUnticked = above.getChildren().stream()
+                                .map(child -> (Folder) child).anyMatch(child -> !child.isSelected() || child.isIndeterminate());
+                        above.setSelected(true);
+                        above.setIndeterminate(oneBelowUnticked);
+                    }
+                }
+            } finally {
+                adjusting = false;
+            }
+        }
+
+        private static void copyDown(Folder from, boolean now) {
+            for (TreeItem<String> child : from.getChildren()) {
+                Folder folder = (Folder) child;
+                folder.setSelected(now);
+                folder.setIndeterminate(false);
+                copyDown(folder, now);
+            }
         }
 
         @Override
