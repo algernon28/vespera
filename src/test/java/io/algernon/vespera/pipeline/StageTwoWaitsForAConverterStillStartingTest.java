@@ -141,6 +141,27 @@ class StageTwoWaitsForAConverterStillStartingTest {
                 .isGreaterThan(1));
     }
 
+    /**
+     * ADR-323 §7: when the bound passes, the listener asks once more through the conversion client, and should that
+     * answer, the step goes on.
+     */
+    @Test
+    @Story("A converter still starting is waited for")
+    @DisplayName("A converter the wait never heard answer, but which answers the check made once the wait is over, lets the start go on")
+    void anAnswerToTheCheckAfterTheBoundLetsTheStartGoOn() {
+        ScriptedConverter converter = ScriptedConverter.notAnswering(NEVER);
+        converter.checksBeforeAnswering = 1;
+
+        claim("the start check returns without a failure",
+                () -> assertThatCode(() -> listener(converter).beforeStep(null)).doesNotThrowAnyException());
+        claim("the wait asked more than once and never heard it answer, and the converter failed the first check"
+                        + " alone, so it answered the one made after the wait",
+                () -> {
+                    assertThat(converter.waitQuestions.get()).isGreaterThan(1);
+                    assertThat(converter.checkFailures).hasSize(1);
+                });
+    }
+
     @Test
     @Story("A converter still starting is waited for")
     @DisplayName("A converter that answers the first check is not waited for")
@@ -208,6 +229,8 @@ class StageTwoWaitsForAConverterStillStartingTest {
         private final List<RuntimeException> checkFailures = new ArrayList<>();
         private final AtomicInteger waitQuestions = new AtomicInteger();
         private boolean checkAnswers;
+        /** How many checks through the conversion client fail before it answers: every one unless set. */
+        private int checksBeforeAnswering = NEVER;
 
         private ScriptedConverter(int notYet, boolean answersWithAnError) {
             super("http://unused.invalid", OCR_PRESET);
@@ -225,7 +248,7 @@ class StageTwoWaitsForAConverterStillStartingTest {
 
         @Override
         public void checkHealth() {
-            if (checkAnswers) {
+            if (checkAnswers || checkFailures.size() >= checksBeforeAnswering) {
                 return;
             }
             RuntimeException failure = answersWithAnError

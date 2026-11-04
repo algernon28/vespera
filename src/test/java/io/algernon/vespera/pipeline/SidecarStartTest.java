@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -20,10 +23,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 
 /**
@@ -106,6 +115,16 @@ class SidecarStartTest {
     /** The last line Compose prints where the GPU file asks for a device the machine does not have. */
     private static final String COMPOSE_REFUSAL =
             "Error response from daemon: could not select device driver \"nvidia\" with capabilities: [[gpu]]";
+
+    /** Checks docling-serve fails after up before both sidecars answer: more than one, so a line per check would show. */
+    private static final int SIDECAR_CHECKS_FAILED = 3;
+
+    /** Two lines Compose prints while it brings the sidecars up. */
+    private static final String UP_FIRST_LINE = " Container vespera-docling-serve-1 Created";
+
+    private static final String UP_LAST_LINE = " Container vespera-docling-serve-1 Started";
+
+    private static final String UP_PRINTS = UP_FIRST_LINE + "\n" + UP_LAST_LINE + "\n";
 
     /** The Docling image each compose file builds, read from the files as they stand. */
     private static String cpuImage;
@@ -239,25 +258,36 @@ class SidecarStartTest {
         claim("and it ran no command", () -> assertThat(docker.commands()).isEmpty());
     }
 
-    @Test
-    @Story("Vespera starts the Docker engine when it is not running")
-    @DisplayName("On Windows, an engine that is not running is started through Docker Desktop's command, waited for, and then the sidecars are brought up")
-    void onWindowsTheEngineIsStartedThroughDockerDesktop() {
-        assertTheEngineIsStartedBy(HostSystem.WINDOWS, DESKTOP_START);
+    static Stream<Arguments> theCommandEachSystemStartsTheEngineWith() {
+        return Stream.of(
+                Arguments.of(Named.of("On Windows, through Docker Desktop's command", HostSystem.WINDOWS), DESKTOP_START),
+                Arguments.of(Named.of("On macOS, through Docker Desktop's command", HostSystem.MAC), DESKTOP_START),
+                Arguments.of(
+                        Named.of("On Linux, as the docker service, without asking for a password", HostSystem.LINUX),
+                        SYSTEMCTL_START));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("theCommandEachSystemStartsTheEngineWith")
     @Story("Vespera starts the Docker engine when it is not running")
-    @DisplayName("On macOS, an engine that is not running is started through Docker Desktop's command, waited for, and then the sidecars are brought up")
-    void onMacOsTheEngineIsStartedThroughDockerDesktop() {
-        assertTheEngineIsStartedBy(HostSystem.MAC, DESKTOP_START);
-    }
+    @DisplayName("An engine that is not running is started by the command of the system Vespera runs on, waited for, and then the sidecars are brought up")
+    void theEngineIsStartedByTheCommandOfItsSystem(HostSystem host, List<String> startCommand) {
+        ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
+        ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
+                .answering(startCommand, 0, "")
+                .whenUpSucceeds(() -> health.answering(true, true));
 
-    @Test
-    @Story("Vespera starts the Docker engine when it is not running")
-    @DisplayName("On Linux, an engine that is not running is started as the docker service, without asking for a password, waited for, and then the sidecars are brought up")
-    void onLinuxTheEngineIsStartedAsAService() {
-        assertTheEngineIsStartedBy(HostSystem.LINUX, SYSTEMCTL_START);
+        SidecarStarter.Outcome outcome = starter(settings(cpuImage), docker, health, host).ensureRunning();
+
+        claim("the starter says it started them", () -> assertThat(outcome).isEqualTo(SidecarStarter.Outcome.STARTED));
+        claim("it checked the engine, started it with " + String.join(" ", startCommand) + ", checked it again"
+                        + " until it answered, after failing " + ENGINE_CHECKS_FAILED + " checks, and then ran up",
+                () -> assertThat(docker.commands()).containsExactly(
+                        ScriptedDocker.ENGINE_CHECK,
+                        startCommand,
+                        ScriptedDocker.ENGINE_CHECK,
+                        ScriptedDocker.ENGINE_CHECK,
+                        up(COMPOSE_FILE)));
     }
 
     @Test
@@ -274,26 +304,32 @@ class SidecarStartTest {
                         .endsWith("\\Docker\\Docker\\Docker Desktop.exe"));
     }
 
-    @Test
-    @Story("Vespera starts the Docker engine when it is not running")
-    @DisplayName("On macOS, where Docker Desktop's command does not start it, the Docker application is opened instead")
-    void onMacOsTheApplicationIsOpenedWhereTheCommandIsNotThere() {
-        List<List<String>> ran = commandsWhereTheFirstStartFails(HostSystem.MAC, DESKTOP_START);
-
-        claim("after Docker Desktop's command, the Docker application is opened, and the engine is checked again",
-                () -> assertThat(ran.subList(0, 4))
-                        .containsExactly(ScriptedDocker.ENGINE_CHECK, DESKTOP_START, OPEN_DOCKER_APP, ScriptedDocker.ENGINE_CHECK));
+    static Stream<Arguments> theCommandTriedWhereTheFirstDoesNotStartTheEngine() {
+        return Stream.of(
+                Arguments.of(
+                        Named.of("On macOS, the Docker application is opened after Docker Desktop's command", HostSystem.MAC),
+                        DESKTOP_START,
+                        OPEN_DOCKER_APP),
+                Arguments.of(
+                        Named.of(
+                                "On Linux, Docker Desktop's command is run after the service cannot be started without a password",
+                                HostSystem.LINUX),
+                        SYSTEMCTL_START,
+                        DESKTOP_START));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("theCommandTriedWhereTheFirstDoesNotStartTheEngine")
     @Story("Vespera starts the Docker engine when it is not running")
-    @DisplayName("On Linux, where the docker service cannot be started without a password, Docker Desktop's command is tried instead")
-    void onLinuxDockerDesktopIsTriedWhereTheServiceIsRefused() {
-        List<List<String>> ran = commandsWhereTheFirstStartFails(HostSystem.LINUX, SYSTEMCTL_START);
+    @DisplayName("Where the first command does not start the engine, the next way of starting it is tried and the engine checked again")
+    void theNextWayIsTriedWhereTheFirstDoesNotStartTheEngine(
+            HostSystem host, List<String> firstStart, List<String> nextStart) {
+        List<List<String>> ran = commandsWhereTheFirstStartFails(host, firstStart);
 
-        claim("after the service, Docker Desktop's command is run, and the engine is checked again",
+        claim("after " + String.join(" ", firstStart) + ", " + String.join(" ", nextStart) + " is run, and the engine is"
+                        + " checked again",
                 () -> assertThat(ran.subList(0, 4))
-                        .containsExactly(ScriptedDocker.ENGINE_CHECK, SYSTEMCTL_START, DESKTOP_START, ScriptedDocker.ENGINE_CHECK));
+                        .containsExactly(ScriptedDocker.ENGINE_CHECK, firstStart, nextStart, ScriptedDocker.ENGINE_CHECK));
     }
 
     @Test
@@ -438,6 +474,54 @@ class SidecarStartTest {
 
         claim("sidecars.lock lies in the lock folder", () -> assertThat(lockFolder.resolve("sidecars.lock"))
                 .isRegularFile());
+    }
+
+    /**
+     * ADR-323 §3 steps 7 and 8, and §5: what {@code up} prints goes to the log at INFO, line by line, and each wait,
+     * for the engine and for the sidecars, says at INFO when it begins and when it ends, and nothing per check.
+     */
+    @Test
+    @Story("The log says what the start did, and nothing per check")
+    @DisplayName("Starting the engine and the sidecars logs, at INFO, every line up printed and one line at the start and end of each wait, and nothing for each check")
+    void theLogCarriesUpsLinesAndOneLineAtEachEndOfEachWait() {
+        ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
+        ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
+                .answering(SYSTEMCTL_START, 0, "")
+                .upAnswering(0, UP_PRINTS)
+                .whenUpSucceeds(() -> health.answeringAfter(SIDECAR_CHECKS_FAILED));
+        ListAppender<ILoggingEvent> logged = new ListAppender<>();
+        logged.start();
+        ch.qos.logback.classic.Logger starterLog =
+                (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(SidecarStarter.class);
+        starterLog.addAppender(logged);
+        try {
+            starter(settings(cpuImage), docker, health, HostSystem.LINUX).ensureRunning();
+        } finally {
+            starterLog.detachAppender(logged);
+            logged.stop();
+        }
+        List<ILoggingEvent> events = List.copyOf(logged.list);
+
+        claim("the engine was checked " + ENGINE_CHECKS_FAILED + " times without an answer and once more when it"
+                        + " answered, so its wait checked more than once",
+                () -> assertThat(docker.commands().stream().filter(ScriptedDocker.ENGINE_CHECK::equals).count())
+                        .isEqualTo(ENGINE_CHECKS_FAILED + 1L));
+        claim("every line the start logged is at INFO",
+                () -> assertThat(events).extracting(ILoggingEvent::getLevel).containsOnly(Level.INFO));
+        claim("the log is exactly: the engine wait beginning and ending, the up as run, each line up printed in order,"
+                        + " and the sidecars' wait beginning and ending, the seconds aside; no line for any one check",
+                () -> assertThat(events.stream()
+                                .map(event -> event.getFormattedMessage().replaceAll("after \\d+ seconds", "after N seconds"))
+                                .toList())
+                        .containsExactly(
+                                "Waiting up to " + WAIT_AT_MOST.toSeconds() + " seconds for the Docker engine to answer",
+                                "The Docker engine answers after N seconds",
+                                "Starting the sidecars: " + String.join(" ", up(COMPOSE_FILE)),
+                                UP_FIRST_LINE,
+                                UP_LAST_LINE,
+                                "Waiting up to " + WAIT_AT_MOST.toSeconds() + " seconds for docling-serve and Ollama to"
+                                        + " answer",
+                                "docling-serve and Ollama answer after N seconds"));
     }
 
     @Test
@@ -633,25 +717,6 @@ class SidecarStartTest {
         return "the sidecars are not answering and Vespera cannot start them: the temporary file the output of "
                 + String.join(" ", command) + " goes to cannot be written or read (" + reason + "). Make room in "
                 + OUTPUT_FOLDER + ", or make it writable, and run the same command again.";
-    }
-
-    private void assertTheEngineIsStartedBy(HostSystem host, List<String> startCommand) {
-        ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
-        ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
-                .answering(startCommand, 0, "")
-                .whenUpSucceeds(() -> health.answering(true, true));
-
-        SidecarStarter.Outcome outcome = starter(settings(cpuImage), docker, health, host).ensureRunning();
-
-        claim("the starter says it started them", () -> assertThat(outcome).isEqualTo(SidecarStarter.Outcome.STARTED));
-        claim("it checked the engine, started it with " + String.join(" ", startCommand) + ", checked it again"
-                        + " until it answered, after failing " + ENGINE_CHECKS_FAILED + " checks, and then ran up",
-                () -> assertThat(docker.commands()).containsExactly(
-                        ScriptedDocker.ENGINE_CHECK,
-                        startCommand,
-                        ScriptedDocker.ENGINE_CHECK,
-                        ScriptedDocker.ENGINE_CHECK,
-                        up(COMPOSE_FILE)));
     }
 
     /** The commands run where the engine is not running, {@code firstStart} exits 1 and every other command exits 0. */

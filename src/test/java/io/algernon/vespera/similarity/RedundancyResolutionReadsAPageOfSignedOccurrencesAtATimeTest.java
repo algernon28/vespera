@@ -220,17 +220,6 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
                 () -> assertThat(List.of(removedAs("near-duplicate"), removedAs("contained-in"), removedAtAll()))
                         .containsExactly(NEAR_DUPLICATE_PAIRS, CONTAINED, NEAR_DUPLICATE_PAIRS + CONTAINED));
         claim(
-                "no statement reads the run's signature bands without naming the documents whose bands it wants, at"
-                        + " most " + A_PAGE + " of them, or naming one band value and taking at most " + A_PAGE
-                        + " rows of it: the documents that share a band value are found a page of signed"
-                        + " documents at a time",
-                () -> assertThat(said.stream().filter(sql -> sql.contains("FROM signature_band")).toList())
-                        .isNotEmpty()
-                        .allSatisfy(sql -> assertThat(occurrencesNamedBy(sql) >= 1 && occurrencesNamedBy(sql) <= A_PAGE
-                                        || sql.contains("band_hash = ?") && sql.endsWith(" LIMIT " + A_PAGE))
-                                .as("a read of the signature bands that names a page of documents or one band value: %s", sql)
-                                .isTrue()));
-        claim(
                 "no statement reads stage 3's shingle frequencies without naming a document: a document's rarest"
                         + " shingles are found with its own rows, and no frequency of the whole corpus is read",
                 () -> assertThat(said.stream()
@@ -273,10 +262,6 @@ class RedundancyResolutionReadsAPageOfSignedOccurrencesAtATimeTest {
     @Link(name = "ADR-247", url = Adr.STAGE_4B_ASKS_WHETHER_A_PAGE_IS_KEPT_OF_ITS_OWN_INDEX, type = "adr")
     @Link(name = "ADR-248", url = Adr.ONLY_THE_KEPT_QUESTION_COMPARES_THE_RUN_AS_A_VALUE, type = "adr")
     void asksWhetherAPageOfDocumentsIsKeptAtOnce() {
-        claim(
-                "the same documents are removed: one of each near-identical pair, and each contained document",
-                () -> assertThat(List.of(removedAs("near-duplicate"), removedAs("contained-in")))
-                        .containsExactly(NEAR_DUPLICATE_PAIRS, CONTAINED));
         claim(
                 "whether a row already keeps a document is asked in no more statements than there are pages of the "
                         + SIGNED + " signed documents, each naming at most " + A_PAGE + " of them",

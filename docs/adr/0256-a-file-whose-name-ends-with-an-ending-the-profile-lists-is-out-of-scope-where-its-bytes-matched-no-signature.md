@@ -141,9 +141,9 @@ Every file is a few bytes built in the test, and every profile is YAML written b
 
 | Class | What it holds |
 | --- | --- |
-| `profile.OutOfScopeNameEndingsInTheProfileTest.aFreshProfileCarriesTheKeyUnset` | census writes `outOfScopeNameEndings` into a fresh profile, unset, and the deliverable's index states it as empty |
-| `…theEndingsAreKeptAsWritten` | a value of mixed case, spaces and commas loads, is stated as written, and is written back untouched |
-| `…aYamlListUnderTheValueIsRefusedNamingTheKey` | a YAML list under `value` fails the load with the line naming the key and the shape a key takes |
+| `profile.ProfileStoreTest.writesACompleteSkeletonForAFreshCorpus` | census writes `outOfScopeNameEndings`, with every key, into a fresh profile, unset, and the deliverable's index states it as empty (#682) |
+| `profile.ProfileStoreTest.anAnswerIsReadAndWrittenBackAsWritten` | a value of mixed case, spaces and commas loads, is stated as written, and is written back untouched (#682) |
+| `profile.ProfileThatDoesNotLoadTest.aYamlListUnderTheValueIsRefusedNamingTheKey` | a YAML list under `value` fails the load with the line naming the key and the shape a key takes (#682) |
 | `pipeline.NextActionTest.anUnreadableListOfNameEndingsIsReported` | `.`, `...`, `P3A`, `.P3A P3L`, `.P3*`, `.P3?`, a path with either separator and `, ,` each make the closing line name the key, say an ending begins with a dot, and quote the value back, in one line |
 | `pipeline.NextActionTest.aReadableListOfNameEndingsIsNotReported` | one ending, endings of mixed case, endings separated by a comma with or without a space, `.tar.gz`, and a value with spaces around it are not reported |
 | `pipeline.OutOfScopeNameEndingsTaskletTest.leavesOutAFileOfNoKnownKindWhoseNameEndsAsListed` | listed endings in any case leave out five files of no known kind, each with §7's reason spelt as its name spells the ending, `.tar.gz` included; two identical ones are not hashed; an unlisted ending, a listed ending followed by another, and `.gz` against `.tar.gz` are kept; all eight stay `UNRECOGNISED` and are counted under *"Of no known kind"*; the page counts five left out for the ending of their name and none as logs or for their size, and lists the canonical endings; the configuration consumed records them; the key's measurement points at the page |

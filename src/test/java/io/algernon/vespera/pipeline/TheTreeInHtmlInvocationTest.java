@@ -9,7 +9,6 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -56,9 +55,7 @@ class TheTreeInHtmlInvocationTest {
 
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
     private static final String A_FLOOR_THAT_REMOVES_NOTHING = "0.0";
 
@@ -214,7 +211,7 @@ class TheTreeInHtmlInvocationTest {
 
     @Test
     @Story("The last thing an invocation says is what it produced and what is missing from it")
-    @DisplayName("The closing line names the tree's index, and the index is opened once, once it is in place")
+    @DisplayName("The closing line names the tree's index, and the invocation opens two pages, the progress page first and the index last, once it is in place")
     @Link(name = "ADR-266", url = Adr.EVERY_INVOCATION_NAMES_AND_OPENS_ITS_PROGRESS_PAGE, type = "adr")
     void theClosingLineNamesTheIndexAndTheIndexIsOpenedOnce(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
@@ -234,12 +231,17 @@ class TheTreeInHtmlInvocationTest {
                 () -> assertThat(operatorLines().getLast())
                         .contains(index + ", with 0 groups left unwritten and 0 documents not copied."));
         claim(
-                "the opener was asked " + ONCE + " time for an index, and it was this tree's, with the page in place",
-                () -> {
-                    assertThat(indexOpened).hasSize(ONCE);
-                    assertThat(indexOpened.getFirst().page()).isEqualTo(index.toUri());
-                    assertThat(indexOpened.getFirst().thePageWasThere()).isTrue();
-                });
+                "the opener was asked for exactly two pages: the progress page, when the job started, and this tree's"
+                        + " index, once, last",
+                () -> assertThat(opener.requests())
+                        .extracting(request -> Path.of(request.page()))
+                        .containsExactly(
+                                workingDirectory.resolve(PROGRESS_PAGE).toAbsolutePath().normalize(),
+                                index.toAbsolutePath().normalize()));
+        claim(
+                "and the index was in place when it was asked for",
+                () -> assertThat(indexOpened).singleElement().satisfies(request -> assertThat(request.thePageWasThere())
+                        .isTrue()));
     }
 
     @Test
@@ -288,26 +290,6 @@ class TheTreeInHtmlInvocationTest {
                     assertThat(Files.readString(workingDirectory.resolve(PROGRESS_PAGE), StandardCharsets.UTF_8))
                             .doesNotContain(FIRST);
                 });
-    }
-
-    @Test
-    @Story("The last thing an invocation says is what it produced and what is missing from it")
-    @DisplayName("An invocation that writes the tree opens two pages, the progress page first and the index last")
-    @Link(name = "ADR-266", url = Adr.EVERY_INVOCATION_NAMES_AND_OPENS_ITS_PROGRESS_PAGE, type = "adr")
-    void anInvocationThatWritesTheTreeOpensTwoPages(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        anApprovedCorpus(root, seeds);
-        opener.forget();
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the opener was asked for exactly two pages: the progress page, when the job started, and the tree's"
-                        + " index, once it was in place",
-                () -> assertThat(opener.requests())
-                        .extracting(request -> Path.of(request.page()))
-                        .containsExactly(
-                                workingDirectory.resolve(PROGRESS_PAGE).toAbsolutePath().normalize(),
-                                theTreeOf(root).resolve("index.html").toAbsolutePath().normalize()));
     }
 
     @Test
@@ -446,12 +428,8 @@ class TheTreeInHtmlInvocationTest {
         Files.writeString(root.resolve(FIRST), "a corpus document");
         Files.writeString(root.resolve(SECOND), "a second corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .relevanceScoreFloor(A_FLOOR_THAT_REMOVES_NOTHING, "set by this test, so nothing earlier is asked for")
                 .generationContextWindow(THE_READING_WINDOW, "set by this test, so every test here reads alike")
                 .build());
@@ -463,12 +441,7 @@ class TheTreeInHtmlInvocationTest {
     }
 
     private RunId theLatestArrangement(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
+        return new RunsOver(jdbcTemplate, root).latest("arrangement");
     }
 
     /** Every generation run over {@code root}'s walks, oldest first. */

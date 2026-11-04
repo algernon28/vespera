@@ -80,9 +80,9 @@ The page list is drawn by `deliverable` and read by `confluence`, and no value i
 
 | Method | What it holds |
 | --- | --- |
-| `…thePageListListsEveryPageParentsFirst` (#620) | the root page first, each seed partition's page before its clusters', in the index's order (§2) |
-| `…everyPathInThePageListNamesAFileThatStands` (#620) | each body and file path resolves from `confluence/` to a file whose size and digest match (§1, §2) |
-| `…thePageListNamesNoCorpusRootNoWorkingDirectoryAndNoProfileValue` (#620) | distinctive fixture strings appear nowhere in it (§2) |
+| `…thePageListListsEveryPageParentsFirstAndEveryPathStands` (#684) (#620) | the root page first, each seed partition's page before its clusters', in the index's order (§2) |
+| `…thePageListListsEveryPageParentsFirstAndEveryPathStands` (#684) (#620) | each body and file path resolves from `confluence/` to a file whose size and digest match (§1, §2) |
+| `…nothingNamesTheCorpusRootTheWorkingDirectoryOrAProfileValue` (#684) (#620) | distinctive fixture strings appear nowhere in it (§2) |
 | `…aRedrawingOfTheSameRunKeepsEveryKey` (#620) | two drawings of one generation run give equal keys (§3) |
 | `…aPageIsFilledBeforeTheNextIsCreated` (ADR-320) | against a stub, a page's create, files and body precede the next page's create, parents first, each labelled and keyed (§4 as ADR-320 §1 has it) |
 | `…aSecond409StopsThePublish` (#633) | one 409 is answered by a re-read and a resend; a second stops it (§4) |

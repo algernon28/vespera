@@ -102,6 +102,8 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
             "vespera.docling.image", "vespera.docling.image.source",
             "vespera.docling.base-url", "vespera.docling.base-url.source",
             "spring.ai.ollama.base-url", "spring.ai.ollama.base-url.source",
+            // ADR-334 §2: the label model, as OllamaRelevanceLabeller resolves it.
+            "vespera.label.model", "vespera.label.model.source",
             "vespera.sidecars.start", "vespera.sidecars.start.source",
             "vespera.sidecars.wait-at-most", "vespera.sidecars.wait-at-most.source",
             "vespera.progress-interval", "vespera.progress-interval.source",
@@ -110,11 +112,7 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
                     THE_TECHNICAL_PRESETS.keySet().stream().flatMap(key -> Stream.of(key, key + ".source")))
             .collect(Collectors.toUnmodifiableSet());
 
-    /** Above every measured document frequency here, so stage 4's gate is open. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
-    /** The model the scripted embedder answers for. */
-    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 
     /** Answers every question, so that {@code vespera label --auto} has a local model to ask here. */
     @TestConfiguration
@@ -334,8 +332,8 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
                 .build());
         cli.run("run", corpus.toString());
     }

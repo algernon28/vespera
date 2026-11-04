@@ -109,4 +109,24 @@ class SystemPageOpenerTest {
         }
     }
 
+    /**
+     * Only a {@code CI} that is set and not blank stops the page opening (ADR-266 section 2): a variable left empty,
+     * or holding only a space, is read as not set, as the display variables are.
+     */
+    @Test
+    @Story("Nothing is opened where nobody could see it")
+    @DisplayName("A CI variable that is present but empty, or only a space, does not stop the page opening on a system with a display")
+    void aBlankCiVariableIsReadAsNotSet() {
+        for (String blank : List.of("", " ")) {
+            Map<String, String> blankCi = Map.of("CI", blank, "DISPLAY", ":0");
+            claim(
+                    "on Linux with a display and CI set to \"" + blank + "\", the page is still handed to xdg-open",
+                    () -> assertThat(SystemPageOpener.command(PAGE, LINUX, blankCi))
+                            .contains(List.of("xdg-open", PAGE.toString())));
+            claim(
+                    "and on Windows the same CI does not stop the shell's handler being asked",
+                    () -> assertThat(SystemPageOpener.command(PAGE, WINDOWS, blankCi))
+                            .contains(List.of("rundll32", "url.dll,FileProtocolHandler", PAGE.toString())));
+        }
+    }
 }

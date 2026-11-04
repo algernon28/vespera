@@ -79,12 +79,8 @@ class ProgressPageRunsInvocationTest {
 
     private static final String ARRIVED_AT = "arrived at";
 
-    /** The first invocation's floor opens stage 4's gate; the second's is another value, so stage 4 mints a run anew. */
-    private static final String FIRST_FLOOR = "1.0";
-
+    /** The second invocation's floor, another value than the first's, so stage 4 mints a run anew. */
     private static final String SECOND_FLOOR = "0.9";
-
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** What content redundancy logs as its work starts under its run, after the run is minted. */
     private static final String CONTENT_REDUNDANCY_STARTS = "Stage 4b (redundancy resolution) starting under run ";
@@ -120,6 +116,34 @@ class ProgressPageRunsInvocationTest {
         STEPS_OF_A_STAGE.put(StageModules.ARRANGEMENT.stage(), List.of(StepNames.ARRANGEMENT));
         STEPS_OF_A_STAGE.put(StageModules.GENERATION.stage(), List.of(StepNames.GENERATION));
     }
+
+    /**
+     * The tab's rows after the two invocations, as walk, stage and ordinal, written out from the rule the tab orders by
+     * (by walk, by stage in the cascade's order, by ordinal): one walk, three stages run once in front of stage 4's
+     * gate, and the four from content redundancy on each run again under the second floor.
+     */
+    private static final List<String> ROWS_IN_ORDER = List.of(
+            "1|byte-level-reduction|1",
+            "1|extraction|1",
+            "1|content-census|1",
+            "1|content-redundancy|1",
+            "1|content-redundancy|2",
+            "1|seed-measurement|1",
+            "1|seed-measurement|2",
+            "1|embedding-scoring|1",
+            "1|embedding-scoring|2",
+            "1|arrangement|1",
+            "1|arrangement|2");
+
+    /** The rows of {@link #ROWS_IN_ORDER} the first invocation left: each stage's first run. */
+    private static final List<String> LEFT_BY_THE_FIRST = List.of(
+            "1|byte-level-reduction|1",
+            "1|extraction|1",
+            "1|content-census|1",
+            "1|content-redundancy|1",
+            "1|seed-measurement|1",
+            "1|embedding-scoring|1",
+            "1|arrangement|1");
 
     private static final String MARKER = "ZXQ-the-operators-private-word";
 
@@ -205,9 +229,13 @@ class ProgressPageRunsInvocationTest {
             return cells;
         }).toList();
         claim(
-                "and its rows are the " + expected.size() + " runs of the ledger, by walk, then by stage in the cascade's"
-                        + " order, then by ordinal, each with its steps finished of those its stage records, its state"
-                        + " and its verdicts of each kind as the ledger holds them",
+                "its rows run by walk, then by stage in the cascade's order, then by ordinal, the order written out"
+                        + " here run by run: " + ROWS_IN_ORDER,
+                () -> assertThat(shown).extracting(row -> String.join("|", row.subList(0, Math.min(3, row.size()))))
+                        .containsExactlyElementsOf(ROWS_IN_ORDER));
+        claim(
+                "and its rows are the " + expected.size() + " runs of the ledger, each with its steps finished of those"
+                        + " its stage records, its state and its verdicts of each kind as the ledger holds them",
                 () -> assertThat(shown).containsExactlyElementsOf(expected));
     }
 
@@ -265,7 +293,7 @@ class ProgressPageRunsInvocationTest {
         claim(
                 "that write lists exactly the runs the first invocation left, in order, and not the run of content"
                         + " redundancy the second had just minted: the tab is not read again at every write",
-                () -> assertThat(heldKeys).containsExactlyElementsOf(made.afterFirst().stream().map(Run::key).toList()));
+                () -> assertThat(heldKeys).containsExactlyElementsOf(LEFT_BY_THE_FIRST));
         claim(
                 "it marks the stage-1 run as arrived at all the same: whether this invocation reached a run is known"
                         + " without reading the database",
@@ -324,7 +352,7 @@ class ProgressPageRunsInvocationTest {
         profileStore.save(ProfileFixture.profile().build());
         List<Run> before = runsInTheLedger();
 
-        profileNaming(FIRST_FLOOR);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
         claim("the first invocation reported success", () -> assertThat(cli.getExitCode()).isZero());
         List<Run> afterFirst = runsInTheLedger();
@@ -334,7 +362,7 @@ class ProgressPageRunsInvocationTest {
                 () -> assertThat(mintedByFirst).extracting(Run::stage).contains(
                         StageModules.BYTE_LEVEL_REDUCTION.stage(), StageModules.CONTENT_REDUNDANCY.stage()));
 
-        profileNaming(SECOND_FLOOR);
+        anotherBoilerplateFloor();
         AtomicBoolean held = new AtomicBoolean();
         AtomicReference<String> whileRunning = new AtomicReference<>();
         String stageOne = mintedByFirst.stream()
@@ -482,13 +510,11 @@ class ProgressPageRunsInvocationTest {
         Files.writeString(seeds.resolve(MARKER + "-seed.txt"), "a seed that says " + MARKER);
     }
 
-    /** The seed folder named, gate 3 open, and stage 4's gate open at {@code boilerplateFloor}. */
-    private void profileNaming(String boilerplateFloor) {
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .boilerplateDocumentFrequencyFloor(boilerplateFloor, "set by this test, so stage 4's gate is open")
+    /** Every gate open as before, with stage 4's gate opened at {@link #SECOND_FLOOR} instead. */
+    private void anotherBoilerplateFloor() {
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                .boilerplateDocumentFrequencyFloor(SECOND_FLOOR, "set by this test, so stage 4's gate is open")
                 .build());
     }
 

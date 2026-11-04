@@ -39,16 +39,16 @@ import org.springframework.transaction.support.TransactionTemplate;
  * rather than only reported to an in-memory recorder, as {@link WalkTest} does. Read back through
  * the same reader seams those tests already establish.
  *
- * <p>Two of these tests interrupt a walk, which no fixture can arrange against a real filesystem: a
+ * <p>Four of these tests interrupt a walk, which no fixture can arrange against a real filesystem: a
  * walk stops when the machine does. They drive the traversal through the seam
  * {@link WalkRecorder}'s package-private constructor exposes, and use a commit interval of one so
  * that a three-file corpus reaches a checkpoint at all.
  *
- * <p>Four of them walk the same root twice and ask which walk id came back (ADR-115): a traversal
- * that observed exactly what the previous finished walk observed is discarded, and the earlier id
- * is what census returns. What "exactly" covers is the whole of what a walk records — the occurrence
- * rows, the anomaly rows and {@code directories_entered} — so one of the four differs in nothing but
- * an anomaly, and one changes the root and changes it back.
+ * <p>Five of them walk the same root more than once and ask which walk id came back (ADR-115): a
+ * traversal that observed exactly what the previous finished walk observed is discarded, and the earlier
+ * id is what census returns. What "exactly" covers is the whole of what a walk records — the occurrence
+ * rows, the anomaly rows and {@code directories_entered} — so one of the five differs in nothing but an
+ * empty folder, one in nothing but an anomaly, and one changes the root and changes it back.
  *
  * <p>One more looks twice at a root holding an anomaly, and holds the discard to deleting it (ADR-209
  * section 3.1): {@code corpus} deletes the discarded walk's anomalies, and only then does the ledger

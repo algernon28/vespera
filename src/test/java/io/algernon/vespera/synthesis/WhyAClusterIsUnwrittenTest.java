@@ -12,10 +12,13 @@ import io.qameta.allure.Story;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Why a cluster with no synthesis doc is unwritten, decided in {@code synthesis} (ADR-226, moving ADR-222's
@@ -24,9 +27,6 @@ import org.junit.jupiter.params.provider.EnumSource;
  * <p>What this invocation found stands over a fault on record, a fault on record stands over nothing, and a
  * cluster with neither was not reached. The fault on record is asked for only where this invocation found
  * nothing, which is the read ADR-223 left: a cluster this invocation already explained costs no lookup.
- *
- * <p>Written before {@code Unwritten.of(Optional, Supplier)} exists, so this class does not compile until the
- * build does.
  */
 @Epic("Synthesis")
 @Feature("A page nothing was written over")
@@ -54,18 +54,18 @@ class WhyAClusterIsUnwrittenTest {
                 () -> assertThat(read).hasValue(0));
     }
 
-    @ParameterizedTest(name = "a {0} fault on record")
-    @EnumSource(ClusterFaultKind.class)
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("faultsOnRecord")
     @Story("A fault on record says why a cluster is unwritten")
     @DisplayName("Where this invocation found nothing, the fault on record says why, by its kind")
-    void aFaultOnRecordSaysWhy(ClusterFaultKind kind) {
+    void aFaultOnRecordSaysWhy(ClusterFaultKind kind, Unwritten sentence) {
         AtomicInteger read = new AtomicInteger();
 
         Unwritten why = Unwritten.of(Optional.empty(), counted(read, Optional.of(new ClusterFault(kind, "a detail"))));
 
         claim(
-                "the sentence is the one for the recorded fault's kind",
-                () -> assertThat(why).isEqualTo(Unwritten.of(kind)));
+                "the sentence is the one written out here for the recorded fault's kind",
+                () -> assertThat(why).isEqualTo(sentence));
         claim("and the fault on record is read once", () -> assertThat(read).hasValue(1));
     }
 
@@ -77,6 +77,23 @@ class WhyAClusterIsUnwrittenTest {
                 "a cluster with no doc, nothing found this invocation and no fault on record was never reached:"
                         + " the walk stopped before it",
                 () -> assertThat(Unwritten.of(Optional.empty(), Optional::empty)).isEqualTo(Unwritten.NOT_REACHED));
+    }
+
+    /** Each kind of fault, with the sentence a page names for it, written out rather than asked of the code. */
+    static Stream<Arguments> faultsOnRecord() {
+        return Stream.of(
+                Arguments.of(
+                        Named.of("a question cut down to fit the window", ClusterFaultKind.PROMPT_EVALUATION_CEILING),
+                        Unwritten.FAULT_PROMPT_EVALUATION_CEILING),
+                Arguments.of(
+                        Named.of("an answer that ran out of room", ClusterFaultKind.ANSWER_RAN_OUT_OF_ROOM),
+                        Unwritten.FAULT_ANSWER_RAN_OUT_OF_ROOM),
+                Arguments.of(
+                        Named.of("an answer in the wrong shape", ClusterFaultKind.SCHEMA_VIOLATION),
+                        Unwritten.FAULT_SCHEMA_VIOLATION),
+                Arguments.of(
+                        Named.of("a citation pointing past the documents sent", ClusterFaultKind.CITATION_NOT_IN_RANGE),
+                        Unwritten.FAULT_CITATION_NOT_IN_RANGE));
     }
 
     /** {@code fault}, counting each time it is read. */

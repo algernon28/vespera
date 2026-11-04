@@ -95,12 +95,12 @@ This record changes no code under `src/main`, no property and no module. No run 
 
 | Method | What it holds |
 | --- | --- |
-| `NothingShippedReachesConfluenceTest.noShippedFileNamesAConfluenceRestPathOrAtlassiansHost` | no file under `src/main`, the jar's and the control panel's alike, names a Confluence REST path or an Atlassian Cloud host (§1) |
+| `NothingShippedReachesConfluenceTest.onlyTheConfluenceModuleNamesAConfluenceRestPath` (#684) | no file under `src/main`, the jar's and the control panel's alike, names a Confluence REST path or an Atlassian Cloud host (§1) |
 | `NothingShippedReachesConfluenceTest.theShippedConfigurationHoldsNoCredential` | no YAML file under `src/main/resources`, read as Spring reads it, holds a key for a Confluence or Atlassian site's address, nor a key naming Confluence or Atlassian that ends in a token, a personal access token, a password, a user name, an API key, a secret, credentials or a bearer (§3) |
 | `NothingShippedReachesConfluenceTest.theBuildDeclaresNoAtlassianArtifact` | the pom declares no artifact of `com.atlassian`, however its `groupId` is spaced (§4) |
-| `NothingShippedReachesConfluenceTest.theCommandHasRunAndLabelAndNoOther` | the command tree, read through picocli's own model: `vespera` has `run` and `label` and no other subcommand, neither has a subcommand, and each command has exactly the options it has today beside the standard help ones, `vespera` none, `run` `--db-dir`, `label` `--auto` and `--db-dir` (§4) |
+| `NothingShippedReachesConfluenceTest.theCommandHasRunLabelAndPublish` (#684) | the command tree, read through picocli's own model: `vespera` has `run` and `label` and no other subcommand, neither has a subcommand, and each command has exactly the options it has today beside the standard help ones, `vespera` none, `run` `--db-dir`, `label` `--auto` and `--db-dir` (§4) |
 | `controlpanel.TheControlPanelLinksNoClassOfTheJarTest.theControlPanelNamesOnlyTypesOfItsOwnPackageAndOfTheJdksBaseAndHttpServerModules` | the control panel names no type of `java.net.http` (§4, held under ADR-285 §3) |
-| `controlpanel.ChildCommandTest.onlyRunAndLabelCanBeBuilt` | the control panel starts the jar's `run` and `label` and nothing else (§5, held under ADR-278 §1) |
+| `controlpanel.ChildCommandTest.onlyRunLabelAndPublishCanBeBuilt` (#684) | the control panel starts the jar's `run` and `label` and nothing else (§5, held under ADR-278 §1) |
 
 ## What this does not decide
 

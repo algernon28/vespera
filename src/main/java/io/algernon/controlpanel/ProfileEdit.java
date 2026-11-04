@@ -255,8 +255,35 @@ public final class ProfileEdit {
 
     private static String normalized(ProfileKey key, String value) {
         String typed = trimmed(key, withoutBreaks(value == null ? "" : value));
+        if (key.kind() == ProfileKey.Kind.FOLDERS) {
+            return String.join(java.io.File.pathSeparator, foldersOf(typed));
+        }
         return key.kind() == ProfileKey.Kind.NAME_ENDINGS || key.kind() == ProfileKey.Kind.LANGUAGES
                 ? String.join(" ", piecesOf(typed)) : typed;
+    }
+
+    /** The folders of a list of them: its pieces between the system's path separator, each stripped, none empty. */
+    private static List<String> foldersOf(String value) {
+        return List.of(value.split(Pattern.quote(java.io.File.pathSeparator))).stream()
+                .map(String::strip).filter(piece -> !piece.isEmpty()).toList();
+    }
+
+    /** Whether the value holds one or more folders, each the whole path of one the system can hold (ADR-334 §5.1). */
+    private static boolean areFolders(String value) {
+        List<String> folders = foldersOf(value);
+        if (folders.isEmpty()) {
+            return false;
+        }
+        for (String folder : folders) {
+            try {
+                if (!Path.of(folder).isAbsolute()) {
+                    return false;
+                }
+            } catch (InvalidPathException cannotBeHeld) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static String withoutBreaks(String text) {
@@ -300,6 +327,8 @@ public final class ProfileEdit {
                     : Optional.of(quoted + " is not en or it");
             case PREFERRED_LANGUAGES -> areLanguages(value) ? Optional.empty()
                     : Optional.of(quoted + " is not a list of two-letter language codes");
+            case CODE_SET_FOLDERS -> areFolders(value) ? Optional.empty()
+                    : Optional.of(quoted + " is not a list of absolute folders, separated by " + java.io.File.pathSeparator);
             case CLUSTER_RESOLUTION -> number(value).filter(number -> number > 0).isPresent() ? Optional.empty()
                     : Optional.of(quoted + " is not a number above 0");
             default -> number(value).isPresent() ? Optional.empty() : Optional.of(quoted + " is not a number");

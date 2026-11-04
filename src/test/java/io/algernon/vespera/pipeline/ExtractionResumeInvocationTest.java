@@ -63,10 +63,9 @@ import org.springframework.test.context.DynamicPropertySource;
  * part of any run id. After that, the converter is asked about exactly the occurrences the resumed
  * invocation reads.
  *
- * <p>Under ADR-115/ADR-116's discard, before ADR-181 was implemented, every test that resumes failed:
- * each claims the second invocation converts, or counts its progress over, only what no committed
- * chunk recorded, and the discard made it redo the whole corpus. The changed-run test passed under
- * the discard too, because that code redid everything, and has to go on passing.
+ * <p>Every test that resumes claims the second invocation converts, or counts its progress over, only
+ * what no committed chunk recorded, so ADR-115/ADR-116's discard, which redid the whole corpus, turns
+ * each of them red. The changed-run test holds the other side: under a different run nothing is kept.
  *
  * <p>{@link SuccessiveBuildsBeans} stands in for the build's implementation versions in every test, so
  * the changed-run test can play a second build over the same walk; the others never move it.
@@ -251,8 +250,20 @@ class ExtractionResumeInvocationTest {
         claim(
                 "the removals, " + WITHOUT_TEXT_AT.size() + " for no text and "
                         + (UNCONVERTIBLE_AT.size() + CONVERTER_FAULT_AT.size()) + " for a failed conversion, are"
-                        + " the ones the same corpus gets in one go, one each, with none lost and none doubled",
-                () -> assertThat(verdictKindsUnder(run)).containsExactlyElementsOf(verdictKindsUnder(reference)));
+                        + " the ones the same corpus gets in one go, one each, with none lost and none doubled:"
+                        + " the verdicts' kinds, as the ledger names them, are three DEGENERATE_OUTPUT and three"
+                        + " EXTRACTION_FAILED under both runs",
+                () -> {
+                    assertThat(verdictKindsUnder(run))
+                            .containsExactly(
+                                    "DEGENERATE_OUTPUT",
+                                    "DEGENERATE_OUTPUT",
+                                    "DEGENERATE_OUTPUT",
+                                    "EXTRACTION_FAILED",
+                                    "EXTRACTION_FAILED",
+                                    "EXTRACTION_FAILED");
+                    assertThat(verdictKindsUnder(run)).containsExactlyElementsOf(verdictKindsUnder(reference));
+                });
         claim(
                 "and the document the converter blamed on itself is recorded once, as in one go, rather than"
                         + " once per invocation that met it",
@@ -262,8 +273,8 @@ class ExtractionResumeInvocationTest {
     /**
      * The conversion count after the resume is what this test discriminates on. The claims about what
      * the stop left -- a whole number of chunks, shingles only beside a metric row, the run ending with
-     * one metric row per document -- pass today as well: they guard the chunk atomicity ADR-181 rests
-     * on, and would fail only if a change broke it.
+     * one metric row per document -- would hold under a full redo as well: they guard the chunk atomicity
+     * ADR-181 rests on, and fail only if a change breaks it.
      */
     @Test
     @Story("Stage 2 interrupted partway")
@@ -377,8 +388,8 @@ class ExtractionResumeInvocationTest {
      * only the rest; one that asks under the run reads them all. Any other change to the run id is the
      * same case to ADR-181's rule.
      *
-     * <p>Passes today, because today's code redoes the whole stage under any run it starts; it has to
-     * go on passing once a resume keeps what a run committed.
+     * <p>A full redo under any run would pass this too; what it holds is that keeping what a run
+     * committed is never extended to another run's rows.
      */
     @Test
     @Story("Stage 2 interrupted partway")
@@ -425,9 +436,8 @@ class ExtractionResumeInvocationTest {
 
     /**
      * The conversion count is what this test discriminates on. The confidence-distribution total
-     * passes today too, because today's full redo also covers every document; it guards ADR-181 §5's
-     * rule that a report about stage 2 reads the ledger under the run rather than one invocation's
-     * counts.
+     * would hold under a full redo too, which also covers every document; it guards ADR-181 §5's rule
+     * that a report about stage 2 reads the ledger under the run rather than one invocation's counts.
      */
     @Test
     @Story("Stage 2 interrupted partway")

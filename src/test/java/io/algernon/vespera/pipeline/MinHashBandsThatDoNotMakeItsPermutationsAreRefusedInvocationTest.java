@@ -4,7 +4,6 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -56,11 +55,6 @@ class MinHashBandsThatDoNotMakeItsPermutationsAreRefusedInvocationTest {
     /** What a stack frame looks like in the output, which a refusal in one line does not print. */
     private static final String A_STACK_FRAME = "\tat ";
 
-    /** Above every measured document frequency here, so stage 4's gate is open. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model the scripted embedder answers for. */
-    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 
     @TempDir
     static Path workingDirectory;
@@ -92,11 +86,8 @@ class MinHashBandsThatDoNotMakeItsPermutationsAreRefusedInvocationTest {
     void bandsTimesRowsOtherThanThePermutationsAreRefusedAtTheStart(CapturedOutput output) throws IOException {
         Files.writeString(root.resolve("corpus-0.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+
         int before = output.getAll().length();
 
         cli.run("run", root.toString());

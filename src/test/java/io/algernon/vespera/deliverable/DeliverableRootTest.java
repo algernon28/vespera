@@ -3,6 +3,7 @@ package io.algernon.vespera.deliverable;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.abort;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.TestLinks;
@@ -156,6 +157,25 @@ class DeliverableRootTest {
                         .contains(overlap(library.toRealPath(), "above the seed folder", seedsReal)));
     }
 
+    /**
+     * ADR-276 §2: the corpus root is compared first, then the seed folder. Where the seed folder lies inside the
+     * corpus root, a root that is the seed folder stands in a relation to both, and the line names the first.
+     */
+    @Test
+    @Story("A folder over the archive is refused before anything is walked")
+    @DisplayName("A folder over both the corpus root and a seed folder inside it is refused by the corpus root")
+    void aRootOverBothIsRefusedByTheCorpusRootFirst() throws IOException {
+        Path seedsInsideTheArchive = Files.createDirectories(archive.resolve("seeds"));
+        Path archiveReal = archive.toRealPath();
+
+        claim(
+                "a root that is a seed folder lying inside the corpus root is refused as inside the corpus root, not as"
+                        + " the seed folder: the corpus root is compared before the seed folder",
+                () -> assertThat(DeliverableRoot.named(seedsInsideTheArchive)
+                                .refusalAtTheStart(work, archive, Optional.of(seedsInsideTheArchive)))
+                        .contains(overlap(archiveReal.resolve("seeds"), "inside the corpus root", archiveReal)));
+    }
+
     @Test
     @Story("A folder over the archive is refused before anything is walked")
     @DisplayName("A folder beside the corpus root or the seed folder, or inside the working directory, is accepted")
@@ -215,12 +235,9 @@ class DeliverableRootTest {
         Path rootSpelledInCapitals = base.resolve("UNMADE").resolve("tree");
         Path baseReal = base.toRealPath();
 
-        claim(
-                "the precondition: neither the seed folder nor the root is there, so no real path settles their case",
-                () -> {
-                    assertThat(seedFolderNotMadeYet).doesNotExist();
-                    assertThat(rootSpelledInCapitals).doesNotExist();
-                });
+        assumeTrue(
+                Files.notExists(seedFolderNotMadeYet) && Files.notExists(rootSpelledInCapitals),
+                "neither the seed folder nor the root is there, so no real path settles their case");
         claim(
                 "a root under the seed folder's name in capitals is inside the seed folder",
                 () -> assertThat(DeliverableRoot.named(rootSpelledInCapitals)
@@ -344,13 +361,10 @@ class DeliverableRootTest {
         Path anEarlierTree = Files.createDirectories(work.resolve("deliverable").resolve(A_GENERATION_RUN));
         Files.writeString(anEarlierTree.resolve("index.html"), "an index drawn before trees were marked", StandardCharsets.UTF_8);
 
-        claim(
-                "the precondition: the tree under the working directory holds an index and no marker, as a tree drawn"
-                        + " before trees were marked does",
-                () -> {
-                    assertThat(anEarlierTree.resolve("index.html")).isRegularFile();
-                    assertThat(anEarlierTree.resolve(MARKER)).doesNotExist();
-                });
+        assumeTrue(
+                Files.isRegularFile(anEarlierTree.resolve("index.html")) && Files.notExists(anEarlierTree.resolve(MARKER)),
+                "the tree under the working directory holds an index and no marker, as a tree drawn before trees"
+                        + " were marked does");
         claim(
                 "and it is accepted, its folder being named for the generation that drew it",
                 () -> assertThat(DeliverableRoot.UNNAMED.refusalAtTheDrawing(work, A_GENERATION_RUN)).isEmpty());

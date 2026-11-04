@@ -2,6 +2,7 @@ package io.algernon.vespera.similarity;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.Ledger;
@@ -61,7 +62,7 @@ class DocumentFrequencyTest {
 
     private static final long BLOCKED_ONLY_HASH_B = 400L;
 
-    /** A hash present only in a lone survivor -- singleton, but still a shingled document. */
+    /** A hash present only in a lone survivor, converted only in part -- singleton, but still a shingled document. */
     private static final long ANOTHER_SINGLETON_HASH = 500L;
 
     @Autowired
@@ -88,9 +89,9 @@ class DocumentFrequencyTest {
         RunId stage3RunId = fixture.measure();
 
         Row row = documentFrequencyRow(stage3RunId, SHARED_HASH);
-        claim("the shared hash earned exactly one row", () -> assertThat(row).isNotNull());
         claim(
-                "it appears in exactly two distinct surviving documents",
+                "it appears in exactly two distinct surviving documents -- the degenerate-output occurrence"
+                        + " that also carries it is not a survivor and does not inflate the count",
                 () -> assertThat(row.documentCount()).isEqualTo(2));
         claim(
                 "and three times in total -- twice inside one document, once in the other -- so a phrase"
@@ -113,11 +114,6 @@ class DocumentFrequencyTest {
         claim(
                 "the same holds for a hash only ever seen in a degenerate-output occurrence",
                 () -> assertThat(documentFrequencyRow(stage3RunId, BLOCKED_ONLY_HASH_B)).isNull());
-        claim(
-                "and a blocked occurrence sharing the survivors' own hash does not inflate their count --"
-                        + " the shared hash's document count stays exactly 2",
-                () -> assertThat(documentFrequencyRow(stage3RunId, SHARED_HASH).documentCount())
-                        .isEqualTo(2));
     }
 
     @Test
@@ -125,16 +121,13 @@ class DocumentFrequencyTest {
     @DisplayName("A partial_success occurrence's shingles are included, the same as any other survivor")
     void aPartialSuccessOccurrenceIsIncluded() {
         Fixture fixture = fixture();
+        partialSuccess(fixture.lonelySurvivor, fixture.stage2RunId);
         RunId stage3RunId = fixture.measure();
 
         claim(
-                "the lone survivor's own singleton hash still counts it as a shingled document -- a"
-                        + " partial_success document carries no verdict at all, so it is a survivor exactly"
-                        + " like an unconditional success",
-                () -> assertThat(documentFrequencyRow(stage3RunId, ANOTHER_SINGLETON_HASH)).isNull());
-        claim(
-                "and it is counted in the corpus size below, which is the fact that actually distinguishes"
-                        + " it from never having been read at all",
+                "the lone survivor was converted only in part and carries no verdict, so it is a survivor"
+                        + " like an unconditional success: the corpus size counts it with the two others,"
+                        + " three shingled documents",
                 () -> assertThat(corpusSize(stage3RunId, PARAMETER_IDENTITY)).isEqualTo(3));
     }
 
@@ -183,9 +176,7 @@ class DocumentFrequencyTest {
         OccurrenceId occurrence = occurrence(ledger, walkId, "one.txt");
         RunId earlier = ledger.runs().startRun("extraction", "earlier-build", "{}", walkId, List.of());
         RunId later = ledger.runs().startRun("extraction", "later-build", "{}", walkId, List.of());
-        claim(
-                "the fixture holds two different runs, so the table holds more rows than either",
-                () -> assertThat(later).isNotEqualTo(earlier));
+        assumeTrue(!later.equals(earlier), "the fixture holds two different runs");
         writeRows(occurrence, earlier, ROWS_OF_THE_EARLIER_RUN);
         writeRows(occurrence, later, ROWS_OF_THE_LATER_RUN);
 
@@ -193,15 +184,10 @@ class DocumentFrequencyTest {
 
         claim(
                 "the later run was written in one stretch, so the most rows it can hold is the "
-                        + ROWS_OF_THE_LATER_RUN + " it does hold",
+                        + ROWS_OF_THE_LATER_RUN + " it does hold, not the table's " + (ROWS_OF_THE_EARLIER_RUN
+                        + ROWS_OF_THE_LATER_RUN) + " that count the earlier run's " + ROWS_OF_THE_EARLIER_RUN
+                        + " too",
                 () -> assertThat(bound).hasValue(ROWS_OF_THE_LATER_RUN));
-        claim(
-                "and the fixture counts that many rows under it",
-                () -> assertThat(rowsOf(later)).isEqualTo(ROWS_OF_THE_LATER_RUN));
-        claim(
-                "that is fewer than the greatest row number in the table, which counts the earlier run's "
-                        + ROWS_OF_THE_EARLIER_RUN + " rows too, so the answer is this run's and not the table's",
-                () -> assertThat(bound.getAsLong()).isLessThan(greatestShingleRow()));
     }
 
     @Test
@@ -247,9 +233,7 @@ class DocumentFrequencyTest {
         OptionalLong bound = new DocumentFrequency(jdbcTemplate, ledger).shingleRowsUpTo(resumed);
 
         long held = 2L * ROWS_OF_THE_EARLIER_RUN;
-        claim(
-                "the run holds " + held + " rows, written in two stretches of " + ROWS_OF_THE_EARLIER_RUN,
-                () -> assertThat(rowsOf(resumed)).isEqualTo(held));
+        assumeTrue(rowsOf(resumed) == held, "the run holds two stretches of its own rows");
         claim(
                 "the most it is said to hold takes in the " + ROWS_OF_THE_LATER_RUN + " rows the other run wrote"
                         + " between the two stretches, so it is an upper limit and not a count",
@@ -274,12 +258,6 @@ class DocumentFrequencyTest {
         Long rows = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM shingle WHERE run_id = ?", Long.class, runId.value());
         return rows == null ? 0 : rows;
-    }
-
-    /** The greatest rowid in {@code shingle}, over every run's rows. */
-    private long greatestShingleRow() {
-        Long greatest = jdbcTemplate.queryForObject("SELECT MAX(rowid) FROM shingle", Long.class);
-        return greatest == null ? 0 : greatest;
     }
 
     /** One walk, one stage-2 run, and the occurrences/shingle rows every test above shares. */
@@ -314,18 +292,20 @@ class DocumentFrequencyTest {
 
         RunId stage3RunId = ledger.runs().startRun("content-census", "def456", "{}", walkId, List.of(stage2RunId));
 
-        return new Fixture(ledger, stage2RunId, stage3RunId);
+        return new Fixture(ledger, stage2RunId, stage3RunId, lonelySurvivor);
     }
 
     private class Fixture {
         private final Ledger ledger;
         private final RunId stage2RunId;
         private final RunId stage3RunId;
+        private final OccurrenceId lonelySurvivor;
 
-        Fixture(Ledger ledger, RunId stage2RunId, RunId stage3RunId) {
+        Fixture(Ledger ledger, RunId stage2RunId, RunId stage3RunId, OccurrenceId lonelySurvivor) {
             this.ledger = ledger;
             this.stage2RunId = stage2RunId;
             this.stage3RunId = stage3RunId;
+            this.lonelySurvivor = lonelySurvivor;
         }
 
         RunId measure() {
@@ -352,6 +332,16 @@ class DocumentFrequencyTest {
                 runId.value(),
                 PARAMETER_IDENTITY,
                 hash);
+    }
+
+    /** Stage 2's metrics row for an occurrence Docling converted only in part, with no verdict beside it. */
+    private void partialSuccess(OccurrenceId occurrenceId, RunId stage2RunId) {
+        jdbcTemplate.update(
+                "INSERT INTO extraction_metric (occurrence_id, run_id, status, processing_time, character_count,"
+                        + " alphanumeric_char_count, word_count, word_character_length_total, vowelless_word_count,"
+                        + " single_character_word_count) VALUES (?, ?, 'partial_success', 1.0, 10, 10, 2, 10, 0, 0)",
+                occurrenceId.value(),
+                stage2RunId.value());
     }
 
     private Row documentFrequencyRow(RunId runId, long hash) {

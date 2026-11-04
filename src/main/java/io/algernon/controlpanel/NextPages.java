@@ -59,20 +59,38 @@ final class NextPages {
     }
 
     /** What the file says, or why the control panel offers nothing from it. */
-    private record Read(Optional<NextInvocation> next, Optional<String> problem) {
+    private record Read(Optional<NextInvocation> next, Optional<String> problem, String why) {
     }
+
+    /** §3's three cases (ADR-334): why the page suggests nothing, as {@code data-why} has it, and in words. */
+    private static final String NONE_ENDED = "none-ended";
+    private static final String ENDED_BADLY = "ended-badly";
+    private static final String SAID_NOTHING = "said-nothing";
+
+    private static final Map<String, String> WHY_IN_WORDS = Map.of(
+            NONE_ENDED, "No run has finished yet, so there is no next step to suggest. Start a run from the Launch"
+                    + " page; once it finishes, this page shows what it needs next.",
+            ENDED_BADLY, "The last run did not finish, so there is no next step to suggest. The Invocation page says"
+                    + " how it ended; start it again from the Launch page once that is put right.",
+            SAID_NOTHING, "The last run finished without saying what it needs next, so there is no next step to"
+                    + " suggest.");
 
     private Read read() {
         Optional<Path> folder = state.workingDirectory();
-        boolean endedWell = state.ending().map(ending -> ending.exitCode() == 0
-                && ending.howItEnded() == HowItEnded.ENDED).orElse(false);
-        if (folder.isEmpty() || !endedWell) {
-            return new Read(Optional.empty(), Optional.empty());
+        Optional<Ending> ending = state.ending();
+        boolean endedWell = ending.map(each -> each.exitCode() == 0 && each.howItEnded() == HowItEnded.ENDED)
+                .orElse(false);
+        if (!endedWell) {
+            return new Read(Optional.empty(), Optional.empty(), ending.isEmpty() ? NONE_ENDED : ENDED_BADLY);
+        }
+        if (folder.isEmpty()) {
+            return new Read(Optional.empty(), Optional.empty(), SAID_NOTHING);
         }
         try {
-            return new Read(NextInvocation.read(folder.get()), Optional.empty());
+            Optional<NextInvocation> next = NextInvocation.read(folder.get());
+            return new Read(next, Optional.empty(), next.isEmpty() ? SAID_NOTHING : "");
         } catch (IllegalArgumentException | IOException unreadable) {
-            return new Read(Optional.empty(), Optional.ofNullable(unreadable.getMessage()));
+            return new Read(Optional.empty(), Optional.ofNullable(unreadable.getMessage()), "");
         }
     }
 
@@ -91,9 +109,11 @@ final class NextPages {
         StringBuilder body = new StringBuilder(ControlPanelPage.outcome(state.takeOutcome("/next")));
         String invocation = read.next().map(next -> next.invocation().name().toLowerCase(java.util.Locale.ROOT))
                 .orElse("unknown");
-        body.append("<p id=\"next-invocation\" data-invocation=\"").append(invocation).append("\">")
+        String why = read.next().isPresent() || read.problem().isPresent() ? "" : read.why();
+        body.append("<p id=\"next-invocation\" data-invocation=\"").append(invocation).append('"')
+                .append(why.isEmpty() ? "" : " data-why=\"" + why + "\"").append('>')
                 .append(read.next().isPresent() ? "The next invocation is " + invocation
-                        : ControlPanelPage.escape(read.problem().orElse("The next act is not known: no invocation of the control panel's has ended with 0")))
+                        : ControlPanelPage.escape(read.problem().orElseGet(() -> WHY_IN_WORDS.get(read.why()))))
                 .append("</p>\n");
         if (read.next().isPresent()) {
             NextInvocation next = read.next().get();

@@ -102,8 +102,9 @@ class ItalianWordingTest {
     @Story("An Italian deliverable says in Italian why nothing was written over a group")
     @DisplayName("Every Italian sentence keeps the rules every English one keeps")
     void everyItalianSentenceKeepsTheRulesTheEnglishKeeps() {
-        List<String> eight = new ArrayList<>(ItalianWordingOnRecord.EVERY_SENTENCE);
-        eight.add(ItalianWordingOnRecord.STANDS_WITHOUT_WRITING);
+        List<String> eight = new ArrayList<>(
+                Arrays.stream(Unwritten.values()).map(why -> UnwrittenSentences.of(why, ITALIAN)).toList());
+        eight.add(UnwrittenSentences.standing(Unwritten.FAULT_SCHEMA_VIOLATION, true, ITALIAN).orElseThrow());
         claim(
                 "there are " + SEVEN_CASES + " reasons and the line beneath them, and no two are the same",
                 () -> assertThat(eight).hasSize(SEVEN_CASES + 1).doesNotHaveDuplicates());

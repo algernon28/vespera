@@ -60,7 +60,7 @@ class TheStorageEmitterWritesTheSameBlocksTest {
 
     @Test
     @Story("Both renderings carry the same writing")
-    @DisplayName("The storage emitter writes the same blocks as the HTML one, its line break self-closed and its citations ADR-309's links")
+    @DisplayName("The storage emitter writes the same blocks as the HTML one, its line break self-closed and its citations anchor links")
     void theStorageEmitterWritesTheSameBlocks() {
         List<String> differing = new ArrayList<>();
         for (String input : EVERY_INPUT) {

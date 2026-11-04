@@ -32,8 +32,9 @@ import org.springframework.test.context.ActiveProfiles;
  * <p>The bean types are read from the definitions without building any bean, so a lazy store, which
  * would reach for Chroma once built, is found here without being built.
  *
- * <p>Written before the change it pins: against the tree it was written on, the first test passes and the
- * second fails, on the Chroma store, its client and their configuration.
+ * <p>That the context starts at all is held by the test below being run: a context that cannot start fails
+ * it at load. Written before the change it pins: against the tree it was written on, the test fails, on the
+ * Chroma store, its client and their configuration.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -52,16 +53,6 @@ class TheApplicationStartsWithNoVectorStoreTest {
 
     @Autowired
     private ConfigurableApplicationContext context;
-
-    @Test
-    @Story("The application starts with no vector database")
-    @DisplayName("The application starts with no Docker daemon and no sidecar running")
-    void theApplicationStarts() {
-        claim(
-                "the whole application context is built and running, with no container started for it, so"
-                        + " nothing it builds while starting needs a sidecar",
-                () -> assertThat(context.isActive()).isTrue());
-    }
 
     @Test
     @Story("The application starts with no vector database")

@@ -115,7 +115,7 @@ class EntryPicturesTest {
 
         claim(
                 "each of the two documents is asked for its pictures once in this pass, so the second pass's"
-                        + " ask is the second and last (ADR-149)",
+                        + " ask is the second and last",
                 () -> assertThat(asked).containsOnlyKeys(FIRST.occurrence(), SECOND.occurrence())
                         .allSatisfy((occurrence, count) -> assertThat(count).isOne()));
         claim(

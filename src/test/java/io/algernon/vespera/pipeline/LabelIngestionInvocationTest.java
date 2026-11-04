@@ -5,10 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -17,7 +14,6 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -41,12 +37,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Issue("111")
 @Link(name = "ADR-088", url = Adr.RELEVANCE_THRESHOLD_IS_SIXTY_LABELS, type = "adr")
 class LabelIngestionInvocationTest {
-
-    /** A floor of 1.0 opens stage 4's gate, the way every stage-5 invocation fixture does. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model this fixture names, so gate 3 and the steps behind it open. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** The file the scoring run writes for a person to answer. */
     private static final String LABEL_FILE = "relevance-labels.yaml";
@@ -121,6 +111,10 @@ class LabelIngestionInvocationTest {
         cli.run("label");
 
         claim(
+                "the second ingestion of the same file reports success, as the first did: the answer it"
+                        + " records stands already, and recording it again replaces it rather than failing",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
                 "one answer was given, so one row stands: running the command again is something an"
                         + " operator will do, and it must not turn one judgement into two",
                 () -> assertThat(labelCount(seeds)).isEqualTo(1));
@@ -177,7 +171,8 @@ class LabelIngestionInvocationTest {
 
         claim(
                 "the invocation reports failure, because succeeding on a file with every answer still"
-                        + " blank would tell the operator sixty judgements landed when none did",
+                        + " blank would tell the operator their judgements landed when none did",
+
                 () -> assertThat(cli.getExitCode()).isNotZero());
         claim("and no answer was recorded", () -> assertThat(labelCount(seeds)).isZero());
     }
@@ -242,13 +237,7 @@ class LabelIngestionInvocationTest {
     private void aScoredCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve(CORPUS_DOCUMENT), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
     }
 

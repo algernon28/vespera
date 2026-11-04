@@ -83,7 +83,7 @@ public class CodeSets {
             Progress progress) {
         WalkId walk = ledger.runs().walkOf(runId).orElseThrow(() -> new IllegalStateException(
                 "run " + runId.value() + " is recorded against no walk"));
-        Found found = new Found();
+        Found found = new Found(ledger.walks().foldersOf(walk).stream().map(Walk::spellingOf).toList());
         eachPage(ledger, walk, page -> {
             Set<OccurrenceId> code = ledger.verdicts().carryingAmong(runId, VerdictKind.CODE, ids(page));
             for (OccurrenceAtPath occurrence : page) {
@@ -178,15 +178,28 @@ public class CodeSets {
      */
     public Optional<String> setOf(RunId stageOneRun, OccurrencePath path) {
         String folder = folderOf(path);
+        boolean outsideTheCorpusRoot = isAbsolute(path.value());
         while (true) {
             if (isSet(stageOneRun, folder)) {
                 return Optional.of(folder);
             }
-            if (folder.isEmpty() || folder.indexOf('/') < 0) {
+            // An absolute folder is a code set folder outside the corpus root or below one (ADR-334 section 5.5), and
+            // the root's set covers no file of it: the climb ends at the top of the path and never reaches "".
+            if (folder.isEmpty() || (!outsideTheCorpusRoot && folder.indexOf('/') < 0)) {
                 return Optional.empty();
             }
-            folder = folder.substring(0, folder.lastIndexOf('/'));
+            int cut = folder.lastIndexOf('/');
+            folder = cut < 0 ? "" : folder.substring(0, cut);
+            if (outsideTheCorpusRoot && folder.isEmpty()) {
+                return Optional.empty();
+            }
         }
+    }
+
+    /** Whether a path as occurrences spell it is absolute: beginning with a slash, or a drive letter, a colon and a slash. */
+    static boolean isAbsolute(String path) {
+        return path.startsWith("/")
+                || (path.length() >= 3 && Character.isLetter(path.charAt(0)) && path.startsWith(":/", 1));
     }
 
     /** One set of a stage-1 run as {@link #setsOf} reads it: its folder, its default name and its lowest member. */
@@ -432,6 +445,22 @@ public class CodeSets {
         /** Each generator's tree roots, the highest of the folders holding both a marked page and a companion. */
         final Map<String, Set<String>> treeRoots = new HashMap<>();
         final Set<String> setFolders = new HashSet<>();
+        /** The code set folders outside the corpus root, as their occurrences' paths spell them (ADR-334 section 5.5). */
+        final List<String> outside;
+
+        Found(List<String> outside) {
+            this.outside = outside;
+        }
+
+        /** The code set folder outside the corpus root that {@code folder} is or lies in, or null for the corpus's own. */
+        String outsideFolderOf(String folder) {
+            for (String candidate : outside) {
+                if (folder.equals(candidate) || folder.startsWith(candidate.endsWith("/") ? candidate : candidate + "/")) {
+                    return candidate;
+                }
+            }
+            return null;
+        }
 
         void findTrees(MarkedFolders markedFolders) {
             for (String generator : GeneratorCompanions.generators()) {
@@ -454,9 +483,11 @@ public class CodeSets {
             if (folder.isEmpty()) {
                 return "";
             }
+            String limit = outsideFolderOf(folder);
             String current = folder;
             while (true) {
-                if (buildFolders.contains(current) || current.indexOf('/') < 0) {
+                if (buildFolders.contains(current)
+                        || (limit == null ? current.indexOf('/') < 0 : current.equals(limit))) {
                     return current;
                 }
                 current = current.substring(0, current.lastIndexOf('/'));
@@ -468,12 +499,13 @@ public class CodeSets {
             if (folder.isEmpty()) {
                 return setFolders.contains("") ? "" : null;
             }
+            String limit = outsideFolderOf(folder);
             String current = folder;
             while (true) {
                 if (setFolders.contains(current)) {
                     return current;
                 }
-                if (current.indexOf('/') < 0) {
+                if (limit == null ? current.indexOf('/') < 0 : current.equals(limit)) {
                     return null;
                 }
                 current = current.substring(0, current.lastIndexOf('/'));

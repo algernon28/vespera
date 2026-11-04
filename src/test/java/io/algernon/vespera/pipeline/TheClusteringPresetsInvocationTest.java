@@ -56,11 +56,7 @@ class TheClusteringPresetsInvocationTest {
 
     private static final double A_FINER_RESOLUTION = 2.5;
 
-    /** Above every measured document frequency here, so stage 4's gate is open. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
-    /** The model the scripted embedder answers for. */
-    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 
     /** The tail of a scoring run's recorded configuration where the profile names a finer resolution. */
     private static final String THE_MEMBER = ",\"clusterResolution\":" + A_FINER_RESOLUTION + "}";
@@ -100,8 +96,8 @@ class TheClusteringPresetsInvocationTest {
     void everyGateOpenAndNoResolutionNamed() {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
                 .build());
     }
 

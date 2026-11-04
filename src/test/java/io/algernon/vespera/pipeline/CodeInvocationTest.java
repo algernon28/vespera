@@ -38,8 +38,7 @@ import org.springframework.test.context.DynamicPropertySource;
  *
  * <p>The corpus is one document and two identical files whose name ends with a listed ending, the profile opens every
  * gate up to the arrangement, and the job runs once to the arrangement gate. The key is written as YAML through
- * {@link CodeNameEndingsInProfile}, so this compiles before the key exists and fails at the census's load until it
- * does.
+ * {@link CodeNameEndingsInProfile}.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -62,12 +61,6 @@ class CodeInvocationTest {
 
     /** The seed, named with the listed ending. */
     private static final String SEED = "esempio" + ENDING;
-
-    /** A floor of 1.0 opens stage 4's gate, as every invocation test reaching stage 5 sets it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model the scripted embedder answers for, so the scoring half of the job opens. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** The seed recording loop's line: one seed, recorded, so one of one. */
     private static final String SEEDS_RECORDED_LINE = "Stage 5a (seed extraction, seeds recorded): 1 of 1 (100%)";
@@ -122,12 +115,7 @@ class CodeInvocationTest {
         Files.createDirectory(root.resolve("copia"));
         Files.writeString(root.resolve("copia").resolve(CODE_NAME), CODE_TEXT);
         Files.writeString(seeds.resolve(SEED), "class Esempio { /* a seed whose name ends as code does */ }\n");
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         CodeNameEndingsInProfile.write(profileStore, ENDING, "set by this test");
         List<Path> before = accounts();
 

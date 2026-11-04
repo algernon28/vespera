@@ -171,8 +171,12 @@ class CodeTaskletTest {
                     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM superseded_by", Integer.class)).isZero();
                 });
         claim(
-                "stage 1's log says of each that it is code, and why",
-                () -> assertThat(logged).anyMatch(line -> line.endsWith("-> code: " + ENDING_REASON.formatted(".java"))));
+                "stage 1's log says of each, by its occurrence, that it was checked and is code, and why",
+                () -> assertThat(logged).contains(
+                        damageCheckLine(ledger, walkId, "Main.java", ENDING_REASON.formatted(".java")),
+                        damageCheckLine(ledger, walkId, "copia/Main.java", ENDING_REASON.formatted(".java")),
+                        damageCheckLine(ledger, walkId, "util.c", ENDING_REASON.formatted(".c")),
+                        damageCheckLine(ledger, walkId, "UTIL2.C", ENDING_REASON.formatted(".C"))));
         claim(
                 "the settings stage 1 records carry the listed endings once each, in lower case and in order, and the"
                         + " version of the generators' marks",
@@ -794,6 +798,11 @@ class CodeTaskletTest {
 
     private WalkRecorder walkRecorder(Ledger ledger) {
         return new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource));
+    }
+
+    /** The whole line stage 1 logs for {@code fileName} once its check for damage finds it code for {@code reason}. */
+    private String damageCheckLine(Ledger ledger, WalkId walkId, String fileName, String reason) {
+        return "[byte-level-reduction] checked " + occurrenceId(ledger, walkId, fileName) + " for damage -> code: " + reason;
     }
 
     private long occurrenceId(Ledger ledger, WalkId walkId, String fileName) {

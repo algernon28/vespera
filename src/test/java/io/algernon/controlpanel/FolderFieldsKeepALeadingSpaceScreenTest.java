@@ -91,7 +91,7 @@ class FolderFieldsKeepALeadingSpaceScreenTest {
     private static final List<SeedForm> THE_SEED_FORMS = List.of(
             new SeedForm("seedFolder", "/", "seed-folder", "seedFolder", "provenance"),
             new SeedForm("next-seedFolder", "/next", "next", "seedFolder", "seedFolder.provenance"),
-            new SeedForm("profile-seedFolder", "/profile", "seedFolder", "value", "provenance"));
+            new SeedForm("profile-seedFolder", "/profile", "profile", "seedFolder", "seedFolder.provenance"));
 
     @TempDir
     Path folder;

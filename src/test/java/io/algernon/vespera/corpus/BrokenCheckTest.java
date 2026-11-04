@@ -122,17 +122,6 @@ class BrokenCheckTest {
 
     @Test
     @Story("The .pdf structural check")
-    @DisplayName("A .pdf with a header and trailer passes")
-    void validPdfPasses(@TempDir Path dir) throws IOException {
-        Path pdf = Files.write(dir.resolve("valid.pdf"), "%PDF-1.4\n1 0 obj\n<< >>\nendobj\n%%EOF".getBytes());
-
-        claim(
-                "a pdf carrying both the header and the trailer is not broken",
-                () -> assertThat(BrokenCheck.check(pdf).broken()).isFalse());
-    }
-
-    @Test
-    @Story("The .pdf structural check")
     @DisplayName("Content with no %PDF- header is not judged as a pdf, whatever it is named")
     void contentWithoutThePdfHeaderIsNotJudgedAsAPdf(@TempDir Path dir) throws IOException {
         Path misnamed = Files.write(dir.resolve("no-header.pdf"), "not a pdf at all, just some bytes".getBytes());

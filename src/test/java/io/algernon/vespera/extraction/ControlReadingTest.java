@@ -9,10 +9,14 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
 
 /**
  * Whether the control document converted (ADR-184 section 2), read in {@code extraction} since ADR-189:
@@ -34,13 +38,24 @@ class ControlReadingTest {
     /** The one line of text the shipped control PDF carries, written out. */
     private static final String THE_SENTENCE = "Vespera control document";
 
+    /** The control PDF the jar ships, whose one page's content is written uncompressed. */
+    private static final String THE_CONTROL_PDF = "io/algernon/vespera/pipeline/control-conversion.pdf";
+
+    /** A PDF content stream's operator that shows a string of text: the string in brackets, then {@code Tj}. */
+    private static final Pattern SHOWS_TEXT = Pattern.compile("\\((.*?)\\) Tj");
+
     @Test
     @Story("Whether the control document converted")
     @DisplayName("The control document's sentence is the one line the shipped PDF carries")
-    void theSentenceIsTheShippedOne() {
+    void theSentenceIsTheShippedOne() throws IOException {
+        String content = new ClassPathResource(THE_CONTROL_PDF).getContentAsString(StandardCharsets.ISO_8859_1);
+        List<String> shown = SHOWS_TEXT.matcher(content).results().map(match -> match.group(1)).toList();
+
         claim(
-                "the text the answer must carry is \"" + THE_SENTENCE + "\", the line written into the PDF",
-                () -> assertThat(ControlConversion.SENTENCE).isEqualTo(THE_SENTENCE));
+                "the shipped PDF shows one line of text, \"" + THE_SENTENCE + "\", and that line is the text the"
+                        + " answer must carry",
+                () -> assertThat(List.of(shown, List.of(ControlConversion.SENTENCE)))
+                        .containsExactly(List.of(THE_SENTENCE), List.of(THE_SENTENCE)));
     }
 
     @Test

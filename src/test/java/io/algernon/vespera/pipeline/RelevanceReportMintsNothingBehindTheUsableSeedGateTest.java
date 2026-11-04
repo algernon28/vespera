@@ -8,8 +8,6 @@ import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.Ledger;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -55,12 +53,6 @@ class RelevanceReportMintsNothingBehindTheUsableSeedGateTest {
 
     /** The logger every operator-facing line in this application is written through. */
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
-
-    /** A floor of 1.0 opens stage 4's gate, as in {@link SeedExtractionInvocationTest}. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model this fixture names, so the model gate is open and cannot be what shuts the step. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     @TempDir
     static Path workingDirectory;
@@ -111,7 +103,7 @@ class RelevanceReportMintsNothingBehindTheUsableSeedGateTest {
     void mintsNoRunWhenNoSeedIsUsableAndAModelIsNamed(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document, for #309");
         Files.writeString(seeds.resolve(SeedScriptedExtractionBeans.EMPTY_SEED), "not a document");
-        theFloorTheSeedFolderAndTheModel(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
@@ -157,7 +149,7 @@ class RelevanceReportMintsNothingBehindTheUsableSeedGateTest {
         Files.writeString(
                 seeds.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ),
                 "a seed document that is moved away when read, for #309's second route");
-        theFloorTheSeedFolderAndTheModel(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         SeedScriptedExtractionBeans.moveAwayWhenReadInto(elsewhere);
 
         cli.run("run", root.toString());
@@ -188,17 +180,6 @@ class RelevanceReportMintsNothingBehindTheUsableSeedGateTest {
                 () -> assertThat(operatorLines())
                         .anyMatch(line -> line.equals(
                                 "stage 5's relevance-report step is gated: a seed file could not be opened.")));
-    }
-
-    /** Stage 4's gate open, the seed folder named, and a model named. */
-    private void theFloorTheSeedFolderAndTheModel(Path seeds) {
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so the model gate is open")
-                .build());
     }
 
     /** Every operator-facing line this invocation wrote, in the order it wrote them. */

@@ -105,25 +105,6 @@ class RelevanceLabelsTest {
 
     @Test
     @Story("An answer survives everything that produced it")
-    @DisplayName("Re-ingesting the same answer leaves one row, not two")
-    void reIngestingTheSameAnswerDoesNotDuplicateIt() {
-        RelevanceLabels labels = new RelevanceLabels(jdbcTemplate);
-        RunId firstRun = aRun();
-
-        labels.record(DOCUMENT, SEED_SET, true, firstRun, SCORE_ON_SCREEN, AN_EMBEDDER);
-        labels.record(DOCUMENT, SEED_SET, true, firstRun, SCORE_ON_SCREEN, AN_EMBEDDER);
-
-        claim(
-                "one answer was given about that document, so " + ONE_ROW + " row stands: every other"
-                        + " table in this system answers a repeat run with a fresh row set, because a"
-                        + " second computation is a second observation -- a second copy of a person's"
-                        + " answer is only a duplicate, and this table must never be tidied into"
-                        + " consistency with the others",
-                () -> assertThat(rowsAbout(labels, DOCUMENT)).hasSize(ONE_ROW));
-    }
-
-    @Test
-    @Story("An answer survives everything that produced it")
     @DisplayName("An answer given under one model is still there after a re-score under another")
     void anAnswerSurvivesAReScoreUnderANewModel() {
         RelevanceLabels labels = new RelevanceLabels(jdbcTemplate);
@@ -135,12 +116,23 @@ class RelevanceLabelsTest {
 
         claim(
                 "the answer is still there and still " + ONE_ROW + " row: a new model is a new set of"
-                        + " numbers, not a new opinion, so re-scoring costs the operator no second sitting",
+                        + " numbers, not a new opinion, so re-scoring costs the operator no second sitting."
+                        + " Every other table in this system answers a repeat run with a fresh row set,"
+                        + " because a second computation is a second observation -- a second copy of a"
+                        + " person's answer is only a duplicate, and this table must never be tidied into"
+                        + " consistency with the others",
                 () -> assertThat(rowsAbout(labels, DOCUMENT)).hasSize(ONE_ROW));
         claim(
                 "and the answer itself is unchanged, because nothing about a different model makes a"
                         + " person's judgement about a document different",
                 () -> assertThat(labels.answerFor(DOCUMENT, SEED_SET)).contains(true));
+        claim(
+                "while what it is seen against is the re-score's: the row now carries the later run, the"
+                        + " score under the new model and the later embedder, so the answer is read against"
+                        + " the numbers it now sits beside",
+                () -> assertThat(rowsAbout(labels, DOCUMENT).getFirst())
+                        .extracting(RelevanceLabel::runId, RelevanceLabel::scoreShown, RelevanceLabel::embedderIdentity)
+                        .containsExactly(laterRun.value(), SCORE_UNDER_THE_NEW_MODEL, A_LATER_EMBEDDER));
     }
 
     @Test

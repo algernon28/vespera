@@ -40,8 +40,7 @@ import org.junit.jupiter.api.io.TempDir;
  * over 2 GB at any heap, ended in {@code OutOfMemoryError}.
  *
  * <p>In this package because {@link ContentHashing} is package-private; {@link ContentHash} is public,
- * so one class holds both to the same claims, as {@link ContentHashingTest} already holds them to each
- * other.
+ * so one class holds both to the same claims, and so to each other.
  *
  * <p><b>How the bound is shown, twice over and without relying on this JVM's heap.</b> A file longer
  * than {@link Integer#MAX_VALUE} bytes cannot be held in one Java array at any heap, so hashing one at
@@ -228,8 +227,10 @@ class AFileOfAnySizeIsHashedTest {
     }
 
     @Test
-    @Story("Reading a file in parts changes no hash")
+    @Story("The hash is the standard one")
     @DisplayName("The empty file and the standard test input hash to their published digests by both methods")
+    @Link(name = "ADR-067", url = Adr.CONTENT_IDENTITY_IS_A_SHA_256_HASH, type = "adr")
+    @Issue("46")
     void hashesThePublishedVectors(@TempDir Path dir) throws IOException {
         Path empty = Files.createFile(dir.resolve("empty.bin"));
         Path abc = Files.write(dir.resolve("abc.txt"), new byte[] {'a', 'b', 'c'});

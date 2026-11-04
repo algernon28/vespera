@@ -35,6 +35,9 @@ import org.junit.jupiter.api.io.TempDir;
 @Tag("confluence")
 class PublishOrderAndRefusalsIT {
 
+    /** How the refusal of a parent title borne by a folder and a page begins. */
+    private static final String TWO_SO_TITLED = "2 pages or folders of the space ";
+
     @TempDir
     Path folder;
 
@@ -51,6 +54,18 @@ class PublishOrderAndRefusalsIT {
             claim("the publish went to its end, the root page under the folder so titled",
                     () -> assertThat(List.of(outcome.published(), site.pages().getFirst().parentId))
                             .containsExactly(true, StubConfluence.PARENT_ID));
+        }
+        try (StubConfluence site = StubConfluence.start()) {
+            site.aPageNoPublishMade(StubConfluence.PARENT_TITLE);
+            Publisher.Outcome outcome = site.publisher(StubConfluence.theAccount(), StubConfluence.BASE_URL, "",
+                    StubConfluence.PARENT_TITLE, new ArrayList<>())
+                    .publish(rendering.confluence(), Rendering.RUN, folder, line -> {});
+
+            claim("and where a page of the space bears the folder's title too, the parent is not one of the two:"
+                            + " the publish is refused, saying two pages or folders are so titled",
+                    () -> assertThat(List.of(outcome.published(), outcome.closingLine().contains(
+                            TWO_SO_TITLED + StubConfluence.SPACE_KEY + " is titled " + StubConfluence.PARENT_TITLE)))
+                            .as(outcome.closingLine()).containsExactly(false, true));
         }
     }
 

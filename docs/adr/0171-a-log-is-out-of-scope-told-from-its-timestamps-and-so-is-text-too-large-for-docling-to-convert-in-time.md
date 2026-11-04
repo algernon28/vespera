@@ -237,7 +237,7 @@ This changes nothing in #326. It is evidence for it:
 The size tests go through the stage-1 step, and the log tests go through the whole job with `profile.yaml` written as text.
 
 - `ByteLevelReductionTaskletTest`:
-  - `removesATextFileOverTheSizeCeilingAsOutOfScope`: two byte-identical text files of 16,000,001 bytes, and a CSV-named text of 16,000,002 bytes, are each removed as `OUT_OF_SCOPE`, the copies on their own account and never hashed. The reason is exactly the size reason above for 16,000,001. The page counts three left out, three *"text files left out for their size"* and none as logs, and says *"So is a text file over 16,000,000 bytes, because the converter cannot finish one in time"*.
+  - `removesATextFileOverTheLargestSizeConvertedInParts` (#684; ADR-178 moved the ceiling): two byte-identical text files of 16,000,001 bytes, and a CSV-named text of 16,000,002 bytes, are each removed as `OUT_OF_SCOPE`, the copies on their own account and never hashed. The reason is exactly the size reason above for 16,000,001. The page counts three left out, three *"text files left out for their size"* and none as logs, and says *"So is a text file over 16,000,000 bytes, because the converter cannot finish one in time"*.
   - `keepsATextFileAtTheCeilingAndAPdfOverIt`: a text file of exactly 16,000,000 bytes and an intact PDF of 16,000,001 bytes carry no verdict.
   - `keepsALogWhileNoLogFloorIsSet`: with no profile, a twelve-line file whose every line begins with a timestamp carries no verdict. It pins that an unset floor means no log rule.
 - `LogsAreOutOfScopeInvocationTest` (new, the whole job, `logTimestampShareFloor` at 0.9 written into `profile.yaml` before start-up):
@@ -248,6 +248,6 @@ The size tests go through the stage-1 step, and the log tests go through the who
   - `profile.yaml` points the key's measurement at `format-mix.html`.
 - `ByteLevelReductionTaskletTest.anUnreadableLogFloorRemovesNothingAndIsRecordedAsNone`: a floor of `0,9` is recorded as `null` and removes nothing.
 - `ByteLevelReductionTaskletTest.aLargeLogIsReportedAsALog`: a timestamped text file of 16,000,001 bytes, under a floor of 0.9, gets the log reason and is counted among the logs, not for its size.
-- `NextActionTest.aMistypedLogFloorIsReportedToo`: the closing line names the unreadable floor and quotes it back.
+- `NextActionTest.aNonNumericFloorIsReportedAsWantingANumber` (its log-floor case): the closing line names the unreadable floor and quotes it back (#682).
 - `TimestampedLinesTest`: UTF-16 and UTF-32 files with their byte-order marks; a large UTF-16 file whose last window begins half-way through a character; ten lines make a log and nine do not.
 - `RunIdentityGoldenTest.byteLevelReduction`: stage 1's configuration consumed is exactly `{"textSizeCeilingBytes":16000000,"logTimestampShareFloor":null}` under a profile that sets no floor.

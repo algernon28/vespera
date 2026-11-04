@@ -17,8 +17,11 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.bootstrap.DefaultBootstrapContext;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
@@ -74,25 +77,25 @@ class WorkingDirectoryInUseIT {
         WorkingDirectoryLock.release();
     }
 
-    @Test
+    /** Each command that takes the working directory, and whether it names an archive to walk. */
+    static Stream<Arguments> commandsOnAHeldWorkingDirectory() {
+        return Stream.of(
+                Arguments.of(Named.of("a run started on it", "run"), true),
+                Arguments.of(Named.of("recording answers on it", "label"), false));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("commandsOnAHeldWorkingDirectory")
     @Story("A second invocation on the same working directory is refused")
-    @DisplayName("A run started on a working directory another invocation holds ends in one line and a failing exit code")
-    void aRunOnAHeldWorkingDirectoryIsRefused(@TempDir Path workingDirectory, @TempDir Path archive)
+    @DisplayName("An invocation started on a working directory another invocation holds ends in one line and a failing exit code")
+    void anInvocationOnAHeldWorkingDirectoryIsRefused(
+            String command, boolean namesAnArchive, @TempDir Path workingDirectory, @TempDir Path archive)
             throws Exception {
         hold(workingDirectory);
 
-        Launched launched = launch(workingDirectory, "run", archive.toString());
-
-        refusedInOneLine(launched, workingDirectory);
-    }
-
-    @Test
-    @Story("A second invocation on the same working directory is refused")
-    @DisplayName("Recording answers on a working directory another invocation holds ends in one line and a failing exit code")
-    void aLabelInvocationOnAHeldWorkingDirectoryIsRefused(@TempDir Path workingDirectory) throws Exception {
-        hold(workingDirectory);
-
-        Launched launched = launch(workingDirectory, "label");
+        Launched launched = namesAnArchive
+                ? launch(workingDirectory, command, archive.toString())
+                : launch(workingDirectory, command);
 
         refusedInOneLine(launched, workingDirectory);
     }

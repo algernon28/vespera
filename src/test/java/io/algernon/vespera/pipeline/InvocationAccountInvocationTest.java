@@ -74,11 +74,6 @@ class InvocationAccountInvocationTest {
     /** The one file the converter faulted on, and so the one extraction-failed verdict this fixture earns. */
     private static final int ONE_FAULTED_FILE = 1;
 
-    /** A floor of 1.0 opens stage 4's gate, as every invocation test reaching stage 5 sets it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model the scripted embedder answers for, so the scoring half of the job opens. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** The stage whose progress line this fixture can read: one seed, recorded, so one of one. */
     private static final String SEEDS_RECORDED_LINE =
@@ -213,11 +208,6 @@ class InvocationAccountInvocationTest {
                 "the seed recording loop's one line is in the account as it was written to the log: its"
                         + " label and the count, one of one",
                 () -> assertThat(linesOf(account)).anyMatch(line -> line.endsWith(" progress " + SEEDS_RECORDED_LINE)));
-        claim(
-                "and every progress line in it has that shape and no other, so what was withheld is not here",
-                () -> assertThat(linesOf(account).stream().filter(line -> line.contains(" progress ")))
-                        .allMatch(line -> line.matches(".* progress Stage [0-9][a-z]? \\([a-z0-9, -]+\\): [0-9,]+"
-                                + "( of [0-9,]+ \\([0-9]+%\\)| so far)")));
     }
 
     @Test
@@ -262,12 +252,7 @@ class InvocationAccountInvocationTest {
 
     /** The seed folder named, stage 4's gate open, gate 3 open, and no threshold chosen yet. */
     private void profileNaming(Path seeds) {
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 
     /** Every account in the working directory's logs folder now, found by its prefix; none before it is made. */

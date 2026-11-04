@@ -315,7 +315,7 @@ Every whole-job test reads the lines the invocation wrote through a list appende
 | (c) | `embedding.ClusteringProgressTest` | `src/test` | b(b + 1)/2 over three blocks of a pass; one block; a counter per `clusterAndRecord` call over two partitions; nothing for an empty partition |
 | (d) | `pipeline.GenerationReportsItsProgressInvocationTest` | `src/test` | 6b's clusters on a clean finish, on a stop (the fifth counted, the sixth not reached), on a cluster nothing could be sent for, on a cluster the engine finds no room for, on a window no document fits, and with clusters already written; the tree's counters on each of the three exits; logger names |
 | (d) | `synthesis.ClusterGenerationReportsEveryClusterTest` | `src/test` | `toGoThrough` once, zero included; `clusterGoneThrough` on every path, the fifth turned down included |
-| (d) | `synthesis.DeliverableProgressTest` | `src/test` | the four loops' order and totals over two partitions; an entry for a document the cluster no longer holds not counted |
+| (d) | `deliverable.DeliverableProgressTest` (#684) | `src/test` | the four loops' order and totals over two partitions; an entry for a document the cluster no longer holds not counted |
 
 **Not pinned, and why:**
 

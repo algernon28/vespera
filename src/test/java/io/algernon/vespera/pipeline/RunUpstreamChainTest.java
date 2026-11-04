@@ -8,7 +8,6 @@ import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
@@ -20,8 +19,6 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -79,16 +76,6 @@ class RunUpstreamChainTest {
             "arrangement",
             "generation");
 
-    /**
-     * A floor of 1.0: a shingle counts as boilerplate only when it appears in every single document.
-     * The value is deliberately the least aggressive one that still opens the gate, because this test
-     * is about the run rows and not about what stage 4 concludes.
-     */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model this fixture names, so gate 3 and the stages behind it open. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
-
     @DynamicPropertySource
     static void workingDirectory(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
@@ -108,17 +95,17 @@ class RunUpstreamChainTest {
 
     @Test
     @Story("Every run names the run before it")
-    @DisplayName("One invocation past the boilerplate gate leaves an unbroken chain of runs, one per stage")
+    @DisplayName("One invocation past the boilerplate gate leaves an unbroken chain of runs, one per stage, each naming the stage immediately before it")
     void mintsOneRunPerStageEachNamingTheOneBefore(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve("a.txt"), "the first document");
         Files.writeString(root.resolve("b.txt"), "the second document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        openEveryGate(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         twoInvocationsWithTheArrangementApproved(root);
 
-        Map<String, List<String>> upstreamByStage = upstreamByStageFor(theWalkOf(root));
-        List<String> stagesInChainOrder = new ArrayList<>(upstreamByStage.keySet());
+        WalkId walkId = theWalkOf(root);
+        List<Minted> runs = runsOf(walkId);
 
         claim(
                 "the invocation reported success, so the chain below is the one a completed run leaves"
@@ -128,79 +115,23 @@ class RunUpstreamChainTest {
                 "every stage that measures or judges documents minted exactly one run, from the"
                         + " byte-level reduction through to the writing at the end -- and redundancy's two"
                         + " steps share a single run rather than minting one each",
-                () -> assertThat(stagesInChainOrder).containsExactlyElementsOf(STAGES_THAT_MINT_A_RUN));
+                () -> assertThat(runs).extracting(Minted::stage).containsExactlyElementsOf(STAGES_THAT_MINT_A_RUN));
         claim(
-                "the first stage names no upstream, because there is nothing before it: it is the root of"
-                        + " the chain, and a row claiming otherwise would be pointing at a run that never ran",
-                () -> assertThat(upstreamByStage.get("byte-level-reduction")).isEmpty());
-        claim(
-                "and every later stage names exactly one upstream: a run reads the corpus one stage before"
-                        + " it left standing, and naming two would say it read two different corpora",
-                () -> assertThat(upstreamByStage.values().stream()
-                                .skip(1)
-                                .filter(upstream -> upstream.size() != 1)
-                                .toList())
-                        .isEmpty());
-    }
-
-    @Test
-    @Story("Every run names the run before it")
-    @DisplayName("No run skips a stage, including the one stage that writes no verdicts")
-    void namesTheImmediatelyPrecedingStageAndNeverReachesPastIt(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        Files.writeString(root.resolve("a.txt"), "the first document");
-        Files.writeString(root.resolve("b.txt"), "the second document");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        openEveryGate(seeds);
-
-        twoInvocationsWithTheArrangementApproved(root);
-
-        WalkId walkId = theWalkOf(root);
-        Map<String, List<String>> upstreamByStage = upstreamByStageFor(walkId);
-        Map<String, String> stageByRunId = stageByRunIdFor(walkId);
-
-        List<String> namedUpstreamStages = new ArrayList<>();
-        List<String> expectedUpstreamStages = new ArrayList<>();
-        for (int stage = 1; stage < STAGES_THAT_MINT_A_RUN.size(); stage++) {
-            namedUpstreamStages.add(stageByRunId.get(
-                    upstreamByStage.get(STAGES_THAT_MINT_A_RUN.get(stage)).getFirst()));
-            expectedUpstreamStages.add(STAGES_THAT_MINT_A_RUN.get(stage - 1));
-        }
-
-        claim(
-                "each run names the stage immediately before it and never reaches back past one -- so"
-                        + " extraction names the byte-level reduction, the content census names extraction,"
-                        + " redundancy names the content census, the arrangement names the scoring that"
-                        + " produced what it arranges, and the writing names the arrangement a person"
-                        + " approved rather than the latest one",
-                () -> assertThat(namedUpstreamStages).containsExactlyElementsOf(expectedUpstreamStages));
-        claim(
-                "and the content census stays in the chain even though it renders no verdict of its own,"
-                        + " because what it measures is what the stage after it acts on -- a chain filtered to"
-                        + " the stages that judge would leave that dependency unrecorded",
-                () -> assertThat(namedUpstreamStages).contains("content-census"));
-        claim(
-                "so following the chain from the last stage reaches every earlier one exactly once, with"
-                        + " none skipped: a run id is derived from everything that determines what it would"
-                        + " produce, and a skipped stage is a run claiming two different corpora are the same",
-                () -> assertThat(walkTheChainBackFrom(
-                                STAGES_THAT_MINT_A_RUN.getLast(), upstreamByStage, stageByRunId))
-                        .containsExactlyElementsOf(STAGES_THAT_MINT_A_RUN.reversed()));
-    }
-
-    /**
-     * Opens every gate before the job runs, so that each stage that mints a run actually reaches the
-     * point of minting one. Census merges new keys and never touches a value already in the file
-     * (ADR-062), so what is written here survives the invocation that reads it.
-     */
-    private void openEveryGate(Path seeds) {
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test, so the seed gate is open")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+                "the first stage names no upstream, because it is the root of the chain, and every later one"
+                        + " names exactly one, the stage immediately before it and never one further back: extraction"
+                        + " names the byte-level reduction, the content census extraction, redundancy the content"
+                        + " census, which stays in the chain though it renders no verdict of its own, the arrangement"
+                        + " the scoring that produced what it arranges, and the writing the arrangement a person"
+                        + " approved",
+                () -> assertThat(runs).extracting(Minted::upstreamStages).containsExactly(
+                        List.of(),
+                        List.of("byte-level-reduction"),
+                        List.of("extraction"),
+                        List.of("content-census"),
+                        List.of("content-redundancy"),
+                        List.of("seed-measurement"),
+                        List.of("embedding-scoring"),
+                        List.of("arrangement")));
     }
 
     /**
@@ -235,48 +166,25 @@ class RunUpstreamChainTest {
                 "arrangement"));
     }
 
-    /** Each stage's upstream run ids, in the order the stages minted their runs. */
-    private Map<String, List<String>> upstreamByStageFor(WalkId walkId) {
-        Map<String, List<String>> upstreamByStage = new LinkedHashMap<>();
-        jdbcTemplate.query(
-                "SELECT r.stage AS stage, u.upstream_run_id AS upstream"
-                        + " FROM run r LEFT JOIN run_upstream u ON u.run_id = r.id"
-                        + " WHERE r.walk_id = ? ORDER BY r.rowid",
-                resultSet -> {
-                    String upstream = resultSet.getString("upstream");
-                    List<String> upstreams =
-                            upstreamByStage.computeIfAbsent(resultSet.getString("stage"), stage -> new ArrayList<>());
-                    if (upstream != null) {
-                        upstreams.add(upstream);
-                    }
-                },
-                walkId.value());
-        return upstreamByStage;
-    }
+    /** A run of the walk, by the stage that minted it, with the stage of each run it names upstream. */
+    private record Minted(String stage, List<String> upstreamStages) {}
 
-    /** Which stage minted each run of this walk, so an upstream id can be read back as a stage name. */
-    private Map<String, String> stageByRunIdFor(WalkId walkId) {
-        Map<String, String> stageByRunId = new LinkedHashMap<>();
-        jdbcTemplate.query(
-                "SELECT id, stage FROM run WHERE walk_id = ?",
-                resultSet -> {
-                    stageByRunId.put(resultSet.getString("id"), resultSet.getString("stage"));
-                },
-                walkId.value());
-        return stageByRunId;
-    }
-
-    /** The stages reached by following {@code run_upstream} back from one stage, that stage first. */
-    private static List<String> walkTheChainBackFrom(
-            String stage, Map<String, List<String>> upstreamByStage, Map<String, String> stageByRunId) {
-        List<String> chain = new ArrayList<>();
-        String current = stage;
-        while (current != null && !chain.contains(current)) {
-            chain.add(current);
-            List<String> upstreams = upstreamByStage.getOrDefault(current, List.of());
-            current = upstreams.isEmpty() ? null : stageByRunId.get(upstreams.getFirst());
-        }
-        return chain;
+    /**
+     * Every run of this walk, in the order they were minted, one entry per run row: two runs of one stage are two
+     * entries, never one.
+     */
+    private List<Minted> runsOf(WalkId walkId) {
+        List<Map<String, Object>> rows =
+                jdbcTemplate.queryForList("SELECT id, stage FROM run WHERE walk_id = ? ORDER BY rowid", walkId.value());
+        return rows.stream()
+                .map(row -> new Minted(
+                        (String) row.get("stage"),
+                        jdbcTemplate.queryForList(
+                                "SELECT r.stage FROM run_upstream u JOIN run r ON r.id = u.upstream_run_id"
+                                        + " WHERE u.run_id = ? ORDER BY r.stage",
+                                String.class,
+                                row.get("id"))))
+                .toList();
     }
 
     private WalkId theWalkOf(Path root) {

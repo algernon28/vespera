@@ -249,19 +249,29 @@ class WorkingDirectoryWriteTest {
 
     @Test
     @Story("The control panel writes into a working directory")
-    @DisplayName("Only profile.yaml, relevance-labels.yaml and code-set-names.yaml are written")
-    void onlyTheThreeFilesAreWritten(@TempDir Path workingDirectory) throws IOException {
+    @DisplayName("Only profile.yaml, relevance-labels.yaml, code-set-names.yaml and not-relevant-folders.yaml are written")
+    @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
+    void onlyTheFourFilesAreWritten(@TempDir Path workingDirectory) throws IOException {
         Function<Optional<String>, String> anything = current -> "planted";
 
-        claim("the three files are profile.yaml, relevance-labels.yaml and code-set-names.yaml and no other",
-                () -> assertThat(WorkingDirectoryWrite.FILES)
-                        .containsExactlyInAnyOrder("profile.yaml", "relevance-labels.yaml", "code-set-names.yaml"));
-        for (String other : List.of("vespera.db", "vespera.lock", "progress.html", "../profile.yaml")) {
+        for (String other : List.of("vespera.db", "vespera.lock", "progress.html", "../profile.yaml",
+                "not-relevant-folders.yml", "../not-relevant-folders.yaml")) {
             claim("writing " + other + " throws",
                     () -> assertThatThrownBy(() -> NO_CHILD_RUNS.write(workingDirectory, other, anything))
                             .isInstanceOf(IllegalArgumentException.class));
         }
         claim("and nothing was written", () -> assertThat(namesIn(workingDirectory)).isEmpty());
+
+        // ADR-334 §6 amends ADR-295 §2: the list of folders not relevant is the fourth file the control panel writes.
+        List<String> theFour = List.of("profile.yaml", "relevance-labels.yaml", "code-set-names.yaml",
+                "not-relevant-folders.yaml");
+        for (String file : theFour) {
+            claim("writing " + file + " is done, saying nothing",
+                    () -> assertThat(NO_CHILD_RUNS.write(workingDirectory, file, anything)).isEmpty());
+        }
+        claim("so the four files and no other are in the working directory, beside the lock file",
+                () -> assertThat(namesIn(workingDirectory)).containsExactlyInAnyOrderElementsOf(
+                        Stream.concat(theFour.stream(), Stream.of(WorkingDirectoryWrite.LOCK_FILE_NAME)).toList()));
     }
 
     @Test

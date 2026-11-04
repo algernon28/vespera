@@ -10,7 +10,6 @@ import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.pipeline.GenerationScriptedBeans.ScriptedAnswer;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.synthesis.ClusterFaultKind;
@@ -88,11 +87,6 @@ class GenerationBreakerInvocationTest {
     /** Where every line this invocation wrote for the archive's owner is read from. */
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
 
-    /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The embedding model this fixture names, so gate 3 and everything behind it open. */
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
     /**
      * How much every call in this class may read, in tokens, written into the profile rather than
@@ -373,12 +367,15 @@ class GenerationBreakerInvocationTest {
         cli.run("run", root.toString());
 
         claim(
-                "exactly one line is written at the level this run keeps for something having stopped,"
-                        + " and every group left unwritten was reported a line of its own one level below"
-                        + " it: the archive's owner scanning the output for what went wrong has to land on"
+                "exactly one line is written at the level this run keeps for something having stopped:"
+                        + " the archive's owner scanning the output for what went wrong has to land on"
                         + " the line saying the work stopped, not on the fifth of five lines that each"
                         + " read as one group's bad luck",
                 () -> assertThat(linesSayingSomethingStopped()).hasSize(A_SINGLE_LINE));
+        claim(
+                "and each of the " + THE_STREAK_THAT_STOPS_THE_STEP + " groups whose answer was turned down"
+                        + " was reported a line of its own one level below it",
+                () -> assertThat(linesSayingAGroupsAnswerWasTurnedDown()).hasSize(THE_STREAK_THAT_STOPS_THE_STEP));
         claim(
                 "and that line says " + THE_STREAK_THAT_STOPS_THE_STEP + " answers in a row were turned"
                         + " down, with the count standing next to those words rather than merely somewhere"
@@ -781,16 +778,12 @@ class GenerationBreakerInvocationTest {
             Files.writeString(root.resolve("corpus-" + document + ".txt"), "corpus document " + document);
         }
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .generationContextWindow(THE_READING_WINDOW, "set by this test, so every call here reads in the same window")
                 .build());
         cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(theLatestArrangement(root)));
+        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
         oneClusterPerDocument(theApprovedArrangement(root), clusters, theClusterHoldingNothing, root);
     }
 
@@ -911,6 +904,15 @@ class GenerationBreakerInvocationTest {
                 .toList();
     }
 
+    /** The lines written one level below that, each saying one cluster's answer was turned down. */
+    private List<String> linesSayingAGroupsAnswerWasTurnedDown() {
+        return logged.list.stream()
+                .filter(event -> event.getLevel() == ch.qos.logback.classic.Level.WARN)
+                .map(ILoggingEvent::getFormattedMessage)
+                .filter(line -> line.contains("had its answer turned down"))
+                .toList();
+    }
+
     /** Everything stage 6b wrote over the clusters of {@code root}, under whichever run it wrote them. */
     private List<ListedDoc> writingKept(Path root) {
         return generationRuns(root).stream()
@@ -941,15 +943,6 @@ class GenerationBreakerInvocationTest {
                         > 0);
     }
 
-    /** The arrangement the most recent invocation over {@code root} recorded. */
-    private RunId theLatestArrangement(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
-    }
 
     /** The arrangement of {@code root} the profile's approval names. */
     private RunId theApprovedArrangement(Path root) {

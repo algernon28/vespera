@@ -118,6 +118,8 @@ The implementer creates, in `io.algernon.vespera.pipeline`: `CorpusRootLock` (it
 | `pipeline.CorpusRootLockKeyTest.theFileIsNamedBySixteenDigitsOfTheKeysSha256` | the name rule exactly, and never `vespera.lock` or `vespera.db` (§3) |
 | `pipeline.CorpusRootLockTest.theFolderDefaultsToOneInTheUsersHome` | unset or blank names `<user home>/.vespera-root-locks`; a value names itself (§3) |
 | `pipeline.CorpusRootLockTest.takingACorpusRootRecordsTheHolder` | the folder is created, holds the root's one file, and its one line has §4's shape and values |
+| `pipeline.CorpusRootLockTest.lineBreaksInTheCommandBecomeSpaces` | arguments holding a `\n` and a `\r\n` leave one line, each break written as one space (§4) (#680) |
+| `pipeline.CorpusRootLockTest.theStartIsWrittenToTheSecond` | the holder line's `started` has no fraction of a second (§4) (#680) |
 | `pipeline.CorpusRootLockTest.theFolderHoldsNeitherFileAWorkingDirectoryIsKnownBy` | after two takes, every name in the folder is §3's, none `vespera.lock` or `vespera.db` |
 | `pipeline.CorpusRootLockTest.aSecondTakeInTheSameProcessIsRefused` | refused with §6's line exactly, the holder line left as it was |
 | `pipeline.CorpusRootLockTest.oneCorpusRootSpelledTwoWaysIsOneLock` | a second spelling of a held root is refused (§2, §4) |

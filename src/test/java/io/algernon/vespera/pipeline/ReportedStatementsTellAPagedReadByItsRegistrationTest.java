@@ -14,8 +14,6 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.List;
 import java.util.OptionalLong;
 import org.junit.jupiter.api.AfterEach;
@@ -36,9 +34,6 @@ import org.slf4j.LoggerFactory;
  * label: a timed statement registered through {@code counted(...)} by mistake then wrote no line at all, where
  * before that commit it wrote its two timed lines, and nothing failed. This holds the rule the record now
  * states: a statement that declares no steps a row is timed unless it was registered as paged.
- *
- * <p>{@code paged} is called by its name and not as a method, so that this class compiles before the method
- * exists; the first claim of the two tests that need it is that it does.
  */
 @Epic("Pipeline")
 @Feature("Progress reporting")
@@ -46,9 +41,6 @@ import org.slf4j.LoggerFactory;
 @Link(name = "ADR-211", url = Adr.NO_CLASS_HOLDS_EVERY_SURVIVOR_OF_A_RUN, type = "adr")
 @Link(name = "ADR-193", url = Adr.STATEMENTS_REPORT_THEIR_PROGRESS, type = "adr")
 class ReportedStatementsTellAPagedReadByItsRegistrationTest {
-
-    /** The registration ADR-211 owes, named by its text so that this compiles before it exists. */
-    private static final String PAGED = "paged";
 
     /**
      * The stage of the timed statement the mistake is made with. It was stage 4b's read of the signature bands
@@ -142,13 +134,9 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
     @Test
     @Story("A read made a page at a time reports how far it has gone")
     @DisplayName("A read named as made a page at a time says over how many rows, how far it has gone as it is told its rows, and how long it took")
-    void aReadRegisteredAsPagedSaysHowFarItHasGone() throws ReflectiveOperationException {
-        ReportedStatements reads = paged(
-                        ReportedStatements.saying(),
-                        ExtractionStatement.EXTRACTION_METRICS,
-                        STAGE_3,
-                        "the extraction metrics",
-                        METRICS_LABEL)
+    void aReadRegisteredAsPagedSaysHowFarItHasGone() {
+        ReportedStatements reads = ReportedStatements.saying()
+                .paged(ExtractionStatement.EXTRACTION_METRICS, STAGE_3, "the extraction metrics", METRICS_LABEL)
                 .build();
 
         reads.statementStarting(ExtractionStatement.EXTRACTION_METRICS, OptionalLong.of(THREE));
@@ -171,13 +159,9 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
     @Test
     @Story("A read made a page at a time reports how far it has gone")
     @DisplayName("A read named as made a page at a time, over a run that holds no row, writes nothing")
-    void aReadRegisteredAsPagedOverNoRowWritesNothing() throws ReflectiveOperationException {
-        ReportedStatements reads = paged(
-                        ReportedStatements.saying(),
-                        ExtractionStatement.EXTRACTION_METRICS,
-                        STAGE_3,
-                        "the extraction metrics",
-                        METRICS_LABEL)
+    void aReadRegisteredAsPagedOverNoRowWritesNothing() {
+        ReportedStatements reads = ReportedStatements.saying()
+                .paged(ExtractionStatement.EXTRACTION_METRICS, STAGE_3, "the extraction metrics", METRICS_LABEL)
                 .build();
 
         reads.statementStarting(ExtractionStatement.EXTRACTION_METRICS, OptionalLong.empty());
@@ -188,27 +172,6 @@ class ReportedStatementsTellAPagedReadByItsRegistrationTest {
                         + " silence a counted statement keeps over nothing, which a statement that is only timed"
                         + " does not keep",
                 () -> assertThat(lines()).isEmpty());
-    }
-
-    /**
-     * {@code words.paged(statement, stage, what, label)}, called by its name; its first claim is that the
-     * registration exists.
-     */
-    private static ReportedStatements.Builder paged(
-            ReportedStatements.Builder words, Enum<?> statement, String stage, String what, String label)
-            throws ReflectiveOperationException {
-        List<String> registrations = Arrays.stream(ReportedStatements.Builder.class.getDeclaredMethods())
-                .map(Method::getName)
-                .distinct()
-                .sorted()
-                .toList();
-        claim(
-                "the words of a read made a page at a time are given through a registration of their own, named "
-                        + PAGED + ", beside the ones for a statement that is timed and for one that is counted",
-                () -> assertThat(registrations).contains(PAGED, "timed", "counted"));
-        Method paged = ReportedStatements.Builder.class.getDeclaredMethod(
-                PAGED, Enum.class, String.class, String.class, String.class);
-        return (ReportedStatements.Builder) paged.invoke(words, statement, stage, what, label);
     }
 
     private List<String> lines() {

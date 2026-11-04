@@ -27,11 +27,16 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -66,9 +71,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Issue("488")
 @Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
 class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
-
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** The digest the runtime reports once the embedding model has been pulled again. */
     private static final String A_SECOND_PULLS_DIGEST = "5ec0nd9a11000000000000000000000000000000000000000000000000000";
@@ -192,60 +194,46 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
                         .isEqualTo(CORPUS_DOCUMENTS));
     }
 
-    @Test
+    /**
+     * Another pull's vectors, stored for the same documents under another digest, either of the run's own length
+     * and other values, which read together would put two models' similarities into one mean, or of half its
+     * length, which compared with the run's own would read past the end of the shorter.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("anotherPullsVectors")
     @Story("A run scores on the vectors of the pull it names and no other")
-    @DisplayName("A run scored after another pull's vectors were stored gives every document the score it had before")
-    void aRunScoresOnTheVectorsOfItsOwnDigestOnly(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    @DisplayName("A run scored after another pull's vectors were stored succeeds and gives every document the score it had before")
+    void aRunScoresOnTheVectorsOfItsOwnDigestOnly(int componentsDividedBy, @TempDir Path root, @TempDir Path seeds)
+            throws IOException {
         aCorpus(root, seeds);
         profile(seeds, null);
         cli.run("run", root.toString());
         String theFirstRun = scoringRunIdsFor(root).getFirst();
         List<Double> theScoresBefore = scoresUnder(theFirstRun);
-        everyVectorAlsoStoredUnderAnotherDigest(fixtureDimensionOr(0));
+        everyVectorAlsoStoredUnderAnotherDigest(fixtureDimensionOr(0) / componentsDividedBy);
         // A threshold that removes nothing, set so that the next invocation scores under a run of its own.
         profile(seeds, A_FLOOR_BELOW_EVERY_SCORE);
 
         cli.run("run", root.toString());
 
         List<String> theSecondRun = theRunsNotAmong(root, List.of(theFirstRun));
-        claim("the second invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "the first run scored all " + CORPUS_DOCUMENTS + " documents",
-                () -> assertThat(theScoresBefore).hasSize(CORPUS_DOCUMENTS));
-        claim(
-                "the second run gives each document the score the first gave it: both name the digest the"
-                        + " runtime reports, and the vectors stored for the same documents under another digest,"
-                        + " which point elsewhere, were not read with them. Read together they would put two"
-                        + " models' similarities into one mean",
-                () -> assertThat(theSecondRun)
-                        .singleElement()
-                        .satisfies(run -> assertThat(scoresUnder(run)).isEqualTo(theScoresBefore)));
-    }
-
-    @Test
-    @Story("A run scores on the vectors of the pull it names and no other")
-    @DisplayName("Another pull's vectors of half the length do not stop a run that names its own digest, or change a score")
-    void anotherPullsShorterVectorsAreNotReadWithTheRuns(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        profile(seeds, null);
-        cli.run("run", root.toString());
-        String theFirstRun = scoringRunIdsFor(root).getFirst();
-        List<Double> theScoresBefore = scoresUnder(theFirstRun);
-        everyVectorAlsoStoredUnderAnotherDigest(fixtureDimensionOr(0) / HALF);
-        profile(seeds, A_FLOOR_BELOW_EVERY_SCORE);
-
-        cli.run("run", root.toString());
-
-        List<String> theSecondRun = theRunsNotAmong(root, List.of(theFirstRun));
-        claim(
-                "the second invocation reports success: no vector of the run's own was compared with one of half"
-                        + " its length, which reads past the end of the shorter",
+                "the second invocation reports success: no vector of the run's own was compared with one of"
+                        + " another length",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "and the second run gives each of the " + CORPUS_DOCUMENTS + " documents the score the first gave it",
+                "the second run gives each of the " + CORPUS_DOCUMENTS + " documents the score the first gave it:"
+                        + " both name the digest the runtime reports, and the vectors stored for the same documents"
+                        + " under another digest were not read with them",
                 () -> assertThat(theSecondRun).singleElement().satisfies(run -> assertThat(scoresUnder(run))
                         .hasSize(CORPUS_DOCUMENTS)
                         .isEqualTo(theScoresBefore)));
+    }
+
+    static Stream<Arguments> anotherPullsVectors() {
+        return Stream.of(
+                Arguments.of(Named.of("another pull's vectors of the same length, with other values", 1)),
+                Arguments.of(Named.of("another pull's vectors of half the length", HALF)));
     }
 
     /**
@@ -261,7 +249,7 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
     @Story("A run grouped again reads the vectors it was scored on")
     @DisplayName("Grouping can be done again under the same scoring run after another pull's shorter vectors were stored, and the invocation succeeds")
     @Issue("489")
-    void aRunClusteredAgainReadsTheVectorsItWasScoredOn(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    void aRunClusteredAgainAfterAnotherPullsShorterVectorsGoesThrough(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpus(root, seeds);
         profile(seeds, null);
         cli.run("run", root.toString());
@@ -635,8 +623,8 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
                 .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so gate 3 is open")
                 .relevanceScoreFloor(floor, floor == null ? null : "set by this test")
                 .build());
     }

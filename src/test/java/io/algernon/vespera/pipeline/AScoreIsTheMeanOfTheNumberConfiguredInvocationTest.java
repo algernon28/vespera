@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -54,12 +53,6 @@ class AScoreIsTheMeanOfTheNumberConfiguredInvocationTest {
 
     /** Far below the distance between 1 and the mean of the two, about 0.146, and above a float's rounding. */
     private static final double CLOSE_ENOUGH = 1e-6;
-
-    /** Above every measured document frequency here, so stage 4's gate is open. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model the scripted embedder answers for. */
-    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 
     /** The document's two chunks in either order, then the seed's. */
     private static final List<float[]> VECTORS = List.of(new float[] {1f, 0f}, new float[] {1f, 1f}, new float[] {1f, 0f});
@@ -117,11 +110,7 @@ class AScoreIsTheMeanOfTheNumberConfiguredInvocationTest {
     void aScoreOfOneSimilarityIsTheHighest() throws IOException {
         Files.writeString(root.resolve(SeedScriptedExtractionBeans.TWO_CHUNKS_OF_TEXT), "a document of two chunks");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 

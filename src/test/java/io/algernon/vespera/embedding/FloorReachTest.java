@@ -108,8 +108,9 @@ class FloorReachTest {
                 FloorReach.of(Optional.of(THIS_RUNS_IDENTITY), OptionalDouble.of(FLOOR), counted(asked, List.of()));
 
         claim(
-                "the answers are read exactly once, by the time the reach is answered, so the read stands where"
-                        + " it stood: after the embedder identities and before any removal is withdrawn",
+                "the answers are read exactly once, when the reach is worked out and before its removal is"
+                        + " asked for, so the read happens where the reach is made rather than later, at"
+                        + " whichever moment something first asks what it removes",
                 () -> assertThat(asked).hasValue(1));
         claim(
                 "nothing checks that a floor was ever labelled, so it removes below the number the"

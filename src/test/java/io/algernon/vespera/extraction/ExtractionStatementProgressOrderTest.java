@@ -51,7 +51,7 @@ import org.springframework.util.StreamUtils;
  * connection, the handler on the first would count nothing, and the read over many rows below would report
  * no steps.
  *
- * <p>Each test runs once for each read, against a database file of its own under the shipped {@code
+ * <p>Each test runs once for the read, against a database file of its own under the shipped {@code
  * schema.sql}, with rows of an earlier run in the same table that the read must not go through.
  *
  * <p>Since ADR-220 one read is left here, of the occurrences a stopped run measured, and it counts them where
@@ -84,7 +84,7 @@ class ExtractionStatementProgressOrderTest {
     private static final int TWO_CALLBACKS = 2;
 
     /**
-     * Stage 2's two resume reads, each with the words the report names it by, the table it reads and the
+     * Stage 2's one counted resume read, with the words the report names it by, the table it reads and the
      * call that reads it.
      */
     enum ResumeRead {

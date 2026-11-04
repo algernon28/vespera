@@ -13,6 +13,8 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.List;
+import java.util.Locale;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,10 +27,9 @@ import org.slf4j.LoggerFactory;
  * is fewer. Above it a line falls every 1% of the total, so no counter over a known total writes more
  * than 100 lines.
  *
- * <p><b>Red until part (a) of ADR-192 lands</b>, at each claim about a total above 100,000: today's rule
- * writes a line every 1,000 items however large the total. The claim at exactly 100,000 passes today and
- * has to go on passing. Each test drives the counter to its total, which takes a fraction of a second even
- * for the largest; nothing here reads a clock.
+ * <p>Each test drives the counter to its total, which takes a fraction of a second even for the largest;
+ * nothing here reads a clock. The expected lines are written out from the figures in each claim, not worked
+ * out by the rule under test (#681).
  */
 @Epic("Pipeline")
 @Feature("Progress reporting")
@@ -51,6 +52,9 @@ class StageProgressVolumeTest {
      * a bound on stage 3's distinct hashes for that database, and the largest total on record.
      */
     private static final long THE_LARGEST_TOTAL_ON_RECORD = 42_833_917L;
+
+    /** A hundredth of {@link #THE_LARGEST_TOTAL_ON_RECORD}, rounded up: the interval between its lines. */
+    private static final long A_HUNDREDTH_OF_THE_LARGEST_TOTAL_ROUNDED_UP = 428_340L;
 
     /** The most lines a counter over a known total may write. */
     private static final int AT_MOST_A_HUNDRED_LINES = 100;
@@ -126,16 +130,18 @@ class StageProgressVolumeTest {
         countTo(THE_LARGEST_TOTAL_ON_RECORD);
 
         claim(
-                "ninety-nine lines, every 428,340 items, a hundredth of the total rounded up, the last at"
-                        + " 99%; a line every 1,000 items would have written 42,833",
+                "ninety-nine lines, every 428,340 items, a hundredth of the total rounded up: the k-th states k"
+                        + " times 428,340 and k percent, from 428,340 (1%) to 42,405,660 (99%); a line every 1,000"
+                        + " items would have written 42,833",
                 () -> assertThat(messages())
-                        .hasSize(AT_MOST_A_HUNDRED_LINES - 1)
-                        .startsWith(LABEL + ": 428,340 of 42,833,917 (1%)")
-                        .endsWith(LABEL + ": 42,405,660 of 42,833,917 (99%)"));
-        claim(
-                "and the lines are exactly the ones the rule written out in this test's helper gives",
-                () -> assertThat(messages())
-                        .containsExactlyElementsOf(ProgressLines.expected(LABEL, THE_LARGEST_TOTAL_ON_RECORD)));
+                        .containsExactlyElementsOf(LongStream.rangeClosed(1, AT_MOST_A_HUNDRED_LINES - 1)
+                                .mapToObj(k -> String.format(
+                                        Locale.ROOT,
+                                        "%s: %,d of 42,833,917 (%d%%)",
+                                        LABEL,
+                                        k * A_HUNDREDTH_OF_THE_LARGEST_TOTAL_ROUNDED_UP,
+                                        k))
+                                .toList()));
     }
 
     private void countTo(long total) {

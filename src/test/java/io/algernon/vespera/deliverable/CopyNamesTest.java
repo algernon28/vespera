@@ -13,14 +13,18 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The name each copy is given in its cluster folder (ADR-280 §1, §3): its original's own file name, made safe for
@@ -69,43 +73,146 @@ class CopyNamesTest {
     /** That occurrence's suffix. */
     private static final String ITS_SUFFIX = "~" + A_NINETEEN_DIGIT_OCCURRENCE;
 
-    @Test
+    /**
+     * Names a file system holds as one file (ADR-280 §1.4, §1.6): the key a name is compared by is lower-cased, then
+     * upper-cased, then decomposed and composed again, and two names NTFS upper-cases unit by unit to one name collide
+     * though their keys differ. The lowest-numbered document keeps its name as it was written, every other takes a
+     * tilde and its number before its extension, and the order the documents are handed over in changes nothing.
+     */
+    static Stream<Arguments> namesAFileSystemHoldsAsOne() {
+        String aSmallTheta = "\u03b8";
+        String aCapitalThetaSymbol = "\u03f4";
+        String aSharpS = "\u00df";
+        String aCapitalSharpS = "\u1e9e";
+        String aDottedCapitalI = "\u0130";
+        String anIAndACombiningDotAbove = "i\u0307";
+        String anIotaWithDialytikaAndTonos = "\u0390";
+        String aCapitalIotaWithDialytikaAndACombiningAcute = "\u03aa\u0301";
+        String aCapitalAlphaWithProsgegrammeniAndAPerispomeni = "\u1fbc\u0342";
+        String aSmallAlphaWithYpogegrammeniAndAPerispomeni = "\u1fb3\u0342";
+        String anAlphaWithYpogegrammeniThenAPerispomeni = "\u03B1\u0345\u0342";
+        String anAlphaWithAnIotaThenAPerispomeni = "\u03B1\u03B9\u0342";
+        return Stream.of(
+                Arguments.of(
+                        Named.of(
+                                "Names that differ only in case or in how an accent is written",
+                                List.of(
+                                        member(7, "a/Report.pdf"),
+                                        member(3, "b/REPORT.PDF"),
+                                        member(5, "c/report.pdf"),
+                                        member(9, "d/r" + E_ACUTE_COMPOSED + "sum" + E_ACUTE_COMPOSED + ".txt"),
+                                        member(4, "e/r" + E_ACUTE_DECOMPOSED + "sum" + E_ACUTE_DECOMPOSED + ".txt"),
+                                        member(11, "f/stra\u00dfe.txt"),
+                                        member(12, "g/STRASSE.txt"),
+                                        member(6, "h/notes.txt"))),
+                        "three names one case apart are kept plain by the lowest-numbered document alone, the other two"
+                                + " taking a tilde and their number before the extension, each keeping its own case;"
+                                + " two spellings of one accented name collide, the first-numbered keeping its name"
+                                + " exactly as it was written; a sharp s and a double S collide too, which costs only a"
+                                + " number; and a name that collides with nothing is kept as it is",
+                        Map.of(
+                                3L, "REPORT.PDF",
+                                5L, "report~5.pdf",
+                                7L, "Report~7.pdf",
+                                4L, "r" + E_ACUTE_DECOMPOSED + "sum" + E_ACUTE_DECOMPOSED + ".txt",
+                                9L, "r" + E_ACUTE_COMPOSED + "sum" + E_ACUTE_COMPOSED + "~9.txt",
+                                11L, "stra\u00dfe.txt",
+                                12L, "STRASSE~12.txt",
+                                6L, "notes.txt")),
+                Arguments.of(
+                        Named.of(
+                                "A capital that upper-casing leaves alone and its small letter",
+                                List.of(
+                                        member(65, "e/" + aSmallTheta + ".txt"),
+                                        member(66, "f/" + aCapitalThetaSymbol + ".txt"),
+                                        member(67, "g/" + aSharpS + ".txt"),
+                                        member(68, "h/" + aCapitalSharpS + ".txt"))),
+                        "a capital theta symbol and a capital sharp s are kept as they are by upper-casing, though their"
+                                + " small letters, a theta and a sharp s, upper-case to a capital theta and to a double"
+                                + " S; lower-cased first, each meets its small letter, as on a file system that folds"
+                                + " case, and the higher-numbered of each pair takes its number",
+                        Map.of(
+                                65L, aSmallTheta + ".txt",
+                                66L, aCapitalThetaSymbol + "~66.txt",
+                                67L, aSharpS + ".txt",
+                                68L, aCapitalSharpS + "~68.txt")),
+                Arguments.of(
+                        Named.of(
+                                "Letters that are one once lower-cased, upper-cased and composed again",
+                                List.of(
+                                        member(61, "a/" + aDottedCapitalI + ".txt"),
+                                        member(62, "b/" + anIAndACombiningDotAbove + ".txt"),
+                                        member(63, "c/" + anIotaWithDialytikaAndTonos + ".txt"),
+                                        member(64, "d/" + aCapitalIotaWithDialytikaAndACombiningAcute + ".txt"))),
+                        "a dotted capital I and an i followed by a combining dot above are one letter once lower-cased,"
+                                + " upper-cased and composed again, and so are a small iota with dialytika and tonos"
+                                + " and a capital iota with dialytika followed by a combining acute: each pair"
+                                + " collides, the lower-numbered keeping its name as written and the other taking its"
+                                + " number",
+                        Map.of(
+                                61L, aDottedCapitalI + ".txt",
+                                62L, anIAndACombiningDotAbove + "~62.txt",
+                                63L, anIotaWithDialytikaAndTonos + ".txt",
+                                64L, aCapitalIotaWithDialytikaAndACombiningAcute + "~64.txt")),
+                Arguments.of(
+                        Named.of(
+                                "A dotted capital I and a plain i",
+                                List.of(member(91, "a/i.txt"), member(92, "b/" + aDottedCapitalI + ".txt"))),
+                        "a dotted capital I does not meet a plain i, which case folding keeps apart from it too",
+                        Map.of(91L, "i.txt", 92L, aDottedCapitalI + ".txt")),
+                Arguments.of(
+                        Named.of(
+                                "A capital alpha with an iota subscript and a small one, each followed by a"
+                                        + " perispomeni",
+                                List.of(
+                                        member(71, "a/" + aCapitalAlphaWithProsgegrammeniAndAPerispomeni + ".pdf"),
+                                        member(72, "b/" + aSmallAlphaWithYpogegrammeniAndAPerispomeni + ".pdf"))),
+                        "NTFS upper-cases the small alpha with ypogegrammeni to the capital with prosgegrammeni, and"
+                                + " APFS's case-insensitive form decomposes and folds both names to one; composed"
+                                + " first, the iota subscript would upper-case to a capital iota before the perispomeni"
+                                + " in one name and after it in the other, and both would keep their names. Decomposed"
+                                + " first, the subscript stands after the perispomeni in both: they collide, document"
+                                + " 71 keeping its name as written and document 72 taking its number before the"
+                                + " extension",
+                        Map.of(
+                                71L, aCapitalAlphaWithProsgegrammeniAndAPerispomeni + ".pdf",
+                                72L, aSmallAlphaWithYpogegrammeniAndAPerispomeni + "~72.pdf")),
+                Arguments.of(
+                        Named.of(
+                                "Two names Windows upper-cases to one file though decomposing orders their marks apart",
+                                List.of(
+                                        member(81, "a/" + anAlphaWithYpogegrammeniThenAPerispomeni + ".pdf"),
+                                        member(82, "b/" + anAlphaWithAnIotaThenAPerispomeni + ".pdf"))),
+                        "NTFS upper-cases each unit, so U+03B1 U+0345 U+0342 and U+03B1 U+03B9 U+0342 both become U+0391"
+                                + " U+0399 U+0342 and are one file there, though normalisation form D moves the"
+                                + " subscript after the perispomeni in the first and the decomposed keys differ: the"
+                                + " names collide, document 81 keeping its name and document 82 taking its number"
+                                + " before the extension",
+                        Map.of(
+                                81L, anAlphaWithYpogegrammeniThenAPerispomeni + ".pdf",
+                                82L, anAlphaWithAnIotaThenAPerispomeni + "~82.pdf")),
+                Arguments.of(
+                        Named.of(
+                                "The same two names, the other way round",
+                                List.of(
+                                        member(81, "a/" + anAlphaWithAnIotaThenAPerispomeni + ".pdf"),
+                                        member(82, "b/" + anAlphaWithYpogegrammeniThenAPerispomeni + ".pdf"))),
+                        "with the two names the other way round, the lower occurrence still keeps its own",
+                        Map.of(
+                                81L, anAlphaWithAnIotaThenAPerispomeni + ".pdf",
+                                82L, anAlphaWithYpogegrammeniThenAPerispomeni + "~82.pdf")));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("namesAFileSystemHoldsAsOne")
     @Story("A document keeps its own name in its group's folder")
-    @DisplayName("Of names that differ only in case or in how an accent is written, the lowest-numbered document keeps its name and the others take their number")
-    void aNameThatDiffersOnlyInCaseOrNormalisationIsKeptPlainByTheLowestOccurrenceOnly() {
-        List<ListedSurvivor> members = List.of(
-                member(7, "a/Report.pdf"),
-                member(3, "b/REPORT.PDF"),
-                member(5, "c/report.pdf"),
-                member(9, "d/r" + E_ACUTE_COMPOSED + "sum" + E_ACUTE_COMPOSED + ".txt"),
-                member(4, "e/r" + E_ACUTE_DECOMPOSED + "sum" + E_ACUTE_DECOMPOSED + ".txt"),
-                member(11, "f/straße.txt"),
-                member(12, "g/STRASSE.txt"),
-                member(6, "h/notes.txt"));
-        Map<Long, String> expected = new TreeMap<>();
-        expected.put(3L, "REPORT.PDF");
-        expected.put(5L, "report~5.pdf");
-        expected.put(7L, "Report~7.pdf");
-        expected.put(4L, "r" + E_ACUTE_DECOMPOSED + "sum" + E_ACUTE_DECOMPOSED + ".txt");
-        expected.put(9L, "r" + E_ACUTE_COMPOSED + "sum" + E_ACUTE_COMPOSED + "~9.txt");
-        expected.put(11L, "straße.txt");
-        expected.put(12L, "STRASSE~12.txt");
-        expected.put(6L, "notes.txt");
-
-        Map<Long, String> names = namesOf(members);
-
-        claim(
-                "three names one case apart are kept plain by the lowest-numbered document alone, the other two"
-                        + " taking a tilde and their number before the extension, each keeping its own case; two"
-                        + " spellings of one accented name collide, the first-numbered keeping its name exactly as it"
-                        + " was written; a sharp s and a double S collide too, which costs only a number; and a name"
-                        + " that collides with nothing is kept as it is",
-                () -> assertThat(names).containsExactlyEntriesOf(expected));
-        List<ListedSurvivor> reversed = new ArrayList<>(members);
-        Collections.reverse(reversed);
+    @DisplayName("Of names a file system holds as one file, the lowest-numbered document keeps its name and the others take their number, whatever order they arrive in")
+    void namesAFileSystemHoldsAsOneCollideAndTheLowestOccurrenceKeepsItsName(
+            List<ListedSurvivor> members, String whyTheyCollide, Map<Long, String> expected) {
+        claim(whyTheyCollide, () -> assertThat(namesOf(members)).containsExactlyInAnyOrderEntriesOf(expected));
         claim(
                 "and the same names are given whatever order the documents are handed over in",
-                () -> assertThat(namesOf(reversed)).containsExactlyEntriesOf(expected));
+                () -> assertThat(namesOf(members.reversed())).containsExactlyInAnyOrderEntriesOf(expected));
     }
 
     /**
@@ -195,41 +302,93 @@ class CopyNamesTest {
                                 9L, "plan~5.pdf")));
     }
 
-    @Test
-    @Story("A document's name in the tree opens on every system")
-    @DisplayName("Characters, device names and trailing dots Windows refuses are made safe, and an empty name becomes the document's number")
-    void aNameIsMadeSafeOnEveryOperatingSystem() {
-        Map<String, String> safeNameOf = new LinkedHashMap<>();
-        safeNameOf.put("a/what: a \"test\" <draft> | v2?*.txt", "what_ a _test_ _draft_ _ v2__.txt");
-        safeNameOf.put("b/back\\slash.txt", "back_slash.txt");
-        safeNameOf.put("c/tab\there\u001f.txt", "tab_here_.txt");
-        safeNameOf.put("d/CON.txt", "_CON.txt");
-        safeNameOf.put("e/nul", "_nul");
-        safeNameOf.put("f/Lpt9.tar.gz", "_Lpt9.tar.gz");
-        safeNameOf.put("g/COM10.txt", "COM10.txt");
-        safeNameOf.put("h/CONSOLE.log", "CONSOLE.log");
-        safeNameOf.put("i/notes. . .", "notes");
-        safeNameOf.put("j/AUX. ", "_AUX");
+    /**
+     * Names Windows would refuse, made safe (ADR-280 §1.2, §1.3): a reserved or control character becomes an underscore;
+     * a device name, the part before the first dot with the spaces at its end not looked at, gains a leading underscore;
+     * trailing dots and spaces go; and a name left with nothing is the document's number. The rules hold of a name as it
+     * is cut.
+     */
+    static Stream<Arguments> namesWindowsWouldRefuse() {
+        Map<String, String> refusedCharactersAndDeviceNames = new LinkedHashMap<>();
+        refusedCharactersAndDeviceNames.put("a/what: a \"test\" <draft> | v2?*.txt", "what_ a _test_ _draft_ _ v2__.txt");
+        refusedCharactersAndDeviceNames.put("b/back\\slash.txt", "back_slash.txt");
+        refusedCharactersAndDeviceNames.put("c/tab\there\u001f.txt", "tab_here_.txt");
+        refusedCharactersAndDeviceNames.put("d/CON.txt", "_CON.txt");
+        refusedCharactersAndDeviceNames.put("e/nul", "_nul");
+        refusedCharactersAndDeviceNames.put("f/Lpt9.tar.gz", "_Lpt9.tar.gz");
+        refusedCharactersAndDeviceNames.put("g/COM10.txt", "COM10.txt");
+        refusedCharactersAndDeviceNames.put("h/CONSOLE.log", "CONSOLE.log");
+        refusedCharactersAndDeviceNames.put("i/notes. . .", "notes");
+        refusedCharactersAndDeviceNames.put("j/AUX. ", "_AUX");
+        refusedCharactersAndDeviceNames.put("k/. .", "");
+        Map<String, String> portsAndSpaces = new LinkedHashMap<>();
+        portsAndSpaces.put("a/COM0.txt", "_COM0.txt");
+        portsAndSpaces.put("b/lpt0", "_lpt0");
+        portsAndSpaces.put("c/COM\u00b9.log", "_COM\u00b9.log");
+        portsAndSpaces.put("d/com\u00b2.txt", "_com\u00b2.txt");
+        portsAndSpaces.put("e/COM\u00b3", "_COM\u00b3");
+        portsAndSpaces.put("f/LPT\u00b9.txt", "_LPT\u00b9.txt");
+        portsAndSpaces.put("g/Lpt\u00b2.txt", "_Lpt\u00b2.txt");
+        portsAndSpaces.put("h/LPT\u00b3.tar.gz", "_LPT\u00b3.tar.gz");
+        portsAndSpaces.put("i/CON .txt", "_CON .txt");
+        portsAndSpaces.put("j/nul   .tar.gz", "_nul   .tar.gz");
+        portsAndSpaces.put("k/COM\u2074.txt", "COM\u2074.txt");
+        portsAndSpaces.put("l/CON x.txt", "CON x.txt");
+        Map<String, String> leftByTheCut = new LinkedHashMap<>();
+        leftByTheCut.put("a/" + " ".repeat(100) + "abc", "");
+        leftByTheCut.put("b/AUX" + " ".repeat(120) + "z.pdf", "_AUX.pdf");
+        return Stream.of(
+                aTableOfNames(
+                        "Characters, device names and trailing dots Windows refuses, and a name left empty",
+                        refusedCharactersAndDeviceNames,
+                        20,
+                        "each of the nine characters Windows refuses in a name and each control character becomes an"
+                                + " underscore; a name whose part before its first dot is a device name, in any case"
+                                + " and with any extension, gains a leading underscore, while COM10 and CONSOLE are no"
+                                + " device; trailing dots and spaces go, before the device name is looked for; and a"
+                                + " name left with nothing is the document's number"),
+                aTableOfNames(
+                        "The zero and superscript ports, and spaces before the first dot",
+                        portsAndSpaces,
+                        80,
+                        "COM0 and LPT0, and COM and LPT followed by a superscript one, two or three, are device names"
+                                + " on Windows, in any case and with any extension, and gain a leading underscore;"
+                                + " spaces at the end of the part before the first dot are not looked at, so a device"
+                                + " name followed by spaces is one too, the name otherwise kept as written; and a"
+                                + " superscript four, or a letter after the space, makes no device name"),
+                aTableOfNames(
+                        "A name the cut leaves empty, or leaves a device name",
+                        leftByTheCut,
+                        71,
+                        "a name of a hundred spaces and three letters is cut to its spaces, which go, so it is left"
+                                + " empty and becomes the document's number; and a device name followed by a hundred"
+                                + " and twenty spaces is cut to the device name and its extension, so it gains a"
+                                + " leading underscore: the rules that make a name safe hold of the name as it is cut"));
+    }
+
+    /**
+     * One case of {@link #namesWindowsWouldRefuse}: each path of {@code safeNameOf} a member numbered on from {@code
+     * first}, and the name it is given, the document's number where the safe name is empty.
+     */
+    private static Arguments aTableOfNames(String what, Map<String, String> safeNameOf, long first, String claimed) {
         List<ListedSurvivor> members = new ArrayList<>();
         Map<Long, String> expected = new TreeMap<>();
-        long occurrence = 20;
+        long occurrence = first;
         for (Map.Entry<String, String> name : safeNameOf.entrySet()) {
             members.add(member(occurrence, name.getKey()));
-            expected.put(occurrence++, name.getValue());
+            expected.put(occurrence, name.getValue().isEmpty() ? String.valueOf(occurrence) : name.getValue());
+            occurrence++;
         }
-        long theEmptyOne = occurrence;
-        members.add(member(theEmptyOne, "k/. ."));
-        expected.put(theEmptyOne, String.valueOf(theEmptyOne));
+        return Arguments.of(Named.of(what, members), claimed, expected);
+    }
 
-        Map<Long, String> names = namesOf(members);
-
-        claim(
-                "each of the nine characters Windows refuses in a name and each control character becomes an"
-                        + " underscore; a name whose part before its first dot is a device name, in any case and"
-                        + " with any extension, gains a leading underscore, while COM10 and CONSOLE are no device;"
-                        + " trailing dots and spaces go, before the device name is looked for; and a name left with"
-                        + " nothing is the document's number",
-                () -> assertThat(names).containsExactlyEntriesOf(expected));
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("namesWindowsWouldRefuse")
+    @Story("A document's name in the tree opens on every system")
+    @DisplayName("A name Windows would refuse is made safe, before and after it is cut, and a name left empty becomes the document's number")
+    void aNameIsMadeSafeOnEveryOperatingSystem(
+            List<ListedSurvivor> members, String howEachIsMadeSafe, Map<Long, String> expected) {
+        claim(howEachIsMadeSafe, () -> assertThat(namesOf(members)).containsExactlyInAnyOrderEntriesOf(expected));
     }
 
     @Test
@@ -315,173 +474,6 @@ class CopyNamesTest {
                         .containsExactlyInAnyOrderEntriesOf(Map.of(
                                 31L, "x".repeat(96) + ".txt",
                                 32L, "x".repeat(93) + "~32.txt")));
-    }
-
-    @Test
-    @Story("A document's name in the tree opens on every system")
-    @DisplayName("A name the cut leaves empty becomes the document's number, and one it leaves a device name gains an underscore")
-    void aNameIsMadeSafeAgainAfterItIsCut() {
-        long theBlankOne = 71;
-        Map<Long, String> names = namesOf(
-                List.of(
-                        member(theBlankOne, "a/" + " ".repeat(100) + "abc"),
-                        member(72, "b/AUX" + " ".repeat(120) + "z.pdf")));
-
-        claim(
-                "a name of a hundred spaces and three letters is cut to its spaces, which go, so it is left empty"
-                        + " and becomes the document's number; and a device name followed by a hundred and twenty"
-                        + " spaces is cut to the device name and its extension, so it gains a leading underscore:"
-                        + " the rules that make a name safe hold of the name as it is cut",
-                () -> assertThat(names)
-                        .containsExactlyInAnyOrderEntriesOf(Map.of(
-                                theBlankOne, String.valueOf(theBlankOne),
-                                72L, "_AUX.pdf")));
-    }
-
-    @Test
-    @Story("A document's name in the tree opens on every system")
-    @DisplayName("The zero and superscript ports are device names too, and spaces before the first dot do not hide one")
-    void theDeviceNamesIncludeTheZeroAndSuperscriptPortsAndSpacesBeforeTheDotAreIgnored() {
-        Map<String, String> safeNameOf = new LinkedHashMap<>();
-        safeNameOf.put("a/COM0.txt", "_COM0.txt");
-        safeNameOf.put("b/lpt0", "_lpt0");
-        safeNameOf.put("c/COM¹.log", "_COM¹.log");
-        safeNameOf.put("d/com².txt", "_com².txt");
-        safeNameOf.put("e/COM³", "_COM³");
-        safeNameOf.put("f/LPT¹.txt", "_LPT¹.txt");
-        safeNameOf.put("g/Lpt².txt", "_Lpt².txt");
-        safeNameOf.put("h/LPT³.tar.gz", "_LPT³.tar.gz");
-        safeNameOf.put("i/CON .txt", "_CON .txt");
-        safeNameOf.put("j/nul   .tar.gz", "_nul   .tar.gz");
-        safeNameOf.put("k/COM⁴.txt", "COM⁴.txt");
-        safeNameOf.put("l/CON x.txt", "CON x.txt");
-        List<ListedSurvivor> members = new ArrayList<>();
-        Map<Long, String> expected = new TreeMap<>();
-        long occurrence = 80;
-        for (Map.Entry<String, String> name : safeNameOf.entrySet()) {
-            members.add(member(occurrence, name.getKey()));
-            expected.put(occurrence++, name.getValue());
-        }
-
-        Map<Long, String> names = namesOf(members);
-
-        claim(
-                "COM0 and LPT0, and COM and LPT followed by a superscript one, two or three, are device names on"
-                        + " Windows, in any case and with any extension, and gain a leading underscore; spaces at the"
-                        + " end of the part before the first dot are not looked at, so a device name followed by"
-                        + " spaces is one too, the name otherwise kept as written; and a superscript four, or a"
-                        + " letter after the space, makes no device name",
-                () -> assertThat(names).containsExactlyEntriesOf(expected));
-    }
-
-    @Test
-    @Story("A document keeps its own name in its group's folder")
-    @DisplayName("Names that are equal once lower-cased, upper-cased and composed again collide, a capital that upper-casing leaves alone among them")
-    void aKeyIsLowerCasedThenUpperCasedAndNormalisedAgain() {
-        String aSmallTheta = "\u03b8";
-        String aCapitalThetaSymbol = "\u03f4";
-        String aSharpS = "\u00df";
-        String aCapitalSharpS = "\u1e9e";
-        String aDottedCapitalI = "\u0130";
-        String anIAndACombiningDotAbove = "i\u0307";
-        String anIotaWithDialytikaAndTonos = "\u0390";
-        String aCapitalIotaWithDialytikaAndACombiningAcute = "\u03aa\u0301";
-        Map<Long, String> names = namesOf(
-                List.of(
-                        member(65, "e/" + aSmallTheta + ".txt"),
-                        member(66, "f/" + aCapitalThetaSymbol + ".txt"),
-                        member(67, "g/" + aSharpS + ".txt"),
-                        member(68, "h/" + aCapitalSharpS + ".txt"),
-                        member(61, "a/" + aDottedCapitalI + ".txt"),
-                        member(62, "b/" + anIAndACombiningDotAbove + ".txt"),
-                        member(63, "c/" + anIotaWithDialytikaAndTonos + ".txt"),
-                        member(64, "d/" + aCapitalIotaWithDialytikaAndACombiningAcute + ".txt")));
-
-        claim(
-                "a capital theta symbol and a capital sharp s are kept as they are by upper-casing, though their"
-                        + " small letters, a theta and a sharp s, upper-case to a capital theta and to a double S;"
-                        + " lower-cased first, each meets its small letter, as on a file system that folds case,"
-                        + " and the higher-numbered of each pair takes its number",
-                () -> assertThat(names)
-                        .containsAllEntriesOf(Map.of(
-                                65L, aSmallTheta + ".txt",
-                                66L, aCapitalThetaSymbol + "~66.txt",
-                                67L, aSharpS + ".txt",
-                                68L, aCapitalSharpS + "~68.txt")));
-        claim(
-                "a dotted capital I and an i followed by a combining dot above are one letter once lower-cased,"
-                        + " upper-cased and composed again, and so are a small iota with dialytika and tonos and a"
-                        + " capital iota with dialytika followed by a combining acute: each pair collides, the"
-                        + " lower-numbered keeping its name as written and the other taking its number",
-                () -> assertThat(names)
-                        .containsAllEntriesOf(Map.of(
-                                61L, aDottedCapitalI + ".txt",
-                                62L, anIAndACombiningDotAbove + "~62.txt",
-                                63L, anIotaWithDialytikaAndTonos + ".txt",
-                                64L, aCapitalIotaWithDialytikaAndACombiningAcute + "~64.txt")));
-        claim(
-                "and a dotted capital I does not meet a plain i, which case folding keeps apart from it too",
-                () -> assertThat(namesOf(
-                                List.of(member(91, "a/i.txt"), member(92, "b/" + aDottedCapitalI + ".txt"))))
-                        .containsExactlyInAnyOrderEntriesOf(Map.of(91L, "i.txt", 92L, aDottedCapitalI + ".txt")));
-    }
-
-    @Test
-    @Story("A document keeps its own name in its group's folder")
-    @DisplayName("A capital alpha with an iota subscript and a small one, each followed by a perispomeni, collide, as Windows and a case-insensitive Mac hold them as one file")
-    void anIotaSubscriptMeetsItsLetterWhereverAnotherMarkStandsOnceTheKeyIsDecomposedFirst() {
-        String aCapitalAlphaWithProsgegrammeniAndAPerispomeni = "ᾼ͂";
-        String aSmallAlphaWithYpogegrammeniAndAPerispomeni = "ᾷ";
-        List<ListedSurvivor> members = List.of(
-                member(71, "a/" + aCapitalAlphaWithProsgegrammeniAndAPerispomeni + ".pdf"),
-                member(72, "b/" + aSmallAlphaWithYpogegrammeniAndAPerispomeni + ".pdf"));
-        Map<Long, String> expected = Map.of(
-                71L, aCapitalAlphaWithProsgegrammeniAndAPerispomeni + ".pdf",
-                72L, aSmallAlphaWithYpogegrammeniAndAPerispomeni + "~72.pdf");
-
-        claim(
-                "NTFS upper-cases the small alpha with ypogegrammeni to the capital with prosgegrammeni, and APFS's"
-                        + " case-insensitive form decomposes and folds both names to one; composed first, the iota"
-                        + " subscript would upper-case to a capital iota before the perispomeni in one name and after"
-                        + " it in the other, and both would keep their names. Decomposed first, the subscript stands"
-                        + " after the perispomeni in both: they collide, document 71 keeping its name as written and"
-                        + " document 72 taking its number before the extension",
-                () -> assertThat(namesOf(members)).containsExactlyInAnyOrderEntriesOf(expected));
-        claim(
-                "and the same names are given whatever order the members arrive in",
-                () -> assertThat(namesOf(members.reversed()))
-                        .containsExactlyInAnyOrderEntriesOf(expected));
-    }
-
-    @Test
-    @Story("A document keeps its own name in its group's folder")
-    @DisplayName("Two names Windows upper-cases to one file collide even where decomposing them orders their marks apart")
-    void twoNamesNtfsHoldsAsOneCollideThoughTheirDecomposedKeysDiffer() {
-        String anAlphaWithYpogegrammeniThenAPerispomeni = "\u03B1\u0345\u0342";
-        String anAlphaWithAnIotaThenAPerispomeni = "\u03B1\u03B9\u0342";
-        List<ListedSurvivor> members = List.of(
-                member(81, "a/" + anAlphaWithYpogegrammeniThenAPerispomeni + ".pdf"),
-                member(82, "b/" + anAlphaWithAnIotaThenAPerispomeni + ".pdf"));
-        Map<Long, String> expected = Map.of(
-                81L, anAlphaWithYpogegrammeniThenAPerispomeni + ".pdf",
-                82L, anAlphaWithAnIotaThenAPerispomeni + "~82.pdf");
-        List<ListedSurvivor> theOtherWayRound = List.of(
-                member(81, "a/" + anAlphaWithAnIotaThenAPerispomeni + ".pdf"),
-                member(82, "b/" + anAlphaWithYpogegrammeniThenAPerispomeni + ".pdf"));
-        Map<Long, String> expectedTheOtherWayRound = Map.of(
-                81L, anAlphaWithAnIotaThenAPerispomeni + ".pdf",
-                82L, anAlphaWithYpogegrammeniThenAPerispomeni + "~82.pdf");
-
-        claim(
-                "NTFS upper-cases each unit, so U+03B1 U+0345 U+0342 and U+03B1 U+03B9 U+0342 both become U+0391"
-                        + " U+0399 U+0342 and are one file there, though normalisation form D moves the subscript"
-                        + " after the perispomeni in the first and the decomposed keys differ: the names collide,"
-                        + " document 81 keeping its name and document 82 taking its number before the extension",
-                () -> assertThat(namesOf(members)).containsExactlyInAnyOrderEntriesOf(expected));
-        claim(
-                "and with the two names the other way round, the lower occurrence still keeps its own",
-                () -> assertThat(namesOf(theOtherWayRound))
-                        .containsExactlyInAnyOrderEntriesOf(expectedTheOtherWayRound));
     }
 
     @Test

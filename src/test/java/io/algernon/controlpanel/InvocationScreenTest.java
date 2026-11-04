@@ -51,7 +51,8 @@ class InvocationScreenTest {
 
     @Test
     @Story("The operator watches an invocation from the control panel")
-    @DisplayName("Run starts the child, whose page refreshes every 2 seconds while it runs and opens the progress page in a tab of its own")
+    @DisplayName("Run starts the child, whose page refreshes every 2 seconds while it runs and leads to the progress page in the same window")
+    @Link(name = "ADR-335", url = Adr.THE_CONTROL_PANEL_SHOWS_THE_PROGRESS_PAGE_AND_ITS_PAGES_ARE_DRAWN_TO_ONE_COMPACT_SCALE, type = "adr")
     void runStartsTheChildAndItsPageRefreshesEveryTwoSecondsWhileItRuns() throws IOException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
@@ -65,10 +66,9 @@ class InvocationScreenTest {
                             .containsExactly("/invocation", "running"));
             claim("the page asks to be loaded again every 2 seconds",
                     () -> assertThat(refresh(page)).isEqualTo(EVERY_TWO_SECONDS));
-            claim("the progress page is linked at its own report path, to open in a tab of its own",
-                    () -> assertThat(List.of(progress.attr("href"), progress.attr("target"),
-                                    progress.attr("rel").contains("noopener")))
-                            .containsExactly("/report/progress.html", "_blank", true));
+            claim("the progress page is linked at the control panel's own page for it, to open in the same window",
+                    () -> assertThat(List.of(progress.attr("href"), progress.hasAttr("target")))
+                            .containsExactly("/progress", false));
             claim("and the child can be stopped, by a form leading to the confirmation",
                     () -> assertThat(List.of(ScreenServer.form(page, "stop").attr("action"),
                                     buttonNames(ScreenServer.form(page, "stop"))))

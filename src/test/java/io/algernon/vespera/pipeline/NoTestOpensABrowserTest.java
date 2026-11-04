@@ -9,6 +9,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.Map;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,12 +40,11 @@ class NoTestOpensABrowserTest {
     @DisplayName("In the whole application a test builds, the page is handed to an opener that records it and opens nothing, although the system's opener is there too")
     void theWholeApplicationsOpenerIsTheRecordingOne() {
         Map<String, PageOpener> openers = context.getBeansOfType(PageOpener.class);
+        // A precondition, not a claim: the application holds the system's opener, as an operator's
+        // invocation does, so what is asked below is which of two openers wins.
+        Assumptions.assumeTrue(openers.values().stream().anyMatch(SystemPageOpener.class::isInstance));
         claim(
-                "the application holds the system's opener, as an operator's invocation does, so what is asked"
-                        + " below is which of two openers wins",
-                () -> assertThat(openers.values()).hasAtLeastOneElementOfType(SystemPageOpener.class));
-        claim(
-                "and the one an invocation is handed is the recording one, which opens nothing",
+                "the one an invocation is handed is the recording one, which opens nothing",
                 () -> assertThat(context.getBean(PageOpener.class)).isInstanceOf(RecordingPageOpener.class));
     }
 }

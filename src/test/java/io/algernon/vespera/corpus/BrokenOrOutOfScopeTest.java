@@ -175,9 +175,14 @@ class BrokenOrOutOfScopeTest {
         claim(
                 "the four removed are reported as left out, with the reason they were written with",
                 () -> assertThat(progress.checked)
-                        .contains(Map.entry(video, new Outcome.LeftOut("a video, and videos are out of scope")))
                         .filteredOn(entry -> entry.getValue() instanceof Outcome.LeftOut)
-                        .hasSize(4));
+                        .containsExactlyInAnyOrder(
+                                Map.entry(workbook, new Outcome.LeftOut("a spreadsheet, and spreadsheets are out of scope")),
+                                Map.entry(
+                                        olderSpreadsheet,
+                                        new Outcome.LeftOut("a spreadsheet, and spreadsheets are out of scope")),
+                                Map.entry(bmp, new Outcome.LeftOut("a BMP image, and BMP images are out of scope")),
+                                Map.entry(video, new Outcome.LeftOut("a video, and videos are out of scope"))));
         claim(
                 "the tally counts four left out, none of them a log and none of them for its size",
                 () -> {
@@ -209,7 +214,6 @@ class BrokenOrOutOfScopeTest {
         claim(
                 "but it is removed once, with the reason that calls it a log, and not with the size reason",
                 () -> assertThat(verdictsOf(log))
-                        .doesNotContain("OUT_OF_SCOPE: " + sizeReason)
                         .containsExactly("OUT_OF_SCOPE: a log, and logs are out of scope:"
                                 + " 100% of the lines read from its start and end begin with a timestamp"));
         claim(
@@ -259,6 +263,7 @@ class BrokenOrOutOfScopeTest {
     @Test
     @Story("When a text file is too large to convert")
     @DisplayName("Text over the size limit is kept when cut into parts, and removed when it is HTML, not cut, or too large to cut")
+    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
     @Link(name = "ADR-178", url = Adr.TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS, type = "adr")
     void appliesTheSizeRuleThroughTheLimitsHandedIn(@TempDir Path root) throws Exception {
         writeTextOfExactly(root.resolve("export.txt"), OVER_THE_CEILING);
@@ -395,10 +400,8 @@ class BrokenOrOutOfScopeTest {
                 "each is said to be unreadable for the code rules once, and the file read after them is not",
                 () -> assertThat(progress.codeUnreadable).containsExactly(goneUnrecognised, gonePlainText));
         claim(
-                "the file of no known kind, never read for timestamps, is not said to be unreadable for them",
-                () -> assertThat(progress.unreadable).doesNotContain(goneUnrecognised));
-        claim(
-                "the text file, read for timestamps too, is said to be unreadable for those as well, once",
+                "the text file, read for timestamps too, is said to be unreadable for those as well, once, and the file"
+                        + " of no known kind, never read for timestamps, is not",
                 () -> assertThat(progress.unreadable).containsExactly(gonePlainText));
         claim(
                 "and the pass carries on: the next file is kept as code for its ending, and each is reported as what it came to",

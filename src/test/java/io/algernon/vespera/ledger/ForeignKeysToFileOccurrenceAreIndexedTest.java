@@ -64,12 +64,6 @@ class ForeignKeysToFileOccurrenceAreIndexedTest {
                 "no column referencing file_occurrence, walk or run is left without an index it leads; the"
                         + " failure names each such table and column",
                 () -> assertThat(unindexed).isEmpty());
-        for (Reference reference : references) {
-            claim(
-                    reference.table() + "." + reference.column() + ", which references " + reference.parent()
-                            + ", is the first column of an index on " + reference.table(),
-                    () -> assertThat(SchemaReferences.leadsAnIndex(jdbcTemplate, reference)).isTrue());
-        }
     }
 
     /** One column of one table, and the table its foreign key names. */

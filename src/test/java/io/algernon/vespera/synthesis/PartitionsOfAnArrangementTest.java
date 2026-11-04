@@ -59,7 +59,9 @@ class PartitionsOfAnArrangementTest {
 
     /**
      * Two partitions under one arrangement. The seed recorded first is placed second and holds two clusters,
-     * written with the later one first; the seed recorded second is placed first and holds one. A second
+     * written with the later one first; the seed recorded second is placed first and holds three, so neither
+     * place is the number of groups under it, and the one placed first holds more groups and more documents
+     * than the one placed second. A second
      * arrangement holds a cluster under the first seed, which no read of the first arrangement may return.
      */
     @BeforeEach
@@ -75,6 +77,8 @@ class PartitionsOfAnArrangementTest {
         clusters.record(arrangement, new ArrangedCluster(first, 0, 2, 2, 2), new ClusterLabel("Placed last"));
         clusters.record(arrangement, new ArrangedCluster(first, 5, 1, 2, 1), new ClusterLabel("Placed second"));
         clusters.record(arrangement, new ArrangedCluster(second, 0, 3, 1, 1), new ClusterLabel("Placed first"));
+        clusters.record(arrangement, new ArrangedCluster(second, 4, 1, 1, 2), new ClusterLabel("Second under the first"));
+        clusters.record(arrangement, new ArrangedCluster(second, 6, 1, 1, 3), new ClusterLabel("Third under the first"));
         clusters.record(another, new ArrangedCluster(first, 9, 4, 1, 1), new ClusterLabel("Of another arrangement"));
     }
 
@@ -93,10 +97,11 @@ class PartitionsOfAnArrangementTest {
     @DisplayName("Each exemplar comes back with its place, how many groups sit under it and how many documents")
     void thePartitionsComeWithTheirCounts() {
         claim(
-                "the first holds one group of three documents, the second two groups of three documents between"
-                        + " them, and the other arrangement's group of four is counted under neither",
+                "the first holds three groups of five documents between them, the second two groups of three"
+                        + " documents between them, and the other arrangement's group of four is counted under"
+                        + " neither: the order is the places, not the number of groups or of documents",
                 () -> assertThat(clusters.partitionsOf(arrangement))
-                        .containsExactly(new ArrangedPartition(second, 1, 1, 3), new ArrangedPartition(first, 2, 2, 3)));
+                        .containsExactly(new ArrangedPartition(second, 1, 3, 5), new ArrangedPartition(first, 2, 2, 3)));
     }
 
     @Test
@@ -112,10 +117,14 @@ class PartitionsOfAnArrangementTest {
                                 new RecordedCluster(new ArrangedCluster(first, 5, 1, 2, 1), new ClusterLabel("Placed second")),
                                 new RecordedCluster(new ArrangedCluster(first, 0, 2, 2, 2), new ClusterLabel("Placed last"))));
         claim(
-                "and the other exemplar's one group comes back on its own",
+                "and the other exemplar's three groups come back on their own, in their stored order",
                 () -> assertThat(clusters.ofPartition(arrangement, second))
                         .containsExactly(
-                                new RecordedCluster(new ArrangedCluster(second, 0, 3, 1, 1), new ClusterLabel("Placed first"))));
+                                new RecordedCluster(new ArrangedCluster(second, 0, 3, 1, 1), new ClusterLabel("Placed first")),
+                                new RecordedCluster(
+                                        new ArrangedCluster(second, 4, 1, 1, 2), new ClusterLabel("Second under the first")),
+                                new RecordedCluster(
+                                        new ArrangedCluster(second, 6, 1, 1, 3), new ClusterLabel("Third under the first"))));
     }
 
     @Test

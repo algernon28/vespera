@@ -59,6 +59,9 @@ class WorkingDirectoryLockTest {
     /** The holder's line: who holds it, since when, and with what command. */
     private static final Pattern HOLDER_LINE = Pattern.compile("pid=(\\d+) started=(\\S+) command=(.*)");
 
+    /** The nanoseconds of a time written to the whole second. */
+    private static final int NO_FRACTION_OF_A_SECOND = 0;
+
     /** How long the second process gets to start a JVM and take the lock. */
     private static final long HOLDER_START_BOUND_SECONDS = 60;
 
@@ -96,6 +99,24 @@ class WorkingDirectoryLockTest {
                 () -> assertThat(catchThrowable(() -> OffsetDateTime.parse(holder.group(2)))).isNull());
         claim("and the command the invocation was started with, its arguments joined by spaces",
                 () -> assertThat(holder.group(3)).isEqualTo(String.join(" ", ARGUMENTS)));
+    }
+
+    /**
+     * ADR-177 §1: the holder's line gives the start "to the second", so it carries no fraction of a second.
+     * A clock finer than a second would leave one there almost always.
+     */
+    @Test
+    @Story("An invocation holds its working directory until it ends")
+    @DisplayName("The holder's start time is written to the whole second, with no fraction")
+    void theStartIsWrittenToTheSecond(@TempDir Path workingDirectory) throws IOException {
+        new WorkingDirectoryLock().onApplicationEvent(prepared(workingDirectory, ARGUMENTS));
+
+        Matcher holder = HOLDER_LINE.matcher(holderLine(workingDirectory));
+        claim("the holder's line has the shape pid=<process id> started=<date and time> command=<arguments>",
+                () -> assertThat(holder.matches()).isTrue());
+        OffsetDateTime started = OffsetDateTime.parse(holder.group(2));
+        claim("and its start time has no part of a second below the whole second",
+                () -> assertThat(started.getNano()).isEqualTo(NO_FRACTION_OF_A_SECOND));
     }
 
     @Test
@@ -179,10 +200,8 @@ class WorkingDirectoryLockTest {
     void theRefusalSaysWhatItCouldRead(@TempDir Path workingDirectory) {
         String holderLine = "pid=4242 started=2026-09-28T22:38:44+02:00 command=run archive-root";
 
-        claim("with the holder's line read, the refusal quotes it between the directory and the advice",
-                () -> assertThat(new WorkingDirectoryInUseException(workingDirectory, holderLine))
-                        .hasMessage(inUse(workingDirectory, holderLine)));
-        claim("with nothing readable in the lock file, the refusal says so in place of the line",
+        claim("with nothing readable in the lock file, the refusal says so in place of the holder's line, which a"
+                        + " refused take quotes when it can read it",
                 () -> assertThat(new WorkingDirectoryInUseException(workingDirectory, "  "))
                         .hasMessage(inUse(workingDirectory, "its details could not be read")));
         claim("and it carries the directory it refused, for whatever reports it",

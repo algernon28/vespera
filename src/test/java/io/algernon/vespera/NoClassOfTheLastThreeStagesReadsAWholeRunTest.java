@@ -3,11 +3,16 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.algernon.vespera.embedding.DocumentCluster;
 import io.algernon.vespera.embedding.DocumentClusters;
+import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.synthesis.Arrangement;
+import io.algernon.vespera.synthesis.ClusterFault;
 import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.deliverable.Deliverable;
+import io.algernon.vespera.synthesis.RecordedCluster;
+import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.algernon.vespera.synthesis.SynthesisStatement;
 import io.qameta.allure.Epic;
@@ -54,13 +59,24 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
     @Story("No table of the last three stages is read a whole run at a time")
     @DisplayName("Nothing reads every grouped document, every group, every written text or every failure of a run in one go")
     void noTableIsReadAWholeRunAtATime() {
-        for (Class<?> table : List.of(DocumentClusters.class, Clusters.class, SynthesisDocs.class, ClusterFaults.class)) {
+        for (List<Class<?>> tableAndRow : List.<List<Class<?>>>of(
+                List.of(DocumentClusters.class, DocumentCluster.class),
+                List.of(Clusters.class, RecordedCluster.class),
+                List.of(SynthesisDocs.class, SynthesisDoc.class),
+                List.of(ClusterFaults.class, ClusterFault.class))) {
+            Class<?> table = tableAndRow.get(0);
+            Class<?> row = tableAndRow.get(1);
             claim(
-                    table.getSimpleName() + " has no read of everything one run recorded: its rows are asked for one"
-                            + " exemplar's documents at a time, a page at a time, or one group at a time by its key",
-                    () -> assertThat(namesOf(table.getDeclaredMethods()))
-                            .as("the methods of %s", table.getSimpleName())
-                            .doesNotContain("forRun"));
+                    table.getSimpleName() + " has no read of everything one run recorded: no way in asked for a run"
+                            + " alone hands back its rows together, which are asked for one exemplar's documents at"
+                            + " a time, a page at a time, or one group at a time by its key",
+                    () -> assertThat(Arrays.stream(table.getDeclaredMethods())
+                                    .filter(method -> Arrays.equals(method.getParameterTypes(), new Class<?>[] {RunId.class}))
+                                    .filter(method -> handsBackMany(method, row))
+                                    .map(Method::getName))
+                            .as("the reads of %s that take a run alone and hand back many %s", table.getSimpleName(),
+                                    row.getSimpleName())
+                            .isEmpty());
         }
     }
 
@@ -70,9 +86,10 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
     void theReadOfEverythingAlreadyWrittenIsNotAnnounced() {
         claim(
                 "the statement that read every written text of a run, to learn which groups to walk past, is"
-                        + " gone from the statements this stage announces: each group is asked about by its key",
+                        + " gone from the statements this stage announces: the one left is the read of the failures"
+                        + " standing under the run, and each group is asked about by its key",
                 () -> assertThat(Arrays.stream(SynthesisStatement.values()).map(Enum::name))
-                        .doesNotContain("WRITTEN"));
+                        .containsExactly("STANDING_FAULTS"));
     }
 
     @Test
@@ -141,46 +158,6 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
                         .contains("documentCount", "clusterCount", "largest", "median", "singletons"));
     }
 
-    @Test
-    @Story("Nothing that writes a page is handed a whole run as a list")
-    @DisplayName("A way in that takes a whole run in any kind of collection is caught, not only one that takes a list")
-    void aWayInTakingAnyCollectionIsCaught() {
-        claim(
-                "each way in of the stand-in below takes a whole run as a list or as something other than a"
-                        + " list -- a collection, a set, an iterable, a stream, an array, an array list or a map --"
-                        + " and the check the claims above make finds every one of them: only a list of plugins is"
-                        + " passed over",
-                () -> assertThat(Arrays.stream(WaysInThatTakeAWholeRun.class.getDeclaredMethods())
-                                .filter(method -> !method.isSynthetic()))
-                        .hasSize(WAYS_IN_THAT_TAKE_A_WHOLE_RUN)
-                        .allSatisfy(method -> assertThat(takesAList(method))
-                                .as("whether %s takes a list", method)
-                                .isTrue()));
-    }
-
-    /** How many ways in {@link WaysInThatTakeAWholeRun} declares. */
-    private static final int WAYS_IN_THAT_TAKE_A_WHOLE_RUN = 8;
-
-    /** A stand-in with one way in for each kind of collection a whole run could be handed as. */
-    @SuppressWarnings("unused")
-    private static final class WaysInThatTakeAWholeRun {
-        void list(List<Object> all) {}
-
-        void collection(java.util.Collection<Object> all) {}
-
-        void set(java.util.Set<Object> all) {}
-
-        void iterable(Iterable<Object> all) {}
-
-        void stream(java.util.stream.Stream<Object> all) {}
-
-        void array(Object[] all) {}
-
-        void arrayList(java.util.ArrayList<Object> all) {}
-
-        void map(java.util.Map<Object, Object> all) {}
-    }
-
     /**
      * Whether {@code method} takes anything a whole run could be handed in: a list, and as much any other
      * collection, iterable, stream, map or array, which a form put back to take a run would reach for as
@@ -206,6 +183,19 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
                 && parameterized.getRawType() == List.class
                 && parameterized.getActualTypeArguments().length == 1
                 && parameterized.getActualTypeArguments()[0].getTypeName().equals(DELIVERABLE + "Plugin");
+    }
+
+    /**
+     * Whether {@code method} hands back many {@code row}s at once: a collection, iterable, stream, map or
+     * array whose declared type names the row.
+     */
+    private static boolean handsBackMany(Method method, Class<?> row) {
+        Class<?> type = method.getReturnType();
+        boolean many = type.isArray()
+                || Iterable.class.isAssignableFrom(type)
+                || java.util.Map.class.isAssignableFrom(type)
+                || java.util.stream.BaseStream.class.isAssignableFrom(type);
+        return many && method.getGenericReturnType().getTypeName().contains(row.getName());
     }
 
     private static List<String> namesOf(Method[] methods) {

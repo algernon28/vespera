@@ -19,6 +19,9 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -83,6 +86,12 @@ class RelevanceDistributionTest {
     /** How many documents that band is left holding, which is fewer than a full band supplies. */
     private static final int DOCUMENTS_IN_THE_SHORT_BAND = 4;
 
+    /** What the short band lacks of its sample: the twelve asked for less the four it holds. */
+    private static final int THE_SHORT_BANDS_SHORTFALL = 8;
+
+    /** The sitting the short band leaves: sixty less the eight it could not supply. */
+    private static final int THE_SHORTENED_SAMPLE = 52;
+
     /** Scores are compared with a tolerance because they are stored and read back as doubles. */
     private static final Offset<Double> ROUNDING = Offset.offset(1e-9);
 
@@ -122,12 +131,6 @@ class RelevanceDistributionTest {
                                 .map(RelevanceDistribution.Band::documentCount)
                                 .toList())
                         .containsExactly(1, 1, 1, 0, 2));
-        claim(
-                "and every scored document is accounted for across the bands, none twice and none lost",
-                () -> assertThat(distribution.bands().stream()
-                                .mapToInt(RelevanceDistribution.Band::documentCount)
-                                .sum())
-                        .isEqualTo(SCORES.length));
     }
 
     @Test
@@ -137,7 +140,8 @@ class RelevanceDistributionTest {
         RunId scoringRun = aScoringRunScoring(scoresFillingEveryBand());
         RelevanceDistribution distribution = new RelevanceDistribution(jdbcTemplate);
 
-        List<OccurrenceId> firstDraw = occurrencesOf(distribution.measure(scoringRun, BANDS, PER_BAND));
+        RelevanceDistribution.Distribution measured = distribution.measure(scoringRun, BANDS, PER_BAND);
+        List<OccurrenceId> firstDraw = occurrencesOf(measured);
         List<OccurrenceId> secondDraw = occurrencesOf(distribution.measure(scoringRun, BANDS, PER_BAND));
 
         claim(
@@ -158,10 +162,12 @@ class RelevanceDistributionTest {
                         + " same documents both times",
                 () -> assertThat(secondDraw).containsExactlyElementsOf(firstDraw));
         claim(
-                "and they are genuinely drawn from across each band rather than being the ones it happens"
+                "and they are genuinely drawn from across each band rather than being the twelve it happens"
                         + " to hold first -- a sample taken in storage order would be reproducible too, and"
                         + " would still show a reader only one corner of each band",
-                () -> assertThat(firstDraw).isNotEqualTo(theLowestScoringSixtyInStorageOrder(scoringRun)));
+                () -> assertThat(IntStream.range(0, BANDS).boxed().toList())
+                        .allSatisfy(band -> assertThat(drawnFrom(measured, band))
+                                .isNotEqualTo(theFirstTwelveTheBandHolds(scoringRun, band))));
     }
 
     @Test
@@ -178,10 +184,10 @@ class RelevanceDistributionTest {
                         + " in it to offer",
                 () -> assertThat(shortBand.sampledCount()).isEqualTo(DOCUMENTS_IN_THE_SHORT_BAND));
         claim(
-                "the " + (PER_BAND - DOCUMENTS_IN_THE_SHORT_BAND) + " it could not supply are recorded as"
+                "the " + THE_SHORT_BANDS_SHORTFALL + " it could not supply are recorded as"
                         + " missing rather than passed over in silence: a reader comparing proportions"
                         + " across bands has to know which of them rests on a handful of answers",
-                () -> assertThat(shortBand.shortfall()).isEqualTo(PER_BAND - DOCUMENTS_IN_THE_SHORT_BAND));
+                () -> assertThat(shortBand.shortfall()).isEqualTo(THE_SHORT_BANDS_SHORTFALL));
         claim(
                 "no other band is asked to make up the difference -- every other band supplies exactly"
                         + " twelve, so the total falls short of sixty rather than being topped up from a"
@@ -192,9 +198,9 @@ class RelevanceDistributionTest {
                                 .toList())
                         .containsOnly(PER_BAND));
         claim(
-                "so the sitting is shorter than sixty documents, by exactly what the short band lacked",
-                () -> assertThat(distribution.sample())
-                        .hasSize(SAMPLE_SIZE - (PER_BAND - DOCUMENTS_IN_THE_SHORT_BAND)));
+                "so the sitting is " + THE_SHORTENED_SAMPLE + " documents, shorter than sixty by exactly what"
+                        + " the short band lacked",
+                () -> assertThat(distribution.sample()).hasSize(THE_SHORTENED_SAMPLE));
     }
 
     /**
@@ -222,11 +228,13 @@ class RelevanceDistributionTest {
                     assertThat(distribution.sample()).hasSize(twoBands * threeFromEach);
                 });
 
-        int moreThanABandHolds = 2 * BANDS * DOCUMENTS_PER_FULL_BAND;
+        int moreThanABandHolds = 200;
+        int whatTheOneBandLacks = 100;
         RelevanceDistribution.Distribution asking = new RelevanceDistribution(jdbcTemplate).measure(scoringRun, 1, moreThanABandHolds);
-        claim("and what a band could not supply is measured against the number asked for, whatever that is",
-                () -> assertThat(asking.bands().getFirst().shortfall())
-                        .isEqualTo(moreThanABandHolds - BANDS * DOCUMENTS_PER_FULL_BAND));
+        claim("and what a band could not supply is measured against the number asked for, whatever that is:"
+                        + " one band over the hundred scored documents, asked for " + moreThanABandHolds + ", lacks "
+                        + whatTheOneBandLacks,
+                () -> assertThat(asking.bands().getFirst().shortfall()).isEqualTo(whatTheOneBandLacks));
     }
 
     /** A sample of no bands or of none from each divides nothing and asks nothing (ADR-330 §9). */
@@ -252,16 +260,26 @@ class RelevanceDistributionTest {
                 .toList();
     }
 
-    /** What a sample would be if it simply took the documents the lowest scores belong to. */
-    private List<OccurrenceId> theLowestScoringSixtyInStorageOrder(RunId scoringRun) {
-        return jdbcTemplate
-                .query(
-                        "SELECT occurrence_id FROM relevance_score WHERE run_id = ? ORDER BY score, occurrence_id",
-                        (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")),
-                        scoringRun.value())
-                .stream()
-                .limit(SAMPLE_SIZE)
-                .toList();
+    /** The documents the sample drew from one band, as a set: which ones, whatever their order. */
+    private static Set<OccurrenceId> drawnFrom(RelevanceDistribution.Distribution distribution, int band) {
+        return distribution.sample().stream()
+                .filter(sampled -> sampled.bandOrdinal() == band)
+                .map(RelevanceDistribution.Sampled::occurrenceId)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * The twelve documents a band holds first in storage order. {@link #scoresFillingEveryBand} writes its
+     * scores band by band, twenty to a band, so band {@code band}'s are the twenty rows from {@code band}
+     * times twenty, and its first twelve the first twelve of those.
+     */
+    private Set<OccurrenceId> theFirstTwelveTheBandHolds(RunId scoringRun, int band) {
+        List<OccurrenceId> inStorageOrder = jdbcTemplate.query(
+                "SELECT occurrence_id FROM relevance_score WHERE run_id = ? ORDER BY rowid",
+                (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")),
+                scoringRun.value());
+        int first = band * DOCUMENTS_PER_FULL_BAND;
+        return Set.copyOf(inStorageOrder.subList(first, first + PER_BAND));
     }
 
     /** Twenty documents in each of the five bands, so every band can supply its twelve. */

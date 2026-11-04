@@ -23,7 +23,6 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -43,7 +42,8 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>Pinned on the packaged jar, started as the control panel starts it, because the lines that followed
  * the closing line are written by the console appender of {@code logback-spring.xml}, which no in-process
  * test reads, and while {@code SpringApplication.exit} closes the context in {@code VesperaApplication.main}.
- * Four invocations: {@code run} ending on a value to set (exit 0), {@code run} whose stage 2 fails (exit 1),
+ * Five invocations: {@code run} ending on a value to set (exit 0), {@code run} whose stage 2 fails (exit 1),
+ * {@code run} whose embedding-scoring step fails (exit 1),
  * and {@code label} recording answers (exit 0) and refused for a label file that is not there (exit 2).
  * The converter is {@link LoopbackSidecar}, and the embedding model a loopback stand-in of Ollama's three
  * endpoints the run calls, so it needs no Docker daemon.
@@ -102,14 +102,10 @@ class TheClosingLineIsTheLastLineIT {
         String lastLine() {
             return lines.isEmpty() ? "" : lines.getLast();
         }
-
-        boolean anyLine(Predicate<String> line) {
-            return lines.stream().anyMatch(line);
-        }
     }
 
     @BeforeAll
-    static void launchTheFourInvocations() throws Exception {
+    static void launchTheFiveInvocations() throws Exception {
         claim("the packaged jar exists, since this test launches it and needs verify to have built it",
                 () -> assertThat(EXECUTABLE_JAR).isRegularFile());
         int converterPort = LoopbackSidecar.aFreePort();
@@ -187,10 +183,8 @@ class TheClosingLineIsTheLastLineIT {
         String naming = " Next: answer the questions in relevance-labels.yaml";
 
         endedWith(printed, CommandLine.ExitCode.OK, "success");
-        claim("the run printed its closing line, naming the label file as what to answer next",
-                () -> assertThat(printed.anyLine(line -> line.contains(closingLine) && line.contains(naming)))
-                        .isTrue());
-        claim("and that line is the last line that is not blank, standard output and standard error together",
+        claim("the run's closing line, naming the label file as what to answer next, is the last line that is not"
+                        + " blank, standard output and standard error together",
                 () -> assertThat(printed.lastLine()).contains(closingLine).contains(naming));
     }
 
@@ -203,10 +197,8 @@ class TheClosingLineIsTheLastLineIT {
         String advice = "and run the same command again.";
 
         endedWith(printed, CommandLine.ExitCode.SOFTWARE, "a failure");
-        claim("the run printed the line saying stage 2 failed and what to do about it",
-                () -> assertThat(printed.anyLine(line -> line.contains(closingLine) && line.endsWith(advice)))
-                        .isTrue());
-        claim("and that line is the last line that is not blank, standard output and standard error together",
+        claim("the line saying stage 2 failed and what to do about it is the last line that is not blank,"
+                        + " standard output and standard error together",
                 () -> assertThat(printed.lastLine()).contains(closingLine).endsWith(advice));
     }
 
@@ -221,10 +213,8 @@ class TheClosingLineIsTheLastLineIT {
         String advice = "and run the same command again.";
 
         endedWith(printed, CommandLine.ExitCode.SOFTWARE, "a failure");
-        claim("the run printed the line saying the embedding-scoring step failed and what to do about it",
-                () -> assertThat(printed.anyLine(line -> line.contains(closingLine) && line.endsWith(advice)))
-                        .isTrue());
-        claim("and that line is the last line that is not blank, standard output and standard error together",
+        claim("the line saying the embedding-scoring step failed and what to do about it is the last line that is"
+                        + " not blank, standard output and standard error together",
                 () -> assertThat(printed.lastLine()).contains(closingLine).endsWith(advice));
     }
 
@@ -237,9 +227,8 @@ class TheClosingLineIsTheLastLineIT {
                 + " relevance-labelling.html";
 
         endedWith(printed, CommandLine.ExitCode.OK, "success");
-        claim("label printed its closing line, saying the answers are recorded and naming the floor to set next",
-                () -> assertThat(printed.anyLine(line -> line.contains(recorded))).isTrue());
-        claim("and that line is the last line that is not blank, standard output and standard error together",
+        claim("label's closing line, saying the answers are recorded and naming the floor to set next, is the last"
+                        + " line that is not blank, standard output and standard error together",
                 () -> assertThat(printed.lastLine()).contains(recorded));
     }
 
@@ -251,9 +240,8 @@ class TheClosingLineIsTheLastLineIT {
         String refusal = "vespera label recorded nothing: no label file to read at " + missingLabelFile;
 
         endedWith(printed, CommandLine.ExitCode.USAGE, "the usage code, a refusal of what was named");
-        claim("label printed its refusal, naming the file that is not there",
-                () -> assertThat(printed.anyLine(line -> line.startsWith(refusal))).isTrue());
-        claim("and the refusal is the last line that is not blank, standard output and standard error together",
+        claim("label's refusal, naming the file that is not there, is the last line that is not blank, standard"
+                        + " output and standard error together",
                 () -> assertThat(printed.lastLine()).startsWith(refusal));
     }
 

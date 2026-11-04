@@ -371,7 +371,7 @@ function readmeSection(heading, name) {
     } else {
       // Each component is typed by the kind of answer its key takes (ADR-120), so the match is on
       // any of the value types rather than on the one name they used to share.
-      const real = [...record[1].matchAll(/(?:NumericValue|TextValue|NameEndingsValue|LanguagesValue) (\w+)/g)].map((k) => k[1]).sort();
+      const real = [...record[1].matchAll(/(?:NumericValue|TextValue|NameEndingsValue|LanguagesValue|FoldersValue) (\w+)/g)].map((k) => k[1]).sort();
       const wrong = [];
       for (const k of named) if (!real.includes(k)) wrong.push(`${k} is documented and is not a profile key`);
       for (const k of real) if (!named.includes(k)) wrong.push(`${k} is a profile key and is documented nowhere`);
@@ -434,7 +434,7 @@ function readmeSection(heading, name) {
           for (const f of readFileSync(join(dir, e.name), "utf8").matchAll(/FILE_NAME = "([^"]+)"/g)) real.push(f[1]);
         }
       }
-    })(MAIN);
+    })("src/main/java/io/algernon");
     // The database is named by the datasource URL rather than by a constant.
     for (const d of readFileSync(APPLICATION_YAML, "utf8").matchAll(/jdbc:sqlite:[^"]*?\/([\w.-]+\.db)/g)) real.push(d[1]);
     const wrong = [];
@@ -647,6 +647,127 @@ function markerPattern(source, whole = false) {
   else pass(NAME, `${linked} links to a record by its file name, every one a record`);
 }
 
+/* ---------- the tests a decision record's Tests section names ---------- */
+
+// A record's `## Tests` section names the tests that hold it, and nothing read one against the tests until ADR-337 §5:
+// a test renamed, merged or removed left its name standing in every record that cited it. A reconstituted record,
+// ADR-001 to ADR-049, carries no such section and is not read. Three forms are read, and only these:
+//
+//   `Class.method`, `pkg.Class.method`, `io.algernon.vespera.pkg.Class`, `Class.Nested`, with or without `(...)`;
+//   `…method`, a method of the class the last qualified name of the section named, as a table's next rows write it;
+//   `method`: alone at the head of a bullet nested under a bullet whose first name is its class, as ADR-214 writes it.
+//
+// A class is checked only where it looks like a test, its simple name ending in Test or IT, or where a class of that
+// name lies under src/test/java: a production class, a value, a key or a file a section names in passing is none of
+// this check's business. A class exists where its file does, under the package's tail when one is given; a method,
+// where that file declares it. A member that is not a method's name, a constant or an index, checks its class alone.
+//
+// Two things are not failures. The first is a name the section itself says is gone: the word right after it, or after
+// the names listed with it, is deleted, dropped, retired, removed, renamed or not built; or "is", "is now", "is
+// renamed", "becomes" or "moves to" and the name it became follow it; or "Retired:" stands right before it. That is a
+// record's own account of the tests it retired or renamed, and how a record whose test went with nothing to hold its
+// claim says so, "(removed: why, #N)". The second is a record named in NOT_YET_BUILT: a decision accepted before its
+// code, whose section names the tests its building writes. What of it is missing is printed as not checked, every run,
+// and the record leaves the set in the change that builds it.
+{
+  const NAME = "the tests the decision records name";
+  const FIRST = 50;
+  // Accepted records whose code is not built yet. A number leaves this set in the change that builds its record.
+  const NOT_YET_BUILT = new Set([333]);
+  const testFiles = new Map();
+  (function walk(dir) {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, e.name);
+      if (e.isDirectory()) walk(path);
+      else if (e.name.endsWith(".java")) {
+        const simple = e.name.slice(0, -".java".length);
+        testFiles.set(simple, [...(testFiles.get(simple) ?? []), path.replaceAll("\\", "/")]);
+      }
+    }
+  })(TEST);
+  const everyFile = [...testFiles.values()].flat();
+  const sources = new Map();
+  const source = (path) => sources.get(path) ?? sources.set(path, readFileSync(path, "utf8")).get(path);
+  const NOT_A_TYPE = new Set(["return", "new", "throw", "else", "case", "yield", "assert"]);
+  // A declaration, not a call or a word of prose: a line of code, not a comment's, holding only annotations and
+  // modifiers before a return type or `void`, then the name, then its parameters.
+  const DECLARATION = (method) => new RegExp(
+    "^[ \\t]*(?:@[\\w.]+(?:\\([^)]*\\))?\\s+)*(?:(?:public|protected|private|static|final|abstract|synchronized|default)\\s+)*"
+      + `(?:<[^>]*>\\s*)?([\\w$.]+(?:<[^;(){}]*>)?(?:\\[\\])*)\\s+${method}\\s*\\(`, "gm");
+  const declares = (path, method) => [...source(path).matchAll(DECLARATION(method))].some((m) => !NOT_A_TYPE.has(m[1]));
+  const looksLikeATest = (simple) => /.(?:Test|IT)$/.test(simple) || testFiles.has(simple);
+  /** The test files a class may be, its package's tail matched where it has one. */
+  const filesOf = (pkg, simple) => (testFiles.get(simple) ?? []).filter((p) => !pkg || p.endsWith(`/${pkg.replaceAll(".", "/")}/${simple}.java`));
+  const holdsNested = (files, nested) => files.some((p) => new RegExp(`\\b(?:class|record|interface|enum) ${nested}\\b`).test(source(p)));
+  // Packages, a class in CamelCase, classes nested in it, and a member: a test's name is a method, anything else is not.
+  const QUALIFIED = /^((?:[a-z][a-z0-9]*\.)*)([A-Z][A-Za-z0-9]*[a-z][A-Za-z0-9]*)((?:\.[A-Z][a-z][A-Za-z0-9]*)*)(?:\.(\w+))?(?:\([^)]*\))?$/;
+  const METHOD = /^[a-z][A-Za-z0-9]*$/;
+  // What follows a name the section itself says is gone: deleted, dropped, retired or removed, or renamed to another.
+  const GONE = /^\**,?\s*(?:(?:are |is )?\(?(?:removed|deleted|dropped|retired|renamed(?! from)|not built)\b|(?:is (?:now |renamed )?|becomes |moves to )`)/;
+  // Names listed together before the word: "`A` and `B` are deleted", "**`A`** and **`B`**, dropped".
+  const ALONG = /^(?:\**(?:,| and|, and)\s*\**`[^`\n]+`)*/;
+  // Or the label right before it: "Retired: `Name`", "**Deleted**: `Name`", "in place of `Name`".
+  const GONE_BEFORE = /\b(?:Retired|Deleted|Removed|Dropped)\**:\s*\**$|\bin place of\s*\**$/;
+
+  const missing = [];
+  const unbuilt = [];
+  let checked = 0;
+  for (const [number, file] of [...adrById].sort((a, b) => a[0] - b[0])) {
+    if (number < FIRST) continue;
+    const body = readFileSync(join(ADR_DIR, file), "utf8");
+    const start = body.search(/^## Tests\b/m);
+    if (start < 0) continue;
+    const rest = body.slice(start).split(/\r?\n/).slice(1);
+    const end = rest.findIndex((l) => /^#{1,2} /.test(l));
+    const section = end < 0 ? rest : rest.slice(0, end);
+    const adr = `ADR-${String(number).padStart(3, "0")}`;
+    const built = !NOT_YET_BUILT.has(number);
+    const said = (what) => (built ? missing : unbuilt).push(`${adr} names ${what}, which does not exist`);
+    let last = null; // the class the last qualified name of the section named, for `…method`
+    let bullet = null; // the class a top-level bullet names first, for the bare methods nested under it
+    /** One method, of the class whose files are given or, with none, of any test class. */
+    const method = (files, name, shown) => {
+      checked++;
+      if (!(files ?? everyFile).some((p) => declares(p, name))) said(shown);
+    };
+    for (const line of section) {
+      const item = /^(\s*)[-*] /.exec(line);
+      if (item && item[1].length === 0) bullet = null;
+      const nested = item && item[1].length > 0 && bullet ? /^\s*[-*] `([a-z][A-Za-z0-9]*)(?:\([^)]*\))?`(?: \([^)]*\))?:/.exec(line) : null;
+      if (nested) method(bullet.files, nested[1], `${bullet.simple}.${nested[1]}`);
+      for (const m of line.matchAll(/`([^`\n]+)`/g)) {
+        const token = m[1];
+        if (GONE.test(line.slice(m.index + m[0].length).replace(ALONG, "")) || GONE_BEFORE.test(line.slice(0, m.index))) continue;
+        const ellipsis = /^(?:…|\.\.\.)([a-z][A-Za-z0-9]*)(?:\([^)]*\))?$/.exec(token);
+        if (ellipsis) {
+          method(last?.files, ellipsis[1], last ? `${last.simple}.${ellipsis[1]}` : `…${ellipsis[1]}`);
+          continue;
+        }
+        const q = QUALIFIED.exec(token);
+        if (!q) continue;
+        const [, dots, simple, inner, member] = q;
+        if (!looksLikeATest(simple)) continue;
+        const shown = token.replace(/\(.*$/, "");
+        const files = filesOf(dots.replace(/\.$/, ""), simple);
+        checked++;
+        if (!files.length || (inner && inner.slice(1).split(".").some((n) => !holdsNested(files, n)))) {
+          said(shown);
+          continue;
+        }
+        last = { files, simple };
+        if (item && item[1].length === 0 && m.index === line.indexOf("`") && !member) bullet = last;
+        if (member && METHOD.test(member) && !files.some((p) => declares(p, member))) said(shown);
+      }
+    }
+  }
+  if (unbuilt.length) {
+    const records = [...new Set(unbuilt.map((u) => u.slice(0, 7)))];
+    skip(`${NAME}, by records not yet built`, `${unbuilt.length} not under ${TEST}, of ${records.join(", ")}: ${unbuilt.slice(0, 2).join("; ")}; …`);
+  }
+  if (missing.length) fail(NAME, `${missing.length} of ${checked}: ${missing.join("; ")}`);
+  else pass(NAME, `${checked} names of test classes and methods, in the Tests sections from ADR-0${FIRST} on, every one under ${TEST}`);
+}
+
 /* ---------- how an agent works under the guard ---------- */
 
 // The guard refuses a command by what its text names, and an agent that did not know how found out by being refused,
@@ -732,6 +853,7 @@ const UNCHECKED = [
   "whether the reports README points at actually inform the value it points them at for",
   'whether following "Running it" gets an invocation past stage 2 — that needs Docker, and this starts nothing',
   "that Step 0's profile.yaml example parses — this compares its keys with the value types, and never runs ProfileStore",
+  "a test a record names outside its Tests section, as ADR-094's Consequences and the \"What pins it\" of ADR-147 to ADR-216 do, or in a form other than the three the Tests check reads",
   'that the packaged jar nests no Docker Compose artifact and runs no Spring compose support — PackagedJarIT holds that, under ./mvnw verify, not this; what the jar does start (ADR-323) is held by SidecarStartTest',
 ];
 

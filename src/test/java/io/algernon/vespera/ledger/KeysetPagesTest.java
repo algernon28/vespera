@@ -81,15 +81,8 @@ class KeysetPagesTest {
     @Story("A long read is held a page at a time")
     @DisplayName("A read whose statement asks for its key before another value is given every value of each page in its own order")
     void aKeyBeforeAnotherArgumentIsBoundWhereTheStatementPutsIt() {
-        KeysetPages<NumberedRow> oddShelf = new KeysetPages<>(
-                log.jdbcTemplate(),
-                "SELECT id, label FROM numbered_row WHERE id > ? AND shelf = ? ORDER BY id",
-                List.of(Long.MIN_VALUE, ODD_SHELF),
-                (NumberedRow last) -> List.of(last.id(), ODD_SHELF),
-                (resultSet, rowNumber) -> new NumberedRow(resultSet.getLong("id"), resultSet.getString("label")));
-
         List<List<NumberedRow>> pages = new ArrayList<>();
-        oddShelf.eachPage(pages::add);
+        oddShelf().eachPage(pages::add);
 
         List<Long> numbers = pages.stream().flatMap(List::stream).map(NumberedRow::id).toList();
         List<Integer> sizes = pages.stream().map(List::size).toList();
@@ -173,12 +166,9 @@ class KeysetPagesTest {
         oddShelf().eachPage(pages::add);
 
         claim(
-                "the " + ROWS_ON_A_SHELF + " rows of the shelf were handed over as two full pages of " + A_PAGE
-                        + " and a short third, which ends the read",
-                () -> assertThat(pages.stream().map(List::size).toList()).containsExactlyElementsOf(PAGE_SIZES));
-        claim(
-                "each page's statement ended in the pager's bound, LIMIT " + A_PAGE,
-                () -> assertThat(pagesAsked())
+                "each of the read's pages was asked by a statement ending in the pager's bound, LIMIT " + A_PAGE,
+                () -> assertThat(log.said())
+                        .filteredOn(sql -> sql.contains("FROM numbered_row"))
                         .hasSize(PAGE_SIZES.size())
                         .allSatisfy(sql -> assertThat(sql).endsWith(" LIMIT " + A_PAGE)));
     }

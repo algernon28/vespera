@@ -9,7 +9,6 @@ import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -60,9 +59,7 @@ class TheSurveyOfTheCopiesInvocationTest {
 
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
     private static final String A_FLOOR_THAT_REMOVES_NOTHING = "0.0";
 
@@ -309,12 +306,8 @@ class TheSurveyOfTheCopiesInvocationTest {
         Files.writeString(root.resolve(THE_SHORT_ONE), "a corpus document");
         Files.writeString(root.resolve(THE_LONG_ONE), "a corpus document with a long name");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .relevanceScoreFloor(A_FLOOR_THAT_REMOVES_NOTHING, "set by this test, so nothing earlier is asked for")
                 .generationContextWindow(THE_READING_WINDOW, "set by this test, so every test here reads alike")
                 .build());
@@ -326,12 +319,7 @@ class TheSurveyOfTheCopiesInvocationTest {
     }
 
     private RunId theLatestArrangement(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
+        return new RunsOver(jdbcTemplate, root).latest("arrangement");
     }
 
     /** Every generation run over {@code root}'s walks, oldest first. */

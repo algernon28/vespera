@@ -62,9 +62,6 @@ class RelevanceReportIT {
     /** Small enough to pull inside a test, and the one {@code OllamaClientIT} already uses. */
     private static final String MODEL = "all-minilm:latest";
 
-    /** A floor of 1.0 opens stage 4's gate, the way every stage-5 invocation fixture does. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
     /** The page the threshold is meant to be read off, and what the profile key points at. */
     private static final String PAGE = "relevance-labelling.html";
 
@@ -127,7 +124,7 @@ class RelevanceReportIT {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
                 .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .embeddingModel(MODEL, "set by this test, so gate 3 is open")
                 .build());
     }

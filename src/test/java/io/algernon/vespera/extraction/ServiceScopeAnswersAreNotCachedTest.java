@@ -58,11 +58,11 @@ import org.springframework.web.client.RestClient;
  * ExtractionCache#put}, so an implementation that filters inside {@code put} cannot plant nothing and
  * pass; each such test claims the row is there before it reads.
  *
- * <p>Fail today: every test that expects the sidecar to be asked again, or an old row to be passed
- * over, since today's cache keeps and serves every answer. {@link #aDocumentAnswerIsServedFromTheCache},
- * {@link #aDocumentAnswerHandedOverByTheReaderIsServedFromTheCache} and the cases of {@link
- * #theReadingOfMixedErrorsIsTheOneStageTwoApplies} that expect one call pass today and have to go on
- * passing: they are what stops an implementation from caching too little.
+ * <p>The tests that expect the sidecar to be asked again, or an old row to be passed over, are what stop
+ * the cache from keeping too much. {@link #aDocumentAnswerIsServedFromTheCache}, {@link
+ * #aDocumentAnswerHandedOverByTheReaderIsServedFromTheCache} and the cases of {@link
+ * #theReadingOfMixedErrorsIsTheOneStageTwoApplies} that expect one call are what stop it from caching too
+ * little.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

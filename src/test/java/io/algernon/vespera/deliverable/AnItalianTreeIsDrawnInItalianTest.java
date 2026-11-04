@@ -91,7 +91,9 @@ public class AnItalianTreeIsDrawnInItalianTest {
 
     /**
      * Words every English page of the tree carries and no Italian one may: each fixed English phrase of ADR-321 §4's
-     * table, as far as it is told apart from a path or a value, and the navigation's four words as links.
+     * table, as far as it is told apart from a path or a value, and the navigation's four words as links. The line
+     * of pictures not shown is not among them: this tree's documents carry no picture, and ItalianWordingTest holds
+     * that line's Italian.
      */
     public static final List<String> ENGLISH_FIXED_WORDS = List.of(
             "The documents in this group",
@@ -114,7 +116,6 @@ public class AnItalianTreeIsDrawnInItalianTest {
             "Run: ",
             "Walk: ",
             "no longer in the archive",
-            "more picture",
             "lang=\"en\"");
 
     @Test

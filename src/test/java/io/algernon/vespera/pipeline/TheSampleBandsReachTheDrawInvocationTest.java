@@ -59,11 +59,7 @@ class TheSampleBandsReachTheDrawInvocationTest {
 
     private static final int QUESTIONS_AT_TWO_BANDS = BANDS * ONE_FROM_A_BAND;
 
-    /** Above every measured document frequency here, so stage 4's gate is open. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
 
-    /** The model the scripted embedder answers for. */
-    private static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 
     /** The three documents' vectors, whichever each is given, then the seed's. */
     private static final List<float[]> VECTORS = List.of(
@@ -130,8 +126,8 @@ class TheSampleBandsReachTheDrawInvocationTest {
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
                 .build());
 
         cli.run("run", root.toString());

@@ -7,7 +7,6 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -65,10 +64,6 @@ class ProgressPageOpensInvocationTest {
 
     /** One request per invocation, whatever the number of writes. */
     private static final int ONCE = 1;
-
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** The file a scoring run writes for a person to answer. */
     private static final String LABEL_FILE = "relevance-labels.yaml";
@@ -239,12 +234,7 @@ class ProgressPageOpensInvocationTest {
     private void aCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 
     /** Fills in every blank answer, the way a person working through the file would. */

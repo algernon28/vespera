@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.within;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.extraction.ExtractionStatement;
+import io.algernon.vespera.ledger.RunId;
+import io.algernon.vespera.ledger.Verdicts;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -27,6 +29,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.sqlite.ProgressHandler;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.util.StreamUtils;
 
 /**
@@ -45,8 +49,9 @@ import org.springframework.util.StreamUtils;
  * here opens a working directory.
  *
  * <p>Green from the start for the same reason {@code StatementStepsPerRowTest} is: it measures SQLite, not
- * Vespera. {@link #theDeclaredStepsAreTheMeasuredOnes} is the one claim about Vespera, and it failed until
- * {@code ExtractionStatement} declared the ratios.
+ * Vespera. {@link #theDeclaredStepsAreTheMeasuredOnes} is a claim about Vespera, and it failed until
+ * {@code ExtractionStatement} declared the ratios; {@link #theSurvivorCountHasNoCheapTotal} counts the steps of
+ * the ledger's own survivor count.
  */
 @Epic("Pipeline")
 @Feature("Progress reporting")
@@ -69,14 +74,6 @@ class UncoveredStatementsStepsPerRowTest {
 
     /** The read, as {@code ExtractionMetrics.recordedCount} issues it, as {@code occurrencesForRun} did before ADR-220. */
     private static final String RECORDED_OCCURRENCES = "SELECT occurrence_id FROM extraction_metric WHERE run_id = ?";
-
-    /** The count, as {@code Ledger.survivorCount} issues it over a run with one run upstream. */
-    private static final String SURVIVOR_COUNT = "SELECT COUNT(*) FROM file_occurrence"
-            + " WHERE walk_id = (SELECT walk_id FROM run WHERE id = ?)"
-            + " AND NOT EXISTS (SELECT 1 FROM verdict"
-            + " WHERE verdict.occurrence_id = file_occurrence.id"
-            + " AND verdict.kind IN ('BROKEN', 'OUT_OF_SCOPE')"
-            + " AND verdict.run_id IN (?, ?))";
 
     private Connection database;
     private long steps;
@@ -160,22 +157,19 @@ class UncoveredStatementsStepsPerRowTest {
 
     @Test
     @Story("The survivor count that sizes a stage's counter says how long it took")
-    @DisplayName("The survivor count is an anti-join over two tables, so no bound of one table is its total")
+    @DisplayName("The survivor count goes through the occurrences of the walk, so no bound of one table is its total")
     void theSurvivorCountHasNoCheapTotal() throws SQLException {
-        String plan = planOf(SURVIVOR_COUNT, 3);
+        Verdicts verdicts = new Verdicts(new JdbcTemplate(new SingleConnectionDataSource(database, true)));
+        writeOccurrences(FEWER);
+        long atFewer = counted(() -> verdicts.survivorCount(new RunId(RUN_READ)));
+        writeOccurrences(DIFFERENCE);
+        long atMore = counted(() -> verdicts.survivorCount(new RunId(RUN_READ)));
 
         claim(
-                "the plan of the survivor count goes through the occurrences of the walk and looks each one up in"
-                        + " the verdicts, so the rows it goes through are not one table's in one run: " + plan,
-                () -> assertThat(plan).contains("file_occurrence").contains("verdict"));
-        long occurrences = FEWER;
-        writeOccurrences(occurrences);
-        long atFewer = countSteps();
-        writeOccurrences(DIFFERENCE);
-        long atMore = countSteps();
-        claim(
-                "its steps grow with the occurrences of the walk, " + (atMore - atFewer) + " more for "
-                        + DIFFERENCE + " more occurrences, so it is a cost that grows with a table and is in scope",
+                "the count the ledger makes of a run's survivors takes " + (atMore - atFewer) + " more steps for "
+                        + DIFFERENCE + " more occurrences of the walk, at least one each: it goes through the"
+                        + " occurrences and looks each one up in the verdicts, so it is a cost that grows with a"
+                        + " table and is timed",
                 () -> assertThat(atMore - atFewer).isGreaterThanOrEqualTo(DIFFERENCE));
     }
 
@@ -199,21 +193,6 @@ class UncoveredStatementsStepsPerRowTest {
     private long boundSteps(String table) throws SQLException {
         return readSteps("SELECT MIN(rowid) FROM " + table + " WHERE run_id = ?")
                 + readSteps("SELECT MAX(rowid) FROM " + table + " WHERE run_id = ?");
-    }
-
-    private long countSteps() throws SQLException {
-        return counted(() -> {
-            try (PreparedStatement count = database.prepareStatement(SURVIVOR_COUNT)) {
-                count.setString(1, RUN_READ);
-                count.setString(2, RUN_READ);
-                count.setString(3, EARLIER_RUN);
-                try (ResultSet rows = count.executeQuery()) {
-                    while (rows.next()) {
-                        // the one row of the count
-                    }
-                }
-            }
-        });
     }
 
     private long readSteps(String sql) throws SQLException {

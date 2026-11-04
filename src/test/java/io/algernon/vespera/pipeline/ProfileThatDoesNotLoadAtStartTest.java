@@ -15,9 +15,13 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.bootstrap.DefaultBootstrapContext;
@@ -62,26 +66,26 @@ class ProfileThatDoesNotLoadAtStartTest {
                 () -> assertThat(stopped).isInstanceOf(MisshapenProfileException.class));
     }
 
-    @Test
-    @Story("A profile that does not load says why")
-    @DisplayName("A working directory with no profile yet starts as it always did")
-    void noProfileYetStartsAsBefore(@TempDir Path workingDirectory) {
-        Throwable stopped = catchThrowable(() -> new ProfileShapeCheck().onApplicationEvent(prepared(workingDirectory)));
-
-        claim("nothing is refused, since a corpus with no profile loads as every key unset",
-                () -> assertThat(stopped).isNull());
+    /** A working directory's profile that loads, or none: {@code null} writes no file. */
+    static Stream<Named<String>> profilesThatLoad() {
+        return Stream.of(
+                Named.of("no profile yet, which loads as every key unset", null),
+                Named.of("a profile in the shape Step 0 shows, every key carrying its value and provenance beneath it",
+                        A_KEY_IN_ITS_SHAPE));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("profilesThatLoad")
     @Story("A profile that does not load says why")
-    @DisplayName("A profile written in the shape Step 0 shows starts as it always did")
-    void aProfileInItsShapeStartsAsBefore(@TempDir Path workingDirectory) throws IOException {
-        Files.writeString(workingDirectory.resolve("profile.yaml"), A_KEY_IN_ITS_SHAPE);
+    @DisplayName("A working directory with no profile yet, or a profile written in the shape Step 0 shows, starts as it always did")
+    void aProfileThatLoadsStartsAsBefore(String profile, @TempDir Path workingDirectory) throws IOException {
+        if (profile != null) {
+            Files.writeString(workingDirectory.resolve("profile.yaml"), profile);
+        }
 
         Throwable stopped = catchThrowable(() -> new ProfileShapeCheck().onApplicationEvent(prepared(workingDirectory)));
 
-        claim("nothing is refused, since every key carries its value and provenance beneath it",
-                () -> assertThat(stopped).isNull());
+        claim("nothing is refused", () -> assertThat(stopped).isNull());
     }
 
     @Test
@@ -92,9 +96,9 @@ class ProfileThatDoesNotLoadAtStartTest {
         Throwable misshapen = catchThrowable(() -> new ProfileStore(workingDirectory).load());
         BeanCreationException wrapped = new BeanCreationException(A_BEAN_THAT_ASKED_FIRST, "failed", misshapen);
 
-        claim("the refusal claims it, so Spring prints no stack for it, and the exit code is the refusal's",
+        claim("the refusal claims it, so Spring prints no stack for it",
                 () -> assertThat(new MisshapenProfileRefusal().reportException(wrapped)).isTrue());
-        claim("and the entry point sees it for the same fault",
+        claim("and the entry point recognises it as the profile's fault too",
                 () -> assertThat(MisshapenProfileRefusal.refuses(wrapped)).isTrue());
     }
 

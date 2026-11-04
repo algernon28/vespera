@@ -5,8 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -54,9 +52,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-245", url = Adr.A_PAGE_IS_ASKED_WHETHER_IT_IS_KEPT_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN_ONLY_ON_WINDOWS, type = "adr")
 @Link(name = "ADR-231", url = Adr.A_PULL_WHILE_THE_EMBEDDING_STEP_RUNS_STOPS_IT_AND_SCORING_REFUSES_A_SEED_WHOSE_CHUNKS_HAVE_NO_VECTOR, type = "adr")
 class ScoringCountsAPageOfSurvivorsChunksTogetherInvocationTest {
-
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** Documents of the corpus, every one a survivor scoring scores. */
     private static final int SURVIVORS = 12;
@@ -187,12 +182,6 @@ class ScoringCountsAPageOfSurvivorsChunksTogetherInvocationTest {
                     root.resolve("corpus-" + document + ".txt"), "scored document number " + document + " of " + root.getFileName());
         }
         Files.writeString(seeds.resolve("seed.txt"), "a seed document of " + seeds.getFileName());
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 }

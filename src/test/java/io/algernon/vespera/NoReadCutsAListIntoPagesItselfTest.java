@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -27,7 +28,8 @@ import org.junit.jupiter.api.Test;
  * KeysetPages} like the others (ADR-257, ADR-220 section 3).
  *
  * <p>Read as source, because a loop is not a thing a compiled class shows: any {@code for (int from = 0; from <
- * …; from += …)} in a class other than {@code ListedPages} is a cut of a list by hand. {@code Shingler} cuts
+ * …; from += …)}, and any loop over a list's size stepping by other than a written number whatever its variable is
+ * named, in a class other than {@code ListedPages} is a cut of a list by hand. {@code Shingler} cuts
  * the rows it inserts, a write and no read, and is the one other. The anomaly log is read by reflection for a
  * page size of its own, as {@code TheReadsByKeyTakeTheLedgersPageTest} reads the others.
  */
@@ -38,7 +40,9 @@ class NoReadCutsAListIntoPagesItselfTest {
 
     private static final Path MAIN_SOURCE = Path.of("src", "main", "java");
 
-    private static final Pattern A_LIST_CUT_BY_HAND = Pattern.compile("for \\(int from = 0; from < [^;]+; from \\+= ");
+    private static final Pattern A_LIST_CUT_BY_HAND = Pattern.compile(
+            "for \\(int from = 0; from < [^;]+; from \\+= "
+                    + "|for \\((?:int|long) (\\w+) = [^;]+; \\1 < [^;]*\\.size\\(\\); \\1 \\+= (?!\\d)");
 
     /** The one class, besides the cut itself, whose loop is not a read: it batches the rows it inserts. */
     private static final String A_WRITE = "Shingler.java";
@@ -72,18 +76,32 @@ class NoReadCutsAListIntoPagesItselfTest {
     @Test
     @Story("A list of keys is cut once")
     @DisplayName("The anomaly log keeps no page size of its own: it pages by keyset like the other reads")
-    void theAnomalyLogKeepsNoPageSizeOfItsOwn() {
+    void theAnomalyLogKeepsNoPageSizeOfItsOwn() throws IOException {
         List<String> ownPageSizes = new ArrayList<>();
         for (Field field : AnomalyLog.class.getDeclaredFields()) {
             int modifiers = field.getModifiers();
-            if (Modifier.isStatic(modifiers) && Modifier.isFinal(modifiers) && field.getType() == int.class) {
+            if (Modifier.isStatic(modifiers) && Modifier.isFinal(modifiers) && A_NUMBER.contains(field.getType())) {
                 ownPageSizes.add(AnomalyLog.class.getSimpleName() + "." + field.getName());
             }
         }
+        String source = Files.readString(MAIN_SOURCE.resolve(Path.of("io", "algernon", "vespera", "corpus",
+                "AnomalyLog.java")));
 
         claim(
-                "the comparison of two walks' anomalies asks its pages of the ledger's size, so that it cannot drift"
-                        + " from the others",
-                () -> assertThat(ownPageSizes).isEmpty());
+                "the comparison of two walks' anomalies keeps no number of its own, whole or long, and writes no"
+                        + " limit into its statements: it asks its pages of the ledger's keyset paging, so that it"
+                        + " cannot drift from the others",
+                () -> {
+                    assertThat(ownPageSizes).as("the numbers it keeps").isEmpty();
+                    assertThat(A_LIMIT_OF_ITS_OWN.matcher(source).find()).as("whether it writes a limit").isFalse();
+                    assertThat(source).as("its source").contains("new KeysetPages<");
+                });
     }
+
+    /** The types a page size could be kept as. */
+    private static final Set<Class<?>> A_NUMBER =
+            Set.of(int.class, long.class, short.class, Integer.class, Long.class, Short.class);
+
+    /** A page size written straight into a statement. */
+    private static final Pattern A_LIMIT_OF_ITS_OWN = Pattern.compile("LIMIT \\d");
 }

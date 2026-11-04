@@ -75,10 +75,10 @@ class LaunchImageScreenTest {
 
     @Test
     @Story("The operator is not caught by an image the sidecar does not run")
-    @DisplayName("With no image named, the sidecar's is checked against the one the jar last used, and a mismatch is warned of before Run, naming both")
+    @DisplayName("With no image named, the sidecar's is checked against the GPU image the control panel preselects, and a mismatch is warned of before Run, naming both")
     void anEmptyImageIsCheckedAgainstTheImageTheJarLastUsed() throws IOException {
         Path work = Files.createDirectories(folder.resolve("work"));
-        HttpServer docling = aSidecarRunning(CARD_IMAGE);
+        HttpServer docling = aSidecarRunning(PROCESSOR_IMAGE);
         try {
             String address = "http://127.0.0.1:" + docling.getAddress().getPort();
             theJarSaid(work, "vespera.docling.image=" + PROCESSOR_IMAGE + "\nvespera.docling.image.source=shipped\n");
@@ -86,10 +86,11 @@ class LaunchImageScreenTest {
             try (ScreenServer screens = ScreenServer.start(folder, values)) {
                 Page page = screens.browser().page();
 
-                claim("the check says the sidecar runs another image, though no launch value names one",
+                claim("the check says the sidecar runs another image than the GPU image the field holds, though no"
+                                + " launch value names one and the jar last used the sidecar's",
                         () -> assertThat(byId(page, "docling-check").attr("data-check")).isEqualTo("another-image"));
                 claim("the sidecar's image is shown",
-                        () -> assertThat(byId(page, "docling-running").attr("data-image")).isEqualTo(CARD_IMAGE));
+                        () -> assertThat(byId(page, "docling-running").attr("data-image")).isEqualTo(PROCESSOR_IMAGE));
                 claim("the warning beside Run names both",
                         () -> assertThat(byId(page, "warnings").text()).contains(CARD_IMAGE, PROCESSOR_IMAGE));
             }
@@ -127,7 +128,7 @@ class LaunchImageScreenTest {
     @DisplayName("With no address on the launch page, the sidecar is asked what it runs at the address the jar last used")
     void withNoAddressTheSidecarIsAskedWhereTheJarLastAskedIt() throws IOException {
         Path work = Files.createDirectories(folder.resolve("work"));
-        HttpServer docling = aSidecarRunning(CARD_IMAGE);
+        HttpServer docling = aSidecarRunning(PROCESSOR_IMAGE);
         try {
             String address = "http://127.0.0.1:" + docling.getAddress().getPort();
             theJarSaid(work, "vespera.docling.base-url=" + address + "\nvespera.docling.base-url.source=shipped\n"
@@ -135,10 +136,11 @@ class LaunchImageScreenTest {
             try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpus(), work))) {
                 Page page = screens.browser().page();
 
-                claim("the sidecar at that address is what is shown, and it is checked against the image the jar named",
+                claim("the sidecar at that address is what is shown, and it is checked against the image the field holds,"
+                                + " the GPU image preselected",
                         () -> assertThat(List.of(byId(page, "docling-running").attr("data-image"),
                                         byId(page, "docling-check").attr("data-check")))
-                                .containsExactly(CARD_IMAGE, "another-image"));
+                                .containsExactly(PROCESSOR_IMAGE, "another-image"));
             }
         } finally {
             docling.stop(0);
@@ -147,7 +149,8 @@ class LaunchImageScreenTest {
 
     @Test
     @Story("The operator is not caught by an image the sidecar does not run")
-    @DisplayName("Before any invocation the sidecar's image is still shown, at the address the launch page names, with nothing to compare it to")
+    @DisplayName("Before any invocation the sidecar's image is still shown, at the address the launch page names, and checked against the GPU image the field holds")
+    @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
     void withNoFileTheSidecarsImageIsStillShown() throws IOException {
         Path work = Files.createDirectories(folder.resolve("work"));
         HttpServer docling = aSidecarRunning(CARD_IMAGE);
@@ -157,10 +160,10 @@ class LaunchImageScreenTest {
             try (ScreenServer screens = ScreenServer.start(folder, values)) {
                 Page page = screens.browser().page();
 
-                claim("the image is shown, and the check stays as it is with nothing to compare it to",
+                claim("the image is shown, and checked against the GPU image the control panel preselects, which it is",
                         () -> assertThat(List.of(byId(page, "docling-running").attr("data-image"),
                                         byId(page, "docling-check").attr("data-check")))
-                                .containsExactly(CARD_IMAGE, "not-checked"));
+                                .containsExactly(CARD_IMAGE, "matches"));
             }
         } finally {
             docling.stop(0);

@@ -4,10 +4,8 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.deliverable.Deliverable;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -24,6 +22,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
@@ -61,8 +60,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")
 class TheTreeAsksAboutAPageOfSurvivorsAtATimeInvocationTest {
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
     private static final String THE_READING_WINDOW = "4096";
 
     /** Documents of the corpus, every one a survivor the tree lists. */
@@ -75,8 +72,9 @@ class TheTreeAsksAboutAPageOfSurvivorsAtATimeInvocationTest {
     /** One occurrence's path, size and creation time, asked by its id. */
     private static final String ONE_PATH = "FROM file_occurrence WHERE id = ?";
 
-    /** One occurrence's score under a run, asked by its key. */
-    private static final String ONE_SCORE = "FROM relevance_score WHERE occurrence_id = ? AND run_id = ?";
+    /** One occurrence's score under a run, asked by its key, with the key's two columns in either order. */
+    private static final Pattern ONE_SCORE =
+            Pattern.compile("FROM relevance_score WHERE (run_id = \\? AND )?occurrence_id = \\?");
 
     /** One occurrence's content key under a run, asked by its key. */
     private static final String ONE_CONTENT_KEY = "FROM extraction_cache_key WHERE occurrence_id = ? AND run_id = ?";
@@ -187,7 +185,8 @@ class TheTreeAsksAboutAPageOfSurvivorsAtATimeInvocationTest {
         claim(
                 "no document's score was asked for by itself while the tree was written: the scores of a page of"
                         + " documents are asked in one statement",
-                () -> assertThat(count(theTrees, ONE_SCORE)).isZero());
+                () -> assertThat(theTrees.stream().filter(sql -> ONE_SCORE.matcher(sql).find()).count())
+                        .isZero());
         claim(
                 "a path was asked for by itself fewer times than there are documents: only an exemplar's, once in"
                         + " each pass; a page of documents' paths are asked in one statement",
@@ -219,12 +218,9 @@ class TheTreeAsksAboutAPageOfSurvivorsAtATimeInvocationTest {
     }
 
     private Path theTreeOf(Path root) {
-        String generation = jdbcTemplate.queryForObject(
-                "SELECT run.id FROM run JOIN walk w ON w.id = run.walk_id"
-                        + " WHERE run.stage = 'generation' AND w.root = ? ORDER BY run.rowid DESC LIMIT 1",
-                String.class,
-                Walk.canonicalRoot(root).toString());
-        return workingDirectory.resolve(Deliverable.DIRECTORY_NAME).resolve(generation);
+        return workingDirectory
+                .resolve(Deliverable.DIRECTORY_NAME)
+                .resolve(new RunsOver(jdbcTemplate, root).latest("generation").value());
     }
 
     /** Twelve documents, an exemplar, every gate before 6b open, walked once and the arrangement approved. */
@@ -233,22 +229,14 @@ class TheTreeAsksAboutAPageOfSurvivorsAtATimeInvocationTest {
             Files.writeString(root.resolve("corpus-" + document + ".txt"), "corpus document number " + document);
         }
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .generationContextWindow(THE_READING_WINDOW, "set by this test")
                 .build());
         cli.run("run", root.toString());
-        String arrangement = jdbcTemplate.queryForObject(
-                "SELECT run.id FROM run JOIN walk w ON w.id = run.walk_id"
-                        + " WHERE run.stage = 'arrangement' AND w.root = ? ORDER BY run.rowid DESC LIMIT 1",
-                String.class,
-                Walk.canonicalRoot(root).toString());
+        RunId arrangement = new RunsOver(jdbcTemplate, root).latest("arrangement");
         profileStore.save(ProfileFixture.profileFrom(profileStore.load())
-                .arrangementApproved(ArrangementGate.shortNameOf(new RunId(arrangement)), "read by this test")
+                .arrangementApproved(ArrangementGate.shortNameOf(arrangement), "read by this test")
                 .build());
     }
 }

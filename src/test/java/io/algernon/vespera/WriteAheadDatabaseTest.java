@@ -203,51 +203,6 @@ class WriteAheadDatabaseTest {
         }
     }
 
-    @Test
-    @Story("The database is synced at WAL checkpoints rather than at every commit")
-    @DisplayName("While the database is open its write-ahead log sits beside it, and once the last connection closes the database file stands alone")
-    void theWriteAheadLogIsFoldedBackWhenTheLastConnectionCloses(@TempDir Path ownWorkingDirectory)
-            throws SQLException {
-        try (Connection connection = DriverManager.getConnection(urlIn(ownWorkingDirectory));
-                Statement statement = connection.createStatement()) {
-            statement.executeUpdate("CREATE TABLE kept (value TEXT)");
-            statement.executeUpdate("INSERT INTO kept VALUES ('committed')");
-            claim(
-                    "with a connection open and a commit made, the write-ahead log and its shared-memory index"
-                            + " sit beside the database file -- which is why a copy taken while a run is going"
-                            + " has to take all three",
-                    () -> {
-                        assertThat(ownWorkingDirectory.resolve(WRITE_AHEAD_LOG_FILE)).exists();
-                        assertThat(ownWorkingDirectory.resolve(SHARED_MEMORY_FILE)).exists();
-                    });
-        }
-
-        claim(
-                "once the last connection closes, with no other connection in any process still holding the"
-                        + " database open, the write-ahead log has been copied into the database file and both"
-                        + " companions are gone, so a working directory an invocation left cleanly, with nothing"
-                        + " else holding the database open, holds one database file that can be copied on its own",
-                () -> {
-                    assertThat(ownWorkingDirectory.resolve(WRITE_AHEAD_LOG_FILE)).doesNotExist();
-                    assertThat(ownWorkingDirectory.resolve(SHARED_MEMORY_FILE)).doesNotExist();
-                });
-        try (Connection plain = DriverManager.getConnection("jdbc:sqlite:" + ownWorkingDirectory.resolve(DATABASE_FILE));
-                Statement statement = plain.createStatement();
-                ResultSet kept = statement.executeQuery("SELECT count(*) FROM kept")) {
-            claim(
-                    "and the database file alone holds the commit",
-                    () -> {
-                        assertThat(kept.next()).isTrue();
-                        assertThat(kept.getLong(1)).isEqualTo(1L);
-                    });
-            claim(
-                    "and it still records that it is in write-ahead-log mode, so a connection opened later with"
-                            + " a URL that names no journal -- an older build of the application, a database"
-                            + " browser -- writes ahead too rather than switching it back",
-                    () -> assertThat(textPragma(plain, "journal_mode")).isEqualTo(WRITE_AHEAD));
-        }
-    }
-
     /**
      * What an invocation's end does to the database is close the pool, not one connection:
      * {@code SpringApplication.exit} closes the context, and the context closes the Hikari pool it
@@ -257,7 +212,7 @@ class WriteAheadDatabaseTest {
      */
     @Test
     @Story("The database is synced at WAL checkpoints rather than at every commit")
-    @DisplayName("Closing the shipped connection pool folds the write-ahead log back, so a command that has ended leaves the database file alone")
+    @DisplayName("While the shipped pool is open its write-ahead log sits beside the database; closing the pool folds it back, so a command that has ended leaves the database file alone")
     void closingTheShippedPoolFoldsTheWriteAheadLogBack(@TempDir Path ownWorkingDirectory) throws SQLException {
         HikariConfig shipped = new HikariConfig();
         dataSource.unwrap(HikariDataSource.class).copyStateTo(shipped);
@@ -270,8 +225,13 @@ class WriteAheadDatabaseTest {
                 statement.executeUpdate("INSERT INTO kept VALUES ('committed')");
             }
             claim(
-                    "while the pool is open, the commit sits in the write-ahead log beside the database file",
-                    () -> assertThat(ownWorkingDirectory.resolve(WRITE_AHEAD_LOG_FILE)).exists());
+                    "while the pool is open, the commit sits in the write-ahead log beside the database file, with"
+                            + " its shared-memory index -- which is why a copy taken while a run is going has to"
+                            + " take all three",
+                    () -> {
+                        assertThat(ownWorkingDirectory.resolve(WRITE_AHEAD_LOG_FILE)).exists();
+                        assertThat(ownWorkingDirectory.resolve(SHARED_MEMORY_FILE)).exists();
+                    });
         }
 
         claim(
@@ -290,6 +250,11 @@ class WriteAheadDatabaseTest {
                         assertThat(kept.next()).isTrue();
                         assertThat(kept.getLong(1)).isEqualTo(1L);
                     });
+            claim(
+                    "and it still records that it is in write-ahead-log mode, so a connection opened later with"
+                            + " a URL that names no journal -- an older build of the application, a database"
+                            + " browser -- writes ahead too rather than switching it back",
+                    () -> assertThat(textPragma(plain, "journal_mode")).isEqualTo(WRITE_AHEAD));
         }
     }
 

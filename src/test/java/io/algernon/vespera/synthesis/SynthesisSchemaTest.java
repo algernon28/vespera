@@ -40,6 +40,9 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-105", url = Adr.STAGE_6A_NAMES_THE_ARRANGEMENT_STAGE_5_BUILT, type = "adr")
 class SynthesisSchemaTest {
 
+    /** The version of synthesis's tables, written out: the fourth. */
+    private static final int SYNTHESISS_VERSION = 4;
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -70,13 +73,13 @@ class SynthesisSchemaTest {
         new SynthesisSchema(new SchemaVersionGuard(jdbcTemplate));
 
         claim(
-                "the version recorded is this module's first, the one the arrangement table arrived in --"
+                "the version recorded is exactly " + SYNTHESISS_VERSION + ", the one synthesis's tables are at --"
                         + " not a value borrowed from a module that happens to have been in the database"
                         + " longer",
                 () -> assertThat(jdbcTemplate.queryForObject(
                                 "SELECT version FROM schema_version WHERE module = ?",
                                 Integer.class,
                                 SynthesisSchema.MODULE))
-                        .isEqualTo(SynthesisSchema.VERSION));
+                        .isEqualTo(SYNTHESISS_VERSION));
     }
 }

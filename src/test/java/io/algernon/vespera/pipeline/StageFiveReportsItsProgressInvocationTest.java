@@ -56,9 +56,11 @@ import org.springframework.test.context.DynamicPropertySource;
  * chunks write their first line at the 1,000th chunk, which this corpus does not reach, and are not pinned
  * here.
  *
- * <p><b>Part (c) of ADR-192.</b> This compiles against main and is red there at the claims that the counters'
- * lines are there, each after a claim that the stage ran; part (c) moves it into {@code src/test} and turns it
- * green. The claims that a loop which did not run writes no counter pass on main and have to go on passing.
+ * <p><b>Part (c) of ADR-192</b> built the counters this class was written before (#681): each claim that a
+ * counter's lines are there follows a claim that the stage ran, and the claims that a loop which did not run
+ * writes no counter are what stops a counter being written where nothing was counted. A counter over a
+ * total this class fixes is held to its lines written out, one an item; over a total read from the database,
+ * to {@code ProgressLines}.
  *
  * <p><b>The claims about statements came with part (b) of ADR-193</b> (ADR-193 section 6, ADR-204 section 3,
  * #411): every statement stage 5b to stage 6a issues outside a loop has a line before it and a line after it
@@ -78,23 +80,11 @@ class StageFiveReportsItsProgressInvocationTest {
     /** How many corpus documents each test writes, so a counter over them reads one, two and three of three. */
     static final int CORPUS_DOCUMENTS = 3;
 
-    /** The one seed every test writes. */
-    private static final int ONE_SEED = 1;
-
     /** The one partition the one seed wins. */
     private static final int ONE_PARTITION = 1;
 
-    /** Three documents fit one block of the 4,096 a block holds: one block, compared with itself, one pair. */
-    private static final int ONE_PAIR_OF_BLOCKS = 1;
-
     /** More than the twelve a band is sampled from, so a sample is smaller than the documents scored. */
     private static final int MORE_DOCUMENTS_THAN_ONE_BAND_IS_SAMPLED_FROM = 15;
-
-    /** One answer recorded for the seed set, in the floor test. */
-    private static final int ONE_ANSWER = 1;
-
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** Above anything the scripted embedder can produce, so every scored document falls under it. */
     private static final String A_FLOOR_ABOVE_EVERY_SCORE = "1.5";
@@ -214,7 +204,7 @@ class StageFiveReportsItsProgressInvocationTest {
         claim(
                 "the one seed's rows are written after the step, and the counter reads one of one",
                 () -> assertThat(progressOf(SEEDS_RECORDED))
-                        .containsExactlyElementsOf(ProgressLines.expected(SEEDS_RECORDED, ONE_SEED)));
+                        .containsExactlyElementsOf(List.of(SEEDS_RECORDED + ": 1 of 1 (100%)")));
         everyLineIsTheCounters(SEEDS_RECORDED);
     }
 
@@ -294,14 +284,14 @@ class StageFiveReportsItsProgressInvocationTest {
         claim(
                 "the one usable seed's recorded key is read and its stored vectors are read, each a counter of one of one",
                 () -> {
-                    assertThat(progressOf(SEED_KEYS)).containsExactlyElementsOf(ProgressLines.expected(SEED_KEYS, ONE_SEED));
+                    assertThat(progressOf(SEED_KEYS)).containsExactlyElementsOf(List.of(SEED_KEYS + ": 1 of 1 (100%)"));
                     assertThat(progressOf(SEED_VECTORS))
-                            .containsExactlyElementsOf(ProgressLines.expected(SEED_VECTORS, ONE_SEED));
+                            .containsExactlyElementsOf(List.of(SEED_VECTORS + ": 1 of 1 (100%)"));
                 });
         claim(
                 "and the counter over the survivors reads one, two and three of three",
                 () -> assertThat(progressOf(SCORING_SURVIVORS))
-                        .containsExactlyElementsOf(ProgressLines.expected(SCORING_SURVIVORS, CORPUS_DOCUMENTS)));
+                        .containsExactlyElementsOf(List.of(SCORING_SURVIVORS + ": 1 of 3 (33%)", SCORING_SURVIVORS + ": 2 of 3 (66%)", SCORING_SURVIVORS + ": 3 of 3 (100%)")));
         everyLineIsTheCounters(SEED_KEYS, SEED_VECTORS, SCORING_SURVIVORS);
         claim(
                 "scoring says what it is reading and how long each read took, each line once, in the order it"
@@ -361,18 +351,18 @@ class StageFiveReportsItsProgressInvocationTest {
                 "a threshold above every score, on this run's own scale, removes all " + CORPUS_DOCUMENTS
                         + " documents, and the counter reads one, two and three of three",
                 () -> assertThat(progressOf(RELEVANCE_FLOOR))
-                        .containsExactlyElementsOf(ProgressLines.expected(RELEVANCE_FLOOR, CORPUS_DOCUMENTS)));
+                        .containsExactlyElementsOf(List.of(RELEVANCE_FLOOR + ": 1 of 3 (33%)", RELEVANCE_FLOOR + ": 2 of 3 (66%)", RELEVANCE_FLOOR + ": 3 of 3 (100%)")));
         theStageRan(RELEVANCE_REPORT_FINISHED);
         claim(
                 "one answer is recorded for the seed set, and the relevance report looks it up: one of one",
                 () -> assertThat(progressOf(REPORT_ANSWERS))
-                        .containsExactlyElementsOf(ProgressLines.expected(REPORT_ANSWERS, ONE_ANSWER)));
+                        .containsExactlyElementsOf(List.of(REPORT_ANSWERS + ": 1 of 1 (100%)")));
         theStageRan(CLUSTERING_FINISHED);
         claim(
                 "the one partition lost every member to the floor, and it is counted all the same: the stage has"
                         + " been through it, though it grouped nothing in it",
                 () -> assertThat(progressOf(PARTITIONS))
-                        .containsExactlyElementsOf(ProgressLines.expected(PARTITIONS, ONE_PARTITION)));
+                        .containsExactlyElementsOf(List.of(PARTITIONS + ": 1 of 1 (100%)")));
         claim(
                 "and an emptied partition opens no counter over its blocks",
                 () -> assertThat(progressOf(BLOCKS)).isEmpty());
@@ -391,8 +381,8 @@ class StageFiveReportsItsProgressInvocationTest {
         claim(
                 "with a threshold that is a number and applies, the floor step makes two reads and two counts and"
                         + " says so of each, in order: the embedder identities, the recorded answers the threshold is"
-                        + " checked against, the survivors it judges, what entered it for the progress page"
-                        + " (ADR-268 section 2), and the scores below it, which it then goes through a page"
+                        + " checked against, the survivors it judges, what entered it for the progress page,"
+                        + " and the scores below it, which it then goes through a page"
                         + " at a time inside the counter of its verdicts rather than reading them all first",
                 () -> assertThat(StatementLines.of(operatorLines(), STAGE_FIVE_E))
                         .containsExactlyElementsOf(StatementLines.inOrder(
@@ -431,18 +421,18 @@ class StageFiveReportsItsProgressInvocationTest {
         claim(
                 "the one seed won every document, so there is one partition, and its counter reads one of one",
                 () -> assertThat(progressOf(PARTITIONS))
-                        .containsExactlyElementsOf(ProgressLines.expected(PARTITIONS, ONE_PARTITION)));
+                        .containsExactlyElementsOf(List.of(PARTITIONS + ": 1 of 1 (100%)")));
         claim(
                 "the recorded keys of all " + CORPUS_DOCUMENTS + " members are read, in a counter that names the"
                         + " partition and how many there are, its total that partition's members: one partition is"
                         + " held at a time",
                 () -> assertThat(progressOf(KEYS_READ_OF_THE_ONE))
-                        .containsExactlyElementsOf(ProgressLines.expected(KEYS_READ_OF_THE_ONE, CORPUS_DOCUMENTS)));
+                        .containsExactlyElementsOf(List.of(KEYS_READ_OF_THE_ONE + ": 1 of 3 (33%)", KEYS_READ_OF_THE_ONE + ": 2 of 3 (66%)", KEYS_READ_OF_THE_ONE + ": 3 of 3 (100%)")));
         claim(
                 "the partition's three documents fit one block, so it has one pair of blocks to compare, and its"
                         + " counter names the partition and how many there are",
                 () -> assertThat(progressOf(BLOCKS))
-                        .containsExactlyElementsOf(ProgressLines.expected(BLOCKS, ONE_PAIR_OF_BLOCKS)));
+                        .containsExactlyElementsOf(List.of(BLOCKS + ": 1 of 1 (100%)")));
         claim(
                 "and the members whose group is recorded have no counter of their own: their inserts are left to"
                         + " the partition's counter",
@@ -525,7 +515,7 @@ class StageFiveReportsItsProgressInvocationTest {
         claim(
                 "and the page's one partition has its seed's path read",
                 () -> assertThat(progressOf(ARRANGEMENT_PAGE_PARTITIONS))
-                        .containsExactlyElementsOf(ProgressLines.expected(ARRANGEMENT_PAGE_PARTITIONS, ONE_PARTITION)));
+                        .containsExactlyElementsOf(List.of(ARRANGEMENT_PAGE_PARTITIONS + ": 1 of 1 (100%)")));
         everyLineIsTheCounters(
                 ARRANGEMENT_SCORES, ARRANGEMENT_MEMBERS, ARRANGEMENT_CLUSTERS, ARRANGEMENT_PAGE_ROWS,
                 ARRANGEMENT_PAGE_PARTITIONS);
@@ -564,7 +554,7 @@ class StageFiveReportsItsProgressInvocationTest {
                     assertThat(progressOf(ARRANGEMENT_PAGE_ROWS))
                             .containsExactlyElementsOf(ProgressLines.expected(ARRANGEMENT_PAGE_ROWS, recorded));
                     assertThat(progressOf(ARRANGEMENT_PAGE_PARTITIONS))
-                            .containsExactlyElementsOf(ProgressLines.expected(ARRANGEMENT_PAGE_PARTITIONS, ONE_PARTITION));
+                            .containsExactlyElementsOf(List.of(ARRANGEMENT_PAGE_PARTITIONS + ": 1 of 1 (100%)"));
                 });
         claim(
                 "and no group is recorded, so that counter writes nothing",
@@ -624,7 +614,7 @@ class StageFiveReportsItsProgressInvocationTest {
      */
     @Test
     @Story("A long read inside the database reports how far it has gone")
-    @DisplayName("Over tens of thousands of rows, each long read of stages 3, 4b and 5b says about how far it has gone, under its own name")
+    @DisplayName("Over tens of thousands of rows, each read of stages 4b and 5b SQLite counts says about how far it has gone, under its own name, and the two read a page at a time say it only over the collection's own rows")
     void eachCountedReadSaysHowFarItHasGoneUnderItsOwnLabel(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aCorpus(root, seeds);
@@ -788,7 +778,7 @@ class StageFiveReportsItsProgressInvocationTest {
         claim(
                 "grouping counted " + TWO_PARTITIONS + " partitions",
                 () -> assertThat(progressOf(PARTITIONS))
-                        .containsExactlyElementsOf(ProgressLines.expected(PARTITIONS, TWO_PARTITIONS)));
+                        .containsExactlyElementsOf(List.of(PARTITIONS + ": 1 of 2 (50%)", PARTITIONS + ": 2 of 2 (100%)")));
         claim(
                 "the recorded keys read are one counter for each partition, naming it and how many there are,"
                         + " each over that partition's own members, " + CORPUS_DOCUMENTS + " in all between them",
@@ -809,10 +799,10 @@ class StageFiveReportsItsProgressInvocationTest {
                 () -> {
                     assertThat(progressOf(BLOCKS_OF_THE_FIRST_OF_TWO))
                             .containsExactlyElementsOf(
-                                    ProgressLines.expected(BLOCKS_OF_THE_FIRST_OF_TWO, ONE_PAIR_OF_BLOCKS));
+                                    List.of(BLOCKS_OF_THE_FIRST_OF_TWO + ": 1 of 1 (100%)"));
                     assertThat(progressOf(BLOCKS_OF_THE_SECOND_OF_TWO))
                             .containsExactlyElementsOf(
-                                    ProgressLines.expected(BLOCKS_OF_THE_SECOND_OF_TWO, ONE_PAIR_OF_BLOCKS));
+                                    List.of(BLOCKS_OF_THE_SECOND_OF_TWO + ": 1 of 1 (100%)"));
                 });
         claim(
                 "it says what it is reading and how long each read took, each line once, in the order it reads:"
@@ -1042,13 +1032,12 @@ class StageFiveReportsItsProgressInvocationTest {
 
     /** The seed folder named, stage 4's gate open, gate 3 open, and the threshold as given. */
     private void profile(Path seeds, String floor) {
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .relevanceScoreFloor(floor, floor == null ? null : "set by this test")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        if (floor != null) {
+            profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                    .relevanceScoreFloor(floor, "set by this test")
+                    .build());
+        }
     }
 
     /**

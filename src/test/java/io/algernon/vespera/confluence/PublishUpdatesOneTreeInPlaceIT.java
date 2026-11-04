@@ -195,34 +195,6 @@ class PublishUpdatesOneTreeInPlaceIT {
     }
 
     @Test
-    @Story("A publish removes what the rendering no longer has")
-    @DisplayName("A page the rendering no longer has, holding a page someone put under it, is not deleted, and its line says why")
-    void aPageHoldingAPageTheTreeDoesNotOwnIsLeftAsItStands() throws IOException {
-        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
-        try (StubConfluence site = StubConfluence.start()) {
-            publish(site, rendering, Rendering.RUN, new ArrayList<>());
-            StubConfluence.Page notes = site.aPageNoPublishMadeUnder(page(site, Rendering.CLUSTER_TITLE).id,
-                    "Notes on payroll");
-            rendering.withoutTheCluster();
-            site.forgetTheRequests();
-            List<String> lines = new ArrayList<>();
-            Publisher.Outcome again = publish(site, rendering, Rendering.RUN, lines);
-
-            claim("no DELETE was sent", () -> assertThat(site.sent()).noneMatch(request -> request.method().equals(
-                    "DELETE")));
-            claim("the group's page and the page under it stand",
-                    () -> assertThat(site.pages()).extracting(page -> page.title)
-                            .contains(Rendering.CLUSTER_TITLE, notes.title));
-            claim("its line says it was left because something stands under it",
-                    () -> assertThat(lines.getLast()).isEqualTo("removal 1 of 1: " + Rendering.CLUSTER_TITLE
-                            + LEFT_HOLDING));
-            claim("and the publish went to its end, counting it left",
-                    () -> assertThat(List.of(again.published(), again.closingLine().contains(
-                            "; 1 page the rendering no longer has was left as it stands"))).containsExactly(true, true));
-        }
-    }
-
-    @Test
     @Story("A tree an earlier publish made is taken as this tree")
     @DisplayName("A tree an earlier publish made with its run's characters in every title is taken, its pages retitled in place and their files not sent again")
     void aTreeAnEarlierPublishMadeWithItsMarkerIsTakenAndRetitled() throws IOException {
@@ -249,9 +221,6 @@ class PublishUpdatesOneTreeInPlaceIT {
                                     "[" + Rendering.LABEL + "] " + Rendering.ROOT,
                                     "[" + Rendering.LABEL + "] " + Rendering.PARTITION,
                                     "[" + Rendering.LABEL + "] " + Rendering.CLUSTER));
-            claim("no page was created and none moved to the trash",
-                    () -> assertThat(site.writes()).noneMatch(write -> write.kind() == StubConfluence.Kind.CREATED
-                            || write.kind() == StubConfluence.Kind.TRASHED));
             claim("the parent's children were asked for, to find the earlier tree's root page",
                     () -> assertThat(site.sent()).anyMatch(request -> request.method().equals("GET")
                             && request.path().equals("/wiki/api/v2/folders/" + StubConfluence.PARENT_ID

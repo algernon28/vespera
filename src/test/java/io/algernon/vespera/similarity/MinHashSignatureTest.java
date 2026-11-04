@@ -38,6 +38,15 @@ class MinHashSignatureTest {
 
     private static final int ELEMENTS_UNIQUE_TO_EACH = 100;
 
+    /**
+     * The minima of the shingle set {11, 22, 33, 44, 55} under the shipped parameters, in the first, second, third
+     * and last permutation, as the code computed them when this test was written.
+     */
+    private static final int[] RECORDED_MINIMA = {272_901_897, 173_367_228, 577_175_412, -1_909_868_660};
+
+    /** The first and last band hashes of the shingle set {101, 202, 303}, as recorded alike. */
+    private static final long[] RECORDED_BAND_HASHES = {-2_159_132_840_152_244_811L, -6_177_752_704_828_530_868L};
+
     private static final double TRUE_JACCARD = 0.80;
 
     /**
@@ -78,17 +87,16 @@ class MinHashSignatureTest {
 
     @Test
     @Story("The same document signs the same way every time")
-    @DisplayName("The same shingle set produces identical minima on a second computation")
+    @DisplayName("The same shingle set produces the minima recorded for it, in any run")
     void isDeterministicForTheSameSet() {
-        Set<Long> hashes = Set.of(11L, 22L, 33L, 44L, 55L);
-
-        int[] first = MinHashSignature.minima(hashes, THE_SHIPPED_MINHASH);
-        int[] second = MinHashSignature.minima(hashes, THE_SHIPPED_MINHASH);
+        int[] minima = MinHashSignature.minima(Set.of(11L, 22L, 33L, 44L, 55L), THE_SHIPPED_MINHASH);
 
         claim(
                 "the permutations come from a recorded seed rather than from anything ambient, so a"
-                        + " re-run reproduces the same signature rather than merely an equivalent one",
-                () -> assertThat(second).isEqualTo(first));
+                        + " re-run reproduces the same signature rather than merely an equivalent one: the first,"
+                        + " second, third and last minima are the ones recorded for this set",
+                () -> assertThat(new int[] {minima[0], minima[1], minima[2], minima[minima.length - 1]})
+                        .containsExactly(RECORDED_MINIMA));
     }
 
     @Test
@@ -121,12 +129,11 @@ class MinHashSignatureTest {
                 "there are as many band hashes as bands -- 16 rows in signature_band per document",
                 () -> assertThat(bandHashes).hasSize(THE_SHIPPED_MINHASH.bandCount()));
         claim(
-                "and two documents with the same signature land in the same bucket in every band, which"
-                        + " is what makes a shared bucket a candidate rather than a coincidence",
-                () -> assertThat(MinHashSignature.bandHashes(
-                                MinHashSignature.minima(hashes, THE_SHIPPED_MINHASH),
-                                THE_SHIPPED_MINHASH))
-                        .isEqualTo(bandHashes));
+                "and the band hashes are the ones recorded for this set, first and last, so two documents with the"
+                        + " same signature land in the same bucket in every band, which is what makes a shared bucket"
+                        + " a candidate rather than a coincidence",
+                () -> assertThat(new long[] {bandHashes[0], bandHashes[bandHashes.length - 1]})
+                        .containsExactly(RECORDED_BAND_HASHES));
     }
 
     @Test

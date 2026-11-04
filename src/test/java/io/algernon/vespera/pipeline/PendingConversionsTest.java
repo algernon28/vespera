@@ -18,6 +18,7 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -181,6 +182,10 @@ class PendingConversionsTest {
         claim(
                 "the failed conversion is still there, and reaches the step as the failure it was",
                 () -> assertThatThrownBy(() -> pending.take(ANOTHER_OCCURRENCE)).isSameAs(lost));
+        claim(
+                "the cancelled conversion is still there, and reaches the step as a cancellation, not as a"
+                        + " document with nothing pending",
+                () -> assertThatThrownBy(() -> pending.take(OCCURRENCE)).isInstanceOf(CancellationException.class));
         claim(
                 "and the answered one is still there too",
                 () -> assertThat(pending.take(A_THIRD_OCCURRENCE)).contains(CONVERTED));

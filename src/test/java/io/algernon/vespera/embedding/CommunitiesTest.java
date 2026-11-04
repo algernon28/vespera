@@ -94,8 +94,8 @@ class CommunitiesTest {
 
     @Test
     @Story("The same corpus always produces the same clusters")
-    @DisplayName("Running twice over the same graph gives identical cluster ordinals")
-    void isDeterministic() {
+    @DisplayName("Cluster ordinals are handed out in the order documents first appear, the same on every run")
+    void numbersClustersInTheOrderDocumentsAppear() {
         NearestNeighbourGraph.Graph graph = graphOf(
                 new int[] {1, 2}, new int[] {0, 2}, new int[] {0, 1, 3},
                 new int[] {2, 4, 5}, new int[] {3, 5}, new int[] {3, 4});
@@ -104,30 +104,16 @@ class CommunitiesTest {
         int[] second = Communities.of(graph, RESOLUTION);
 
         claim(
-                "the ordinals are identical, not merely the groupings: a page tree that reshuffled when"
-                        + " nothing changed would be worse than a threshold that did, because a person"
-                        + " has already reviewed it",
-                () -> assertThat(second).containsExactly(first));
-    }
-
-    @Test
-    @Story("The same corpus always produces the same clusters")
-    @DisplayName("Cluster ordinals are handed out in the order documents first appear")
-    void numbersClustersInTheOrderDocumentsAppear() {
-        NearestNeighbourGraph.Graph graph = graphOf(
-                new int[] {1, 2}, new int[] {0, 2}, new int[] {0, 1, 3},
-                new int[] {2, 4, 5}, new int[] {3, 5}, new int[] {3, 4});
-
-        int[] clusters = Communities.of(graph, RESOLUTION);
-
+                "the first three documents are in cluster 0 and the next three open cluster 1, so the"
+                        + " numbering follows the documents rather than whatever order the search happened"
+                        + " to visit them in -- which is what makes an ordinal stable enough to be part of a"
+                        + " cluster's identity",
+                () -> assertThat(first).containsExactly(0, 0, 0, 1, 1, 1));
         claim(
-                "the first document is in cluster 0, so the numbering follows the documents rather than"
-                        + " whatever order the search happened to visit them in -- which is what makes an"
-                        + " ordinal stable enough to be part of a cluster's identity",
-                () -> assertThat(clusters[0]).isZero());
-        claim(
-                "and the first document not in cluster 0 opens cluster 1",
-                () -> assertThat(clusters[3]).isEqualTo(1));
+                "and a second pass over the same graph gives the same ordinals, not merely the same"
+                        + " groupings: a page tree that reshuffled when nothing changed would be worse than a"
+                        + " threshold that did, because a person has already reviewed it",
+                () -> assertThat(second).containsExactly(0, 0, 0, 1, 1, 1));
     }
 
     @Test

@@ -10,8 +10,14 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.lang.reflect.Constructor;
+import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The profile record itself, apart from {@link ProfileStoreTest}'s file round-trip: what a fresh
@@ -105,6 +111,47 @@ class ProfileTest {
                 () -> assertThat(skeleton.arrangementApproved().isSet()).isFalse());
     }
 
+    /** Keys an operator reads together, each with the key declared right after it. */
+    static Stream<Arguments> keysReadTogether() {
+        return Stream.of(
+                Arguments.of(
+                        Named.of(
+                                "the page ceiling comes right after the generation context window, the other number the"
+                                        + " drawing step reads",
+                                "generationContextWindow"),
+                        "clusterPageByteCeiling"),
+                Arguments.of(
+                        Named.of(
+                                "the word floor comes right after the confidence floor, the other floor of the same"
+                                        + " verdict",
+                                "degenerateOutputConfidenceFloor"),
+                        "degenerateOutputWordFloor"),
+                Arguments.of(
+                        Named.of(
+                                "the floor on the share of settings comes right before the pages' language",
+                                "configurationSettingShareFloor"),
+                        "deliverableLanguage"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("keysReadTogether")
+    @Story("What census writes to the profile")
+    @DisplayName("A key is declared beside the key it is read with")
+    @Issue("571")
+    @Issue("575")
+    @Issue("576")
+    @Link(name = "ADR-282", url = Adr.FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT, type = "adr")
+    @Link(name = "ADR-287", url = Adr.LOGS_AND_CONFIGURATION_FILES_ARE_TOLD_BY_THEIR_BYTES, type = "adr")
+    @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
+    void aKeyIsDeclaredBesideTheKeyItIsReadWith(String first, String second) {
+        List<String> keys = ProfileKeys.everyKey();
+
+        claim(
+                "the second key is the one declared right after the first, so the operator reads the two together"
+                        + " in profile.yaml and on the deliverable's index",
+                () -> assertThat(keys.subList(keys.indexOf(first) + 1, keys.size())).startsWith(second));
+    }
+
     /**
      * How many constructors {@link Profile} is allowed to have: one, the canonical all-keys one.
      * Before ADR-119 there were six — the canonical one plus five of arity two through six, each
@@ -114,13 +161,14 @@ class ProfileTest {
     private static final int ONE_CONSTRUCTOR = 1;
 
     /**
-     * How many keys the profile carries today, and therefore how many the one constructor takes: 19 since
+     * How many keys the profile carries today, and therefore how many the one constructor takes: 20 since
+     * ADR-334 §5.1 added {@code codeSetFolders}, after
      * ADR-330 §9 added {@code clusterResolution}, after ADR-321 §1 added {@code deliverableLanguage}, ADR-303 §2
      * {@code clusterPageByteCeiling}, ADR-287 §7
      * {@code configurationSettingShareFloor}, ADR-277 §2 {@code codeNameEndings} and ADR-282 §3 {@code
      * degenerateOutputWordFloor}. A new key raises this count; it never earns a second constructor.
      */
-    private static final int EVERY_KEY = 19;
+    private static final int EVERY_KEY = 20;
 
     @Test
     @Story("The profile record has one way in")

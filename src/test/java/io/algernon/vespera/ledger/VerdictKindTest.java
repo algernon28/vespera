@@ -54,58 +54,32 @@ class VerdictKindTest {
 
     @Test
     @Story("The vocabulary is closed")
-    @DisplayName("A copy whose content another copy carries in another language is removed, as a byte-identical copy is")
-    @Link(name = "ADR-271", url = Adr.ONE_COPY_OF_A_TRANSLATION_SET_SURVIVES, type = "adr")
-    void aTranslationRemovesTheCopy() {
-        claim(
-                "translation-of removes the copy it is written against, so that one copy of a text held in"
-                        + " several languages survives",
-                () -> assertThat(VerdictKind.TRANSLATION_OF.blocking()).isTrue());
-    }
-
-    @Test
-    @Story("The vocabulary is closed")
-    @DisplayName("Code is a kind of its own, after out-of-scope, and takes the occurrence out of the survivors")
+    @DisplayName("Code is a kind of its own, straight after out-of-scope")
     @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
-    void codeTakesTheOccurrenceOutOfTheSurvivors() {
+    void codeComesStraightAfterOutOfScope() {
         claim(
-                "code is a value of the vocabulary, stored under its own name",
-                () -> assertThat(Arrays.stream(VerdictKind.values()).map(Enum::name)).contains(CODE));
-        claim(
-                "it comes straight after out-of-scope, the other kind stage 1's first pass writes for what a file is,"
+                "code is a value of the vocabulary, stored under its own name, and it comes straight after"
+                        + " out-of-scope, the other kind stage 1's first pass writes for what a file is,"
                         + " so every count by kind in the vocabulary's order shows the two side by side",
                 () -> assertThat(Arrays.stream(VerdictKind.values()).map(Enum::name).toList())
                         .containsSubsequence(VerdictKind.OUT_OF_SCOPE.name(), CODE, VerdictKind.EXTRACTION_FAILED.name())
                         .satisfies(names -> assertThat(names.indexOf(CODE))
                                 .isEqualTo(names.indexOf(VerdictKind.OUT_OF_SCOPE.name()) + 1)));
-        claim(
-                "and it blocks: code is not a survivor, so no stage after the first reads it",
-                () -> assertThat(VerdictKind.valueOf(CODE).blocking()).isTrue());
     }
 
     @Test
     @Story("The vocabulary is closed")
     @DisplayName("Every verdict but one removes a document from what survives")
+    @Link(name = "ADR-271", url = Adr.ONE_COPY_OF_A_TRANSLATION_SET_SURVIVES, type = "adr")
+    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
     void onlyOneVerdictIsNonBlocking() {
         claim(
                 "passing is the single verdict that does not remove a document, so survival is the absence"
-                        + " of a blocking verdict rather than the presence of an approving one",
+                        + " of a blocking verdict rather than the presence of an approving one: translation-of"
+                        + " removes the copy it is written against, and code is not a survivor either",
                 () -> assertThat(Arrays.stream(VerdictKind.values())
                                 .filter(kind -> !kind.blocking())
                                 .toList())
                         .containsExactly(VerdictKind.PASSED));
-    }
-
-    @Test
-    @Story("The vocabulary is closed")
-    @DisplayName("A verdict read back from storage is the one that was written")
-    void roundTripsThroughItsStoredName() {
-        claim(
-                "every verdict survives being written as text and read back, which is how a verdict row"
-                        + " outlives the process that wrote it",
-                () -> assertThat(Arrays.stream(VerdictKind.values())
-                                .map(kind -> VerdictKind.valueOf(kind.name()))
-                                .toList())
-                        .containsExactly(VerdictKind.values()));
     }
 }

@@ -9,9 +9,14 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
 
@@ -20,7 +25,7 @@ import org.springframework.core.io.ClassPathResource;
  * minted under while it was a constant of the code, held exactly, because another value here re-clusters, re-judges or
  * asks about other documents in every corpus whose machine names none.
  *
- * <p>Each test holds the presets of one choice. The numbers are compared as numbers, so that {@code 0.80} written in
+ * <p>Each test holds the presets of one choice, those of redundancy one case each. The numbers are compared as numbers, so that {@code 0.80} written in
  * the file and the {@code 0.8} Java reads it as are one value, as they are one value in a run's identity.
  */
 @Epic("Architecture")
@@ -95,37 +100,38 @@ class TheShippedPresetsTest {
                         .containsExactly(SHIPPED_OCR_PRESET, (long) SHIPPED_TIMEOUTS_IN_A_ROW));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("theRedundancyPresets")
     @Story("How redundancy is measured is a preset")
-    @DisplayName("The shipped file names the shingle window and the signature's permutations, bands, rows and seed at the values every earlier run was made under")
-    void theShingleWindowAndMinHashShipAtTheirEarlierValues() {
-        claim("a shingle spans " + SHIPPED_SHINGLE_WORDS + " words, so every shingle is filed under the identity it was",
-                () -> assertThat(whole("vespera.redundancy.shingle-words")).isEqualTo(SHIPPED_SHINGLE_WORDS));
-        claim("a signature is " + SHIPPED_MINHASH_SHAPE.get(0) + " permutations in " + SHIPPED_MINHASH_SHAPE.get(1)
-                        + " bands of " + SHIPPED_MINHASH_SHAPE.get(2) + " rows, derived from the seed the code held,"
-                        + " so every signature is filed under the identity it was",
-                () -> assertThat(List.of(whole("vespera.redundancy.minhash.permutations"),
-                                whole("vespera.redundancy.minhash.bands"),
-                                whole("vespera.redundancy.minhash.rows-per-band"),
-                                whole("vespera.redundancy.minhash.seed")))
-                        .containsExactly((long) SHIPPED_MINHASH_SHAPE.get(0), (long) SHIPPED_MINHASH_SHAPE.get(1),
-                                (long) SHIPPED_MINHASH_SHAPE.get(2), SHIPPED_MINHASH_SEED));
+    @DisplayName("The shipped file names each value redundancy is measured and judged by at the value every earlier run was made under")
+    void theRedundancyPresetsShipAtTheirEarlierValues(String key, Number earlier) {
+        claim("the file names " + key + " at " + earlier + ", so every shingle and signature is filed under the identity"
+                        + " it was and a machine naming none judges redundancy as it did",
+                () -> assertThat(earlier instanceof Double ? (Object) number(key) : (Object) whole(key))
+                        .isEqualTo(earlier));
     }
 
-    @Test
-    @Story("How redundancy is measured is a preset")
-    @DisplayName("The shipped file names the two similarity cuts and the rare-shingle sample and hits at the values every earlier run was judged under")
-    void theRedundancyCutsShipAtTheirEarlierValues() {
-        claim("two documents are near-duplicates at " + SHIPPED_CUTS.get(0) + " and one is contained in another at "
-                        + SHIPPED_CUTS.get(1) + ", so a machine naming neither judges redundancy as it did",
-                () -> assertThat(List.of(number("vespera.redundancy.near-duplicate-jaccard"),
-                                number("vespera.redundancy.containment-index")))
-                        .containsExactlyElementsOf(SHIPPED_CUTS));
-        claim("a container is sought from a document's " + SHIPPED_RARE_SHINGLES.get(0) + " rarest shingles, needing "
-                        + SHIPPED_RARE_SHINGLES.get(1) + " of them",
-                () -> assertThat(List.of(whole("vespera.redundancy.rare-shingle-sample"),
-                                whole("vespera.redundancy.rare-shingle-hits")))
-                        .containsExactly((long) SHIPPED_RARE_SHINGLES.get(0), (long) SHIPPED_RARE_SHINGLES.get(1)));
+    /** Each value redundancy is measured and judged by, as its key and the value every earlier run was made under. */
+    static Stream<Arguments> theRedundancyPresets() {
+        return Stream.of(
+                Arguments.of(Named.of("the words a shingle spans", "vespera.redundancy.shingle-words"),
+                        (long) SHIPPED_SHINGLE_WORDS),
+                Arguments.of(Named.of("the permutations of a signature", "vespera.redundancy.minhash.permutations"),
+                        (long) SHIPPED_MINHASH_SHAPE.get(0)),
+                Arguments.of(Named.of("the bands of a signature", "vespera.redundancy.minhash.bands"),
+                        (long) SHIPPED_MINHASH_SHAPE.get(1)),
+                Arguments.of(Named.of("the rows in each band", "vespera.redundancy.minhash.rows-per-band"),
+                        (long) SHIPPED_MINHASH_SHAPE.get(2)),
+                Arguments.of(Named.of("the seed the permutations are derived from, as the code held it",
+                        "vespera.redundancy.minhash.seed"), SHIPPED_MINHASH_SEED),
+                Arguments.of(Named.of("the cut at which two documents are near-duplicates",
+                        "vespera.redundancy.near-duplicate-jaccard"), SHIPPED_CUTS.get(0)),
+                Arguments.of(Named.of("the cut at which one document is contained in another",
+                        "vespera.redundancy.containment-index"), SHIPPED_CUTS.get(1)),
+                Arguments.of(Named.of("the rarest shingles a container is sought from",
+                        "vespera.redundancy.rare-shingle-sample"), (long) SHIPPED_RARE_SHINGLES.get(0)),
+                Arguments.of(Named.of("the hits among them a container needs", "vespera.redundancy.rare-shingle-hits"),
+                        (long) SHIPPED_RARE_SHINGLES.get(1)));
     }
 
     @Test

@@ -86,8 +86,27 @@ public final class CodeSetRenames {
     }
 
     private static boolean isFolder(String folder) {
-        return folder.isEmpty() || (folder.indexOf('\\') < 0 && !folder.startsWith("/") && !folder.endsWith("/")
-                && !folder.contains("//"));
+        if (folder.isEmpty()) {
+            return true;
+        }
+        if (folder.indexOf('\\') >= 0 || folder.endsWith("/")) {
+            return false;
+        }
+        String below;
+        if (folder.startsWith("//")) {
+            below = folder.substring(2);
+        } else if (folder.startsWith("/")) {
+            below = folder.substring(1);
+        } else if (folder.length() >= 3 && isAsciiLetter(folder.charAt(0)) && folder.startsWith(":/", 1)) {
+            below = folder.substring(3);
+        } else {
+            below = folder;
+        }
+        return !below.isEmpty() && !below.startsWith("/") && !below.contains("//");
+    }
+
+    private static boolean isAsciiLetter(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
     }
 
     private static List<Rename> readForm(List<Line> all) {

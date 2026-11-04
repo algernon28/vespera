@@ -52,10 +52,14 @@ import org.springframework.test.context.DynamicPropertySource;
  * leaves its run's index alone, and builds it again where the one it finds is another run's or is the
  * index over every run's rows that an earlier build left.
  *
- * <p>Fail today: the shipped schema creates the index and nothing drops it, so every claim that it is
- * absent fails, and nothing announces a build, because none is made. The test of an invocation with
- * every step finished passes today and has to go on passing: it is what stops an implementation from
- * dropping the index on every invocation and paying for the build again on the next.
+ * <p>A schema that created the index and a stage 2 that did not drop it would fail every claim that it is
+ * absent, and announce no build, because none would be made. The test of an invocation with every step
+ * finished is what stops an implementation from dropping the index on every invocation and paying for the
+ * build again on the next (#681).
+ *
+ * <p>The containment plans are of a read of one hash's occurrences written out here as {@code
+ * RedundancyResolution} sends it: they hold that the index can answer that read, not which statement the
+ * search sends.
  */
 @CascadeSliceTest
 @Import(ConverterStopsPartwayBeans.class)
@@ -197,10 +201,7 @@ class ShingleHashIndexInvocationTest {
         claim(
                 "and it ends with the hash index on the measurement settings, the hash and the document, in"
                         + " that order, which is what the search for containing documents looks up and reads"
-                        + " in order",
-                () -> assertThat(columnsOf(BY_HASH)).containsExactlyElementsOf(BY_HASH_COLUMNS));
-        claim(
-                "built over the word sequences of this extraction and no other's",
+                        + " in order, built over the word sequences of this extraction and no other's",
                 () -> assertThat(TheRunsHashIndex.statementInTheDatabase(jdbcTemplate))
                         .contains(TheRunsHashIndex.statementFor(extractionRun)));
         claim(
@@ -208,7 +209,8 @@ class ShingleHashIndexInvocationTest {
                         + " starts resolving, so a long build is not mistaken for a run that has stopped moving",
                 () -> assertThat(second).containsSubsequence(BUILDING, BUILT, RESOLUTION_STARTING));
         claim(
-                "and the search for documents containing another is answered through it",
+                "and a read of one hash's occurrences in this extraction, as the search for documents containing"
+                        + " another writes it, is planned through it",
                 () -> assertThat(containmentPlanFor(extractionRun)).contains(BY_HASH));
     }
 
@@ -454,8 +456,8 @@ class ShingleHashIndexInvocationTest {
                 () -> assertThat(TheRunsHashIndex.statementInTheDatabase(jdbcTemplate))
                         .contains(TheRunsHashIndex.statementFor(secondExtraction)));
         claim(
-                "the search for containing documents is answered through it for the second folder's"
-                        + " extraction",
+                "a read of one hash's occurrences, as the search for documents containing another writes it, is"
+                        + " planned through it for the second folder's extraction",
                 () -> assertThat(containmentPlanFor(secondExtraction)).contains(BY_HASH));
         claim(
                 "and not for the first folder's, whose rows are not in it",
@@ -483,7 +485,7 @@ class ShingleHashIndexInvocationTest {
                 () -> assertThat(TheRunsHashIndex.statementInTheDatabase(jdbcTemplate))
                         .contains(TheRunsHashIndex.statementFor(firstExtraction)));
         claim(
-                "through which the search is answered for that extraction",
+                "through which that read is planned for that extraction",
                 () -> assertThat(containmentPlanFor(firstExtraction)).contains(BY_HASH));
     }
 
@@ -515,12 +517,10 @@ class ShingleHashIndexInvocationTest {
                 "its redundancy check says it is building the index and that it has built it",
                 () -> assertThat(second).containsSubsequence(BUILDING, BUILT, RESOLUTION_STARTING));
         claim(
-                "and the hash index is then over this extraction's word sequences alone",
+                "and the hash index is then over this extraction's word sequences alone, on its three columns,"
+                        + " the run no longer among them",
                 () -> assertThat(TheRunsHashIndex.statementInTheDatabase(jdbcTemplate))
                         .contains(TheRunsHashIndex.statementFor(extractionRun)));
-        claim(
-                "on its three columns, the run no longer among them",
-                () -> assertThat(columnsOf(BY_HASH)).containsExactlyElementsOf(BY_HASH_COLUMNS));
     }
 
     /**

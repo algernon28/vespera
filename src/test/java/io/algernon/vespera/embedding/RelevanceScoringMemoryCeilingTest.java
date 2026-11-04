@@ -74,8 +74,8 @@ class RelevanceScoringMemoryCeilingTest {
     @Test
     @Story("The corpus streams one survivor at a time, never all of it at once")
     @DisplayName(
-            "Scoring 20,000 corpus survivors against a resident seed reads one document's own chunks"
-                    + " per query, never the whole partition")
+            "Scoring 20,000 corpus survivors one call each against a resident seed reads no more than one"
+                    + " document's own chunks in any query")
     void scoresALargePartitionWithoutEverReadingMoreThanOneDocumentsChunksAtOnce() {
         RowCountingJdbcTemplate counting = new RowCountingJdbcTemplate(jdbcTemplate);
         VectorCache vectorCache = new VectorCache(counting);
@@ -112,7 +112,9 @@ class RelevanceScoringMemoryCeilingTest {
         claim(
                 "no single read from the vector table ever returned more than one seed document's own"
                         + " chunks (" + CHUNKS_PER_SEED_DOCUMENT + ") -- never the " + CORPUS_DOCUMENT_COUNT
-                        + "-document partition a materialised matrix would have pulled back in one go",
+                        + "-document partition a materialised matrix would have pulled back in one go. The"
+                        + " survivors are handed to the scoring one call each here, so what this holds is"
+                        + " that a call reads its own document's chunks and not the partition's",
                 () -> assertThat(counting.maxRowsInOneQuery()).isEqualTo(CHUNKS_PER_SEED_DOCUMENT));
     }
 

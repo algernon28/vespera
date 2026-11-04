@@ -77,6 +77,17 @@ class TheFolderPageScreenTest {
     /** The code sets page's field for a new set's folder, relative to the corpus root. */
     private static final String NEW_FOLDER = "new-folder";
 
+    /** The code sets page's field for a folder of code outside the corpus root, as the folder page names it. */
+    private static final String CODE_SET_FOLDER = "code-set-folder";
+
+    /** The relevance page's field for a folder not relevant, relative to the corpus root, as the folder page names it. */
+    private static final String NOT_RELEVANT_FOLDER = "not-relevant-folder";
+
+    /** The profile page's one form (ADR-334 §7), and the names of the seed folder's two controls in it. */
+    private static final String PROFILE_FORM = "profile";
+
+    private static final String SEED_FOLDER_PROVENANCE = "seedFolder.provenance";
+
     /** Each field the folder page chooses for, and the page it returns to. */
     private static final Map<String, String> THE_CLOSED_LIST = closedList();
 
@@ -165,10 +176,10 @@ class TheFolderPageScreenTest {
                                     buttonsOfEachForm.get("code-sets")))
                             .containsExactly(List.of("browse-" + SEED_FOLDER), List.of("browse-" + NEXT_SEED_FOLDER),
                                     List.of("browse-" + NEW_FOLDER)));
-            claim("of all the profile's forms, only the seed folder's holds one",
+            claim("the profile page holds one, the seed folder's",
                     () -> assertThat(buttonsOfEachForm.get("profile")).containsExactly("browse-" + PROFILE_SEED_FOLDER));
-            claim("and it stands in the seed folder's form",
-                    () -> assertThat(browseNames(form(profile, SEED_FOLDER)))
+            claim("and it stands in the profile's one form",
+                    () -> assertThat(browseNames(form(profile, PROFILE_FORM)))
                             .containsExactly("browse-" + PROFILE_SEED_FOLDER));
             claim("each is a submit button, and asks the browser not to stop it for a reason left empty",
                     () -> assertThat(buttons).isNotEmpty().allSatisfy(button -> {
@@ -477,29 +488,29 @@ class TheFolderPageScreenTest {
         Path seeds = Files.createDirectories(folder.resolve("seeds"));
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
             PanelBrowser browser = screens.browser().go("/profile");
-            browser.press(SEED_FOLDER, "browse-" + PROFILE_SEED_FOLDER, Map.of("provenance", REASON_TYPED));
+            browser.press(PROFILE_FORM, "browse-" + PROFILE_SEED_FOLDER, Map.of(SEED_FOLDER_PROVENANCE, REASON_TYPED));
             browser.go(folders(PROFILE_SEED_FOLDER, seeds.toString()));
             Page landed = browser.press("use-folder", "use", Map.of()).page();
             boolean profileWritten = Files.exists(workingDirectory.resolve(ProfileEdit.FILE_NAME));
-            Element seedForm = form(landed, SEED_FOLDER);
+            Element seedForm = form(landed, PROFILE_FORM);
 
             claim("the choice lands on the profile page, at the seed folder's section",
                     () -> assertThat(List.of(landed.address().getPath(), String.valueOf(landed.address().getFragment())))
                             .containsExactly("/profile", "key-seedFolder"));
             claim("with the folder as the value and the reason as typed",
-                    () -> assertThat(List.of(seedForm.select("[name=value]").val(),
-                                    seedForm.select("[name=provenance]").val()))
+                    () -> assertThat(List.of(seedForm.select("[name=" + SEED_FOLDER + "]").val(),
+                                    seedForm.select("[name='" + SEED_FOLDER_PROVENANCE + "']").val()))
                             .containsExactly(seeds.toString(), REASON_TYPED));
             claim("no profile was written", () -> assertThat(profileWritten).isFalse());
 
-            Page saved = browser.press(SEED_FOLDER, "save", Map.of()).page();
+            Page saved = browser.press(PROFILE_FORM, "save", Map.of()).page();
 
             claim("Save writes the folder chosen with the reason typed",
                     () -> assertThat(profileOf(workingDirectory).get(ProfileKey.SEED_FOLDER))
                             .isEqualTo(new ProfileEdit.Stated(seeds.toString(), REASON_TYPED)));
             claim("once saved, the form holds the folder and the reason the file now states",
-                    () -> assertThat(List.of(form(saved, SEED_FOLDER).select("[name=value]").val(),
-                                    form(saved, SEED_FOLDER).select("[name=provenance]").val()))
+                    () -> assertThat(List.of(form(saved, PROFILE_FORM).select("[name=" + SEED_FOLDER + "]").val(),
+                                    form(saved, PROFILE_FORM).select("[name='" + SEED_FOLDER_PROVENANCE + "']").val()))
                             .containsExactly(seeds.toString(), REASON_TYPED));
 
             Path anotherSeedFolder = Files.createDirectories(folder.resolve("other-seeds"));
@@ -510,8 +521,8 @@ class TheFolderPageScreenTest {
 
             claim("and neither is held any longer: with the file changed behind the page, the form holds what the file"
                             + " states and not what was chosen",
-                    () -> assertThat(List.of(form(reloaded, SEED_FOLDER).select("[name=value]").val(),
-                                    form(reloaded, SEED_FOLDER).select("[name=provenance]").val()))
+                    () -> assertThat(List.of(form(reloaded, PROFILE_FORM).select("[name=" + SEED_FOLDER + "]").val(),
+                                    form(reloaded, PROFILE_FORM).select("[name='" + SEED_FOLDER_PROVENANCE + "']").val()))
                             .containsExactly(anotherSeedFolder.toString(), ANOTHER_REASON));
         }
     }
@@ -596,12 +607,12 @@ class TheFolderPageScreenTest {
                 FileChannel channel = FileChannel.open(lockFile, StandardOpenOption.WRITE);
                 FileLock taken = channel.tryLock(LOCKED_BYTE, 1, false)) {
             PanelBrowser browser = screens.browser().go("/profile");
-            browser.press(SEED_FOLDER, "browse-" + PROFILE_SEED_FOLDER, Map.of("provenance", REASON_TYPED));
+            browser.press(PROFILE_FORM, "browse-" + PROFILE_SEED_FOLDER, Map.of(SEED_FOLDER_PROVENANCE, REASON_TYPED));
             browser.go(folders(PROFILE_SEED_FOLDER, seeds.toString()));
             browser.press("use-folder", "use", Map.of());
-            Page refused = browser.press(SEED_FOLDER, "save", Map.of()).page();
+            Page refused = browser.press(PROFILE_FORM, "save", Map.of()).page();
             String held = Files.readString(profile, StandardCharsets.UTF_8);
-            Element seedForm = form(refused, SEED_FOLDER);
+            Element seedForm = form(refused, PROFILE_FORM);
 
             claim("the save lands on the profile page with one line naming the other holder, and the file is as it was",
                     () -> {
@@ -610,8 +621,8 @@ class TheFolderPageScreenTest {
                         assertThat(held).isEqualTo(A_PROFILE_IN_FORM);
                     });
             claim("and the field holds the folder chosen, and the reason as typed",
-                    () -> assertThat(List.of(seedForm.select("[name=value]").val(),
-                                    seedForm.select("[name=provenance]").val()))
+                    () -> assertThat(List.of(seedForm.select("[name=" + SEED_FOLDER + "]").val(),
+                                    seedForm.select("[name='" + SEED_FOLDER_PROVENANCE + "']").val()))
                             .containsExactly(seeds.toString(), REASON_TYPED));
         }
     }
@@ -1033,8 +1044,8 @@ class TheFolderPageScreenTest {
     }
 
     /**
-     * Read at two moments, since a page shows a key's form on {@code /next} or on {@code /profile} and not both: before
-     * a run {@code /profile} holds the seed folder's form, and after one {@code /next} holds it. The fields are compared
+     * Read at two moments, since {@code /next} shows the seed folder's field only after a run, and {@code /profile}
+     * holds it at both (ADR-334 §7). The fields are compared
      * whole, so that a {@code GET} holding the folder it shows in any field but the next act's turns this red. The next
      * act's field is first shown after the sweep before the run, and a {@code GET} of that sweep holding the folder
      * would stand in it from then on, so it is read too: it stands empty, the launch values naming no last seed folder.
@@ -1048,16 +1059,20 @@ class TheFolderPageScreenTest {
         Path workingDirectory = wanting(SEED_FOLDER);
         Path launchValues = LaunchValues.fileIn(folder.resolve("tmp"), USER);
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            Comparison beforeARun = openingEachField(screens.browser(), corpusRoot, List.of("/", "/profile", "/code-sets"));
+            Comparison beforeARun = openingEachField(screens.browser(), corpusRoot,
+                    List.of("/", "/profile", "/code-sets", "/labels"));
             Comparison afterARun = openingEachField(screens.afterARunHasEnded(), corpusRoot,
-                    List.of("/", "/next", "/profile", "/code-sets"));
+                    List.of("/", "/next", "/profile", "/code-sets", "/labels"));
 
-            claim("the fields compared are the seven the folder page chooses for, each on its own page",
+            claim("the fields compared are the nine the folder page chooses for, each on its own page",
                     () -> {
                         assertThat(beforeARun.fieldsBefore().get("/")).containsKeys("launch/" + CORPUS_ROOT,
                                 "launch/" + WORKING_DIRECTORY, "launch/" + DELIVERABLE_ROOT, "seed-folder/seedFolder");
-                        assertThat(beforeARun.fieldsBefore().get("/profile")).containsKey("seedFolder/value");
-                        assertThat(beforeARun.fieldsBefore().get("/code-sets")).containsKey("code-sets/" + NEW_FOLDER);
+                        assertThat(beforeARun.fieldsBefore().get("/profile")).containsKey(PROFILE_FORM + "/" + SEED_FOLDER);
+                        assertThat(beforeARun.fieldsBefore().get("/code-sets")).containsKeys("code-sets/" + NEW_FOLDER,
+                                "code-set-folders/new-code-set-folder");
+                        assertThat(beforeARun.fieldsBefore().get("/labels"))
+                                .containsKey("not-relevant/new-not-relevant-folder");
                         assertThat(afterARun.fieldsBefore().get("/next")).containsKey("next/seedFolder");
                     });
             claim("the next act's field, which no page showed before the run, was left empty by the sweep before it",
@@ -1086,7 +1101,8 @@ class TheFolderPageScreenTest {
         Map<String, Map<String, String>> fieldsBefore = fieldsOf(browser, pages);
         Map<Path, byte[]> filesBefore = contents(folder);
         for (String field : THE_CLOSED_LIST.keySet()) {
-            browser.go(folders(field, field.equals(NEW_FOLDER) ? "inside" : corpusRoot.resolve("inside").toString()));
+            boolean fromTheCorpusRoot = field.equals(NEW_FOLDER) || field.equals(NOT_RELEVANT_FOLDER);
+            browser.go(folders(field, fromTheCorpusRoot ? "inside" : corpusRoot.resolve("inside").toString()));
         }
         Map<Path, byte[]> filesAfter = contents(folder);
         return new Comparison(fieldsBefore, filesBefore, fieldsOf(browser, pages), filesAfter);
@@ -1187,6 +1203,8 @@ class TheFolderPageScreenTest {
         list.put(NEXT_SEED_FOLDER, "/next");
         list.put(PROFILE_SEED_FOLDER, "/profile#key-seedFolder");
         list.put(NEW_FOLDER, "/code-sets");
+        list.put(CODE_SET_FOLDER, "/code-sets");
+        list.put(NOT_RELEVANT_FOLDER, "/labels");
         return list;
     }
 

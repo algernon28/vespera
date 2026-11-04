@@ -14,8 +14,13 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
@@ -108,33 +113,22 @@ class LargestClusterRunsOutOfRoomTest {
      * documents of record rows under an instruction it read first copied the rows back or cited
      * nothing, and one handed the same instruction after them cited in range 15 times in 15.
      */
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("documentsCarried")
     @Story("The request says what to write after the documents, where the model reads it last")
-    @DisplayName("A request carrying one document ends by saying how to cite, showing no number past 1")
-    void aRequestCarryingOneDocumentEndsBySayingHowToCite() {
-        claimTheRequestEndsBySayingHowToCite(aClusterOf(1));
+    @DisplayName("A request ends by saying how to cite, showing no number past the documents it carries")
+    void aRequestEndsBySayingHowToCite(int documents) {
+        claimTheRequestEndsBySayingHowToCite(aClusterOf(documents));
     }
 
-    @Test
-    @Story("The request says what to write after the documents, where the model reads it last")
-    @DisplayName("A request carrying two documents ends by saying how to cite, showing no number past 2")
-    void aRequestCarryingTwoDocumentsEndsBySayingHowToCite() {
-        claimTheRequestEndsBySayingHowToCite(aClusterOf(2));
-    }
-
-    @Test
-    @Story("The request says what to write after the documents, where the model reads it last")
-    @DisplayName("A request carrying three documents ends by saying how to cite, showing no number past 3")
-    void aRequestCarryingThreeDocumentsEndsBySayingHowToCite() {
-        claimTheRequestEndsBySayingHowToCite(aClusterOf(3));
-    }
-
-    /** The size the defect was found at. */
-    @Test
-    @Story("The request says what to write after the documents, where the model reads it last")
-    @DisplayName("A request carrying fourteen documents ends by saying how to cite, showing no number past 14")
-    void aRequestCarryingFourteenDocumentsEndsBySayingHowToCite() {
-        claimTheRequestEndsBySayingHowToCite(aClusterOf(THE_LARGEST_CLUSTER));
+    static Stream<Arguments> documentsCarried() {
+        return Stream.of(
+                Arguments.of(Named.of("one document, no number past 1", 1)),
+                Arguments.of(Named.of("two documents, no number past 2", 2)),
+                Arguments.of(Named.of("three documents, no number past 3", 3)),
+                Arguments.of(Named.of(
+                        "fourteen documents, the size the defect was found at, no number past 14",
+                        THE_LARGEST_CLUSTER)));
     }
 
     /**

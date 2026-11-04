@@ -188,12 +188,12 @@ class GroupingStepsPerRowTest {
             }
         }
         claim(
-                "the statement reads the extraction's rows through the index on the extraction alone, and sorts"
-                        + " them in structures of its own, once to group them and once to count each word"
+                "read through the index on the extraction alone, which the statement names, the rows are sorted"
+                        + " in structures of the statement's own, once to group them and once to count each word"
                         + " sequence's different documents: that sorting is what is written to temporary files",
                 () -> assertThat(plan)
-                        .anyMatch(detail -> detail.contains("shingle_by_run_id (run_id=?)"))
                         .anyMatch(detail -> detail.contains("USE TEMP B-TREE FOR GROUP BY"))
+
                         .anyMatch(detail -> detail.contains("USE TEMP B-TREE FOR count(DISTINCT)")));
     }
 

@@ -170,7 +170,7 @@ A rendering an earlier generation run published stays on the site; the new run's
 | `…namesEachFieldTheCallImposesInTheSchemasOrder` | after the documents the question says JSON and quotes each field the imposed schema requires, `title` before `prose` (§3) |
 | `…saysTheWritingEndsWithItsLastSentence` | after the documents the question says the writing ends with its last sentence, and says nothing of braces (§3) |
 | `…whatFollowsTheDocumentsStaysInsideTheReserve` | the words after the last document's opening, at 2.0 tokens each, are at most 256 (§3) |
-| `…aClosingBraceAfterTheLastSentenceIsStillTurnedDown` | Italian writing ending in ` }` is turned down as `SCHEMA_VIOLATION` with ADR-162's detail (§3, ADR-162 kept) |
+| `synthesis.JsonDebrisInWritingTest.writingEndingWithAStrayClosingBraceIsTurnedDown` | writing ending in ` }` is turned down as `SCHEMA_VIOLATION` with ADR-162's detail, the check reading no language (§3, ADR-162 kept) (#682) |
 | `synthesis.DeliverableLanguageTest` | `en` and `it` are read in any case with blanks ignored; anything else is no language; English is the default; each language's code and English name (§1) |
 | `pipeline.LanguageOfTheDeliverableTest` | unset and blank are English, `it` and ` IT ` Italian, and `fr` stops naming the key, the value, `en` and `it` (§1) |
 | `pipeline.TheDeliverableLanguageInvocationTest` | with `it`, every question names Italian, the generation run records `deliverableLanguage` `it`, and the cluster page and the index are drawn in Italian; with the key emptied again, a second generation run is minted, asking in English; with `fr`, the invocation stops and no generation run is minted (§1, §2, §4, §6) |

@@ -37,6 +37,9 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-074", url = Adr.STAGE_3_MEASURES_SHINGLE_DOCUMENT_FREQUENCY, type = "adr")
 class SimilaritySchemaTest {
 
+    /** The version of similarity's tables, written out: the third. */
+    private static final int SIMILARITYS_VERSION = 3;
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -67,12 +70,12 @@ class SimilaritySchemaTest {
         new SimilaritySchema(new SchemaVersionGuard(jdbcTemplate));
 
         claim(
-                "the version recorded is exactly VERSION 2, the shingle-document-frequency bump -- not a"
-                        + " value borrowed from ledger, corpus or extraction's own rows",
+                "the version recorded is exactly " + SIMILARITYS_VERSION + ", the one similarity's tables are at --"
+                        + " not a value borrowed from ledger, corpus or extraction's own rows",
                 () -> assertThat(jdbcTemplate.queryForObject(
                                 "SELECT version FROM schema_version WHERE module = ?",
                                 Integer.class,
                                 SimilaritySchema.MODULE))
-                        .isEqualTo(SimilaritySchema.VERSION));
+                        .isEqualTo(SIMILARITYS_VERSION));
     }
 }

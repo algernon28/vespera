@@ -168,12 +168,12 @@ The tags become:
 
 New, under `src/test`:
 
-- **`SidecarsAreStartedByTheOperatorTest`** (unit, no Docker, reads the classpath and `pom.xml`):
+- **`SpringsComposeSupportIsOnNoClasspathTest`** (#684) (unit, no Docker, reads the classpath and `pom.xml`):
   - `anIdeRunStartsNoContainer`: Spring Boot's compose lifecycle (`org.springframework.boot.docker.compose.lifecycle.DockerComposeLifecycleManager`) is not on the classpath the tests run on, which contains the runtime classpath an IDE launches `VesperaApplication` with, optional dependencies included. Spring AI's compose connection details (`org.springframework.ai.docker.compose.service.connection.ollama.OllamaDockerComposeConnectionDetailsFactory`) are not on it either. The test also named the Chroma sibling of that class until Chroma was removed (ADR-214).
   - `thePomDeclaresNoComposeSupport`: `pom.xml` names neither `spring-boot-docker-compose` nor `spring-ai-spring-boot-docker-compose`.
 - **`OllamaKeepsItsModelsTest`** (unit, no Docker, reads the compose files with SnakeYAML, in `SidecarRestartPolicyTest`'s style):
   - `ollamaKeepsItsModelsInANamedVolume`: `compose.yaml`'s `ollama` mounts `ollama-models:/root/.ollama`, and the top-level `volumes` declares `ollama-models` as neither `external` nor a bind.
-  - `theGpuOverrideLeavesOllamasVolumeAlone`: `compose.gpu.yaml`'s `ollama` carries no `volumes`.
+  - That `compose.gpu.yaml`'s `ollama` carries no `volumes` is held by `OllamaGpuOverrideTest.theOverrideGivesOllamaAndDoclingEveryNvidiaGpu`, which finds the device request its only key (#682).
 - **`DoclingImageCheckInvocationTest`** (invocation, `@CascadeSliceTest`, with a stub `DoclingClient` whose reported image each test sets, reset in `@BeforeEach`, and a fresh context per test because the identity is a lazily built singleton):
   - `aSidecarRunningAnotherImageStopsExtraction`: the sidecar reports the GPU tag while `vespera.docling.image` names the CPU one. The invocation exits non-zero, stage 2's closing line says it failed and names both images, no extraction is recorded over the corpus, and nothing is converted.
   - `aSidecarThatDoesNotReportItsImageStopsExtraction`: the same, with no `vespera-image` entry. The line names the configured image.

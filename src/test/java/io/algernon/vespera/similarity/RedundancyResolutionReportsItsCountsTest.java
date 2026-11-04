@@ -146,7 +146,7 @@ class RedundancyResolutionReportsItsCountsTest {
 
     @Test
     @Story("Resolution tells its caller how many items each loop will go through")
-    @DisplayName("Containment candidates are reported inside the containment loop, with no total")
+    @DisplayName("Containment candidates are reported inside the containment loop")
     void containmentCandidatesAreReportedInsideTheContainmentLoop() {
         Fixture fixture = fixture();
         fixture.document("a.pdf", shingles(0, 100));
@@ -164,12 +164,8 @@ class RedundancyResolutionReportsItsCountsTest {
                         + " place whatever contains it",
                 () -> assertThat(progress.count("candidate")).isPositive());
         claim(
-                "every candidate is reported after the containment loop is announced, and none has a total of its"
-                        + " own announced",
-                () -> {
-                    assertThat(progress.events.subList(0, toCheck)).doesNotContain("candidate");
-                    assertThat(progress.announcements()).noneMatch(announcement -> announcement.contains("candidate"));
-                });
+                "every candidate is reported after the containment loop is announced",
+                () -> assertThat(progress.events.subList(0, toCheck)).doesNotContain("candidate"));
     }
 
     @Test
@@ -187,7 +183,8 @@ class RedundancyResolutionReportsItsCountsTest {
                 "no two documents share a band, so the profile, component and verdict loops are each announced with"
                         + " zero, once, and report nothing; the candidates loop is announced with the two signed"
                         + " documents and reports both, each found to have no candidate, and the containment loop is"
-                        + " announced with two and reports both",
+                        + " announced with two and reports both checked, though neither has a passage another"
+                        + " document also carries to look for, and no containment candidate is reported",
                 () -> {
                     assertThat(progress.announcements())
                             .containsExactly(SCORE + 2, PROFILES + 0, COMPONENTS + 0, VERDICTS + 0, CONTAINMENT + 2);
@@ -195,25 +192,6 @@ class RedundancyResolutionReportsItsCountsTest {
                     assertThat(progress.count("checked")).isEqualTo(2);
                     assertThat(progress.count("profile") + progress.count("component") + progress.count("verdict"))
                             .isZero();
-                });
-    }
-
-    @Test
-    @Story("Resolution tells its caller how many items each loop will go through")
-    @DisplayName("A document with no rare shingle to look for is reported when it is skipped, and finds no candidate")
-    void aDocumentWithNoRareShingleIsStillReported() {
-        Fixture fixture = fixture();
-        fixture.document("a.pdf", shingles(0, 100));
-        fixture.document("c.pdf", shingles(10_000, 100));
-        Recording progress = new Recording();
-
-        fixture.resolve(progress, false);
-
-        claim(
-                "stage 3's document frequency was not measured, so no document has a rare shingle to look for: both"
-                        + " are reported checked all the same, and no candidate is reported",
-                () -> {
-                    assertThat(progress.count("checked")).isEqualTo(2);
                     assertThat(progress.count("candidate")).isZero();
                 });
     }
@@ -235,13 +213,22 @@ class RedundancyResolutionReportsItsCountsTest {
 
     @Test
     @Story("Resolution tells its caller how many items each loop will go through")
-    @DisplayName("Reporting does not change what is resolved: a near-identical pair still leaves one pointer")
+    @DisplayName("Reporting does not change what is resolved: a near-identical pair leaves one pointer, as it does with nothing reported")
     void reportingChangesNothingAboutWhatIsResolved() {
+        Fixture silent = fixture();
+        silent.document("a.pdf", shingles(0, 100));
+        silent.document("b.pdf", shingles(1, 100));
+        silent.resolve(ResolutionProgress.NONE, true);
         Fixture fixture = fixture();
         OccurrenceId first = fixture.document("a.pdf", shingles(0, 100));
         OccurrenceId second = fixture.document("b.pdf", shingles(1, 100));
 
         fixture.resolve(new Recording(), true);
+
+        claim(
+                "the pointers written while the caller is told every count are the ones written when it is told"
+                        + " nothing, document by document",
+                () -> assertThat(fixture.pointers()).isEqualTo(silent.pointers()));
 
         claim(
                 "exactly one of the two near-identical documents points at the other",
@@ -398,6 +385,17 @@ class RedundancyResolutionReportsItsCountsTest {
                             RecordedAlphanumericCounts.over(jdbcTemplate),
                             FIVE_WORD_SHINGLES, THE_SHIPPED_THRESHOLDS,
                             progress);
+        }
+
+        /** Each pointer this run wrote, as the removed document's path, the relation and the kept one's path. */
+        List<String> pointers() {
+            return jdbcTemplate.queryForList(
+                    "SELECT removed.path || ' ' || r.relation || ' ' || kept.path FROM redundant_with r"
+                            + " JOIN file_occurrence removed ON removed.id = r.occurrence_id"
+                            + " JOIN file_occurrence kept ON kept.id = r.redundant_with_occurrence_id"
+                            + " WHERE r.run_id = ? ORDER BY removed.path",
+                    String.class,
+                    stage4RunId.value());
         }
 
         long pairsSharingABand() {

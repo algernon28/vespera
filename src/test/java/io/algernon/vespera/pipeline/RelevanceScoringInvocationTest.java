@@ -5,8 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.profile.Profile;
-import io.algernon.vespera.profile.ProfileFixture;
+import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
@@ -44,12 +43,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-020", url = Adr.RELEVANCE_SCORING_FUNCTION, type = "adr")
 class RelevanceScoringInvocationTest {
 
-    /** A floor of 1.0 opens stage 4's gate the same way {@link SeedCorpusComparisonInvocationTest} does. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The model this fixture names, so gate 3 -- and this ticket's own step -- open too. */
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
-
     @TempDir
     static Path workingDirectory;
 
@@ -73,7 +66,7 @@ class RelevanceScoringInvocationTest {
     void scoresTheSurvivorUnderTheScoringRunGate3Minted(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
@@ -107,7 +100,7 @@ class RelevanceScoringInvocationTest {
         // this file name with no text at all, wherever it appears -- corpus side or seed side.
         Files.writeString(root.resolve(SeedScriptedExtractionBeans.EMPTY_SEED), "stands in for a scan with no text");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
@@ -116,25 +109,14 @@ class RelevanceScoringInvocationTest {
                         + " tier-1 floor, not a failed invocation",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "the no-text document earned stage 2's degenerate-output verdict, which is what removes"
-                        + " it from every survivors query reaching stage 5",
-                () -> assertThat(verdictCountFor(root)).isPositive());
+                "the no-text document earned stage 2's degenerate-output verdict and no other, which is what"
+                        + " removes it from every survivors query reaching stage 5",
+                () -> assertThat(verdictKindsFor(root)).containsExactly(VerdictKind.DEGENERATE_OUTPUT.name()));
         claim(
                 "and consequently no relevance_score row exists for it at all: ADR-020's 'confirm, do"
                         + " not assume' holds end to end through the real pipeline, not only at the unit"
                         + " where RelevanceScoring would refuse to score an empty vector list",
                 () -> assertThat(relevanceScoreRowCountFor(root)).isZero());
-    }
-
-    /** The seed folder named, stage 4's gate open, and gate 3 open too. */
-    private void profile(Path seeds) {
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
     }
 
     /**
@@ -184,6 +166,14 @@ class RelevanceScoringInvocationTest {
         return jdbcTemplate.queryForObject(
                 "SELECT run.id FROM run JOIN walk w ON w.id = run.walk_id"
                         + " WHERE run.stage = 'embedding-scoring' AND w.root = ?",
+                String.class,
+                walkRoot(root));
+    }
+
+    private List<String> verdictKindsFor(Path root) {
+        return jdbcTemplate.queryForList(
+                "SELECT v.kind FROM verdict v JOIN file_occurrence f ON f.id = v.occurrence_id"
+                        + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?",
                 String.class,
                 walkRoot(root));
     }

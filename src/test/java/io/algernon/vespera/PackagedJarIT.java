@@ -181,7 +181,6 @@ class PackagedJarIT {
         }
     }
 
-    /** The name of every file and folder the jar holds. */
     @Test
     @Story("The jar carries the files it starts the sidecars from")
     @DisplayName("The packaged jar carries the two compose files and the converter's build folder, byte for byte as the repository holds them")
@@ -218,6 +217,7 @@ class PackagedJarIT {
                         .isEqualTo(repository.get(name))));
     }
 
+    /** The name of every file and folder the jar holds. */
     private static List<String> entriesOf(Path jar) throws IOException {
         try (JarFile file = new JarFile(jar.toFile())) {
             return file.stream().map(ZipEntry::getName).toList();

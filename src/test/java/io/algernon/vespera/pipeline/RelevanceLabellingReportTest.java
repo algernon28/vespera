@@ -50,8 +50,14 @@ class RelevanceLabellingReportTest {
         claim(
                 "and it still shows the bands it managed to cut, however little separates them, because a"
                         + " reader deciding whether the seeds were any good needs to see the shape rather"
-                        + " than be told a verdict about it",
-                () -> assertThat(html).contains("Band"));
+                        + " than be told a verdict about it: a row for each of the five, with its bounds, its"
+                        + " documents, those asked about and what it is short by, as the fixture's bands hold them",
+                () -> assertThat(html).contains(
+                        "<tr><td>Band 1</td><td>0.80</td><td>0.82</td>" + counts(40, 12, 0),
+                        "<tr><td>Band 2</td><td>0.82</td><td>0.84</td>" + counts(44, 12, 0),
+                        "<tr><td>Band 3</td><td>0.84</td><td>0.86</td>" + counts(39, 12, 0),
+                        "<tr><td>Band 4</td><td>0.86</td><td>0.88</td>" + counts(41, 12, 0),
+                        "<tr><td>Band 5</td><td>0.88</td><td>0.90</td>" + counts(36, 12, 0)));
     }
 
     @Test
@@ -117,6 +123,12 @@ class RelevanceLabellingReportTest {
                 new RelevanceDistribution.Band(3, 0.86, 0.88, 41, 12, 0),
                 new RelevanceDistribution.Band(4, 0.88, 0.90, 36, 12, 0));
         return new RelevanceDistribution.Distribution(200, 0.80, 0.90, bands, List.of(aSample()));
+    }
+
+    /** Three count cells, as the page writes a number into a table. */
+    private static String counts(int documents, int asked, int shortBy) {
+        return "<td class=\"count\">" + documents + "</td><td class=\"count\">" + asked + "</td><td class=\"count\">"
+                + shortBy + "</td>";
     }
 
     private static RelevanceDistribution.Sampled aSample() {

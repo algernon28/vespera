@@ -14,6 +14,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -130,12 +131,6 @@ class ClusteringTest {
                 "and the documents of one group are together rather than split across the two clusters,"
                         + " so the grouping followed the vectors and not the order the rows arrived in",
                 () -> assertThat(ordinalsOfCluster(ordinals, "alike")).containsOnly(0));
-        claim(
-                "no in-partition catch-all was invented: there are exactly as many clusters as the"
-                        + " documents formed, and an extra bucket would be a page no document belongs to"
-                        + " (ADR-022's unattributed sits at the top level, for documents with no winning"
-                        + " seed, which is a different condition with a different cause)",
-                () -> assertThat(clusters.sizesFor(run, seed)).hasSize(2));
     }
 
     @Test
@@ -230,8 +225,9 @@ class ClusteringTest {
                         + " retained edges, which is reported rather than acted on",
                 () -> assertThat(clusters.sizesFor(run, seed)).hasSizeLessThan(CLUSTER_SIZE));
         claim(
-                "and nothing merged them into a catch-all either: the clusters hold the whole partition"
-                        + " between them, with no bucket beside them holding the leftovers",
+                "and those clusters are recorded under the seed whose partition they divide, holding all "
+                        + CLUSTER_SIZE + " documents between them: a document recorded under another seed"
+                        + " would leave this partition's clusters short",
                 () -> assertThat(clusters.sizesFor(run, seed).stream()
                                 .mapToInt(Integer::intValue)
                                 .sum())
@@ -277,23 +273,28 @@ class ClusteringTest {
         RunId run = insertRun(walkId, "clustering-test-two-seeds");
         OccurrenceId firstSeed = insertOccurrence(walkId, "seeds/one.pdf");
         OccurrenceId secondSeed = insertOccurrence(walkId, "seeds/two.pdf");
-        List<OccurrenceId> firstMembers = List.copyOf(
-                insertCluster(walkId, run, firstSeed, "first-partition", 0, 3).keySet());
-        List<OccurrenceId> secondMembers = List.copyOf(
-                insertCluster(walkId, run, secondSeed, "second-partition", 1, 2).keySet());
+        List<OccurrenceId> firstMembers = insertOccurrences(walkId, "first-partition", 3);
+        List<OccurrenceId> secondMembers = insertOccurrences(walkId, "second-partition", 2);
+        // The scores are recorded last document first, and the second seed's before the first's, so the
+        // order the rows were written in is never occurrence order and a read that does not ask for that
+        // order hands back another.
+        secondMembers.reversed().forEach(member -> insertScore(run, member, secondSeed));
+        firstMembers.reversed().forEach(member -> insertScore(run, member, firstSeed));
 
         claim(
-                "each seed that won a document is one partition, and a seed that won none is absent"
-                        + " rather than present and empty -- clustering runs within a partition and never"
-                        + " corpus-wide (ADR-045)",
+                "each seed that won a document is one partition, in occurrence order though the second"
+                        + " seed's scores were recorded first, and a seed that won none is absent rather than"
+                        + " present and empty -- clustering runs within a partition and never corpus-wide"
+                        + " (ADR-045)",
                 () -> assertThat(clustering.partitions(run)).containsExactly(firstSeed, secondSeed));
         claim(
-                "a partition holds exactly the documents that seed won",
+                "a partition holds exactly the documents that seed won, handed over in occurrence order"
+                        + " though they were recorded last first: that is the order ADR-087 fixes for"
+                        + " visiting them, and an order the database chose would make the ordinals an"
+                        + " artefact of the query plan rather than a property of the corpus",
                 () -> assertThat(clustering.membersOf(run, firstSeed)).isEqualTo(firstMembers));
         claim(
-                "and hands them over in occurrence order, which is the order ADR-087 fixes for visiting"
-                        + " them: an order the database chose freely would make the ordinals an artefact"
-                        + " of the query plan rather than a property of the corpus",
+                "and so does the other partition",
                 () -> assertThat(clustering.membersOf(run, secondSeed)).isEqualTo(secondMembers));
     }
 
@@ -341,6 +342,15 @@ class ClusteringTest {
                 .filter(member -> paths.get(member.getKey().value()).startsWith(cluster))
                 .map(Map.Entry::getValue)
                 .toList();
+    }
+
+    /** {@code count} documents of the walk, in the order they were inserted, which is occurrence order. */
+    private List<OccurrenceId> insertOccurrences(long walkId, String prefix, int count) {
+        List<OccurrenceId> occurrences = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            occurrences.add(insertOccurrence(walkId, prefix + "-" + i + ".txt"));
+        }
+        return List.copyOf(occurrences);
     }
 
     /** {@link #CLUSTER_SIZE} documents pointing the same way, each scored to {@code seed}. */

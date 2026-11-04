@@ -36,17 +36,17 @@ class EveryPageIsMovedIntoPlaceByTheMoveThatTriesAgainTest {
 
     @Test
     @Story("A page is put in its place whole")
-    @DisplayName("Every page written beside its place is moved over it by the one move that tries again when the system refuses it for a moment")
+    @DisplayName("Every page moved over its place in one atomic move is moved by the one move that tries again when the system refuses it for a moment")
     void everyPageIsMovedByTheMoveThatTriesAgain() throws Exception {
-        List<String> movingOnTheirOwn = ShippedClasses.namesByClass().entrySet().stream()
+        List<String> movingInOneAtomicMove = ShippedClasses.namesByClass().entrySet().stream()
                 .filter(shipped -> shipped.getValue().contains(AN_ATOMIC_MOVE))
                 .map(Map.Entry::getKey)
-                .filter(name -> !name.equals(THE_MOVE_THAT_TRIES_AGAIN))
                 .toList();
 
         claim(
-                "no class but the one that tries again moves a page over its place itself, so a page refused for a"
-                        + " moment by a program holding it open is tried again wherever it is written",
-                () -> assertThat(movingOnTheirOwn).isEmpty());
+                "the one class that moves a file over its place in one atomic move is the one that tries again, so a"
+                        + " page refused for a moment by a program holding it open is tried again wherever it is"
+                        + " moved",
+                () -> assertThat(movingInOneAtomicMove).containsExactly(THE_MOVE_THAT_TRIES_AGAIN));
     }
 }

@@ -140,7 +140,10 @@ class SurvivorsByPathTest {
                 "the seven documents still standing are returned, each with its name, in the order of their names"
                         + " and not the order recorded; the one removed only by work this one does not read is"
                         + " among them; and names are compared character by character, so the name in capitals"
-                        + " comes before every name in small letters, and a name comes before the name it begins",
+                        + " comes before every name in small letters, and a name comes before the name it begins;"
+                        + " and nothing else, so not the document removed by this work, the one it removed as"
+                        + " degenerate output (which does not go on to the work after this one), the one removed by"
+                        + " the work before it, or the one another walk found",
                 () -> assertThat(handedOver)
                         .containsExactly(
                                 new OccurrenceAtPath(inCapitals, new OccurrencePath(IN_CAPITALS)),
@@ -150,19 +153,6 @@ class SurvivorsByPathTest {
                                 new OccurrenceAtPath(begunByAnother, new OccurrencePath(BEGUN_BY_ANOTHER)),
                                 new OccurrenceAtPath(first, new OccurrencePath(RECORDED_FIRST)),
                                 new OccurrenceAtPath(removedUnderASibling, new OccurrencePath(REMOVED_UNDER_A_SIBLING))));
-        claim(
-                "the document removed by this work, the one removed by the work before it, and the one another"
-                        + " walk found are not among them",
-                () -> assertThat(handedOver)
-                        .extracting(survivor -> survivor.path().value())
-                        .doesNotContain(REMOVED_UNDER_THE_RUN, REMOVED_UPSTREAM, OF_ANOTHER_WALK));
-        claim(
-                "the document this work removed as degenerate output is not among them"
-                        + " either: it does not go on to the work after this one",
-                () -> assertThat(handedOver)
-                        .extracting(survivor -> survivor.path().value())
-                        .as("the names handed over, which must leave out the one removed as degenerate output")
-                        .doesNotContain(REMOVED_AS_DEGENERATE_OUTPUT));
         List<OccurrenceId> inIdOrder = new ArrayList<>();
         ledger.verdicts().survivors(asked).forEach(inIdOrder::add);
         claim(
@@ -221,12 +211,13 @@ class SurvivorsByPathTest {
                         + " ran",
                 () -> assertThat(plans).hasSameSizeAs(THE_SIZES_OF_THE_PAGES));
         claim(
-                "each page's plan searches the walk's files by name through the index that keeps a walk's names"
-                        + " distinct, starting after the last name read",
+                "each page's plan searches the walk's files through an index on both the walk and the name,"
+                        + " starting after the last name read",
                 () -> assertThat(plans)
                         .allSatisfy(plan -> assertThat(plan)
-                                .anyMatch(detail -> detail.contains("sqlite_autoindex_file_occurrence_1")
-                                        && detail.contains("path>"))));
+                                .anyMatch(detail -> detail.startsWith("SEARCH file_occurrence USING")
+                                        && detail.contains("INDEX")
+                                        && detail.endsWith("(walk_id=? AND path>?)"))));
         claim(
                 "and no page's plan sorts in a structure of its own, so no page goes through the whole walk to"
                         + " keep a thousand of it",

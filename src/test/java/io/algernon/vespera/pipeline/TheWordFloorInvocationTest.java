@@ -54,8 +54,6 @@ class TheWordFloorInvocationTest {
     /** The floor the operator writes: two words or more are kept. */
     private static final String A_FLOOR_OF_TWO = "2";
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
     private static final String WHY = "set by this test";
 
     /** The corpus documents, or seeds, that have a body of seven words. */
@@ -146,8 +144,8 @@ class TheWordFloorInvocationTest {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), WHY)
                 .degenerateOutputWordFloor(A_FLOOR_OF_TWO, WHY)
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so gate 3 is open")
                 .build());
 
         cli.run("run", root.toString());

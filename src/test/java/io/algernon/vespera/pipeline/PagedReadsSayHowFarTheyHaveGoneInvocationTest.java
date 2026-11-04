@@ -76,9 +76,6 @@ class PagedReadsSayHowFarTheyHaveGoneInvocationTest {
 
     private static final int DIFFERENT_LENGTHS = 170;
 
-    /** What stage 4's gate is opened with, so the comparison is reached. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
     private static final String STAGE_THREE_FINISHED = "Stage 3 (content census) finished under run ";
     private static final String STAGE_FIVE_B = "Stage 5b (seed/corpus comparison)";
     private static final String CORPUS_METRICS = "the corpus survivors' extraction metrics";
@@ -154,11 +151,10 @@ class PagedReadsSayHowFarTheyHaveGoneInvocationTest {
                         + " copies stage 1 set aside among them, so its running count writes exactly one line,"
                         + " at the thousandth: it has no total, so it says how many so far",
                 () -> assertThat(ProgressLines.of(logged.list, OCCURRENCES_CHECKED))
-                        .containsExactlyElementsOf(ProgressLines.expectedRunning(OCCURRENCES_CHECKED, COPIES)));
+                        .containsExactly(OCCURRENCES_CHECKED + ": 1,000 so far"));
         claim(
                 "and the line was written by the progress counter itself",
                 () -> assertThat(ProgressLines.loggersOf(logged.list, OCCURRENCES_CHECKED))
-                        .isNotEmpty()
                         .containsOnly(ProgressLines.theCountersLogger()));
     }
 
@@ -170,7 +166,7 @@ class PagedReadsSayHowFarTheyHaveGoneInvocationTest {
         Files.writeString(seeds.resolve("seed.txt"), "a seed about harbour pilots and the tide tables they kept");
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
+                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .build());
 
         cli.run("run", root.toString());

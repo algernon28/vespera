@@ -262,9 +262,6 @@ class DoclingClientTest {
     /** How long this test lets a health check wait for its answer. */
     private static final Duration A_SHORT_HEALTH_WAIT = Duration.ofMillis(300);
 
-    /** Far more than that, and far less than a conversion's five minutes: what tells the two clocks apart. */
-    private static final Duration LONGEST_A_HEALTH_CHECK_MAY_TAKE = Duration.ofSeconds(10);
-
     /** How long the shipped client lets a health check wait. */
     private static final Duration SHIPPED_HEALTH_WAIT = Duration.ofSeconds(5);
 
@@ -524,23 +521,16 @@ class DoclingClientTest {
     @DisplayName("Converting names the OCR engine and the export format, rather than letting the sidecar pick")
     @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
     void sendsThePinnedOcrPresetAndExportFormat(@TempDir Path dir) throws IOException {
-        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
-        service.expect(requestTo(CONVERT_ENDPOINT))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(content().string(containsString("name=\"ocr_preset\"")))
-                .andExpect(content().string(containsString(SHIPPED_OCR_PRESET)))
-                .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
-        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
-
-        client.convert(aDocument(dir), AS_DETECTED, NO_SUBTYPE);
+        String sent = sentBody(aDocument(dir), AS_DETECTED, Optional.ofNullable(NO_SUBTYPE));
 
         claim(
-                "the request names the OCR engine it wants instead of leaving the sidecar to choose one:"
-                        + " left unnamed, the engine is resolved from whichever models happen to be cached on"
-                        + " the machine, and the same document converts differently elsewhere with nothing"
-                        + " recording that it did",
-                () -> assertThatCode(service::verify).doesNotThrowAnyException());
+                "the request names the OCR engine it wants, " + SHIPPED_OCR_PRESET + ", in its ocr_preset field,"
+                        + " and the format it wants back, json, in its to_formats field, instead of leaving the"
+                        + " sidecar to choose: left unnamed, the engine is resolved from whichever models happen"
+                        + " to be cached on the machine, and the same document converts differently elsewhere"
+                        + " with nothing recording that it did",
+                () -> assertThat(List.of(partOf(sent, "ocr_preset"), partOf(sent, "to_formats")))
+                        .containsExactly(Optional.of(SHIPPED_OCR_PRESET), Optional.of("json")));
     }
 
     /**
@@ -650,11 +640,6 @@ class DoclingClientTest {
                 () -> assertThat(postedName(onDisk, DetectedFormat.valueOf("BMP"), Optional.empty()))
                         .isEqualTo(postedName(onDisk, DetectedFormat.IMAGE, Optional.empty()))
                         .isEqualTo(NEUTRAL_PART_NAME));
-        claim(
-                "and so the options the conversion cache is keyed by still name version "
-                        + NAMING_SCHEME_VERSION + " of the naming scheme: no name changed, so no conversion"
-                        + " already cached has to be made again",
-                () -> assertThat(sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
     }
 
     /**
@@ -677,11 +662,6 @@ class DoclingClientTest {
                 () -> assertThat(postedName(onDisk, DetectedFormat.valueOf("VIDEO"), Optional.empty()))
                         .isEqualTo(postedName(onDisk, DetectedFormat.UNRECOGNISED, Optional.empty()))
                         .isEqualTo(NEUTRAL_PART_NAME));
-        claim(
-                "and so the options the conversion cache is keyed by still name version "
-                        + NAMING_SCHEME_VERSION + " of the naming scheme: no name changed, so no conversion"
-                        + " already cached has to be made again",
-                () -> assertThat(sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
     }
 
     /**
@@ -732,75 +712,6 @@ class DoclingClientTest {
                         .isEqualTo(TextParts.convertedInParts(
                                 onDisk, DetectedFormat.PLAIN_TEXT, null, DoclingClient.TEXT_SIZE_CEILING_BYTES + 1))
                         .isTrue());
-        claim(
-                "so the options the conversion cache is keyed by still name version " + NAMING_SCHEME_VERSION
-                        + " of the naming scheme",
-                () -> assertThat(sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
-    }
-
-    @Test
-    @Story("The name sent is the format's, not the path's")
-    @DisplayName("Every format the bytes can yield is posted under the one name that reaches its pipeline")
-    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
-    @Link(name = "ADR-095", url = Adr.DETECTED_FORMAT_IS_A_STAGE_1_OUTPUT, type = "adr")
-    void postsEveryDetectedFormatUnderItsCanonicalName(@TempDir Path dir) throws IOException {
-        Path onDisk = Files.writeString(dir.resolve("misleading.xlsx"), "bytes that the name lies about");
-
-        claim(
-                "where the bytes are decisive the name claims only what they already said: Docling"
-                        + " sniffs a PDF whatever it is called, so " + NEUTRAL_PART_NAME + " is sent wherever"
-                        + " no honest extension exists — it names no format, which is what lets Docling's own"
-                        + " reading stand",
-                () -> {
-                    assertThat(postedName(onDisk, DetectedFormat.PDF, Optional.empty())).isEqualTo("document.pdf");
-                    assertThat(postedName(onDisk, DetectedFormat.IMAGE, Optional.empty()))
-                            .isEqualTo(NEUTRAL_PART_NAME);
-                    assertThat(postedName(onDisk, DetectedFormat.UNRECOGNISED, Optional.empty()))
-                            .isEqualTo(NEUTRAL_PART_NAME);
-                });
-        claim(
-                "a wordprocessing document is named as one, because that is the single case where our"
-                        + " name beats a lie: a zip whose identifying entry sits past Docling's 6000-byte"
-                        + " window is read by extension first, and this file is called .xlsx on disk",
-                () -> assertThat(postedName(onDisk, DetectedFormat.WORDPROCESSING, Optional.empty()))
-                        .isEqualTo("document.docx"));
-        claim(
-                "while any other zip container is left nameless, so Docling's own central-directory"
-                        + " probe splits spreadsheet from presentation from open-document — the split stage 1"
-                        + " deliberately did not make, because this is the lookup that would have duplicated it",
-                () -> assertThat(postedName(onDisk, DetectedFormat.ZIP_CONTAINER, Optional.empty()))
-                        .isEqualTo(NEUTRAL_PART_NAME));
-        claim(
-                "a legacy Office file travels as what its subtype says it is, and an OLE compound file"
-                        + " with no subtype -- a Thumbs.db, a .msg -- travels nameless, because there is"
-                        + " nothing to claim about it",
-                () -> {
-                    assertThat(postedName(onDisk, DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.LEGACY_WORD)))
-                            .isEqualTo("document.doc");
-                    assertThat(postedName(
-                                    onDisk, DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.LEGACY_SPREADSHEET)))
-                            .isEqualTo("document.xls");
-                    assertThat(postedName(
-                                    onDisk, DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.LEGACY_PRESENTATION)))
-                            .isEqualTo("document.ppt");
-                    assertThat(postedName(onDisk, DetectedFormat.OLE_COMPOUND, Optional.empty()))
-                            .isEqualTo(NEUTRAL_PART_NAME);
-                });
-        claim(
-                "and text is where the name does the real work, because Docling resolves text-shaped"
-                        + " content by extension alone: AsciiDoc is reachable by no other route at all, and an"
-                        + " HTML fragment that opens with neither a doctype nor a tag Docling anchors on is"
-                        + " read as prose unless the name says otherwise",
-                () -> {
-                    assertThat(postedName(onDisk, DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.HTML)))
-                            .isEqualTo("document.html");
-                    assertThat(postedName(onDisk, DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.CSV)))
-                            .isEqualTo("document.csv");
-                    assertThat(postedName(onDisk, DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.ASCIIDOC)))
-                            .isEqualTo("document.adoc");
-                    assertThat(postedName(onDisk, DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.MARKDOWN)))
-                            .isEqualTo(MARKDOWN_PART_NAME);
-                });
     }
 
     @Test
@@ -816,13 +727,11 @@ class DoclingClientTest {
                         + " changes what a conversion returns -- so the identity the cache is keyed by states"
                         + " which scheme produced it, as version " + NAMING_SCHEME_VERSION + ": without that,"
                         + " a response minted under one table is served for a call the current table would"
-                        + " make differently, and nothing in the key notices",
-                () -> assertThat(sentOptions()).contains("naming=" + NAMING_SCHEME_VERSION));
-        claim(
-                "and the options are stated whole rather than summarised, the rule for cutting a large text"
-                        + " into parts last among them, so an option added to the request without being added"
-                        + " here fails this claim rather than silently keying new responses under an identity"
-                        + " that predates it",
+                        + " make differently, and nothing in the key notices. The options are stated whole rather"
+                        + " than summarised, the rule for cutting a large text into parts last among them, so an"
+                        + " option added to the request without being added here fails this claim rather than"
+                        + " silently keying new responses under an identity that predates it; and a name that"
+                        + " stayed as it was, a BMP image's, a video's or a told-apart seed's, keeps this version",
                 () -> assertThat(sentOptions())
                         .isEqualTo("to_formats=json;ocr_preset=" + SHIPPED_OCR_PRESET + ";image_export_mode="
                                 + PICTURE_EXPORT_MODE + ";naming=" + NAMING_SCHEME_VERSION
@@ -903,15 +812,17 @@ class DoclingClientTest {
     @DisplayName("The whole table is pinned against the version the identity claims, so one cannot move without the other")
     @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
     @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
+    @Link(name = "ADR-095", url = Adr.DETECTED_FORMAT_IS_A_STAGE_1_OUTPUT, type = "adr")
     void pinsTheWholeTableAgainstTheVersionTheIdentityClaims(@TempDir Path dir) throws IOException {
-        Path onDisk = aDocument(dir);
+        Path onDisk = Files.writeString(dir.resolve("misleading.xlsx"), "bytes that the name lies about");
         String table = EVERY_PAIRING.stream()
                 .map(pairing -> pairing.format() + subtypeSuffix(pairing) + "=" + postedName(onDisk, pairing.format(), pairing.subtype()))
                 .collect(Collectors.joining(";"));
 
         claim(
-                "every pairing stage 1 can produce renders to the name recorded beside it, and this is"
-                        + " the claim that makes the identity's naming=" + NAMING_SCHEME_VERSION + " mean"
+                "every pairing stage 1 can produce renders to the name recorded beside it, whatever the file"
+                        + " is called on disk (here .xlsx, which a wordprocessing document is still posted"
+                        + " beside as .docx), and this is the claim that makes the identity's naming=" + NAMING_SCHEME_VERSION + " mean"
                         + " something: editing a row below without bumping that version would leave every"
                         + " response cached under the old table being served for calls the new one makes"
                         + " differently, so change the two together or not at all",
@@ -998,10 +909,10 @@ class DoclingClientTest {
                     "a service that takes the connection and never answers is not healthy",
                     () -> assertThat(healthy).isFalse());
             claim(
-                    "and finding that out took about the " + A_SHORT_HEALTH_WAIT.toMillis() + " ms this test"
-                            + " allows a health check, far inside the " + LONGEST_A_HEALTH_CHECK_MAY_TAKE.toSeconds()
-                            + " seconds that would mean it had waited on the conversion clock",
-                    () -> assertThat(waited).isLessThan(LONGEST_A_HEALTH_CHECK_MAY_TAKE));
+                    "and finding that out took the " + A_SHORT_HEALTH_WAIT.toMillis() + " ms this test gives the"
+                            + " client, under the " + SHIPPED_HEALTH_WAIT.toSeconds() + " seconds a client that"
+                            + " ignored the wait it was given would take, let alone the conversion's five minutes",
+                    () -> assertThat(waited).isLessThan(SHIPPED_HEALTH_WAIT));
         }
         claim(
                 "as shipped, a health check waits " + SHIPPED_HEALTH_WAIT.toSeconds() + " seconds for its"

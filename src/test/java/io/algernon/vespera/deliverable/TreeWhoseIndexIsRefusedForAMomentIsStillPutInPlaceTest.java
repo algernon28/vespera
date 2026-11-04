@@ -31,7 +31,7 @@ import org.junit.jupiter.api.io.TempDir;
  * move rolls back every synthesis doc the invocation wrote.
  *
  * <p>Pure: no database, and no Windows. The move is stood in for by one refused as Windows refuses it, and the
- * waits between attempts are counted and not slept. Only the moves at the tree's top are counted and refused: each
+ * waits between attempts are not slept. Only the moves at the tree's top are counted and refused: each
  * group's page is moved into its folder by the same move (ADR-286 §3), and goes through at once.
  */
 @Epic("The deliverable")

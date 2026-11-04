@@ -11,8 +11,13 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -44,51 +49,40 @@ class ExtractionSchemaTest {
     /** The version the cache key table came with (ADR-206 section 9). */
     private static final int THE_VERSION_WITH_IT = 6;
 
+    /** A version no build has written yet: one after {@link #THE_VERSION_WITH_IT}. */
+    private static final int THE_VERSION_AFTER_IT = 7;
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @Test
-    @Story("A module states the schema it was built against")
-    @DisplayName("extraction refuses to start against a database recording a version other than its own")
-    void refusesToStartAgainstAMismatchedDatabase() {
-        int somethingOtherThanExtractionExpects = ExtractionSchema.VERSION + 1;
-        jdbcTemplate.update(
-                "INSERT INTO schema_version (module, version) VALUES (?, ?)",
-                ExtractionSchema.MODULE,
-                somethingOtherThanExtractionExpects);
-
-        claim(
-                "extraction's own check runs independently of every other module's, and refuses before"
-                        + " anything reads or writes confidence_distribution",
-                () -> assertThatThrownBy(() -> new ExtractionSchema(new SchemaVersionGuard(jdbcTemplate)))
-                        .isInstanceOf(IllegalStateException.class)
-                        .hasMessageContaining(ExtractionSchema.MODULE)
-                        .hasMessageContaining(String.valueOf(ExtractionSchema.VERSION))
-                        .hasMessageContaining(String.valueOf(somethingOtherThanExtractionExpects)));
-    }
-
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("versionsOtherThanThisBuilds")
     @Issue("349")
     @Story("A module states the schema it was built against")
-    @DisplayName("extraction refuses a database written by the version before the cache key table")
-    void refusesADatabaseWrittenBeforeTheCacheKeyTable() {
+    @DisplayName("extraction refuses to start against a database recording a version other than its own")
+    void refusesToStartAgainstAMismatchedDatabase(int recorded) {
         jdbcTemplate.update(
-                "INSERT INTO schema_version (module, version) VALUES (?, ?)",
-                ExtractionSchema.MODULE,
-                THE_VERSION_BEFORE_THE_CACHE_KEY_TABLE);
+                "INSERT INTO schema_version (module, version) VALUES (?, ?)", ExtractionSchema.MODULE, recorded);
 
         claim(
-                "a database recording version " + THE_VERSION_BEFORE_THE_CACHE_KEY_TABLE + ", the last one"
-                        + " without the cache key table, is refused, in the words every refusal of a"
-                        + " version uses: the module, the version found and the version " + THE_VERSION_WITH_IT
-                        + " this build expects. No row in it says which conversion belongs to which"
-                        + " document, and none can be filled in without reading every file again, so the"
-                        + " way forward is a new working directory",
+                "a database recording version " + recorded + " is refused before anything reads or writes a row of"
+                        + " extraction's, by extraction's own check and in the words every refusal of a version"
+                        + " uses: the module, the version found and the version " + THE_VERSION_WITH_IT + " this"
+                        + " build expects. A database of the version before the cache key table holds no row saying"
+                        + " which conversion belongs to which document, and none can be filled in without reading"
+                        + " every file again, so the way forward is a new working directory",
                 () -> assertThatThrownBy(() -> new ExtractionSchema(new SchemaVersionGuard(jdbcTemplate)))
                         .isInstanceOf(IllegalStateException.class)
                         .hasMessageContaining(ExtractionSchema.MODULE)
-                        .hasMessageContaining(String.valueOf(THE_VERSION_BEFORE_THE_CACHE_KEY_TABLE))
+                        .hasMessageContaining(String.valueOf(recorded))
                         .hasMessageContaining(String.valueOf(THE_VERSION_WITH_IT)));
+    }
+
+    static Stream<Arguments> versionsOtherThanThisBuilds() {
+        return Stream.of(
+                Arguments.of(Named.of("a version after this build's", THE_VERSION_AFTER_IT)),
+                Arguments.of(Named.of(
+                        "the version before the cache key table", THE_VERSION_BEFORE_THE_CACHE_KEY_TABLE)));
     }
 
     @Test
@@ -98,13 +92,13 @@ class ExtractionSchemaTest {
         new ExtractionSchema(new SchemaVersionGuard(jdbcTemplate));
 
         claim(
-                "the version recorded is exactly VERSION 6, the extraction_cache_key bump -- not a value"
-                        + " borrowed from ledger, corpus or similarity's own rows",
+                "the version recorded is exactly " + THE_VERSION_WITH_IT + ", the extraction_cache_key bump -- not"
+                        + " a value borrowed from ledger, corpus or similarity's own rows",
                 () -> assertThat(jdbcTemplate.queryForObject(
                                 "SELECT version FROM schema_version WHERE module = ?",
                                 Integer.class,
                                 ExtractionSchema.MODULE))
-                        .isEqualTo(ExtractionSchema.VERSION));
+                        .isEqualTo(THE_VERSION_WITH_IT));
     }
 
     @Test
@@ -116,7 +110,7 @@ class ExtractionSchemaTest {
                 "the version and the change it names arrived together, so a later table or column"
                         + " changed without a bump would leave this constant already committed to the"
                         + " wrong value",
-                () -> assertThat(ExtractionSchema.VERSION).isEqualTo(6));
+                () -> assertThat(ExtractionSchema.VERSION).isEqualTo(THE_VERSION_WITH_IT));
         claim(
                 "extraction_cache_key is present in the schema this VERSION claims to describe, which is"
                         + " what a database written before it does not have: no row there says which"

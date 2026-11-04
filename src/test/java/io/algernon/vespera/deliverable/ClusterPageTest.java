@@ -147,7 +147,7 @@ class ClusterPageTest {
 
         claim(
                 "entries 1 to 3 are the call's exemplars in the order it sent them, so the model's [n] lands on"
-                        + " the document it was written about (ADR-133); the third was sent and is no longer in"
+                        + " the document it was written about; the third was sent and is no longer in"
                         + " the cluster, so its number is kept, empty, rather than given to another document;"
                         + " and the one member the call did not send follows, as entry 4",
                 () -> assertThat(numbered)
@@ -251,10 +251,11 @@ class ClusterPageTest {
                 DeliverableProgress.NONE);
 
         claim(
-                "the reason's sentence replaces the plain one and nothing else on the page changes (ADR-174)",
+                "the reason's sentence, the one on record for a group the writing stopped before, replaces the plain"
+                        + " one and nothing else on the page changes",
                 () -> assertThat(Files.readString(page, StandardCharsets.UTF_8))
                         .isEqualTo(THE_UNWRITTEN_PAGE.replace(
-                                Deliverable.NOTHING_WAS_WRITTEN_OVER_IT, UnwrittenSentences.of(Unwritten.NOT_REACHED, DeliverableLanguage.ENGLISH))));
+                                Deliverable.NOTHING_WAS_WRITTEN_OVER_IT, UnwrittenSentencesOnRecord.WRITING_STOPPED_BEFORE_IT)));
     }
 
     @Test
@@ -283,7 +284,7 @@ class ClusterPageTest {
 
         claim(
                 "three of the page's four entries carry a document, and those three are reported, so the count"
-                        + " the step announced before it began (ADR-192 §5) is the count it reaches",
+                        + " the step announced before it began is the count it reaches",
                 () -> assertThat(entriesReported.get()).isEqualTo(3));
     }
 

@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.embedding.LabelQuestion;
 import io.algernon.vespera.embedding.RelevanceLabeller;
-import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -103,11 +102,7 @@ class RefusingLabellerInvocationTest {
             @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor("1.0", "set by this test, so stage 4's gate is open")
-                .embeddingModel("qwen3-embedding:0.6b", "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
         cli.run("run", root.toString());
         byte[] before = Files.readAllBytes(workingDirectory.resolve(LABEL_FILE));
 

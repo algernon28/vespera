@@ -106,11 +106,9 @@ class NumericValueTest {
         claim(
                 "a comma written for a decimal point is somebody having answered, and having answered in"
                         + " a way nothing can act on -- which is a different thing from never answering,"
-                        + " because only one of the two is worth telling them about",
-                () -> assertThat(commaed.reading()).isInstanceOf(NumericValue.Unreadable.class));
-        claim(
-                "and it carries back exactly what they wrote, so the closing line can quote it at them"
-                        + " rather than describing it",
+                        + " because only one of the two is worth telling them about -- and it carries back"
+                        + " exactly what they wrote, so the closing line can quote it at them rather than"
+                        + " describing it",
                 () -> assertThat(commaed.reading())
                         .isEqualTo(new NumericValue.Unreadable(A_DECIMAL_COMMA)));
     }
@@ -125,13 +123,10 @@ class NumericValueTest {
                 "the four characters that arrive when somebody quotes the word null are treated as the"
                         + " wrong answer they are: this is the exact mistake the profile's format was"
                         + " chosen to catch, and for seven keys it was reaching the stages as ordinary"
-                        + " text nobody had checked",
+                        + " text nobody had checked; never read as nobody having answered, which would let a"
+                        + " person believe they had cleared a threshold when they had set a broken one",
                 () -> assertThat(quotedNull.reading())
                         .isEqualTo(new NumericValue.Unreadable(A_QUOTED_NULL)));
-        claim(
-                "and it is emphatically not read as nobody having answered, which is what would let a"
-                        + " person believe they had cleared a threshold when they had set a broken one",
-                () -> assertThat(quotedNull.reading()).isNotInstanceOf(NumericValue.Unset.class));
     }
 
     @Test

@@ -46,9 +46,6 @@ import org.springframework.transaction.support.TransactionTemplate;
  * nothing, so a line can name entries the ledger does not hold; and that a resumed walk's lines start again
  * from the counts last committed, so a later line can state a lower count than an earlier one, which ADR-192
  * accepts; and that a checkpoint taken commits as before but writes no running line of its own.
- *
- * <p><b>Part (a) of ADR-192.</b> Does not compile until {@code Walk.Observer.entryWalked} exists; part (a)
- * moves it into {@code src/test}.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

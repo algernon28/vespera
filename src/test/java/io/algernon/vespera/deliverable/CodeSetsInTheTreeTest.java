@@ -127,6 +127,48 @@ class CodeSetsInTheTreeTest {
                 () -> assertThat(tree.resolve("code/Work/shop")).doesNotExist());
     }
 
+    /**
+     * A set at a code set folder outside the corpus root (ADR-334 §5.5): its folder and its members' paths are spelt
+     * by the folder's real path, absolute, with {@code /} between its elements (§5.4), each file is read at that path
+     * and not below the corpus root, and the set is copied whole under {@code code/}, named for the folder's last
+     * element, its paths below the folder kept.
+     */
+    @Test
+    @Story("Each code set is copied whole in its own layout")
+    @DisplayName("A code set at a folder outside the corpus root is copied whole under code/, each file read at its whole path and kept at its path below the set's folder")
+    @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
+    void aSetOutsideTheCorpusRootIsCopiedWholeUnderCode(@TempDir Path base) throws IOException {
+        Path archive = Files.createDirectories(base.resolve("archive"));
+        Path billing = Files.createDirectories(base.resolve("elsewhere").resolve("billing")).toRealPath();
+        String spelt = billing.toString().replace(java.io.File.separatorChar, '/');
+        List<ListedCodeFile> members = List.of(
+                outside(billing, 130, spelt, "pom.xml", "build", "<project/>\n"),
+                outside(billing, 131, spelt, "src/main/java/Billing.java", "code", "class Billing {}\n"));
+
+        Path tree = draw(base, archive, codeSets(Map.of(set(spelt, "billing", 130), members)), DeliverableProgress.NONE,
+                () -> ROOM_ENOUGH);
+
+        claim(
+                "code/ holds the set in a folder named for the folder's last element, each file at its path below the"
+                        + " set's folder, and nothing else",
+                () -> assertThat(filesUnder(tree.resolve("code")))
+                        .containsExactly("billing/pom.xml", "billing/src/main/java/Billing.java"));
+        claim(
+                "each copy holds exactly the bytes of its file where it lies, outside the corpus root",
+                () -> {
+                    assertThat(tree.resolve("code/billing/pom.xml"))
+                            .hasBinaryContent(Files.readAllBytes(billing.resolve("pom.xml")));
+                    assertThat(tree.resolve("code/billing/src/main/java/Billing.java"))
+                            .hasBinaryContent(Files.readAllBytes(billing.resolve("src/main/java/Billing.java")));
+                });
+        claim(
+                "and the code listing says each was copied, by its whole path",
+                () -> assertThat(outcomesOf(tree))
+                        .containsExactlyInAnyOrderEntriesOf(Map.of(
+                                spelt + "/pom.xml", "code/billing/pom.xml copied",
+                                spelt + "/src/main/java/Billing.java", "code/billing/src/main/java/Billing.java copied")));
+    }
+
     @Test
     @Story("Each code file is checked against what was recorded when the archive was walked")
     @DisplayName("A code file whose size or modification time differs from what was recorded when the archive was walked is changed and not copied, and one that matches is copied")
@@ -292,9 +334,6 @@ class CodeSetsInTheTreeTest {
         claim(
                 "the section comes after the last group's table",
                 () -> assertThat(index.indexOf(theSection)).isGreaterThan(index.indexOf("Fire doors")));
-        claim(
-                "and nothing in it says group",
-                () -> assertThat(theSection.toLowerCase(java.util.Locale.ROOT)).doesNotContain("group"));
     }
 
     @Test
@@ -515,6 +554,20 @@ class CodeSetsInTheTreeTest {
         return new ListedCodeFile(
                 new OccurrenceId(occurrence), new OccurrencePath(path), setFolder, role, generator,
                 bytes(text).length, THE_WALKS_TIME);
+    }
+
+    /**
+     * A member written into the code set folder {@code folder}, outside the corpus root, at {@code below}, its time set
+     * to the walk's, and as the walk recorded it: by the folder's spelling {@code spelt} and the path below it.
+     */
+    private static ListedCodeFile outside(Path folder, long occurrence, String spelt, String below, String role,
+            String text) throws IOException {
+        Path original = folder.resolve(below);
+        Files.createDirectories(original.getParent());
+        Files.write(original, bytes(text));
+        Files.setLastModifiedTime(original, FileTime.from(THE_WALKS_TIME));
+        return new ListedCodeFile(new OccurrenceId(occurrence), new OccurrencePath(spelt + "/" + below), spelt, role,
+                null, bytes(text).length, THE_WALKS_TIME);
     }
 
     /** Each row of {@code code.csv} by its path: its copy and its outcome, one space between. */

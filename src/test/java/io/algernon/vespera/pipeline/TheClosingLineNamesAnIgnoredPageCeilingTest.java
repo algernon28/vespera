@@ -56,6 +56,13 @@ class TheClosingLineNamesAnIgnoredPageCeilingTest {
     private static final NextAction.DeliverableSummary NOTHING_LEFT =
             new NextAction.DeliverableSummary(A_TREE, 0, OptionalInt.of(0), false, 0, 0);
 
+    /** A tree this invocation did not draw: no count of documents not copied, as when the drawing was skipped. */
+    private static final NextAction.DeliverableSummary NO_TREE_DRAWN =
+            new NextAction.DeliverableSummary(A_TREE, 0, OptionalInt.empty(), false, 0, 0);
+
+    /** How the same sentence ends where no tree was drawn: no count of documents not copied. */
+    private static final String THE_COUNTS_WITH_NO_TREE_DRAWN = "with 0 groups left unwritten";
+
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"0", "1.5", "-2", "NaN", "big", "9223372036854775808"})
     @Story("A ceiling that is not a whole number of bytes splits nothing, and the line says so")
@@ -91,10 +98,12 @@ class TheClosingLineNamesAnIgnoredPageCeilingTest {
         claim(
                 "and with no tree drawn this invocation, an ignored ceiling is not named, the ceiling being read by a"
                         + " drawing alone",
-                () -> assertThat(closingFor(withTheCeiling("big"), null).line()).doesNotContain("clusterPageByteCeiling"));
+                () -> assertThat(closingFor(withTheCeiling("big"), NO_TREE_DRAWN).line())
+                        .endsWith(THE_COUNTS_WITH_NO_TREE_DRAWN + ".")
+                        .doesNotContain("clusterPageByteCeiling"));
     }
 
-    /** The closing of an invocation at the end of the path, handed {@code deliverable}, or none where it drew none. */
+    /** The closing of an invocation at the end of the path, handed {@code deliverable}. */
     private static NextAction.Closing closingFor(Profile profile, NextAction.DeliverableSummary deliverable) {
         return NextAction.closing(
                 profile,

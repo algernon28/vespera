@@ -14,10 +14,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.StandardEnvironment;
@@ -95,14 +100,15 @@ class PublishReadsItsValuesByTheirNamesIT {
                         StubConfluence.SPACE_KEY, StubConfluence.PARENT_ID, StubConfluence.PARENT_TITLE));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("parentsNamedByNeitherOrByBoth")
     @Story("The publish names what is missing by its current name")
-    @DisplayName("A parent named neither by its id nor by its title is refused, naming the folder id and folder title variables")
-    void aParentNamedByNeitherIsRefusedNamingTheFolderVariables() throws IOException {
+    @DisplayName("A parent named by neither or by both of its id and its title is refused, naming the folder id and folder title variables")
+    void aParentNamedByNeitherOrByBothIsRefusedNamingTheFolderVariables(List<String> idAndTitle) throws IOException {
         Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
         try (StubConfluence site = StubConfluence.start()) {
-            Publisher.Outcome outcome = site.publisher(StubConfluence.theAccount(), StubConfluence.BASE_URL, "", "",
-                            new ArrayList<>())
+            Publisher.Outcome outcome = site.publisher(StubConfluence.theAccount(), StubConfluence.BASE_URL,
+                            idAndTitle.get(0), idAndTitle.get(1), new ArrayList<>())
                     .publish(rendering.confluence(), Rendering.RUN, folder, line -> {});
 
             claimRefusedNamingTheFolderVariables(outcome);
@@ -110,19 +116,12 @@ class PublishReadsItsValuesByTheirNamesIT {
         }
     }
 
-    @Test
-    @Story("The publish names what is missing by its current name")
-    @DisplayName("A parent named both by its id and by its title is refused, naming the folder id and folder title variables")
-    void aParentNamedByBothIsRefusedNamingTheFolderVariables() throws IOException {
-        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
-        try (StubConfluence site = StubConfluence.start()) {
-            Publisher.Outcome outcome = site.publisher(StubConfluence.theAccount(), StubConfluence.BASE_URL,
-                            StubConfluence.PARENT_ID, StubConfluence.PARENT_TITLE, new ArrayList<>())
-                    .publish(rendering.confluence(), Rendering.RUN, folder, line -> {});
-
-            claimRefusedNamingTheFolderVariables(outcome);
-            claim("and nothing was sent", () -> assertThat(site.sent()).isEmpty());
-        }
+    /** The parent's id and title, named by neither and by both. */
+    static Stream<Arguments> parentsNamedByNeitherOrByBoth() {
+        return Stream.of(
+                Arguments.of(Named.of("a parent named by neither its id nor its title", List.of("", ""))),
+                Arguments.of(Named.of("a parent named by both its id and its title",
+                        List.of(StubConfluence.PARENT_ID, StubConfluence.PARENT_TITLE))));
     }
 
     @Test

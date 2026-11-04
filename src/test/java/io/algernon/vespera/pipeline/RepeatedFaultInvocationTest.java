@@ -10,7 +10,6 @@ import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.pipeline.GenerationScriptedBeans.ScriptedAnswer;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.synthesis.ClusterFaultKind;
@@ -49,7 +48,7 @@ import picocli.CommandLine;
  * brace, the shape ADR-162 turns down, on the invocation that first reaches the writing and on the next one, and a
  * third invocation after that. What each test claims is read off what {@link #aClusterTurnedDownTwiceAndRunAgain}
  * kept after each invocation, because the tree is drawn again in place by every invocation and what the first one
- * drew is gone by the time a test runs. The three tests of the boundary build their own sequences.
+ * drew is gone by the time a test runs. The four tests of the boundary build their own sequences.
  *
  * <p>The report says <em>group</em> where the code says cluster (ADR-122), as {@link GenerationFaultInvocationTest}
  * explains.
@@ -60,12 +59,6 @@ import picocli.CommandLine;
 @Feature("Writing over the groups")
 @Link(name = "ADR-319", url = Adr.A_CLUSTER_TURNED_DOWN_THE_LAST_TWO_TIMES_STANDS_WITHOUT_WRITING, type = "adr")
 class RepeatedFaultInvocationTest {
-
-    /** A floor of 1.0 opens stage 4's gate the way every other invocation test opens it. */
-    private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** The embedding model this fixture names, so gate 3 and everything behind it open. */
-    private static final String EMBEDDING_MODEL_NAME = "qwen3-embedding:0.6b";
 
     /** The window every call in this class reads in, stated so a test claiming an overrun knows what it overran. */
     private static final String THE_READING_WINDOW = "4096";
@@ -176,7 +169,7 @@ class RepeatedFaultInvocationTest {
     /**
      * Builds the sequence five tests read, once for the class: the fixture's one cluster answered with writing ending
      * in a stray brace on the first invocation that reaches the writing and on the next, a publish after the second,
-     * and a third invocation with nothing scripted. Not a {@code @BeforeAll}: the Spring context, and the beans it
+     * and a third invocation with that answer still scripted, forgotten only once it has run. Not a {@code @BeforeAll}: the Spring context, and the beans it
      * needs, are there for a test method and not for a static method before them.
      */
     private void aClusterTurnedDownTwiceAndRunAgain() throws IOException {
@@ -564,17 +557,14 @@ class RepeatedFaultInvocationTest {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(root.resolve("another-corpus-document.txt"), "a second corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EMBEDDING_MODEL_NAME, "set by this test, so gate 3 is open")
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .generationContextWindow(THE_READING_WINDOW, "set by this test, so every test here reads in the same window")
                 .build());
         cli.run("run", root.toString());
         profileStore.save(ProfileFixture.profileFrom(profileStore.load())
-                .arrangementApproved(ArrangementGate.shortNameOf(theLatestArrangement(root)), "read by this test")
+                .arrangementApproved(ArrangementGate.shortNameOf(
+                        new RunsOver(jdbcTemplate, root).latest(StageModules.ARRANGEMENT.stage())), "read by this test")
                 .build());
     }
 
@@ -634,16 +624,6 @@ class RepeatedFaultInvocationTest {
                                 run,
                                 StepNames.GENERATION)
                         > 0);
-    }
-
-    /** The arrangement the most recent invocation over {@code root} recorded. */
-    private RunId theLatestArrangement(Path root) {
-        return new RunId(jdbcTemplate.queryForObject(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid DESC LIMIT 1",
-                String.class,
-                "arrangement",
-                Walk.canonicalRoot(root).toString()));
     }
 
     /** The arrangement of {@code root} the profile's approval names. */

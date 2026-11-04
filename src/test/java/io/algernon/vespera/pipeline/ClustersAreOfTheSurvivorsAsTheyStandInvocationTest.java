@@ -63,9 +63,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-107", url = Adr.THE_ARRANGEMENT_GATE_APPROVES_A_NAMED_RUN, type = "adr")
 class ClustersAreOfTheSurvivorsAsTheyStandInvocationTest {
 
-    private static final String BOILERPLATE_FLOOR = "1.0";
-    private static final String MODEL_NAME = "qwen3-embedding:0.6b";
-
     /** Above anything the scripted embedder can produce, so every scored document falls under it. */
     private static final String A_FLOOR_ABOVE_EVERY_SCORE = "1.5";
 
@@ -191,7 +188,7 @@ class ClustersAreOfTheSurvivorsAsTheyStandInvocationTest {
 
     @Test
     @Story("Documents the threshold removes after the groups were formed are in no group")
-    @DisplayName("When the threshold starts removing after the groups were formed, no removed document stays in a group and an earlier approval opens nothing")
+    @DisplayName("When the threshold starts removing after the groups were formed, no removed document stays in a group, and with none left to arrange an earlier approval writes nothing")
     void occurrencesTheFloorRemovesAfterClusteringLeaveTheirClusters(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         aCorpus(root, seeds, TWO_DOCUMENTS);
@@ -428,12 +425,7 @@ class ClustersAreOfTheSurvivorsAsTheyStandInvocationTest {
 
     /** The seed folder named, stage 4's gate and gate 3 open, no threshold and nothing approved. */
     private void profile(Path seeds) {
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profileStore.load().degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(MODEL_NAME, "set by this test, so gate 3 is open")
-                .build());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 
     private void theFloorIs(String floor) {

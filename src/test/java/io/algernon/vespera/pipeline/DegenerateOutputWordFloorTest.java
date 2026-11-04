@@ -13,6 +13,7 @@ import io.qameta.allure.Story;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
@@ -57,15 +58,15 @@ class DegenerateOutputWordFloorTest {
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"0", "1", "2", " 2 ", "2.0", "2147483647"})
+    @CsvSource({"0, 0", "1, 1", "2, 2", "' 2 ', 2", "2.0, 2", "2147483647, 2147483647"})
     @Story("The word floor, as the profile holds it")
     @DisplayName("A whole number of words from 0 up is the floor, and the run records it")
-    void aWholeNumberIsTheFloor(String written) {
+    void aWholeNumberIsTheFloor(String written, long words) {
         DegenerateOutputWordFloor floor = DegenerateOutputWordFloor.of(new NumericValue(written, WRITTEN_BY_THIS_TEST, null));
-        long words = (long) Double.parseDouble(written.trim());
 
         claim(
-                "\"" + written + "\" is the floor of " + words + " words",
+                "\"" + written + "\" is the floor of " + words + " words, the number it writes once spaces"
+                        + " around it and a fraction of zero are set aside",
                 () -> assertThat(floor).isEqualTo(new DegenerateOutputWordFloor.Floor(words)));
         claim(
                 "and stage 2's run records that number",

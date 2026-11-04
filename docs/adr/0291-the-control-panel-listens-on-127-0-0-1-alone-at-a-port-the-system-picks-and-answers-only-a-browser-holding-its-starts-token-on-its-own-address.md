@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-331](0331-the-control-panel-opens-a-window-of-its-own-and-its-pages-are-a-cockpit-with-a-picker-an-example-and-a-hint-on-its-fields.md).** Of §6: "No request path is ever mapped to a file" stands of files, and the query of `/folders` names a folder, whose subfolders' names alone are answered, past the same checks. Of its Known limits: any local caller can list the names of the folders of every drive through it, and no file's name. The rest of this record stands.
 
+> **Partly amended — see [ADR-335](0335-the-control-panel-shows-the-progress-page-on-a-page-of-its-own-and-its-pages-are-drawn-to-one-compact-scale.md).** Of §7: the four tabs of the progress page under `/report/` are answered with `frame-ancestors 'self'` in place of `frame-ancestors 'none'`, the rest of the policy and the other three headers unchanged, so that the control panel's own pages may frame them and no other site's may; every other response keeps `'none'`. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the server is the JDK's `com.sun.net.httpserver.HttpServer`, and the control panel still names only its own package, `java.base` and `jdk.httpserver` (§1, §2).
@@ -151,16 +153,16 @@ The types this asks for are `ControlPanelServer`, in `io.algernon.controlpanel`:
 | Method | What it holds |
 | --- | --- |
 | `controlpanel.ControlPanelServerTest.itListensOn127001AloneAtAPortTheSystemPicked` | bound to `127.0.0.1`, at a port that is not 0, and no other address of the machine, `::1` included, accepts a connection on it (§1) |
-| `controlpanel.ControlPanelServerTest.eachStartDrawsATokenOf32RandomBytesWrittenAsBase64Url` | 43 characters of base64url that decode to 32 bytes, another at a second start, and the first address with it (§2) |
-| `controlpanel.ControlPanelServerTest.theTokenIsDrawnFromSecureRandomAndComparedInConstantTime` | the server's classes call `SecureRandom` and `MessageDigest.isEqual` (§2, §3) |
-| `controlpanel.ControlPanelServerTest.aRequestWithNeitherTheCookieNorTheTokenIsRefusedAndNoPageRuns` | 403, the line, plain text, no `Set-Cookie`, no handler run, with no cookie and with a cookie of another value (§4) |
-| `controlpanel.ControlPanelServerTest.aWrongTokenIsRefusedAndSetsNoCookie` | 403, no `Set-Cookie`, no handler run (§3, §4) |
-| `controlpanel.ControlPanelServerTest.theRightTokenIsExchangedForACookieTheBrowserDropsWhenItCloses` | 303 to the path without the query, the `Set-Cookie` whole, no handler run; then the cookie alone, or among others, gets the page, and the token is exchanged again, and again by a browser already holding the cookie, 303 to `/` with no handler run (§3) |
-| `controlpanel.ControlPanelServerTest.aRequestNotAddressedToTheControlPanelsOwnAddressIsRefusedEvenWithTheCookie` | a foreign `Host`, another port, no port, `[::1]` and no `Host`: 403 with the cookie or the token; `127.0.0.1:<port>` and `localhost:<port>` in either case: the page (§4) |
+| `controlpanel.ControlPanelServerTest.eachStartDrawsATokenOf32RandomBytesWrittenAsBase64Url` (removed: ADR-325 draws no token, #684) | 43 characters of base64url that decode to 32 bytes, another at a second start, and the first address with it (§2) |
+| `controlpanel.ControlPanelServerTest.theTokenIsDrawnFromSecureRandomAndComparedInConstantTime` (removed: ADR-325 draws no token, #684) | the server's classes call `SecureRandom` and `MessageDigest.isEqual` (§2, §3) |
+| `controlpanel.ControlPanelServerTest.aRequestWithNeitherTheCookieNorTheTokenIsRefusedAndNoPageRuns` (removed: ADR-325 draws no token, #684) | 403, the line, plain text, no `Set-Cookie`, no handler run, with no cookie and with a cookie of another value (§4) |
+| `controlpanel.ControlPanelServerTest.aWrongTokenIsRefusedAndSetsNoCookie` (removed: ADR-325 draws no token, #684) | 403, no `Set-Cookie`, no handler run (§3, §4) |
+| `controlpanel.ControlPanelServerTest.theRightTokenIsExchangedForACookieTheBrowserDropsWhenItCloses` (removed: ADR-325 draws no token, #684) | 303 to the path without the query, the `Set-Cookie` whole, no handler run; then the cookie alone, or among others, gets the page, and the token is exchanged again, and again by a browser already holding the cookie, 303 to `/` with no handler run (§3) |
+| `controlpanel.ControlPanelServerTest.aRequestNotAddressedToTheControlPanelsOwnAddressIsRefused` (#684) | a foreign `Host`, another port, no port, `[::1]` and no `Host`: 403 with the cookie or the token; `127.0.0.1:<port>` and `localhost:<port>` in either case: the page (§4) |
 | `controlpanel.ControlPanelServerTest.aPostReachesItsPageOnlyFromTheControlPanelsOwnOrigin` | no `Origin`, `null`, another site's, another scheme's and another port's: 403, no handler run; both of the control panel's own: the handler runs (§5) |
 | `controlpanel.ControlPanelServerTest.aMethodOtherThanGetHeadAndPostIsRefusedNamingTheThree` | `PUT`, `DELETE`, `PATCH` and `OPTIONS`: 405 with `Allow: GET, HEAD, POST`, no handler run; `HEAD`: 200 (§5) |
 | `controlpanel.ControlPanelServerTest.aPathNoPageIsStartedWithIsNotFoundAndNoFileIsServed` | an unknown path, a page's path with a trailing slash, `/vespera.db`, `/../vespera.db`, `/%2e%2e/` and `/%2e%2e/vespera.db`: 404, no handler run (§6) |
-| `controlpanel.ControlPanelServerTest.everyResponseCarriesTheFourHeadersThatKeepItOutOfTheCacheTheRefererAndAFrame` | a 403 of each check, a 303, a 200, a 404 and a 405 each carry §7's four headers, once each, with their values (§7) |
+| `controlpanel.ControlPanelServerTest.everyResponseCarriesTheFourHeadersAndNoneSetsACookie` (#684) | a 403 of each check, a 303, a 200, a 404 and a 405 each carry §7's four headers, once each, with their values (§7) |
 | `controlpanel.ControlPanelServerTest.theServerWritesNoFileLogsNothingPrintsNothingAndStartsNoProcess` | the server's classes name no type that writes a file, logs or starts a process, and read neither `System.out` nor `System.err` (§2, §8) |
 | `controlpanel.ControlPanelServerTest.closeStopsTheServerAtOnce` | with a page's handler still answering a request, `close` returns within a second, and its port accepts no connection after (§1) |
 

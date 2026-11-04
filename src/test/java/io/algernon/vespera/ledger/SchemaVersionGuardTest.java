@@ -13,6 +13,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -20,7 +21,9 @@ import org.sqlite.SQLiteDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -103,8 +106,14 @@ class SchemaVersionGuardTest {
                 somethingOtherThanTheLedgerExpects);
 
         claim(
-                "the check runs while the application is being built rather than on first use, so a"
-                        + " mismatched database is refused before anything reads or writes a row",
+                "the ledger's schema is a component the application builds eagerly as it starts, not on first use",
+                () -> assertThat(List.of(
+                                LedgerSchema.class.isAnnotationPresent(Component.class),
+                                LedgerSchema.class.isAnnotationPresent(Lazy.class)))
+                        .containsExactly(true, false));
+        claim(
+                "and building it runs the check, so a mismatched database is refused before anything reads or"
+                        + " writes a row",
                 () -> assertThatThrownBy(() -> new LedgerSchema(new SchemaVersionGuard(jdbcTemplate)))
                         .isInstanceOf(SchemaVersionMismatchException.class)
                         .hasMessageContaining(LedgerSchema.MODULE)

@@ -12,6 +12,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +58,12 @@ class ADecisionRecordHoldsItsDecisionAndNoHistoryTest {
 
     private static final Map<String, String> MARKERS = markers();
 
+    /** The claims job, which reads the same list of words (ADR-258). */
+    private static final Path THE_CLAIMS_JOB = Path.of("docs", "check-claims.mjs");
+
+    /** The names of the markers the claims job asks the list for, as one array literal of its source. */
+    private static final Pattern THE_CLAIMS_JOBS_MARKERS = Pattern.compile("const wanted = \\[([^\\]]*)\\];");
+
     /** The first record held to carry no history of its making. */
     private static final int FIRST_WITHOUT_HISTORY = Integer.parseInt(MARKERS.get("firstWithoutHistory"));
 
@@ -93,21 +100,25 @@ class ADecisionRecordHoldsItsDecisionAndNoHistoryTest {
 
     @Test
     @Story("A record holds its decision")
-    @DisplayName("The list of words both checks read holds every marker the rules need, and each is a pattern")
+    @DisplayName("The list of words both checks read holds every marker the rules need, and the claims job asks for the same")
     @Link(name = "ADR-258", url = Adr.THE_RECORDS_RULES_ARE_CHECKED_IN_THE_CLAIMS_JOB_TOO, type = "adr")
-    void theListHoldsEveryMarkerTheRulesNeed() {
+    void theListHoldsEveryMarkerTheRulesNeed() throws IOException {
         List<String> needed = List.of(
                 "runMadeOrNot", "status", "accepted", "acceptedOnADate", "historyFromTheFirstWithout",
                 "historyInAnyRecord", "indexRow", "firstWithoutHistory");
+        Matcher wanted = THE_CLAIMS_JOBS_MARKERS.matcher(Files.readString(THE_CLAIMS_JOB));
+        List<String> askedForByTheClaimsJob = wanted.find()
+                ? Arrays.stream(wanted.group(1).split(","))
+                        .map(name -> name.strip().replace("\"", ""))
+                        .toList()
+                : List.of();
 
         claim(
-                "the list names each of the eight markers once, and the claims job reads the same eight",
-                () -> assertThat(MARKERS.keySet()).containsExactlyInAnyOrderElementsOf(needed));
-        claim(
-                "each marker but the number of the first record is a regular expression that compiles",
-                () -> needed.stream()
-                        .filter(name -> !name.equals("firstWithoutHistory"))
-                        .forEach(name -> assertThat(Pattern.compile(MARKERS.get(name))).isNotNull()));
+                "the list names each of the eight markers once, and the claims job asks for the same eight",
+                () -> {
+                    assertThat(MARKERS.keySet()).containsExactlyInAnyOrderElementsOf(needed);
+                    assertThat(askedForByTheClaimsJob).containsExactlyInAnyOrderElementsOf(needed);
+                });
     }
 
     @Test

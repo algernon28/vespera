@@ -70,7 +70,7 @@ class ReadsOfTheLedgerHoldOnePageTest {
 
     @Test
     @Story("A long read is held a page at a time")
-    @DisplayName("A read of the surviving documents asks the database for one page, and for the next only when that one is used up")
+    @DisplayName("A read of the surviving documents, the same by size, or a walk's files asks the database for one page, and for the next only when that one is used up")
     void eachReadIssuesAPageOnlyWhenTheLastIsUsedUp() {
         StatementsIssued issued = new StatementsIssued(Objects.requireNonNull(jdbcTemplate.getDataSource()));
         Map<String, Supplier<Iterable<?>>> reads = readsOver(issued);

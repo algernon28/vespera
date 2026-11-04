@@ -96,7 +96,7 @@ class ModuleBoundariesTest {
     /**
      * The capability modules, derived rather than re-listed: the recorded ten less {@code ledger},
      * which they all depend on, and {@code pipeline}, which is the composition root and may depend on
-     * all of them. Deriving it means a ninth module added above cannot be forgotten here.
+     * all of them. Deriving it means an eleventh module added above cannot be forgotten here.
      */
     private static final Set<String> CAPABILITY_MODULES = RECORDED_MODULES.stream()
             .filter(module -> !"ledger".equals(module) && !"pipeline".equals(module))
@@ -164,7 +164,7 @@ class ModuleBoundariesTest {
      */
     @Test
     @Story("The boundary rule holds for every module")
-    @DisplayName("A capability module declares ledger alone, so it cannot reach the profile")
+    @DisplayName("A capability module declares ledger alone, or the one exception recorded for it, so it cannot reach the profile")
     void everyCapabilityModuleDeclaresLedgerAlone() {
         List<String> declaringSomethingElse = identifiers(MODULES.stream()
                 .filter(module -> CAPABILITY_MODULES.contains(
@@ -189,12 +189,17 @@ class ModuleBoundariesTest {
     }
 
     /**
-     * A package under the application root that is not one of the eight is a module nobody decided
-     * on. Catching it here is cheaper than finding it once things depend on it.
+     * A package under the application root that is not one of the ten is a module nobody decided
+     * on. Catching it here is cheaper than finding it once things depend on it. And each of the ten is
+     * there: the tree the operator is handed is drawn by a module of its own, which no stage's version names
+     * (ADR-274 §4, §5), and the one module that opens a connection to Confluence is one of its own too
+     * (ADR-308 §7, §10); what each declares is held above.
      */
     @Test
     @Story("The boundary rule holds for every module")
-    @DisplayName("Every module is one the architecture defines")
+    @DisplayName("Every module is one the architecture defines, and each it defines is there")
+    @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+    @Issue("633")
     void everyModuleIsOneOfTheRecordedModules() {
         List<String> unrecorded =
                 identifiers(MODULES.stream()).stream()
@@ -205,29 +210,10 @@ class ModuleBoundariesTest {
                 "every module found in the application is one of the " + RECORDED_MODULES.size() + " the"
                         + " architecture defines; one named here is a module nobody decided on",
                 () -> assertThat(unrecorded).isEmpty());
-    }
-
-    /**
-     * The tree the operator is handed is drawn by a module of its own, which no stage's version names, so a page
-     * drawn differently asks the model nothing again (ADR-274 §4, §5).
-     */
-    @Test
-    @Story("The boundary rule holds for every module")
-    @DisplayName("The tree the operator is handed is drawn by a module of its own, which may read the writing's records")
-    @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
-    void theDeliverableIsAModuleOfItsOwn() {
-        List<List<String>> declared = MODULES.stream()
-                .filter(module -> "deliverable".equals(module.getIdentifier().toString()))
-                .map(module -> module.getBasePackage()
-                        .getAnnotation(ApplicationModule.class)
-                        .map(declaration -> List.of(declaration.allowedDependencies()))
-                        .orElse(List.of()))
-                .toList();
-
         claim(
-                "there is one module that draws the tree, and it declares the ledger and the module whose records it"
-                        + " draws, and nothing else",
-                () -> assertThat(declared).containsExactly(List.of("ledger", "synthesis")));
+                "and each of the " + RECORDED_MODULES.size() + " is a module of the application, the one that"
+                        + " draws the tree the operator is handed and the one that publishes among them",
+                () -> assertThat(identifiers(MODULES.stream())).containsExactlyInAnyOrderElementsOf(RECORDED_MODULES));
     }
 
     /**

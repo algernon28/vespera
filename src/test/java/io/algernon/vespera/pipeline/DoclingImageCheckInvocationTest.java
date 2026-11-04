@@ -76,7 +76,10 @@ class DoclingImageCheckInvocationTest {
      */
     static final AtomicReference<Map<String, String>> REPORTED = new AtomicReference<>();
 
-    /** The GPU build's name: the image that was running on 2026-09-30 while the configuration named the CPU one. */
+    /**
+     * The GPU build's name, reported here as running while the configuration names another image. On
+     * 2026-09-30 it was the other way round: the configuration still named this build while the CPU one ran.
+     */
     private static final String THE_GPU_IMAGE =
             "vespera/docling-serve-cu128-libreoffice:v1.32.0-docling-parse-7.17.0-r2";
 

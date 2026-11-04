@@ -36,15 +36,18 @@ class RetainedEdgeSpreadTest {
 
     @Test
     @Story("The spread is read off the edges that were kept")
-    @DisplayName("The lowest, middle and highest kept similarities are the ones the edges carry")
+    @DisplayName("The lowest, middle and highest kept similarities are the ones the edges carry, and an edge both documents kept is one edge")
     void reportsTheLowestMiddleAndHighestKeptSimilarity() {
-        // Three documents in a line, each keeping the next: two edges at 0.9 and 0.1, and a third at
-        // 0.5 closing the triangle. Every value is stated here, so nothing the assertions expect was
-        // produced by the arithmetic they are checking.
+        // Four documents: the first keeps the second at 0.9 and the third at 0.8, and each of those keeps
+        // it back, so both edges are mutual and appear twice across the lists; the fourth keeps the other
+        // three at 0.1, 0.2 and 0.3, and none of them keeps it. Five edges in seven entries. Their middle
+        // is 0.3, their mean 0.46, and the middle of the seven entries 0.8. Every value is stated here, so
+        // nothing the assertions expect was produced by the arithmetic they are checking.
         NearestNeighbourGraph.Graph graph = aGraph(
-                edgesOf(new int[] {1, 2}, new double[] {0.9, 0.5}),
-                edgesOf(new int[] {0, 2}, new double[] {0.9, 0.1}),
-                edgesOf(new int[] {0, 1}, new double[] {0.5, 0.1}));
+                edgesOf(new int[] {1, 2}, new double[] {0.9, 0.8}),
+                edgesOf(new int[] {0}, new double[] {0.9}),
+                edgesOf(new int[] {0}, new double[] {0.8}),
+                edgesOf(new int[] {0, 1, 2}, new double[] {0.1, 0.2, 0.3}));
 
         RetainedEdgeSpread spread = RetainedEdgeSpread.over(graph).orElseThrow();
 
@@ -59,29 +62,14 @@ class RetainedEdgeSpreadTest {
                         + " sitting at 0.1",
                 () -> assertThat(spread.highest()).isEqualTo(0.9));
         claim(
-                "and the middle is an edge that exists rather than an average of two that do: a mean"
-                        + " reports a similarity no pair of documents in this partition has",
-                () -> assertThat(spread.middle()).isEqualTo(0.5));
-    }
-
-    @Test
-    @Story("The spread is read off the edges that were kept")
-    @DisplayName("An edge both documents kept is one edge, not two")
-    void anEdgeBothEndpointsKeptIsCountedOnce() {
-        // A triangle: every document keeps both others, so all three edges are mutual and every one
-        // of them appears twice across the lists.
-        NearestNeighbourGraph.Graph graph = aGraph(
-                edgesOf(new int[] {1, 2}, new double[] {0.9, 0.5}),
-                edgesOf(new int[] {0, 2}, new double[] {0.9, 0.1}),
-                edgesOf(new int[] {0, 1}, new double[] {0.5, 0.1}));
-
-        RetainedEdgeSpread spread = RetainedEdgeSpread.over(graph).orElseThrow();
-
+                "the middle is 0.3, the middle of the five edges: an edge that exists rather than their"
+                        + " mean of 0.46, which no pair of documents in this partition has, and not the 0.8"
+                        + " in the middle of the seven entries, which counts each mutual edge twice",
+                () -> assertThat(spread.middle()).isEqualTo(0.3));
         claim(
-                "three documents all keeping each other is three edges, not the six entries their"
-                        + " neighbour lists hold: these are neighbour lists, and an edge seen from both"
-                        + " ends is still one pair of documents",
-                () -> assertThat(spread.edgeCount()).isEqualTo(3));
+                "and the four documents hold five edges, not the seven entries their neighbour lists"
+                        + " hold: an edge seen from both ends is still one pair of documents",
+                () -> assertThat(spread.edgeCount()).isEqualTo(5));
     }
 
     @Test

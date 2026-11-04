@@ -40,7 +40,7 @@ import org.springframework.web.client.RestClient;
 
 /**
  * A chunk is embedded under {@code truncate: false} and its vector stored keyed by the whole embedder
- * identity (ADR-084, ADR-085, ADR-091, #107) — never re-embedded once a vector already exists under
+ * identity (ADR-084, ADR-085, ADR-091, #107) — never written over once a vector already exists under
  * that exact identity, and never silently truncated when the runtime rejects an input it cannot fit.
  *
  * <p>The vector cache is the real one against a real database, mirroring {@link
@@ -112,18 +112,24 @@ class ChunkEmbedderTest {
 
     @Test
     @Story("A chunk's vector is stored under its whole embedder identity")
-    @DisplayName("Embedding the same chunk under the same identity twice stores it once")
+    @DisplayName("Embedding the same chunk under the same identity twice stores it once, and the first vector stands")
     void isIdempotentUnderOneIdentity() {
         WordCountEmbeddingModel model = new WordCountEmbeddingModel(Integer.MAX_VALUE);
         ChunkEmbedder embedder = ChunkEmbedderBeans.real(jdbcTemplate, model, ollamaClient());
 
+        // The second call's text embeds to 2.0 where the first's embeds to 3.0, under the same identity, so
+        // which vector stands says whether the stored one was written over.
         embedder.embed(CONTENT_HASH, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, 0, "three little words", MODEL);
-        embedder.embed(CONTENT_HASH, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, 0, "three little words", MODEL);
+        embedder.embed(CONTENT_HASH, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, 0, "two words", MODEL);
 
         claim(
-                "a chunk already stored under the embedder identity this call would produce is left"
-                        + " alone rather than a second row overwriting or duplicating the first",
+                "a chunk already stored under the embedder identity this call would produce is not"
+                        + " duplicated: one row stands",
                 () -> assertThat(rowCount()).isEqualTo(1));
+        claim(
+                "and it is left alone rather than written over: the vector stored is the first call's 3.0,"
+                        + " not the second's 2.0",
+                () -> assertThat(storedVector()).containsExactly(3.0f));
     }
 
     @Test
@@ -133,17 +139,17 @@ class ChunkEmbedderTest {
         WordCountEmbeddingModel model = new WordCountEmbeddingModel(2);
         ChunkEmbedder embedder = ChunkEmbedderBeans.real(jdbcTemplate, model, ollamaClient());
 
-        embedder.embed(CONTENT_HASH, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, 0, "one two three four", MODEL);
+        embedder.embed(CONTENT_HASH, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, 0, "one two three", MODEL);
 
         claim(
                 "the rejected call is split and retried rather than the run failing, so exactly one"
                         + " vector still lands for this chunk's ordinal",
                 () -> assertThat(rowCount()).isEqualTo(1));
         claim(
-                "and the stored vector is the two halves' vectors averaged component-wise -- \"one two\""
-                        + " embeds to 2.0 and \"three four\" embeds to 2.0, so the average is 2.0 -- rather"
+                "and the stored vector is the two halves' vectors averaged component-wise -- \"one\""
+                        + " embeds to 1.0 and \"two three\" embeds to 2.0, so the average is 1.5 -- rather"
                         + " than either half alone or the whole rejected call's opening",
-                () -> assertThat(storedVector()).containsExactly(2.0f));
+                () -> assertThat(storedVector()).containsExactly(1.5f));
     }
 
     /**

@@ -92,9 +92,6 @@ class AClusterPageIsOneFileWithItsPicturesInlinedTest {
     /** Nothing left behind, in a tree drawn for the first time. */
     private static final long NO_FILE = 0;
 
-    /** The base64 alphabet of RFC 4648 §4, padded to a multiple of four characters, with no line break. */
-    private static final Pattern A_PADDED_STANDARD_PAYLOAD = Pattern.compile("(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?");
-
     /** Every image on a page, as its source and its alt text. */
     private static final Pattern AN_IMAGE = Pattern.compile("<img src=\"([^\"]*)\" alt=\"([^\"]*)\">");
 
@@ -130,12 +127,11 @@ class AClusterPageIsOneFileWithItsPicturesInlinedTest {
                                 + "<p><img src=\"data:image/jpeg;base64," + base64(photograph) + "\" alt=\"\"></p>\n"
                                 + "</li>\n"));
         claim(
-                "each of the " + TWO_PICTURES + " payloads is in the standard alphabet, padded to a multiple of four"
-                        + " characters, with no line break or space in it",
+                "and those " + TWO_PICTURES + " are the only images on the whole page",
                 () -> assertThat(sources)
-                        .hasSize(TWO_PICTURES)
-                        .allSatisfy(source -> assertThat(source.substring(source.indexOf(',') + 1))
-                                .matches(A_PADDED_STANDARD_PAYLOAD)));
+                        .containsExactly(
+                                "data:image/png;base64," + base64(diagram),
+                                "data:image/jpeg;base64," + base64(photograph)));
         claim(
                 "and the group's folder holds its page and the document's copy, and no picture file",
                 () -> assertThat(filesUnder(tree.resolve(THE_FOLDER)))

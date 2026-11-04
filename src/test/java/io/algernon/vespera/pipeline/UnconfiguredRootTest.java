@@ -85,10 +85,18 @@ class UnconfiguredRootTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    /**
+     * The sentence of the refusal, which only its exit code held until ADR-208. That record took the
+     * root requirement away from {@code vespera label --auto} and kept it here, so this is the one
+     * command left that says a root is never guessed.
+     */
     @Test
+    @Issue("451")
     @Story("Where the root comes from")
-    @DisplayName("An invocation with no root named and none configured refuses, and walks nothing")
-    void refusesWhenNothingNamesARoot() {
+    @DisplayName("An invocation with no root named and none configured refuses, says what to supply and that the folder to read is never guessed, and walks nothing")
+    @Link(name = "ADR-208", url = Adr.LABEL_AUTO_NEEDS_NO_CORPUS_ROOT, type = "adr")
+    @ExtendWith(OutputCaptureExtension.class)
+    void refusesWhenNothingNamesARoot(CapturedOutput output) {
         claim(
                 "no corpus root worth walking is bound in this context, which is the precondition the"
                         + " rest of this test rests on. It is claimed rather than assumed because it is"
@@ -104,32 +112,6 @@ class UnconfiguredRootTest {
                         + " supply rather than something to debug",
                 () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
         claim(
-                "and it walked nothing at all, the refusal coming before any tree was chosen",
-                () -> assertThat(walkCount()).isZero());
-    }
-
-    /**
-     * The sentence of the refusal, which only its exit code held until ADR-208. That record took the
-     * root requirement away from {@code vespera label --auto} and kept it here, so this is the one
-     * command left that says a root is never guessed.
-     */
-    @Test
-    @Issue("451")
-    @Story("Where the root comes from")
-    @DisplayName("The refusal says what to supply, and that the folder to read is never guessed")
-    @Link(name = "ADR-208", url = Adr.LABEL_AUTO_NEEDS_NO_CORPUS_ROOT, type = "adr")
-    @ExtendWith(OutputCaptureExtension.class)
-    void saysWhatToSupplyAndThatARootIsNeverGuessed(CapturedOutput output) {
-        claim(
-                "no corpus root is bound in this context, the precondition of the refusal",
-                () -> assertThat(environment.getProperty("vespera.corpus-root")).isBlank());
-
-        cli.run("run");
-
-        claim(
-                "the invocation reports a usage error",
-                () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
-        claim(
                 "on standard error it names what was missing and the two ways to supply it, and ends by"
                         + " saying why it will not pick a folder itself",
                 () -> assertThat(output.getErr())
@@ -138,6 +120,9 @@ class UnconfiguredRootTest {
                                 + " vespera.corpus-root")
                         .contains("A root is never guessed, because a census of the wrong tree reports"
                                 + " success."));
+        claim(
+                "and it walked nothing at all, the refusal coming before any tree was chosen",
+                () -> assertThat(walkCount()).isZero());
     }
 
     private long walkCount() {
