@@ -75,7 +75,7 @@ final class WebsiteDrawing implements Drawing {
     record SearchEntry(String name, String link) {}
 
     /** One cluster of the search's index (ADR-333 §9); the title and the writing are empty where nothing was written. */
-    record SearchGroup(String partition, String title, String label, String writing, String link,
+    record SearchCluster(String partition, String title, String label, String writing, String link,
             List<SearchEntry> entries) {}
 
     private final Path directory;
@@ -194,7 +194,7 @@ final class WebsiteDrawing implements Drawing {
                     named.name(), folderPath + "/" + page + "#" + ClusterPage.ANCHOR_PREFIX + named.number()));
         }
         String link = folderPath + "/" + ClusterPage.nameOfPage(1);
-        search.append(firstSearchRow ? "" : ",\n").append(JSON.writeValueAsString(new SearchGroup(
+        search.append(firstSearchRow ? "" : ",\n").append(JSON.writeValueAsString(new SearchCluster(
                 partitionName,
                 doc.map(SynthesisDoc::title).orElse(""),
                 recorded.label().value(),

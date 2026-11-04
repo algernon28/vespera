@@ -1,5 +1,5 @@
 // The website's search (ADR-333 section 3 and 9). It runs in the browser over what search-index.js set:
-// the global VESPERA_SEARCH_INDEX, one element for each group, with its seed partition's name, its title,
+// the global VESPERA_SEARCH_INDEX, one element for each cluster, with its seed partition's name, its title,
 // its label, the text of its writing and the name and link of each of its entries. It reads nothing else,
 // asks nothing of any server, and writes what it finds as text and never as markup, so no title, label,
 // writing or name can add an element or run a script.
@@ -10,7 +10,7 @@
 (function () {
   "use strict";
 
-  var MOST_GROUPS_SHOWN = 50;
+  var MOST_CLUSTERS_SHOWN = 50;
   var MOST_ENTRIES_SHOWN = 5;
 
   function textOf(value) {
@@ -24,10 +24,10 @@
     });
   }
 
-  /** Everything of a group that a search reads, lower case, one string. */
-  function haystackOf(group) {
-    var parts = [textOf(group.partition), textOf(group.title), textOf(group.label), textOf(group.writing)];
-    (Array.isArray(group.entries) ? group.entries : []).forEach(function (entry) {
+  /** Everything of a cluster that a search reads, lower case, one string. */
+  function haystackOf(cluster) {
+    var parts = [textOf(cluster.partition), textOf(cluster.title), textOf(cluster.label), textOf(cluster.writing)];
+    (Array.isArray(cluster.entries) ? cluster.entries : []).forEach(function (entry) {
       parts.push(textOf(entry.name));
     });
     return parts.join("\n").toLowerCase();
@@ -46,8 +46,8 @@
     if (!query || !results) {
       return;
     }
-    var groups = Array.isArray(globalThis.VESPERA_SEARCH_INDEX) ? globalThis.VESPERA_SEARCH_INDEX : [];
-    var haystacks = groups.map(haystackOf);
+    var clusters = Array.isArray(globalThis.VESPERA_SEARCH_INDEX) ? globalThis.VESPERA_SEARCH_INDEX : [];
+    var haystacks = clusters.map(haystackOf);
     var root = query.getAttribute("data-root") || "";
     var nothing = query.getAttribute("data-none") || "";
 
@@ -58,8 +58,8 @@
         return;
       }
       var shown = 0;
-      groups.forEach(function (group, at) {
-        if (shown >= MOST_GROUPS_SHOWN) {
+      clusters.forEach(function (cluster, at) {
+        if (shown >= MOST_CLUSTERS_SHOWN) {
           return;
         }
         var haystack = haystacks[at];
@@ -68,12 +68,12 @@
         }
         shown += 1;
         var item = document.createElement("li");
-        var heading = textOf(group.title) || textOf(group.label);
-        item.appendChild(anchor(document, root + textOf(group.link), heading));
-        if (textOf(group.partition)) {
-          item.appendChild(document.createTextNode(" - " + textOf(group.partition)));
+        var heading = textOf(cluster.title) || textOf(cluster.label);
+        item.appendChild(anchor(document, root + textOf(cluster.link), heading));
+        if (textOf(cluster.partition)) {
+          item.appendChild(document.createTextNode(" - " + textOf(cluster.partition)));
         }
-        var matching = (Array.isArray(group.entries) ? group.entries : []).filter(function (entry) {
+        var matching = (Array.isArray(cluster.entries) ? cluster.entries : []).filter(function (entry) {
           var name = textOf(entry.name).toLowerCase();
           return terms.some(function (term) { return name.indexOf(term) >= 0; });
         }).slice(0, MOST_ENTRIES_SHOWN);
