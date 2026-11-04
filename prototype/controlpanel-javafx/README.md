@@ -24,6 +24,6 @@ export JAVA_HOME=~/.jdks/openjdk-26.0.2.1
 
 **Starting values are read from the real files and never written to them.** These are the environment, the main checkout's `.env`, the control panel's `launch-values.properties`, `application.yaml`, and the working directory's `profile.yaml`, `not-relevant-folders.yaml` and `code-set-names.yaml`. Save writes copies named `target/*.PROTOTYPE-wipe-me.yaml` instead. To go back to the real files, delete those copies.
 
-**Open question.** B asks for no "why" behind a value and writes its own `provenance` line. The jar requires that line, so whether a person must still give a reason needs a decision before this is built for real.
+**Provenance, as the operator settled it:** there is no "Why this value?" field. Instead, every value has a note beside it, saved as its `provenance` line. The note is filled in for you, starting with the saved one or "set in the control panel", and you can replace it. If a value changes but its note is left as it was, the old note no longer describes the new value, so the filled-in note is saved instead.
 
 The root pom does not include this project, so `./mvnw test` never builds it. JavaFX also stays out of the shipped pom, so ADR-046 is not touched.

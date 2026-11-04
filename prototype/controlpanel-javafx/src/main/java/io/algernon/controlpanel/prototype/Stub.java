@@ -239,15 +239,14 @@ final class Stub {
 
     /** Save every value at once, into the prototype's own copy; the operator's profile.yaml is never written. */
     void saveProfile(Map<String, String> values, Map<String, String> given) {
-        // The form asks no "why": a changed value gets a provenance line written for it, which the jar
-        // requires. Whether a person must still give one is the decision this prototype leaves open.
+        // The jar requires a provenance line beside every value. The form fills in the note for the
+        // operator (they may replace it); a value saved with no note gets the filled-in one.
         Map<String, String> reasons = new LinkedHashMap<>(given);
         Map<String, String> kept = new LinkedHashMap<>();
         values.forEach((k, v) -> {
             if (!v.isBlank()) {
                 kept.put(k, v);
-                boolean changed = !v.equals(profile.getOrDefault(k, ""));
-                if (changed || reasons.getOrDefault(k, "").isBlank()) {
+                if (reasons.getOrDefault(k, "").isBlank()) {
                     reasons.put(k, AUTO_PROVENANCE);
                 }
             }
@@ -356,13 +355,27 @@ final class Stub {
 
     static final String AUTO_PROVENANCE = "set in the control panel";
 
+    /**
+     * The note a form shows beside a value: the one saved with it, or the filled-in one when there is
+     * none. A value changed while its note is still the old one gets the filled-in note on Save, since
+     * the old note described the old value.
+     */
+    String noteFor(String key) {
+        String saved = why.getOrDefault(key, "");
+        return saved.isBlank() ? AUTO_PROVENANCE : saved;
+    }
+
+    String noteToSave(String key, String value, String note) {
+        boolean changed = !value.equals(profile.getOrDefault(key, ""));
+        boolean untouched = note.strip().equals(why.getOrDefault(key, "").strip());
+        return changed && untouched || note.isBlank() ? AUTO_PROVENANCE : note.strip();
+    }
+
     void save(String key, String value, String reason) {
         Map<String, String> values = new LinkedHashMap<>(profile);
         values.put(key, value);
         Map<String, String> reasons = new LinkedHashMap<>(why);
-        if (reason != null && !reason.isBlank()) {
-            reasons.put(key, reason);
-        }
+        reasons.put(key, noteToSave(key, value, reason == null ? why.getOrDefault(key, "") : reason));
         saveProfile(values, reasons);
         wants.remove(key);
     }

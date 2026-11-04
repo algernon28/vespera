@@ -495,13 +495,30 @@ final class VariantB {
         return card;
     }
 
+    /** The note kept beside a value in profile.yaml, filled in so the operator need not write one. */
+    private static TextField noteField(Stub stub, String key) {
+        TextField note = new TextField(stub.noteFor(key));
+        note.setPromptText("e.g. read off relevance-labelling: the cut that keeps every manual");
+        note.setTooltip(new Tooltip("Saved beside the value in profile.yaml, so whoever reads it later knows "
+                + "where the value came from. Filled in for you; replace it with how you chose the value, if you like."));
+        return note;
+    }
+
+    private static VBox noted(Node control, TextField note) {
+        HBox caption = new HBox(6, Ui.label("Note saved with it:", "source"), note);
+        caption.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(note, Priority.ALWAYS);
+        return new VBox(4, control, caption);
+    }
+
     private static VBox wantedEditor(Stub stub, Stub.Key key) {
         KeyControls.Editor editor = KeyControls.of(stub, key, stub.profile.getOrDefault(key.name(), ""));
+        TextField note = noteField(stub, key.name());
         Button save = new Button("Save");
-        save.setOnAction(e -> stub.save(key.name(), editor.value().get(), null));
+        save.setOnAction(e -> stub.save(key.name(), editor.value().get(), note.getText()));
         HBox reports = new HBox(6);
         Stub.REPORTS_OF_KEY.getOrDefault(key.name(), List.of()).forEach(r -> reports.getChildren().add(Ui.reportLink(stub, r)));
-        HBox controls = new HBox(10, editor.node(), save);
+        HBox controls = new HBox(10, noted(editor.node(), note), save);
         controls.setAlignment(Pos.CENTER_LEFT);
         VBox box = new VBox(4, Ui.label(key.label(), "field-name"), Ui.label(key.name(), "key-small"),
                 Ui.label(key.about(), "hint"), controls, new HBox(6, Ui.label("Reports:", "hint"), reports));
@@ -588,6 +605,7 @@ final class VariantB {
             aboutColumn.setHgrow(Priority.ALWAYS);
             grid.getColumnConstraints().addAll(nameColumn, controlColumn, aboutColumn);
             Map<String, KeyControls.Editor> editors = new LinkedHashMap<>();
+            Map<String, TextField> notes = new LinkedHashMap<>();
             int row = 0;
             for (Stub.Key key : Stub.KEYS) {
                 String saved = stub.profile.getOrDefault(key.name(), "");
@@ -606,7 +624,9 @@ final class VariantB {
                 } else {
                     KeyControls.Editor editor = KeyControls.of(stub, key, saved);
                     editors.put(key.name(), editor);
-                    control = editor.node();
+                    TextField note = noteField(stub, key.name());
+                    notes.put(key.name(), note);
+                    control = noted(editor.node(), note);
                 }
                 VBox about = new VBox(2, Ui.label(key.about(), "hint"), Ui.label(Stub.rerunOf(key), "rerun"));
                 if (stub.wants.contains(key.name())) {
@@ -619,8 +639,13 @@ final class VariantB {
             Button save = new Button("Save");
             save.setOnAction(e -> {
                 Map<String, String> values = new LinkedHashMap<>(stub.profile);
-                editors.forEach((k, editor) -> values.put(k, editor.value().get()));
-                stub.saveProfile(values, new LinkedHashMap<>(stub.why));
+                Map<String, String> reasons = new LinkedHashMap<>(stub.why);
+                editors.forEach((k, editor) -> {
+                    String value = editor.value().get();
+                    values.put(k, value);
+                    reasons.put(k, stub.noteToSave(k, value, notes.get(k).getText()));
+                });
+                stub.saveProfile(values, reasons);
                 stub.wants.removeIf(k -> !values.getOrDefault(k, "").isBlank());
             });
             Button reset = new Button("Reset");
