@@ -194,13 +194,16 @@ class CensusInvocationTest {
         int before = output.getOut().length();
 
         cli.run();
+        // picocli colours the usage on a terminal that says it takes colour (TERM set, as Git Bash does), so the
+        // escapes are taken out before the words are looked for.
+        String printed = output.getOut().substring(before).replaceAll("\u001B\\[[0-9;]*m", "");
 
         claim(
                 "an invocation naming no command does not exit as though work was done",
                 () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
         claim(
                 "and it prints how the tool is used, naming its commands: run, label and publish among them",
-                () -> assertThat(output.getOut().substring(before))
+                () -> assertThat(printed)
                         .contains("Usage: vespera")
                         .contains(" run ")
                         .contains(" label ")

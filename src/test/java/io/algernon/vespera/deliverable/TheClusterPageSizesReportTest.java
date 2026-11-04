@@ -435,9 +435,9 @@ class TheClusterPageSizesReportTest {
     private static List<Path> clusterFoldersOf(Path tree) throws IOException {
         List<Path> folders = new ArrayList<>();
         try (Stream<Path> partitions = Files.list(tree)) {
-            // The Confluence rendering's folder is not a seed partition's (ADR-312 §1).
+            // The Confluence rendering's folder is not a seed partition's (ADR-312 §1), its plugin's (ADR-333 §1).
             for (Path partition : partitions.filter(Files::isDirectory)
-                    .filter(folder -> !folder.getFileName().toString().equals(ConfluencePages.DIRECTORY_NAME))
+                    .filter(folder -> !folder.getFileName().toString().equals("confluence"))
                     .sorted()
                     .toList()) {
                 try (Stream<Path> inside = Files.list(partition)) {

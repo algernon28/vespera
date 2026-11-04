@@ -1,5 +1,15 @@
-package io.algernon.vespera.deliverable;
+package io.algernon.vespera.confluence;
 
+import io.algernon.vespera.deliverable.ClusterPage;
+import io.algernon.vespera.deliverable.Copies;
+import io.algernon.vespera.deliverable.Deliverable;
+import io.algernon.vespera.deliverable.Drawing;
+import io.algernon.vespera.deliverable.Entries;
+import io.algernon.vespera.deliverable.FixedWords;
+import io.algernon.vespera.deliverable.Html;
+import io.algernon.vespera.deliverable.IndexPage;
+import io.algernon.vespera.deliverable.ListedPartition;
+import io.algernon.vespera.deliverable.ListedSurvivor;
 import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.FilenameStem;
@@ -42,13 +52,13 @@ import tools.jackson.databind.json.JsonMapper;
  * every page's title is ADR-310's. Every body, file and the page list is written through {@code .part} and moved into
  * place.
  */
-final class ConfluencePages implements AutoCloseable {
+final class ConfluencePages implements Drawing {
 
     /** Where the rendering lies, at the tree's root (ADR-312 §1). */
-    static final String DIRECTORY_NAME = "confluence";
+    static final String DIRECTORY_NAME = Publisher.RENDERING_FOLDER;
 
     /** The page list, directly in {@code confluence/} (ADR-316 §1). */
-    static final String PAGE_LIST_FILE_NAME = "pages.json";
+    static final String PAGE_LIST_FILE_NAME = Publisher.PAGE_LIST_FILE_NAME;
 
     /** A page's storage body, or a split cluster's first page's. */
     static final String BODY_NAME = "page.xml";
@@ -60,8 +70,7 @@ final class ConfluencePages implements AutoCloseable {
     private static final int MARKER_LENGTH = 12;
 
     /** The root page's one sentence (ADR-315 §2). */
-    static final String THE_ROOT_PAGES_SENTENCE = "Each group's page carries a checked copy of every document it lists."
-            + " documents.csv lists every document of this run.";
+    static final String THE_ROOT_PAGES_SENTENCE = FixedWords.rootSentence(DeliverableLanguage.ENGLISH);
 
     /** What the page list's entries after the root page's are held in while the drawing runs. */
     private static final String REST_OF_THE_LIST = PAGE_LIST_FILE_NAME + ".rest" + Deliverable.PART_SUFFIX;
@@ -112,7 +121,8 @@ final class ConfluencePages implements AutoCloseable {
     }
 
     /** Starts a seed partition's page: its folder, named as the HTML tree's (ADR-312 §1). */
-    void partitionStarted(ListedPartition partition, int partitionCount) throws IOException {
+    @Override
+    public void partitionStarted(ListedPartition partition, int partitionCount) throws IOException {
         String place = IndexPage.pad(partition.partitionOrder(), IndexPage.widthOf(partitionCount));
         partitionFolder = IndexPage.partitionDirectoryName(partition, partitionCount);
         partitionKey = Integer.toString(partition.partitionOrder());
@@ -130,7 +140,8 @@ final class ConfluencePages implements AutoCloseable {
      *
      * @param clusterFolder the cluster's folder in the HTML tree, where its copies stand
      */
-    ConfluenceEntries entriesOf(
+    @Override
+    public Entries entriesOf(
             ListedPartition partition, RecordedCluster recorded, List<ListedSurvivor> members, Path clusterFolder,
             Copies copies)
             throws IOException {
@@ -145,16 +156,19 @@ final class ConfluencePages implements AutoCloseable {
      * Writes one cluster's page, or pages where {@code breaks} splits its HTML page (ADR-303), from {@code entries}, which
      * it closes and deletes, and its row of its seed partition's table and the root page's.
      */
-    void clusterDrawn(
+    @Override
+    public void clusterDrawn(
             ListedPartition partition,
             RecordedCluster recorded,
             Optional<SynthesisDoc> doc,
             Unwritten why,
             int entryCount,
             Optional<ClusterPage.PageBreaks> breaks,
-            ConfluenceEntries entries,
+            Entries handedBack,
             boolean writingFinished)
             throws IOException {
+        // The entries this drawing's own entriesOf returned (ADR-333 §2).
+        ConfluenceEntries entries = (ConfluenceEntries) handedBack;
         entries.close();
         int clusterWidth = IndexPage.widthOf(partition.clusterCount());
         String folderPath = partitionFolder + "/" + IndexPage.clusterFolderName(recorded, clusterWidth);
@@ -199,7 +213,8 @@ final class ConfluencePages implements AutoCloseable {
      * Writes the seed partition's page, its table of groups, and appends the same to the root page under a link to it;
      * then lists the seed partition's page and its clusters' pages, parents first (ADR-316 §2).
      */
-    void partitionEnded() throws IOException {
+    @Override
+    public void partitionEnded() throws IOException {
         String table = "<table><tbody>\n" + FixedWords.clusterTableHeadRow(language) + partitionRows
                 + "</tbody></table>\n";
         Path part = directory.resolve(partitionFolder).resolve(BODY_NAME + Deliverable.PART_SUFFIX);
@@ -218,7 +233,8 @@ final class ConfluencePages implements AutoCloseable {
      * Writes the root page, carrying {@code manifest} as a file (ADR-315 §3), and then the page list, once every page and
      * file it names is written (ADR-316 §1). The page list's held entries are let go.
      */
-    void finish(Path manifest) throws IOException {
+    @Override
+    public void finish(Path manifest) throws IOException {
         root.close();
         rest.close();
         Path rootPart = directory.resolve(BODY_NAME + Deliverable.PART_SUFFIX);

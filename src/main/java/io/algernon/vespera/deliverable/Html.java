@@ -10,7 +10,7 @@ import io.algernon.vespera.synthesis.DeliverableLanguage;
  * pipeline}'s {@code ReportPage}, because a capability module cannot name {@code pipeline} (ADR-274 §1.1); the
  * stylesheet is that page's shared rules.
  */
-final class Html {
+public final class Html {
 
     /** {@code ReportPage}'s shared rules (font, margins, table and cell borders), and a picture held to its page. */
     private static final String STYLES = "body { font-family: sans-serif; margin: 2em; max-width: 900px; }\n"
@@ -25,7 +25,7 @@ final class Html {
     private Html() {}
 
     /** {@code text} with each of {@code & < > " '} written as its entity, wherever the text lands. */
-    static String escape(String text) {
+    public static String escape(String text) {
         return text.replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")

@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 
 /**
  * The writing's Markdown read once into blocks from a fixed subset, with no dependency (ADR-274 §1.3, ADR-046), and
- * written by one of two emitters: {@link ProseHtml} for the HTML tree and {@link ProseStorage} for the Confluence
+ * written by one of two emitters: {@link ProseHtml} for the HTML tree and {@code ProseStorage} for the Confluence
  * rendering (#620). Both read the same blocks, so the two renderings carry the same paragraphs, lists, headings and
  * citations.
  *
@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
  * <p><b>Everything outside the subset is shown as escaped text and never read</b>: a table, a link, an image, raw
  * HTML, a block quote, a rule, a fenced block, four {@code #} and more.
  */
-final class Prose {
+public final class Prose {
 
     private static final Pattern HEADING = Pattern.compile("^(#{1,3}) (.+)$");
     private static final Pattern BULLET = Pattern.compile("^[-*] (.+)$");
@@ -40,7 +40,7 @@ final class Prose {
     private Prose() {}
 
     /** What an emitter writes of its own: the break between two lines of one block, and a citation. */
-    interface Emitter {
+    public interface Emitter {
 
         /** The break between two lines of a paragraph or of a list's item. */
         String lineBreak();
@@ -72,7 +72,7 @@ final class Prose {
     }
 
     /** {@code markdown}'s blocks written by {@code emitter}, one element to a line, or the empty text for none. */
-    static String emit(String markdown, Emitter emitter) {
+    public static String emit(String markdown, Emitter emitter) {
         List<String> elements = new ArrayList<>();
         for (Block block : of(markdown)) {
             elements.add(switch (block) {

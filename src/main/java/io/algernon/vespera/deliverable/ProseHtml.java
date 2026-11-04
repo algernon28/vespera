@@ -9,15 +9,15 @@ import java.util.function.IntFunction;
  * citation's {@code href}, {@code "#document-n"} made of digits the text matched, or, where the entry is on another
  * page of its cluster, {@code "./index-k.html#document-n"} with the page's name from {@link ClusterPage} (ADR-303 §6).
  */
-final class ProseHtml {
+public final class ProseHtml {
 
     /** The most digits an entry's number has, which an {@code int} holds. */
-    static final int MOST_DIGITS_OF_AN_ENTRY = 9;
+    public static final int MOST_DIGITS_OF_AN_ENTRY = 9;
 
     private ProseHtml() {}
 
     /** {@code markdown} as HTML, one element to a line, or the empty text where it holds nothing. */
-    static String of(String markdown) {
+    public static String of(String markdown) {
         return of(markdown, number -> "");
     }
 
@@ -26,7 +26,7 @@ final class ProseHtml {
      * {@code ""} for it, the entry being on this page, and {@code ./<page>#document-n} where it answers that page's name
      * (ADR-303 §6). The escaping comes first, as ever.
      */
-    static String of(String markdown, IntFunction<String> pageOf) {
+    public static String of(String markdown, IntFunction<String> pageOf) {
         return Prose.emit(markdown, new Prose.Emitter() {
             @Override
             public String lineBreak() {

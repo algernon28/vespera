@@ -37,7 +37,7 @@ import java.util.function.LongSupplier;
  * <p>This class writes no line and names no path outside the tree; it reports numbers through {@link
  * DeliverableProgress} (§8).
  */
-final class Copies {
+public final class Copies {
 
     /** Where an earlier layout's copies lie, beneath the tree (ADR-274 §1); no longer written (ADR-280 §0). */
     static final String DIRECTORY_NAME = "documents";
@@ -74,19 +74,19 @@ final class Copies {
      * The copy's name in its cluster's folder: the one worked out when that cluster's copies were made where a
      * collision changed it, and otherwise the survivor's own plain name (ADR-280 §1, §2).
      */
-    String nameOf(ListedSurvivor survivor) {
+    public String nameOf(ListedSurvivor survivor) {
         String suffixed = suffixedNames.get(survivor.occurrence().value());
         return suffixed != null ? suffixed : CopyNames.plainName(survivor);
     }
 
     /** The copy's path from the tree's root, {@code /} between its parts (ADR-280 §0). */
-    String pathOf(ListedSurvivor survivor) {
+    public String pathOf(ListedSurvivor survivor) {
         String folder = foldersFromTheRoot.get(survivor.slot());
         return folder == null || folder.isEmpty() ? nameOf(survivor) : folder + "/" + nameOf(survivor);
     }
 
     /** What became of the survivor's copy; {@link CopyOutcome#COPIED} for any that was never recorded as failing. */
-    CopyOutcome outcomeOf(ListedSurvivor survivor) {
+    public CopyOutcome outcomeOf(ListedSurvivor survivor) {
         return notStanding.getOrDefault(survivor.occurrence().value(), CopyOutcome.COPIED);
     }
 

@@ -1,5 +1,16 @@
-package io.algernon.vespera.deliverable;
+package io.algernon.vespera.confluence;
 
+import io.algernon.vespera.deliverable.ClusterPage;
+import io.algernon.vespera.deliverable.Copies;
+import io.algernon.vespera.deliverable.CopyNames;
+import io.algernon.vespera.deliverable.CopyOutcome;
+import io.algernon.vespera.deliverable.Deliverable;
+import io.algernon.vespera.deliverable.Entries;
+import io.algernon.vespera.deliverable.EntryPictures;
+import io.algernon.vespera.deliverable.FixedWords;
+import io.algernon.vespera.deliverable.Html;
+import io.algernon.vespera.deliverable.ListedPicture;
+import io.algernon.vespera.deliverable.ListedSurvivor;
 import io.algernon.vespera.ledger.ReplacingMove;
 import io.algernon.vespera.synthesis.DeliverableLanguage;
 import java.io.BufferedOutputStream;
@@ -32,7 +43,7 @@ import java.util.Set;
  * §3). The copies of the whole cluster are compared, which on a split cluster may give a suffix a name on another page
  * would not have needed; the cost is the suffix alone, as ADR-280 §1.4's over-matching is.
  */
-final class ConfluenceEntries implements AutoCloseable {
+final class ConfluenceEntries implements Entries {
 
     /** The entries while the cluster's pages are written, deleted after. */
     static final String PART_NAME = "entries" + Deliverable.PART_SUFFIX;
@@ -42,9 +53,6 @@ final class ConfluenceEntries implements AutoCloseable {
 
     /** How many hexadecimal characters of a picture's SHA-256 its file's name carries (ADR-314 §3). */
     private static final int PICTURE_DIGEST_CHARACTERS = 16;
-
-    /** Entries for nobody: what the HTML page's further pages and the tests of the HTML tree alone are written with. */
-    static final ConfluenceEntries NONE = new ConfluenceEntries();
 
     private final Path file;
     private final Path folder;
@@ -60,17 +68,6 @@ final class ConfluenceEntries implements AutoCloseable {
     private long written;
     private int number;
     private String copyName;
-
-    private ConfluenceEntries() {
-        this.file = null;
-        this.folder = null;
-        this.folderPath = null;
-        this.clusterFolder = null;
-        this.copies = null;
-        this.moves = null;
-        this.language = DeliverableLanguage.DEFAULT;
-        this.out = null;
-    }
 
     /**
      * Entries written into {@code folder}, the cluster's folder under {@code confluence/}, whose path from there is
@@ -97,10 +94,8 @@ final class ConfluenceEntries implements AutoCloseable {
     }
 
     /** Opens entry {@code number}, counted from 1: its anchor, and its copy's link or its path and why none stands. */
-    void start(int number, Optional<ListedSurvivor> entry) throws IOException {
-        if (out == null) {
-            return;
-        }
+    @Override
+    public void start(int number, Optional<ListedSurvivor> entry) throws IOException {
         this.number = number;
         this.copyName = null;
         List<PageFile> ofTheEntry = new ArrayList<>();
@@ -130,8 +125,9 @@ final class ConfluenceEntries implements AutoCloseable {
     }
 
     /** The entry's copy is a picture the HTML page shows inline, so this page shows the copy by its name (ADR-314 §2). */
-    void copyShown() throws IOException {
-        if (out == null || copyName == null) {
+    @Override
+    public void copyShown() throws IOException {
+        if (copyName == null) {
             return;
         }
         // An empty alt text, as the HTML page gives a copy: the empty string between these two writes.
@@ -140,10 +136,8 @@ final class ConfluenceEntries implements AutoCloseable {
     }
 
     /** A picture the HTML page shows, written as the picture's file and shown by its name (ADR-314 §2, §3). */
-    void picture(String digest, boolean png, ListedPicture picture) throws IOException {
-        if (out == null) {
-            return;
-        }
+    @Override
+    public void picture(String digest, boolean png, ListedPicture picture) throws IOException {
         String stem = PICTURE_STEM + digest.substring(0, PICTURE_DIGEST_CHARACTERS);
         String extension = png ? ".png" : ".jpg";
         String name = stem + extension;
@@ -159,17 +153,14 @@ final class ConfluenceEntries implements AutoCloseable {
     }
 
     /** The line the HTML page writes for the pictures it does not show. */
-    void notShown(int notShown) throws IOException {
-        if (out != null) {
-            write(EntryPictures.notShownLine(notShown, language));
-        }
+    @Override
+    public void notShown(int notShown) throws IOException {
+        write(EntryPictures.notShownLine(notShown, language));
     }
 
     /** Closes the entry, and tells where it ends. */
-    void end() throws IOException {
-        if (out == null) {
-            return;
-        }
+    @Override
+    public void end() throws IOException {
         write("</li>\n");
         ends.add(written);
     }
@@ -202,8 +193,6 @@ final class ConfluenceEntries implements AutoCloseable {
 
     @Override
     public void close() throws IOException {
-        if (out != null) {
-            out.close();
-        }
+        out.close();
     }
 }

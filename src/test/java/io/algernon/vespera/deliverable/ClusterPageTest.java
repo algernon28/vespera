@@ -305,7 +305,7 @@ class ClusterPageTest {
         try (OutputStream out = Files.newOutputStream(page)) {
             ClusterPage.write(
                     out, recorded, doc, why, members, page.getParent(), copies, pictures, progress, bytes -> {},
-                    ConfluenceEntries.NONE, false, DeliverableLanguage.ENGLISH);
+                    Entries.NONE, false, DeliverableLanguage.ENGLISH);
         }
     }
 

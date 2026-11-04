@@ -107,7 +107,7 @@ public final class Deliverable {
     static final String PAGE_EXTENSION = ".html";
 
     /** What a page is called while it is being written beside its target, before it is moved over it. */
-    static final String PART_SUFFIX = ".part";
+    public static final String PART_SUFFIX = ".part";
 
     /**
      * What the index says in place of a title for a cluster nothing was written over
@@ -213,6 +213,27 @@ public final class Deliverable {
     }
 
     /**
+     * As above, with the {@code plugins} that draw a rendering of their own beside the tree (ADR-333 §2, §4): each is
+     * called at each place the tree is written, in the order of {@link Plugin#name()}, and one whose drawing fails is
+     * stopped alone, the tree and the other plugins going on (ADR-333 §11). The overloads without plugins draw none.
+     */
+    public static Path writeTo(
+            Path workingDirectory,
+            DeliverableRoot root,
+            DeliverableProvenance provenance,
+            ArrangedSurvivors source,
+            ListedCodeSets code,
+            SurvivorPictures pictures,
+            ClusterPageCeiling ceiling,
+            List<Plugin> plugins,
+            DeliverableProgress progress) {
+        Path tree = root.treeOf(workingDirectory, provenance.runId());
+        return writeTo(
+                workingDirectory, root, provenance, source, code, pictures, ceiling, plugins, progress,
+                ReplacingMove.ATOMIC, () -> usableBytesAt(tree));
+    }
+
+    /**
      * As {@link #writeTo(Path, DeliverableRoot, DeliverableProvenance, ArrangedSurvivors, SurvivorPictures,
      * DeliverableProgress)}, the index and the manifest put in place by {@code moves}, which the shipped form gives as
      * {@link ReplacingMove#ATOMIC} (ADR-242).
@@ -308,6 +329,24 @@ public final class Deliverable {
             DeliverableProgress progress,
             ReplacingMove moves,
             LongSupplier usableSpace) {
+        return writeTo(
+                workingDirectory, root, provenance, source, code, pictures, ceiling, List.of(), progress, moves,
+                usableSpace);
+    }
+
+    /** As above, with the plugins (ADR-333). */
+    static Path writeTo(
+            Path workingDirectory,
+            DeliverableRoot root,
+            DeliverableProvenance provenance,
+            ArrangedSurvivors source,
+            ListedCodeSets code,
+            SurvivorPictures pictures,
+            ClusterPageCeiling ceiling,
+            List<Plugin> plugins,
+            DeliverableProgress progress,
+            ReplacingMove moves,
+            LongSupplier usableSpace) {
         Path tree = root.treeOf(workingDirectory, provenance.runId());
         List<ListedPartition> partitions = source.partitions();
         try {
@@ -331,12 +370,15 @@ public final class Deliverable {
             progress.toCopySurvivors(aboutToCopy[0], aboutToCopy[1], usableSpace.getAsLong());
             long[] filesLeft = new long[1];
             Path[] listingPart = new Path[1];
+            List<String> pluginFolders = List.of();
             ClusterPageSizes sizes = new ClusterPageSizes(ceiling);
-            try (ConfluencePages confluence = new ConfluencePages(tree, provenance.runId(), moves, written, source.language())) {
+            try (PluginDrawings drawings = new PluginDrawings(
+                    plugins, tree, provenance.runId(), moves, written, source.language(), progress)) {
+                pluginFolders = drawings.names();
                 Path indexPart =
                         writeIndexAndClusterPages(
                                 tree, provenance, partitions, source, entryPictures, copies, written, filesLeft, moves,
-                                progress, ceiling, sizes, confluence,
+                                progress, ceiling, sizes, drawings,
                                 index -> listingPart[0] = codeCopies.draw(
                                         code, namesTypedIn(workingDirectory, progress), index, written, source.language()));
                 progress.copiesAtALongPath(copies.copiesAtALongPath() + codeCopies.copiesAtALongPath());
@@ -349,11 +391,12 @@ public final class Deliverable {
                 if (listingPart[0] != null) {
                     moves.intoPlace(listingPart[0], tree.resolve(CODE_LISTING_FILE_NAME));
                 }
-                // The root page carries documents.csv as it now stands, and the page list comes last (ADR-316 §1).
-                confluence.finish(tree.resolve(MANIFEST_FILE_NAME));
+                // A plugin's last word is said once documents.csv stands: the Confluence rendering's root page carries
+                // it as it now stands, and its page list comes last (ADR-316 §1).
+                drawings.finish(tree.resolve(MANIFEST_FILE_NAME));
             }
             sizes.writeTo(workingDirectory, moves);
-            leftBehindBy(tree, written, progress);
+            leftBehindBy(tree, written, pluginFolders, progress);
             progress.filesLeftBehind(filesLeft[0]);
             return tree;
         } catch (IOException e) {
@@ -398,7 +441,7 @@ public final class Deliverable {
             DeliverableProgress progress,
             ClusterPageCeiling ceiling,
             ClusterPageSizes sizes,
-            ConfluencePages confluence,
+            PluginDrawings drawings,
             TheCode theCode)
             throws IOException {
         // The three totals, announced before the loop over partitions. An entry carries a document exactly
@@ -439,7 +482,7 @@ public final class Deliverable {
                     copies.copyAll(clusterFolder, members);
                 }
                 IndexPage.partitionHeading(index, partition, language);
-                confluence.partitionStarted(partition, partitions.size());
+                drawings.partitionStarted(partition, partitions.size());
                 for (RecordedCluster recorded : clusters) {
                     ClusterSlot slot = ClusterSlot.of(recorded);
                     // One read of the cluster's synthesis doc serves its page and its row of the index (ADR-241).
@@ -450,7 +493,7 @@ public final class Deliverable {
                     Unwritten why = doc.isEmpty() ? source.whyUnwritten(slot).orElse(null) : null;
                     Path pagePart = clusterFolder.resolve(CLUSTER_PAGE_NAME + PART_SUFFIX);
                     EntryEnds ends = new EntryEnds(ceiling instanceof ClusterPageCeiling.Bytes);
-                    ConfluenceEntries entries = confluence.entriesOf(partition, recorded, members, clusterFolder, copies);
+                    Entries entries = drawings.entriesOf(partition, recorded, members, clusterFolder, copies);
                     try (OutputStream page = Files.newOutputStream(pagePart); entries) {
                         ClusterPage.write(
                                 page, recorded, writing, why, members, clusterFolder, copies, pictures, progress, ends,
@@ -481,7 +524,7 @@ public final class Deliverable {
                                 clusterFolder, recorded, writing, why, members, breaks.get(), copies, pictures, moves,
                                 ((ClusterPageCeiling.Bytes) ceiling).bytes(), writingFinished, language);
                     }
-                    confluence.clusterDrawn(
+                    drawings.clusterDrawn(
                             partition, recorded, doc, why, ClusterPage.numbered(writing, members).size(), breaks, entries,
                             writingFinished);
                     sizes.drawn(onePageSize, ends.count(), pageCount, pagesOver);
@@ -490,7 +533,7 @@ public final class Deliverable {
                     IndexPage.clusterRow(index, partition, partitions.size(), recorded, doc, language);
                 }
                 IndexPage.partitionEnd(index);
-                confluence.partitionEnded();
+                drawings.partitionEnded();
                 progress.partitionWritten();
             }
             theCode.drawn(index);
@@ -556,10 +599,12 @@ public final class Deliverable {
      * folders it did not write: {@code documents/}, which an earlier layout wrote, apart from the rest, which are
      * counted. A file is not counted, and nothing inside a folder this drawing wrote is looked at (ADR-280 §4).
      *
-     * <p>{@code confluence/} is a folder every drawing writes, so it is never counted; inside it, a seed partition's folder
-     * and a cluster's folder in one this drawing wrote there are looked at as the tree's are (ADR-312 §4).
+     * <p>A plugin's folder, {@code confluence/} for one, is a folder every drawing writes, so it is never counted; inside
+     * it, a seed partition's folder and a cluster's folder in one this drawing wrote there are looked at as the tree's
+     * are (ADR-312 §4, ADR-333 §2).
      */
-    private static void leftBehindBy(Path tree, Set<String> written, DeliverableProgress progress) {
+    private static void leftBehindBy(
+            Path tree, Set<String> written, List<String> pluginFolders, DeliverableProgress progress) {
         boolean documentsFolder = false;
         long others = 0;
         try (Stream<Path> top = Files.list(tree)) {
@@ -574,12 +619,12 @@ public final class Deliverable {
                     others++;
                 }
             }
-            // A partition's folder, and confluence/, are looked into one level; confluence/'s own partition folders one
+            // A partition's folder, and a plugin's, are looked into one level; a plugin's own partition folders one
             // level more, as the tree's are (ADR-312 §4).
-            String inTheRendering = ConfluencePages.DIRECTORY_NAME + "/";
             for (String folder : written.stream()
                     .filter(name -> name.indexOf('/') < 0
-                            || (name.startsWith(inTheRendering) && name.indexOf('/', inTheRendering.length()) < 0))
+                            || pluginFolders.stream().anyMatch(plugin -> name.startsWith(plugin + "/")
+                                    && name.indexOf('/', plugin.length() + 1) < 0))
                     .toList()) {
                 try (Stream<Path> inside = Files.list(tree.resolve(folder))) {
                     for (Path entry : (Iterable<Path>) inside::iterator) {

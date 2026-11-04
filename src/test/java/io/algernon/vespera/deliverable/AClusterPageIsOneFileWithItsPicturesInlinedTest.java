@@ -216,7 +216,7 @@ class AClusterPageIsOneFileWithItsPicturesInlinedTest {
                     handedOnWhenTold.add((long) page.size());
                     endedWithAnEntry.add(new String(page.toByteArray(), StandardCharsets.UTF_8).endsWith("</li>\n"));
                 },
-                ConfluenceEntries.NONE,
+                Entries.NONE,
                 false,
                 DeliverableLanguage.ENGLISH);
         String written = page.toString(StandardCharsets.UTF_8);

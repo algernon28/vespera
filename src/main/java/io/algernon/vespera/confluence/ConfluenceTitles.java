@@ -1,5 +1,6 @@
-package io.algernon.vespera.deliverable;
+package io.algernon.vespera.confluence;
 
+import io.algernon.vespera.deliverable.FixedWords;
 import io.algernon.vespera.synthesis.DeliverableLanguage;
 
 /**

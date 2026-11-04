@@ -6,7 +6,7 @@ import io.algernon.vespera.synthesis.DeliverableLanguage;
  * What a survivor's copy can come to (ADR-274 §2.3). None of them fails the step, throws, or writes a row: it is a
  * fact about one survivor, recorded in its entry and its manifest row.
  */
-enum CopyOutcome {
+public enum CopyOutcome {
     /** The digest equalled the key stage 2 recorded, or a copy already stood at its name. */
     COPIED("copied", "", ""),
     /** The bytes read do not hash to the key: the file changed since stage 2 read it. */
@@ -46,7 +46,7 @@ enum CopyOutcome {
      * What an entry says in italics where no copy stands, in {@code language} (ADR-321 §4), unescaped; empty for
      * {@link #COPIED}.
      */
-    String sentence(DeliverableLanguage language) {
+    public String sentence(DeliverableLanguage language) {
         return switch (language) {
             case ENGLISH -> sentence;
             case ITALIAN -> sentenceInItalian;

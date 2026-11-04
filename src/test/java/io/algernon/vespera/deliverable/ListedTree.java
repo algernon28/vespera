@@ -37,19 +37,22 @@ import javax.imageio.ImageIO;
  * handful of clusters, so it may hold all of it. A partition is the clusters sharing a winning seed, in the order
  * listed, its seed's path the one the first listed survivor of that seed carries; the survivors come in the order
  * listed.
+ *
+ * <p>Public, with what a plugin's tests draw with, since the Confluence rendering's tests moved into {@code
+ * confluence} with the rendering (ADR-333 §1) and draw the same fixtures through {@code Deliverable}'s public door.
  */
-final class ListedTree {
+public final class ListedTree {
 
     /** A run id of the shape the ledger mints, which names the tree (ADR-103). */
-    static final String RUN_ID = "a".repeat(48) + "0123456789abcdef";
+    public static final String RUN_ID = "a".repeat(48) + "0123456789abcdef";
 
     /** The walk the run read, stated on the index. */
-    static final long WALK = 7L;
+    public static final long WALK = 7L;
 
     private ListedTree() {}
 
     /** The source over these lists, every survivor in one page, its writing unfinished and in English. */
-    static ArrangedSurvivors of(
+    public static ArrangedSurvivors of(
             List<RecordedCluster> arrangement,
             Map<ClusterSlot, SynthesisDoc> written,
             List<ListedSurvivor> survivors,
@@ -61,7 +64,7 @@ final class ListedTree {
      * The source over these lists, every survivor in one page, {@code writingFinished} saying whether the generation
      * step's work is recorded finished (ADR-319 §5.1) and {@code language} the deliverable's language (ADR-321).
      */
-    static ArrangedSurvivors of(
+    public static ArrangedSurvivors of(
             List<RecordedCluster> arrangement,
             Map<ClusterSlot, SynthesisDoc> written,
             List<ListedSurvivor> survivors,
@@ -196,29 +199,29 @@ final class ListedTree {
     }
 
     /** What produced the tree: the run, the walk, the archive's root and one profile key. */
-    static DeliverableProvenance provenance(Path corpusRoot) {
+    public static DeliverableProvenance provenance(Path corpusRoot) {
         return new DeliverableProvenance(RUN_ID, WALK, corpusRoot.toString(), List.of(new NamedValue("seedFolder", "seeds")));
     }
 
     /** One cluster of {@code seed}'s partition, placed first among the partitions. */
-    static RecordedCluster cluster(OccurrenceId seed, int ordinal, String label, int clusterOrder, int documentCount) {
+    public static RecordedCluster cluster(OccurrenceId seed, int ordinal, String label, int clusterOrder, int documentCount) {
         return new RecordedCluster(new ArrangedCluster(seed, ordinal, documentCount, 1, clusterOrder), new ClusterLabel(label));
     }
 
     /** One survivor of {@code seed}'s partition, in the cluster of {@code ordinal}. */
-    static ListedSurvivor survivor(
+    public static ListedSurvivor survivor(
             long occurrence, String path, String contentHash, OccurrenceId seed, String seedPath, int ordinal, double score) {
         return new ListedSurvivor(
                 new OccurrenceId(occurrence), new OccurrencePath(path), contentHash, seed, seedPath, ordinal, score);
     }
 
     /** The key a cluster is asked for by. */
-    static ClusterSlot slotOf(RecordedCluster recorded) {
+    public static ClusterSlot slotOf(RecordedCluster recorded) {
         return new ClusterSlot(recorded.cluster().winningSeed(), recorded.cluster().ordinal());
     }
 
     /** The writing over a cluster, its call having sent {@code sent} in citation order. */
-    static SynthesisDoc writing(String title, String prose, long... sent) {
+    public static SynthesisDoc writing(String title, String prose, long... sent) {
         List<OccurrenceId> occurrences = new ArrayList<>();
         for (long occurrence : sent) {
             occurrences.add(new OccurrenceId(occurrence));
@@ -227,7 +230,7 @@ final class ListedTree {
     }
 
     /** {@code bytes}' SHA-256 as 64 lower-case hexadecimal characters, computed here with the JDK. */
-    static String sha256Of(byte[] bytes) {
+    public static String sha256Of(byte[] bytes) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
         } catch (NoSuchAlgorithmException e) {
@@ -239,7 +242,7 @@ final class ListedTree {
      * A real image of {@code format}, {@code png}, {@code jpg} or {@code gif}, {@code width} by {@code height}, written
      * by the JDK, so its bytes begin with the signature of its kind; its colours differ pixel by pixel.
      */
-    static byte[] anImage(String format, int width, int height) {
+    public static byte[] anImage(String format, int width, int height) {
         BufferedImage image = new BufferedImage(
                 width, height, format.equals("gif") ? BufferedImage.TYPE_BYTE_INDEXED : BufferedImage.TYPE_INT_RGB);
         for (int y = 0; y < height; y++) {
@@ -259,7 +262,7 @@ final class ListedTree {
     }
 
     /** Every regular file beneath {@code directory}, as paths relative to it with {@code /} between their parts. */
-    static List<String> filesUnder(Path directory) throws IOException {
+    public static List<String> filesUnder(Path directory) throws IOException {
         if (!Files.isDirectory(directory)) {
             return List.of();
         }

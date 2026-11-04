@@ -13,7 +13,7 @@ import java.util.Optional;
  * describes one run only, so none says the gap is for good: the next invocation that reaches the writing rewrites the
  * page.
  */
-final class UnwrittenSentences {
+public final class UnwrittenSentences {
 
     /**
      * The line beneath the reason on the page of a cluster whose answer was turned down each time it was asked, in a
@@ -35,7 +35,7 @@ final class UnwrittenSentences {
      * recorded finished, or being recorded by the invocation drawing it; empty otherwise (ADR-319 §5.1). In a finished
      * run every fault standing is a repeated fault, so every such page may say it.
      */
-    static Optional<String> standing(Unwritten why, boolean writingFinished, DeliverableLanguage language) {
+    public static Optional<String> standing(Unwritten why, boolean writingFinished, DeliverableLanguage language) {
         if (!writingFinished || why == null) {
             return Optional.empty();
         }
@@ -53,7 +53,7 @@ final class UnwrittenSentences {
     }
 
     /** The sentence for {@code why}; an exhaustive {@code switch}, so a new reason stops this compiling. */
-    static String of(Unwritten why, DeliverableLanguage language) {
+    public static String of(Unwritten why, DeliverableLanguage language) {
         return switch (language) {
             case ENGLISH -> english(why);
             case ITALIAN -> italian(why);

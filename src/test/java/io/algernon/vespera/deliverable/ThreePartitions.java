@@ -24,8 +24,11 @@ import java.util.Map;
  * score alike in each partition. Cluster 0 of seed 2 is written from two of its three survivors, neither the
  * highest-scoring, in an order that is not occurrence order. Of the four clusters with no writing, one carries
  * a fault, nothing could be sent for one, one was not reached, and one has no reason given.
+ *
+ * <p>Public, as {@link ListedTree} is, so that {@code confluence}'s tests draw the same lists through a plugin
+ * (ADR-333 §2).
  */
-final class ThreePartitions {
+public final class ThreePartitions {
 
     static final OccurrenceId ALPHA = new OccurrenceId(1);
 
@@ -41,13 +44,13 @@ final class ThreePartitions {
 
     private ThreePartitions() {}
 
-    static DeliverableProvenance provenance(String corpusRoot) {
+    public static DeliverableProvenance provenance(String corpusRoot) {
         return new DeliverableProvenance(
                 "f00d".repeat(16), 7L, corpusRoot, List.of(new NamedValue("seedFolder", "seeds"), new NamedValue("relevanceFloor", "")));
     }
 
     /** The six clusters, in stored order: partition order, then cluster order. */
-    static List<RecordedCluster> arrangement() {
+    public static List<RecordedCluster> arrangement() {
         return List.of(
                 cluster(BETA, 0, 3, 1, 1, "Fire doors | inspection"),
                 cluster(BETA, 1, 2, 1, 2, "Smoke dampers"),
@@ -58,7 +61,7 @@ final class ThreePartitions {
     }
 
     /** The eleven survivors, in occurrence order. */
-    static List<ListedSurvivor> survivors() {
+    public static List<ListedSurvivor> survivors() {
         return List.of(
                 survivor(10, "reports/doors a.docx", BETA, BETA_PATH, 0, 0.5),
                 survivor(11, "reports/stairs, north.pdf", ALPHA, ALPHA_PATH, 0, 0.7),
@@ -74,7 +77,7 @@ final class ThreePartitions {
     }
 
     /** The two synthesis docs, in the order they were written. */
-    static List<ListedDoc> written() {
+    public static List<ListedDoc> written() {
         return List.of(
                 new ListedDoc(
                         BETA,
@@ -91,7 +94,7 @@ final class ThreePartitions {
     }
 
     /** Why three of the four clusters without writing have none; the fourth is given no reason. */
-    static Map<ClusterSlot, Unwritten> unwritten() {
+    public static Map<ClusterSlot, Unwritten> unwritten() {
         Map<ClusterSlot, Unwritten> why = new LinkedHashMap<>();
         why.put(new ClusterSlot(BETA, 1), Unwritten.of(ClusterFaultKind.SCHEMA_VIOLATION));
         why.put(new ClusterSlot(ALPHA, 0), Unwritten.NO_SENDABLE_DOCUMENT);
