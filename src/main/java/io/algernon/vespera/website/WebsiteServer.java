@@ -137,7 +137,8 @@ public final class WebsiteServer implements AutoCloseable {
                     serve(exchange, head);
                 }
             } catch (IOException | RuntimeException failure) {
-                if (!exchange.getResponseHeaders().containsKey("Content-Type")) {
+                if (exchange.getResponseCode() == -1) {
+                    // No status line sent yet: any Content-Type already set is replaced by the answer's own.
                     answer(exchange, FAILED, "Failed", head);
                 }
             }

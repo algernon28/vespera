@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -194,7 +195,7 @@ public final class ServeCommand {
                 name.replace('.', '_'),
                 name.replace('-', '_'),
                 name.replace('.', '_').replace('-', '_'))) {
-            for (String spelling : List.of(candidate, candidate.toUpperCase(java.util.Locale.ROOT))) {
+            for (String spelling : List.of(candidate, candidate.toUpperCase(Locale.ROOT))) {
                 String value = environment.get(spelling);
                 if (value != null) {
                     return value;

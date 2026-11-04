@@ -41,7 +41,7 @@ public final class ChildCommand {
                     "The checkboxes of the invocation page's Publish, one for each destination drawn (ADR-333 §6); not"
                             + " a control of the launch form."),
             new Argument("serve", "db-dir", "", "",
-                    "Never passed: the control panel starts no vespera serve (ADR-333 section 8), a reader's server being a"
+                    "Never passed: the control panel starts no vespera serve (ADR-333 §8), a reader's server being a"
                             + " command the operator starts and ends."));
 
     /**
