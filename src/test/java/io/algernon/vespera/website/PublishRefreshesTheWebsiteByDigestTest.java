@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.deliverable.ClusterPage;
 import io.algernon.vespera.deliverable.DeliverableRoot;
 import io.algernon.vespera.deliverable.ListedCodeSets;
 import io.algernon.vespera.deliverable.ListedSurvivor;
@@ -306,23 +307,47 @@ class PublishRefreshesTheWebsiteByDigestTest {
     @Story("The website is refreshed by digest")
     @DisplayName("A copy renamed by case alone is not removed where the file system takes the two names for one file: it stands, counted standing, and the page links it")
     void aFileRenamedByCaseAloneIsNotRemoved() throws IOException {
-        Path probe = Files.createDirectories(base.resolve("case-probe"));
-        Files.writeString(probe.resolve("a"), "a");
-        assumeTrue(Files.exists(probe.resolve("A")) && Files.isSameFile(probe.resolve("a"), probe.resolve("A")),
-                "the file system tells names apart by case, so a case-only rename is two files there");
+        aCopyRenamedToOneFileStands("Report.docx", "report.docx");
+    }
+
+    /**
+     * {@code ΟΔΟΣ 1.docx} renamed to {@code ΟΔΟσ 1.docx}, its last Σ, U+03A3, made σ, U+03C3: lower-casing the whole
+     * name makes that Σ the final ς, U+03C2, since it ends a word, and leaves the σ as it is, so a key by lower case
+     * holds the two apart. ADR-280 §1.4's per-unit key, each UTF-16 unit upper-cased on its own as NTFS compares names,
+     * gives both {@code ΟΔΟΣ 1.DOCX}, and NTFS takes them for one file. A comparison by lower case would remove the file
+     * the page links.
+     */
+    @Test
+    @Story("The website is refreshed by digest")
+    @DisplayName("A copy renamed from Σ to σ at a word's end is not removed where the file system takes the two names for one file, as NTFS's per-unit upper case does: it stands, counted standing, and the page links it")
+    void aFileRenamedByAFoldLowerCaseMissesIsNotRemoved() throws IOException {
+        aCopyRenamedToOneFileStands("ΟΔΟΣ 1.docx", "ΟΔΟσ 1.docx");
+    }
+
+    /**
+     * The doors' one copy, first listed as {@code firstName} and then, its bytes the same, as {@code renamedName}, is
+     * held to stand after the second publish where the file system takes the two names for one file; skipped where it
+     * tells them apart, as a probe folder holding {@code firstName} shows.
+     */
+    private void aCopyRenamedToOneFileStands(String firstName, String renamedName) throws IOException {
+        Path probe = Files.createDirectories(base.resolve("name-probe"));
+        Files.writeString(probe.resolve(firstName), "a");
+        assumeTrue(Files.exists(probe.resolve(renamedName))
+                        && Files.isSameFile(probe.resolve(firstName), probe.resolve(renamedName)),
+                "the file system tells " + firstName + " and " + renamedName + " apart, so the rename is two files there");
 
         byte[] reportBytes = bytes("the report on the doors");
         String reportSha = sha256Of(reportBytes);
-        String asFirstNamed = DOORS_FOLDER + "/Report.docx";
-        String asRenamed = DOORS_FOLDER + "/report.docx";
+        String asFirstNamed = DOORS_FOLDER + "/" + firstName;
+        String asRenamed = DOORS_FOLDER + "/" + renamedName;
         Path workingDirectory = Files.createDirectories(base.resolve("work"));
         Path website = workingDirectory.resolve(WEBSITE);
 
-        Path earlier = drawnWithOneReport(base.resolve("a"), "reports/Report.docx", reportBytes);
+        Path earlier = drawnWithOneReport(base.resolve("a"), "reports/" + firstName, reportBytes);
         Map<String, WebsiteFixture.Listed> before = listedIn(renderingOf(earlier));
         Plugin.Delivery first = WebsiteFixture.published(earlier, workingDirectory);
 
-        Path later = drawnWithOneReport(base.resolve("b"), "reports/report.docx", reportBytes);
+        Path later = drawnWithOneReport(base.resolve("b"), "reports/" + renamedName, reportBytes);
         Map<String, WebsiteFixture.Listed> after = listedIn(renderingOf(later));
         Set<String> dropped = new TreeSet<>(before.keySet());
         dropped.removeAll(after.keySet());
@@ -337,8 +362,8 @@ class PublishRefreshesTheWebsiteByDigestTest {
         Plugin.Delivery second = WebsiteFixture.published(later, workingDirectory);
 
         claim(
-                "the first publish delivered; its list names the copy as Report.docx, the next as report.docx, each"
-                        + " with the same sha256, and that copy is the one path the next list drops",
+                "the first publish delivered; its list names the copy as " + firstName + ", the next as " + renamedName
+                        + ", each with the same sha256, and that copy is the one path the next list drops",
                 () -> {
                     assertThat(first.delivered()).as(first.closingLine()).isTrue();
                     assertThat(before).containsKey(asFirstNamed).doesNotContainKey(asRenamed);
@@ -348,10 +373,10 @@ class PublishRefreshesTheWebsiteByDigestTest {
                     assertThat(dropped).containsExactly(asFirstNamed);
                 });
         claim(
-                "the doors' page links the copy as report.docx",
+                "the doors' page links the copy as " + renamedName,
                 () -> assertThat(website.resolve(DOORS_FOLDER).resolve("index.html"))
                         .content(StandardCharsets.UTF_8)
-                        .contains("href=\"./report.docx\""));
+                        .contains("href=\"./" + ClusterPage.percentEncoded(renamedName) + "\""));
         claim(
                 "the file the page links still stands after the second publish, hashing to the copy's sha256",
                 () -> {
