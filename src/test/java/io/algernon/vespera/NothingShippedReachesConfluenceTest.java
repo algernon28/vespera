@@ -98,13 +98,14 @@ class NothingShippedReachesConfluenceTest {
     /**
      * The options of each command of the tree, beside the standard help ones, by their longest names: {@code
      * vespera} none, {@code run} the working directory, {@code label} the local labeller and the working directory,
-     * {@code publish} the working directory.
+     * {@code publish} the working directory and the destinations, {@code --to}, which names plugins and never a site,
+     * a space or a credential (ADR-333 §6).
      */
     private static final Map<String, Set<String>> THE_OPTIONS = Map.of(
             "vespera", Set.of(),
             "run", Set.of("--db-dir"),
             "label", Set.of("--auto", "--db-dir"),
-            "publish", Set.of("--db-dir"));
+            "publish", Set.of("--db-dir", "--to"));
 
     /**
      * Builds each command without calling its constructor, whose collaborators are the application's, so that
@@ -224,8 +225,8 @@ class NothingShippedReachesConfluenceTest {
                         "publish", Set.of())));
         claim(
                 "each command has exactly the options it has beside the standard help ones: vespera none, run --db-dir,"
-                        + " label --auto and --db-dir, publish --db-dir, so no option names a site, a space or a"
-                        + " credential",
+                        + " label --auto and --db-dir, publish --db-dir and --to, the destinations by their plugins'"
+                        + " names, so no option names a site, a space or a credential",
                 () -> assertThat(options).containsExactlyInAnyOrderEntriesOf(THE_OPTIONS));
     }
 
