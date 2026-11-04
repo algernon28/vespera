@@ -186,9 +186,10 @@ class PublishToEachDestinationInTurnInvocationTest {
                     assertThat(invocation.exit()).isEqualTo(CommandLine.ExitCode.SOFTWARE);
                     assertThat(destinations.asked).hasSize(2).last().asString().startsWith(WEBSITE);
                 });
-        claim("one line on standard error names Confluence and the type it threw",
-                () -> assertThat(invocation.errors())
-                        .anyMatch(line -> line.contains(CONFLUENCE) && line.contains("IllegalStateException")));
+        claim("one line on standard error names Confluence and the type it threw, in ADR-339 §3's words",
+                () -> assertThat(invocation.errors()).contains("vespera publish stopped " + CONFLUENCE
+                        + ": it threw IllegalStateException, whose message is not written. Publish again once that is"
+                        + " dealt with."));
         claim("no line carries the exception's message, which could name a document (ADR-274 §8)",
                 () -> assertThat(invocation.lines()).noneMatch(line -> line.contains(Destinations.THE_MESSAGE)));
         claim("and the last line is the website's closing line",

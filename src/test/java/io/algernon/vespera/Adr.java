@@ -2406,6 +2406,16 @@ public final class Adr {
     public static final String EVERY_CLAIM_CAN_FAIL_AND_A_DECISION_IS_HELD_ONCE = FILE
             + "0337-every-claim-can-fail-a-decision-is-held-once-and-a-records-tests-name-tests-that-exist.md";
 
+    /**
+     * ADR-339 -- an entry of {@code ChildCommand.ARGUMENTS} names the form its control stands on, {@code launch} or
+     * {@code publish}, so {@code publish --to}'s {@code to} stands on the invocation page's Publish and never on the
+     * launch form; six members of {@code ClusterPage} are public for the website rendering; and the website's two lists,
+     * the words of a stopped delivery, the source check, the pages' ceiling, the Publish form's offer and three fixed
+     * words are as built (amends ADR-336 §2 and its Tests, and ADR-338 §1).
+     */
+    public static final String AN_ARGUMENT_NAMES_THE_FORM_ITS_CONTROL_STANDS_ON_AND_THE_WEBSITE_IS_BUILT_AS_RECORDED =
+            FILE + "0339-an-argument-of-the-control-panels-table-names-the-form-its-control-stands-on-six-members-of-cluster-page-are-public-for-the-website-and-its-lists-stops-and-pages-are-as-recorded.md";
+
     private Adr() {
     }
 }
