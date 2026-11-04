@@ -16,6 +16,10 @@
 
 > **Partly amended — see [ADR-336](0336-the-launch-page-starts-label-auto-beside-label-and-every-argument-of-the-commands-the-control-panel-starts-is-set-by-a-control-of-the-launch-page-or-listed-as-never-passed-with-why.md).** Of §2 and §9: the form `launch` has four submit buttons, `run`, `label`, `label-auto` and `check`; `label-auto` starts `label --auto` as `label` starts `label`, by the same checks and lines, disabled where they are, a refusal answering `303` to `/`. Of §8: the form `label-auto` on `/next` stands, and is no longer the one place `label --auto` is started from. The rest of this record stands.
 
+> **Partly superseded — see [ADR-339](0339-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md).** Its pages, forms, paths, names and the report re-served in a sandbox go. §5, the sidecars asked and only read, §6, free space, §7's table of what a stop costs at each step, and of §8 the rule of what the next act asks for, stand, shown in the window.
+
+> **Partly amended — see [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §7: the window knows the running step from `progress.json` and shows its cost beside that step's own Stop. The rest of what ADR-339 keeps of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone; it asks the sidecars through `java.net.HttpURLConnection`, of `java.base`, and reads their JSON with a reader of its own (§5). Its §4: one class of its own owns the skeleton, styling and escaping of its pages (§10).

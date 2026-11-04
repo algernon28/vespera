@@ -8,6 +8,8 @@
 
 > **Partly amended — see [ADR-335](0335-the-control-panel-shows-the-progress-page-on-a-page-of-its-own-and-its-pages-are-drawn-to-one-compact-scale.md).** Of §7: the four tabs of the progress page under `/report/` are answered with `frame-ancestors 'self'` in place of `frame-ancestors 'none'`, the rest of the policy and the other three headers unchanged, so that the control panel's own pages may frame them and no other site's may; every other response keeps `'none'`. The rest of this record stands.
 
+> **Superseded — see ADR-339.** [ADR-339](0339-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md) **supersedes this record**: the control panel is a window inside the jar and listens on no address.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the server is the JDK's `com.sun.net.httpserver.HttpServer`, and the control panel still names only its own package, `java.base` and `jdk.httpserver` (§1, §2).

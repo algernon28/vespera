@@ -2406,6 +2406,34 @@ public final class Adr {
     public static final String EVERY_CLAIM_CAN_FAIL_AND_A_DECISION_IS_HELD_ONCE = FILE
             + "0337-every-claim-can-fail-a-decision-is-held-once-and-a-records-tests-name-tests-that-exist.md";
 
+    /**
+     * ADR-339 -- the control panel is a JavaFX window inside the Vespera jar, OpenJFX 26.0.2's {@code javafx-controls}
+     * of the building platform's classifier, opened by the jar started with no argument through {@code
+     * io.algernon.EntryPoint}, its child the jar it runs from; its loopback server, pages and second jar go, and a
+     * window is tested on JavaFX's Headless platform (supersedes ADR-291, ADR-297, ADR-302 but for §5 to §7, ADR-325,
+     * ADR-331 but for §6 and §8, and ADR-335; amends ADR-285 §2 to §4, ADR-288 §1 and §4, and ADR-278 §2).
+     */
+    public static final String THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR = FILE
+            + "0339-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md";
+
+    /**
+     * ADR-340 -- the note saved with a profile value is filled in, the provenance the file states or {@code set in the
+     * control panel}, and a value changed under the note as shown is saved with the filled-in one; the refusal of a
+     * value changed under its old provenance goes (amends ADR-295 §3 and §4, ADR-330 §5 and ADR-334 §7).
+     */
+    public static final String THE_NOTE_SAVED_WITH_A_PROFILE_VALUE_IS_FILLED_IN = FILE
+            + "0340-the-note-saved-with-a-profile-value-is-filled-in-for-the-operator-set-in-the-control-panel-or-the-provenance-already-saved-and-a-value-changed-under-its-old-note-is-saved-with-the-filled-in-one.md";
+
+    /**
+     * ADR-341 -- the control panel's window is one cockpit: Run and Stop side by side, the sixteen steps as bars beside
+     * the output, the progress page's three charts from {@code progress.json}, the Profile and Inclusions tabs and seven
+     * sections of a sidebar; its starting values from the launch values, the environment, {@code .env} and {@code
+     * application.yaml}; and five options and the label file set in it, with the command lines they make shown
+     * (amends ADR-278 §1, ADR-330 §1, ADR-336 §1 to §3 and ADR-302 §7).
+     */
+    public static final String THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT = FILE
+            + "0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md";
+
     private Adr() {
     }
 }

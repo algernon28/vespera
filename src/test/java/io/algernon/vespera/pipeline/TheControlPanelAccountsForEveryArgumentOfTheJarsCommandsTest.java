@@ -29,8 +29,9 @@ import picocli.CommandLine.Model.PositionalParamSpec;
 /**
  * Every option and positional argument of the commands the control panel starts is accounted for by the control
  * panel (ADR-336 §2): {@link ChildCommand#ARGUMENTS} holds each one of picocli's model of {@code vespera} and of each
- * of its commands, once, by the command's name and the argument's, with the control of the launch form that sets it
- * or none, and why.
+ * of its commands, once, by the command's name and the argument's, with the control of the control panel's window
+ * that sets it or none, and why (ADR-341 §4: label's file is set by the label file option, and only vespera's help and
+ * version are never passed).
  *
  * <p>The table names an option without its leading {@code --}, {@code help} for {@code --help}, so that no class of the
  * control panel holds the text of the two options ADR-278 §1's scan forbids it (ADR-336 §2); this test strips the
@@ -38,8 +39,8 @@ import picocli.CommandLine.Model.PositionalParamSpec;
  *
  * <p>The model is read as the jar builds it, its mixins included, so an option added to a command, a mixin's among
  * them, or a command added with arguments of its own, fails here until the control panel's table says how it is set
- * or that it is never passed. That each control the table names is drawn on the launch form is held by {@code
- * controlpanel.TheLaunchPageStartsLabelAutoScreenTest.everyControlTheTableNamesIsOnTheLaunchForm}.
+ * or that it is never passed. That each control the table names is a control of the window is held by {@code
+ * controlpanel.TheControlPanelsWindowTest.everyControlTheArgumentsTableNamesIsAControlOfTheWindow}.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -89,7 +90,8 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
 
     @Test
     @Story("Every option of the jar's commands is set from the control panel or said not to be")
-    @DisplayName("Each argument is set by a control of the launch page or never passed, and the table says why for each")
+    @DisplayName("Each argument is set by a control of the control panel or never passed, and the table says why for each")
+    @Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
     void eachArgumentIsSetByALaunchControlOrNeverPassedAndSaysWhy() {
         Map<String, String> controls = new LinkedHashMap<>();
         for (ChildCommand.Argument argument : ChildCommand.ARGUMENTS) {
@@ -107,16 +109,16 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
         claim("every argument says why it is set as it is, or never passed",
                 () -> assertThat(withoutAReason).as("arguments of the table with no reason").isEmpty());
         claim("the corpus root is set by its field, every command's working directory by the working directory's,"
-                        + " and --auto by Have the local model answer",
+                        + " --auto by Let the local model answer, and label's file by the label file option",
                 () -> assertThat(controls).containsAllEntriesOf(Map.of(
                         "run <root>", "vespera.corpus-root",
                         "run db-dir", THE_WORKING_DIRECTORY,
                         "label db-dir", THE_WORKING_DIRECTORY,
                         "publish db-dir", THE_WORKING_DIRECTORY,
-                        "label auto", "label-auto")));
-        claim("and the arguments never passed are vespera's help and version options, and label's file, and no other",
-                () -> assertThat(neverPassed).containsExactlyInAnyOrder("vespera help", "vespera version",
-                        "label <file>"));
+                        "label auto", "label-auto",
+                        "label <file>", "label-file")));
+        claim("and the arguments never passed are vespera's help and version options, and no other",
+                () -> assertThat(neverPassed).containsExactlyInAnyOrder("vespera help", "vespera version"));
     }
 
     /**

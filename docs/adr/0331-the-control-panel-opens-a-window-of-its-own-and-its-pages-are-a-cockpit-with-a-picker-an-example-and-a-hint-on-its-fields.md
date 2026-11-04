@@ -8,6 +8,8 @@
 
 > **Partly amended — see [ADR-336](0336-the-launch-page-starts-label-auto-beside-label-and-every-argument-of-the-commands-the-control-panel-starts-is-set-by-a-control-of-the-launch-page-or-listed-as-never-passed-with-why.md).** Of §3: the launch page's `#top-row` holds four buttons of the form `launch`, `run`, `label`, `label-auto` and `check`. Of §6: a refusal of `label --auto` lands on `/next` where it was pressed there, and on `/` where it was pressed on the launch page. The rest of this record stands.
 
+> **Partly superseded — see [ADR-339](0339-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md).** Its window, layout, folder page and pickers go with the pages. §6, a folder field's status, and §8, an example and a hint on each field, stand, in the window.
+
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone, and starts the window by `ProcessBuilder`, `java.desktop` not added (§1). Its §4: one class owns the pages' skeleton, styling and escaping (§3).
