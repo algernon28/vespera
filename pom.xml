@@ -88,6 +88,16 @@
             <version>${javafx.version}</version>
         </dependency>
         <dependency>
+            <!--
+              ADR-339 section 1, ADR-341 section 6: the reports open in a tab of the window, in a WebView. No classifier,
+              as for javafx-controls: the build platform's natives only. It adds about 37 MB to the jar, which the
+              operator approved.
+            -->
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
             <!-- ADR-093: declared explicitly per ADR-046's convention, rather than left to arrive only
                  transitively via spring-boot-starter-logging. logback-classic itself stays un-added and
                  BOM-managed, same as every other starter-provided library here. -->

@@ -1,6 +1,7 @@
 package io.algernon.controlpanel;
 
 import java.io.File;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -13,8 +14,8 @@ import javafx.stage.FileChooser;
 import javafx.stage.Window;
 
 /**
- * What the window asks of the system beyond JavaFX's own scene: a folder, a file and a report opened (ADR-339 §6,
- * ADR-341 §6). A test answers it without a native dialog; that {@code DirectoryChooser} and {@code FileChooser} open is
+ * What the window asks of the system beyond JavaFX's own scene: a folder, a file and a document handed to the
+ * system (ADR-339 §6, ADR-341 §6); HostServices is used for that hand-off alone. A test answers it without a native dialog; that {@code DirectoryChooser} and {@code FileChooser} open is
  * not held by any test.
  */
 interface Dialogs {
@@ -25,8 +26,8 @@ interface Dialogs {
     /** The file the operator chose, empty where they chose none. */
     Optional<Path> file(String title, String initial);
 
-    /** Opens the report in the system's default browser. */
-    void open(Path report);
+    /** Hands {@code address}, a document that is no report of the window, to the operating system to open (ADR-341 §6). */
+    void handToTheSystem(URI address);
 
     /** Asks {@code sentence} with two answers; true where the operator gives {@code yes}, the one that goes on. */
     boolean confirm(String sentence, String yes, String no);
@@ -49,12 +50,12 @@ interface Dialogs {
         }
 
         @Override
-        public void open(Path report) {
+        public void handToTheSystem(URI address) {
             // nothing to open it with
         }
     };
 
-    /** The system's dialogs over {@code owner}, a report opened by {@code showDocument} with its file's URI. */
+    /** The system's dialogs over {@code owner}, a document handed over by {@code showDocument} with its address. */
     static Dialogs of(Supplier<Window> owner, Consumer<String> showDocument) {
         return new Dialogs() {
             @Override
@@ -86,8 +87,8 @@ interface Dialogs {
             }
 
             @Override
-            public void open(Path report) {
-                showDocument.accept(report.toUri().toString());
+            public void handToTheSystem(URI address) {
+                showDocument.accept(address.toString());
             }
         };
     }

@@ -1,6 +1,7 @@
 package io.algernon.controlpanel;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,6 +43,8 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.scene.web.WebEngine;
+import javafx.scene.web.WebView;
 import javafx.util.Duration;
 
 /**
@@ -80,6 +83,7 @@ final class Cockpit {
     private final TabPane tabs = new TabPane();
     private final Tab profileTab = new Tab("Profile");
     private final Tab inclusionsTab = new Tab("Inclusions");
+    private final Map<String, Tab> reportTabs = new LinkedHashMap<>();
     private final Accordion sidebar = new Accordion();
     private final Map<String, TitledPane> sections = new LinkedHashMap<>();
     private final Map<String, LaunchField> fields = new LinkedHashMap<>();
@@ -501,6 +505,7 @@ final class Cockpit {
         });
         working.input.textProperty().addListener((observed, was, now) -> {
             where();
+            closeReportTabs();
             loadFiles();
         });
         VBox pane = new VBox(fieldBox(corpus, "Corpus root", true), fieldBox(working, "Working directory", true),
@@ -806,8 +811,90 @@ final class Cockpit {
         }
     }
 
+    /** Opens {@code report}, a file of the working directory, in a tab of its own, or selects the tab it already has (ADR-341 §6). */
     private void openReport(String report) {
-        workingDirectory().ifPresent(folder -> dialogs.open(folder.resolve(report)));
+        Optional<Path> folder = workingDirectory();
+        if (folder.isEmpty()) {
+            return;
+        }
+        Tab open = reportTabs.get(report);
+        if (open != null) {
+            tabs.getSelectionModel().select(open);
+            return;
+        }
+        Path file = folder.get().toAbsolutePath().normalize().resolve(report);
+        WebView view = new WebView();
+        view.setId("viewer-" + report);
+        WebEngine engine = view.getEngine();
+        engine.setCreatePopupHandler(features -> null);
+        engine.locationProperty().addListener((observed, was, now) -> followed(file, engine, now));
+        Button reload = new Button("Reload");
+        reload.setId("reload-" + report);
+        reload.setOnAction(event -> engine.reload());
+        VBox.setVgrow(view, Priority.ALWAYS);
+        VBox content = new VBox(reload, view);
+        content.getStyleClass().add("tab-content");
+        Tab tab = new Tab(report, content);
+        tab.setId("report-" + report);
+        tab.setOnClosed(event -> reportTabs.remove(report));
+        reportTabs.put(report, tab);
+        tabs.getTabs().add(tab);
+        tabs.getSelectionModel().select(tab);
+        engine.load(file.toUri().toString());
+    }
+
+    /**
+     * Decides a location a viewer is about to show (ADR-341 §6). The same report, with or without a fragment, is
+     * followed; another report of the working directory opens in its own tab; a report not written, or an address that
+     * is not a file's, opens nothing and is said on the outcome line; any other file is handed to the system. Where it is
+     * not followed the viewer goes back to its report.
+     */
+    private void followed(Path report, WebEngine engine, String location) {
+        if (location == null || location.isBlank()) {
+            return;
+        }
+        String bare = location.split("[#?]", 2)[0];
+        Optional<Path> file = fileOf(bare);
+        if (file.isPresent() && file.get().equals(report)) {
+            return;
+        }
+        if (file.isEmpty()) {
+            say("not opened: " + location + " is not a file of this computer");
+        } else {
+            Path parent = file.get().getParent();
+            String name = file.get().getFileName().toString();
+            boolean aReport = parent != null && Reports.ALL.contains(name)
+                    && workingDirectory().map(folder -> folder.toAbsolutePath().normalize().equals(parent)).orElse(false);
+            if (!aReport) {
+                dialogs.handToTheSystem(URI.create(bare));
+            } else if (Files.isRegularFile(file.get())) {
+                openReport(name);
+            } else {
+                say(name + " is not written yet, so it is not opened");
+            }
+        }
+        engine.getLoadWorker().cancel();
+        Platform.runLater(() -> engine.load(report.toUri().toString()));
+    }
+
+    private static Optional<Path> fileOf(String address) {
+        try {
+            URI uri = URI.create(address);
+            if (!"file".equalsIgnoreCase(uri.getScheme())) {
+                return Optional.empty();
+            }
+            return Optional.of(Path.of(uri).toAbsolutePath().normalize());
+        } catch (IllegalArgumentException | java.nio.file.FileSystemNotFoundException unusable) {
+            return Optional.empty();
+        }
+    }
+
+    /** The reports' tabs belong to the working directory: another one closes them. */
+    private void closeReportTabs() {
+        for (Tab tab : List.copyOf(reportTabs.values())) {
+            tabs.getTabs().remove(tab);
+        }
+        reportTabs.clear();
     }
 
     private Node preflightPane() {
