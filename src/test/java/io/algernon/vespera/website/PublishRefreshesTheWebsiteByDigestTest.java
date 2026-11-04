@@ -23,6 +23,7 @@ import static io.algernon.vespera.website.WebsiteFixture.renderingOf;
 import static io.algernon.vespera.website.WebsiteFixture.sha256;
 import static io.algernon.vespera.website.WebsiteFixture.survivors;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.deliverable.DeliverableRoot;
@@ -299,6 +300,86 @@ class PublishRefreshesTheWebsiteByDigestTest {
                     assertThat(filesUnder(website).keySet())
                             .containsExactlyInAnyOrderElementsOf(withItsOwnFiles(listed));
                 });
+    }
+
+    @Test
+    @Story("The website is refreshed by digest")
+    @DisplayName("A copy renamed by case alone is not removed where the file system takes the two names for one file: it stands, counted standing, and the page links it")
+    void aFileRenamedByCaseAloneIsNotRemoved() throws IOException {
+        Path probe = Files.createDirectories(base.resolve("case-probe"));
+        Files.writeString(probe.resolve("a"), "a");
+        assumeTrue(Files.exists(probe.resolve("A")) && Files.isSameFile(probe.resolve("a"), probe.resolve("A")),
+                "the file system tells names apart by case, so a case-only rename is two files there");
+
+        byte[] reportBytes = bytes("the report on the doors");
+        String reportSha = sha256Of(reportBytes);
+        String asFirstNamed = DOORS_FOLDER + "/Report.docx";
+        String asRenamed = DOORS_FOLDER + "/report.docx";
+        Path workingDirectory = Files.createDirectories(base.resolve("work"));
+        Path website = workingDirectory.resolve(WEBSITE);
+
+        Path earlier = drawnWithOneReport(base.resolve("a"), "reports/Report.docx", reportBytes);
+        Map<String, WebsiteFixture.Listed> before = listedIn(renderingOf(earlier));
+        Plugin.Delivery first = WebsiteFixture.published(earlier, workingDirectory);
+
+        Path later = drawnWithOneReport(base.resolve("b"), "reports/report.docx", reportBytes);
+        Map<String, WebsiteFixture.Listed> after = listedIn(renderingOf(later));
+        Set<String> dropped = new TreeSet<>(before.keySet());
+        dropped.removeAll(after.keySet());
+        Set<String> standing = new TreeSet<>();
+        after.forEach((path, entry) -> {
+            if (path.equals(asRenamed)
+                    || (before.containsKey(path) && before.get(path).sha256().equals(entry.sha256()))) {
+                standing.add(path);
+            }
+        });
+
+        Plugin.Delivery second = WebsiteFixture.published(later, workingDirectory);
+
+        claim(
+                "the first publish delivered; its list names the copy as Report.docx, the next as report.docx, each"
+                        + " with the same sha256, and that copy is the one path the next list drops",
+                () -> {
+                    assertThat(first.delivered()).as(first.closingLine()).isTrue();
+                    assertThat(before).containsKey(asFirstNamed).doesNotContainKey(asRenamed);
+                    assertThat(after).containsKey(asRenamed).doesNotContainKey(asFirstNamed);
+                    assertThat(before.get(asFirstNamed).sha256()).isEqualTo(reportSha);
+                    assertThat(after.get(asRenamed).sha256()).isEqualTo(reportSha);
+                    assertThat(dropped).containsExactly(asFirstNamed);
+                });
+        claim(
+                "the doors' page links the copy as report.docx",
+                () -> assertThat(website.resolve(DOORS_FOLDER).resolve("index.html"))
+                        .content(StandardCharsets.UTF_8)
+                        .contains("href=\"./report.docx\""));
+        claim(
+                "the file the page links still stands after the second publish, hashing to the copy's sha256",
+                () -> {
+                    assertThat(website.resolve(asRenamed)).as(asRenamed).isRegularFile();
+                    assertThat(sha256(website.resolve(asRenamed))).as(asRenamed).isEqualTo(reportSha);
+                });
+        claim(
+                "the second publish delivered, counting the renamed copy standing and nothing removed",
+                () -> {
+                    assertThat(second.delivered()).as(second.closingLine()).isTrue();
+                    assertThat(countsOf(second, website)).containsExactly(
+                            (long) (after.size() - standing.size()), (long) standing.size(), 0L, 0L);
+                });
+    }
+
+    /**
+     * The doors alone, holding one document at {@code archivePath} with {@code content}, cited by their writing, drawn
+     * in {@code drawnIn}; its copy keeps the name it has in the archive (ADR-280).
+     */
+    private static Path drawnWithOneReport(Path drawnIn, String archivePath, byte[] content) throws IOException {
+        Path archive = drawnIn.resolve("archive");
+        Files.createDirectories(archive.resolve(archivePath).getParent());
+        Files.write(archive.resolve(archivePath), content);
+        RecordedCluster doorsOfOne = cluster(THE_SEED, 0, DOORS_LABEL, 1, 1);
+        return WebsiteFixture.drawn(drawnIn, List.of(doorsOfOne),
+                Map.of(slotOf(doorsOfOne), writing(DOORS_TITLE, "Doors are rehung [1] once a decade.", 14)),
+                List.of(survivor(14, archivePath, sha256Of(content), THE_SEED, SEED_PATH, 0, 0.9)),
+                ListedCodeSets.NONE);
     }
 
     /** The fixture with a fourth document among the doors, its writing changed, drawn in {@code drawnIn}. */
