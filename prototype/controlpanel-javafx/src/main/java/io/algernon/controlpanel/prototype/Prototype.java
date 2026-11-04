@@ -55,7 +55,7 @@ public final class Prototype extends Application {
                 index = i;
             }
         }
-        Scene scene = new Scene(root, 1280, 820);
+        Scene scene = new Scene(root, 1500, 960);
         scene.getStylesheets().add(Prototype.class.getResource("prototype.css").toExternalForm());
         scene.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
             if (scene.getFocusOwner() instanceof TextInputControl) {

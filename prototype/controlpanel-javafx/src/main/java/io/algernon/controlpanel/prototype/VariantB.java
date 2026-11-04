@@ -21,6 +21,9 @@ import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
 import javafx.scene.control.Accordion;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -74,9 +77,9 @@ final class VariantB {
         TabPane drawer = new TabPane(profile, inclusions);
         drawer.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         flag(profile, () -> !stub.wants.isEmpty(), stub.wants, stub.profileVersion);
-        SplitPane vertical = new SplitPane(runView, drawer);
+        SplitPane vertical = new SplitPane(runView, charts(stub), drawer);
         vertical.setOrientation(Orientation.VERTICAL);
-        vertical.setDividerPositions(0.5);
+        vertical.setDividerPositions(0.4, 0.68);
         VBox.setVgrow(vertical, Priority.ALWAYS);
 
         VBox centre = new VBox(10, actionCard(stub), vertical);
@@ -582,6 +585,81 @@ final class VariantB {
         ScrollPane scroll = new ScrollPane(grid);
         scroll.setFitToWidth(true);
         return scroll;
+    }
+
+    // ---------------------------------------------------------------- charts
+
+    /**
+     * The progress page's three line charts, drawn natively: the database's size, the running step's
+     * count, and the verdicts recorded by the latest step that removes occurrences, each over time.
+     */
+    private static HBox charts(Stub stub) {
+        LineChart<Number, Number> database = lineChart("Database size over time", "Size (MB)");
+        LineChart<Number, Number> counts = lineChart("Running step over time", "Done (count)");
+        LineChart<Number, Number> verdicts = lineChart("Verdicts over time", "Verdicts (count)");
+        database.setLegendVisible(false);
+        counts.setLegendVisible(false);
+        Runnable draw = () -> {
+            List<Stub.Sample> samples = List.copyOf(stub.samples);
+            XYChart.Series<Number, Number> size = new XYChart.Series<>();
+            samples.forEach(s -> size.getData().add(new XYChart.Data<>(s.seconds(), s.databaseBytes() / 1e6)));
+            database.getData().setAll(List.of(size));
+
+            XYChart.Series<Number, Number> done = new XYChart.Series<>();
+            String step = samples.isEmpty() ? null : samples.getLast().step();
+            if (step != null) {
+                samples.stream().filter(s -> s.step().equals(step))
+                        .forEach(s -> done.getData().add(new XYChart.Data<>(s.seconds(), s.done())));
+                counts.setTitle(step + ": " + Math.round(samples.getLast().done()) + " of " + Math.round(samples.getLast().total()));
+            } else {
+                counts.setTitle("Running step over time");
+            }
+            counts.getData().setAll(List.of(done));
+
+            String outcome = null;
+            for (Stub.Sample s : samples) {
+                if (Stub.OUTCOME_STEPS.containsKey(s.step())) {
+                    outcome = s.step();
+                }
+            }
+            List<XYChart.Series<Number, Number>> lines = new ArrayList<>();
+            if (outcome != null) {
+                for (String kind : Stub.OUTCOME_STEPS.get(outcome)) {
+                    XYChart.Series<Number, Number> line = new XYChart.Series<>();
+                    line.setName(kind);
+                    samples.forEach(s -> line.getData().add(new XYChart.Data<>(s.seconds(), s.verdicts().getOrDefault(kind, 0.0))));
+                    lines.add(line);
+                }
+                verdicts.setTitle("Verdicts recorded by " + outcome);
+            } else {
+                verdicts.setTitle("Verdicts over time");
+            }
+            verdicts.getData().setAll(lines);
+        };
+        stub.samples.addListener((ListChangeListener<Stub.Sample>) c -> draw.run());
+        draw.run();
+        HBox row = new HBox(8, database, counts, verdicts);
+        row.setPadding(new Insets(4, 6, 4, 6));
+        for (LineChart<Number, Number> chart : List.of(database, counts, verdicts)) {
+            HBox.setHgrow(chart, Priority.ALWAYS);
+            chart.setMinSize(0, 0);
+            chart.setPrefSize(400, 220);
+        }
+        return row;
+    }
+
+    private static LineChart<Number, Number> lineChart(String title, String valueAxis) {
+        NumberAxis time = new NumberAxis();
+        time.setLabel("Time (s)");
+        time.setForceZeroInRange(false);
+        NumberAxis value = new NumberAxis();
+        value.setLabel(valueAxis);
+        LineChart<Number, Number> chart = new LineChart<>(time, value);
+        chart.setTitle(title);
+        chart.setCreateSymbols(false);
+        chart.setAnimated(false);
+        chart.getStyleClass().add("progress-chart");
+        return chart;
     }
 
     private static VBox console(Stub stub) {

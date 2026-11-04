@@ -189,6 +189,36 @@ final class Stub {
     private int ticks;
     private int stopAt;
 
+    /** One sample of the progress page's charts: when, the database's size, the running step's count, the verdicts so far. */
+    record Sample(double seconds, double databaseBytes, String step, double done, double total, Map<String, Double> verdicts) {}
+
+    /** The steps that remove occurrences and the kinds each records, as the progress page has them. */
+    static final Map<String, List<String>> OUTCOME_STEPS = Map.of(
+            "byte-level-reduction", List.of("broken", "duplicate-of", "superseded-by", "out-of-scope", "code"),
+            "extraction", List.of("extraction-failed", "degenerate-output"),
+            "content-redundancy", List.of("redundant-with"),
+            "translation", List.of("translation-of"),
+            "relevance-floor", List.of("below-threshold"));
+
+    final ObservableList<Sample> samples = FXCollections.observableArrayList();
+    private final Map<String, Double> verdictsSoFar = new LinkedHashMap<>();
+    private double databaseBytes = 48_000_000;
+
+    /** Made-up numbers shaped like a run's: the database grows, the step counts up, removing steps record verdicts. */
+    private void sample(Step step, double fraction) {
+        int index = STEPS.indexOf(step);
+        double total = 2_000 + index * 750;
+        databaseBytes += 1_500_000 + index * 400_000;
+        List<String> kinds = OUTCOME_STEPS.get(step.name());
+        if (kinds != null) {
+            for (int k = 0; k < kinds.size(); k++) {
+                verdictsSoFar.merge(kinds.get(k), (double) (40 + 25 * k + index * 3), Double::sum);
+            }
+        }
+        samples.add(new Sample(ticks * 5.0, databaseBytes, step.name(), Math.round(total * fraction), total,
+                new LinkedHashMap<>(verdictsSoFar)));
+    }
+
     Stub() {
         this(Config.load());
     }
@@ -290,6 +320,8 @@ final class Stub {
         nextInvocation.set("");
         wants.clear();
         log.clear();
+        samples.clear();
+        verdictsSoFar.clear();
         ticks = 0;
         if (cmd.equals("run")) {
             int from = Math.max(currentStep.get(), 0);
@@ -330,6 +362,7 @@ final class Stub {
         }
         Step step = STEPS.get(currentStep.get());
         stepProgress.get(currentStep.get()).set((ticks % 6 == 0 ? 6 : ticks % 6) / 6.0);
+        sample(step, stepProgress.get(currentStep.get()).get());
         line(step.name() + ": " + (ticks % 6) * 17 + "% — batch " + ticks);
         if (ticks % 6 == 0) {
             line(step.name() + ": done");
