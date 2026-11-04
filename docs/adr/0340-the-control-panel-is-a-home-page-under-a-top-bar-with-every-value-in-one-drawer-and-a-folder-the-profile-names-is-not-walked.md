@@ -15,7 +15,7 @@
 - **Amends**: ADR-292 §5, whose *"Run needs the working directory"* and *"Label needs the working directory"* are no longer said: an empty work folder is the jar's default, which Run, Label and Publish pass (§6). It carries a note at its head.
 - **Amends**: ADR-331 §3, whose `#sidebar`, its `nav` and `#top-row` give way to §1's top bar, and whose cards give way to §2's three columns; §5, whose closed list is §3's; §6, whose working directory left empty is §6's default and not `not-chosen`; §8, whose labels and hints give way to §7's and whose examples to §6's rule. It carries a note at its head.
 - **Amends**: ADR-334 §1 and §2, whose `in use: ` placeholder holds of every field the page knows a value in use for (§6); §3, whose words name no Launch page (§4); §5.2, whose form `code-set-folders` stands in §5's section, Browse returning there; §5.5's `new-folder`, which goes with the form `code-sets`, a set below a code set folder being named in §5's tree; §6, whose `/labels` is a section of the drawer, its form, file and writes unchanged (§3); and §7, whose form stands in §3's section, every key's section shown. It carries a note at its head.
-- **Amends**: ADR-335 §1, whose `/progress` is no page: the home page holds `#progress-view`, never asking to be loaded again (§2); §4, whose `#progress` links `/#progress-view`. It carries a note at its head.
+- **Amends**: ADR-335 §1, whose `/progress` is no page: the home page holds `#progress-view`, never asking to be loaded again (§2); §4, whose `#progress` links `/#progress-view`; and §5, whose sidebar's rule, `#shell`'s columns, goes with the sidebar, the scale's seventeen steps, `--sidebar-width` among them, staying as they are, and whose `main.two-columns` gives way to the home page's columns (§2). It carries a note at its head.
 - **Amends**: ADR-330 §2's *"The `placeholder` stays ADR-331 §8's example"* (§6), §4's *"its words are no decision's"*, each key's line being §7's, and §12, whose `machine-values` stands in §2's right column. It carries a note at its head.
 - **Amends**: ADR-336 §1: the button `label-auto`, Have the local model answer, gives way to the top bar's box `label-auto`, *Autolabel*, Label with it ticked starting `label --auto` (§1), and the next step's form `label-auto` goes (§4). It carries a note at its head.
 - **Amends**: [ADR-054](0054-a-corpus-is-its-root-path-the-database-lives-in-a-configured-working-directory.md)'s *"A corpus is identified by its root path alone"*, as ADR-334 §5.3 amended it, and [ADR-050](0050-the-pipeline-has-exclusive-access-to-the-corpus.md)'s *"The walk is accountable for every entry beneath the corpus root it was given"*: a folder the profile's `foldersNotWalked` names is an entry the walk counts and does not enter (§8). Each carries a note at its head.
@@ -65,7 +65,7 @@ No page holds `#sidebar`, `#top-row` or a `nav`. `#outcome` stands right after t
 
 then the drawer `#values` (§3). What this machine runs with stands in the right column alone: the drawer holds no list of it. A narrow window draws the columns one under another, as ADR-331 §3 has every grid.
 
-**The home page never asks to be loaded again**, whatever `#progress-view` says: it carries no `data-refresh-seconds` and no refresh in `<noscript>`, since it holds every form a reload would lose. Where the working directory holds no progress page yet, `not-written` keeps ADR-335 §1's words, and the frame is shown at the page's next load. The page in the frame reloads itself, as before.
+**The home page never asks to be loaded again**, whatever `#progress-view` says: it carries no `data-refresh-seconds` and no refresh in `<noscript>`, since it holds every form a reload would lose. Where the working directory holds no progress page yet, `not-written` keeps ADR-335 §1's words, and the frame is shown at the page's next load. The page in the frame reloads itself, as before. **`no-working-directory` is said only of a working directory the system cannot hold**, an empty one being the default (§6), and its words are `No working directory this system can hold is chosen, so there is no progress page to show. Choose one under Settings, and the progress page of what runs there is shown here.`
 
 **`/progress` is no page.** A `GET` or `HEAD` of it answers `303` to `/#progress-view`, and `#progress` on the invocation page links `/#progress-view`, in the same window.
 
@@ -99,6 +99,8 @@ Each section's `about-<id>` says in one line what it holds (§7).
 
 **The form `launch-values`**, `POST` to `/launch`, wraps the sections `values-folders` and `values-services`, and holds the seven controls of ADR-302 §2 by their names and in their order, the three Browse buttons of ADR-331 §5, `use-running-image` where it is drawn, and, after the two sections, one submit button, `check`, *Use these and check*. A post of it holds the values posted and asks the sidecars again, as `check` did (ADR-302 §2), and starts nothing; `use-running-image` is ADR-334 §2's.
 
+**No `id` stands twice on the home page.** Each `id` the forms `next` (§4) and `code-set-folders` draw that the form `profile` draws too is written with the form's name and a hyphen before it: `next-cost-<key>`, and `code-set-folders-cost-codeSetFolders` in place of ADR-334 §5.2's `cost-codeSetFolders`.
+
 **The form `profile`** keeps ADR-334 §7's controls, Save and Reset, and `#profile-list` as an index of its keys at its head, each linking `#key-<key>`. **Every key's section is shown**: ADR-331 §3's rule that the style shows the section `:target` names and the first otherwise goes, the drawer being opened by the same fragment. `seedFolder` is edited here and in §4's box alone: **the form `seed-folder` goes** with its path.
 
 **The pages the drawer and the home page take in answer at their old addresses.** None is a page any more:
@@ -111,6 +113,7 @@ Each section's `about-<id>` says in one line what it holds (§7).
 | `/profile` | `/?open=values-profile#values-profile` | `POST` stays the path of the form `profile` |
 | `/code-sets` | `/?open=values-corpus#values-corpus` | `405`, `Allow: GET, HEAD` |
 | `/seed-folder` | `/?open=values-profile#key-seedFolder` | `405`, `Allow: GET, HEAD` |
+| `/label-auto` | `/#next-step` | `405`, `Allow: GET, HEAD` |
 
 so that a tab left on one, coming back to the next start (ADR-325 §4), lands where its content now stands. Each writes nothing. The only pages beside the home page are `/invocation`, `/stop` and `/folders`.
 
@@ -216,7 +219,7 @@ It is not read from `effective-values.properties`: that file lies in the working
 
 ### 7. Every field and section is named in plain words, its key beside it
 
-Every field's `label` holds its name in plain words and, after it, `<small class="key">` holding the key or control name, as secondary text. Its hint or, for a key, its `about-<key>`, says what it is in plain words. A key's `hint-<key>` stays ADR-331 §8's, the README's row. The words, whole:
+Every field's `label` holds its name in plain words and, after it, `<small class="key">` holding the key or control name, as secondary text. A checkbox, Autolabel, Read or Code, carries its label and no example, ADR-331 §8's example being for a field a value is typed into. Its hint or, for a key, its `about-<key>`, says what it is in plain words. A key's `hint-<key>` stays ADR-331 §8's, the README's row. The words, whole:
 
 | Field | Name | What it is |
 | --- | --- | --- |
@@ -266,7 +269,7 @@ Every field's `label` holds its name in plain words and, after it, `<small class
 
 #### 8.1 The profile's `foldersNotWalked`
 
-**A new profile key, `foldersNotWalked`**, after `codeSetFolders` in `Profile`'s components and `ProfileKey`'s order, of a new kind, folders below the corpus root, `CORPUS_FOLDERS` in `ProfileKey.Kind`: one string under `value` (ADR-061), holding one or more folders separated by the system's path separator, as `codeSetFolders` holds its own. Each piece is stripped and an empty piece passed over. **A piece is a folder relative to the corpus root**: elements separated by `/`, none empty, none `.` or `..`, no `\`, neither beginning nor ending with `/`, and not absolute. A value holding any other piece is unreadable (ADR-120), and none of it is read: the walk then reads every folder. Unset, every folder is read, as before. A piece naming no folder that is there keeps nothing out. Its earliest run is byte-level reduction, every later run following, since a walk that leaves a folder out is another walk. Its hint, which the README's table of values gains as its row's second cell, is *"which folders of the corpus hold nothing you want read"*, its example `archive/old-flows`, and its plain words §7's.
+**A new profile key, `foldersNotWalked`**, after `codeSetFolders` in `Profile`'s components and `ProfileKey`'s order, of a new kind, folders below the corpus root, `CORPUS_FOLDERS` in `ProfileKey.Kind`, its value type in `profile` `CorpusFoldersValue`, which reads, as `FoldersValue` does, to `Answered` or `Unreadable`: one string under `value` (ADR-061), holding one or more folders separated by the system's path separator, as `codeSetFolders` holds its own. Each piece is stripped and an empty piece passed over. **A piece is a folder relative to the corpus root**: elements separated by `/`, none empty, none `.` or `..`, no `\`, neither beginning nor ending with `/`, and not absolute. A value holding any other piece is unreadable (ADR-120), and none of it is read: the walk then reads every folder. Unset, every folder is read, as before. A piece naming no folder that is there keeps nothing out. Its earliest run is byte-level reduction, every later run following, since a walk that leaves a folder out is another walk. Its hint, which the README's table of values gains as its row's second cell, is *"which folders of the corpus hold nothing you want read"*, its example `archive/old-flows`, and its plain words §7's.
 
 #### 8.2 The walk does not enter a folder not walked
 

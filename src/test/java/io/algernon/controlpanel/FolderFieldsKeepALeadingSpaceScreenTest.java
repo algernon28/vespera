@@ -53,7 +53,8 @@ class FolderFieldsKeepALeadingSpaceScreenTest {
 
     private static final String DELIVERABLE_ROOT = "vespera.deliverable-root";
 
-    private static final String NEW_FOLDER = "new-folder";
+    /** The tree of folders to process, where code sets are named since ADR-340 §5. */
+    private static final String TREE = "folders-to-process";
 
     /** A folder lying in the current directory the tests run in. */
     private static final String THERE_WITHOUT_THE_SPACE = "src";
@@ -72,7 +73,10 @@ class FolderFieldsKeepALeadingSpaceScreenTest {
 
     private static final String USER = System.getProperty("user.name");
 
-    /** The three forms holding the seed folder: the name Browse gives it, its page, its form, and its two controls. */
+    /**
+     * The two forms holding the seed folder: the name Browse gives it, its page, its form, and its two controls; the
+     * launch page's form of its own goes with ADR-340 §3.
+     */
     private record SeedForm(String forName, String page, String form, String control, String provenance) {
 
         Map<String, String> holding(String value) {
@@ -89,7 +93,6 @@ class FolderFieldsKeepALeadingSpaceScreenTest {
     }
 
     private static final List<SeedForm> THE_SEED_FORMS = List.of(
-            new SeedForm("seedFolder", "/", "seed-folder", "seedFolder", "provenance"),
             new SeedForm("next-seedFolder", "/next", "next", "seedFolder", "seedFolder.provenance"),
             new SeedForm("profile-seedFolder", "/profile", "profile", "seedFolder", "seedFolder.provenance"));
 
@@ -108,7 +111,8 @@ class FolderFieldsKeepALeadingSpaceScreenTest {
             Path own = aFolder("own-" + name);
             try (ScreenServer screens = ScreenServer.start(own, ScreenServer.values(corpusRoot, workingDirectory))) {
                 PanelBrowser browser = screens.browser();
-                Page browsed = browser.press("launch", "browse-" + name, Map.of(name, WITH_A_LEADING_SPACE)).page();
+                Page browsed = browser.press("launch-values", "browse-" + name, Map.of(name, WITH_A_LEADING_SPACE))
+                        .page();
                 String heldAfterBrowse = launchValue(browser.go("/").page(), name);
                 browser.go(folders(name, corpusRoot.toString()));
                 String heldAfterUse = launchValue(browser.press("use-folder", "use",
@@ -151,7 +155,7 @@ class FolderFieldsKeepALeadingSpaceScreenTest {
         String withTrailingSpaces = corpusRoot + "  ";
         try (ScreenServer screens = ScreenServer.start(folder, LaunchValues.none())) {
             PanelBrowser browser = screens.browser();
-            Page browsed = browser.press("launch", "browse-" + CORPUS_ROOT, Map.of(CORPUS_ROOT, withTrailingSpaces,
+            Page browsed = browser.press("launch-values", "browse-" + CORPUS_ROOT, Map.of(CORPUS_ROOT, withTrailingSpaces,
                     "vespera.docling.image", "  an-image-typed  ", "vespera.label.model", " a-model-typed ")).page();
             Page launch = browser.go("/").page();
 
@@ -186,14 +190,14 @@ class FolderFieldsKeepALeadingSpaceScreenTest {
             Path own = aFolder("own-" + (pasted.equals(WITH_A_LEADING_SPACE) ? "name" : "path"));
             try (ScreenServer screens = ScreenServer.start(own, LaunchValues.none())) {
                 PanelBrowser browser = screens.browser();
-                browser.press("seed-folder", "browse-seedFolder", Map.of("seedFolder", pasted));
-                Page launch = browser.go("/").press("launch", "check", Map.of(CORPUS_ROOT, pasted,
+                browser.go("/profile").press("profile", "browse-profile-seedFolder", Map.of("seedFolder", pasted));
+                Page launch = browser.go("/").press("launch-values", "check", Map.of(CORPUS_ROOT, pasted,
                         WORKING_DIRECTORY, pasted, DELIVERABLE_ROOT, pasted)).page();
 
                 claim("'" + pasted + "': the corpus root, the seed folder and the working directory say no such folder,"
                                 + " and the deliverable root, which the jar creates, says what is to become of it",
                         () -> assertThat(List.of(byId(launch, "status-" + CORPUS_ROOT).attr("data-status"),
-                                        byId(launch, "status-seedFolder").attr("data-status"),
+                                        byId(launch, "status-profile-seedFolder").attr("data-status"),
                                         byId(launch, "status-" + WORKING_DIRECTORY).attr("data-status"),
                                         byId(launch, "status-" + DELIVERABLE_ROOT).attr("data-status")))
                                 .containsExactly(NO_SUCH_FOLDER, NO_SUCH_FOLDER, NO_SUCH_FOLDER, createdByTheJar));
@@ -218,7 +222,7 @@ class FolderFieldsKeepALeadingSpaceScreenTest {
             PanelBrowser browser = screens.browser();
             Path launchValues = LaunchValues.fileIn(folder.resolve("tmp"), USER);
             byte[] keptBefore = Files.readAllBytes(launchValues);
-            Page landed = browser.press("launch", "run", Map.of(CORPUS_ROOT, pasted)).page();
+            Page landed = ScreenServer.holdThenPress(browser, "run", Map.of(CORPUS_ROOT, pasted)).page();
             Page invocation = browser.go("/invocation").page();
             byte[] keptAfter = Files.readAllBytes(launchValues);
 
@@ -309,67 +313,14 @@ class FolderFieldsKeepALeadingSpaceScreenTest {
         }
     }
 
-    /** {@code tools} lies under the corpus root and ` tools` does not, and a code set's folder need not be there yet. */
+    /**
+     * A folder of that name beside the one without its space: the tree of folders to process lists the first by its whole
+     * name, and a code set marked on it is named so (ADR-340 §5, ADR-331 §6).
+     */
     @Test
     @Story("The operator names the code sets")
-    @DisplayName("A code set's new folder keeps a space before it through Browse and the field, says no such folder, and Save writes it whole and not as the folder without it")
-    void aCodeSetsNewFolderKeepsASpaceBeforeItThroughBrowseAndSave() throws IOException {
-        Path corpusRoot = aFolder("corpus");
-        Files.createDirectories(corpusRoot.resolve("tools"));
-        Path workingDirectory = aFolder("work");
-        Path names = workingDirectory.resolve(CodeSetRenames.FILE_NAME);
-        String withASpace = " tools";
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            PanelBrowser browser = screens.browser().go("/code-sets");
-            Page browsed = browser.press("code-sets", "browse-" + NEW_FOLDER,
-                    Map.of(NEW_FOLDER, withASpace, "new-name", "The tools")).page();
-            Page back = browser.go("/code-sets").page();
-            browser.press("code-sets", "save", Map.of());
-
-            claim("Browse carries the whole value to the folder page, which finds no such folder under the corpus root",
-                    () -> assertThat(List.of(pathIn(browsed.address().toString()), listing(browsed), listedPath(browsed)))
-                            .containsExactly(withASpace, NO_SUCH_FOLDER, withASpace));
-            claim("the field holds it whole, and says no such folder",
-                    () -> assertThat(List.of(newFolder(back), byId(back, "status-" + NEW_FOLDER).attr("data-status")))
-                            .containsExactly(withASpace, NO_SUCH_FOLDER));
-            claim("and Save writes that folder whole under that name",
-                    () -> assertThat(CodeSetRenames.read(Optional.of(Files.readString(names, StandardCharsets.UTF_8))))
-                            .containsExactly(new CodeSetRenames.Rename(withASpace, "The tools")));
-        }
-    }
-
-    @Test
-    @Story("The operator names the code sets")
-    @DisplayName("A code set's new folder loses a space after it, so Browse, the field and Save read the folder itself")
-    void aCodeSetsNewFolderLosesASpaceAfterIt() throws IOException {
-        Path corpusRoot = aFolder("corpus");
-        Files.createDirectories(corpusRoot.resolve("tools"));
-        Path workingDirectory = aFolder("work");
-        Path names = workingDirectory.resolve(CodeSetRenames.FILE_NAME);
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            PanelBrowser browser = screens.browser().go("/code-sets");
-            Page browsed = browser.press("code-sets", "browse-" + NEW_FOLDER,
-                    Map.of(NEW_FOLDER, "tools  ", "new-name", "The tools")).page();
-            Page back = browser.go("/code-sets").page();
-            browser.press("code-sets", "save", Map.of());
-
-            claim("Browse lands on the folder itself, its address holding no space after the name",
-                    () -> assertThat(List.of(pathIn(browsed.address().toString()), listing(browsed), listedPath(browsed)))
-                            .containsExactly("tools", "listed", "tools"));
-            claim("the field says it found it",
-                    () -> assertThat(byId(back, "status-" + NEW_FOLDER).attr("data-status")).isEqualTo("found"));
-            claim("the field holds the folder without the spaces",
-                    () -> assertThat(newFolder(back)).isEqualTo("tools"));
-            claim("and Save writes the folder without the spaces",
-                    () -> assertThat(CodeSetRenames.read(Optional.of(Files.readString(names, StandardCharsets.UTF_8))))
-                            .containsExactly(new CodeSetRenames.Rename("tools", "The tools")));
-        }
-    }
-
-    /** A folder of that name beside the one without its space: the chain from the listing to the file reads the first. */
-    @Test
-    @Story("The operator names the code sets")
-    @DisplayName("A code set's folder whose name begins with a space is chosen, says found, and is saved whole, where the file system holds such a name")
+    @DisplayName("A code set's folder whose name begins with a space is listed whole in the tree, opened as itself, and named whole, where the file system holds such a name")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void aCodeSetsFolderWhoseNameBeginsWithASpaceIsSavedWhole() throws IOException {
         Path corpusRoot = aFolder("corpus");
         String named = " begins-with-a-space";
@@ -385,71 +336,42 @@ class FolderFieldsKeepALeadingSpaceScreenTest {
         Path workingDirectory = aFolder("work");
         Path names = workingDirectory.resolve(CodeSetRenames.FILE_NAME);
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            PanelBrowser browser = screens.browser().go(folders(NEW_FOLDER, named));
-            Page chosen = browser.press("use-folder", "use", Map.of()).page();
-            Page browsed = browser.press("code-sets", "browse-" + NEW_FOLDER, Map.of("new-name", "The set")).page();
-            browser.go("/code-sets").press("code-sets", "save", Map.of());
+            PanelBrowser browser = screens.browser().go("/?open=values-corpus");
+            Element row = byId(browser.page(), "tree-rows").selectFirst("li[data-folder='" + named + "']");
+            String i = row == null ? "" : row.selectFirst("input[name^=folder-]").attr("name").substring("folder-".length());
+            Page opened = browser.press(TREE, "open-" + i, Map.of()).page();
+            browser.press(TREE, "up-0", Map.of());
+            browser.press(TREE, "save", Map.of("code-set-" + i, "on", "code-set-name-" + i, "The set"));
 
-            claim("Use this folder puts the whole name in the field, which says it found it",
-                    () -> assertThat(List.of(newFolder(chosen), byId(chosen, "status-" + NEW_FOLDER).attr("data-status")))
-                            .containsExactly(named, "found"));
-            claim("Browse from the field lands in that folder, and not in the one without the space",
-                    () -> assertThat(List.of(listedPath(browsed), byId(browsed, "folder-list").text()))
-                            .containsExactly(named, "inside-the-one-with-the-space"));
-            claim("and Save writes it whole",
+            claim("the tree lists the folder by its whole name",
+                    () -> assertThat(row).isNotNull());
+            claim("Open lands in that folder, and not in the one without the space",
+                    () -> assertThat(byId(opened, "tree-rows").select("li").eachAttr("data-folder"))
+                            .containsExactly(named + "/inside-the-one-with-the-space"));
+            claim("and the set's name is written under the whole folder",
                     () -> assertThat(CodeSetRenames.read(Optional.of(Files.readString(names, StandardCharsets.UTF_8))))
                             .containsExactly(new CodeSetRenames.Rename(named, "The set")));
         }
     }
 
-    /** What a Save refuses for climbing out is told by the text after any space before it, which a paste leaves. */
+    /** {@code main} lies under the folder without the space, which a tree read under it would list. */
     @Test
     @Story("The operator names the code sets")
-    @DisplayName("Saving a new folder that climbs out of the corpus root with a space before it still writes nothing and says so")
-    void aNewFolderThatClimbsOutWithASpaceBeforeItIsStillRefused() throws IOException {
-        Path corpusRoot = aFolder("corpus");
-        Path workingDirectory = aFolder("work");
-        Path names = workingDirectory.resolve(CodeSetRenames.FILE_NAME);
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            PanelBrowser browser = screens.browser();
-            for (String climbing : List.of(" ../outside", " tools/../../x", " C:/x", " /x")) {
-                Page landed = browser.go("/code-sets").press("code-sets", "save",
-                        Map.of(NEW_FOLDER, climbing, "new-name", "The climbing set")).page();
-
-                claim("'" + climbing + "' lands back on the code sets with one line saying why, and no file is written",
-                        () -> {
-                            assertThat(landed.address().getPath()).isEqualTo("/code-sets");
-                            assertThat(byId(landed, "outcome").text()).isNotBlank();
-                            assertThat(names).doesNotExist();
-                        });
-            }
-        }
-    }
-
-    /** A code set's folder is read under the corpus root the field holds, whole: {@code main} lies under the folder without the space. */
-    @Test
-    @Story("The operator names the code sets")
-    @DisplayName("With a corpus root holding a space before its name, a code set's folder is read under that folder, and not under the one without the space")
+    @DisplayName("With a corpus root holding a space before its name, the tree of folders to process reads that folder, and lists nothing of the one without the space")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void aCodeSetsFolderIsReadUnderTheCorpusRootAsTheFieldHoldsIt() throws IOException {
         String inTheFolderWithoutTheSpace = "main";
         claim("the folder without the space holds a folder of that name",
                 () -> assertThat(Path.of(THERE_WITHOUT_THE_SPACE).resolve(inTheFolderWithoutTheSpace)).isDirectory());
         Path workingDirectory = aFolder("work");
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(aFolder("corpus"), workingDirectory))) {
-            PanelBrowser browser = screens.browser().press("launch", "check", Map.of(CORPUS_ROOT, WITH_A_LEADING_SPACE));
-            Page atTheCorpusRoot = browser.go(folders(NEW_FOLDER, "")).page();
-            browser.go("/code-sets").press("code-sets", "browse-" + NEW_FOLDER, Map.of(NEW_FOLDER, inTheFolderWithoutTheSpace));
-            Page codeSets = browser.go("/code-sets").page();
+            Page tree = screens.browser().press("launch-values", "check", Map.of(CORPUS_ROOT, WITH_A_LEADING_SPACE))
+                    .go("/?open=values-corpus").page();
 
-            claim("the folder page finds no such folder, lists nothing and links the corpus root by the field's whole value",
-                    () -> {
-                        assertThat(listing(atTheCorpusRoot)).isEqualTo(NO_SUCH_FOLDER);
-                        assertThat(atTheCorpusRoot.document().select("#folder-list a")).isEmpty();
-                        assertThat(byId(atTheCorpusRoot, "folder-roots").select("a").first().wholeText())
-                                .isEqualTo(WITH_A_LEADING_SPACE);
-                    });
-            claim("and a folder lying under the one without the space says no such folder",
-                    () -> assertThat(byId(codeSets, "status-" + NEW_FOLDER).attr("data-status")).isEqualTo(NO_SUCH_FOLDER));
+            claim("the tree finds no such folder at the corpus root and lists nothing",
+                    () -> assertThat(List.of(byId(tree, "folder-tree").attr("data-tree"),
+                                    byId(tree, "tree-rows").select("li").size()))
+                            .containsExactly(NO_SUCH_FOLDER, 0));
         }
     }
 
@@ -495,7 +417,7 @@ class FolderFieldsKeepALeadingSpaceScreenTest {
 
     /** How many forms named {@code publish} the invocation page holds, the launch form having been posted with {@code values}. */
     private static int publishForms(PanelBrowser browser, Map<String, String> values) {
-        return browser.go("/").press("launch", "check", values).go("/invocation").page().document()
+        return browser.go("/").press("launch-values", "check", values).go("/invocation").page().document()
                 .select("form[name=publish]").size();
     }
 
@@ -542,12 +464,8 @@ class FolderFieldsKeepALeadingSpaceScreenTest {
     }
 
     private static String launchValue(Page page, String name) {
-        Element launch = form(page, "launch");
+        Element launch = form(page, "launch-values");
         return launch.select("[name='" + name + "']").val();
-    }
-
-    private static String newFolder(Page page) {
-        return form(page, "code-sets").select("[name=" + NEW_FOLDER + "]").val();
     }
 
     private static String rowOfThePreflight(Page page, String row) {

@@ -129,36 +129,39 @@ class CodeSetFoldersOutsideTheCorpusRootScreenTest {
                 Page landed = browser.press(FORM, "save", Map.of(NEW_FOLDER, each.getValue(), PROVENANCE, WHY_BILLING))
                         .page();
 
-                claim(each.getKey() + " lands back on the code sets with one line saying it is not added",
+                claim(each.getKey() + " lands back on the home page with one line saying it is not added",
                         () -> assertThat(List.of(landed.address().getPath(), byId(landed, "outcome").text()))
                                 .satisfiesExactly(
-                                        path -> assertThat(path).isEqualTo("/code-sets"),
+                                        path -> assertThat(path).isEqualTo("/"),
                                         line -> assertThat(line).contains("is not added")));
                 claim("and the profile is not written", () -> assertThat(work.resolve(ProfileEdit.FILE_NAME)).doesNotExist());
             }
         }
     }
 
-    /** The form's heading and its cost, ADR-334 §5.2: the cost of the key as {@code /profile} draws it for every key. */
+    /**
+     * The form's heading and its cost, ADR-334 §5.2: the cost of the key as the run settings draw it for every key, under
+     * an id of the form's own, the two standing on the one home page (ADR-340 §3).
+     */
     @Test
     @Story("The operator keeps code that lies outside the archive")
-    @DisplayName("The form of the folders outside the corpus root stands below the code sets' own under its heading, and says what a change costs as the profile page says it")
+    @DisplayName("The form of the folders outside the corpus root stands below the tree of folders to process under its heading, and says what a change costs as the run settings say it")
     void theFormIsHeadedAndSaysWhatAChangeCosts() throws IOException {
         Path work = workingDirectory();
         try (ScreenServer screens = start(work)) {
-            Page codeSets = screens.browser().go("/code-sets").page();
-            Page profile = screens.browser().go("/profile").page();
+            Page codeSets = screens.browser().go("/?open=values-corpus").page();
+            Page profile = codeSets;
 
-            claim("the page holds the code sets' own form, then the one of the folders outside the corpus root",
-                    () -> assertThat(codeSets.document().select("form").eachAttr("name"))
-                            .containsSubsequence("code-sets", FORM));
+            claim("the drawer's section holds the tree's form, then the one of the folders outside the corpus root",
+                    () -> assertThat(byId(codeSets, "values-corpus").select("form").eachAttr("name"))
+                            .containsSubsequence("folders-to-process", FORM));
             claim("which is headed Folders outside the corpus root",
                     () -> assertThat(form(codeSets, FORM).select("h2").eachText())
                             .containsExactly("Folders outside the corpus root"));
             claim("and says, inside it, what saving the folders costs, word for word as the profile page says it of the"
                             + " same value, and whether the sample is drawn again as that page says",
                     () -> {
-                        Element here = form(codeSets, FORM).selectFirst("#cost-" + KEY);
+                        Element here = form(codeSets, FORM).selectFirst("#code-set-folders-cost-" + KEY);
                         Element there = byId(profile, "cost-" + KEY);
                         assertThat(here).isNotNull();
                         assertThat(List.of(here.text(), here.attr("data-sample-drawn-again")))
@@ -182,10 +185,10 @@ class CodeSetFoldersOutsideTheCorpusRootScreenTest {
                 Page landed = browser.press(FORM, "save", Map.of(NEW_FOLDER, each.getValue(), PROVENANCE, WHY_BILLING))
                         .page();
 
-                claim(each.getKey() + " lands back on the code sets with the one line saying no folder is added, none"
+                claim(each.getKey() + " lands back on the home page with the one line saying no folder is added, none"
                                 + " being typed",
                         () -> assertThat(List.of(landed.address().getPath(), byId(landed, "outcome").text()))
-                                .containsExactly("/code-sets", "no folder is added: none is typed in the field"));
+                                .containsExactly("/", "no folder is added: none is typed in the field"));
                 claim("the profile is not written", () -> assertThat(work.resolve(ProfileEdit.FILE_NAME)).doesNotExist());
                 claim("and the reason typed stands in its field",
                         () -> assertThat(form(landed, FORM).select("[name='" + PROVENANCE + "']").val())
@@ -222,11 +225,12 @@ class CodeSetFoldersOutsideTheCorpusRootScreenTest {
             browser.go("/folders?for=" + FOR + "&path=" + URLEncoder.encode(billing.toString(), UTF_8));
             Page back = browser.press("use-folder", "use", Map.of()).page();
 
-            claim("the folder chosen stands in the field, with the reason typed before Browse, on the code sets",
-                    () -> assertThat(List.of(back.address().getPath(),
+            claim("the folder chosen stands in the field, with the reason typed before Browse, in the drawer's section",
+                    () -> assertThat(List.of(back.address().getPath(), String.valueOf(back.address().getQuery()),
                                     form(back, FORM).select("[name=" + NEW_FOLDER + "]").val(),
                                     form(back, FORM).select("[name='" + PROVENANCE + "']").val()))
-                            .containsExactly("/code-sets", billing.toAbsolutePath().normalize().toString(), WHY_BILLING));
+                            .containsExactly("/", "open=values-corpus", billing.toAbsolutePath().normalize().toString(),
+                                    WHY_BILLING));
             claim("and nothing is written by choosing it",
                     () -> assertThat(work.resolve(ProfileEdit.FILE_NAME)).doesNotExist());
         }
@@ -234,7 +238,8 @@ class CodeSetFoldersOutsideTheCorpusRootScreenTest {
 
     @Test
     @Story("The operator keeps code that lies outside the archive")
-    @DisplayName("A set below a folder outside the corpus root is named by that folder's whole path, and a whole path below no such folder is still refused")
+    @DisplayName("A set at a folder outside the corpus root is named in the tree by that folder's whole path, and the tree shows no folder below none the profile lists")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void aSetBelowAFolderOutsideTheCorpusRootIsNamedByItsWholePath() throws IOException {
         Path work = workingDirectory();
         Path billing = Files.createDirectories(folder.resolve("elsewhere").resolve("billing"));
@@ -244,21 +249,26 @@ class CodeSetFoldersOutsideTheCorpusRootScreenTest {
             PanelBrowser browser = screens.browser().go("/code-sets");
             browser.press(FORM, "save", Map.of(NEW_FOLDER, billing.toString(), PROVENANCE, WHY_BILLING));
 
-            browser.go("/code-sets").press("code-sets", "save", Map.of("new-folder", spelt, "new-name", "Billing engine"));
+            Page tree = browser.go("/?open=values-corpus").page();
+            Element row = byId(tree, "tree-rows").selectFirst("li[data-folder='" + spelt + "']");
+            claim("the tree's root lists the folder outside the corpus root by its whole path, read always",
+                    () -> assertThat(row == null ? List.of() : List.of(row.attr("data-walked"),
+                                    row.select("input[name^=walk-]").size()))
+                            .containsExactly("outside", 0));
+            String i = row.selectFirst("input[name^=folder-]").attr("name").substring("folder-".length());
+            browser.press("folders-to-process", "save",
+                    Map.of("code-set-" + i, "on", "code-set-name-" + i, "Billing engine"));
             claim("the set's name is written under its folder, spelt as its occurrences' paths spell it",
                     () -> assertThat(CodeSetRenames.read(Optional.of(Files.readString(
                                     work.resolve(CodeSetRenames.FILE_NAME), UTF_8))))
                             .containsExactly(new CodeSetRenames.Rename(spelt, "Billing engine")));
 
-            String before = Files.readString(work.resolve(CodeSetRenames.FILE_NAME), UTF_8);
-            Page refused = browser.go("/code-sets").press("code-sets", "save",
-                    Map.of("new-folder", unlisted.toRealPath().toString().replace(File.separatorChar, '/'),
-                            "new-name", "Not a set")).page();
-            claim("a whole path below no folder the profile lists is refused as climbing out, and nothing is written",
-                    () -> {
-                        assertThat(byId(refused, "outcome").text()).contains("lies under the corpus root");
-                        assertThat(Files.readString(work.resolve(CodeSetRenames.FILE_NAME), UTF_8)).isEqualTo(before);
-                    });
+            Page outside = browser.go("/?open=values-corpus&tree=" + URLEncoder.encode(
+                    unlisted.toRealPath().toString().replace(File.separatorChar, '/'), UTF_8)).page();
+            claim("a whole path below no folder the profile lists is outside the tree, which lists nothing there",
+                    () -> assertThat(List.of(byId(outside, "folder-tree").attr("data-tree"),
+                                    byId(outside, "tree-rows").select("li").size()))
+                            .containsExactly("outside", 0));
         }
     }
 

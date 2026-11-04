@@ -20,7 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The next page, where it has nothing to suggest, says why in plain words and what to do (ADR-334 §3): before any child
+ * The next step, a box of the home page since ADR-340 §4, its old address landing there, where it has nothing to
+ * suggest, says why in plain words and what to do (ADR-334 §3, its words as ADR-340 §4 has them): before any child
  * of the control panel's has ended, after one that did not end with 0, and after one that ended with 0 and left no
  * {@code next-invocation.properties}. Each case is told by {@code data-why} and by its words, read whole, since the
  * words are what the record decides.
@@ -28,15 +29,16 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
+@Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
 class TheNextPageSaysWhyItSuggestsNothingScreenTest {
 
     /** What the page says before any child of the control panel's has ended. */
-    private static final String NONE_ENDED = "No run has finished yet, so there is no next step to suggest. Start a run"
-            + " from the Launch page; once it finishes, this page shows what it needs next.";
+    private static final String NONE_ENDED = "No run has finished yet, so there is no next step to suggest. Press Run;"
+            + " once a run finishes, this box shows what it needs next.";
 
     /** What it says after a child that did not end with 0. */
     private static final String ENDED_BADLY = "The last run did not finish, so there is no next step to suggest. The"
-            + " Invocation page says how it ended; start it again from the Launch page once that is put right.";
+            + " Invocation page says how it ended; press Run again once that is put right.";
 
     /** What it says after a child that ended with 0 and left no file saying what it needs next. */
     private static final String SAID_NOTHING = "The last run finished without saying what it needs next, so there is no"
@@ -50,7 +52,7 @@ class TheNextPageSaysWhyItSuggestsNothingScreenTest {
 
     @Test
     @Story("The operator is told what comes next")
-    @DisplayName("Before any run started here has finished, the next page says so and says to start one from the launch page")
+    @DisplayName("Before any run started here has finished, the next step says so and says to press Run")
     void beforeAnyInvocationHasEndedThePageSaysToStartOne() throws IOException {
         try (ScreenServer screens = start(workingDirectory())) {
             Element said = byId(screens.browser().go("/next").page(), "next-invocation");

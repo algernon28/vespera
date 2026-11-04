@@ -214,6 +214,18 @@ final class ScreenServer implements AutoCloseable {
         return page;
     }
 
+    /**
+     * Types {@code values} into the drawer's launch values and has the control panel hold them by Use these and check,
+     * then presses {@code button} of the top bar's form, which sends no value and starts on those held (ADR-340 §1,
+     * §3). {@code label-auto} is pressed as Label with the box Autolabel ticked.
+     */
+    static PanelBrowser holdThenPress(PanelBrowser browser, String button, Map<String, String> values) {
+        browser.press("launch-values", "check", values);
+        return button.equals("label-auto")
+                ? browser.press("launch", "label", Map.of("label-auto", "on"))
+                : browser.press("launch", button, Map.of());
+    }
+
     /** A browser that has opened the printed address, pressed Run, and seen the child end on the invocation page. */
     PanelBrowser afterARunHasEnded() throws InterruptedException {
         PanelBrowser browser = browser().press("launch", "run", Map.of());

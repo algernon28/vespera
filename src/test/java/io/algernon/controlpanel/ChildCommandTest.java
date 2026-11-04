@@ -147,21 +147,16 @@ class ChildCommandTest {
 
     @Test
     @Story("The control panel refuses what it cannot start")
-    @DisplayName("Run without a corpus root and Label without a working directory are not built, the refusal given")
+    @DisplayName("Run without a corpus root is not built, the refusal given")
     @Issue("564")
     @Link(name = "ADR-292", url = Adr.THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES, type = "adr")
     void aRefusedCommandIsNotBuilt() {
         LaunchValues noCorpusRoot = new LaunchValues("", WORKING_DIRECTORY.toString(), "", "", "", "", "", "");
-        LaunchValues noWorkingDirectory = new LaunchValues(CORPUS_ROOT.toString(), "", "", "", "", "", "", "");
 
         claim("Run with no corpus root is refused, with Run's refusal as the message",
                 () -> assertThatThrownBy(() -> ChildCommand.run(JAVA, JAR, noCorpusRoot))
                         .isInstanceOf(IllegalArgumentException.class)
                         .hasMessage(noCorpusRoot.refusalToRun().orElseThrow()));
-        claim("Label with no working directory is refused, with Label's refusal as the message",
-                () -> assertThatThrownBy(() -> ChildCommand.label(JAVA, JAR, false, noWorkingDirectory))
-                        .isInstanceOf(IllegalArgumentException.class)
-                        .hasMessage(noWorkingDirectory.refusalToLabel().orElseThrow()));
     }
 
     @Test
@@ -177,11 +172,6 @@ class ChildCommandTest {
         claim("and no variable the control panel adds names Confluence: the child inherits the five values from the"
                         + " operator's environment, and the control panel holds none of them",
                 () -> assertThat(publish.environment().keySet()).noneMatch(name -> name.contains("CONFLUENCE")));
-        LaunchValues noWorkingDirectory = new LaunchValues(CORPUS_ROOT.toString(), "", "", "", "", "", "", "");
-        claim("a publish with no working directory is not built, the label's refusal given as the message",
-                () -> assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR, noWorkingDirectory))
-                        .isInstanceOf(IllegalArgumentException.class)
-                        .hasMessage(noWorkingDirectory.refusalToLabel().orElseThrow()));
     }
 
     @Test

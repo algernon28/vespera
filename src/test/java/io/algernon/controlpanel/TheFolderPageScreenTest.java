@@ -65,7 +65,7 @@ class TheFolderPageScreenTest {
 
     private static final String DELIVERABLE_ROOT = "vespera.deliverable-root";
 
-    /** The field of the launch page's seed folder form. */
+    /** The seed folder's control in the run settings' form and the next step's. */
     private static final String SEED_FOLDER = "seedFolder";
 
     /** The field of the next act's form holding the seed folder, as the folder page names it. */
@@ -73,9 +73,6 @@ class TheFolderPageScreenTest {
 
     /** The field of the profile page's form holding the seed folder, as the folder page names it. */
     private static final String PROFILE_SEED_FOLDER = "profile-seedFolder";
-
-    /** The code sets page's field for a new set's folder, relative to the corpus root. */
-    private static final String NEW_FOLDER = "new-folder";
 
     /** The code sets page's field for a folder of code outside the corpus root, as the folder page names it. */
     private static final String CODE_SET_FOLDER = "code-set-folder";
@@ -109,13 +106,6 @@ class TheFolderPageScreenTest {
     /** A provenance typed beside a folder field, which Browse is to hold. */
     private static final String REASON_TYPED = "the reason the operator typed before browsing";
 
-    /** The names file of one code set, as the control panel writes it, to read back unchanged after a refusal. */
-    private static final String ONE_CODE_SET_NAME = """
-            ---
-            - folder: "tools/build"
-              name: "Build tools"
-            """;
-
     /** A profile {@code ProfileEdit} reads as in no form it wrote, a tab in an indent, so it refuses every save to it. */
     private static final String A_PROFILE_NOT_IN_FORM = "seedFolder:\n\tvalue: null\n";
 
@@ -148,39 +138,23 @@ class TheFolderPageScreenTest {
     @Test
     @Story("The operator chooses a folder")
     @DisplayName("Each folder field has a Browse button of its own in its own form, which sends the form though its reason is still empty")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void eachFolderFieldHasABrowseButtonOfItsOwnThatSkipsTheRequiredProvenance() throws IOException, InterruptedException {
         Path workingDirectory = wanting("seedFolder");
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(aCorpusRoot(), workingDirectory))) {
-            PanelBrowser browser = screens.browser();
-            Page launch = browser.page();
-            Page profile = browser.go("/profile").page();
-            Page codeSets = browser.go("/code-sets").page();
-            Page next = screens.afterARunHasEnded().go("/next").page();
+            Page home = screens.afterARunHasEnded().go("/").page();
 
             Map<String, List<String>> buttonsOfEachForm = new LinkedHashMap<>();
-            buttonsOfEachForm.put("launch", browseNames(form(launch, "launch")));
-            buttonsOfEachForm.put("seed-folder", browseNames(form(launch, "seed-folder")));
-            buttonsOfEachForm.put("next", browseNames(form(next, "next")));
-            buttonsOfEachForm.put("profile", profile.document().select("form").stream()
-                    .flatMap(each -> browseNames(each).stream()).toList());
-            buttonsOfEachForm.put("code-sets", browseNames(form(codeSets, "code-sets")));
-            List<Element> buttons = Stream.of(launch, next, profile, codeSets)
-                    .flatMap(page -> page.document().select("button[name^=" + ScreenServer.BROWSE + "]").stream())
-                    .toList();
+            for (String each : List.of("launch-values", "next", PROFILE_FORM, "code-set-folders", "not-relevant")) {
+                buttonsOfEachForm.put(each, browseNames(form(home, each)));
+            }
+            List<Element> buttons = home.document().select("button[name^=" + ScreenServer.BROWSE + "]");
 
-            claim("the launch form holds the Browse buttons of the corpus root, the working directory and the deliverable root",
-                    () -> assertThat(buttonsOfEachForm.get("launch")).containsExactly("browse-" + CORPUS_ROOT,
-                            "browse-" + WORKING_DIRECTORY, "browse-" + DELIVERABLE_ROOT));
-            claim("the seed folder's form, the next act's and the code sets' each hold the one of their own folder field",
-                    () -> assertThat(List.of(buttonsOfEachForm.get("seed-folder"), buttonsOfEachForm.get("next"),
-                                    buttonsOfEachForm.get("code-sets")))
-                            .containsExactly(List.of("browse-" + SEED_FOLDER), List.of("browse-" + NEXT_SEED_FOLDER),
-                                    List.of("browse-" + NEW_FOLDER)));
-            claim("the profile page holds one, the seed folder's",
-                    () -> assertThat(buttonsOfEachForm.get("profile")).containsExactly("browse-" + PROFILE_SEED_FOLDER));
-            claim("and it stands in the profile's one form",
-                    () -> assertThat(browseNames(form(profile, PROFILE_FORM)))
-                            .containsExactly("browse-" + PROFILE_SEED_FOLDER));
+            claim("the launch values' form holds the Browse buttons of the corpus root, the working directory and the"
+                            + " deliverable root, and each other form the one of its own folder field",
+                    () -> assertThat(buttonsOfEachForm).containsExactlyEntriesOf(browseButtonsOfEachForm()));
+            claim("no other form of the home page holds one",
+                    () -> assertThat(buttons).hasSize(7));
             claim("each is a submit button, and asks the browser not to stop it for a reason left empty",
                     () -> assertThat(buttons).isNotEmpty().allSatisfy(button -> {
                         assertThat(button.attr("type")).isEqualTo("submit");
@@ -199,7 +173,7 @@ class TheFolderPageScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder, LaunchValues.none())) {
             PanelBrowser browser = screens.browser();
             byte[] keptBefore = Files.readAllBytes(launchValues);
-            Page landed = browser.press("launch", "browse-" + CORPUS_ROOT, Map.of(CORPUS_ROOT, corpusRoot.toString(),
+            Page landed = browser.press("launch-values", "browse-" + CORPUS_ROOT, Map.of(CORPUS_ROOT, corpusRoot.toString(),
                     WORKING_DIRECTORY, workingDirectory.toString(), "vespera.docling.image", IMAGE_TYPED,
                     "vespera.label.model", MODEL_TYPED)).page();
             byte[] keptAfter = Files.readAllBytes(launchValues);
@@ -234,7 +208,7 @@ class TheFolderPageScreenTest {
             PanelBrowser browser = screens.browser();
             List<String> landedAt = new ArrayList<>();
             for (String name : NAMES_A_QUERY_MUST_CARRY) {
-                landedAt.add(listedPath(browser.go("/").press("launch", "browse-" + CORPUS_ROOT,
+                landedAt.add(listedPath(browser.go("/").press("launch-values", "browse-" + CORPUS_ROOT,
                         Map.of(CORPUS_ROOT, corpusRoot.resolve(name).toString())).page()));
             }
 
@@ -251,7 +225,7 @@ class TheFolderPageScreenTest {
         List<String> roots = StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)
                 .map(Path::toString).toList();
         try (ScreenServer screens = ScreenServer.start(folder, LaunchValues.none())) {
-            Page landed = screens.browser().press("launch", "browse-" + WORKING_DIRECTORY, Map.of()).page();
+            Page landed = screens.browser().press("launch-values", "browse-" + WORKING_DIRECTORY, Map.of()).page();
             Element links = byId(landed, "folder-roots");
 
             claim("the page says it shows the roots",
@@ -332,9 +306,9 @@ class TheFolderPageScreenTest {
         }
     }
 
-    /** From a folder that is there and from one that is not, each step of a code set's folder toward the corpus root. */
+    /** From a folder that is there and from one that is not, each step of a folder not relevant toward the corpus root. */
     @Test
-    @Story("The operator names the code sets")
+    @Story("The operator chooses a folder")
     @DisplayName("Up below the corpus root leads a step toward it, from a folder that is not there too, and stops at the corpus root")
     void upBelowTheCorpusRootLeadsAStepTowardIt() throws IOException {
         Path corpusRoot = aCorpusRoot();
@@ -342,12 +316,12 @@ class TheFolderPageScreenTest {
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
             PanelBrowser browser = screens.browser();
-            Page inBuild = browser.go(folders(NEW_FOLDER, "tools/build")).page();
+            Page inBuild = browser.go(folders(NOT_RELEVANT_FOLDER, "tools/build")).page();
             Page inTools = browser.go(byId(inBuild, "folder-up").attr("href")).page();
             Page atTheRoot = browser.go(byId(inTools, "folder-up").attr("href")).page();
-            Page notThere = browser.go(folders(NEW_FOLDER, "tools/gone")).page();
+            Page notThere = browser.go(folders(NOT_RELEVANT_FOLDER, "tools/gone")).page();
             Page fromNotThere = browser.go(byId(notThere, "folder-up").attr("href")).page();
-            Page notThereAtTheTop = browser.go(folders(NEW_FOLDER, "gone")).page();
+            Page notThereAtTheTop = browser.go(folders(NOT_RELEVANT_FOLDER, "gone")).page();
             Page fromNotThereAtTheTop = browser.go(byId(notThereAtTheTop, "folder-up").attr("href")).page();
 
             claim("Up from tools/build lands in tools, and Up from there in the corpus root, listed, where it stops",
@@ -393,7 +367,7 @@ class TheFolderPageScreenTest {
             Path own = Files.createDirectories(folder.resolve("own-" + field));
             try (ScreenServer screens = ScreenServer.start(own, LaunchValues.none())) {
                 PanelBrowser browser = screens.browser();
-                browser.press("launch", "browse-" + field, Map.of("vespera.label.model", MODEL_TYPED));
+                browser.press("launch-values", "browse-" + field, Map.of("vespera.label.model", MODEL_TYPED));
                 browser.go(folders(field, chosen.toString()));
                 byte[] keptBefore = Files.readAllBytes(LaunchValues.fileIn(own.resolve("tmp"), USER));
                 Page landed = browser.press("use-folder", "use", Map.of()).page();
@@ -416,37 +390,6 @@ class TheFolderPageScreenTest {
 
     @Test
     @Story("The operator chooses a folder")
-    @DisplayName("Choosing the seed folder on the launch page fills its field and keeps its reason, writes no profile, and Save then writes both")
-    void chooseTheSeedFolderOnTheLaunchPageThenSaveIt() throws IOException {
-        Path corpusRoot = aCorpusRoot();
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        Path seeds = Files.createDirectories(folder.resolve("seeds"));
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            PanelBrowser browser = screens.browser();
-            browser.press("seed-folder", "browse-" + SEED_FOLDER, Map.of("provenance", REASON_TYPED));
-            browser.go(folders(SEED_FOLDER, seeds.toString()));
-            Page landed = browser.press("use-folder", "use", Map.of()).page();
-            boolean profileWritten = Files.exists(workingDirectory.resolve(ProfileEdit.FILE_NAME));
-            Element seedForm = form(landed, "seed-folder");
-
-            claim("the choice lands on the launch page with the folder in the field and the reason as typed",
-                    () -> assertThat(List.of(landed.address().getPath(), seedForm.select("[name=seedFolder]").val(),
-                                    seedForm.select("[name=provenance]").val()))
-                            .containsExactly("/", seeds.toString(), REASON_TYPED));
-            claim("no profile was written", () -> assertThat(profileWritten).isFalse());
-
-            Page saved = browser.press("seed-folder", "save", Map.of()).page();
-
-            claim("Save writes the folder chosen with the reason typed",
-                    () -> assertThat(profileOf(workingDirectory).get(ProfileKey.SEED_FOLDER))
-                            .isEqualTo(new ProfileEdit.Stated(seeds.toString(), REASON_TYPED)));
-            claim("and once saved, the reason is no longer held",
-                    () -> assertThat(form(saved, "seed-folder").select("[name=provenance]").val()).isEmpty());
-        }
-    }
-
-    @Test
-    @Story("The operator chooses a folder")
     @DisplayName("Choosing the seed folder on the next act's page keeps every other value and reason typed, writes no profile, and returns there")
     void chooseTheSeedFolderOnTheNextPage() throws IOException, InterruptedException {
         Path corpusRoot = aCorpusRoot();
@@ -463,9 +406,10 @@ class TheFolderPageScreenTest {
             boolean profileWritten = Files.exists(workingDirectory.resolve(ProfileEdit.FILE_NAME));
             Element next = form(landed, "next");
 
-            claim("the choice lands on the next act's page, the folder in the seed folder's field",
-                    () -> assertThat(List.of(landed.address().getPath(), next.select("[name=seedFolder]").val()))
-                            .containsExactly("/next", seeds.toString()));
+            claim("the choice lands on the next step's box, the folder in the seed folder's field",
+                    () -> assertThat(List.of(landed.address().getPath(), String.valueOf(landed.address().getFragment()),
+                                    next.select("[name=seedFolder]").val()))
+                            .containsExactly("/", "next-step", seeds.toString()));
             claim("every value and reason typed is held",
                     () -> assertThat(typed).allSatisfy((name, value) -> assertThat(
                             next.select("[name='" + name + "']").val()).isEqualTo(value)));
@@ -494,9 +438,10 @@ class TheFolderPageScreenTest {
             boolean profileWritten = Files.exists(workingDirectory.resolve(ProfileEdit.FILE_NAME));
             Element seedForm = form(landed, PROFILE_FORM);
 
-            claim("the choice lands on the profile page, at the seed folder's section",
-                    () -> assertThat(List.of(landed.address().getPath(), String.valueOf(landed.address().getFragment())))
-                            .containsExactly("/profile", "key-seedFolder"));
+            claim("the choice lands in the drawer's run settings, at the seed folder's section",
+                    () -> assertThat(List.of(landed.address().getPath(), String.valueOf(landed.address().getQuery()),
+                                    String.valueOf(landed.address().getFragment())))
+                            .containsExactly("/", "open=values-profile", "key-seedFolder"));
             claim("with the folder as the value and the reason as typed",
                     () -> assertThat(List.of(seedForm.select("[name=" + SEED_FOLDER + "]").val(),
                                     seedForm.select("[name='" + SEED_FOLDER_PROVENANCE + "']").val()))
@@ -527,37 +472,6 @@ class TheFolderPageScreenTest {
         }
     }
 
-    /** The save is refused holding what was chosen: {@link #A_PROFILE_NOT_IN_FORM} is refused whatever a post holds. */
-    @Test
-    @Story("The operator chooses a folder")
-    @DisplayName("A refused save of the launch page's seed folder keeps the folder chosen and the reason typed in their fields")
-    void aRefusedSaveOfTheLaunchPagesSeedFolderKeepsWhatItHeld() throws IOException {
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        Path seeds = Files.createDirectories(folder.resolve("seeds"));
-        Path profile = Files.writeString(workingDirectory.resolve(ProfileEdit.FILE_NAME), A_PROFILE_NOT_IN_FORM,
-                StandardCharsets.UTF_8);
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(aCorpusRoot(), workingDirectory))) {
-            PanelBrowser browser = screens.browser();
-            browser.press("seed-folder", "browse-" + SEED_FOLDER, Map.of("provenance", REASON_TYPED));
-            browser.go(folders(SEED_FOLDER, seeds.toString()));
-            browser.press("use-folder", "use", Map.of());
-            Page refused = browser.press("seed-folder", "save", Map.of()).page();
-            String held = Files.readString(profile, StandardCharsets.UTF_8);
-            Element seedForm = form(refused, "seed-folder");
-
-            claim("the save lands on the launch page with one line saying why, and the file is as it was",
-                    () -> {
-                        assertThat(refused.address().getPath()).isEqualTo("/");
-                        assertThat(byId(refused, "outcome").text()).isNotBlank();
-                        assertThat(held).isEqualTo(A_PROFILE_NOT_IN_FORM);
-                    });
-            claim("and the field holds the folder chosen, and the reason as typed",
-                    () -> assertThat(List.of(seedForm.select("[name=seedFolder]").val(),
-                                    seedForm.select("[name=provenance]").val()))
-                            .containsExactly(seeds.toString(), REASON_TYPED));
-        }
-    }
-
     @Test
     @Story("The operator chooses a folder")
     @DisplayName("A refused save of the next act's seed folder keeps the folder chosen and the reason typed in their fields")
@@ -575,9 +489,9 @@ class TheFolderPageScreenTest {
             String held = Files.readString(profile, StandardCharsets.UTF_8);
             Element next = form(refused, "next");
 
-            claim("the save lands on the next act's page with one line saying why, and the file is as it was",
+            claim("the save lands on the home page with one line saying why, and the file is as it was",
                     () -> {
-                        assertThat(refused.address().getPath()).isEqualTo("/next");
+                        assertThat(refused.address().getPath()).isEqualTo("/");
                         assertThat(byId(refused, "outcome").text()).isNotBlank();
                         assertThat(held).isEqualTo(A_PROFILE_NOT_IN_FORM);
                     });
@@ -614,9 +528,9 @@ class TheFolderPageScreenTest {
             String held = Files.readString(profile, StandardCharsets.UTF_8);
             Element seedForm = form(refused, PROFILE_FORM);
 
-            claim("the save lands on the profile page with one line naming the other holder, and the file is as it was",
+            claim("the save lands on the home page with one line naming the other holder, and the file is as it was",
                     () -> {
-                        assertThat(refused.address().getPath()).isEqualTo("/profile");
+                        assertThat(refused.address().getPath()).isEqualTo("/");
                         assertThat(byId(refused, "outcome").text()).contains(ANOTHER_HOLDERS_LINE);
                         assertThat(held).isEqualTo(A_PROFILE_IN_FORM);
                     });
@@ -627,99 +541,9 @@ class TheFolderPageScreenTest {
         }
     }
 
-    /**
-     * Refused two ways, since they stand in two places of the save: the write refuses a folder the file holds already,
-     * given twice, and the save refuses before any write a folder that climbs out of the corpus root.
-     */
     @Test
-    @Story("The operator names the code sets")
-    @DisplayName("A refused save of a code set, its folder given twice or climbing out of the corpus root, keeps the folder chosen and the name typed in their fields")
-    void aRefusedSaveOfACodeSetKeepsWhatItHeld() throws IOException {
-        Path corpusRoot = aCorpusRoot();
-        Files.createDirectories(corpusRoot.resolve("tools").resolve("build"));
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        Path names = Files.writeString(workingDirectory.resolve(CodeSetRenames.FILE_NAME), ONE_CODE_SET_NAME,
-                StandardCharsets.UTF_8);
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            PanelBrowser browser = screens.browser().go("/code-sets");
-            browser.press("code-sets", "browse-" + NEW_FOLDER, Map.of("new-name", "The builders"));
-            browser.go(folders(NEW_FOLDER, "tools/build"));
-            browser.press("use-folder", "use", Map.of());
-            List<String> afterGivenTwice = landingAndFieldsOfTheCodeSets(browser.press("code-sets", "save", Map.of()).page());
-            String heldAfterTheFirst = Files.readString(names, StandardCharsets.UTF_8);
-            List<String> afterClimbing = landingAndFieldsOfTheCodeSets(
-                    browser.press("code-sets", "save", Map.of(NEW_FOLDER, "../outside")).page());
-            String heldAfterTheSecond = Files.readString(names, StandardCharsets.UTF_8);
-            List<String> aLineAndWhatWasHeld = List.of("/code-sets", "false", "tools/build", "The builders");
-
-            claim("a folder given twice lands on the code sets with one line saying why, the folder chosen and the name"
-                            + " typed in their fields",
-                    () -> assertThat(afterGivenTwice).isEqualTo(aLineAndWhatWasHeld));
-            claim("so does a folder that climbs out",
-                    () -> assertThat(afterClimbing).isEqualTo(aLineAndWhatWasHeld));
-            claim("and the file is as it was, after each",
-                    () -> assertThat(List.of(heldAfterTheFirst, heldAfterTheSecond)).containsOnly(ONE_CODE_SET_NAME));
-        }
-    }
-
-    /** The page's address, whether its outcome is blank, its new folder and its new name, read before a press changes the page's controls. */
-    private static List<String> landingAndFieldsOfTheCodeSets(Page page) {
-        return List.of(page.address().getPath(), String.valueOf(byId(page, "outcome").text().isBlank()),
-                form(page, "code-sets").select("[name=" + NEW_FOLDER + "]").val(),
-                form(page, "code-sets").select("[name=new-name]").val());
-    }
-
-    /** The folder is written as {@code code-set-names.yaml} wants it: relative to the corpus root, with {@code /}. */
-    @Test
-    @Story("The operator names the code sets")
-    @DisplayName("A code set's folder is chosen from the corpus root down, relative to it and with forward slashes, the names typed are kept, and Save writes it")
-    void aCodeSetsFolderIsChosenFromTheCorpusRootDownAndSaved() throws IOException {
-        Path corpusRoot = aCorpusRoot();
-        Files.createDirectories(corpusRoot.resolve("tools").resolve("build"));
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        Path names = workingDirectory.resolve(CodeSetRenames.FILE_NAME);
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            PanelBrowser browser = screens.browser().go("/code-sets");
-            Page atTheRoot = browser.press("code-sets", "browse-" + NEW_FOLDER, Map.of("new-name", "The builders"))
-                    .page();
-
-            claim("Browse with the field empty lists the corpus root itself, with no Up and no other root",
-                    () -> assertThat(List.of(listing(atTheRoot), listedPath(atTheRoot),
-                                    String.valueOf(atTheRoot.document().select("#folder-up").size()),
-                                    String.valueOf(byId(atTheRoot, "folder-roots").select("a").size())))
-                            .containsExactly("listed", "", "0", "1"));
-
-            browser.go(byId(atTheRoot, "folder-list").select("a").first().attr("href"));
-            Page inTools = browser.page();
-            browser.go(byId(inTools, "folder-list").select("a").first().attr("href"));
-            Page inBuild = browser.page();
-            Page landed = browser.press("use-folder", "use", Map.of()).page();
-            Element codeSets = form(landed, "code-sets");
-
-            claim("each step down names the folder from the corpus root, with forward slashes on every system",
-                    () -> assertThat(List.of(listedPath(inTools), listedPath(inBuild)))
-                            .containsExactly("tools", "tools/build"));
-            claim("the choice lands on the code sets with the folder in the new row, and its name as typed",
-                    () -> assertThat(List.of(landed.address().getPath(), codeSets.select("[name=new-folder]").val(),
-                                    codeSets.select("[name=new-name]").val()))
-                            .containsExactly("/code-sets", "tools/build", "The builders"));
-            claim("nothing was written", () -> assertThat(Files.exists(names)).isFalse());
-
-            Page saved = browser.press("code-sets", "save", Map.of()).page();
-
-            claim("Save writes that folder under that name",
-                    () -> assertThat(CodeSetRenames.read(Optional.of(Files.readString(names, StandardCharsets.UTF_8))))
-                            .containsExactly(new CodeSetRenames.Rename("tools/build", "The builders")));
-            claim("and once saved, the new row is empty again, the entry saved being a row of its own",
-                    () -> assertThat(List.of(form(saved, "code-sets").select("[name=new-folder]").val(),
-                                    form(saved, "code-sets").select("[name=new-name]").val()))
-                            .containsExactly("", ""));
-        }
-    }
-
-    @Test
-    @Story("The operator names the code sets")
-    @DisplayName("A code set's folder may not climb out of the corpus root, whether by dots, by an absolute path or by a backslash: nothing outside is listed")
+    @Story("The operator chooses a folder")
+    @DisplayName("A folder not relevant may not climb out of the corpus root, whether by dots, by an absolute path or by a backslash: nothing outside is listed")
     void aCodeSetsFolderMayNotClimbOutOfTheCorpusRoot() throws IOException {
         Path corpusRoot = aCorpusRoot();
         Files.createDirectories(corpusRoot.resolve("tools").resolve("build"));
@@ -731,7 +555,7 @@ class TheFolderPageScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
             PanelBrowser browser = screens.browser();
             for (String path : climbing) {
-                Page page = browser.go(folders(NEW_FOLDER, path)).page();
+                Page page = browser.go(folders(NOT_RELEVANT_FOLDER, path)).page();
 
                 claim("'" + path + "' is refused on the page, naming nothing outside and offering nothing to use",
                         () -> {
@@ -744,123 +568,27 @@ class TheFolderPageScreenTest {
     }
 
     @Test
-    @Story("The operator names the code sets")
-    @DisplayName("A post naming a folder outside the corpus root puts nothing in the code set's field, and says so")
+    @Story("The operator chooses a folder")
+    @DisplayName("A post naming a folder outside the corpus root puts nothing in the field of a folder not relevant, and says so")
     void aPostClimbingOutOfTheCorpusRootChangesNoField() throws IOException {
         Path corpusRoot = aCorpusRoot();
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            PanelBrowser browser = screens.browser().go("/folders?for=" + NEW_FOLDER);
+            PanelBrowser browser = screens.browser().go("/folders?for=" + NOT_RELEVANT_FOLDER);
             Page landed = browser.press("use-folder", "use", Map.of("path", "../outside")).page();
 
-            claim("it lands back on the code sets, the new row's folder empty, with one line saying why",
+            claim("it lands back on the drawer's relevance section, the field empty, with one line saying why",
                     () -> assertThat(List.of(landed.address().getPath(),
-                                    form(landed, "code-sets").select("[name=new-folder]").val(),
+                                    form(landed, "not-relevant").select("[name=new-not-relevant-folder]").val(),
                                     String.valueOf(byId(landed, "outcome").text().isBlank())))
-                            .containsExactly("/code-sets", "", "false"));
-        }
-    }
-
-    /**
-     * What the Save at {@code /code-sets} reads of a new row's folder (ADR-331 §5): its text, since a folder typed need
-     * not be there yet. The same folder reaches it typed in the field or left there by Browse and Back.
-     */
-    @Test
-    @Story("The operator names the code sets")
-    @DisplayName("Saving a new folder that climbs out of the corpus root, typed or left in the field by Browse, writes nothing and says so")
-    void aSaveOfANewFolderThatClimbsOutWritesNothing() throws IOException {
-        Path corpusRoot = aCorpusRoot();
-        Path outside = Files.createDirectories(folder.resolve("outside"));
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        Path names = Files.writeString(workingDirectory.resolve(CodeSetRenames.FILE_NAME), ONE_CODE_SET_NAME,
-                StandardCharsets.UTF_8);
-        List<String> climbing = List.of("../outside", "tools/../../x", "..", "C:/x", "/x", "tools\\build",
-                outside.toString(), outside.toString().replace('\\', '/'));
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            PanelBrowser browser = screens.browser();
-            for (String typed : climbing) {
-                Page landed = browser.go("/code-sets").press("code-sets", "save",
-                        Map.of(NEW_FOLDER, typed, "new-name", "The climbing set")).page();
-                String held = Files.readString(names, StandardCharsets.UTF_8);
-
-                claim("'" + typed + "' lands back on the code sets with one line saying why, and the file is as it was",
-                        () -> {
-                            assertThat(landed.address().getPath()).isEqualTo("/code-sets");
-                            assertThat(byId(landed, "outcome").text()).isNotBlank();
-                            assertThat(held).isEqualTo(ONE_CODE_SET_NAME);
-                        });
-            }
-
-            browser.go("/code-sets").press("code-sets", "browse-" + NEW_FOLDER,
-                    Map.of(NEW_FOLDER, "../outside", "new-name", "The climbing set"));
-            String leftInTheField = form(browser.go("/code-sets").page(), "code-sets")
-                    .select("[name=" + NEW_FOLDER + "]").val();
-            Page saved = browser.press("code-sets", "save", Map.of()).page();
-            String held = Files.readString(names, StandardCharsets.UTF_8);
-
-            claim("Browse then Back leaves the folder in the field",
-                    () -> assertThat(leftInTheField).isEqualTo("../outside"));
-            claim("and Save refuses it the same: one line saying why, and the file as it was",
-                    () -> {
-                        assertThat(byId(saved, "outcome").text()).isNotBlank();
-                        assertThat(held).isEqualTo(ONE_CODE_SET_NAME);
-                    });
-        }
-    }
-
-    /** The refusal reads the text it was given, so it does not wait for a corpus root to read it under. */
-    @Test
-    @Story("The operator names the code sets")
-    @DisplayName("With no corpus root named, saving a new folder that climbs out still writes nothing")
-    void withNoCorpusRootASaveOfANewFolderThatClimbsOutWritesNothing() throws IOException {
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        Path names = workingDirectory.resolve(CodeSetRenames.FILE_NAME);
-        LaunchValues noCorpusRoot = new LaunchValues("", workingDirectory.toString(), "", "", "", "", "", "");
-        try (ScreenServer screens = ScreenServer.start(folder, noCorpusRoot)) {
-            Page landed = screens.browser().go("/code-sets").press("code-sets", "save",
-                    Map.of(NEW_FOLDER, "../outside", "new-name", "The climbing set")).page();
-
-            claim("it lands back on the code sets with one line saying why, and no file is written",
-                    () -> {
-                        assertThat(byId(landed, "outcome").text()).isNotBlank();
-                        assertThat(Files.exists(names)).isFalse();
-                    });
-        }
-    }
-
-    /**
-     * A row already saved names a folder that may no longer be there, or that the operator wrote by hand, and the jar
-     * reads both: only the new row is refused. Two dots inside an element's name are no {@code ..} element.
-     */
-    @Test
-    @Story("The operator names the code sets")
-    @DisplayName("Only the new row's folder is refused: a saved row whose folder is gone or lies above the corpus root stays saved, and a new folder not there yet is written")
-    void aSaveRefusesOnlyTheNewRowsFolder() throws IOException {
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        Path names = Files.writeString(workingDirectory.resolve(CodeSetRenames.FILE_NAME), """
-                ---
-                - folder: "gone/elsewhere"
-                  name: "The set whose folder is gone"
-                - folder: "../written-by-hand"
-                  name: "The set written by hand"
-                """, StandardCharsets.UTF_8);
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(aCorpusRoot(), workingDirectory))) {
-            screens.browser().go("/code-sets").press("code-sets", "save",
-                    Map.of(NEW_FOLDER, "not-there-yet..old/build", "new-name", "The new set"));
-
-            claim("the file holds both saved rows as they were, and the new one after them",
-                    () -> assertThat(CodeSetRenames.read(Optional.of(Files.readString(names, StandardCharsets.UTF_8))))
-                            .containsExactly(
-                                    new CodeSetRenames.Rename("gone/elsewhere", "The set whose folder is gone"),
-                                    new CodeSetRenames.Rename("../written-by-hand", "The set written by hand"),
-                                    new CodeSetRenames.Rename("not-there-yet..old/build", "The new set")));
+                            .containsExactly("/", "", "false"));
         }
     }
 
     /** A link inside the corpus root leading out of it stays inside by its name and outside by where it lands. */
     @Test
-    @Story("The operator names the code sets")
-    @DisplayName("A link inside the corpus root that leads out of it is not followed for a code set")
+    @Story("The operator chooses a folder")
+    @DisplayName("A link inside the corpus root that leads out of it is not followed for a folder not relevant")
     void aLinkInsideTheCorpusRootLeadingOutOfItIsNotFollowed() throws IOException {
         Path corpusRoot = aCorpusRoot();
         Path outside = Files.createDirectories(folder.resolve("outside"));
@@ -872,7 +600,7 @@ class TheFolderPageScreenTest {
         }
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            Page page = screens.browser().go(folders(NEW_FOLDER, "leads-out")).page();
+            Page page = screens.browser().go(folders(NOT_RELEVANT_FOLDER, "leads-out")).page();
 
             claim("the page refuses it as outside the corpus root, and names nothing it holds",
                     () -> {
@@ -883,11 +611,11 @@ class TheFolderPageScreenTest {
     }
 
     @Test
-    @Story("The operator names the code sets")
-    @DisplayName("With no corpus root named, a code set's folder page says so and lists nothing")
+    @Story("The operator chooses a folder")
+    @DisplayName("With no corpus root named, the folder page of a folder not relevant says so and lists nothing")
     void withNoCorpusRootACodeSetsFolderPageListsNothing() throws IOException {
         try (ScreenServer screens = ScreenServer.start(folder, LaunchValues.none())) {
-            Page page = screens.browser().go("/folders?for=" + NEW_FOLDER).page();
+            Page page = screens.browser().go("/folders?for=" + NOT_RELEVANT_FOLDER).page();
 
             claim("the page says the corpus root is not named",
                     () -> assertThat(listing(page)).isEqualTo("no-corpus-root"));
@@ -919,11 +647,11 @@ class TheFolderPageScreenTest {
     }
 
     /**
-     * A code set's {@code path} begins with the name itself, so a strip of it would land in another folder: one of the
-     * name without its space stands beside it, holding a subfolder of another name.
+     * A folder not relevant's {@code path} begins with the name itself, so a strip of it would land in another folder:
+     * one of the name without its space stands beside it, holding a subfolder of another name.
      */
     @Test
-    @Story("The operator names the code sets")
+    @Story("The operator chooses a folder")
     @DisplayName("A subfolder whose name begins with a space is listed, opened and chosen whole, and not as the folder of that name without its space, where the file system holds such a name")
     void aSubfolderWhoseNameBeginsWithASpaceIsCarriedWhole() throws IOException {
         Path corpusRoot = aCorpusRoot();
@@ -940,7 +668,7 @@ class TheFolderPageScreenTest {
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
             PanelBrowser browser = screens.browser();
-            Page listed = browser.go(folders(NEW_FOLDER, "")).page();
+            Page listed = browser.go(folders(NOT_RELEVANT_FOLDER, "")).page();
             List<Element> links = byId(listed, "folder-list").select("a");
             Page opened = browser.go(links.stream()
                     .filter(link -> link.wholeText().equals(BEGINS_WITH_A_SPACE))
@@ -953,8 +681,8 @@ class TheFolderPageScreenTest {
             claim("the link lands in the folder of the whole name, and lists what that folder holds",
                     () -> assertThat(List.of(listedPath(opened), byId(opened, "folder-list").text()))
                             .containsExactly(BEGINS_WITH_A_SPACE, "inside-the-one-with-the-space"));
-            claim("Use this folder puts the whole name in the code set's field",
-                    () -> assertThat(form(chosen, "code-sets").select("[name=" + NEW_FOLDER + "]").val())
+            claim("Use this folder puts the whole name in the field of a folder not relevant",
+                    () -> assertThat(form(chosen, "not-relevant").select("[name=new-not-relevant-folder]").val())
                             .isEqualTo(BEGINS_WITH_A_SPACE));
             claim("and a folder field's page, given the whole path, lists the same folder",
                     () -> assertThat(List.of(listedPath(byItsWholePath), byId(byItsWholePath, "folder-list").text()))
@@ -989,7 +717,7 @@ class TheFolderPageScreenTest {
     void aFieldOffTheClosedListIsNotFoundAndChangesNothing() throws IOException {
         Path corpusRoot = aCorpusRoot();
         List<String> offTheList = List.of("vespera.docling.image", "seedFolder.provenance", "spring.datasource.url",
-                "<script>alert(1)</script>", "");
+                "<script>alert(1)</script>", "", "new-folder", "seedFolder");
         LaunchValues values = new LaunchValues(corpusRoot.toString(), corpusRoot.toString(), "", IMAGE_TYPED, "", "",
                 "", "");
         String[] namesOffTheList = offTheList.stream().filter(name -> !name.isEmpty()).toArray(String[]::new);
@@ -1052,34 +780,31 @@ class TheFolderPageScreenTest {
      */
     @Test
     @Story("The operator chooses a folder")
-    @DisplayName("Opening the folder page for each field writes no file and changes no field on the launch page, the next act's, the profile page or the code sets")
+    @DisplayName("Opening the folder page for each field writes no file and changes no field of the home page, its drawer or its next step")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void openingTheFolderPageWritesNothing() throws IOException, InterruptedException {
         Path corpusRoot = aCorpusRoot();
         Files.createDirectories(corpusRoot.resolve("inside"));
         Path workingDirectory = wanting(SEED_FOLDER);
         Path launchValues = LaunchValues.fileIn(folder.resolve("tmp"), USER);
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            Comparison beforeARun = openingEachField(screens.browser(), corpusRoot,
-                    List.of("/", "/profile", "/code-sets", "/labels"));
-            Comparison afterARun = openingEachField(screens.afterARunHasEnded(), corpusRoot,
-                    List.of("/", "/next", "/profile", "/code-sets", "/labels"));
+            Comparison beforeARun = openingEachField(screens.browser(), corpusRoot, List.of("/"));
+            Comparison afterARun = openingEachField(screens.afterARunHasEnded(), corpusRoot, List.of("/"));
 
-            claim("the fields compared are the nine the folder page chooses for, each on its own page",
+            claim("the fields compared are the seven the folder page chooses for, each in its own form of the home page",
                     () -> {
-                        assertThat(beforeARun.fieldsBefore().get("/")).containsKeys("launch/" + CORPUS_ROOT,
-                                "launch/" + WORKING_DIRECTORY, "launch/" + DELIVERABLE_ROOT, "seed-folder/seedFolder");
-                        assertThat(beforeARun.fieldsBefore().get("/profile")).containsKey(PROFILE_FORM + "/" + SEED_FOLDER);
-                        assertThat(beforeARun.fieldsBefore().get("/code-sets")).containsKeys("code-sets/" + NEW_FOLDER,
-                                "code-set-folders/new-code-set-folder");
-                        assertThat(beforeARun.fieldsBefore().get("/labels"))
-                                .containsKey("not-relevant/new-not-relevant-folder");
-                        assertThat(afterARun.fieldsBefore().get("/next")).containsKey("next/seedFolder");
+                        assertThat(beforeARun.fieldsBefore().get("/")).containsKeys("launch-values/" + CORPUS_ROOT,
+                                "launch-values/" + WORKING_DIRECTORY, "launch-values/" + DELIVERABLE_ROOT,
+                                PROFILE_FORM + "/" + SEED_FOLDER, "code-set-folders/new-code-set-folder",
+                                "not-relevant/new-not-relevant-folder");
+                        assertThat(afterARun.fieldsBefore().get("/")).containsKey("next/seedFolder");
                     });
-            claim("the next act's field, which no page showed before the run, was left empty by the sweep before it",
-                    () -> assertThat(afterARun.fieldsBefore().get("/next").get("next/seedFolder")).isEmpty());
-            claim("before a run, every field of the launch page, the profile page and the code sets is as it was",
+            claim("the next step's field, which the home page showed only after the run, was left empty by the sweep"
+                            + " before it",
+                    () -> assertThat(afterARun.fieldsBefore().get("/").get("next/seedFolder")).isEmpty());
+            claim("before a run, every field of the home page is as it was",
                     () -> assertThat(beforeARun.fieldsAfter()).isEqualTo(beforeARun.fieldsBefore()));
-            claim("after a run, every field of those pages and of the next act's is as it was",
+            claim("after a run, every field of the home page, the next step's among them, is as it was",
                     () -> assertThat(afterARun.fieldsAfter()).isEqualTo(afterARun.fieldsBefore()));
             claim("the test's folder held the file of launch values",
                     () -> assertThat(beforeARun.filesBefore().keySet()).contains(folder.relativize(launchValues)));
@@ -1101,7 +826,7 @@ class TheFolderPageScreenTest {
         Map<String, Map<String, String>> fieldsBefore = fieldsOf(browser, pages);
         Map<Path, byte[]> filesBefore = contents(folder);
         for (String field : THE_CLOSED_LIST.keySet()) {
-            boolean fromTheCorpusRoot = field.equals(NEW_FOLDER) || field.equals(NOT_RELEVANT_FOLDER);
+            boolean fromTheCorpusRoot = field.equals(NOT_RELEVANT_FOLDER);
             browser.go(folders(field, fromTheCorpusRoot ? "inside" : corpusRoot.resolve("inside").toString()));
         }
         Map<Path, byte[]> filesAfter = contents(folder);
@@ -1169,9 +894,10 @@ class TheFolderPageScreenTest {
             PanelBrowser browser = screens.browser();
             Page listed = browser.go(folders(CORPUS_ROOT, corpusRoot.toString())).page();
             Page markup = browser.go(folders(CORPUS_ROOT, MARKUP_IN_THE_QUERY)).page();
-            Page markupForACodeSet = browser.go(folders(NEW_FOLDER, MARKUP_IN_THE_QUERY)).page();
+            Page markupForACodeSet = browser.go(folders(NOT_RELEVANT_FOLDER, MARKUP_IN_THE_QUERY)).page();
 
-            claim("a code set's page, a corpus root named, answers the path as it came, markup and all, in its attribute",
+            claim("a folder not relevant's page, a corpus root named, answers the path as it came, markup and all, in its"
+                            + " attribute",
                     () -> assertThat(List.of(listing(markupForACodeSet), listedPath(markupForACodeSet)))
                             .containsExactly("no-such-folder", MARKUP_IN_THE_QUERY));
             for (Page page : List.of(listed, markup, markupForACodeSet)) {
@@ -1194,18 +920,29 @@ class TheFolderPageScreenTest {
         }
     }
 
+    /** The closed list as ADR-340 §3 gives it: each field and the place of the home page it returns to. */
     private static Map<String, String> closedList() {
         Map<String, String> list = new LinkedHashMap<>();
-        list.put(CORPUS_ROOT, "/");
-        list.put(WORKING_DIRECTORY, "/");
-        list.put(DELIVERABLE_ROOT, "/");
-        list.put(SEED_FOLDER, "/");
-        list.put(NEXT_SEED_FOLDER, "/next");
-        list.put(PROFILE_SEED_FOLDER, "/profile#key-seedFolder");
-        list.put(NEW_FOLDER, "/code-sets");
-        list.put(CODE_SET_FOLDER, "/code-sets");
-        list.put(NOT_RELEVANT_FOLDER, "/labels");
+        list.put(CORPUS_ROOT, "/?open=values-folders#values");
+        list.put(WORKING_DIRECTORY, "/?open=values-folders#values");
+        list.put(DELIVERABLE_ROOT, "/?open=values-folders#values");
+        list.put(NEXT_SEED_FOLDER, "/#next-step");
+        list.put(PROFILE_SEED_FOLDER, "/?open=values-profile#key-seedFolder");
+        list.put(CODE_SET_FOLDER, "/?open=values-corpus#values-corpus");
+        list.put(NOT_RELEVANT_FOLDER, "/?open=values-relevance#values-relevance");
         return list;
+    }
+
+    /** Each form of the home page holding a folder field, with its Browse buttons, in the page's order of forms. */
+    private static Map<String, List<String>> browseButtonsOfEachForm() {
+        Map<String, List<String>> buttons = new LinkedHashMap<>();
+        buttons.put("launch-values", List.of("browse-" + CORPUS_ROOT, "browse-" + WORKING_DIRECTORY,
+                "browse-" + DELIVERABLE_ROOT));
+        buttons.put("next", List.of("browse-" + NEXT_SEED_FOLDER));
+        buttons.put(PROFILE_FORM, List.of("browse-" + PROFILE_SEED_FOLDER));
+        buttons.put("code-set-folders", List.of("browse-" + CODE_SET_FOLDER));
+        buttons.put("not-relevant", List.of("browse-" + NOT_RELEVANT_FOLDER));
+        return buttons;
     }
 
     private Path aCorpusRoot() throws IOException {

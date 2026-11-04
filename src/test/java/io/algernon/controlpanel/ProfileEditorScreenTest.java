@@ -826,9 +826,10 @@ class ProfileEditorScreenTest {
         try (ScreenServer screens = start(work)) {
             Page opened = screens.browser().go("/profile-repair").page();
 
-            claim("opened, it lands on the profile's page",
-                    () -> assertThat(List.of(opened.status(), opened.address().getPath()))
-                            .containsExactly(200, "/profile"));
+            claim("opened, it lands on the run settings of the home page's drawer",
+                    () -> assertThat(List.of(opened.status(), opened.address().getPath(),
+                                    String.valueOf(opened.address().getQuery())))
+                            .containsExactly(200, "/", "open=values-profile"));
             claim("it wrote nothing into the file",
                     () -> assertThat(profileText(work)).isEqualTo(NOT_IN_FORM_BUT_CERTAIN));
             claim("and made no copy",

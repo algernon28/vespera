@@ -85,7 +85,7 @@ class NextScreenTest {
         try (ScreenServer screens = ScreenServer.start(folder, values(workingDirectory))) {
             Page page = screens.afterARunHasEnded().go("/next").page();
             Element next = form(page, "next");
-            Element floorsReport = byId(page, "report-boilerplateDocumentFrequencyFloor");
+            Element floorsReport = byId(page, "next-report-boilerplateDocumentFrequencyFloor");
 
             claim("the next act is a run",
                     () -> assertThat(byId(page, "next-invocation").attr("data-invocation")).isEqualTo("run"));
@@ -95,14 +95,14 @@ class NextScreenTest {
             claim("its buttons are Save and Save, then Run",
                     () -> assertThat(buttonNames(next)).containsExactly("save", "save-then-run"));
             claim("each value's cost is said beside it",
-                    () -> assertThat(List.of(byId(page, "cost-seedFolder").text().isBlank(),
-                                    byId(page, "cost-boilerplateDocumentFrequencyFloor").text().isBlank()))
+                    () -> assertThat(List.of(byId(page, "next-cost-seedFolder").text().isBlank(),
+                                    byId(page, "next-cost-boilerplateDocumentFrequencyFloor").text().isBlank()))
                             .containsExactly(false, false));
             claim("the floor is linked to the one report it is read off, opening in a tab of its own, and the seed"
                             + " folder, which no report informs, to none",
                     () -> assertThat(List.of(floorsReport.select("a").eachAttr("href"),
                                     floorsReport.select("a").eachAttr("target"),
-                                    page.document().select("#report-seedFolder").size()))
+                                    page.document().select("#next-report-seedFolder").size()))
                             .containsExactly(List.of("/report/document-frequency.html"), List.of("_blank"), 0));
         }
     }
@@ -114,7 +114,7 @@ class NextScreenTest {
         Path workingDirectory = workingDirectoryWanting(THE_RELEVANCE_FLOOR);
         try (ScreenServer screens = ScreenServer.start(folder, values(workingDirectory))) {
             Page page = screens.afterARunHasEnded().go("/next").page();
-            Element reports = byId(page, "report-relevanceScoreFloor");
+            Element reports = byId(page, "next-report-relevanceScoreFloor");
 
             claim("the relevance floor is linked to the labelling report, the cluster sizes and the seed comparison, in"
                             + " that order, each opening in a tab of its own",
@@ -141,8 +141,9 @@ class NextScreenTest {
             Map<ProfileKey, ProfileEdit.Stated> profile = ProfileEdit.read(
                     Files.readString(workingDirectory.resolve(ProfileEdit.FILE_NAME), StandardCharsets.UTF_8));
 
-            claim("saving lands back on the next act's page",
-                    () -> assertThat(landed.address().getPath()).isEqualTo("/next"));
+            claim("saving lands back on the next step's box of the home page",
+                    () -> assertThat(List.of(landed.address().getPath(), String.valueOf(landed.address().getFragment())))
+                            .containsExactly("/", "next-step"));
             claim("and the profile holds both values, each with the provenance given",
                     () -> assertThat(List.of(profile.get(ProfileKey.SEED_FOLDER),
                                     profile.get(ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR)))
@@ -154,7 +155,7 @@ class NextScreenTest {
 
     @Test
     @Story("The operator answers the relevance questions")
-    @DisplayName("Answers wanted lead to the questions and to the local model's answering, and ask for no value")
+    @DisplayName("Answers wanted lead to the relevance section and to Autolabel, and ask for no value")
     void answersWantedLeadToTheQuestionsAndToLabelAuto() throws IOException, InterruptedException {
         Path workingDirectory = workingDirectoryWanting(ANSWERS);
         try (ScreenServer screens = ScreenServer.start(folder, values(workingDirectory))) {
@@ -162,12 +163,13 @@ class NextScreenTest {
 
             claim("the next act is a label",
                     () -> assertThat(byId(page, "next-invocation").attr("data-invocation")).isEqualTo("label"));
-            claim("the questions are linked",
-                    () -> assertThat(byId(page, "labels-link").attr("href")).isEqualTo("/labels"));
-            claim("the local model's answering is a form of its own with one button",
-                    () -> assertThat(List.of(form(page, "label-auto").attr("action"),
-                                    buttonNames(form(page, "label-auto"))))
-                            .containsExactly("/label-auto", List.of("label-auto")));
+            claim("the drawer's relevance section is linked",
+                    () -> assertThat(byId(page, "labels-link").attr("href"))
+                            .isEqualTo("/?open=values-relevance#values-relevance"));
+            claim("the local model's answering is the top bar's Autolabel, which the box names, with no form of its own",
+                    () -> assertThat(List.of(byId(page, "next-step").text().contains("tick Autolabel and press Label"),
+                                    page.document().select("form[name=label-auto]").size()))
+                            .containsExactly(true, 0));
             claim("and no value is asked for",
                     () -> assertThat(page.document().select("form[name=next]")).isEmpty());
         }
@@ -188,7 +190,7 @@ class NextScreenTest {
                                     next.select("[name='arrangementApproved.provenance']").val()))
                             .containsExactly(ARRANGEMENT, ""));
             claim("beside it, the arrangement's report, and the absolute path of its page, whose links open from disk",
-                    () -> assertThat(List.of(byId(page, "report-arrangementApproved").select("a").eachAttr("href"),
+                    () -> assertThat(List.of(byId(page, "next-report-arrangementApproved").select("a").eachAttr("href"),
                                     byId(page, "arrangement-file").text()))
                             .containsExactly(List.of("/report/arrangement.html"),
                                     workingDirectory.resolve("arrangement.html").toAbsolutePath().toString()));
@@ -212,7 +214,7 @@ class NextScreenTest {
                                     byId(page, "next-invocation").text()))
                             .containsExactly("unknown",
                                     "The last run did not finish, so there is no next step to suggest. The Invocation page says"
-                                            + " how it ended; start it again from the Launch page once that is put right."));
+                                            + " how it ended; press Run again once that is put right."));
             claim("and no value is asked for",
                     () -> assertThat(page.document().select("form[name=next]")).isEmpty());
         }
