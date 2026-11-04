@@ -63,6 +63,36 @@ public record LaunchValues(String corpusRoot, String workingDirectory, String de
         return new LaunchValues("", "", "", "", "", "", "", "");
     }
 
+    /** The example of the launch value {@code property}, ADR-331 §8's: none where it names no launch value. */
+    public static String exampleOf(String property) {
+        return switch (property) {
+            case CORPUS_ROOT -> "D:\\archive\\corpus";
+            case WORKING_DIRECTORY -> "D:\\vespera\\work";
+            case DELIVERABLE_ROOT -> "D:\\vespera\\deliverable";
+            case DOCLING_IMAGE -> StartingValues.DOCLING_IMAGE_CPU;
+            case DOCLING_BASE_URL -> "http://localhost:5001";
+            case OLLAMA_BASE_URL -> "http://localhost:11434";
+            case LABEL_MODEL -> "qwen3:8b";
+            default -> "";
+        };
+    }
+
+    /** The one-line hint of the launch value {@code property}, ADR-331 §8's: none where it names no launch value. */
+    public static String hintOf(String property) {
+        return switch (property) {
+            case CORPUS_ROOT -> "The folder of documents Vespera reads. It is never changed.";
+            case WORKING_DIRECTORY ->
+                    "Where the database, the reports and profile.yaml live. Create it if it is not there yet.";
+            case DELIVERABLE_ROOT ->
+                    "Where the finished pages go. Leave it empty to keep them in the working directory.";
+            case DOCLING_IMAGE -> "The image the converter runs from. The two offered are the ones this build knows.";
+            case DOCLING_BASE_URL -> "Where the converter answers.";
+            case OLLAMA_BASE_URL -> "Where the local models answer.";
+            case LABEL_MODEL -> "The local model that answers the questions when you ask it to.";
+            default -> "";
+        };
+    }
+
     /** ADR-292 §3's path of the file; the folder is named for {@code userName}, made safe. */
     public static Path fileIn(Path tempDirectory, String userName) {
         String safe = userName == null || userName.isEmpty() ? "_" : userName.replaceAll("[^A-Za-z0-9._-]", "_");

@@ -1,5 +1,6 @@
 package io.algernon.controlpanel;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
@@ -14,14 +15,13 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
- * What the control panel holds between requests (ADR-302 §2): the launch values, the one child it started and how that
- * child ended, and the line each page is to show once. The pages read and change it only through this class, and the
- * checks that stand before an invocation starts (ADR-302 §2's lines, ADR-331 §6's two among them) are made here, so that Run, Label,
- * {@code save-then-run}, {@code save-then-label} and {@code label-auto} start a child by the same checks. Every write
- * of a working directory's file goes through {@link #write}, one at a time with every start (ADR-295 §1). As the
- * control panel's process ends, {@link #endWithTheControlPanel} ends the child with it (ADR-307 §1). It also holds,
- * in memory, the forms an operator pressed Browse on ({@link #heldForm}, ADR-331 §5) and the answers the sidecars
- * last gave the launch page ({@link #lastChecks}, ADR-331 §3).
+ * What the control panel holds while its window is open (ADR-302 §2, ADR-339): the launch values, the sources the
+ * window's fields start from (ADR-341 §3), the one child it started and how that child ended. The window reads and
+ * changes it only through this class, and the checks that stand before an invocation starts (ADR-302 §2's lines,
+ * ADR-331 §6's two among them) are made here, so that Run, Record my answers, Let the local model answer and Publish
+ * start a child by the same checks. Every write of a working directory's file goes through {@link #write}, one at a
+ * time with every start (ADR-295 §1). As the control panel's process ends, {@link #endWithTheControlPanel} ends the
+ * child with it (ADR-307 §1). It also holds the answers the sidecars last gave ({@link #lastChecks}).
  *
  * <p>The class holds no connection to {@code vespera.db} (ADR-278 §3) and writes no file but the launch values'
  * (ADR-292 §2), as an invocation starts.
@@ -59,10 +59,8 @@ final class ControlPanelState {
     private final String userName;
     private final WorkingDirectoryWrite writer;
     private final List<String> notes = new ArrayList<>();
-    private final Map<String, String> outcomes = new HashMap<>();
 
-    private final Map<String, Map<String, String>> heldForms = new HashMap<>();
-
+    private volatile StartingValues.Sources sources = StartingValues.Sources.none();
     private volatile LaunchValues values;
     private volatile SidecarChecks.Checks lastChecks = new SidecarChecks.Checks(
             new SidecarChecks.Check(SidecarChecks.Result.NOT_CHECKED),
@@ -81,26 +79,32 @@ final class ControlPanelState {
         this.values = LaunchValues.load(launchValuesFile, userName, notes::add);
     }
 
-    /**
-     * The launch values as the control panel reads them (ADR-334 §11): where no launch value names a Docling image, the
-     * image is {@link ControlPanelPage#DOCLING_IMAGE_GPU}, in the form, in the checks and in every start.
-     */
+    /** The launch values as held: what the launch values file said as the control panel started, then what each start kept. */
     LaunchValues values() {
-        return withThePreselectedImage(values);
-    }
-
-    private static LaunchValues withThePreselectedImage(LaunchValues held) {
-        return held.doclingImage().isEmpty() ? held.withDoclingImage(ControlPanelPage.DOCLING_IMAGE_GPU) : held;
-    }
-
-    /** The launch values as held, the Docling image empty where none is named, for a change that holds them again. */
-    LaunchValues heldValues() {
         return values;
     }
 
-    /** Whether a launch value names the Docling image, so the image read is not the one the control panel preselects. */
-    boolean doclingImageIsNamed() {
-        return !values.doclingImage().isEmpty();
+    /** What the window's fields start from: the launch values file, the environment, {@code .env} and {@code application.yaml} (ADR-341 §3). */
+    StartingValues.Sources sources() {
+        return new StartingValues.Sources(launchValuesByProperty(values), sources.environment(), sources.dotEnv(),
+                sources.applicationYaml());
+    }
+
+    /** Hands the state what the environment, {@code .env} and {@code application.yaml} say; the launch values are its own. */
+    void useSources(StartingValues.Sources read) {
+        this.sources = read;
+    }
+
+    private static Map<String, String> launchValuesByProperty(LaunchValues held) {
+        Map<String, String> byProperty = new HashMap<>();
+        byProperty.put("vespera.corpus-root", held.corpusRoot());
+        byProperty.put("vespera.working-dir", held.workingDirectory());
+        byProperty.put("vespera.deliverable-root", held.deliverableRoot());
+        byProperty.put("vespera.docling.image", held.doclingImage());
+        byProperty.put("vespera.docling.base-url", held.doclingBaseUrl());
+        byProperty.put("spring.ai.ollama.base-url", held.ollamaBaseUrl());
+        byProperty.put("vespera.label.model", held.labelModel());
+        return byProperty;
     }
 
     /**
@@ -141,8 +145,23 @@ final class ControlPanelState {
         try {
             Path theDefault = Path.of(now.workingDirectory().stripTrailing()).toAbsolutePath().normalize()
                     .resolve("deliverable");
-            return LaunchPages.namesTheSameFolder(now.deliverableRoot(), theDefault.toString());
+            return namesTheSameFolder(now.deliverableRoot(), theDefault.toString());
         } catch (RuntimeException cannotBeHeld) {
+            return false;
+        }
+    }
+
+    /** Whether the two name the same folder, compared by their real paths where they exist, as ADR-276 §2 compares. */
+    static boolean namesTheSameFolder(String typed, String theDefault) {
+        try {
+            Path one = Path.of(typed.stripTrailing()).toAbsolutePath().normalize();
+            Path other = Path.of(theDefault).toAbsolutePath().normalize();
+            if (Files.exists(one) && Files.exists(other)) {
+                return Files.isSameFile(one, other);
+            }
+            return one.toString().equalsIgnoreCase(other.toString())
+                    && (File.separatorChar == '\\' || one.toString().equals(other.toString()));
+        } catch (IOException | RuntimeException cannotBeHeld) {
             return false;
         }
     }
@@ -151,36 +170,13 @@ final class ControlPanelState {
         this.values = replacement;
     }
 
-    /**
-     * What the launch page was last told by the sidecars, {@code not-checked} for each until it has asked: only the
-     * launch page asks, and the other pages show these answers (ADR-331 §3).
-     */
+    /** What the sidecars last said, {@code not-checked} for each until the window has asked (ADR-302 §5). */
     SidecarChecks.Checks lastChecks() {
         return lastChecks;
     }
 
     void keepChecks(SidecarChecks.Checks asked) {
         this.lastChecks = asked;
-    }
-
-    /** What the form {@code form} held as an operator pressed its Browse, by control name; empty where it holds none (ADR-331 §5). */
-    synchronized Map<String, String> heldForm(String form) {
-        return Map.copyOf(heldForms.getOrDefault(form, Map.of()));
-    }
-
-    /** Holds {@code fields} for {@code form} in memory, in place of what it held, until {@link #letGoOfForm}. */
-    synchronized void holdForm(String form, Map<String, String> fields) {
-        heldForms.put(form, new HashMap<>(fields));
-    }
-
-    /** Puts {@code value} in the control {@code name} of the held form {@code form}, the rest as it was held. */
-    synchronized void holdField(String form, String name, String value) {
-        heldForms.computeIfAbsent(form, ignored -> new HashMap<>()).put(name, value);
-    }
-
-    /** Lets go of what {@code form} held: it is saved, and its page shows what the files say again. */
-    synchronized void letGoOfForm(String form) {
-        heldForms.remove(form);
     }
 
     /** The lines the launch values' file gave as it was loaded. */
@@ -224,15 +220,6 @@ final class ControlPanelState {
         } catch (InvalidPathException refused) {
             return Optional.empty();
         }
-    }
-
-    synchronized void say(String page, String line) {
-        outcomes.put(page, line);
-    }
-
-    /** The line {@code page} is to show, once; {@code null} where it has none. */
-    synchronized String takeOutcome(String page) {
-        return outcomes.remove(page);
     }
 
     /** The line a lock gives for the working directory held and for the corpus root held, each empty where it is held by nobody. */
@@ -332,12 +319,42 @@ final class ControlPanelState {
      * @return the refusal, empty where the child was started
      */
     synchronized Optional<String> start(Start kind, List<String> stored) {
+        LaunchValues held = values;
+        return start(kind, new Plan(held, held, Map.of(), null), stored);
+    }
+
+    /**
+     * What the window starts an invocation with (ADR-341 §3, §4): the values passed to the child, the values kept in the
+     * launch values file as it starts, the presets passed as options of the command line, and the label file, null where
+     * none is named.
+     */
+    record Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets, Path labelFile) {
+    }
+
+    /** The command {@code kind} starts with {@code plan}, or the refusal of its values (ADR-292 §7); the window shows its line. */
+    static ChildCommand commandOf(ChildRuntime runtime, Start kind, Plan plan) {
+        LaunchValues now = plan.toPass();
+        ChildCommand command = switch (kind) {
+            case RUN -> ChildCommand.run(runtime.java(), runtime.jar(), now);
+            case LABEL -> ChildCommand.label(runtime.java(), runtime.jar(), false, now);
+            case LABEL_AUTO -> ChildCommand.label(runtime.java(), runtime.jar(), true, now);
+            case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now);
+        };
+        command = command.withOptions(plan.presets());
+        return kind == Start.LABEL && plan.labelFile() != null ? command.withLabelFile(plan.labelFile()) : command;
+    }
+
+    ChildRuntime runtime() {
+        return runtime;
+    }
+
+    /** As {@link #start(Start, List)}, with the values, presets and label file of {@code plan}. */
+    synchronized Optional<String> start(Start kind, Plan plan, List<String> stored) {
         if (controlPanelEnds) {
             return Optional.of(kind.name + " is not started: the control panel is ending");
         }
-        // one read of the held values, so the child and the file stored are of the same values
-        LaunchValues held = values;
-        LaunchValues now = withThePreselectedImage(held);
+        LaunchValues held = plan.toKeep();
+        LaunchValues now = plan.toPass();
         Optional<String> refusal = kind == Start.RUN ? now.refusalToRun() : now.refusalToLabel();
         if (refusal.isPresent()) {
             return refusal;
@@ -367,17 +384,13 @@ final class ControlPanelState {
         }
         ChildCommand command;
         try {
-            command = switch (kind) {
-                case RUN -> ChildCommand.run(runtime.java(), runtime.jar(), now);
-                case LABEL -> ChildCommand.label(runtime.java(), runtime.jar(), false, now);
-                case LABEL_AUTO -> ChildCommand.label(runtime.java(), runtime.jar(), true, now);
-                case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now);
-            };
+            command = commandOf(runtime, kind, plan);
         } catch (RuntimeException notBuilt) {
             return Optional.of(kind.name + " is not started: " + (notBuilt.getMessage() == null
                     ? notBuilt.getClass().getSimpleName() : notBuilt.getMessage()));
         }
-        // the values as held, so that a preselected image is given to the child but not stored as one named (ADR-334 §11)
+        // the values kept, so that a value left as a source started it is passed and never stored (ADR-341 §3)
+        this.values = held;
         held.store(launchValuesFile, userName, stored::add);
         try {
             child = Child.start(command.processBuilder());

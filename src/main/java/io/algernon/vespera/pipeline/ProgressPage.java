@@ -59,6 +59,9 @@ final class ProgressPage implements JobExecutionListener {
 
     static final String FILE_NAME = "progress.html";
 
+    /** What the page's steps and charts are written as beside it, for the control panel's window (ADR-341 section 2). */
+    static final String DATA_FILE_NAME = "progress.json";
+
     private static final Logger log = LoggerFactory.getLogger(ProgressPage.class);
 
     static final String STEPS_FILE_NAME = "progress-steps.html";
@@ -579,13 +582,15 @@ final class ProgressPage implements JobExecutionListener {
                 put(SAMPLES_FILE_NAME, pages[1]);
                 put(RUNS_FILE_NAME, pages[2]);
                 put(FILE_NAME, pages[3]);
+                put(DATA_FILE_NAME, pages[4]);
             } else {
                 put(FILE_NAME, renderCommand(last, outcome, counts));
+                put(DATA_FILE_NAME, commandData(last));
             }
             warned = false;
             return true;
         } catch (IOException | RuntimeException e) {
-            for (String name : List.of(STEPS_FILE_NAME, SAMPLES_FILE_NAME, RUNS_FILE_NAME, FILE_NAME)) {
+            for (String name : List.of(STEPS_FILE_NAME, SAMPLES_FILE_NAME, RUNS_FILE_NAME, FILE_NAME, DATA_FILE_NAME)) {
                 try {
                     Files.deleteIfExists(workingDirectory.resolve(name + ".part"));
                 } catch (IOException | RuntimeException ignored) {
@@ -611,7 +616,7 @@ final class ProgressPage implements JobExecutionListener {
         }
     }
 
-    /** The three pages of one write, from one reading: steps, samples, progress. */
+    /** The pages of one write and the data file beside them, from one reading: steps, samples, runs, progress, data. */
     private String[] render(boolean last) {
         JobExecution job = jobExecution;
         Instant now = clock.instant();
@@ -783,7 +788,7 @@ final class ProgressPage implements JobExecutionListener {
                 + chartRow();
         return new String[] {
             page("steps", stepsBody, seconds), page("samples", samplesBody, seconds),
-            page("runs", runsBody, seconds), page("", progressBody, seconds)
+            page("runs", runsBody, seconds), page("", progressBody, seconds), dataOf(last, states)
         };
     }
 
@@ -1083,8 +1088,17 @@ final class ProgressPage implements JobExecutionListener {
                 + databaseChart() + (card ? counts : "") + verdictsChart() + "</div>\n" + (card ? "" : counts);
     }
 
-    /** The database's size at each sample, over its own range (ADR-268 section 7). */
+    /** A chart's numbers before they are drawn: the page draws them as a figure and the data file writes them (ADR-341 section 2). */
+    private record ChartData(
+            String key, String title, String caption, List<Long> seconds, List<Line> lines, Axis axis,
+            DoubleFunction<String> show) {}
+
     private String databaseChart() {
+        return chart(databaseData());
+    }
+
+    /** The database's size at each sample, over its own range (ADR-268 section 7). */
+    private ChartData databaseData() {
         double[] values = samples.stream().mapToDouble(Sample::databaseBytes).toArray();
         double min = Arrays.stream(values).min().orElse(0);
         double most = Arrays.stream(values).max().orElse(0);
@@ -1100,7 +1114,7 @@ final class ProgressPage implements JobExecutionListener {
         }
         double divisor = Math.pow(1000, unit);
         Axis axis = sizeAxis("Database size (" + SIZE_UNITS[unit] + ")", lo / divisor, hi / divisor, unit == 0);
-        return chart(
+        return new ChartData(
                 "database",
                 "Database size over time",
                 "The size of the database and its write-ahead log on disk at each sample.",
@@ -1110,16 +1124,34 @@ final class ProgressPage implements JobExecutionListener {
                 v -> size(Math.round(v * divisor)));
     }
 
-    /** The chart of counts of the latest step a sample names, from what that step says of itself first (section 7). */
-    private String countsChart() {
+    /** The latest step a sample names, or null where none does. */
+    private String latestStepSampled() {
         String step = null;
         for (Sample sample : samples) {
             if (sample.step() != null) {
                 step = sample.step();
             }
         }
+        return step;
+    }
+
+    private String countsChart() {
+        String step = latestStepSampled();
         if (step == null) {
             return "";
+        }
+        ChartData data = countsData();
+        return data == null ? ReportPage.paragraph(ReportPage.escape(step + " reports no count to draw.")) : chart(data);
+    }
+
+    /**
+     * The chart of counts of the latest step a sample names, from what that step says of itself first (section 7);
+     * null where there is none to draw.
+     */
+    private ChartData countsData() {
+        String step = latestStepSampled();
+        if (step == null) {
+            return null;
         }
         String named = step;
         List<Sample> ofStep = samples.stream().filter(s -> named.equals(s.step())).toList();
@@ -1143,7 +1175,7 @@ final class ProgressPage implements JobExecutionListener {
                 }
             }
             double wanted = total == null ? 0 : Double.parseDouble(total.replace(",", ""));
-            return chart(
+            return new ChartData(
                     "counts",
                     label + " over time",
                     total == null
@@ -1158,7 +1190,7 @@ final class ProgressPage implements JobExecutionListener {
             double[] read = ofStep.stream().mapToDouble(Sample::read).toArray();
             double[] written = ofStep.stream().mapToDouble(Sample::written).toArray();
             double most = Math.max(Arrays.stream(read).max().orElse(0), Arrays.stream(written).max().orElse(0));
-            return chart(
+            return new ChartData(
                     "counts",
                     "Read and written by " + step + " over time",
                     "The step's read count and write count at each sample.",
@@ -1167,14 +1199,19 @@ final class ProgressPage implements JobExecutionListener {
                     countAxis("Items (count)", most),
                     v -> count(Math.round(v)));
         }
-        return ReportPage.paragraph(ReportPage.escape(step + " reports no count to draw."));
+        return null;
     }
 
-    /** The verdicts of the outcome step by kind at each sample, from zero; nothing where no step is the outcome step. */
     private String verdictsChart() {
+        ChartData data = verdictsData();
+        return data == null ? "" : chart(data);
+    }
+
+    /** The verdicts of the outcome step by kind at each sample, from zero; null where no step is the outcome step. */
+    private ChartData verdictsData() {
         String step = samples.getLast().outcomeStep();
         if (step == null) {
-            return "";
+            return null;
         }
         List<Line> lines = new ArrayList<>();
         double most = 0;
@@ -1184,7 +1221,7 @@ final class ProgressPage implements JobExecutionListener {
             most = Math.max(most, Arrays.stream(values).max().orElse(0));
             lines.add(new Line("s" + (lines.size() + 1), kind, values));
         }
-        return chart(
+        return new ChartData(
                 "verdicts",
                 "Verdicts recorded by " + step + " over time",
                 "The verdicts " + step + " recorded in this invocation, by kind, at each sample.",
@@ -1255,8 +1292,14 @@ final class ProgressPage implements JobExecutionListener {
      * axis and a time axis, each titled, a hairline gridline at each tick, a line a series, a transparent circle a
      * sample as its tooltip and one visible marker at the latest, and an end label in the text ink.
      */
-    private static String chart(
-            String key, String title, String caption, List<Long> seconds, List<Line> lines, Axis axis, DoubleFunction<String> show) {
+    private static String chart(ChartData data) {
+        String key = data.key();
+        String title = data.title();
+        String caption = data.caption();
+        List<Long> seconds = data.seconds();
+        List<Line> lines = data.lines();
+        Axis axis = data.axis();
+        DoubleFunction<String> show = data.show();
         long from = seconds.getFirst();
         long span = Math.max(1, seconds.getLast() - from);
         List<String> tickTexts = new ArrayList<>();
@@ -1358,6 +1401,84 @@ final class ProgressPage implements JobExecutionListener {
                     .append(f1(labelY[k])).append("\">").append(ReportPage.escape(labels[byHeight.get(k)])).append("</text>\n");
         }
         return svg.append("</svg>\n</figure>\n").toString();
+    }
+
+    /**
+     * The data file of a write, from the reading the page was drawn from (ADR-341 section 2): whether the invocation
+     * has ended, each step of the job in order with its state and, where its last progress line is a counter, how far
+     * it has got, and the charts the page draws now with the series the page's own rules picked. Numbers and the
+     * page's own words: no path and no text of a document.
+     */
+    private String dataOf(boolean last, Map<String, String> states) {
+        StringBuilder json = new StringBuilder("{\"ended\":").append(last).append(",\"steps\":[");
+        boolean first = true;
+        for (String step : STEPS_IN_JOB_ORDER) {
+            Matcher counter = COUNTER.matcher(lastLine.getOrDefault(step, ""));
+            boolean counted = counter.matches();
+            json.append(first ? "" : ",").append("{\"name\":").append(quoted(step))
+                    .append(",\"state\":").append(quoted(states.getOrDefault(step, "not started")))
+                    .append(",\"done\":").append(counted ? counter.group(2).replace(",", "") : "null")
+                    .append(",\"total\":")
+                    .append(counted && counter.group(3) != null ? counter.group(3).replace(",", "") : "null")
+                    .append('}');
+            first = false;
+        }
+        json.append("],\"charts\":[");
+        first = true;
+        for (ChartData chart : Arrays.asList(databaseData(), countsData(), verdictsData())) {
+            if (chart == null) {
+                continue;
+            }
+            json.append(first ? "" : ",").append("{\"id\":").append(quoted(chart.key()))
+                    .append(",\"title\":").append(quoted(chart.title()))
+                    .append(",\"axis\":").append(quoted(chart.axis().title()))
+                    .append(",\"seconds\":").append(chart.seconds()).append(",\"lines\":[");
+            for (int i = 0; i < chart.lines().size(); i++) {
+                Line line = chart.lines().get(i);
+                json.append(i == 0 ? "" : ",").append("{\"name\":")
+                        .append(quoted(line.name().isEmpty() ? "size" : line.name())).append(",\"values\":[");
+                for (int v = 0; v < line.values().length; v++) {
+                    json.append(v == 0 ? "" : ",")
+                            .append(Double.isFinite(line.values()[v]) ? Double.toString(line.values()[v]) : "0");
+                }
+                json.append("]}");
+            }
+            json.append("]}");
+            first = false;
+        }
+        return json.append("]}\n").toString();
+    }
+
+    /** The data file of a command that starts no job: every step waiting and no chart to draw. */
+    private static String commandData(boolean last) {
+        StringBuilder json = new StringBuilder("{\"ended\":").append(last).append(",\"steps\":[");
+        for (int i = 0; i < STEPS_IN_JOB_ORDER.size(); i++) {
+            json.append(i == 0 ? "" : ",").append("{\"name\":").append(quoted(STEPS_IN_JOB_ORDER.get(i)))
+                    .append(",\"state\":\"not started\",\"done\":null,\"total\":null}");
+        }
+        return json.append("],\"charts\":[]}\n").toString();
+    }
+
+    /** {@code text} as a JSON string. */
+    private static String quoted(String text) {
+        StringBuilder quoted = new StringBuilder("\"");
+        for (char c : text.toCharArray()) {
+            switch (c) {
+                case '"' -> quoted.append("\\\"");
+                case '\\' -> quoted.append("\\\\");
+                case '\n' -> quoted.append("\\n");
+                case '\r' -> quoted.append("\\r");
+                case '\t' -> quoted.append("\\t");
+                default -> {
+                    if (c < 0x20) {
+                        quoted.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
+                    } else {
+                        quoted.append(c);
+                    }
+                }
+            }
+        }
+        return quoted.append('"').toString();
     }
 
     /** The page of a command that starts no job (ADR-266 section 3): numbers and fixed words, nothing it was given. */

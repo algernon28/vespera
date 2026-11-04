@@ -227,8 +227,8 @@ public final class ProfileEdit {
 
     /**
      * §5's second step for one value, before anything is written: the line refusing it where the file moved since the
-     * page was drawn, where the value changed and its provenance did not, or by §4's checks; empty where it may be
-     * written.
+     * form was drawn, or by §4's checks; empty where it may be written. A value changed under the provenance the file
+     * states is no refusal: the form sends the filled-in note then (ADR-340 §3).
      *
      * @param inFile what the file states for the key now, empty where it states none
      * @param drawn what the form carried as {@code drawn}, empty where it carried none
@@ -239,13 +239,37 @@ public final class ProfileEdit {
         if (drawn.isPresent() && !drawnOf(key, now.value(), now.provenance()).equals(drawn.get())) {
             return said(key, "profile.yaml has changed this value since the page was drawn; look at it and save again");
         }
-        String stated = withoutBreaks(now.provenance() == null ? "" : now.provenance());
-        boolean valueChanged = !normalized(key, value).equals(normalized(key, now.value()));
-        if (valueChanged && !stated.isBlank()
-                && withoutBreaks(provenance == null ? "" : provenance).equals(stated)) {
-            return said(key, "its value changed and its provenance did not; write how you arrived at the new value");
-        }
         return refusalOf(key, value, provenance);
+    }
+
+    /** The words a note is filled in with where the file states no provenance, and saved with where ADR-340 §2 says. */
+    public static final String FILLED_IN_NOTE = "set in the control panel";
+
+    /** The note a form shows beside a key: the provenance the file states, where not blank, else {@link #FILLED_IN_NOTE} (ADR-340 §1). */
+    public static String noteShown(Optional<Stated> inFile) {
+        return inFile.map(Stated::provenance).filter(stated -> !stated.isBlank()).orElse(FILLED_IN_NOTE);
+    }
+
+    /**
+     * The provenance a save writes for the key by the table of ADR-340 §2; empty where the key is not written (the
+     * first row: the value as the file states it and the note left as shown).
+     *
+     * @param value what the form holds for the value
+     * @param note what the form holds for the note
+     * @param inFile what the file states for the key, empty where it states none
+     */
+    public static Optional<String> noteToSave(ProfileKey key, String value, String note, Optional<Stated> inFile) {
+        Stated now = inFile.orElse(new Stated(null, null));
+        boolean valueChanged = !normalized(key, value).equals(normalized(key, now.value()));
+        String typed = withoutBreaks(note == null ? "" : note).strip();
+        boolean left = typed.equals(withoutBreaks(noteShown(inFile)).strip());
+        if (!valueChanged && left) {
+            return Optional.empty();
+        }
+        if (typed.isEmpty() || (valueChanged && left)) {
+            return Optional.of(FILLED_IN_NOTE);
+        }
+        return Optional.of(note.strip());
     }
 
     /** Throws {@link NotInFormException} naming the first line, from 1, where {@code text} leaves the form of §3. */
