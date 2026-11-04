@@ -46,14 +46,16 @@ class ModuleBoundariesTest {
     private static final ApplicationModules MODULES = ApplicationModules.of(VesperaApplication.class);
 
     /**
-     * ADR-040's modules, less the one ADR-101 struck, and the ones ADR-274 and ADR-308 §7 added — ten. Eight are
-     * capability modules; {@code ledger} is what they depend on, and {@code pipeline} is the
+     * ADR-040's modules, less the one ADR-101 struck, and the ones ADR-274, ADR-308 §7 and ADR-333 §1 added — eleven.
+     * Nine are capability modules; {@code ledger} is what they depend on, and {@code pipeline} is the
      * composition root that depends on all of them.
      *
      * <p>{@code publication} is deliberately absent (ADR-101, ADR-110): the run ends at the generated
      * documents, so nothing uploads them and no module exists to. {@code deliverable} draws the tree
      * those documents are handed over in, and carries it nowhere (ADR-274); {@code confluence} sends its
-     * Confluence rendering to the operator's site on {@code vespera publish} alone (ADR-308). This list is an
+     * Confluence rendering to the operator's site on {@code vespera publish} alone (ADR-308), and {@code website}
+     * draws the website rendering and refreshes the website folder on {@code vespera publish --to website} alone
+     * (ADR-333 §3, §7). This list is an
      * allow-list, so a struck name left in it is invisible until somebody creates the package it
      * permits — which is the one moment it would do harm.
      */
@@ -67,36 +69,38 @@ class ModuleBoundariesTest {
                     "synthesis",
                     "deliverable",
                     "confluence",
+                    "website",
                     "profile",
                     "pipeline");
 
     /**
      * What a capability module is allowed to declare, where that is not {@code ledger} alone.
      *
-     * <p>Three entries, the only horizontal capability-to-capability edges in the tree.
+     * <p>Four entries, the only horizontal capability-to-capability edges in the tree.
      * {@code extraction} names {@code corpus} for the two detection enumerations Docling's pipeline
      * choice is derived from (ADR-100), and, since ADR-226, what a seed the floor stopped is sent as and
      * which detected formats list their pictures, and, since ADR-282, how stage 3 splits the word counts:
      * a wider purpose for the same two types, the declaration
      * unchanged. {@code deliverable} names {@code synthesis} for the records it draws the tree from, the
-     * citation pattern and the filename stem (ADR-274 §4). A plugin's module, {@code confluence}, names
-     * {@code deliverable}, whose seam it implements, and {@code synthesis}, whose records the seam hands it
-     * (ADR-333 §1). Recorded here as named exceptions rather than by relaxing the assertion, so that a
-     * fourth module widening its declaration still fails this test, and so does any of the three widening
+     * citation pattern and the filename stem (ADR-274 §4). A plugin's module, {@code confluence} and {@code
+     * website}, names {@code deliverable}, whose seam it implements, and {@code synthesis}, whose records the seam
+     * hands it (ADR-333 §1). Recorded here as named exceptions rather than by relaxing the assertion, so that a
+     * fifth module widening its declaration still fails this test, and so does any of the four widening
      * beyond what is named here.
      */
     private static final Map<String, List<String>> DECLARED_DEPENDENCIES = Map.of(
             "extraction", List.of("ledger", "corpus"),
             "deliverable", List.of("ledger", "synthesis"),
-            "confluence", List.of("ledger", "deliverable", "synthesis"));
+            "confluence", List.of("ledger", "deliverable", "synthesis"),
+            "website", List.of("ledger", "deliverable", "synthesis"));
 
-    /** The modules of the plugins compiled into the jar (ADR-333 §1): the Confluence rendering's, for now. */
-    private static final List<String> PLUGIN_MODULES = List.of("confluence");
+    /** The modules of the plugins compiled into the jar (ADR-333 §1): the Confluence rendering's and the website's. */
+    private static final List<String> PLUGIN_MODULES = List.of("confluence", "website");
 
     /**
-     * The capability modules, derived rather than re-listed: the recorded ten less {@code ledger},
+     * The capability modules, derived rather than re-listed: the recorded eleven less {@code ledger},
      * which they all depend on, and {@code pipeline}, which is the composition root and may depend on
-     * all of them. Deriving it means an eleventh module added above cannot be forgotten here.
+     * all of them. Deriving it means a twelfth module added above cannot be forgotten here.
      */
     private static final Set<String> CAPABILITY_MODULES = RECORDED_MODULES.stream()
             .filter(module -> !"ledger".equals(module) && !"pipeline".equals(module))
@@ -178,8 +182,8 @@ class ModuleBoundariesTest {
 
         claim(
                 "every capability module present declares exactly what is recorded for it -- ledger,"
-                        + " and for extraction, the tree's module and a plugin's module the three horizontal exceptions"
-                        + " in the tree, a plugin's being the seam it implements and the records the seam hands it; one"
+                        + " and for extraction, the tree's module and each plugin's module, confluence's and"
+                        + " website's, the horizontal exceptions in the tree, a plugin's being the seam it implements and the records the seam hands it; one"
                         + " named here has"
                         + " been widened beyond that, and the profile is the dependency that would be"
                         + " reached for first -- the values a pass is switched on and off by are read where"
@@ -189,11 +193,11 @@ class ModuleBoundariesTest {
     }
 
     /**
-     * A package under the application root that is not one of the ten is a module nobody decided
-     * on. Catching it here is cheaper than finding it once things depend on it. And each of the ten is
+     * A package under the application root that is not one of the eleven is a module nobody decided
+     * on. Catching it here is cheaper than finding it once things depend on it. And each of the eleven is
      * there: the tree the operator is handed is drawn by a module of its own, which no stage's version names
      * (ADR-274 §4, §5), and the one module that opens a connection to Confluence is one of its own too
-     * (ADR-308 §7, §10); what each declares is held above.
+     * (ADR-308 §7, §10), and so is the website's (ADR-333 §1); what each declares is held above.
      */
     @Test
     @Story("The boundary rule holds for every module")
@@ -212,7 +216,8 @@ class ModuleBoundariesTest {
                 () -> assertThat(unrecorded).isEmpty());
         claim(
                 "and each of the " + RECORDED_MODULES.size() + " is a module of the application, the one that"
-                        + " draws the tree the operator is handed and the one that publishes among them",
+                        + " draws the tree the operator is handed, the one that publishes to Confluence and the one"
+                        + " that draws and refreshes the website among them",
                 () -> assertThat(identifiers(MODULES.stream())).containsExactlyInAnyOrderElementsOf(RECORDED_MODULES));
     }
 

@@ -176,6 +176,67 @@ class DeliverableRootTest {
                         .contains(overlap(archiveReal.resolve("seeds"), "inside the corpus root", archiveReal)));
     }
 
+    /**
+     * ADR-333 §7: a tree drawn at or inside {@code <working directory>/website/} would be carried by the operator's sync
+     * with its code sets, so such a root is refused at the start of {@code vespera run}, after ADR-276 §2's comparisons
+     * and by the same reading of paths, in one line naming the relation. The website's marker, one line {@code
+     * website} and no path, is read as the marker of no tree.
+     */
+    @Test
+    @Story("A folder over the archive is refused before anything is walked")
+    @DisplayName("A folder that is the working directory's website folder, or inside it, is refused, each in one line")
+    @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+    void refusesARootAtOrInsideTheWebsiteFolder() throws IOException {
+        Path website = work.resolve("website");
+        Path insideIt = website.resolve("tree");
+        Path workReal = work.toRealPath();
+
+        claim(
+                "the website folder itself, not made yet, is refused by its place, its whole line naming the relation",
+                () -> assertThat(DeliverableRoot.named(website).refusalAtTheStart(work, archive, NO_SEED_FOLDER))
+                        .contains(website(workReal.resolve("website"), "the website folder")));
+        claim(
+                "a folder inside it is refused as inside the website folder",
+                () -> assertThat(DeliverableRoot.named(insideIt).refusalAtTheStart(work, archive, NO_SEED_FOLDER))
+                        .contains(website(workReal.resolve("website").resolve("tree"), "inside the website folder")));
+        claim(
+                "a folder whose name begins with the website folder's, beside it, is not inside it: names are compared"
+                        + " whole",
+                () -> assertThat(DeliverableRoot.named(work.resolve("websites")).refusalAtTheStart(work, archive,
+                                NO_SEED_FOLDER))
+                        .isEmpty());
+        claim(
+                "and checking made neither folder",
+                () -> assertThat(website).doesNotExist());
+
+        Path workInsideTheArchive = Files.createDirectories(archive.resolve("work"));
+        Path archiveReal = archive.toRealPath();
+        claim(
+                "ADR-276 §2's comparisons come first: a website folder of a working directory inside the corpus root"
+                        + " is refused as inside the corpus root",
+                () -> assertThat(DeliverableRoot.named(workInsideTheArchive.resolve("website"))
+                                .refusalAtTheStart(workInsideTheArchive, archive, NO_SEED_FOLDER))
+                        .contains(overlap(archiveReal.resolve("work").resolve("website"), "inside the corpus root",
+                                archiveReal)));
+
+        Path holdingTheWebsitesMarker = Files.createDirectories(base.resolve("synced"));
+        Files.writeString(holdingTheWebsitesMarker.resolve(MARKER), "website\n", StandardCharsets.UTF_8);
+        claim(
+                "a folder holding the website's marker, one line and no path, is read as holding no tree: it is"
+                        + " refused as a folder not empty, never drawn over",
+                () -> assertThat(DeliverableRoot.named(holdingTheWebsitesMarker).refusalAtTheStart(work, archive,
+                                NO_SEED_FOLDER))
+                        .contains("vespera run refused the deliverable root " + holdingTheWebsitesMarker.toRealPath()
+                                + ": it is not empty and holds no tree of this working directory. Name an empty"
+                                + " folder in vespera.deliverable-root."));
+    }
+
+    /** The line refusing {@code root} standing in {@code relation} to the working directory's website folder. */
+    private static String website(Path root, String relation) {
+        return "vespera run refused the deliverable root " + root + ": it is " + relation + " of this working"
+                + " directory. Name a folder outside it in vespera.deliverable-root.";
+    }
+
     @Test
     @Story("A folder over the archive is refused before anything is walked")
     @DisplayName("A folder beside the corpus root or the seed folder, or inside the working directory, is accepted")

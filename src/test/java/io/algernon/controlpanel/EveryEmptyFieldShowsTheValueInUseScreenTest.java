@@ -165,7 +165,8 @@ class EveryEmptyFieldShowsTheValueInUseScreenTest {
             claim("so did Label",
                     () -> assertThat(label).contains("label --db-dir=" + theDefault));
             claim("and so did Publish",
-                    () -> assertThat(publish).contains("publish --db-dir=" + theDefault));
+                    () -> assertThat(publish).containsPattern("publish --to \\S+ --db-dir="
+                            + java.util.regex.Pattern.quote(theDefault.toString())));
         }
     }
 

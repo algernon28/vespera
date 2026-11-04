@@ -56,6 +56,8 @@ final class UnwrittenPage {
             List<Path> pages = files.filter(Files::isRegularFile)
                     .filter(file -> file.getFileName().toString().endsWith(".html"))
                     .filter(file -> !file.equals(tree.resolve(Deliverable.INDEX_FILE_NAME)))
+                    // The HTML tree's pages alone: the plugins' renderings beside it are their own (ADR-333 §3).
+                    .filter(file -> !tree.relativize(file).getName(0).toString().matches("website|confluence"))
                     .filter(file -> linesOf(file).contains(heading))
                     .toList();
             if (pages.size() != 1) {

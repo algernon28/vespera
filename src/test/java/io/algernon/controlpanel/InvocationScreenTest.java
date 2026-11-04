@@ -130,31 +130,51 @@ class InvocationScreenTest {
     @Story("The operator publishes from the control panel")
     @Issue("633")
     @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
-    @DisplayName("Publish is offered once a Confluence rendering is drawn, and starts the jar's publish")
+    @DisplayName("Publish is offered once a rendering is drawn, a checkbox for each destination whose list is in the tree, and starts the jar's publish to those checked")
+    @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
     void publishIsOfferedOnceARenderingIsDrawnAndStartsThePublish() throws IOException, InterruptedException {
         Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        ScreenServer.childWill(workingDirectory, "exit 0 " + ITS_LAST_LINE);
+        ScreenServer.childWill(workingDirectory, JarForScreenTests.SAY_THE_ARGUMENTS + "exit 0 " + ITS_LAST_LINE);
         try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
             PanelBrowser browser = screens.browser();
             Page before = browser.go("/invocation").page();
-            Path confluence = Files.createDirectories(
-                    workingDirectory.resolve("deliverable").resolve("abcdef0123456789").resolve("confluence"));
+            Path tree = workingDirectory.resolve("deliverable").resolve("abcdef0123456789");
+            Path confluence = Files.createDirectories(tree.resolve("confluence"));
             Files.writeString(confluence.resolve("pages.json"), "{}");
-            Page drawn = browser.go("/invocation").page();
+            Page confluenceDrawn = browser.go("/invocation").page();
+            Path website = Files.createDirectories(tree.resolve("website"));
+            Files.writeString(website.resolve("files.json"), "{}");
+            Page bothDrawn = browser.go("/invocation").page();
 
             claim("with no rendering drawn, the invocation page offers no Publish",
                     () -> assertThat(before.document().select("form[name=publish]")).isEmpty());
             claim("once one is drawn it does, by a form posted to /publish",
-                    () -> assertThat(List.of(ScreenServer.form(drawn, "publish").attr("action"),
-                                    buttonNames(ScreenServer.form(drawn, "publish"))))
+                    () -> assertThat(List.of(ScreenServer.form(confluenceDrawn, "publish").attr("action"),
+                                    buttonNames(ScreenServer.form(confluenceDrawn, "publish"))))
                             .containsExactly("/publish", List.of("publish")));
+            claim("with the Confluence rendering's page list alone in the tree, the form offers Confluence alone, checked",
+                    () -> assertThat(destinationsOf(confluenceDrawn)).containsExactly("confluence checked"));
+            claim("with the website rendering's files.json beside it, a checkbox for each, Confluence's checked and the"
+                            + " website's not",
+                    () -> assertThat(destinationsOf(bothDrawn)).containsExactly("confluence checked", "website"));
 
+            ScreenServer.form(bothDrawn, "publish").select("input[name=to][value=website]").attr("checked", "checked");
             Page ended = ScreenServer.whenTheChildHasEnded(browser.press("publish", "publish", Map.of()));
 
             claim("pressing it starts the jar's publish, shown ended as the child ended",
                     () -> assertThat(List.of(byId(ended, "child").text(), byId(ended, "child").attr("data-ending")))
                             .containsExactly("publish: ended", "ended"));
+            claim("and the child was started with --to naming both destinations checked",
+                    () -> assertThat(byId(ended, "tail").wholeText().lines())
+                            .contains("publish --to confluence,website --db-dir=" + workingDirectory.toAbsolutePath()));
         }
+    }
+
+    /** The destinations the page's form {@code publish} offers, in order, each followed by {@code checked} where it is. */
+    private static List<String> destinationsOf(Page page) {
+        return ScreenServer.form(page, "publish").select("input[type=checkbox][name=to]").stream()
+                .map(box -> box.val() + (box.hasAttr("checked") ? " checked" : ""))
+                .toList();
     }
 }

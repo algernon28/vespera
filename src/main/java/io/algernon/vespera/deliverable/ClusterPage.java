@@ -215,7 +215,7 @@ public final class ClusterPage {
      * writing and, where it rests on part of the cluster, the disclosure, or the sentence saying why nothing was
      * written (ADR-174). {@code pageOf} is {@link ProseHtml#of}'s.
      */
-    private static String firstPageBody(
+    public static String firstPageBody(
             RecordedCluster recorded,
             SynthesisDoc doc,
             Unwritten why,
@@ -247,12 +247,12 @@ public final class ClusterPage {
     }
 
     /** The heading and opening of the list, numbered on from the entry at {@code first}, counted from 0 (ADR-303 §5). */
-    private static String listOpening(int first, DeliverableLanguage language) {
+    public static String listOpening(int first, DeliverableLanguage language) {
         return "<h2>" + FixedWords.membershipHeading(language) + "</h2>\n" + (first == 0 ? "<ol>\n" : "<ol start=\"" + (first + 1) + "\">\n");
     }
 
     /** The name of page {@code page}, counted from 1: {@code index.html} and then {@code index-<page>.html} (ADR-303 §4). */
-    static String nameOfPage(int page) {
+    public static String nameOfPage(int page) {
         return page == 1 ? Deliverable.CLUSTER_PAGE_NAME : Deliverable.FURTHER_PAGE_STEM + page + Deliverable.PAGE_EXTENSION;
     }
 
@@ -260,7 +260,7 @@ public final class ClusterPage {
      * The line that names page {@code page} of {@code pages} and links the others (ADR-303 §5): the first, the
      * previous, the next and the last, each left out where it would point at the page itself or at no page.
      */
-    private static String navigation(int page, int pages, DeliverableLanguage language) {
+    public static String navigation(int page, int pages, DeliverableLanguage language) {
         List<String> links = new ArrayList<>();
         if (page > 1) {
             links.add(link(1, FixedWords.first(language)));
@@ -381,7 +381,7 @@ public final class ClusterPage {
          * The name of the page holding entry {@code number}, counted from 1, and the empty text where that is the first
          * page, which a citation on it links by its anchor alone, or where no entry has the number (ADR-303 §6).
          */
-        String nameOfPageHolding(int number) {
+        public String nameOfPageHolding(int number) {
             if (number < 1 || number > entries) {
                 return "";
             }
@@ -474,7 +474,7 @@ public final class ClusterPage {
      * {@code 0}-{@code 9}, {@code -}, {@code .}, {@code _} and {@code ~}, as {@code %} and two upper-case hexadecimal
      * digits (ADR-280 §5).
      */
-    static String percentEncoded(String name) {
+    public static String percentEncoded(String name) {
         StringBuilder encoded = new StringBuilder();
         for (byte b : name.getBytes(StandardCharsets.UTF_8)) {
             int unsigned = b & 0xFF;
