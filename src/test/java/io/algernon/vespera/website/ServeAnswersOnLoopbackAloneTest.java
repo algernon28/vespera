@@ -60,15 +60,21 @@ import org.junit.jupiter.api.io.TempDir;
  * JDK lets it be, and its target is sent as written, {@code ..} and all.
  *
  * <p>The refusals' status codes are the control panel's: 403 for a foreign {@code Host} or another site, 405 for a
- * method but {@code GET} and {@code HEAD}.
+ * method but {@code GET} and {@code HEAD}; a folder asked without its closing slash is 301 to the slash form (ADR-341
+ * §6). What is a page, an asset or the listing, and so carries no sandbox, is read from {@code vespera-website.json}
+ * and the file's name together, the list read again whenever it changes while the website is served (ADR-341 §1, §7):
+ * those two are asked of servers of their own, over folders written for each, so that the class's website is not
+ * changed under its other tests.
  */
 @Epic("Operation")
 @Feature("The website")
 @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
 @Link(name = "ADR-291", url = Adr.THE_CONTROL_PANEL_ANSWERS_ONLY_A_BROWSER_HOLDING_ITS_STARTS_TOKEN_ON_ITS_OWN_ADDRESS, type = "adr")
+@Link(name = "ADR-341", url = Adr.SERVE_TELLS_A_PAGE_FROM_A_COPY_BY_THE_LIST_AND_THE_NAME, type = "adr")
 class ServeAnswersOnLoopbackAloneTest {
 
     private static final int OK = 200;
+    private static final int MOVED = 301;
     private static final int REFUSED = 403;
     private static final int NOT_FOUND = 404;
     private static final int NO_SUCH_METHOD = 405;
@@ -228,8 +234,11 @@ class ServeAnswersOnLoopbackAloneTest {
         byte[] index = Files.readAllBytes(website.resolve("index.html"));
         Answer head = ask("HEAD", "/", ownHost());
         Map<String, Integer> others = new LinkedHashMap<>();
+        Map<String, String> allowed = new LinkedHashMap<>();
         for (String method : List.of("POST", "PUT", "DELETE", "PATCH")) {
-            others.put(method, ask(method, "/index.html", ownHost(), "Content-Length: 0").status());
+            Answer answer = ask(method, "/index.html", ownHost(), "Content-Length: 0");
+            others.put(method, answer.status());
+            allowed.put(method, answer.header("Allow"));
         }
 
         claim("HEAD is answered 200 with no body",
@@ -243,6 +252,9 @@ class ServeAnswersOnLoopbackAloneTest {
                         entry("PUT", NO_SUCH_METHOD),
                         entry("DELETE", NO_SUCH_METHOD),
                         entry("PATCH", NO_SUCH_METHOD)));
+        claim("each refusal names the two methods answered in its Allow header (ADR-341 §6)",
+                () -> assertThat(allowed).allSatisfy((method, allow) ->
+                        assertThat(allow).as("the Allow header answering %s", method).isEqualTo("GET, HEAD")));
         claim("and the index they were sent to is as it was",
                 () -> assertThat(Files.readAllBytes(website.resolve("index.html"))).isEqualTo(index));
     }
@@ -310,6 +322,100 @@ class ServeAnswersOnLoopbackAloneTest {
                     assertThat(theOperatorsFolder.status()).isEqualTo(NOT_FOUND);
                     assertThat(theOperatorsFolder.text()).doesNotContain(THE_OPERATORS_FILE);
                 });
+    }
+
+    @Test
+    @Story("The website is served on loopback alone")
+    @DisplayName("A folder asked without its closing slash is moved to the slash form with 301, and answers nothing of its index")
+    void aFolderAskedWithoutItsSlashIsMovedToIt() throws IOException {
+        byte[] doors = Files.readAllBytes(website.resolve(DOORS_FOLDER).resolve("index.html"));
+        String asked = "/" + encoded(DOORS_FOLDER);
+        Answer moved = get(asked);
+
+        claim("the doors' folder asked without its slash is answered 301, its Location the same path with the slash",
+                () -> {
+                    assertThat(moved.status()).isEqualTo(MOVED);
+                    assertThat(moved.header("Location")).isEqualTo(asked + "/");
+                });
+        claim("and the answer is not the doors' index.html, which only the slash form answers",
+                () -> {
+                    assertThat(moved.body()).isNotEqualTo(doors);
+                    assertThat(get(asked + "/").body()).isEqualTo(doors);
+                });
+    }
+
+    @Test
+    @Story("The website is served on loopback alone")
+    @DisplayName("A file listed in vespera-website.json while the website is served leaves the sandbox, and one delisted is sandboxed again")
+    void aFileListedOrDelistedWhileServedGainsOrLosesTheSandbox() throws IOException {
+        Path folder = Files.createDirectories(base.resolve("listed-while-served"));
+        Files.writeString(folder.resolve("index.html"), "<p>a page</p>");
+        writeList(folder);
+        try (WebsiteServer served = WebsiteServer.start(folder, 0)) {
+            int at = served.address().getPort();
+            Answer unlisted = getAt(at, "/index.html");
+            writeList(folder, "index.html");
+            Answer listedNow = getAt(at, "/index.html");
+            writeList(folder);
+            Answer delisted = getAt(at, "/index.html");
+
+            claim("index.html, which vespera-website.json does not list, is answered with the sandbox",
+                    () -> {
+                        assertThat(unlisted.status()).isEqualTo(OK);
+                        assertThat(unlisted.header("Content-Security-Policy")).isEqualTo("sandbox");
+                    });
+            claim("once the list names it, with the server still running, it is answered with no sandbox",
+                    () -> {
+                        assertThat(listedNow.status()).isEqualTo(OK);
+                        assertThat(String.valueOf(listedNow.header("Content-Security-Policy")))
+                                .doesNotContain("sandbox");
+                    });
+            claim("and once the list drops it again, it is answered with the sandbox again",
+                    () -> {
+                        assertThat(delisted.status()).isEqualTo(OK);
+                        assertThat(delisted.header("Content-Security-Policy")).isEqualTo("sandbox");
+                    });
+        }
+    }
+
+    @Test
+    @Story("The website is served on loopback alone")
+    @DisplayName("A file vespera-website.json lists leaves the sandbox only under a name the website draws: a page's anywhere, an asset's or the listing's at the top")
+    void aListedFileLeavesTheSandboxOnlyUnderANameTheWebsiteDraws() throws IOException {
+        Path folder = Files.createDirectories(base.resolve("listed-by-name"));
+        List<String> theWebsites = List.of("index.html", "website.js", "website.css", "search-index.js",
+                "documents.csv", "a/b/index.html", "a/b/index-2.html");
+        List<String> stillSandboxed = List.of("notes.html", "a/b/report.html", "a/b/website.js", "a/documents.csv",
+                "a/b/index-.html");
+        for (String file : List.of(theWebsites, stillSandboxed).stream().flatMap(List::stream).toList()) {
+            Path path = folder.resolve(file);
+            Files.createDirectories(path.getParent());
+            Files.writeString(path, "listed");
+        }
+        writeList(folder, List.of(theWebsites, stillSandboxed).stream().flatMap(List::stream).toArray(String[]::new));
+        try (WebsiteServer served = WebsiteServer.start(folder, 0)) {
+            int at = served.address().getPort();
+            Map<String, Answer> drawn = new LinkedHashMap<>();
+            theWebsites.forEach(file -> drawn.put(file, getAt(at, "/" + file)));
+            Map<String, Answer> notDrawn = new LinkedHashMap<>();
+            stillSandboxed.forEach(file -> notDrawn.put(file, getAt(at, "/" + file)));
+
+            claim("a page's name in any folder, and the script, the theme, the search index and the listing at the top,"
+                            + " each listed, are answered with no sandbox",
+                    () -> assertThat(drawn).allSatisfy((file, answer) -> {
+                        assertThat(answer.status()).as("the answer to %s", file).isEqualTo(OK);
+                        assertThat(String.valueOf(answer.header("Content-Security-Policy")))
+                                .as("the policy of %s", file)
+                                .doesNotContain("sandbox");
+                    }));
+            claim("and any other name, or an asset's or the listing's name below the top, is answered with the sandbox"
+                            + " though the list names it as it names a page, since it names a copy so too",
+                    () -> assertThat(notDrawn).allSatisfy((file, answer) -> {
+                        assertThat(answer.status()).as("the answer to %s", file).isEqualTo(OK);
+                        assertThat(answer.header("Content-Security-Policy")).as("the policy of %s", file)
+                                .isEqualTo("sandbox");
+                    }));
+        }
     }
 
     @Test
@@ -452,12 +558,35 @@ class ServeAnswersOnLoopbackAloneTest {
         return ask("GET", target, ownHost(), headers);
     }
 
+    /** {@code GET target} sent to a server of the test's own at {@code 127.0.0.1:<at>}, addressed to that host. */
+    private static Answer getAt(int at, String target) {
+        return askAt(at, "GET", target, "127.0.0.1:" + at);
+    }
+
+    /**
+     * {@code vespera-website.json} in {@code folder}, written whole, listing {@code paths} at a digest no check reads:
+     * the server reads the paths alone.
+     */
+    private static void writeList(Path folder, String... paths) throws IOException {
+        StringBuilder list = new StringBuilder("{\"format\":1,\"files\":[");
+        for (int i = 0; i < paths.length; i++) {
+            list.append(i == 0 ? "" : ",").append("{\"path\":\"").append(paths[i]).append("\",\"sha256\":\"")
+                    .append("0".repeat(64)).append("\"}");
+        }
+        Files.writeString(folder.resolve(VESPERA_WEBSITE_JSON), list.append("]}\n"), StandardCharsets.UTF_8);
+    }
+
     /**
      * {@code method target}, sent as written on a connection of its own to {@code 127.0.0.1} at the server's port,
      * {@code host} as its {@code Host} or none where it is {@code null}, and read to the end.
      */
     private static Answer ask(String method, String target, String host, String... headers) {
-        try (Socket socket = new Socket(InetAddress.getByName("127.0.0.1"), port)) {
+        return askAt(port, method, target, host, headers);
+    }
+
+    /** {@code method target} as {@link #ask} sends it, to {@code 127.0.0.1} at port {@code at}. */
+    private static Answer askAt(int at, String method, String target, String host, String... headers) {
+        try (Socket socket = new Socket(InetAddress.getByName("127.0.0.1"), at)) {
             socket.setSoTimeout(10_000);
             StringBuilder request = new StringBuilder(method).append(' ').append(target).append(" HTTP/1.1\r\n");
             if (host != null) {

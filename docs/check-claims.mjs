@@ -44,6 +44,17 @@ const POM = "pom.xml";
 const APPLICATION_YAML = "src/main/resources/application.yaml";
 const COMPOSE = "compose.yaml";
 const COMMANDS = MAIN + "/pipeline/VesperaCommand.java";
+/**
+ * VesperaCommand.java, a command named by a constant, `name = ServeCommand.NAME` (ADR-333 §8), written as the text the
+ * constant holds, read from that class in `pipeline`, so that the checks reading `@Command(name = "...")` see it.
+ */
+function commandsSource() {
+  return readFileSync(COMMANDS, "utf8").replace(/(@Command\(\s*name = )([A-Z]\w*)\.([A-Z_]+)\b/g, (whole, head, cls, constant) => {
+    const file = `${MAIN}/pipeline/${cls}.java`;
+    const held = existsSync(file) && new RegExp(`\\b${constant} = "(\\w+)";`).exec(readFileSync(file, "utf8"));
+    return held ? `${head}"${held[1]}"` : whole;
+  });
+}
 const WORKING_DIRECTORY_OPTION = MAIN + "/pipeline/WorkingDirectoryOption.java";
 const PROFILE = MAIN + "/profile/Profile.java";
 // No trailing slash: the list form is /issues?labels=..., and /issues/?labels=... is a 404.
@@ -314,7 +325,7 @@ function readmeSection(heading, name) {
   const section = readmeSection("## Commands", NAME);
   if (section) {
     const named = [...section.matchAll(/^vespera (\w+)/gm)].map((c) => c[1]).sort();
-    const real = [...readFileSync(COMMANDS, "utf8").matchAll(/@Command\(name = "(\w+)"/g)]
+    const real = [...commandsSource().matchAll(/@Command\(name = "(\w+)"/g)]
       .map((c) => c[1])
       .sort();
     const wrong = [];
@@ -335,7 +346,7 @@ function readmeSection(heading, name) {
     const given = [...section.matchAll(/^vespera (\w+) .*--db-dir=<path>/gm)].map((c) => c[1]).sort();
     const option = /names = "(--[\w-]+)"/.exec(readFileSync(WORKING_DIRECTORY_OPTION, "utf8"));
     // Each subcommand's source runs from its @Command to the next one.
-    const source = readFileSync(COMMANDS, "utf8");
+    const source = commandsSource();
     const bodies = new Map(
       source
         .split(/(?=@Command\(\s*name = ")/)
@@ -703,7 +714,7 @@ function markerPattern(source, whole = false) {
   const NAME = "the tests the decision records name";
   const FIRST = 50;
   // Accepted records whose code is not built yet. A number leaves this set in the change that builds its record.
-  const NOT_YET_BUILT = new Set([333]);
+  const NOT_YET_BUILT = new Set([]);
   const testFiles = new Map();
   (function walk(dir) {
     for (const e of readdirSync(dir, { withFileTypes: true })) {

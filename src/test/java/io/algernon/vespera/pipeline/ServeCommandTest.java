@@ -19,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,9 +56,11 @@ import picocli.CommandLine.IFactory;
  * working directory as {@code application.yaml}'s {@code vespera.working-dir: ${db-dir:${user.dir}/.vespera}} does,
  * and the port {@code vespera.serve.port} names, 24332 where nothing names one, each from the command's arguments,
  * then the JVM's system properties, then the environment, reading no YAML file; and it refuses in one line, exit 1,
- * creating nothing, a {@code --db-dir} that disagrees with a set {@code vespera.working-dir}, a working directory
- * holding no published website and a port in use. That a working directory not there is refused and not made, on the
- * packaged jar, is {@code ServeHoldsNoLockIT}'s.
+ * creating nothing, a {@code --db-dir} that disagrees with a set {@code vespera.working-dir}, a working directory that
+ * is not there, one holding no published website, a port in use and a value for the port that is no port (ADR-341
+ * §3). Arguments it cannot read end it with exit 2, a blank value is unset in each of the three sources, and the
+ * environment's names are found as Spring relaxes them, {@code DB_DIR} among them (ADR-341 §4, §5). That a working
+ * directory not there is refused and not made on the packaged jar too is {@code ServeHoldsNoLockIT}'s.
  *
  * <p>What {@code ServeCommand} reads is handed to it here, a {@link Properties} for the system properties and a map for
  * the environment, so that each source is set alone and the process's own are not touched. Where the working directory
@@ -68,6 +71,7 @@ import picocli.CommandLine.IFactory;
 @Feature("The website")
 @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
 @Link(name = "ADR-054", url = Adr.CORPUS_IS_ITS_ROOT_PATH, type = "adr")
+@Link(name = "ADR-341", url = Adr.SERVE_TELLS_A_PAGE_FROM_A_COPY_BY_THE_LIST_AND_THE_NAME, type = "adr")
 class ServeCommandTest {
 
     /** The port {@code vespera serve} listens at where nothing names one (ADR-333 §8). */
@@ -195,6 +199,8 @@ class ServeCommandTest {
                 Arguments.of(Named.of("--db-dir= on the command line over db-dir as a system property", List.of(
                         new Setting(DB_DIR, Source.SYSTEM_PROPERTIES, "a-property"),
                         new Setting(DB_DIR, Source.ARGUMENTS, "typed"))), "typed"),
+                Arguments.of(Named.of("DB_DIR in the environment, db-dir as Spring relaxes it", List.of(
+                        new Setting(DB_DIR, Source.ENVIRONMENT, "the-environment"))), "the-environment"),
                 Arguments.of(Named.of("VESPERA_WORKING_DIR in the environment", List.of(
                         new Setting(WORKING_DIR, Source.ENVIRONMENT, "the-environment"))), "the-environment"),
                 Arguments.of(Named.of("vespera.working-dir as a system property over the environment", List.of(
@@ -367,6 +373,120 @@ class ServeCommandTest {
     }
 
     @Test
+    @Timeout(value = A_REFUSAL_SECONDS, unit = TimeUnit.SECONDS)
+    @Story("The website is served on loopback alone")
+    @DisplayName("A value of vespera.serve.port that is no port from 1 to 65535, 0 among them, is refused, exit 1, in one line naming it, from any of the three sources")
+    void aPortValueThatIsNoPortIsRefused() throws IOException {
+        Path workingDirectory = published(base.resolve("the-working-directory"));
+        Set<String> before = filesUnder(workingDirectory);
+        Map<String, Sources> byValue = new LinkedHashMap<>();
+        byValue.put("0", sourcesOf(List.of(
+                new Setting(WORKING_DIR, Source.SYSTEM_PROPERTIES, "the-working-directory"),
+                new Setting(THE_PORT, Source.SYSTEM_PROPERTIES, "0"))));
+        byValue.put("65536", sourcesOf(List.of(
+                new Setting(WORKING_DIR, Source.SYSTEM_PROPERTIES, "the-working-directory"),
+                new Setting(THE_PORT, Source.ENVIRONMENT, "65536"))));
+        byValue.put("abc", sourcesOf(List.of(
+                new Setting(WORKING_DIR, Source.SYSTEM_PROPERTIES, "the-working-directory"),
+                new Setting(THE_PORT, Source.ARGUMENTS, "abc"))));
+        Map<String, Integer> exits = new LinkedHashMap<>();
+        byValue.forEach((value, sources) -> exits.put(value, sources.command().call(sources.argumentArray())));
+
+        claim("each of 0, 65536 and abc ends the command with exit code 1, having served nothing",
+                () -> assertThat(exits).allSatisfy((value, exit) ->
+                        assertThat(exit).as("the exit code of port %s", value).isEqualTo(CommandLine.ExitCode.SOFTWARE)));
+        claim("each in the one line naming the value and the property that names another, on standard error, and"
+                        + " nothing on standard output: 0 is not taken as a port the system picks",
+                () -> assertThat(byValue).allSatisfy((value, sources) -> {
+                    assertThat(sources.errors()).as("what port %s printed on standard error", value)
+                            .containsExactly("vespera serve could not listen on port " + value + ": it is no port"
+                                    + " number from 1 to 65535. Name another in vespera.serve.port.");
+                    assertThat(sources.output()).as("what port %s printed on standard output", value).isEmpty();
+                }));
+        claim("and the working directory holds nothing it did not hold before",
+                () -> assertThat(filesUnder(workingDirectory)).isEqualTo(before));
+    }
+
+    @Test
+    @Timeout(value = A_REFUSAL_SECONDS, unit = TimeUnit.SECONDS)
+    @Story("The website is served on loopback alone")
+    @DisplayName("A working directory that is not there is refused, exit 1, in one line naming it, and is not made")
+    void aWorkingDirectoryThatIsNotThereIsRefusedAndNotMade() {
+        Path notThere = base.resolve("not-there");
+        Sources sources = sourcesOf(List.of(new Setting(WORKING_DIR, Source.SYSTEM_PROPERTIES, "not-there")));
+
+        int exit = sources.command().call();
+
+        claim("the command ends with exit code 1, having served nothing",
+                () -> assertThat(exit).isEqualTo(CommandLine.ExitCode.SOFTWARE));
+        claim("in the one line naming the working directory as no folder that is there, on standard error, and nothing"
+                        + " on standard output",
+                () -> {
+                    assertThat(sources.errors()).containsExactly("vespera serve has nothing to serve: " + notThere
+                            + " is no folder that is there.");
+                    assertThat(sources.output()).isEmpty();
+                });
+        claim("and the working directory was not made",
+                () -> assertThat(notThere).doesNotExist());
+    }
+
+    @Test
+    @Timeout(value = A_REFUSAL_SECONDS, unit = TimeUnit.SECONDS)
+    @Story("The website is served on loopback alone")
+    @DisplayName("Arguments vespera serve cannot read end it with exit 2, in picocli's one line, before anything else is read")
+    void argumentsItCannotReadEndItWithExitTwo() throws IOException {
+        Path workingDirectory = published(base.resolve("the-working-directory"));
+        Set<String> before = filesUnder(workingDirectory);
+        Sources sources = sourcesOf(List.of(new Setting(WORKING_DIR, Source.SYSTEM_PROPERTIES, "the-working-directory")));
+
+        int exit = sources.command().call("--db-dir");
+
+        claim("--db-dir given no path ends the command with exit code 2, a usage error, though a website is there to"
+                        + " serve",
+                () -> assertThat(exit).isEqualTo(CommandLine.ExitCode.USAGE));
+        claim("in one line on standard error naming the option, and nothing on standard output",
+                () -> {
+                    assertThat(sources.errors()).singleElement().asString().contains("--db-dir");
+                    assertThat(sources.output()).isEmpty();
+                });
+        claim("and the working directory holds nothing it did not hold before",
+                () -> assertThat(filesUnder(workingDirectory)).isEqualTo(before));
+    }
+
+    @Test
+    @Story("The website is served on loopback alone")
+    @DisplayName("A blank value is unset in each of the three sources: the next source, or the default, is read instead")
+    void aBlankValueIsUnsetInEverySource() {
+        Path startedIn = base.resolve("started-here");
+        Path namedByDbDir = base.resolve("named-by-db-dir");
+
+        int blankArgument = commandReading(Map.of(THE_PORT, "24402"), Map.of()).port("--" + THE_PORT + "=");
+        int blankProperty = commandReading(Map.of(THE_PORT, "  "), Map.of("VESPERA_SERVE_PORT", "24403")).port();
+        int blankEverywhere = commandReading(Map.of(THE_PORT, ""), Map.of("VESPERA_SERVE_PORT", " "))
+                .port("--" + THE_PORT + "= ");
+        Path blankWorkingDir = commandReading(Map.of(DB_DIR, namedByDbDir.toString()), Map.of("VESPERA_WORKING_DIR", " "))
+                .workingDirectory("--" + WORKING_DIR + "=");
+        Path blankDbDir = commandReading(Map.of(DB_DIR, ""), Map.of("DB_DIR", "  "))
+                .workingDirectory("--" + DB_DIR + "=");
+
+        claim("a blank --vespera.serve.port= gives way to the system property, and a blank system property to the"
+                        + " environment",
+                () -> {
+                    assertThat(blankArgument).isEqualTo(24402);
+                    assertThat(blankProperty).isEqualTo(24403);
+                });
+        claim("blank in all three, the port is " + THE_PORT_WHERE_NOTHING_NAMES_ONE + ", as where nothing names one",
+                () -> assertThat(blankEverywhere).isEqualTo(THE_PORT_WHERE_NOTHING_NAMES_ONE));
+        claim("a vespera.working-dir blank on the command line and in the environment gives way to db-dir",
+                () -> assertThat(blankWorkingDir.toAbsolutePath().normalize())
+                        .isEqualTo(namedByDbDir.toAbsolutePath().normalize()));
+        claim("and with db-dir blank in all three too, the working directory is .vespera under the folder it was"
+                        + " started in",
+                () -> assertThat(blankDbDir.toAbsolutePath().normalize())
+                        .isEqualTo(startedIn.resolve(".vespera").toAbsolutePath().normalize()));
+    }
+
+    @Test
     @Story("The website is served on loopback alone")
     @DisplayName("vespera's help lists serve beside the other commands")
     void helpListsServe() {
@@ -433,6 +553,17 @@ class ServeCommandTest {
     }
 
     /**
+     * A command reading {@code systemProperties} as written, beside {@code user.dir} as {@code base/started-here}, and
+     * {@code environment} as written: values no {@link Setting} can spell, a blank one among them.
+     */
+    private ServeCommand commandReading(Map<String, String> systemProperties, Map<String, String> environment) {
+        Properties properties = new Properties();
+        properties.setProperty("user.dir", base.resolve("started-here").toString());
+        systemProperties.forEach(properties::setProperty);
+        return new Sources(List.of(), properties, new HashMap<>(environment)).command();
+    }
+
+    /**
      * The three sources {@code settings} fill, each folder resolved under {@code base} where the value is one, the
      * system properties holding {@code user.dir} as {@code base/started-here}; the command reading them, and what it
      * writes on standard output and standard error.
@@ -453,11 +584,15 @@ class ServeCommandTest {
         return new Sources(arguments, systemProperties, environment);
     }
 
-    /** The environment's name for a property, as ADR-333 §8 names the two: {@code VESPERA_WORKING_DIR}, {@code VESPERA_SERVE_PORT}. */
+    /**
+     * The environment's name for a property, as ADR-333 §8 names the two, {@code VESPERA_WORKING_DIR} and {@code
+     * VESPERA_SERVE_PORT}, and as Spring relaxes {@code db-dir} (ADR-341 §5).
+     */
     private static String environmentNameOf(String property) {
         return switch (property) {
             case WORKING_DIR -> "VESPERA_WORKING_DIR";
             case THE_PORT -> "VESPERA_SERVE_PORT";
+            case DB_DIR -> "DB_DIR";
             default -> throw new IllegalArgumentException("no environment name is held for " + property);
         };
     }
