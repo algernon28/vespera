@@ -75,6 +75,11 @@ class WorkingDirectoryWriteTest {
     /** Why the test's move of the questions fails. */
     private static final String THE_MOVE_FAILS = "the test fails the move of the questions";
 
+    /** What the fake file moves record of the list: a move onto it, or its removal. */
+    private static final String MOVE = "a move onto the list";
+
+    private static final String DELETE = "a removal of the list";
+
     /** Why the test's put-back of the list fails. */
     private static final String THE_PUT_BACK_FAILS = "the test fails the put-back of the list";
 
@@ -328,11 +333,16 @@ class WorkingDirectoryWriteTest {
         Path list = Files.writeString(workingDirectory.resolve(THE_LIST), LIST_BEFORE, UTF_8);
         Path questions = Files.writeString(workingDirectory.resolve(THE_QUESTIONS), QUESTIONS_BEFORE, UTF_8);
 
-        Optional<String> said = failingThePutBack().write(workingDirectory, bothFiles());
+        FailingThePutBack moves = new FailingThePutBack();
+
+        Optional<String> said = new WorkingDirectoryWrite(() -> false, USER, moves).write(workingDirectory, bothFiles());
 
         claim("the one line says the questions could not be written and why, and that the list could not be put back"
                         + " as it stood, and why",
                 () -> assertThat(said).contains(neitherPutBack()));
+        claim("the list, which was there, was put back by a move over it after the move that wrote it, and was never"
+                        + " removed",
+                () -> assertThat(moves.onTheList).containsExactly(MOVE, MOVE));
         claim("the list holds what was written, not having been put back, and the questions are as they stood",
                 () -> assertThat(List.of(Files.readString(list, UTF_8), Files.readString(questions, UTF_8)))
                         .containsExactly(LIST_AFTER, QUESTIONS_BEFORE));
@@ -349,11 +359,16 @@ class WorkingDirectoryWriteTest {
     void aFirstFileThatWasNotThereAndCannotBeRemovedIsSaid(@TempDir Path workingDirectory) throws IOException {
         Path questions = Files.writeString(workingDirectory.resolve(THE_QUESTIONS), QUESTIONS_BEFORE, UTF_8);
 
-        Optional<String> said = failingThePutBack().write(workingDirectory, bothFiles());
+        FailingThePutBack moves = new FailingThePutBack();
+
+        Optional<String> said = new WorkingDirectoryWrite(() -> false, USER, moves).write(workingDirectory, bothFiles());
 
         claim("the one line says the questions could not be written and why, and that the list could not be put back"
                         + " as it stood, and why",
                 () -> assertThat(said).contains(neitherPutBack()));
+        claim("the list, which was not there, was put back by removing it after the move that wrote it, and was not"
+                        + " moved over again",
+                () -> assertThat(moves.onTheList).containsExactly(MOVE, DELETE));
         claim("the list is there, holding what was written, not having been removed, and the questions are as they"
                         + " stood",
                 () -> assertThat(List.of(Files.readString(workingDirectory.resolve(THE_LIST), UTF_8),
@@ -367,11 +382,6 @@ class WorkingDirectoryWriteTest {
                 new WorkingDirectoryWrite.Change(THE_QUESTIONS, current -> QUESTIONS_AFTER));
     }
 
-    /** A writer whose moves and removals fail as {@link FailingThePutBack} fails them. */
-    private static WorkingDirectoryWrite failingThePutBack() {
-        return new WorkingDirectoryWrite(() -> false, USER, new FailingThePutBack());
-    }
-
     /** The whole line said where the questions are not written and the list is not put back. */
     private static String neitherPutBack() {
         return "the control panel could not write " + THE_QUESTIONS + ": IOException: " + THE_MOVE_FAILS
@@ -381,11 +391,13 @@ class WorkingDirectoryWriteTest {
     /**
      * File moves that move as the control panel's own do, but fail every move onto the questions, every move onto the
      * list after the first, which is the put-back, and every removal of the list, which is the put-back of a list that
-     * was not there. A part file is moved and removed as usual.
+     * was not there. A part file is moved and removed as usual. What was asked of the list itself, a move onto it or
+     * its removal, is kept in order, so a test can tell which put-back was tried.
      */
     private static final class FailingThePutBack implements WorkingDirectoryWrite.FileMoves {
 
-        private int movesOntoTheList;
+        /** Each move onto the list and each removal of it, in the order asked, failed or not. */
+        private final List<String> onTheList = new ArrayList<>();
 
         @Override
         public void move(Path from, Path to) throws IOException {
@@ -393,8 +405,11 @@ class WorkingDirectoryWriteTest {
             if (onto.equals(THE_QUESTIONS)) {
                 throw new IOException(THE_MOVE_FAILS);
             }
-            if (onto.equals(THE_LIST) && movesOntoTheList++ > 0) {
-                throw new IOException(THE_PUT_BACK_FAILS);
+            if (onto.equals(THE_LIST)) {
+                onTheList.add(MOVE);
+                if (onTheList.size() > 1) {
+                    throw new IOException(THE_PUT_BACK_FAILS);
+                }
             }
             Files.move(from, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         }
@@ -402,6 +417,7 @@ class WorkingDirectoryWriteTest {
         @Override
         public void delete(Path file) throws IOException {
             if (file.getFileName().toString().equals(THE_LIST)) {
+                onTheList.add(DELETE);
                 throw new IOException(THE_PUT_BACK_FAILS);
             }
             Files.deleteIfExists(file);

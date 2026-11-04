@@ -26,6 +26,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
@@ -121,24 +123,61 @@ class ControlPanelStateTest {
         named.put("that folder named by way of a folder and ..",
                 workingDirectory.resolve("elsewhere").resolve("..").resolve("deliverable").toString());
         named.put("another folder named, holding a run's folder but no rendering at its own top", elsewhere.toString());
+        Path aTree = folder.resolve("a-tree");
+        aRenderingDrawnAtTheTopOf(aTree);
+        named.put("another folder named, holding a rendering at its own top", aTree.toString());
         ControlPanelState state = aState(folder);
 
+        Map<String, Boolean> drawn = drawnFor(state, corpusRoot, workingDirectory, named);
+
+        claim("with none named, and with the working directory's deliverable folder named however it is spelt, the"
+                        + " rendering in a run's folder under it is found; another folder named is the tree itself, so"
+                        + " a rendering is found only at its own top",
+                () -> assertThat(drawn).containsExactly(
+                        Map.entry("no output folder named", true),
+                        Map.entry("the working directory's deliverable folder named", true),
+                        Map.entry("that folder named with a separator after it", true),
+                        Map.entry("that folder named by way of a folder and ..", true),
+                        Map.entry("another folder named, holding a run's folder but no rendering at its own top", false),
+                        Map.entry("another folder named, holding a rendering at its own top", true)));
+    }
+
+    /** As {@link #theDefaultFolderNamedFindsARenderingAsNoneNamedDoes}, names being compared without regard to case on Windows (ADR-334 §1, ADR-276 §2). */
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    @Story("The operator publishes from the control panel")
+    @DisplayName("On Windows the working directory's deliverable folder named in capitals finds a rendering drawn in a run's folder under it, as naming none does")
+    @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
+    void onWindowsTheDefaultFolderInCapitalsFindsARendering(@TempDir Path folder) throws IOException {
+        Path workingDirectory = Files.createDirectory(folder.resolve("working"));
+        Path corpusRoot = Files.createDirectory(folder.resolve("corpus"));
+        aRenderingDrawnUnderARunOf(workingDirectory.resolve("deliverable"));
+        Map<String, String> named = new LinkedHashMap<>();
+        named.put("the deliverable folder named in capitals", workingDirectory.resolve("DELIVERABLE").toString());
+
+        Map<String, Boolean> drawn = drawnFor(aState(folder), corpusRoot, workingDirectory, named);
+
+        claim("the folder named in capitals is the working directory's deliverable folder, and the rendering in a run's"
+                        + " folder under it is found",
+                () -> assertThat(drawn).containsExactly(Map.entry("the deliverable folder named in capitals", true)));
+    }
+
+    /** Whether a rendering is drawn, by what each output folder named is called, the state holding it as launch value. */
+    private static Map<String, Boolean> drawnFor(ControlPanelState state, Path corpusRoot, Path workingDirectory,
+            Map<String, String> named) {
         Map<String, Boolean> drawn = new LinkedHashMap<>();
         for (Map.Entry<String, String> each : named.entrySet()) {
             state.hold(new LaunchValues(corpusRoot.toString(), workingDirectory.toString(), each.getValue(), "", "", "",
                     "", ""));
             drawn.put(each.getKey(), state.aRenderingIsDrawn());
         }
+        return drawn;
+    }
 
-        claim("with none named, and with the working directory's deliverable folder named however it is spelt, the"
-                        + " rendering in a run's folder under it is found; another folder named is the tree itself, and"
-                        + " holds none at its top",
-                () -> assertThat(drawn).containsExactly(
-                        Map.entry("no output folder named", true),
-                        Map.entry("the working directory's deliverable folder named", true),
-                        Map.entry("that folder named with a separator after it", true),
-                        Map.entry("that folder named by way of a folder and ..", true),
-                        Map.entry("another folder named, holding a run's folder but no rendering at its own top", false)));
+    /** A Confluence rendering's page list at the top of {@code tree}, as a named root, the tree itself, holds it. */
+    private static void aRenderingDrawnAtTheTopOf(Path tree) throws IOException {
+        Path confluence = Files.createDirectories(tree.resolve("confluence"));
+        Files.writeString(confluence.resolve("pages.json"), "{}", StandardCharsets.UTF_8);
     }
 
     /** A control panel's state with no invocation started, its launch values file and lock folder under {@code folder}. */
