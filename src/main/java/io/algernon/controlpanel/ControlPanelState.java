@@ -112,17 +112,16 @@ final class ControlPanelState {
      * under the deliverable root where one is named, else under a generation run's folder in the working directory's
      * {@code deliverable/}. Read from the files alone, as the control panel links no class of the jar (ADR-285).
      */
-    boolean aRenderingIsDrawn() {
-        LaunchValues now = values;
+    boolean aRenderingIsDrawn(Optional<Path> workingDirectory, String deliverableRoot) {
         try {
-            if (now.deliverableRoot() != null && !now.deliverableRoot().isBlank() && !namesTheDefaultFolder(now)) {
-                return Files.isRegularFile(
-                        Path.of(now.deliverableRoot().stripTrailing()).resolve(RENDERING).resolve(PAGE_LIST));
+            if (deliverableRoot != null && !deliverableRoot.isBlank()
+                    && !namesTheDefaultFolder(workingDirectory, deliverableRoot)) {
+                return Files.isRegularFile(Path.of(deliverableRoot.stripTrailing()).resolve(RENDERING).resolve(PAGE_LIST));
             }
-            if (now.workingDirectory() == null || now.workingDirectory().isBlank()) {
+            if (workingDirectory.isEmpty()) {
                 return false;
             }
-            Path trees = Path.of(now.workingDirectory().stripTrailing()).resolve("deliverable");
+            Path trees = workingDirectory.get().resolve("deliverable");
             if (!Files.isDirectory(trees)) {
                 return false;
             }
@@ -138,14 +137,13 @@ final class ControlPanelState {
      * Whether the output folder named is the working directory's {@code deliverable} folder, which is read as no folder
      * named (ADR-334 §1): the trees lie in a folder of their own for each run there.
      */
-    private static boolean namesTheDefaultFolder(LaunchValues now) {
-        if (now.workingDirectory() == null || now.workingDirectory().isBlank()) {
+    private static boolean namesTheDefaultFolder(Optional<Path> workingDirectory, String deliverableRoot) {
+        if (workingDirectory.isEmpty()) {
             return false;
         }
         try {
-            Path theDefault = Path.of(now.workingDirectory().stripTrailing()).toAbsolutePath().normalize()
-                    .resolve("deliverable");
-            return namesTheSameFolder(now.deliverableRoot(), theDefault.toString());
+            Path theDefault = workingDirectory.get().toAbsolutePath().normalize().resolve("deliverable");
+            return namesTheSameFolder(deliverableRoot, theDefault.toString());
         } catch (RuntimeException cannotBeHeld) {
             return false;
         }

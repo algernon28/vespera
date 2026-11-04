@@ -39,6 +39,25 @@ public final class StopCosts {
     private StopCosts() {
     }
 
+    /**
+     * The stage under whose runs the jar records {@code step}'s completion (ADR-269 section 5, ADR-341 section 1), held
+     * as text because the window links no class of the jar (ADR-285 section 3); empty for a step the jar records under no
+     * stage's run: the census, the relevance floor and the relevance report.
+     */
+    public static String stageOf(String step) {
+        return switch (step) {
+            case "byte-level-reduction" -> "byte-level-reduction";
+            case "extraction" -> "extraction";
+            case "content-census" -> "content-census";
+            case "redundancy-signature", "content-redundancy" -> "content-redundancy";
+            case "seed-extraction", "seed-corpus-comparison" -> "seed-measurement";
+            case "embedding-scoring", "translation", "relevance-scoring", "clustering" -> "embedding-scoring";
+            case "arrangement" -> "arrangement";
+            case "generation" -> "generation";
+            default -> "";
+        };
+    }
+
     /** What a stop costs inside {@code step}; empty text where the table names no such step. */
     public static String costOf(String step) {
         return ROWS.stream().filter(row -> row.step().equals(step)).map(StopCost::cost).findFirst().orElse("");

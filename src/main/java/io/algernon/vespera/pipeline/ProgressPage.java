@@ -210,7 +210,7 @@ final class ProgressPage implements JobExecutionListener {
     private static final String[] TAB_FILES = {FILE_NAME, "progress-steps.html", "progress-samples.html", RUNS_FILE_NAME};
 
     /** The steps that record their completion under a run of each stage, in job order (ADR-269 section 5). */
-    private static final Map<String, List<String>> STEPS_OF_A_STAGE = Map.of(
+    static final Map<String, List<String>> STEPS_OF_A_STAGE = Map.of(
             StageModules.BYTE_LEVEL_REDUCTION.stage(), List.of(StepNames.BYTE_LEVEL_REDUCTION),
             StageModules.EXTRACTION.stage(), List.of(StepNames.EXTRACTION),
             StageModules.CONTENT_CENSUS.stage(), List.of(StepNames.CONTENT_CENSUS),

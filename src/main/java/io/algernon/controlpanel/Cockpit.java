@@ -300,7 +300,7 @@ final class Cockpit {
     }
 
     private StepRow stepRow(StopCosts.StopCost cost) {
-        Label stage = new Label(stageOf(cost.step()));
+        Label stage = new Label(StopCosts.stageOf(cost.step()));
         stage.getStyleClass().add("small");
         Label name = new Label(cost.step());
         ProgressBar bar = new ProgressBar(0);
@@ -320,20 +320,6 @@ final class Cockpit {
         StepRow made = new StepRow(row, bar, stateWords, costWords, stopHere);
         stepRows.put(cost.step(), made);
         return made;
-    }
-
-    private static String stageOf(String step) {
-        return switch (step) {
-            case "byte-level-reduction" -> "byte-level-reduction";
-            case "extraction" -> "extraction";
-            case "content-census" -> "content-census";
-            case "redundancy-signature", "content-redundancy" -> "content-redundancy";
-            case "seed-extraction", "seed-corpus-comparison" -> "seed-measurement";
-            case "embedding-scoring", "translation", "relevance-scoring", "clustering" -> "embedding-scoring";
-            case "arrangement" -> "arrangement";
-            case "generation" -> "generation";
-            default -> "";
-        };
     }
 
     private LineChart<Number, Number> chart(String id, String title, String axis) {
@@ -509,7 +495,10 @@ final class Cockpit {
         LaunchField corpus = new LaunchField("vespera.corpus-root", true, false);
         LaunchField working = new LaunchField("vespera.working-dir", true, true);
         LaunchField deliverable = new LaunchField("vespera.deliverable-root", true, true);
-        corpus.input.textProperty().addListener((observed, was, now) -> where());
+        corpus.input.textProperty().addListener((observed, was, now) -> {
+            where();
+            drawInclusions();
+        });
         working.input.textProperty().addListener((observed, was, now) -> {
             where();
             loadFiles();
@@ -734,7 +723,7 @@ final class Cockpit {
         }
         Optional<ProfileEdit.Stated> inFile = Optional.ofNullable(stated.get(ProfileKey.CODE_SET_FOLDERS));
         Optional<String> note = ProfileEdit.noteToSave(ProfileKey.CODE_SET_FOLDERS, outside,
-                codeSetNote.getText().isBlank() ? ProfileEdit.noteShown(inFile) : codeSetNote.getText(), inFile);
+                codeSetNote.getText(), inFile);
         Optional<String> refusal = note.flatMap(words -> ProfileEdit.refusalOfSave(ProfileKey.CODE_SET_FOLDERS, outside,
                 words, inFile, Optional.empty()));
         if (refusal.isPresent()) {
@@ -1101,6 +1090,14 @@ final class Cockpit {
             ProfileRow row = new ProfileRow(key.get(), "wanted-", state.lastChecks().ollama().models(), beneath,
                     dialogs, null, this::openReport, written);
             row.load(Optional.ofNullable(stated.get(key.get())));
+            if (key.get() == ProfileKey.ARRANGEMENT_APPROVED && next.get().arrangement().isPresent()) {
+                // the arrangement the jar arrives at, offered for the operator to confirm (ADR-294 section 4)
+                row.offer(next.get().arrangement().get());
+            } else if (key.get() == ProfileKey.SEED_FOLDER && row.value().isBlank()
+                    && !state.values().lastSeedFolder().isEmpty()) {
+                // offered, not stated by the file: a save writes it (ADR-292 section 6)
+                row.offer(state.values().lastSeedFolder());
+            }
             wantedRows.add(row);
             wanted.getChildren().add(row.node());
         }
@@ -1154,7 +1151,7 @@ final class Cockpit {
         labelAuto.setDisable(busy);
         publish.setDisable(busy);
         stop.setDisable(!runs);
-        boolean drawn = state.aRenderingIsDrawn();
+        boolean drawn = state.aRenderingIsDrawn(workingDirectory(), fields.get("vespera.deliverable-root").text());
         if (drawn && !actions.getChildren().contains(publish)) {
             actions.getChildren().add(publish);
         } else if (!drawn) {
