@@ -40,6 +40,10 @@ import picocli.CommandLine.Model.PositionalParamSpec;
  * them, or a command added with arguments of its own, fails here until the control panel's table says how it is set
  * or that it is never passed. That each control the table names is drawn on the form its entry names is held by
  * {@code controlpanel.TheLaunchPageStartsLabelAutoScreenTest.everyControlTheTableNamesIsOnTheFormItsEntryNames}.
+ *
+ * <p>{@code vespera serve} is an entry of the tree, so that help lists it (ADR-333 §8), and the control panel starts no
+ * {@code serve} (ADR-333, amending ADR-278 §1), so its {@code --db-dir} is in the table as never passed, by ADR-336 §2's
+ * rule for a command added with arguments of its own.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -88,7 +92,8 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
 
         claim("the model was read through the command's own tree, so the answers below are about the command line an"
                         + " operator types, its mixins included",
-                () -> assertThat(inTheModel).contains("vespera help", "run <root>", "label auto", "publish db-dir"));
+                () -> assertThat(inTheModel).contains("vespera help", "run <root>", "label auto", "publish db-dir",
+                        "serve db-dir"));
         claim("the table names each argument once",
                 () -> assertThat(inTheTable).doesNotHaveDuplicates());
         claim("and it names every option and positional argument of the model, by command and name, and nothing the"
@@ -145,9 +150,10 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
         claim("an argument names a form exactly where it names a control, and the form is the launch form or Publish",
                 () -> assertThat(withAFormOutOfPlace).as("arguments whose form does not go with their control")
                         .isEmpty());
-        claim("and the arguments never passed are vespera's help and version options, and label's file, and no other",
+        claim("and the arguments never passed are vespera's help and version options, label's file and serve's working"
+                        + " directory, since the control panel starts no vespera serve, and no other",
                 () -> assertThat(neverPassed).containsExactlyInAnyOrder("vespera help", "vespera version",
-                        "label <file>"));
+                        "label <file>", "serve db-dir"));
     }
 
     /**

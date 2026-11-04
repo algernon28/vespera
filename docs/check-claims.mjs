@@ -359,6 +359,36 @@ function readmeSection(heading, name) {
 }
 
 {
+  // ADR-333 §8, §15: README names vespera.serve.port and the port vespera serve listens at where nothing names one, and
+  // says vespera serve reads no YAML file, application-local.yaml among them. The port and the property are read off
+  // ServeCommand, and "reads no YAML file" holds only while ServeCommand's code, its comments aside, names none.
+  const NAME = "what README says of vespera serve";
+  const SERVE_COMMAND = MAIN + "/pipeline/ServeCommand.java";
+  if (!existsSync(SERVE_COMMAND)) fail(NAME, `${SERVE_COMMAND} is not there, and README's vespera serve is read against it`);
+  else {
+    const source = readFileSync(SERVE_COMMAND, "utf8");
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const port = /DEFAULT_PORT = (\d+);/.exec(source);
+    const key = /PORT_PROPERTY = "([\w.-]+)";/.exec(source);
+    const paragraphs = readme.split(/\r?\n[ \t]*\r?\n/);
+    const naming = key ? paragraphs.filter((p) => p.includes("`" + key[1] + "`")) : [];
+    const wrong = [];
+    if (!port) wrong.push(`${SERVE_COMMAND} declares no DEFAULT_PORT`);
+    if (!key) wrong.push(`${SERVE_COMMAND} declares no PORT_PROPERTY`);
+    else if (!naming.length) wrong.push(`${README} names \`${key[1]}\` nowhere`);
+    else if (port && !naming.some((p) => new RegExp(`\\b${port[1]}\\b`).test(p))) {
+      wrong.push(`no paragraph of ${README} naming \`${key[1]}\` gives ${port[1]}, the port vespera serve listens at where nothing names one`);
+    }
+    if (!paragraphs.some((p) => p.includes("vespera serve") && p.includes("application-local.yaml"))) {
+      wrong.push(`no paragraph of ${README} says, beside vespera serve, what it makes of application-local.yaml`);
+    }
+    if (/\.ya?ml\b/.test(code)) wrong.push(`${SERVE_COMMAND} names a YAML file in its code, and README says vespera serve reads none`);
+    if (wrong.length) fail(NAME, wrong.join("; "));
+    else pass(NAME, `\`${key[1]}\`, ${port[1]} where nothing names one, and no YAML file read`);
+  }
+}
+
+{
   const NAME = "the profile keys README names";
   const section = readmeSection("## What you have to decide, and where to read it", NAME);
   if (section) {
