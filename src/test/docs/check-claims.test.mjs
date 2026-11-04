@@ -1,14 +1,19 @@
 // docs/check-claims-lib.mjs holds what the claims check and docs/next-adr-number.mjs compute without reading a file or
 // asking the network (ADR-342): AGENTS.md's size as git stores it, and a decision record's number, read, shared, taken
 // and chosen, the open pull requests read in full or cut short, and the claim of the numbers this branch adds, which
-// never passes where it did not read. One test asks git whether it stores AGENTS.md as text. The last three run
-// docs/check-claims.mjs itself, without --with-network, and read its lines.
+// never passes where it did not read, and the exit of docs/next-adr-number.mjs. One test asks git whether it stores
+// AGENTS.md as text and whether HEAD's blob of it holds a CR. The last five run the scripts themselves and read their
+// lines: three run docs/check-claims.mjs without --with-network, and two run a script where the fetch of origin/main
+// fails, in an environment that asks no network (see offline()).
 //
 //   node --test src/test/docs/check-claims.test.mjs
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -55,6 +60,10 @@ test("the size is in UTF-8 bytes, and a CR standing alone is counted as it stand
 test("git stores AGENTS.md as text, so its blob has LF endings and counting each CRLF as one byte is its stored size", () => {
   const attr = execFileSync("git", ["check-attr", "text", "--", "AGENTS.md"], { cwd: ROOT, encoding: "utf8" }).trim();
   assert.equal(attr, "AGENTS.md: text: set", "the .gitattributes line /AGENTS.md text is what makes ADR-342 §1's measure exact");
+  // The attribute binds a commit made through git's filters; a blob written past them can still hold a CR, which §1's
+  // measure would count one byte short. HEAD's blob is what was committed, however it was written.
+  const blob = execFileSync("git", ["cat-file", "blob", "HEAD:AGENTS.md"], { cwd: ROOT });
+  assert.equal(blob.indexOf(0x0d), -1, `HEAD's blob of AGENTS.md holds a CR at byte ${blob.indexOf(0x0d)}: it was committed past git's text filter`);
 });
 
 /* ---------- a record's number ---------- */
@@ -95,23 +104,23 @@ const MAIN = ["docs/adr/0298-a.md", "docs/adr/0301-b.md", "docs/adr/0341-c.md", 
 
 test("the next number is above origin/main's highest, and a gap under it is never taken", async () => {
   const { nextAdrNumber } = await lib();
-  assert.equal(nextAdrNumber({ main: MAIN, branch: MAIN, prs: [] }), 342);
+  assert.equal(nextAdrNumber({ main: MAIN, branchTree: MAIN, prs: [] }), 342);
 });
 
 test("the next number passes over what this branch and every open pull request hold, and takes the lowest left", async () => {
   const { nextAdrNumber } = await lib();
-  assert.equal(nextAdrNumber({ main: MAIN, branch: MAIN, prs: [PR(704, "x", "docs/adr/0342-x.md")] }), 343);
+  assert.equal(nextAdrNumber({ main: MAIN, branchTree: MAIN, prs: [PR(704, "x", "docs/adr/0342-x.md")] }), 343);
   assert.equal(
-    nextAdrNumber({ main: MAIN, branch: [...MAIN, "docs/adr/0342-mine.md"], prs: [PR(704, "x", "docs/adr/0343-x.md")] }),
+    nextAdrNumber({ main: MAIN, branchTree: [...MAIN, "docs/adr/0342-mine.md"], prs: [PR(704, "x", "docs/adr/0343-x.md")] }),
     344,
   );
   // A copy is a new path, and takes its number as an added file does.
   assert.equal(
-    nextAdrNumber({ main: MAIN, branch: MAIN, prs: [PR(704, "x", { path: "docs/adr/0342-x.md", changeType: "COPIED" })] }),
+    nextAdrNumber({ main: MAIN, branchTree: MAIN, prs: [PR(704, "x", { path: "docs/adr/0342-x.md", changeType: "COPIED" })] }),
     343,
   );
   // An open pull request that skipped 342 leaves it free.
-  assert.equal(nextAdrNumber({ main: MAIN, branch: MAIN, prs: [PR(704, "x", "docs/adr/0344-x.md")] }), 342);
+  assert.equal(nextAdrNumber({ main: MAIN, branchTree: MAIN, prs: [PR(704, "x", "docs/adr/0344-x.md")] }), 342);
 });
 
 /* ---------- a number this branch takes that another holds ---------- */
@@ -122,7 +131,7 @@ test("a record this branch adds collides with one origin/main holds under anothe
     added: ["docs/adr/0342-mine.md"],
     main: [...MAIN, "docs/adr/0342-theirs.md"],
     prs: [],
-    branch: "mine",
+    branchName: "mine",
   });
   assert.deepEqual(found, [{ number: 342, added: "docs/adr/0342-mine.md", other: "docs/adr/0342-theirs.md", where: "origin/main" }]);
 });
@@ -138,7 +147,7 @@ test("a record this branch adds collides with one an open pull request adds, ren
     added: ["docs/adr/0342-mine.md", "docs/adr/0343-also-mine.md", "docs/adr/0344-mine-too.md"],
     main: MAIN,
     prs,
-    branch: "mine",
+    branchName: "mine",
   });
   assert.deepEqual(found, [
     { number: 342, added: "docs/adr/0342-mine.md", other: "docs/adr/0342-theirs.md", where: "#704" },
@@ -160,7 +169,7 @@ test("a file of the same name, this branch's own pull request, and a file a pull
       PR(707, "changes", { path: "docs/adr/0342-changed.md", changeType: "CHANGED" }),
       PR(708, "leaves", { path: "docs/adr/0342-unchanged.md", changeType: "UNCHANGED" }),
     ],
-    branch: "mine",
+    branchName: "mine",
   });
   assert.deepEqual(found, []);
 });
@@ -174,7 +183,7 @@ test("a pull request file with no changeType, or with one GitHub may add later, 
       { number: 704, headRefName: "theirs", changedFiles: 1, files: [{ path: "docs/adr/0342-theirs.md" }] },
       PR(705, "new", { path: "docs/adr/0343-new.md", changeType: "SOME_TYPE_NOT_YET_KNOWN" }),
     ],
-    branch: "mine",
+    branchName: "mine",
   });
   assert.deepEqual(found, [
     { number: 342, added: "docs/adr/0342-mine.md", other: "docs/adr/0342-theirs.md", where: "#704" },
@@ -188,7 +197,7 @@ test("collisions are listed by number, origin/main's before the pull requests', 
     added: ["docs/adr/0343-b.md", "docs/adr/0342-a.md"],
     main: [...MAIN, "docs/adr/0342-m.md"],
     prs: [PR(706, "r", "docs/adr/0343-r.md"), PR(705, "p", "docs/adr/0342-p.md"), PR(704, "q", "docs/adr/0342-q.md")],
-    branch: null,
+    branchName: null,
   });
   assert.deepEqual(found.map((c) => `${c.number} ${c.where} ${c.other}`), [
     "342 origin/main docs/adr/0342-m.md",
@@ -204,14 +213,27 @@ test("a pull request whose files are fewer than its changedFiles, or that gives 
   const { unreadPullRequests } = await lib();
   const noCount = { number: 702, headRefName: "no-count", files: [{ path: "a.md", changeType: "ADDED" }] };
   const prs = [CUT(705, "cut"), PR(704, "whole", "docs/adr/0342-x.md"), noCount, CUT(703, "mine")];
-  assert.deepEqual(unreadPullRequests({ prs, limit: 100, branch: "mine" }), { full: false, incomplete: [702, 705] });
+  assert.deepEqual(unreadPullRequests({ prs, limit: 100, branchName: "mine" }), { full: false, incomplete: [702, 705] });
 });
 
 test("a list of open pull requests as long as its --limit may have left some out", async () => {
   const { unreadPullRequests } = await lib();
   const prs = [PR(704, "a", "x.md"), PR(705, "b", "y.md")];
-  assert.deepEqual(unreadPullRequests({ prs, limit: 2, branch: "mine" }), { full: true, incomplete: [] });
-  assert.deepEqual(unreadPullRequests({ prs, limit: 3, branch: "mine" }), { full: false, incomplete: [] });
+  assert.deepEqual(unreadPullRequests({ prs, limit: 2, branchName: "mine" }), { full: true, incomplete: [] });
+  assert.deepEqual(unreadPullRequests({ prs, limit: 3, branchName: "mine" }), { full: false, incomplete: [] });
+});
+
+test("next-adr-number exits 0 only where origin/main was fetched and every open pull request read in full", async () => {
+  const { nextAdrNumberExit } = await lib();
+  const prs = [PR(704, "theirs", "docs/adr/0343-theirs.md")];
+  assert.equal(nextAdrNumberExit({ fetched: true, prs, limit: 100, branchName: "mine" }), 0);
+  // This branch's own pull request, cut short, is not read against it.
+  assert.equal(nextAdrNumberExit({ fetched: true, prs: [...prs, CUT(703, "mine")], limit: 100, branchName: "mine" }), 0);
+  // A failed fetch is a cause of its own: the ref as it stands may lack a record merged since.
+  assert.equal(nextAdrNumberExit({ fetched: false, prs, limit: 100, branchName: "mine" }), 2);
+  assert.equal(nextAdrNumberExit({ fetched: true, prs: null, limit: 100, branchName: "mine" }), 2);
+  assert.equal(nextAdrNumberExit({ fetched: true, prs, limit: 1, branchName: "mine" }), 2);
+  assert.equal(nextAdrNumberExit({ fetched: true, prs: [...prs, CUT(705, "cut")], limit: 100, branchName: "mine" }), 2);
 });
 
 /* ---------- the claim of the numbers this branch adds ---------- */
@@ -221,7 +243,7 @@ const READ = () => ({
   added: ["docs/adr/0342-mine.md"],
   main: MAIN,
   prs: [PR(704, "theirs", "docs/adr/0343-theirs.md")],
-  branch: "mine",
+  branchName: "mine",
   limit: 100,
 });
 
@@ -299,7 +321,8 @@ test("check-claims reports AGENTS.md's size as git's index holds it", (t) => {
     return;
   }
   const blob = execFileSync("git", ["cat-file", "-s", ":AGENTS.md"], { cwd: ROOT, encoding: "utf8" }).trim();
-  assert.match(claimLine("how much AGENTS.md carries"), new RegExp(`^(PASS|FAIL) +how much AGENTS\\.md carries: AGENTS\\.md is ${blob} bytes\\b`));
+  const state = Number(blob) <= 30000 ? "PASS" : "FAIL";
+  assert.match(claimLine("how much AGENTS.md carries"), new RegExp(`^${state} +how much AGENTS\\.md carries: AGENTS\\.md is ${blob} bytes\\b`));
 });
 
 test("check-claims holds that no two decision records of this tree share a number", () => {
@@ -311,4 +334,41 @@ test("without --with-network, the numbers of the records this branch adds are re
     claimLine("the numbers of the records this branch adds"),
     /^NOT CHECKED +the numbers of the records this branch adds: .*--with-network/,
   );
+});
+
+/* ---------- where the fetch of origin/main fails ---------- */
+
+/**
+ * An environment in which a script asks no network: git refuses every transport, so the fetch of origin/main fails
+ * at once and the ref is read as it stands; gh is signed out, with no token and an empty configuration; and the
+ * script's own fetch() is replaced, by the --import of NO_FETCH, with one that rejects.
+ */
+function offline() {
+  const env = {
+    ...process.env,
+    GIT_ALLOW_PROTOCOL: "vespera-test-refuses-every-transport",
+    GH_CONFIG_DIR: mkdtempSync(join(tmpdir(), "vespera-gh-signed-out-")),
+    GH_PROMPT_DISABLED: "1",
+  };
+  for (const name of ["GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"]) delete env[name];
+  return env;
+}
+const NO_FETCH = "--import=data:text/javascript,"
+  + encodeURIComponent('globalThis.fetch = () => Promise.reject(new Error("this test asks no network"));');
+
+test("under --with-network, where the fetch of origin/main fails, the numbers of the records this branch adds are not checked, naming origin/main and the fetch", () => {
+  const run = spawnSync(process.execPath, [NO_FETCH, "docs/check-claims.mjs", "--with-network"], { cwd: ROOT, encoding: "utf8", env: offline() });
+  const line = run.stdout.split(/\r?\n/).find((l) => l.includes("  the numbers of the records this branch adds: "))
+    ?? `(no line names "the numbers of the records this branch adds")\n${run.stdout}\n${run.stderr}`;
+  // A ref not fetched may lack a record merged since, and a collision with it would pass unseen.
+  assert.match(line, /^NOT CHECKED +the numbers of the records this branch adds: .*origin\/main/);
+  assert.match(line, /fetch/);
+});
+
+test("where the fetch of origin/main fails, next-adr-number still prints a number, names origin/main and the fetch on standard error, and exits 2", () => {
+  const run = spawnSync(process.execPath, [NO_FETCH, "docs/next-adr-number.mjs"], { cwd: ROOT, encoding: "utf8", env: offline() });
+  assert.match(run.stdout.trim(), /^\d{3,4}$/, `stdout: ${run.stdout}\nstderr: ${run.stderr}`);
+  assert.match(run.stderr, /origin\/main/);
+  assert.match(run.stderr, /fetch/);
+  assert.equal(run.status, 2, `stderr: ${run.stderr}`);
 });
