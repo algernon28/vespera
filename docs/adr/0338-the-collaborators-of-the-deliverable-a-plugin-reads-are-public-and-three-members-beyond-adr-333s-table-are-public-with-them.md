@@ -1,4 +1,4 @@
-# ADR-337 — The collaborators of the deliverable a plugin reads are public, and three members beyond ADR-333's table are public with them
+# ADR-338 — The collaborators of the deliverable a plugin reads are public, and three members beyond ADR-333's table are public with them
 
 - **Date**: 2026-11-03
 - **Status**: accepted on 2026-11-03.
