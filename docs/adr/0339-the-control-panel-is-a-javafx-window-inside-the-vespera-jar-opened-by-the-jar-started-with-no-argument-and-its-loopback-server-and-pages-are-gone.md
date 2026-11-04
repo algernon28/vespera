@@ -2,7 +2,7 @@
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.
-- **Decided**: by the operator, that a desktop window replaces the browser control panel rather than standing beside it, that it ships inside the Vespera jar and not as an application of its own, that a flag on the command line keeps a start that never opens the window, and that its layout is variant B of [#700](https://github.com/algernon28/vespera/issues/700), which [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md) records. The rest, the dependency and its version, how the window starts from the jar, which native libraries the jar carries, which records it supersedes and which it keeps, and how a window is tested, was decided by Claude for the operator, who asked for the change without naming them.
+- **Decided**: by the operator, that a desktop window replaces the browser control panel rather than standing beside it, that it ships inside the Vespera jar and not as an application of its own, that a flag on the command line keeps a start that never opens the window, and that its layout is variant B of [#700](https://github.com/algernon28/vespera/issues/700), which [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md) records. The rest, the dependency and its version, how the window starts from the jar, which native libraries the jar carries, what a start does where no window can open, which records it supersedes and which it keeps, and how a window is tested, Claude recommended and the operator accepted as written.
 - **Supersedes**: [ADR-291](0291-the-control-panel-listens-on-127-0-0-1-alone-at-a-port-the-system-picks-and-answers-only-a-browser-holding-its-starts-token-on-its-own-address.md), whose server, address and checks exist no more (§5). It carries a note at its head.
 - **Supersedes**: [ADR-297](0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md): a window is tested as §6 says, and jsoup leaves the pom with the last page (§6). It carries a note at its head.
 - **Supersedes**: [ADR-302](0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md) but for what §4 below keeps of it: its §5, the sidecars asked and their answers only read; its §6, free space; its §7, the table of what a stop costs at each step; and of its §8 the rule of what the next act asks for. Its pages, forms, paths, names and the report re-served in a sandbox go. It carries a note at its head.
@@ -83,31 +83,37 @@ A start with any argument at all is the command line as before: `run`, `label`, 
 
 **The jar's `Start-Class` is `io.algernon.EntryPoint`**, set as `spring-boot-maven-plugin`'s `mainClass`, in the package above both: it is no class of `io.algernon.vespera`, so no module and no stage's version names it, and no class of the control panel names it. It does not extend `javafx.application.Application`, so the Java launcher's check for JavaFX's modules is never reached, and Spring Boot's `JarLauncher` stays the `Main-Class`. Its `main`:
 
-- with no argument, asks `io.algernon.controlpanel.ControlPanel.open()` to open the window, a class of the control panel that extends `Application`, and returns when the window has closed;
+- with no argument, calls `io.algernon.controlpanel.ControlPanel.open()`, the control panel's one entry, and does as its answer says (below);
 - with `--headless` first, calls `io.algernon.vespera.VesperaApplication.main` with the arguments after it;
 - with any other argument first, calls `VesperaApplication.main` with every argument;
 
 and nothing of the control panel is loaded before `VesperaApplication.main` but where the window could not open. It is the one class that names both. It decides through two static methods a test calls: `EntryPoint.chosen(String[])`, answering `EntryPoint.Started.CONTROL_PANEL` for no argument and `EntryPoint.Started.COMMAND_LINE` otherwise, and `EntryPoint.passedOn(String[])`, the arguments `VesperaApplication.main` is given, the first `--headless` dropped.
 
-**Where the window cannot open**, on a machine with no display, or from a jar built for another platform, the jar answers as its command line rather than failing. `ControlPanel.open()` answers the reason, the message of what the toolkit threw as it started, in place of opening; `EntryPoint` then writes one line on standard error,
+**`ControlPanel.open()`** is the control panel's one entry. `ControlPanel` keeps no `main`. It does, in this order:
+
+1. **finds the child's runtime** (below). Where the class path names no jar, it answers `ControlPanel.Opening.NO_JAR` with the refusal line, and `EntryPoint` writes the line on standard error and exits 1, trying no window;
+2. **registers the shutdown hook** that ends the child with the JVM (ADR-307 §1), `ControlPanel.endChildWithThisJvm(ControlPanelState)`;
+3. **starts the toolkit and launches `ControlPanelWindow`**, the one class of the control panel that extends `Application`, whose root `ControlPanelWindow.drawn(ControlPanelState)` draws (ADR-341 §1). Where the toolkit throws as it starts, on a machine with no display, or from a jar built for another platform, it answers `ControlPanel.Opening.NO_WINDOW` with the message of what it threw; otherwise it answers `ControlPanel.Opening.CLOSED` once the window has closed, and `EntryPoint` exits 0.
+
+**Where the window cannot open**, the jar answers as its command line rather than failing: `EntryPoint` writes one line on standard error,
 
 ```
 the control panel cannot open a window here, so the jar answers as its command line: <reason>
 ```
 
-and calls `VesperaApplication.main` with no argument, which prints the commands' usage, as `--headless` alone does. Nothing asks the system whether it has a display before the toolkit is tried: the toolkit's own failure is the one answer, on every platform.
+and calls `VesperaApplication.main` with no argument, which prints the commands' usage and exits with picocli's usage code, as `--headless` alone does. Nothing asks the system whether it has a display before the toolkit is tried: the toolkit's own failure is the one answer, on every platform. Measured on the probe: with `glass.platform` naming a platform JavaFX does not have, `Platform.startup` threw a `NullPointerException` 208 ms after it was called, and the JVM went on.
 
 **The Maven profiles.** `headless` runs the jar with `--headless` before `vespera.args`, so the profile given no `vespera.args` prints the usage and never opens the window. `gui` runs the jar with no argument, which opens the window.
 
 **The manifest** gains `Enable-Native-Access: ALL-UNNAMED`, set as a `manifestEntries` entry of `maven-jar-plugin`'s `default-jar` execution, which the Boot plugin's repackage keeps. The line `Unsupported JavaFX configuration` stays on standard error at each start of the window: JavaFX runs on the class path, Spring Boot's launcher puts no library on the module path, and the line says so and nothing more.
 
-**The child is the jar the window runs from** (amending ADR-288 §4): the path `java.class.path` holds, where it is one regular file; otherwise `ControlPanel.main` refuses with one line, exit 1:
+**The child is the jar the window runs from** (amending ADR-288 §4): the path `java.class.path` holds, where it is one regular file; otherwise the refusal of step 1 above, exit 1:
 
 ```
 the control panel starts the Vespera jar it runs from, and runs from no jar: <class path>
 ```
 
-Its `java` stays ADR-288 §3's, `<java.home>/bin/java`. `ChildRuntime.find` takes the class path, `java.home` and `os.name`; the manifest entry `Vespera-Jar` goes.
+Its `java` stays ADR-288 §3's, `<java.home>/bin/java`. `ChildRuntime.find(String classPath, Path javaHome, String osName)` finds both, throwing `FileNotFoundException` with the line; the manifest entry `Vespera-Jar` goes.
 
 ### 3. What the control panel links
 
@@ -129,8 +135,8 @@ The window is a new face on the same contract. These stand as their records say,
 | Each write holding the working-directory lock, one action at a time; each file written whole; the profile's checks | ADR-295 | `WorkingDirectoryWrite`, `ProfileEdit`, `ProfileKey`, `YamlLines`, `YamlScalars`, `LabelAnswers`, `CodeSetRenames` |
 | What lies beneath the profile, a save that compares, a repair that loses nothing, a working directory made by a save | ADR-330 §1, §5 to §7 | `EffectiveValues`, `ProfileRepair` |
 | The default output folder read as none named, the value in use beside an empty field, the folders not relevant, the profile as one form, code set folders outside the corpus root, the GPU image preselected | ADR-334 §1 to §7, §11 | `NotRelevantFolders`, `CodeSetFolderChecks` |
-| The sidecars asked and only read; free space; what a stop costs at each step | ADR-302 §5 to §7 | `SidecarChecks`, `JsonReader` |
-| A folder field's status; an example and a hint on each field | ADR-331 §6, §8 | `ProfileKey` |
+| The sidecars asked and only read; free space; what a stop costs at each step | ADR-302 §5 to §7 | `SidecarChecks`, `JsonReader`, and `StopCosts`, where the table moves from the pages (ADR-341 §8) |
+| A folder field's status; an example and a hint on each field; each key's reports | ADR-331 §6, §8, ADR-306 §2, §3 | `ProfileKey`, and `FolderStatus`, `LaunchValues` and `Reports`, where the rules move from the pages (ADR-341 §8) |
 | Every argument of the jar's commands accounted for | ADR-336 §2 | `ChildCommand.ARGUMENTS` |
 | Run, Label and Let the local model answer disabled while the window's child runs or a holder line is held, `label --auto` started by Label's checks | ADR-302 §2, ADR-336 §1 | `ControlPanelState` |
 
@@ -153,7 +159,14 @@ The window is a new face on the same contract. These stand as their records say,
 - **What a window test cannot hold**: how the window looks on Windows' Direct3D or Linux's OpenGL pipeline, focus, and a native dialog. A record whose decision rests on one says so.
 - **jsoup leaves the pom** with the last test that reads a page; nothing else names it.
 
-The tests that read the pages through `PanelBrowser`, `ScreenServer` or `RawHttp` go with the pages: every `*ScreenTest`, `PanelBrowser`, `PanelBrowserTest`, `ScreenServer`, `ScreenServerKillsWhatItsTestStartedTest`, `RawHttp`, `TabPaths`, `ControlPanelServerTest`, `ControlPanelServerTabTest`, `TheControlPanelsTabTest`, `TheControlPanelOpensItsTabOnceAcrossStartsTest`, `TheControlPanelOpensAWindowOfItsOwnTest`, `SystemBrowserOpenerTest`, `EveryPageHoldsOnlyTheControlPanelsScriptTest` and `pipeline.TheControlPanelOpensTheBrowserAsTheJarOpensItsPageTest`. Where one held a rule §4 keeps, a window test holds it in the change that removes it, and the pull request names which. The tests of the classes §4 lists stand.
+**The tests of the server, the pages and the second jar go, and the change that builds the window deletes them**, with the classes they read; they stand until then, since the classes they read still stand:
+
+- every `*ScreenTest`, and the helpers they share: `PanelBrowser`, `PanelBrowserTest`, `ScreenServer`, `ScreenServerKillsWhatItsTestStartedTest`, `RawHttp`, `TabPaths`, `JarForScreenTests`, `StopCostsShown`;
+- the server's and the start's: `ControlPanelServerTest`, `ControlPanelServerTabTest`, `ControlPanelStartTest`, `ControlPanelAsStarted`, `ControlPanelForTests`, `TheControlPanelsTabTest`, `TheControlPanelOpensItsTabOnceAcrossStartsTest`, `TheControlPanelOpensAWindowOfItsOwnTest`, `SystemBrowserOpenerTest`, `EveryPageHoldsOnlyTheControlPanelsScriptTest`;
+- the pages' readings of rules the window keeps, each held now by a test that reads the rule without a page: `TheChildEndsWithTheControlPanelTest` by `TheChildEndsWithTheControlPanelsJvmTest`, `TheReportLinksAreTheReadmesTableTest` by `TheWindowFollowsTheReadmesTableOfValuesTest`, `pipeline.TheControlPanelServesEveryReportTheJarWritesTest` by `pipeline.TheControlPanelListsEveryReportTheJarWritesTest`, `pipeline.TheControlPanelsStopCostsNameTheJarsStepsTest` by `pipeline.TheStopCostsNameTheJarsStepsTest`;
+- `pipeline.TheControlPanelOpensTheBrowserAsTheJarOpensItsPageTest`; and of `pipeline.TheControlPanelsChildIT` its two methods on the control-panel jar, which is not built, its refusal of a jar not beside it being now `ChildRuntimeTest`'s. Its first method, the jar started as the window starts its child printing UTF-8 on the merged stream, reads no control-panel jar and stands, the child of ADR-278 §1 and §3 being the window's as it was the pages'.
+
+The rules §4 keeps that only a page's test held are held now without a page: ADR-307 by `TheChildEndsWithTheControlPanelsJvmTest`, ADR-302 §7 by `pipeline.TheStopCostsNameTheJarsStepsTest` and the window test's rows, the report list and each key's reports and hint by `pipeline.TheControlPanelListsEveryReportTheJarWritesTest` and `TheWindowFollowsTheReadmesTableOfValuesTest`, ADR-331 §6 by `FolderStatusTest`, ADR-331 §8 by `TheLaunchFieldsSayWhatTheyHoldTest`, ADR-334 §5 by `CodeSetFolderChecksTest`, §6 by `NotRelevantFoldersTest` and §11 by `StartingValuesTest`. The tests of the classes §4 lists stand.
 
 ### 7. Run ids
 
@@ -200,14 +213,31 @@ No file under `src/main/java/io/algernon/vespera` changes for this record, so no
 | `controlpanel.TheControlPanelLinksNoClassOfTheJarTest.noClassOfTheJarNamesJavaFx` | no compiled class of `io.algernon.vespera` names a `javafx.` type, so a command never loads it (§1) |
 | `controlpanel.HeadlessToolkitTest.theToolkitRunsOnTheHeadlessPlatformWithNoDisplay` | the toolkit started by the tests runs JavaFX's Headless platform (§6) |
 | `controlpanel.HeadlessToolkitTest.aStageIsShownAButtonFoundByItsIdPressedAndTheSceneDrawn` | a stage shown, a button found by id and fired, its effect read, a snapshot the scene's size (§6) |
-| `PackagedJarIT.theJarCarriesTheControlPanelAndJavaFxAndStartsAtTheEntryPoint` | the Spring Boot jar holds the control panel's classes and `EntryPoint`, the three OpenJFX 26.0.2 jars of one classifier, `Start-Class` `io.algernon.EntryPoint`, `Main-Class` Spring Boot's launcher and `Enable-Native-Access: ALL-UNNAMED` (§1, §2) |
+| `PackagedJarIT.theJarCarriesTheControlPanelAndJavaFxAndStartsAtTheEntryPoint` | the Spring Boot jar holds the control panel's classes and `EntryPoint`, the three OpenJFX 26.0.2 jars of the classifier `os.name` and `os.arch` give the platform that built it, `Start-Class` `io.algernon.EntryPoint`, `Main-Class` Spring Boot's launcher and `Enable-Native-Access: ALL-UNNAMED` (§1, §2) |
 | `PackagedJarIT.noControlPanelJarIsBuiltBesideIt` | no `-control-panel.jar` in `target` (§5) |
+| `CliExitIT.aJarThatCannotOpenTheWindowAnswersAsItsCommandLine` | the packaged jar, started in a JVM of its own with no argument and a glass platform JavaFX does not have: §2's line, the commands' usage and picocli's usage code (§2) |
+| `controlpanel.ChildRuntimeTest.theJarIsTheOneTheClassPathNames` | the class path's one file, absolute, renamed or not (§2) |
+| `controlpanel.ChildRuntimeTest.aClassPathThatNamesNoJarIsRefusedWithOneLine` | a folder, a file not there and two entries: §2's refusal, naming the class path whole (§2) |
+| `controlpanel.ChildRuntimeTest.neitherPathNorJavaHomePicksTheChildsJava` | `ControlPanel` holds `java.home`, `os.name` and `java.class.path`; no class holds `JAVA_HOME` or `PATH`; `ChildRuntime` and `ChildCommand` read no environment (§2) |
+| `controlpanel.TheChildEndsWithTheControlPanelsJvmTest.endingTheControlPanelsJvmInAnOrderlyWayEndsTheChildItStarted` | a state in a JVM of its own, the hook registered and a child started: `SIGTERM` to the JVM ends the child too; off Windows (§4, ADR-307 §1) |
+| `controlpanel.TheChildEndsWithTheControlPanelsJvmTest.noChildIsStartedOnceTheControlPanelIsEnding` | after `endWithTheControlPanel`, Run is refused with ADR-307 §1's line (§4) |
+| `controlpanel.FolderStatusTest.aFolderFieldSaysHowItsFolderStands` | not chosen, found with free space, will be created, no such folder (§4, ADR-331 §6) |
+| `controlpanel.TheLaunchFieldsSayWhatTheyHoldTest.eachLaunchFieldHasItsExampleAndHint` | each launch value's example and hint, ADR-331 §8's table's (§4) |
+| `controlpanel.TheWindowFollowsTheReadmesTableOfValuesTest.eachKeysHintIsItsRowsWords` | each key's hint is its README row's (§4, ADR-331 §8) |
+| `controlpanel.TheWindowFollowsTheReadmesTableOfValuesTest.eachKeysReportsAreTheReportsItsRowNames` | each key's reports are its README row's, in order (§4, ADR-306 §3) |
+| `pipeline.TheControlPanelListsEveryReportTheJarWritesTest.everyReportTheJarWritesIsListedByTheControlPanel` | `Reports.ALL` is the jar's report file names, each once (§4, ADR-306 §2) |
+| `pipeline.TheStopCostsNameTheJarsStepsTest.theStopCostsNameEachStepOfTheJobInTheOrderItRunsThem` | `StopCosts.ROWS` names the job's steps in order, each with words (§4, ADR-302 §7) |
+| `controlpanel.NotRelevantFoldersTest.theListWrittenIsReadBackAsItWas` | the list written whole, read back equal (§4, ADR-334 §6) |
+| `controlpanel.NotRelevantFoldersTest.aFolderIsWrittenAsAnOccurrencesPathSpellsOne` | which folders may be written (§4, ADR-334 §6) |
+| `controlpanel.NotRelevantFoldersTest.aQuestionLiesBelowAFolderByWholeElements` | a question below a folder by whole elements, another form refused (§4, ADR-334 §6) |
+| `controlpanel.CodeSetFolderChecksTest.aFolderIsAddedOnlyWhereItIsThereAndApartFromTheOthers` | a folder outside the corpus root added only where whole, there and apart (§4, ADR-334 §5) |
+| `controlpanel.CodeSetFolderChecksTest.theFoldersStatedAreReadInTheirOrder` | `codeSetFolders` read in order on the path separator (§4, ADR-334 §5) |
 
-The packaged jar's three tests of the second jar and its manifest are replaced by the last two rows, and ADR-285's and ADR-288's Tests sections name those. `ChildRuntimeTest` reads the class path for the jar (§2), in the change that builds it.
+The packaged jar's three tests of the second jar and its manifest are replaced by its two rows above, and ADR-285's and ADR-288's Tests sections name those; ADR-288's name `ChildRuntimeTest`'s methods as they now are. `NotRelevantFoldersTest` and `CodeSetFolderChecksTest` read classes that stand, and pass now.
 
 ## What the implementation owes
 
-Beside the tests above, which it turns green, the change that builds the window holds by tests of its own that a window that cannot open answers with §2's line and the commands' usage, and changes the `headless` and `gui` profiles of the pom as §2 has them. It changes the README's lines on building and running in one command, headless, and its section on starting the control panel: the window opened by the jar with no argument or by the `gui` profile, and `--headless`, or the `headless` profile, the way to run the jar without it.
+Beside the tests above, which it turns green, the change that builds the window changes the `headless` and `gui` profiles of the pom as §2 has them, the `gui` profile keeping its name, and deletes the tests §6 lists. It changes the README's lines on building and running in one command, headless, and its section on starting the control panel: the window opened by the jar with no argument or by the `gui` profile, and `--headless`, or the `headless` profile, the way to run the jar without it.
 
 ## What this does not decide
 

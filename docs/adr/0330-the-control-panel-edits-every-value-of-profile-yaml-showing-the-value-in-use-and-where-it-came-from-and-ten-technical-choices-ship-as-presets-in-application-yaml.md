@@ -6,7 +6,7 @@
 
 > **Partly amended — see [ADR-340](0340-the-note-saved-with-a-profile-value-is-filled-in-for-the-operator-set-in-the-control-panel-or-the-provenance-already-saved-and-a-value-changed-under-its-old-note-is-saved-with-the-filled-in-one.md).** Of §5: its second rule, refusing a value changed under the provenance the file states, goes; such a value is saved with the note `set in the control panel`. The rest of this record stands.
 
-> **Partly amended — see [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §1: the control panel reads the jar's `application.yaml`, the environment and `.env` for its starting values; `effective-values.properties` stays what lies beneath the profile. The rest of this record stands.
+> **Partly amended — see [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §1: the control panel reads the jar's `application.yaml`, the environment and `.env` for its starting values; `effective-values.properties` stays what lies beneath the profile. Of §8's "Control panel" column and of §12: `vespera.sidecars.start`, `vespera.sidecars.wait-at-most` and `vespera.progress-interval` are set in the window now, as presets passed as options of the command line, and kept nowhere, not as launch values passed in the environment. The rest of this record stands.
 
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
@@ -448,7 +448,6 @@ These hold the record through what it builds. Each is `@Disabled` until then, it
 | `controlpanel.ProfileEditorScreenTest.anAbsentFileAndAStaleFileAreSaidForWhatTheyAre` | A | no file: a key with a default is `not-known`, another `unset`; a fresh file; one older than the jar marked `stale`, its value kept (§1, §2) |
 | `controlpanel.ProfileEditorScreenTest.theFieldsHoldTheFilesOwnWordsAndADefaultStaysOutOfThem` | A | a field holds what the file states; a default stays out of it, the placeholder the example (§2) |
 | `controlpanel.ProfileEditorScreenTest.theNextActsFieldsHoldTheFilesOwnWordsAndTheArrangementToApproveWins` | A | on `/next`: the arrangement filled, the provenance the file's (§2) |
-| `controlpanel.ProfileEditorScreenTest.theArrangementToApproveUnderAnEarlierOnesProvenanceIsRefused` | A | saved so: the refusal in `outcome`, and nothing written (§5) |
 | `controlpanel.ProfileEditorScreenTest.aStatedValueATypedControlCouldNotHoldStaysInAControlThatHoldsIt` | A | a decimal comma in a text control, a language outside the choices kept, both `unreadable` or selected, and a save leaving the file (§2, §3) |
 | `controlpanel.ProfileEditorScreenTest.theSamePiecesHoweverSeparatedAreNoChange` | A | a list with a comma posted with a space writes nothing; a piece added is written (§3, §5) |
 | `controlpanel.ProfileEditorScreenTest.withNoLaunchAddressOllamaIsAskedWhereTheJarLastAskedIt` | A | `/` asks at the address of the file, and `/profile` offers what it was told (§3) |
@@ -456,7 +455,7 @@ These hold the record through what it builds. Each is `@Disabled` until then, it
 | `controlpanel.ProfileEditorScreenTest.theMeasurementPointerIsShown` | A | its source and time; none for a null one (§4) |
 | `controlpanel.ProfileEditorScreenTest.theCostSaysWhichValuesDrawTheSampleAgain` | A | `data-sample-drawn-again` of each key, by name (§9) |
 | `controlpanel.ProfileEditorScreenTest.aValueLeftAloneIsNotWritten` | A | no lock and the same bytes; a value changed: every other byte kept (§5) |
-| `controlpanel.ProfileEditorScreenTest.aValueChangedUnderTheSameProvenanceIsRefused` | A | a value under the old provenance, and one with none, what was typed shown again until it is written, and let go where typed back (§5) |
+| `controlpanel.TheNoteSavedWithAValueTest.aValueChangedUnderTheProvenanceTheFileStatesIsNotRefused` ([#700](https://github.com/algernon28/vespera/issues/700)) | in place of §5's second rule, which ADR-340 removes: a value changed under the provenance the file states is saved, not refused (§5) |
 | `controlpanel.ProfileEditorScreenTest.aValueTheFileChangedSinceThePageWasDrawnIsNotWrittenOver` | A | left alone it is kept, a save over it refused (§5) |
 | `controlpanel.ProfileEditorScreenTest.aProvenanceOverTwoLinesLeftAloneIsNoChange` | A | the file's two lines, posted as a text control sends them, write nothing (§5) |
 | `controlpanel.ProfileEditorScreenTest.aSeedFolderLeftAloneKeepsTheSpaceBeforeItsName` | A | a name with a space before it stands in the field and is no change (§2, §5) |

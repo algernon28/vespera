@@ -86,8 +86,6 @@ class ProfileEditorScreenTest {
     /** The arrangement an invocation arrived at, which the next act's form offers. */
     private static final String AN_ARRANGEMENT = "0123456789ab";
 
-    /** The words a key is refused with where its value moved and its provenance did not, as the record gives them. */
-    private static final String THE_OLD_REASON = "its value changed and its provenance did not";
 
     /** The words a key is refused with where the file moved since the page was drawn, as the record gives them. */
     private static final String THE_FILE_MOVED = "profile.yaml has changed this value since the page was drawn";
@@ -307,23 +305,6 @@ class ProfileEditorScreenTest {
         }
     }
 
-    @Test
-    @Story("The operator edits what the file states")
-    @DisplayName("Saving the arrangement to approve under the provenance of an earlier one is refused, and writes nothing")
-    void theArrangementToApproveUnderAnEarlierOnesProvenanceIsRefused() throws IOException, InterruptedException {
-        Path work = aWorkingDirectoryWantingAnArrangementApprovedOnMonday();
-        try (ScreenServer screens = start(work)) {
-            PanelBrowser browser = screens.afterARunHasEnded().go("/next");
-            String before = profileText(work);
-            Page landed = browser.press("next", "save", Map.of()).page();
-
-            claim("the outcome says why it was not saved, the provenance speaking of another value",
-                    () -> assertThat(byId(landed, "outcome").text()).contains(THE_OLD_REASON));
-            claim("and nothing is written",
-                    () -> assertThat(profileText(work)).isEqualTo(before));
-        }
-    }
-
     private Path aWorkingDirectoryWantingAnArrangementApprovedOnMonday() throws IOException {
         Path work = workingDirectory();
         Files.writeString(work.resolve(NextInvocation.FILE_NAME), """
@@ -534,37 +515,6 @@ class ProfileEditorScreenTest {
                     () -> assertThat(profileText(work)).isEqualTo(TWO_KEYS
                             .replace("value: \"2\"", "value: \"3\"")
                             .replace("a second attempt", "a third attempt")));
-        }
-    }
-
-    @Test
-    @Story("The operator saves a value")
-    @DisplayName("A value changed under the provenance of the old one is refused and shown again as typed, and so is one with no provenance at all")
-    void aValueChangedUnderTheSameProvenanceIsRefused() throws IOException {
-        Path work = workingDirectory();
-        theProfileIs(work, TWO_KEYS);
-        try (ScreenServer screens = start(work)) {
-            PanelBrowser browser = screens.browser().go("/profile");
-            Page kept = browser.press("profile", "save", Map.of("relevanceScoreFloor", "0.5")).page();
-
-            claim("the floor's old provenance says nothing of the new value, and the outcome says why it was not saved",
-                    () -> assertThat(byId(kept, "outcome").text()).contains(THE_OLD_REASON));
-            claim("nothing is written",
-                    () -> assertThat(profileText(work)).isEqualTo(TWO_KEYS));
-            claim("what was typed stands in the field, so nothing typed is lost",
-                    () -> assertThat(valueOf(kept, "relevanceScoreFloor").val()).isEqualTo("0.5"));
-            claim("and on the next page too, until it is written",
-                    () -> assertThat(valueOf(browser.go("/profile").page(), "relevanceScoreFloor").val()).isEqualTo("0.5"));
-            Page letGo = browser.press("profile", "save", Map.of("relevanceScoreFloor", "0.4")).page();
-            claim("typed back to what the file states, nothing is written and the field holds it",
-                    () -> assertThat(List.of(profileText(work), valueOf(letGo, "relevanceScoreFloor").val()))
-                            .containsExactly(TWO_KEYS, "0.4"));
-
-            Page none = browser.go("/profile").press("profile", "save", Map.of("clusterPageByteCeiling", "1000000")).page();
-            claim("a value the file does not hold, given with no provenance, says it was not saved",
-                    () -> assertThat(byId(none, "outcome").text()).contains("clusterPageByteCeiling is not saved"));
-            claim("and is not written either",
-                    () -> assertThat(profileText(work)).isEqualTo(TWO_KEYS));
         }
     }
 

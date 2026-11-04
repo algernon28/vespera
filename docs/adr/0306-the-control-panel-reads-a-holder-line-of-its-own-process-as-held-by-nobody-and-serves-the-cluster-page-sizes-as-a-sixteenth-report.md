@@ -1,5 +1,7 @@
 # ADR-306 — The control panel reads a holder line of its own process as held by nobody, and serves the cluster pages' sizes as a sixteenth report
 
+> **Partly amended — see [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §2: the sixteenth report is listed in the window's Reports section and opened in the default browser, not served. Of §3: the Profile tab lists each key's reports beside it, `Reports.OF_A_KEY`. §1 stands.
+
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
 - **Settles**: two rulings of the operator's on [#629](https://github.com/algernon28/vespera/issues/629), the build of ADR-302's screens: a holder line of `vespera.lock` naming the control panel's own process is held by nobody on its pages and in its start checks; and `cluster-page-sizes.html` is served as the sixteenth report and linked for `clusterPageByteCeiling`. §3, where the key's link stands, is the reading the records leave.

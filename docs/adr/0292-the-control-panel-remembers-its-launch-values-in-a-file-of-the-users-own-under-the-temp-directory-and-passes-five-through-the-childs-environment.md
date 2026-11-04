@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-295](0295-the-control-panel-writes-profile-values-label-answers-and-code-set-names-holding-the-working-directory-lock-one-operator-action-at-a-time.md).** Of What this does not decide: writing the confirmed seed folder into `profile.yaml` is decided there.
 
+> **Partly amended — see [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §2: the file keeps, as an invocation starts, only a value that came from it or that the operator changed in the window, never one left as the environment, `.env`, the GPU preselection or `application.yaml` started it. Of §4: a launch value is passed only where it is set and the child would read another without it. Of §5: a field the file does not name starts from the environment, `.env` or `application.yaml`, and empty only where none names it. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-047](0047-the-pipeline-never-blocks.md), two commands and no new option: the values beyond the corpus root and the working directory reach the child through its environment, not its command line (§4).

@@ -55,8 +55,11 @@ class TheProfileIsOneFormScreenTest {
               measurement: null
             """;
 
-    /** The words a key is refused with where its value moved and its provenance did not, as ADR-330 §5 gives them. */
-    private static final String THE_OLD_REASON = "its value changed and its provenance did not";
+    /** A floor written with a decimal comma, which every write refuses as no number (ADR-295 §4). */
+    private static final String A_DECIMAL_COMMA = "0,5";
+
+    /** The words a value with a decimal comma is refused with, as ADR-295 §4 gives them. */
+    private static final String NOT_A_NUMBER = "\"" + A_DECIMAL_COMMA + "\" is not a number";
 
     @TempDir
     Path folder;
@@ -143,19 +146,19 @@ class TheProfileIsOneFormScreenTest {
         try (ScreenServer screens = start(work)) {
             PanelBrowser browser = screens.browser().go("/profile");
             Page refused = browser.press(FORM, "save", Map.of(
-                    "relevanceScoreFloor", "0.5",
+                    "relevanceScoreFloor", A_DECIMAL_COMMA, "relevanceScoreFloor.provenance", "read off the second sample",
                     "extractionAttempt", "3", "extractionAttempt.provenance", "a third attempt")).page();
 
-            claim("the floor, changed under its old provenance, is named as not saved, with the reason",
+            claim("the floor, written with a decimal comma, is named as not saved, with the reason",
                     () -> assertThat(byId(refused, "outcome").text())
-                            .contains("relevanceScoreFloor is not saved", THE_OLD_REASON));
+                            .contains("relevanceScoreFloor is not saved", NOT_A_NUMBER));
             claim("the attempt, though it could have been written, is not: the file is as it was",
                     () -> assertThat(profileText(work)).isEqualTo(TWO_KEYS));
             claim("and both values typed stand in the form, so nothing typed is lost",
                     () -> assertThat(List.of(control(refused, "relevanceScoreFloor").val(),
                                     control(refused, "extractionAttempt").val(),
                                     control(refused, "extractionAttempt.provenance").val()))
-                            .containsExactly("0.5", "3", "a third attempt"));
+                            .containsExactly(A_DECIMAL_COMMA, "3", "a third attempt"));
         }
     }
 
@@ -167,7 +170,7 @@ class TheProfileIsOneFormScreenTest {
         theProfileIs(work, TWO_KEYS);
         try (ScreenServer screens = start(work)) {
             PanelBrowser browser = screens.browser().go("/profile");
-            browser.press(FORM, "save", Map.of("relevanceScoreFloor", "0.5", "extractionAttempt", "3"));
+            browser.press(FORM, "save", Map.of("relevanceScoreFloor", A_DECIMAL_COMMA, "extractionAttempt", "3"));
 
             Page reset = browser.press(FORM, "reset", Map.of()).page();
 

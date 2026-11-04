@@ -8,8 +8,10 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -48,6 +50,16 @@ class CliExitIT {
     @TempDir
     static Path workingDirectory;
 
+    /** The file a launch's merged output is written to, in the working directory. */
+    private static final String OUTPUT = "cli-exit-message.log";
+
+    /** A glass platform JavaFX does not have, so that its toolkit fails as it starts, as with no display. */
+    private static final String NO_SUCH_PLATFORM = "-Dglass.platform=NoSuchPlatform";
+
+    /** What the line says before the toolkit's reason, as ADR-339 §2 gives it. */
+    private static final String NO_WINDOW =
+            "the control panel cannot open a window here, so the jar answers as its command line: ";
+
     /** What a launch returned: whether it exited within the bound, and its code. */
     private record Launched(boolean finished, int exitCode) {
     }
@@ -79,20 +91,53 @@ class CliExitIT {
                 () -> assertThat(launched.exitCode()).isZero());
     }
 
+    /**
+     * The jar started with no argument where the window cannot open answers as its command line (ADR-339 §2): one line
+     * saying why, then the commands' usage, and picocli's usage code. A platform JavaFX does not have makes the
+     * toolkit fail as it starts, as a machine with no display does: measured, {@code Platform.startup} throws within
+     * a fraction of a second and the JVM goes on. It runs in a JVM of its own, since a JavaFX toolkit starts once.
+     */
+    @Test
+    @Issue("700")
+    @Link(name = "ADR-339", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+    @Story("A start with no window answers as the command line")
+    @DisplayName("Started with no argument where no window can open, the jar says why in one line and prints the commands' usage")
+    void aJarThatCannotOpenTheWindowAnswersAsItsCommandLine() throws Exception {
+        Launched launched = launchWith(List.of(NO_SUCH_PLATFORM));
+        String output = Files.readString(workingDirectory.resolve(OUTPUT), StandardCharsets.UTF_8)
+                .replaceAll("\u001B\\[[0-9;]*m", "");
+
+        claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds rather than waiting on a window",
+                () -> assertThat(launched.finished()).isTrue());
+        claim("it says in one line that the window cannot open, and that the jar answers as its command line instead",
+                () -> assertThat(output).contains(NO_WINDOW));
+        claim("then prints the commands' usage, as a start of the command line with no argument does",
+                () -> assertThat(output).contains("Usage: vespera"));
+        claim("and exits with picocli's usage code, as that start does",
+                () -> assertThat(launched.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
+    }
+
     /** Launches the packaged jar with the given arguments and waits up to the bound for it to end. */
     private static Launched launch(String... args) throws Exception {
+        return launchWith(List.of(), args);
+    }
+
+    /** Launches the packaged jar with the JVM options and arguments given, its output in {@link #OUTPUT}. */
+    private static Launched launchWith(List<String> jvmOptions, String... args) throws Exception {
         ProcessBuilder builder = new ProcessBuilder(
-                        Stream.concat(
+                        Stream.of(
                                         Stream.of(
                                                 javaExecutable(),
                                                 "-Dspring.docker.compose.enabled=false",
                                                 "-Dvespera.sidecars.start=false",
-                                                "-Dvespera.working-dir=" + workingDirectory,
-                                                "-jar", EXECUTABLE_JAR.toString()),
+                                                "-Dvespera.working-dir=" + workingDirectory),
+                                        jvmOptions.stream(),
+                                        Stream.of("-jar", EXECUTABLE_JAR.toString()),
                                         Stream.of(args))
+                                .flatMap(each -> each)
                                 .toList())
                 .redirectErrorStream(true)
-                .redirectOutput(workingDirectory.resolve("cli-exit-message.log").toFile());
+                .redirectOutput(workingDirectory.resolve(OUTPUT).toFile());
         // The jar opens no browser on the machine running the tests (ADR-266 section 2).
         builder.environment().put("CI", "true");
         Process process = builder.start();

@@ -2,12 +2,15 @@
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.
-- **Decided**: by the operator, the layout, variant B of [#700](https://github.com/algernon28/vespera/issues/700), as §1 sets it down; that the window shows the progress page's three charts and the steps as a chart of a bar each beside the live output (§1, §2); that its starting values come from the real configuration, the environment, `.env`, `application.yaml` and the working directory's files (§3); and that the options of `run`, `label`, `label --auto` and `publish` are set in the window, with the command lines they make shown (§4). By Claude for the operator: the ids, the file the jar writes for the charts and the steps, the order the starting values are taken in, which options are offered and which are not, how a report is opened, closing the window while a child runs, and the tests.
+- **Decided**: by the operator, the layout, variant B of [#700](https://github.com/algernon28/vespera/issues/700), as §1 sets it down; that the window shows the progress page's three charts and the steps as a chart of a bar each beside the live output (§1, §2); that its starting values come from the real configuration, the environment, `.env`, `application.yaml` and the working directory's files (§3); and that the options of `run`, `label`, `label --auto` and `publish` are set in the window, with the command lines they make shown (§4). Claude recommended, and the operator accepted as written: the ids, the file the jar writes for the charts and the steps, the order the starting values are taken in and what of them is passed and kept, which presets are offered and which are not, how a report is opened, closing the window while a child runs, and the tests.
+- **Amends**: [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md) §2, whose file is written with every value an invocation started with: it keeps only a value that came from it or that the operator changed in the window (§3); §4, whose launch value not empty is passed: one is passed only where the child would read another without it (§3); and §5, whose missing file starts every field empty: each field starts from §3's sources. It carries a note at its head.
+- **Amends**: [ADR-334](0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md) §2, whose services' fields stand empty where no launch value names one: each starts from §3's sources, and passes nothing where it holds what the child reads anyway (§3); its *in use* stays beside a field no source names. It carries a note at its head.
+- **Amends**: [ADR-306](0306-the-control-panel-reads-a-holder-line-of-its-own-process-as-held-by-nobody-and-serves-the-cluster-page-sizes-as-a-sixteenth-report.md) §2, whose sixteenth report is served at `/report/`: it is listed in the Reports section and opened in the default browser; and §3, whose `/profile` links each key's reports: the Profile tab lists them beside each key (§6). It carries a note at its head.
 - **Amends**: [ADR-278](0278-the-control-panel-starts-the-jar-as-its-child-reads-its-output-to-the-end-and-stops-only-its-own-child.md) §1, whose command lines gain the options §4 passes. It carries a note at its head.
-- **Amends**: [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md) §1, whose control panel reads no configuration of the jar's: it reads the jar's own `application.yaml` and the environment for the values of §3, and `effective-values.properties` stays what lies beneath the profile. It carries a note at its head.
+- **Amends**: [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md) §1, whose control panel reads no configuration of the jar's: it reads the jar's own `application.yaml` and the environment for the values of §3, and `effective-values.properties` stays what lies beneath the profile; §8's "Control panel" column, whose `vespera.sidecars.start`, `vespera.sidecars.wait-at-most` and `vespera.progress-interval` are "Later, as a launch value": they are set now, as presets passed as options of the command line, and not as launch values (§4); and §12, whose one edit of a preset that enters no run is a launch value passed in the child's environment: §4's five are passed on the command line and kept nowhere. It carries a note at its head.
 - **Amends**: [ADR-336](0336-the-launch-page-starts-label-auto-beside-label-and-every-argument-of-the-commands-the-control-panel-starts-is-set-by-a-control-of-the-launch-page-or-listed-as-never-passed-with-why.md) §1, whose button is named `Let the local model answer`; §2, whose `control` names a control of the window by its id, `label <file>` set by `label-file`, and whose What the table does not cover is §4's options; and §3, whose `label <file>` is offered. It carries a note at its head.
 - **Amends**: [ADR-302](0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md) §7, whose table names no running step: the window knows it from §2's file and shows the running step's cost beside its own Stop. It carries a note at its head, beside [ADR-339](0339-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md)'s.
-- **Keeps**: [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md)'s refusal of a launch value for a preset that enters a run's identity: no option §4 offers enters one. [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md): seven launch values, passed as before; §4's options are not launch values and are not remembered. [ADR-265](0265-vespera-run-rewrites-a-progress-page-in-the-working-directory-while-it-runs.md) to [ADR-268](0268-the-progress-page-shows-what-the-stage-that-removes-occurrences-has-removed-and-draws-to-the-data-viz-method.md) and [ADR-322](0322-the-progress-pages-three-line-charts-stand-in-one-row-that-wraps-each-drawn-600-units-wide-and-legible-down-to-500-px.md): the progress page and the rules that pick each chart's series stay the jar's (§2).
+- **Keeps**: [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md)'s refusal of a launch value for a preset that enters a run's identity: no option §4 offers enters one. ADR-292 §1, §3 and §6: seven launch values and the last seed folder, in a file of the user's own; §4's presets are not launch values and are not remembered. [ADR-265](0265-vespera-run-rewrites-a-progress-page-in-the-working-directory-while-it-runs.md) to [ADR-268](0268-the-progress-page-shows-what-the-stage-that-removes-occurrences-has-removed-and-draws-to-the-data-viz-method.md) and [ADR-322](0322-the-progress-pages-three-line-charts-stand-in-one-row-that-wraps-each-drawn-600-units-wide-and-legible-down-to-500-px.md): the progress page and the rules that pick each chart's series stay the jar's (§2).
 - **Keeps**: [ADR-334](0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md) §6: the Inclusions tab writes `not-relevant-folders.yaml` as `/labels` wrote it.
 - **Read with**: ADR-339, the window and its tests' harness; [ADR-340](0340-the-note-saved-with-a-profile-value-is-filled-in-for-the-operator-set-in-the-control-panel-or-the-provenance-already-saved-and-a-value-changed-under-its-old-note-is-saved-with-the-filled-in-one.md), the note beside each value.
 - **Settles**: [#700](https://github.com/algernon28/vespera/issues/700), with ADR-339 and ADR-340.
@@ -24,7 +27,7 @@ ADR-339 makes the control panel one JavaFX window inside the jar and keeps every
 
 ### 1. The layout
 
-One window, opening at 1500 by 960, its root drawn by `ControlPanelWindow.drawn(ControlPanelState)`, a class of the control panel that extends `Application` and that `ControlPanel.main` launches (ADR-339 §2). Its parts are found by these ids:
+One window, opening at 1500 by 960, its root drawn by `ControlPanelWindow.drawn(ControlPanelState)`, the one class of the control panel that extends `Application`, which `ControlPanel.open()` launches (ADR-339 §2). Its parts are found by these ids:
 
 | Part | Id | What it holds |
 | --- | --- | --- |
@@ -34,16 +37,16 @@ One window, opening at 1500 by 960, its root drawn by `ControlPanelWindow.drawn(
 | | `publish` | Publish, in the same row, where a Confluence rendering is drawn (ADR-308 §6) |
 | | `wanted` | each value the next invocation wants (ADR-294), edited in place with its note (ADR-340), its reports and its Save |
 | | `label`, `label-auto` | **Record my answers**, which starts `label`, and **Let the local model answer**, which starts `label --auto`, each with one sentence beside it saying what it does |
-| The run | `steps` | a chart of the job's sixteen steps in order, a row each: its stage, its name, a bar of how far it has got, its state; on the running step's row its own Stop, `stop-step`, with what a stop there costs (ADR-302 §7) |
+| The run | `steps` | a chart of the job's steps in the order `StopCosts.ROWS` names them, a row each, `step-<name>`: its stage, its name, one bar of how far it has got, its state; on the running step's row its own Stop, `stop-step`, with what a stop there costs (ADR-302 §7) |
 | | `output` | the child's output, the last 200 lines (ADR-285 §5), newest last and in view |
 | The charts | `database-chart`, `counts-chart`, `verdicts-chart` | the progress page's three charts, drawn from §2's file |
 | The tabs | `profile`, `inclusions` | **Profile** and **Inclusions** |
-| The sidebar | `preflight`, `folders`, `services`, `seed-folder`, `code-sets`, `command-options`, `reports` | seven sections in this order |
+| The sidebar | `preflight`, `folders`, `services`, `seed-folder`, `code-sets`, `command-options`, `reports` | seven sections in this order, the panes of one accordion |
 
 `steps` and `output` stand side by side, in one split the operator can move; the charts beneath them; the tabs beneath the charts; the sidebar to the left of all.
 
 - **Preflight**: the corpus root and the working directory found or not, the sidecars' last answers (ADR-302 §5), the two locks' holders (ADR-278 §4), free space (ADR-302 §6).
-- **Folders**: the corpus root, the working directory and the output folder (ADR-334 §1), by their launch values' properties as ids, `vespera.corpus-root`, `vespera.working-dir`, `vespera.deliverable-root`, each with a Browse that opens the system's folder dialog, its status (ADR-331 §6), and the line *Starting value from `<source>`* (§3).
+- **Folders**: the corpus root, the working directory and the deliverable root (ADR-334 §1), by their launch values' properties as ids, `vespera.corpus-root`, `vespera.working-dir`, `vespera.deliverable-root`, each with a Browse that opens the system's folder dialog, its status (ADR-331 §6), and the line *Starting value from `<source>`* (§3).
 - **Services**: the converter's image, offered as **GPU** or **CPU** in words with each image's name in small type, an image neither names offered as a third (ADR-334 §11); the converter's address, Ollama's address and the label model, by their properties as ids, each with its starting value's source.
 - **Seed folder**: `seedFolder`, a profile value, with its note (ADR-340) and its Save.
 - **Code sets**: one list of folders, built with Browse and `+`. A folder under the corpus root gets an optional name for the deliverable (`code-set-names.yaml`, ADR-295 §7); one outside it is added to `codeSetFolders` (ADR-334 §5).
@@ -63,48 +66,94 @@ One window, opening at 1500 by 960, its root drawn by `ControlPanelWindow.drawn(
 **At each write of the progress page, `ProgressPage` writes `progress.json` beside it**, in the working directory, whole, to a temporary file moved over it, as it writes each of its pages. It holds, in JSON:
 
 - `ended`: whether the invocation has ended, as the page's last write says;
-- `steps`: each step of the job, in order, with its `name`, its `state` as the page shows it, and `done` and `total` where its progress line carries a counter, `null` otherwise;
+- `steps`: each step of the job, in order, with its `name`, its `state` in the words the page's timeline marks it with, `finished`, `failed` or `not started` among them, and `done` and `total` where its progress line carries a counter, `null` otherwise;
 - `charts`: for each of the three charts the page draws now, its `id`, `database`, `counts` or `verdicts`, its `title` and its value axis's `axis` title as the page writes them, the `seconds` of its samples, and its `lines`, each a `name` and its `values`, in the unit the axis names.
 
 The series are what the page draws, picked by the page's own rules; the window draws them and decides none. It names no path, no title and no text of a document, as the page names none. `vespera label`, which writes the page as it starts and as it ends, writes the file with it.
 
-**The window reads it** every `vespera.progress-interval` while its child runs, and once as it ends, with the control panel's own `JsonReader`. A step's bar is `done` over `total` where both are given, full once the step has completed, and moving without a fraction while it runs with no counter. Before any file is there, `steps` lists the sixteen steps of ADR-302 §7's table, each waiting, and the three charts are empty. A file that is not there, cannot be read or is not that JSON leaves the window as it was.
+**The window reads it** every `vespera.progress-interval` while its child runs, and once as it ends, through `ProgressFile`, a class of the control panel built on its own `JsonReader`:
+
+```java
+public static final String FILE_NAME = "progress.json";
+public record Progress(boolean ended, List<Step> steps, List<Chart> charts) {}
+public record Step(String name, String state, Long done, Long total) {}          // done, total null without a counter
+public record Chart(String id, String title, String axis, List<Long> seconds, List<Line> lines) {}
+public record Line(String name, List<Double> values) {}
+public static Progress read(String json);                                        // IllegalArgumentException where it is not that JSON
+```
+
+A step's bar is `done` over `total` where both are given, full once the step has completed, and moving without a fraction while it runs with no counter. Before any file is there, `steps` lists the steps of ADR-302 §7's table, `StopCosts.ROWS` (§8), each waiting, and the three charts are empty. A file that is not there, cannot be read or is not that JSON leaves the window as it was.
 
 A class added to `pipeline` for it is listed in `PipelineHoldsOnlyTheRulesOnRecordTest` as holding no rule; no stage's version names `pipeline` (ADR-222), so no run id moves.
 
 ### 3. The starting values
 
-**Each launch value and each option of §4 starts from the first of these that names it**, and the line beneath its field says which:
+**Each launch value and each preset of §4 starts from the first of these that names it, not blank**, and the line beneath its field says which:
 
-1. **the launch values file**, as last stored when an invocation started (ADR-292), for a launch value;
-2. **the window's environment**, by the property's relaxed name;
-3. **`.env` in the current directory the jar was started from**, read as `NAME=value` lines, a line starting `#` and a line with no `=` skipped, a value in matching quotes taken without them, never written;
-4. **the jar's own `application.yaml`**, read from the window's class path with Jackson's YAML reader, a value holding `${` not taken;
-5. nothing: the field starts empty, and ADR-334 §2's *in use* shows what the child would use.
+1. **the launch values file** (ADR-292), for a launch value;
+2. **the window's environment**, by the property's relaxed name: in capitals, each `.` and `-` an `_`;
+3. **`.env` in the current directory the jar was started from**, read as `NAME=value` lines, the white space around both taken off, a line starting `#` and a line with no `=` skipped, a value in matching single or double quotes taken without them, a value holding `=` kept whole; never written;
+4. **for `vespera.docling.image` alone, the GPU image**, `compose.gpu.yaml`'s, as ADR-334 §11 preselects it, so that it comes before the CPU image the shipped `application.yaml` names;
+5. **the jar's own `application.yaml`**, read from the window's class path with Jackson's YAML reader, each scalar by its dotted name, a value holding `${` not taken;
+6. nothing: the field starts empty, and ADR-334 §2's *in use* shows what the child would use.
 
-Where none names the working directory, it starts empty, as ADR-292 §5 has it. `ControlPanel.main` reads the five sources and hands the window's state what they say, each with its source; the window reads no environment and no file of configuration of its own, so a window a test draws starts from what the test gives it. The profile's values start from the working directory's `profile.yaml`, what lies beneath them from `effective-values.properties` (ADR-330 §1), the folders not relevant from `not-relevant-folders.yaml` and the code sets' names from `code-set-names.yaml`. Nothing of these is written but by a Save, under ADR-295's lock.
+Where none names the working directory, it starts empty, as ADR-292 §5 has it.
+
+**What is passed, and what is kept.** A field's value is **passed** to the child only where it is not blank and differs from what the child reads with nothing passed: the environment's, else `application.yaml`'s. So a value that started from the environment or `application.yaml` and is left as it started is not passed, and `application-local.yaml`, which the child reads above `application.yaml`, is not overridden by it; a value from `.env`, or the GPU image, which the child does not read, is passed, so that the child uses what the window shows, as ADR-334 §11 passes the GPU image. A launch value is **kept** in the launch values file, as an invocation starts, only where it came from that file or the operator changed it in the window: one left as the environment, `.env`, the GPU preselection or `application.yaml` started it is never stored, so no shipped default is frozen into the file, and the GPU image posted back names no image, as ADR-334 §11 has it.
+
+**The class.** `StartingValues`, of the control panel:
+
+```java
+public enum Source { LAUNCH_VALUE, ENVIRONMENT, DOT_ENV, GPU_PRESELECTION, APPLICATION_YAML, NONE }
+public record Starting(String value, Source source) {}
+public record Sources(Map<String, String> launchValues,      // by property, as the launch values file holds them
+                      Map<String, String> environment,       // by variable
+                      Map<String, String> dotEnv,            // by variable
+                      Map<String, String> applicationYaml) {} // by dotted property
+public static final String DOCLING_IMAGE_GPU;                 // compose.gpu.yaml's image, moved from ControlPanelPage
+public static Starting of(String property, Sources sources);
+public static String variableOf(String property);
+public static Map<String, String> readDotEnv(String text);
+public static Map<String, String> readApplicationYaml(String text);
+public static boolean passed(String property, String value, Sources sources);
+public static boolean remembered(String value, Starting starting);
+```
+
+`ControlPanel.open()` reads the four sources and hands the window's state what they say; the window reads no environment and no file of configuration of its own, so a window a test draws starts from what the test gives it. The profile's values start from the working directory's `profile.yaml`, what lies beneath them from `effective-values.properties` (ADR-330 §1), the folders not relevant from `not-relevant-folders.yaml` and the code sets' names from `code-set-names.yaml`. Nothing of these is written but by a Save, under ADR-295's lock.
 
 ### 4. The options of the commands, and the command lines they make
 
-**The Command options section offers, beside the launch values:**
+**The Command options section offers, beside the launch values, the label file and five presets, passed as options of the command line:**
 
 | Id | Passed to | As |
 | --- | --- | --- |
-| `label-file` | `label` | `label`'s `<file>`, absolute; never to `label --auto`, which refuses one (ADR-197 §6) |
-| `vespera.progress-interval` | `run`, `label` | `--vespera.progress-interval=<value>` |
+| `label-file` | `label` | `label`'s `<file>`, absolute, before `--db-dir`; never to `label --auto`, which refuses one (ADR-197 §6) |
+| `vespera.progress-interval` | `run`, `label`, `label --auto` | `--vespera.progress-interval=<value>` |
 | `vespera.sidecars.start` | `run`, `label --auto` | `--vespera.sidecars.start=<value>` |
 | `vespera.sidecars.wait-at-most` | `run`, `label --auto` | `--vespera.sidecars.wait-at-most=<value>` |
 | `vespera.models.pull` | `run` | `--vespera.models.pull=<value>` |
 | `vespera.models.pull-stalled-at-most` | `run` | `--vespera.models.pull-stalled-at-most=<value>` |
 
-Each starts from §3's value, with a control of its kind: a box for a flag, a number picker of seconds for a duration, a file dialog for the label file. **An option is passed only where its value differs from what the child would read without it**, the environment's, else `application.yaml`'s, after the command's own arguments, in the table's order. Options are not remembered: each start of the window begins from §3. **Back to the defaults** puts each back.
+Each preset starts from §3's value, with a control of its kind: a box for a flag, a number picker of seconds for a duration; the label file, empty, with a file dialog. **A preset is passed only where its value differs from what the child would read without it**, by §3's `passed`, after the command's own arguments, in the table's order. None is remembered: each start of the window begins from §3. **Back to the defaults** puts each back.
+
+**`ChildCommand`** holds the table and builds the line, its three factories unchanged:
+
+```java
+public record Option(String property, List<String> commands, String reason) {}   // commands among run, label, label --auto
+public static final List<Option> OPTIONS;                                        // the five, in the table's order
+public ChildCommand withOptions(Map<String, String> passed);   // --<property>=<value> for each the command is in OPTIONS for
+public ChildCommand withLabelFile(Path file);                   // label's <file>; label --auto, run and publish unchanged
+public String shown();                                          // vespera and the arguments after -jar <jar>
+```
+
+`withOptions` is given the presets §3's `passed` lets through and adds those the command is listed for; a property not in `OPTIONS` is not passed.
 
 **Not offered**, each for its reason, which `ChildCommand` records beside the table:
 
 - `vespera.open-browser`: the child runs with `CI=1` and opens no browser whatever it says (ADR-278 §1).
 - `vespera.relevance.sample.bands` and `vespera.relevance.sample.per-band`: each enters the scoring run's identity where it is not its default, and ADR-330 refuses a value of that kind passed from a file named for a machine.
 - `vespera.corpus-root-lock-folder`: the window reads the corpus-root lock in the folder `VESPERA_CORPUS_ROOT_LOCK_FOLDER` names (ADR-279), and a folder passed to the child alone would hide its lock from the window; a path on the command line also reaches a child on Windows through the ANSI code page (ADR-292).
-- The datasource's and Hikari's properties, and every preset of ADR-330 §8: the jar's own.
+- The datasource's and Hikari's properties, and every other preset of ADR-330 §8: the jar's own, shown where `effective-values.properties` names them and edited by no control.
 
 **The command lines are shown** in the section, one each, `command-line-run`, `command-line-label`, `command-line-label-auto` and `command-line-publish`, each `vespera` followed by exactly the arguments the child would be started with after `-jar <jar>`, an argument holding a space in double quotes, changing as a field or an option changes. What is shown is what is started: both are built by `ChildCommand`.
 
@@ -116,11 +165,26 @@ The two label commands are named **Record my answers** and **Let the local model
 
 ### 6. Reports
 
-The Reports section lists every report the README's table of values names, `progress` and `cluster-page-sizes` among them (ADR-306 §2), in that table's order, and each key's row on the Profile tab and in `wanted` lists that key's reports (ADR-306 §3). A report the working directory holds opens in the system's default browser, through JavaFX's `HostServices.showDocument` with its file's URI; one it does not hold is drawn grey, *not written yet*. The window serves nothing and reads no report.
+The Reports section lists every report the jar writes in the working directory, `Reports.ALL`, sixteen today, `progress.html` and `cluster-page-sizes.html` among them (ADR-306 §2), and each key's row on the Profile tab and in `wanted` lists that key's reports, `Reports.OF_A_KEY`, as the README's table of values names them in its order (ADR-306 §3). A report the working directory holds opens in the system's default browser, through JavaFX's `HostServices.showDocument` with its file's URI; one it does not hold is drawn grey, *not written yet*. The window serves nothing and reads no report.
 
 ### 7. Closing the window while its child runs
 
 Closing the window while its child runs asks once, with ADR-285 §5's sentence and two answers, **Stop and close** and **Keep the window**. Stop and close ends the JVM, whose hook ends the child (ADR-307). A close the system forces is ADR-307 §2's.
+
+### 8. Where the rules the pages held go
+
+The pages go (ADR-339 §5), and the rules they held that the window keeps move into classes of the control panel that link no page, each named so that a test reads it without a window:
+
+| Rule | Record | From | To |
+| --- | --- | --- | --- |
+| What a stop costs at each step, in the job's order | ADR-302 §7 | `InvocationPages` | `StopCosts.ROWS`, a `List<StopCost>` of `record StopCost(String step, String cost)` |
+| The reports, and each key's | ADR-302 §3, §8, ADR-306 §2, §3 | `ControlPanelPages.REPORTS`, `NextPages.REPORTS_OF_A_KEY` | `Reports.ALL`, a `List<String>` of file names, and `Reports.OF_A_KEY`, a `Map<String, List<String>>` by key |
+| A folder field's status | ADR-331 §6 | `FolderPages.statusOf` | `FolderStatus.of(String value, boolean createdByTheJar)`, a `record FolderStatus(String state, String words)`, the states `not-chosen`, `found`, `will-be-created` and `no-such-folder` |
+| A launch value's example and hint | ADR-331 §8 | `LaunchPages` | `LaunchValues.exampleOf(String property)` and `LaunchValues.hintOf(String property)` |
+| The two Docling images | ADR-331 §7, ADR-334 §11 | `ControlPanelPage` | `StartingValues.DOCLING_IMAGE_GPU`, and the CPU image beside it |
+| The hook that ends the child with the JVM | ADR-307 §1 | `ControlPanel`, private | `ControlPanel.endChildWithThisJvm(ControlPanelState)`, of the package |
+
+The words each holds are the pages' as the records give them.
 
 ## Consequences
 
@@ -133,7 +197,7 @@ Closing the window while its child runs asks once, with ADR-285 §5's sentence a
 
 - **A label file whose path the system's code page cannot spell** reaches a child on Windows mangled, as ADR-278 measured of every argument, and the jar refuses it as not found.
 - **`.env` is read only in the current directory** the jar is started from; a double click starts it in the jar's folder.
-- **A value `application-local.yaml` sets** is not among §3's sources: the child reads it, and the window shows it only where `effective-values.properties` does.
+- **A value `application-local.yaml` sets** is not among §3's sources: the child reads it, and the window shows it only where `effective-values.properties` does. A field left as the environment or `application.yaml` started it passes nothing and leaves it in force; a value from `.env`, the GPU preselection or one the operator typed is passed over it.
 - **The charts follow the file**, so they move once every `vespera.progress-interval`.
 
 ## Alternatives refused
@@ -149,18 +213,32 @@ Closing the window while its child runs asks once, with ADR-285 §5's sentence a
 
 | Method | What it holds |
 | --- | --- |
-| `controlpanel.TheControlPanelsWindowTest.runAndStopStandSideBySideAndStopIsDisabledWithNoChild` | `run` and `stop` in one row, `stop` disabled where no child runs (§1) |
-| `controlpanel.TheControlPanelsWindowTest.theStepsAreAChartOfABarEachBesideTheOutput` | `steps` holds sixteen bars, and stands in one split with `output` (§1, §2) |
+| `controlpanel.TheControlPanelsWindowTest.runAndStopStandSideBySideAndStopIsDisabledWithNoChild` | `run` and `stop` in one horizontal box, at one height, Stop to the right; `stop` disabled where no child runs (§1) |
+| `controlpanel.TheControlPanelsWindowTest.theStepsAreAChartOfABarEachBesideTheOutput` | `steps` holds a row `step-<name>` for each step of `StopCosts.ROWS`, in its order, one bar each, in one horizontal split with `output` (§1, §2) |
 | `controlpanel.TheControlPanelsWindowTest.theProgressPagesThreeChartsAreInTheWindow` | `database-chart`, `counts-chart` and `verdicts-chart`, each a line chart (§1) |
 | `controlpanel.TheControlPanelsWindowTest.theTwoLabelCommandsAreNamedAsTheOperatorChose` | `label` reads *Record my answers* and `label-auto` *Let the local model answer* (§5) |
 | `controlpanel.TheControlPanelsWindowTest.theProfileAndTheFoldersToIncludeAreTwoTabs` | `profile` and `inclusions`, tabs of one pane (§1) |
-| `controlpanel.TheControlPanelsWindowTest.theSidebarHoldsItsSevenSectionsInOrder` | the seven ids of §1, in order (§1) |
+| `controlpanel.TheControlPanelsWindowTest.theSidebarHoldsItsSevenSectionsInOrder` | the seven ids of §1, the panes of one accordion, in order (§1) |
 | `controlpanel.TheControlPanelsWindowTest.everyControlTheArgumentsTableNamesIsAControlOfTheWindow` | each `control` of `ChildCommand.ARGUMENTS` is a node of the window (§4) |
 | `pipeline.TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest.eachArgumentIsSetByALaunchControlOrNeverPassedAndSaysWhy` | `label <file>` set by `label-file`; `vespera help` and `vespera version` the only two never passed (§4) |
+| `pipeline.TheControlPanelReadsTheProgressTheJarWritesTest.theProgressTheJarWritesIsReadWhole` | `ProgressPage` writes `progress.json` and `ProgressFile` reads it: `ended`, the sixteen steps in order with their states, `done` and `total` null without a counter, the database chart's title, axis, seconds and one line (§2) |
+| `controlpanel.StartingValuesTest.eachValueStartsFromTheFirstSourceThatNamesIt` | launch values, environment, `.env`, `application.yaml`, none, a blank skipped (§3) |
+| `controlpanel.StartingValuesTest.theDoclingImageIsTheGpuOneBeforeApplicationYaml` | the GPU image, `compose.gpu.yaml`'s, before `application.yaml`'s and after `.env` (§3) |
+| `controlpanel.StartingValuesTest.theVariableIsThePropertysRelaxedName` | the relaxed name (§3) |
+| `controlpanel.StartingValuesTest.dotEnvIsReadAsNameEqualsValueLines` | `.env`'s lines, comments, blanks, quotes and a value holding `=` (§3) |
+| `controlpanel.StartingValuesTest.applicationYamlIsReadByDottedNamesAndAPlaceholderIsNotTaken` | the shipped `application.yaml` by dotted names, `vespera.working-dir`'s placeholder left out (§3) |
+| `controlpanel.StartingValuesTest.aValueIsPassedOnlyWhereTheChildWouldReadAnother` | passed only where set and not what the child reads (§3, §4) |
+| `controlpanel.StartingValuesTest.aValueIsRememberedOnlyWhereTheOperatorChoseIt` | kept only where it came from the launch values or was changed (§3) |
+| `controlpanel.TheCommandOptionsTest.theOptionsAreFivePresetsTheJarShips` | the five, their commands, each in the shipped `application.yaml` (§4) |
+| `controlpanel.TheCommandOptionsTest.eachOptionIsPassedOnlyToTheCommandsItIsForAfterTheirArguments` | each preset after the command's arguments, in order, to its commands alone (§4) |
+| `controlpanel.TheCommandOptionsTest.theLabelFileIsPassedToLabelAndNeverToLabelAuto` | the label file to `label`, none to `label --auto` (§4) |
+| `controlpanel.TheCommandOptionsTest.theLineShownIsTheCommandStarted` | `shown()` is `vespera` and the child's arguments, a space quoted (§4) |
+
+The tests of §8's moved rules are ADR-339 §6's, in its Tests section.
 
 ## What the implementation owes
 
-Beside the tests above, which it turns green, the change that builds the window holds by tests of its own: `progress.json`'s contract, the jar's `ProgressPage` written and the control panel's `JsonReader` reading the same steps and series; §3's order, each source above the next; §4's rule that an option at the value in use is not passed and that the line shown is the command started; the Inclusions tree writing the file `/labels` wrote; and a save of the Profile tab writing what ADR-340 §2 says. It changes the README's section on starting the control panel and its paragraph on provenance, `AGENTS.md`'s line on the control panel, and `CONTEXT.md`'s entries for the control panel and the profile.
+Beside the tests above and ADR-339's, which it turns green, the change that builds the window holds by tests of its own that the Inclusions tree writes the file `/labels` wrote and that a save of the Profile tab writes what ADR-340 §2 says. It lists the class it adds to `pipeline` for `progress.json`, if it adds one, in `PipelineHoldsOnlyTheRulesOnRecordTest` as holding no rule. It adds `progress.json` to the README's table of the files written beside the database, as ADR-265 §6 has the page itself listed, the claims check reading that table against the jar's `FILE_NAME` constants. It changes the README's section on starting the control panel and its paragraph on provenance, `AGENTS.md`'s line on the control panel, and `CONTEXT.md`'s entries for the control panel and the profile.
 
 ## What this does not decide
 

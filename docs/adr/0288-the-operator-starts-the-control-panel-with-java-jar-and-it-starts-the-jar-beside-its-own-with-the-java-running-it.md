@@ -119,10 +119,9 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves. T
 | Method | What it holds |
 | --- | --- |
 | `controlpanel.ChildRuntimeTest.theChildsJavaIsTheJavaOfTheRuntimeRunningTheControlPanel` | `java()` is `<java.home>/bin/java` on Linux and macOS, and `<java.home>/bin/java.exe` where `os.name` starts with `Windows` (§3) |
-| `controlpanel.ChildRuntimeTest.theJarIsFoundBesideTheControlPanelsJarByTheNameItIsGiven` | `jar()` is the control panel's folder joined with the name given, whatever the control panel's own jar is called (§4) |
-| `controlpanel.ChildRuntimeTest.noJarBesideTheControlPanelIsRefusedWithOneLineNamingWhereItLooked` | no file of that name, or a folder of that name: refused, the line naming the path looked at (§4) |
-| `controlpanel.ChildRuntimeTest.aControlPanelRunFromAFolderOfClassesIsRefusedWithOneLineNamingTheFolder` | a location that is a folder: refused, the line naming the folder (§4) |
-| `controlpanel.ChildRuntimeTest.neitherPathNorJavaHomePicksTheChildsJava` (#684) | the control panel's compiled texts hold `java.home` and `os.name`, and neither `PATH` nor `JAVA_HOME` (§3) |
+| `controlpanel.ChildRuntimeTest.theJarIsTheOneTheClassPathNames` ([#700](https://github.com/algernon28/vespera/issues/700)) | `jar()` is the class path's one file, as ADR-339 §2 leaves §4 |
+| `controlpanel.ChildRuntimeTest.aClassPathThatNamesNoJarIsRefusedWithOneLine` ([#700](https://github.com/algernon28/vespera/issues/700)) | a class path of a folder, of a file not there or of two entries: refused, the line naming it, as ADR-339 §2 leaves §4 |
+| `controlpanel.ChildRuntimeTest.neitherPathNorJavaHomePicksTheChildsJava` (#684) ([#700](https://github.com/algernon28/vespera/issues/700)) | the control panel's compiled texts hold `java.home`, `os.name` and `java.class.path`, and neither `PATH` nor `JAVA_HOME` (§3) |
 | `PackagedJarIT.theJarCarriesTheControlPanelAndJavaFxAndStartsAtTheEntryPoint` ([#700](https://github.com/algernon28/vespera/issues/700)) | in place of §1's manifest of a second jar, the Spring Boot jar's: `Main-Class` still Spring Boot's, `Start-Class` `io.algernon.EntryPoint`, as ADR-339 §2 has it |
 | `pipeline.TheControlPanelsChildIT.theControlPanelStartedByJavaJarNamesTheJarBesideItAndItsOwnJava` | `java -jar` on the control-panel jar in `target`: exit 0, standard error empty, one line naming the jar beside it and the `java` of the runtime that started it (§1, §3, §4) |
 | `pipeline.TheControlPanelsChildIT.theControlPanelWithNoJarBesideItRefusesWithOneLine` | a copy of the control-panel jar alone in a folder: exit 1, standard output empty, one line on standard error naming where it looked (§4) |

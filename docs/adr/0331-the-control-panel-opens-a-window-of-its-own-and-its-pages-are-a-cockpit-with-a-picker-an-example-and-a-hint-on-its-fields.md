@@ -10,6 +10,8 @@
 
 > **Partly superseded — see [ADR-339](0339-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md).** Its window, layout, folder page and pickers go with the pages. §6, a folder field's status, and §8, an example and a hint on each field, stand, in the window.
 
+> **Partly amended — see [ADR-340](0340-the-note-saved-with-a-profile-value-is-filled-in-for-the-operator-set-in-the-control-panel-or-the-provenance-already-saved-and-a-value-changed-under-its-old-note-is-saved-with-the-filled-in-one.md).** Of §8: the row of `provenance` and `<key>.provenance` is the note saved with the value, filled in for the operator and not required, in place of *Why this value?* and *Required*. The rest of what ADR-339 keeps of this record stands.
+
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone, and starts the window by `ProcessBuilder`, `java.desktop` not added (§1). Its §4: one class owns the pages' skeleton, styling and escaping (§3).

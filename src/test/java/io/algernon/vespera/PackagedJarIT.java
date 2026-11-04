@@ -138,13 +138,13 @@ class PackagedJarIT {
                         + " chooses between them",
                 () -> assertThat(entries).contains(CLASSES + A_CLASS_OF_THE_JAR, CLASSES + A_CLASS_OF_THE_CONTROL_PANEL,
                         CLASSES + THE_ENTRY_POINT));
-        claim("it carries OpenJFX 26.0.2's base, graphics and controls, each once, of one and the same platform's"
-                        + " classifier, the one it was built on",
-                () -> {
-                    assertThat(javaFx).hasSize(3).allMatch(name -> JAVAFX_OF_ONE_PLATFORM.matcher(name).matches());
-                    assertThat(javaFx.stream().map(name -> name.substring(name.lastIndexOf("-26.0.2-"))).distinct())
-                            .hasSize(1);
-                });
+        String classifier = theBuildPlatformsClassifier();
+        claim("it carries OpenJFX 26.0.2's base, graphics and controls, each once, of the classifier of the platform it"
+                        + " was built on, here " + classifier,
+                () -> assertThat(javaFx).allMatch(name -> JAVAFX_OF_ONE_PLATFORM.matcher(name).matches())
+                        .containsExactly("javafx-base-26.0.2-" + classifier + ".jar",
+                                "javafx-controls-26.0.2-" + classifier + ".jar",
+                                "javafx-graphics-26.0.2-" + classifier + ".jar"));
         claim("its main class is still Spring Boot's launcher, which starts the entry point",
                 () -> {
                     assertThat(manifest.getValue(Attributes.Name.MAIN_CLASS)).isEqualTo(SPRING_BOOTS_JAR_LAUNCHER);
@@ -169,6 +169,23 @@ class PackagedJarIT {
             claim("and no jar beside it is the control panel's, by the classifier it was built with",
                     () -> assertThat(jars).noneMatch(name -> name.endsWith("-control-panel.jar")));
         }
+    }
+
+    /**
+     * The OpenJFX classifier of the platform this test runs on, which built the jar: {@code win}, {@code linux},
+     * {@code linux-aarch64}, {@code mac} or {@code mac-aarch64}, by {@code os.name} and {@code os.arch} as OpenJFX's
+     * own build profiles pick it.
+     */
+    private static String theBuildPlatformsClassifier() {
+        String system = System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT);
+        boolean arm = System.getProperty("os.arch").equals("aarch64");
+        if (system.startsWith("windows")) {
+            return "win";
+        }
+        if (system.startsWith("mac")) {
+            return arm ? "mac-aarch64" : "mac";
+        }
+        return arm ? "linux-aarch64" : "linux";
     }
 
     /** The main section of the jar's manifest. */

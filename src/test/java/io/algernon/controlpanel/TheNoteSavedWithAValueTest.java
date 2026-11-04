@@ -106,11 +106,16 @@ class TheNoteSavedWithAValueTest {
 
     @Test
     @Story("Each value's note is filled in for the operator")
-    @DisplayName("A value changed under the note the file held is saved, not refused")
+    @DisplayName("A value changed again under the filled-in note the file already holds is saved with it, not refused")
     void aValueChangedUnderTheProvenanceTheFileStatesIsNotRefused() {
-        claim("a value changed while the provenance sent is the one the file states is no longer refused, since the"
-                        + " note saved with it is the filled-in one",
-                () -> assertThat(ProfileEdit.refusalOfSave(A_FLOOR, "0.5", THE_OPERATORS_WORDS, STATED, Optional.empty()))
+        Optional<Stated> setHere = Optional.of(new Stated("0.4", FILLED_IN));
+        Optional<String> note = ProfileEdit.noteToSave(A_FLOOR, "0.5", FILLED_IN, setHere);
+
+        claim("a value set in the control panel and changed there again, its note left, is saved with the filled-in"
+                        + " words again",
+                () -> assertThat(note).contains(FILLED_IN));
+        claim("and the save is not refused, though the provenance it sends is the one the file states",
+                () -> assertThat(ProfileEdit.refusalOfSave(A_FLOOR, "0.5", note.orElseThrow(), setHere, Optional.empty()))
                         .isEmpty());
     }
 

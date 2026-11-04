@@ -188,32 +188,6 @@ class TheLaunchPageStartsLabelAutoScreenTest {
         }
     }
 
-    @Test
-    @Story("Every option of the jar's commands is set from the control panel or said not to be")
-    @DisplayName("Each control the control panel's table of the jar's arguments names is a control or a button of the launch form")
-    void everyControlTheTableNamesIsOnTheLaunchForm() throws IOException {
-        Path corpusRoot = Files.createDirectories(folder.resolve("corpus"));
-        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        List<String> named = ChildCommand.ARGUMENTS.stream()
-                .map(ChildCommand.Argument::control)
-                .filter(control -> !control.isEmpty())
-                .distinct()
-                .toList();
-        try (ScreenServer screens = ScreenServer.start(folder, ScreenServer.values(corpusRoot, workingDirectory))) {
-            Element launch = form(screens.browser().page(), "launch");
-            List<String> notOnTheForm = named.stream()
-                    .filter(control -> launch.select("[name='" + control + "']").isEmpty())
-                    .toList();
-
-            claim("the table names controls, the corpus root's, the working directory's and the local model's button"
-                            + " among them",
-                    () -> assertThat(named).contains("vespera.corpus-root", "vespera.working-dir", LABEL_AUTO));
-            claim("and each it names is drawn in the launch form",
-                    () -> assertThat(notOnTheForm).as("controls the table names that the launch form does not hold")
-                            .isEmpty());
-        }
-    }
-
     /** The lines of the invocation page's output box, oldest first. */
     private static List<String> tailOf(Page page) {
         return byId(page, "tail").wholeText().lines().toList();
