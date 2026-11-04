@@ -7,19 +7,24 @@ import io.algernon.vespera.ledger.ReplacingMove;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
+import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -81,7 +86,7 @@ final class WebsiteDelivery {
             return delivery.refresh();
         } catch (StoppedException stop) {
             return delivery.stopped(stop.getMessage());
-        } catch (IOException | java.io.UncheckedIOException | tools.jackson.core.JacksonException failure) {
+        } catch (IOException | UncheckedIOException | JacksonException failure) {
             return delivery.stopped("a file could not be read or written (" + failure.getClass().getSimpleName() + ")");
         }
     }
@@ -103,7 +108,7 @@ final class WebsiteDelivery {
                 missing.add(file);
             }
         }
-        missing.sort(java.util.Comparator.comparingInt(WebsiteDelivery::order));
+        missing.sort(Comparator.comparingInt(WebsiteDelivery::order));
         toWrite = missing.size();
         for (ListedFile file : missing) {
             write(file);
@@ -137,7 +142,7 @@ final class WebsiteDelivery {
         JsonNode list;
         try {
             list = JSON.readTree(rendering.resolve(ListedFile.LIST_FILE_NAME).toFile());
-        } catch (RuntimeException unreadable) {
+        } catch (JacksonException | UncheckedIOException unreadable) {
             throw new StoppedException("the rendering's list could not be read (" + unreadable.getClass().getSimpleName() + ")");
         }
         JsonNode files = list.path("files");
@@ -186,7 +191,7 @@ final class WebsiteDelivery {
                 }
             }
             return previous;
-        } catch (RuntimeException unreadable) {
+        } catch (JacksonException | UncheckedIOException unreadable) {
             return List.of();
         }
     }
@@ -240,6 +245,10 @@ final class WebsiteDelivery {
                 digests.computeIfAbsent(held.path(), path -> new LinkedHashSet<>()).add(held.sha256());
             }
         }
+        Map<String, List<Path>> currentByKey = new LinkedHashMap<>();
+        for (String path : stay) {
+            currentByKey.computeIfAbsent(caseKey(path), key -> new ArrayList<>()).add(folder.resolve(path));
+        }
         int removed = 0;
         int kept = 0;
         for (Map.Entry<String, Set<String>> dropped : digests.entrySet()) {
@@ -247,7 +256,7 @@ final class WebsiteDelivery {
             if (!Files.isRegularFile(file)) {
                 continue;
             }
-            if (isCurrent(file, stay)) {
+            if (isCurrent(file, dropped.getKey(), currentByKey)) {
                 continue;
             }
             if (dropped.getValue().contains(ListedFile.sha256Of(file))) {
@@ -265,10 +274,17 @@ final class WebsiteDelivery {
         return new int[] {removed, kept};
     }
 
-    /** Whether {@code file} is the same file some current path resolves to, as a copy renamed by case alone is. */
-    private boolean isCurrent(Path file, Set<String> stay) throws IOException {
-        for (String path : stay) {
-            Path current = folder.resolve(path);
+    /** The path as a file system that folds case and composition would see it: NFC, lower case. */
+    private static String caseKey(String path) {
+        return Normalizer.normalize(path, Normalizer.Form.NFC).toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Whether {@code file} is the same file some current path resolves to, as a copy renamed by case alone is. Only the
+     * current paths sharing its {@link #caseKey} are asked, so the cost is one stat per path, not one per pair.
+     */
+    private static boolean isCurrent(Path file, String path, Map<String, List<Path>> currentByKey) throws IOException {
+        for (Path current : currentByKey.getOrDefault(caseKey(path), List.of())) {
             if (Files.exists(current) && Files.isSameFile(current, file)) {
                 return true;
             }
