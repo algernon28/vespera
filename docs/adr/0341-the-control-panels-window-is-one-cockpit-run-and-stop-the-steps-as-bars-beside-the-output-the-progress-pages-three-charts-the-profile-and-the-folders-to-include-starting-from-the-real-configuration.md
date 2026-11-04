@@ -232,7 +232,7 @@ The words each holds are the pages' as the records give them.
 | `controlpanel.StartingValuesTest.theVariableIsThePropertysRelaxedName` | the relaxed name (§3) |
 | `controlpanel.StartingValuesTest.dotEnvIsReadAsNameEqualsValueLines` | `.env`'s lines, comments, blanks, quotes and a value holding `=` (§3) |
 | `controlpanel.StartingValuesTest.applicationYamlIsReadByDottedNamesAndAPlaceholderIsNotTaken` | the shipped `application.yaml` by dotted names, `vespera.working-dir`'s placeholder left out (§3) |
-| `controlpanel.StartingValuesTest.aValueIsPassedOnlyWhereTheChildWouldReadAnother` | passed where set and kept or not what the child reads: a launch value equal to `application.yaml`'s, and one changed back to it, passed; a value left as the environment or `application.yaml` started it, not (§3, §4) |
+| `controlpanel.StartingValuesTest.aValueIsPassedWhereItIsKeptOrTheChildWouldReadAnother` | passed where set and kept or not what the child reads: a launch value equal to `application.yaml`'s, and one changed back to it, passed; a value left as the environment or `application.yaml` started it, not (§3, §4) |
 | `controlpanel.StartingValuesTest.aValueIsRememberedOnlyWhereTheOperatorChoseIt` | kept only where it came from the launch values or was changed (§3) |
 | `controlpanel.TheCommandOptionsTest.theOptionsAreFivePresetsTheJarShips` | the five, their commands, each in the shipped `application.yaml` (§4) |
 | `controlpanel.TheCommandOptionsTest.eachOptionIsPassedOnlyToTheCommandsItIsForAfterTheirArguments` | each preset after the command's arguments, in order, to its commands alone (§4) |

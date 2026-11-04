@@ -158,7 +158,7 @@ class StartingValuesTest {
     @MethodSource("valuesAndWhatTheChildReads")
     @Story("The window passes and keeps only what the operator chose")
     @DisplayName("A value is passed to the child where it is set and either kept or not what the child would read without it")
-    void aValueIsPassedOnlyWhereTheChildWouldReadAnother(String value, Starting starting, Sources sources,
+    void aValueIsPassedWhereItIsKeptOrTheChildWouldReadAnother(String value, Starting starting, Sources sources,
             boolean passed) {
         claim("a value is passed where it is not blank and is either kept, a launch value or one the operator changed,"
                         + " or differs from the environment's, or else application.yaml's, which the child reads with"
