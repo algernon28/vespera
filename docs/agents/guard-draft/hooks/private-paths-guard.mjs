@@ -629,8 +629,9 @@ const QUOTED_STRINGS = /'([^']*)'|"([^"]*)"/g;
 // A variable in braces at the head of a text that readToken replaces by its value: ${NAME} or
 // ${env:NAME}, with a separator or the end after it.
 const BRACED_VARIABLE = /^\$\{(?:env:)?(\w+)\}(?=$|[\\/])/i;
-// The start of a Bash parameter expansion with a word for when the variable has no value.
-const PARAMETER_WITH_WORD = /\$\{(\w+):?[-=+?]/y;
+// The start of a Bash parameter expansion with a word: for when the variable has no value (the sign -, =
+// or ?, with or without a colon), or for when it has one (the sign +, with or without a colon, group 2).
+const PARAMETER_WITH_WORD = /\$\{(\w+):?([-=+?])/y;
 // A brace group of a quoted string: the text between a { and the next }, with no other brace between.
 const BRACE_GROUP = /\{([^{}]*)\}/g;
 // A keyed member of a brace group: after white space, a name, a colon, and then something that is not a
@@ -658,8 +659,18 @@ function cut(text) {
   return parts;
 }
 
-// A Bash text read twice: with the word in the place of each ${NAME<sign>word} and, where the name has a
-// value, with the value in its place. What follows a closing brace stays joined to what is put in its
+// Whether a Bash text holds a ${NAME+word} or ${NAME:+word} and any other variable with a word, inside
+// the + word, around it or beside it, at any depth (ADR-348). Each variable's state is the shell's, which
+// the guard does not know, so such a text has more forms than two readings give; it is refused.
+function holdsPlusAndAnother(text) {
+  const signs = [...text.matchAll(/\$\{\w+:?([-=+?])/g)].map((m) => m[1]);
+  return signs.length > 1 && signs.includes("+");
+}
+
+// A Bash text read twice: with the word in the place of each ${NAME<sign>word} and, in the second reading,
+// with the name's value in its place where it has one and the sign is not +. A ${NAME+word} or
+// ${NAME:+word} never gives the value, whatever the name holds in the hook's environment: its second
+// reading has nothing in its place (ADR-348). What follows a closing brace stays joined to what is put in its
 // place. The word runs to the brace that closes the variable, counting the braces between, and a word
 // that holds an expansion is read by these same rules. A text with no expansion in it is its own two
 // readings.
@@ -682,10 +693,11 @@ function variantsOf(text) {
         words += word;
         // Where the expansion heads a token or a piece the variable alone stands in its place, which
         // readToken replaces by its value; elsewhere the value itself does, so that the braces of a
-        // variable that is not at a head are not cut and what follows is not read apart.
-        const value = valueOf(start[1]);
+        // variable that is not at a head are not cut and what follows is not read apart. A + or :+
+        // variable gives nothing in the second reading, and never the value.
+        const value = start[2] === "+" ? "" : valueOf(start[1]);
         const heads = values === "" || ",{}".includes(values[values.length - 1]);
-        values += value ? (heads ? `\${${start[1]}}` : value) : wordWithValues;
+        if (start[2] !== "+") values += value ? (heads ? `\${${start[1]}}` : value) : wordWithValues;
         i = end;
         continue;
       }
@@ -708,8 +720,8 @@ function variantsOf(text) {
 // bare word that holds < or >) does not count, nor does a word with no path after the prefix. A value
 // after = is not the word, so it does not either. A word is read by its rest after the prefix and, off
 // Windows, as written as well; on Windows it is read as written too unless its rest, as a whole token
-// and not a piece cut at , { } or a value after =, records a path (a ${NAME-word} in it records one only
-// where each of its two readings does).
+// and not a piece cut at , { } or a value after =, records a path (a ${NAME-word} or ${NAME+word} in it
+// records one only where each of its two readings does).
 const INDEX_PREFIX = /^(:(?:[0-3]:)?)/;
 function cutIsShells(command, bash) {
   if (bash && /<</.test(command)) return false;
@@ -768,6 +780,8 @@ function gitIndexForms(command, bash) {
 function pathsInCommand(command, bash) {
   const absolute = [];
   const relative = new Map();
+  // The Bash texts that hold a + or :+ and another variable with a word, which are refused (ADR-348).
+  const mixed = new Set();
   // The relative paths a token's own reading made, while it is being recorded, and the ones a piece of
   // that token must not count again. And the relative paths the first of a Bash token's two readings
   // made, which the second does not count again.
@@ -921,10 +935,13 @@ function pathsInCommand(command, bash) {
     uncounted = null;
   };
   // In a Bash command a text with a ${NAME-word} in it is read twice, with the word and with the value in
-  // the place of the expansion (see variantsOf), and not as it is written, so that the name is not read.
-  // A relative path the first reading made is not counted again by the second.
+  // the place of the expansion, or nothing for a + or :+ (see variantsOf), and not as it is written, so
+  // that the name is not read. A text that holds a + or :+ and another variable with a word has more forms
+  // than two readings give, and is recorded to be refused (ADR-348). A relative path the first reading
+  // made is not counted again by the second.
   const read = (text, base = -1) => {
     if (bash) {
+      if (holdsPlusAndAnother(text)) mixed.add(text);
       const [words, values] = variantsOf(text);
       if (words !== text) {
         const before = noted;
@@ -957,8 +974,8 @@ function pathsInCommand(command, bash) {
     noted = false;
     read(text.slice(prefix.length), offset >= 0 ? offset + prefix.length : -1);
     // On Windows the word is read by its rest only, unless the rest as a whole token records no path (an
-    // empty rest among them; pieces and a value after = do not count; a ${NAME-word}'s two readings must
-    // each record a path): then it is read as written too.
+    // empty rest among them; pieces and a value after = do not count; a ${NAME-word}'s or ${NAME+word}'s
+    // two readings must each record a path): then it is read as written too.
     if (windows && !noted) read(text, offset);
   };
   for (const m of command.matchAll(COMMAND_TOKENS)) readWord(m[0], m.index);
@@ -974,7 +991,7 @@ function pathsInCommand(command, bash) {
     if (m[0].includes("\\ ")) read(m[0].replace(/\\ /g, " "));
   }
   for (const { whole, from } of quotes) if (whole) readWord(whole, from);
-  return { absolute, relative };
+  return { absolute, relative, mixed: [...mixed] };
 }
 
 // The part of a search pattern before its first wildcard, which is the folder the search begins in.
@@ -1206,7 +1223,10 @@ function refusalsOf(call) {
     for (const [token] of command.matchAll(COMMAND_TOKENS)) {
       if (closedInText(token)) refused.push(`${token} (its text names a path ${CLOSED})`);
     }
-    const { absolute, relative } = pathsInCommand(command, tool === "Bash");
+    const { absolute, relative, mixed } = pathsInCommand(command, tool === "Bash");
+    for (const text of mixed) {
+      refused.push(`${text} (it holds a \${NAME+word} or \${NAME:+word} and another variable with a word, which has more forms than two readings give, so what it names cannot be ruled out)`);
+    }
 
     // The folders the command names, which a relative path may be read against, each with the least use
     // of every relative token over the chains of tokens that reach it. A folder that is refused is not
