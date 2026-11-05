@@ -17,6 +17,7 @@ concurrency:
 
 jobs:
   image:
+    if: github.ref == 'refs/heads/main'
     name: Build and push ${{ matrix.image }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
