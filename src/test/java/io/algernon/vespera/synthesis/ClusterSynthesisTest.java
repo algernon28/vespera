@@ -66,7 +66,7 @@ class ClusterSynthesisTest {
     private static final String SEED_PATH = "seeds/site-safety.txt";
 
     /** Which model the call names, resolved from configuration and handed down as a plain string. */
-    private static final String MODEL_NAME = "qwen3:8b";
+    private static final String MODEL_NAME = "a-writing-model:8b";
 
     /** How many documents the two-document cluster holds, and so how many that call was written from. */
     private static final int DOCUMENTS_SENT = 2;

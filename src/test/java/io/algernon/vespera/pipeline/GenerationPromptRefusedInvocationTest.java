@@ -92,7 +92,7 @@ class GenerationPromptRefusedInvocationTest {
 
     /** Ollama's refusal of a model it has never pulled: not about any one cluster. */
     private static final String THE_REFUSAL_OF_A_MODEL_NEVER_PULLED =
-            "HTTP 404 - {\"error\":\"model 'qwen3:8b' not found\"}";
+            "HTTP 404 - {\"error\":\"model 'a-writing-model:8b' not found\"}";
 
     /** The name given to the cluster put ahead of the one the corpus produces. */
     private static final String THE_CLUSTER_AHEAD = "A group asked about first";

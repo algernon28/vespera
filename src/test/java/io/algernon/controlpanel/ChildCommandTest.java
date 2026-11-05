@@ -62,7 +62,7 @@ class ChildCommandTest {
     private static final String LAST_SEED_FOLDER = "seeds-last-confirmed";
 
     private static final LaunchValues EVERY_VALUE = new LaunchValues(CORPUS_ROOT.toString(),
-            WORKING_DIRECTORY.toString(), "out", "image:v1", "http://docling", "http://ollama", "qwen3:14b",
+            WORKING_DIRECTORY.toString(), "out", "image:v1", "http://docling", "http://ollama", "a-writing-model:14b",
             LAST_SEED_FOLDER);
 
     private static final List<String> BEFORE_THE_COMMAND = List.of(

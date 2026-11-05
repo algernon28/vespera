@@ -58,7 +58,7 @@ import tools.jackson.databind.json.JsonMapper;
 class AModelOllamaDoesNotServeIsPulledInvocationTest {
 
     /** An embedding model Ollama is scripted as not serving until it is pulled. */
-    private static final String AN_EMBEDDING_MODEL_NOT_SERVED = "hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q8_0";
+    private static final String AN_EMBEDDING_MODEL_NOT_SERVED = "hf.co/An-Owner/A-Comparing-Model-GGUF:Q8_0";
 
     /** A generation model Ollama is scripted as not serving until it is pulled. */
     private static final String A_GENERATION_MODEL_NOT_SERVED = "a-model-nobody-pulled-yet:8b";

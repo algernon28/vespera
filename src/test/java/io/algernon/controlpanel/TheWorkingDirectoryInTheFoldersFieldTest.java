@@ -71,7 +71,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         Path corpus = Files.createDirectories(folder.resolve("corpus"));
         Files.createDirectories(corpus.resolve("Old"));
         Files.createDirectories(corpus.resolve("Other"));
-        Path workingDirectory = aWorkingDirectory(folder.resolve("working"), "qwen3:8b");
+        Path workingDirectory = aWorkingDirectory(folder.resolve("working"), "a-writing-model:8b");
         notWalked(workingDirectory, "Old");
         Files.writeString(workingDirectory.resolve(A_REPORT), "<html></html>", StandardCharsets.UTF_8);
         Files.writeString(workingDirectory.resolve(ProgressFile.FILE_NAME), PROGRESS, StandardCharsets.UTF_8);
@@ -100,7 +100,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
             bar = window.awaiting(root -> barOf(root, "step-extraction"), progress -> progress == 0.75);
 
             window.act(root -> {
-                WindowForTests.node(root, "profile-generationModel", ComboBox.class).getEditor().setText("qwen3:14b");
+                WindowForTests.node(root, "profile-generationModel", ComboBox.class).getEditor().setText("a-writing-model:14b");
                 WindowForTests.node(root, "profile-save", Button.class).fire();
                 WindowForTests.folder(root, "Other").setSelected(false);
                 WindowForTests.node(root, "inclusions-save", Button.class).fire();
@@ -108,7 +108,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         }
 
         claim("before any Run, the Profile tab shows the value the working directory's profile.yaml states",
-                () -> assertThat(before.model()).isEqualTo("qwen3:8b"));
+                () -> assertThat(before.model()).isEqualTo("a-writing-model:8b"));
         claim("the Reports section links the report the working directory holds, and that one alone",
                 () -> assertThat(before.links()).containsExactly(A_REPORT));
         claim("and the Inclusions tab draws Old unticked, as the working directory's profile lists it among the folders"
@@ -120,7 +120,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         claim("and after the Run the Profile tab's Save writes the working directory's profile.yaml",
                 () -> assertThat(ProfileEdit.read(Files.readString(workingDirectory.resolve(ProfileEdit.FILE_NAME),
                         StandardCharsets.UTF_8))).containsEntry(ProfileKey.GENERATION_MODEL,
-                        new Stated("qwen3:14b", "set in the control panel")));
+                        new Stated("a-writing-model:14b", "set in the control panel")));
         claim("as the Inclusions tab's Save writes its folders not walked there, Old as listed and Other after it",
                 () -> assertThat(TheFoldersToIncludeTest.listedIn(workingDirectory)).containsExactly("Old", "Other"));
     }
@@ -137,8 +137,8 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
     void anotherWorkingDirectoryTypedInTheFieldIsTheOneRead(@TempDir Path folder) throws Exception {
         Path corpus = Files.createDirectories(folder.resolve("corpus"));
         Files.createDirectories(corpus.resolve("Old"));
-        Path first = aWorkingDirectory(folder.resolve("first"), "qwen3:8b");
-        Path second = aWorkingDirectory(folder.resolve("second"), "llama3.1:8b");
+        Path first = aWorkingDirectory(folder.resolve("first"), "a-writing-model:8b");
+        Path second = aWorkingDirectory(folder.resolve("second"), "another-writing-model:8b");
         notWalked(second, "Old");
         Files.writeString(second.resolve(A_REPORT), "<html></html>", StandardCharsets.UTF_8);
         ControlPanelState state = WindowForTests.aState(folder,
@@ -151,7 +151,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         try (WindowForTests window = WindowForTests.shown(state)) {
             String opened = window.read(TheWorkingDirectoryInTheFoldersFieldTest::model);
             assumeThat(opened).as("the first working directory's profile is shown as the window opens")
-                    .isEqualTo("qwen3:8b");
+                    .isEqualTo("a-writing-model:8b");
             window.act(root -> WindowForTests.node(root, "vespera.working-dir", TextField.class)
                     .setText(second.toString()));
             seen = window.read(root -> new Seen(model(root), linksOf(root, "reports-list"),
@@ -159,7 +159,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         }
 
         claim("the Profile tab shows the value the second working directory's profile.yaml states",
-                () -> assertThat(seen.model()).isEqualTo("llama3.1:8b"));
+                () -> assertThat(seen.model()).isEqualTo("another-writing-model:8b"));
         claim("the Reports section links the report the second working directory holds",
                 () -> assertThat(seen.links()).containsExactly(A_REPORT));
         claim("and the Inclusions tab draws Old unticked, as the second working directory's profile lists it",
@@ -179,7 +179,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
     @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void anEmptyWorkingDirectoryFieldIsTheFolderTheJarWouldUseWhichRunPasses(@TempDir Path folder) throws Exception {
         Path corpus = Files.createDirectories(folder.resolve("corpus"));
-        Path theMachines = aWorkingDirectory(folder.resolve("the-machines"), "qwen3:8b");
+        Path theMachines = aWorkingDirectory(folder.resolve("the-machines"), "a-writing-model:8b");
         ControlPanelState state = WindowForTests.aState(folder,
                 new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")));
         state.hold(new LaunchValues(corpus.toString(), "", "", "", "", "", "", ""));
@@ -203,7 +203,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         claim("and the in use line beside the empty field names the folder the machine names (ADR-334 §2)",
                 () -> assertThat(seen.inUse()).contains(theMachines.toAbsolutePath().normalize().toString()));
         claim("the Profile tab shows the profile of the folder the machine names",
-                () -> assertThat(seen.model()).isEqualTo("qwen3:8b"));
+                () -> assertThat(seen.model()).isEqualTo("a-writing-model:8b"));
         claim("and Run would pass that folder as the working directory",
                 () -> assertThat(seen.run()).isEqualTo("vespera run " + quoted(corpus.toAbsolutePath().toString()) + " "
                         + quoted("--db-dir=" + theMachines.toAbsolutePath())));

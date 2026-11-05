@@ -62,8 +62,8 @@ import org.springframework.ai.ollama.api.OllamaChatOptions;
 @Link(name = "ADR-159", url = Adr.GENERATION_ASKS_FOR_NO_THINKING_AND_NAMES_THE_SQUARE_BRACKETS, type = "adr")
 class LargestClusterRunsOutOfRoomTest {
 
-    /** The model the call names; the shipped default, which is the one the defect was found under. */
-    private static final String MODEL_NAME = "qwen3:8b";
+    /** The model the call names: a name of the test's own; the defect was measured under {@code qwen3:8b} (see the class javadoc). */
+    private static final String MODEL_NAME = "a-writing-model:8b";
 
     /** The name the cluster the defect was found on carries before anything is written for it. */
     private static final String LABEL = "CARD_SIMPLIGI_ESITI_TLG_20170426_105500";

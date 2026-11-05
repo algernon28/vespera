@@ -209,5 +209,5 @@ spring:
         options:
           # Which model stage 5 scores under (ADR-298): the profile's embeddingModel overrides it, and
           # blanking it gates stage 5 where the profile names none. Changed only by a record, because
-          # it keys every vector and every relevance verdict.
-          model: bge-m3:latest
+          # it keys every vector and every relevance verdict (ADR-353).
+          model: hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M

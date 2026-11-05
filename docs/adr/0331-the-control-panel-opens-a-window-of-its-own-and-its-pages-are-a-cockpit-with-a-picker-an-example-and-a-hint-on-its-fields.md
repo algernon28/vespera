@@ -14,6 +14,8 @@
 
 > **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of §3: `#sidebar`, its `nav` and `#top-row` give way to a sticky `#top-bar` on every page, and the cards to the home page's three columns and the drawer `#values`. Of §5: the closed list's pages returned to are the home page's sections, and `seedFolder` and `new-folder` leave it. Of §6: an empty working directory is the jar's default, not `not-chosen`. Of §8: each field is named in plain words with its key beside it, and an empty one shows `in use: ` wherever a value in use is known. The rest of this record stands.
 
+> **Partly amended — see [ADR-353](0353-the-embedding-models-shipped-default-is-qwen3-embedding-8b-and-only-a-profile-naming-no-model-moves-its-scoring-run.md).** Of §8: the example of `embeddingModel` is `hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M`, the shipped default, and its hint names it.
+
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone, and starts the window by `ProcessBuilder`, `java.desktop` not added (§1). Its §4: one class owns the pages' skeleton, styling and escaping (§3).

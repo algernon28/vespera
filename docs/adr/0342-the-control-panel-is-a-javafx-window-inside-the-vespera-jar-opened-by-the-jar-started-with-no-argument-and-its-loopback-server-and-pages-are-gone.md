@@ -1,5 +1,7 @@
 # ADR-342 — The control panel is a JavaFX window inside the Vespera jar, opened by the jar started with no argument, and its loopback server and pages are gone
 
+> **Partly amended — see [ADR-353](0353-the-embedding-models-shipped-default-is-qwen3-embedding-8b-and-only-a-profile-naming-no-model-moves-its-scoring-run.md).** Of its Tests row for `TheLaunchFieldsSayWhatTheyHoldTest`: the answering model's example is held by its form, one name and not blank, and no test names the model.
+
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.
 - **Decided**: by the operator, that a desktop window replaces the browser control panel rather than standing beside it, that it ships inside the Vespera jar and not as an application of its own, that a flag on the command line keeps a start that never opens the window, and that its layout is variant B of [#700](https://github.com/algernon28/vespera/issues/700), which [ADR-344](0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md) records. The rest, the dependencies and their version, how the window starts from the jar, which native libraries the jar carries, what a start does where no window can open, which records it supersedes and which it keeps, and how a window is tested, Claude recommended and the operator accepted as written.

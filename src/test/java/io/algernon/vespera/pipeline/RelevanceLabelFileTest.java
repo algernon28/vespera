@@ -40,7 +40,7 @@ class RelevanceLabelFileTest {
     private static final String SCORING_RUN = "9f2c41ab";
 
     /** The embedder the scores were produced by, which the file also has to name. */
-    private static final String EMBEDDER = "nomic-embed-text@1.5/ollama-0.33.2";
+    private static final String EMBEDDER = "acme-embed-text@1.5/ollama-0.33.2";
 
     /** The seed set the sample was drawn against, which the file also has to name (ADR-169). */
     private static final String SEED_SET = "/corpus/seeds";

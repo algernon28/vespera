@@ -72,7 +72,7 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
     private static final String THE_STAGE = "the generation step";
 
     /** A tag Ollama gives a cloud model: served by the local daemon, answered by ollama.com. */
-    private static final String A_CLOUD_TAGGED_GENERATION_MODEL = "gpt-oss:120b-cloud";
+    private static final String A_CLOUD_TAGGED_GENERATION_MODEL = "a-large-model:120b-cloud";
 
     /** A name that says nothing about where it runs, scripted as one Ollama reports as remote. */
     private static final String A_GENERATION_MODEL_OLLAMA_FORWARDS = "a-model-made-from-a-cloud-one:8b";

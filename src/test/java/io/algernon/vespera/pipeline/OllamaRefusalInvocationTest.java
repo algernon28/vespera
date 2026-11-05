@@ -106,7 +106,7 @@ class OllamaRefusalInvocationTest {
         });
         MockRestServiceServer.bindTo(builder).build();
         AtomicInteger chatCalls = new AtomicInteger();
-        CURRENT.set(OllamaLabellerFixture.over("gpt-oss:120b-cloud", LOCAL_URL, builder, chatCalls));
+        CURRENT.set(OllamaLabellerFixture.over("a-large-model:120b-cloud", LOCAL_URL, builder, chatCalls));
 
         cli.run("label", "--auto");
 
@@ -114,7 +114,7 @@ class OllamaRefusalInvocationTest {
         claim(
                 "the reason names the cloud model, and there is no stack trace in its place",
                 () -> assertThat(output.getAll())
-                        .contains("gpt-oss:120b-cloud is a cloud model")
+                        .contains("a-large-model:120b-cloud is a cloud model")
                         .doesNotContain("\tat "));
         claim(
                 "no request reached Ollama, neither a question about the model nor a chat: every request the"
@@ -134,7 +134,7 @@ class OllamaRefusalInvocationTest {
                         OLLAMA + "/api/show"))
                 .andRespond(withServerError());
         AtomicInteger chatCalls = new AtomicInteger();
-        CURRENT.set(OllamaLabellerFixture.over("qwen3:8b", LOCAL_URL, builder, chatCalls));
+        CURRENT.set(OllamaLabellerFixture.over("a-writing-model:8b", LOCAL_URL, builder, chatCalls));
 
         cli.run("label", "--auto");
 
