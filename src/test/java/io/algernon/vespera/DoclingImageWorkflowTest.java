@@ -128,6 +128,13 @@ class DoclingImageWorkflowTest {
             "\\|\\|\\s*(true|:)(\\s|;|$)|\\bset\\s+\\+e\\b|\\bset\\s+\\+o\\s+errexit\\b|\\bexit\\s+0\\b",
             Pattern.MULTILINE);
 
+    /**
+     * The job's condition: the ref the run is on is the main branch, and nothing else, bare or in an expression's
+     * braces. It holds for both triggers, since a push runs only on {@code main} already and a dispatch names its ref.
+     */
+    private static final Pattern ONLY_ON_MAIN = Pattern.compile(
+            "\\s*(\\$\\{\\{\\s*)?github\\.ref\\s*==\\s*'refs/heads/main'\\s*(}}\\s*)?");
+
     /** A shell variable as a run line names it, bare or braced, quoted or not. */
     private static String variable(String name) {
         return "\"?\\$\\{?" + name + "}?\"?";
@@ -154,6 +161,11 @@ class DoclingImageWorkflowTest {
                 "and the commit must change what the images are built from, the folder with the Containerfile, so"
                         + " a change to anything else pushes nothing",
                 () -> assertThat(push.get("paths")).isEqualTo(List.of("docker/docling-serve/**")));
+        claim(
+                "and the job runs on the main branch alone, whichever started it, so a dispatch from another branch"
+                        + " builds nothing and never pushes a Containerfile that has not reached main under a tag that"
+                        + " would then hold it for good",
+                () -> assertThat(String.valueOf(job().get("if"))).matches(ONLY_ON_MAIN));
     }
 
     @Test
