@@ -59,6 +59,7 @@ jobs:
       - name: Free the runner's disk
         if: matrix.free-disk
         run: |
+          df -h "$(docker info --format '{{.DockerRootDir}}')"
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost
           docker image prune --all --force
 
@@ -70,16 +71,17 @@ jobs:
           [ "$free" -ge "$NEEDS_GB" ] || { echo "$free GB free, $NEEDS_GB GB needed"; exit 1; }
 
       - name: Build the image
-        run: >-
-          docker build --pull
-          --build-arg DOCLING_SERVE_BASE="$BASE"
-          --build-arg VESPERA_IMAGE="$REFERENCE"
-          --label org.opencontainers.image.source=https://github.com/algernon28/vespera
-          --label org.opencontainers.image.revision="$GITHUB_SHA"
-          --label org.opencontainers.image.base.name="$BASE"
-          --label org.opencontainers.image.description="docling-serve with LibreOffice, built once for Vespera"
-          -t "$REFERENCE"
-          -f docker/docling-serve/Containerfile docker/docling-serve
+        run: |
+          docker build --pull \
+            --build-arg DOCLING_SERVE_BASE="$BASE" \
+            --build-arg VESPERA_IMAGE="$REFERENCE" \
+            --label org.opencontainers.image.source=https://github.com/algernon28/vespera \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
+            --label org.opencontainers.image.base.name="$BASE" \
+            --label org.opencontainers.image.description="docling-serve with LibreOffice, built once for Vespera" \
+            -t "$REFERENCE" \
+            -f docker/docling-serve/Containerfile docker/docling-serve
+          df -h "$(docker info --format '{{.DockerRootDir}}')"
 
       - name: Push the image
         run: docker push "$REFERENCE"
