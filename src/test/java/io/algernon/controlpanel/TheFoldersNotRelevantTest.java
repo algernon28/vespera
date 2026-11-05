@@ -175,6 +175,51 @@ class TheFoldersNotRelevantTest {
                 });
     }
 
+    /**
+     * Remove takes out the folder selected in {@code not-relevant-list} and nothing else (ADR-345 §2): with none selected
+     * it writes nothing, whatever {@code not-relevant-folder} holds, and says so in one line. A folder typed is Add's.
+     */
+    @Test
+    @Story("The operator answers the relevance questions by folder")
+    @DisplayName("Remove with no folder of the list selected writes nothing, though a folder is typed, and says so in one line")
+    void removeWithNoFolderSelectedWritesNothingThoughAFolderIsTyped(@TempDir Path folder) throws Exception {
+        Path workingDirectory = aCorpusAndWorkingDirectory(folder);
+        String listedAsWritten = "---\n- folder: \"Keep\"\n";
+        Files.writeString(workingDirectory.resolve(NotRelevantFolders.FILE_NAME), listedAsWritten,
+                StandardCharsets.UTF_8);
+        String asTheJarWroteIt = labels("null", "false");
+        Files.writeString(workingDirectory.resolve(LabelAnswers.FILE_NAME), asTheJarWroteIt, StandardCharsets.UTF_8);
+        record Seen(String outcome, String typed, List<String> listed) {
+        }
+        Seen seen;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
+            window.act(root -> {
+                @SuppressWarnings("unchecked")
+                ListView<String> list = WindowForTests.node(root, "not-relevant-list", ListView.class);
+                list.getSelectionModel().clearSelection();
+                WindowForTests.node(root, "not-relevant-folder", TextField.class).setText("Old");
+                WindowForTests.node(root, "not-relevant-remove", Button.class).fire();
+            });
+            seen = window.read(root -> new Seen(WindowForTests.node(root, "not-relevant-outcome", Label.class).getText(),
+                    WindowForTests.node(root, "not-relevant-folder", TextField.class).getText(), listed(root)));
+        }
+
+        claim("neither file is written: the file of folders not relevant and the label file as they were",
+                () -> {
+                    assertThat(Files.readString(workingDirectory.resolve(NotRelevantFolders.FILE_NAME),
+                            StandardCharsets.UTF_8)).isEqualTo(listedAsWritten);
+                    assertThat(Files.readString(workingDirectory.resolve(LabelAnswers.FILE_NAME), StandardCharsets.UTF_8))
+                            .isEqualTo(asTheJarWroteIt);
+                });
+        claim("the list beneath the tree still shows Keep alone",
+                () -> assertThat(seen.listed()).containsExactly("Keep"));
+        claim("and the outcome is one line, the folder still typed",
+                () -> {
+                    assertThat(seen.outcome()).isNotBlank().doesNotContain("\n");
+                    assertThat(seen.typed()).isEqualTo("Old");
+                });
+    }
+
     /** The folders {@code not-relevant-list} shows, in order. */
     @SuppressWarnings("unchecked")
     private static List<String> listed(javafx.scene.Parent root) {

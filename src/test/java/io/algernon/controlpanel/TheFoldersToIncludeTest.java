@@ -24,12 +24,15 @@ import java.util.stream.Stream;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBoxTreeItem;
+import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -43,6 +46,9 @@ import org.junit.jupiter.params.provider.MethodSource;
  * subfolders are written. A folder the profile lists, below another, comes back from a Save as it was, and one it lists
  * that is no longer there is kept, the folders it lists first and in its order. With every folder ticked again, the key
  * is taken out. The tree is the folders of the corpus root the field names now, and Save writes paths under that one.
+ * On Windows a folder listed in another case is the folder itself, as the walk compares them. A value the walk cannot
+ * read is drawn every folder ticked and keeps no piece, so a Save with nothing unticked takes it out; where no tree can
+ * be drawn, every piece listed is kept as stated.
  *
  * <p>Each test draws the window over a corpus root and a working directory of its own, held as launch values, ticks and
  * unticks the tree's boxes as the operator does, presses Save and reads the profile the working directory then holds.
@@ -239,6 +245,104 @@ class TheFoldersToIncludeTest {
                 () -> assertThat(drawnAfter).containsExactly("B1"));
         claim("and Save writes the folder unticked as a path under the other corpus root",
                 () -> assertThat(listedIn(workingDirectory)).containsExactly("B1/Deep"));
+    }
+
+    /**
+     * On Windows a folder listed in another case is the folder itself (ADR-345 §2, as the walk compares it by ADR-340
+     * §8.2): {@code notes} listed and {@code Notes} on disk, the tree draws {@code Notes} unticked, a Save writes nothing,
+     * and ticked again the key is taken out. Replaces the browser panel's test of the same name, gone with its pages.
+     */
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    @Story("The operator says which folders hold nothing to read")
+    @DisplayName("On Windows a folder listed in another case is drawn unticked, a Save leaves the profile as it was, and ticked again it is taken out")
+    void onWindowsAFolderListedInAnotherCaseIsTheFolderItself(@TempDir Path folder) throws Exception {
+        Path workingDirectory = aCorpusAndWorkingDirectory(folder, "Notes", "Other");
+        String stated = aProfileListing(workingDirectory, "notes");
+        boolean drawnUnticked;
+        String afterTheFirstSave;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
+            drawnUnticked = window.read(root -> !WindowForTests.folder(root, "Notes").isSelected());
+            save(window);
+            afterTheFirstSave = Files.readString(workingDirectory.resolve(ProfileEdit.FILE_NAME), StandardCharsets.UTF_8);
+            window.act(root -> WindowForTests.folder(root, "Notes").setSelected(true));
+            save(window);
+        }
+
+        claim("the tree draws Notes unticked, the profile listing it as notes",
+                () -> assertThat(drawnUnticked).isTrue());
+        claim("a Save with nothing changed leaves profile.yaml byte for byte as it was, notes not rewritten as Notes",
+                () -> assertThat(afterTheFirstSave).isEqualTo(stated));
+        claim("and ticked again and saved, the profile no longer states the folders not walked",
+                () -> assertThat(statedIn(workingDirectory)).doesNotContainKey(ProfileKey.FOLDERS_NOT_WALKED));
+    }
+
+    /**
+     * A value the walk cannot read (ADR-340 §8.1) is drawn as the walk reads it, every folder ticked, and {@code
+     * inclusions-outcome} says so (ADR-345 §2); it names no folder, so it keeps no piece, and a Save with nothing unticked
+     * takes the key out, the value beside it untouched.
+     */
+    @Test
+    @Story("The operator says which folders hold nothing to read")
+    @DisplayName("A value the walk cannot read is drawn every folder ticked, said in one line, and a Save with nothing unticked takes it out")
+    void aValueTheWalkCannotReadIsDrawnTickedAndASaveWithNothingUntickedTakesItOut(@TempDir Path folder)
+            throws Exception {
+        Path workingDirectory = aCorpusAndWorkingDirectory(folder, "A", "B");
+        Optional<String> text = Optional.of(ProfileEdit.rewrite(Optional.empty(), ProfileKey.GENERATION_MODEL,
+                "qwen3:8b", THE_OPERATORS_NOTE));
+        // the control panel writes no value the walk cannot read, so the test spells one into the profile itself
+        String placeholder = "a-folder-to-replace";
+        text = Optional.of(ProfileEdit.rewrite(text, ProfileKey.FOLDERS_NOT_WALKED, placeholder, THE_OPERATORS_NOTE)
+                .replace(placeholder, "../outside"));
+        Files.writeString(workingDirectory.resolve(ProfileEdit.FILE_NAME), text.orElseThrow(), StandardCharsets.UTF_8);
+        assumeThat(ProfileEdit.isReadable(ProfileKey.FOLDERS_NOT_WALKED, "../outside"))
+                .as("../outside is a value the walk cannot read").isFalse();
+        assumeThat(statedIn(workingDirectory).get(ProfileKey.FOLDERS_NOT_WALKED))
+                .as("the profile states ../outside as the folders not walked")
+                .isEqualTo(new Stated("../outside", THE_OPERATORS_NOTE));
+        record Seen(List<Boolean> ticked, String outcome) {
+        }
+        Seen seen;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
+            seen = window.read(root -> new Seen(List.of(WindowForTests.folder(root, "A").isSelected(),
+                    WindowForTests.folder(root, "B").isSelected()),
+                    WindowForTests.node(root, "inclusions-outcome", Label.class).getText()));
+            save(window);
+        }
+
+        Map<ProfileKey, Stated> stated = statedIn(workingDirectory);
+        claim("every folder is drawn ticked, as the walk reads a value it cannot read",
+                () -> assertThat(seen.ticked()).containsExactly(true, true));
+        claim("and inclusions-outcome says so in one line",
+                () -> assertThat(seen.outcome()).isNotBlank().doesNotContain("\n"));
+        claim("a Save with nothing unticked takes the folders not walked out of the profile",
+                () -> assertThat(stated).doesNotContainKey(ProfileKey.FOLDERS_NOT_WALKED));
+        claim("and the value beside it stands as it was",
+                () -> assertThat(stated).containsEntry(ProfileKey.GENERATION_MODEL,
+                        new Stated("qwen3:8b", THE_OPERATORS_NOTE)));
+    }
+
+    /**
+     * Where no tree can be drawn, the corpus root the field names being no folder that is there, every piece the profile
+     * lists is kept as stated (ADR-345 §2), so a Save writes the value as the file states it, which is not written.
+     */
+    @Test
+    @Story("The operator says which folders hold nothing to read")
+    @DisplayName("Where no tree can be drawn, a Save keeps every folder the profile lists as stated and leaves the profile as it was")
+    void whereNoTreeCanBeDrawnASaveKeepsEveryFolderListedAsStated(@TempDir Path folder) throws Exception {
+        Path workingDirectory = Files.createDirectories(folder.resolve("working"));
+        String stated = aProfileListing(workingDirectory, "A", "B/C");
+        List<String> drawn;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
+            drawn = window.read(TheFoldersToIncludeTest::topFolders);
+            save(window);
+        }
+
+        claim("the corpus root named being no folder, the tree draws no folder",
+                () -> assertThat(drawn).isEmpty());
+        claim("and a Save keeps A and B/C as stated: profile.yaml is byte for byte as it was",
+                () -> assertThat(Files.readString(workingDirectory.resolve(ProfileEdit.FILE_NAME), StandardCharsets.UTF_8))
+                        .isEqualTo(stated));
     }
 
     /** The names of the tree's top folders, the corpus root's own, in the order drawn; none where no tree is drawn. */

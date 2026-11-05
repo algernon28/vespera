@@ -169,8 +169,8 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
     /**
      * A working directory no source of ADR-344 §3 names leaves its field empty, and the field stands for the folder the
      * jar would use on this machine (ADR-345 §1, keeping ADR-340 §6): here the one the environment's {@code DB_DIR} names,
-     * a spelling ADR-344 §3's sources do not read. That folder is the one whose profile the window shows, and the one Run
-     * passes as {@code --db-dir}.
+     * a spelling ADR-344 §3's sources do not read. That folder is the one the field's <i>in use</i> line names (ADR-334
+     * §2), the one whose profile the window shows, and the one Run passes as {@code --db-dir}.
      */
     @Test
     @Story("The control panel's values start from the real configuration")
@@ -187,17 +187,21 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         state.useWorkingDirectoryDefault(WorkingDirectoryDefault.of(folder, Map.of(),
                 Map.of("DB_DIR", theMachines.toString())));
 
-        record Seen(String field, String model, String run) {
+        record Seen(String field, String inUse, String model, String run) {
         }
         Seen seen;
         try (WindowForTests window = WindowForTests.shown(state)) {
             seen = window.read(root -> new Seen(
-                    WindowForTests.node(root, "vespera.working-dir", TextField.class).getText(), model(root),
+                    WindowForTests.node(root, "vespera.working-dir", TextField.class).getText(),
+                    WindowForTests.node(root, "status-vespera.working-dir", javafx.scene.control.Label.class).getText(),
+                    model(root),
                     WindowForTests.node(root, "command-line-run", javafx.scene.control.Label.class).getText()));
         }
 
         claim("the working directory's field is empty, no source naming it",
                 () -> assertThat(seen.field()).isEmpty());
+        claim("and the in use line beside the empty field names the folder the machine names (ADR-334 §2)",
+                () -> assertThat(seen.inUse()).contains(theMachines.toAbsolutePath().normalize().toString()));
         claim("the Profile tab shows the profile of the folder the machine names",
                 () -> assertThat(seen.model()).isEqualTo("qwen3:8b"));
         claim("and Run would pass that folder as the working directory",

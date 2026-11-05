@@ -2439,7 +2439,7 @@ public final class Adr {
 
     /**
      * ADR-342 -- the control panel is a JavaFX window inside the Vespera jar, OpenJFX 26.0.2's {@code javafx-controls}
-     * of the building platform's classifier, opened by the jar started with no argument through {@code
+     * and {@code javafx-web} of the building platform's classifier, opened by the jar started with no argument through {@code
      * io.algernon.EntryPoint}, its child the jar it runs from; its loopback server, pages and second jar go, and a
      * window is tested on JavaFX's Headless platform (supersedes ADR-291, ADR-297, ADR-302 but for §5 to §7, ADR-325,
      * ADR-331 but for §6 and §8, and ADR-335; amends ADR-285 §2 to §4, ADR-288 §1 and §4, and ADR-278 §2).

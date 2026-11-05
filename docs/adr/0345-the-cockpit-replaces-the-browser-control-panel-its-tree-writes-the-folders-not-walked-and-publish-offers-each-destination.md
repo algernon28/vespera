@@ -40,7 +40,8 @@
 
 - **the value** is the highest unticked folder of each branch, spelt from the corpus root with `/` between its names, and each piece the profile lists that names no folder there, kept as stated; the pieces the profile already lists come first, in its order, and the others after them, in the tree's order; joined by the system's path separator, as `CorpusFoldersValue` reads them;
 - **a value as the file states it is not written**; a changed one is written with `set in the control panel`, the tab showing no note;
-- **with no folder unticked and none kept**, the key is taken out of the file, so every folder is read, as an unset key reads.
+- **with no folder unticked and none kept**, the key is taken out of the file, so every folder is read, as an unset key reads. A value the walk cannot read names no folder, so it keeps no piece: a Save with nothing unticked takes it out, and one with folders unticked writes them in its place;
+- **where no tree can be drawn**, the corpus root the field names being no folder that is there, every piece the profile lists is kept as stated, so a Save writes the value as the file states it, which is not written.
 
 **Reset, `inclusions-reset`**, puts the tree back to the profile as last saved, and writes nothing. The Profile tab shows `foldersNotWalked` read-only, as it shows `seedFolder` and `codeSetFolders`, with a link that opens the Inclusions tab. The tab's line above the tree says, in the implementation's words, that an unticked folder is never read, and that a change makes the next walk another, every run after it new.
 
@@ -52,7 +53,7 @@
 | The folder | `not-relevant-folder` | a folder typed, from the corpus root, `/` between its names |
 | Its Browse | `not-relevant-browse` | the system's folder dialog at the corpus root, through ADR-342 §6's seam; the folder chosen put in `not-relevant-folder`, from the corpus root |
 | Add | `not-relevant-add` | ADR-334 §6's save of the folder typed: the folder added to the list the file holds as read then, and every question of `relevance-labels.yaml` answered, `false` at or below a folder listed and `true` otherwise, all or none, in one hold of the lock |
-| Remove | `not-relevant-remove` | ADR-334 §6's remove of the folder selected in `not-relevant-list`, the questions answered again |
+| Remove | `not-relevant-remove` | ADR-334 §6's remove of the folder selected in `not-relevant-list`, the questions answered again; with none selected it writes nothing, whatever `not-relevant-folder` holds, a folder typed being Add's, and `not-relevant-outcome` says so |
 | The outcome | `not-relevant-outcome` | the one line ADR-334 §6 says for the action, a refusal among them; a refused folder stays typed and nothing is written |
 
 **Why the two live so.** The tree answers what the operator gave it to answer, which folders hold nothing to be read, and the profile is where the jar reads it. The list answers the relevance questions in bulk, at no cost to any run, about folders that are read. One box with both meanings would hide which was chosen and what it costs; a second box on each row would double the tree's states, when a folder not walked can hold no question. The list keeps ADR-334 §6 whole, and stands where the folders are chosen.
@@ -137,10 +138,14 @@ No file under `src/main/java/io/algernon/vespera` changes for this record, so no
 | `controlpanel.TheFoldersToIncludeTest.aListedFolderNoLongerThereIsKept` | `Gone` and `A/Gone` listed, then `C` unticked: the three written, the two listed first in their order (§2) |
 | `controlpanel.TheFoldersToIncludeTest.everyFolderTickedAgainTakesTheKeyOut` | `A` listed and ticked again: `foldersNotWalked` no longer in the file, `generationModel` still there (§2) |
 | `controlpanel.TheFoldersToIncludeTest.anotherCorpusRootSetInTheFieldIsTheTreeDrawnAndSaved` | the field set to another corpus root: its folders drawn, none of the first's, and `B1/Deep` written (§2) |
+| `controlpanel.TheFoldersToIncludeTest.onWindowsAFolderListedInAnotherCaseIsTheFolderItself` | on Windows, `notes` listed and `Notes` on disk: `Notes` drawn unticked, `profile.yaml` byte for byte as it was after a Save, and ticked again `foldersNotWalked` no longer in the file (§2, ADR-340 §8.2) |
+| `controlpanel.TheFoldersToIncludeTest.aValueTheWalkCannotReadIsDrawnTickedAndASaveWithNothingUntickedTakesItOut` | `../outside` listed: every folder drawn ticked, one line in `inclusions-outcome`, and after a Save with nothing unticked `foldersNotWalked` no longer in the file, `generationModel` still there (§2) |
+| `controlpanel.TheFoldersToIncludeTest.whereNoTreeCanBeDrawnASaveKeepsEveryFolderListedAsStated` | `A` and `B/C` listed, the corpus root no folder: no tree drawn, and `profile.yaml` byte for byte as it was after a Save (§2) |
 | `controlpanel.TheFoldersNotRelevantTest.theListIsTheFoldersTheFileListsInItsOrder` | `B/x` then `A` listed: `not-relevant-list` the two in that order (§2) |
 | `controlpanel.TheFoldersNotRelevantTest.aFolderAddedIsWrittenAndEveryQuestionIsAnsweredFromTheList` | `Old` typed and added: the file lists it, the question below it answered `false` and the other `true`, the list showing it, `profile.yaml` unwritten (§2, ADR-334 §6) |
 | `controlpanel.TheFoldersNotRelevantTest.aFolderRemovedIsNoLongerListedAndItsQuestionsAreAnsweredAgain` | `Old` selected and removed: the file lists none, the question below it answered `true` (§2, ADR-334 §6) |
 | `controlpanel.TheFoldersNotRelevantTest.aFolderTheListCannotHoldIsNotAddedAndNothingIsWritten` | `../Old` typed and added: one line in `not-relevant-outcome`, the folder still typed, neither file written (§2, ADR-334 §6) |
+| `controlpanel.TheFoldersNotRelevantTest.removeWithNoFolderSelectedWritesNothingThoughAFolderIsTyped` | `Keep` listed, none selected and `Old` typed, Remove pressed: one line in `not-relevant-outcome`, `Old` still typed, the list `Keep` alone, neither file written (§2) |
 | `pipeline.TheStopCostsNameTheJarsStepsTest.theStageShownBesideEachStepIsTheJarsOrTheNumberTheRecordsGiveIt` | for each step of the job, the stage the jar records it under, and `0`, `5e` and `5` for the census, the relevance floor and the relevance report, which it records under none (§3) |
 | `controlpanel.PublishOffersEachDestinationDrawnTest.bothRenderingsDrawnOfferTwoBoxesConfluenceTickedAndTheWebsiteNot` | both lists in a run's folder: `publish-to-confluence` ticked then `publish-to-website` not, in `publish-to`; `command-line-publish` `--to confluence` (§4) |
 | `controlpanel.PublishOffersEachDestinationDrawnTest.withTheWebsiteAloneDrawnItsBoxIsOfferedAndNothingStartsUntilItIsTicked` | the website's list alone: its box alone, unticked; Publish pressed starts no child and says one line; ticked, `command-line-publish` `--to website` (§4) |
@@ -152,12 +157,12 @@ No file under `src/main/java/io/algernon/vespera` changes for this record, so no
 | `pipeline.TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest.eachArgumentIsSetByAControlOfTheControlPanelOrNeverPassedAndSaysWhy` | `publish to` by `publish-to`; `vespera help`, `vespera version` and `serve db-dir` the only three never passed (§4) |
 | `controlpanel.TheControlPanelsWindowTest.everyControlTheArgumentsTableNamesIsAControlOfTheWindow` | `publish-to` among the controls found, on a first start with nothing drawn (§4) |
 | `controlpanel.TheWorkingDirectoryInTheFoldersFieldTest.theFieldsWorkingDirectoryIsReadAndWrittenBeforeARunAndAfterIt` | the tree drawn from that working directory's `foldersNotWalked`, and its Save writing that profile (§2) |
-| `controlpanel.TheWorkingDirectoryInTheFoldersFieldTest.anEmptyWorkingDirectoryFieldIsTheFolderTheJarWouldUseWhichRunPasses` | no source naming it and `DB_DIR` given the window: the field empty, the Profile tab showing that folder's profile, and `command-line-run` ending `--db-dir=<it>` (§1) |
+| `controlpanel.TheWorkingDirectoryInTheFoldersFieldTest.anEmptyWorkingDirectoryFieldIsTheFolderTheJarWouldUseWhichRunPasses` | no source naming it and `DB_DIR` given the window: the field empty, the *in use* line beside it naming that folder (ADR-334 §2), the Profile tab showing that folder's profile, and `command-line-run` ending `--db-dir=<it>` (§1) |
 | `controlpanel.WorkingDirectoryDefaultTest` | ADR-340 §6's table, which §1 keeps |
 
 ## What the implementation owes
 
-Beside turning the tests above green, the change that builds this record: gives `ChildCommand` §4's members and rows, taking `publish(Path, Path, LaunchValues)` out; gives `ControlPanelState` a package-private `useWorkingDirectoryDefault(WorkingDirectoryDefault)`, as `useSources` gives it the four sources, `ControlPanel.open()` handing it the one its JVM resolves, and a `Plan` carrying the destinations ticked; draws `publish-to`, the Inclusions tab and `StopCosts.stageOf` as §2 to §4 have them, and keeps `inclusions-tree`, `inclusions-save`, `inclusions-reset` and `inclusions-outcome`; and keeps `WorkingDirectoryDefault`, whose table §1 keeps.
+Beside turning the tests above green, the change that builds this record: gives `ChildCommand` §4's members and rows, taking `publish(Path, Path, LaunchValues)` out; gives `ControlPanelState` a package-private `useWorkingDirectoryDefault(WorkingDirectoryDefault)`, as `useSources` gives it the four sources, `ControlPanel.open()` handing it the one its JVM resolves, and a `Plan` carrying the destinations ticked; draws `publish-to`, the Inclusions tab and `StopCosts.stageOf` as §2 to §4 have them, and keeps `inclusions-tree`, `inclusions-save`, `inclusions-reset` and `inclusions-outcome`; has `not-relevant-remove` with no folder selected write nothing, as §2's table has it; and keeps `WorkingDirectoryDefault`, whose table §1 keeps.
 
 ## What this does not decide
 
