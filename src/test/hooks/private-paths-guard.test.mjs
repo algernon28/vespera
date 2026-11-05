@@ -1968,15 +1968,19 @@ cases.push(
   ["C764", "a for loop over PATH, then grep of a quoted file outside the allow list", "Bash", { command: "for PATH in 1; do grep '../outside/doc.txt'; done" }, REFUSED],
   ["C765", "PATH assigned by [[ ]]'s arithmetic, then grep of a quoted file outside the allow list", "Bash", { command: "[[ 0 -eq PATH=1 ]]; grep '../outside/doc.txt'" }, REFUSED],
 
-  /* C77. Forms the third gate of PR #709 found: git stash's show and list, whose -m takes no text, so the
-     next word is an option that names a file; a word headed by - that Bash may expand into an option; and
-     a word after time and its one -p and one --, which Bash runs as the program. Nothing is taken out. */
+  /* C77. Forms the third and fourth gates of PR #709 found: git stash's show and list, whose -m takes no
+     text, so the next word is an option that names a file; a word headed by - that Bash may expand into an
+     option; a word after time and its one -p and one --, which Bash runs as the program; and a word holding
+     a $ outside quotes, which Bash may split into more words than one, one of them an option. Nothing is
+     taken out. */
   ["C771", "git stash show -m, which takes no text, then --output= of a file outside the allow list", "Bash", { command: "git stash show -m --output=../outside/doc.txt" }, REFUSED],
   ["C772", "git stash list -m, which takes no text, then --output= of a file outside the allow list", "Bash", { command: "git stash list -m --output=../outside/doc.txt" }, REFUSED],
   ["C773", "grep of a quoted file outside the allow list, then -{f,}, which Bash makes -f and -", "Bash", { command: "echo | grep '../outside/doc.txt' -{f,}" }, REFUSED],
-  ["C774", "git commit -{C,}, which Bash makes -C and -, then -m of a pathspec outside the allow list", "Bash", { command: "git commit -{C,} -m '../outside/doc.txt'" }, REFUSED],
+  ["C774", "git commit -{-,}, which Bash makes -- and -, so -m and a quoted file outside the allow list are pathspecs", "Bash", { command: "git commit -{-,} -m '../outside/doc.txt'" }, REFUSED],
   ["C775", "time, then -x, which Bash runs as the program, then grep of a quoted file outside the allow list", "Bash", { command: "time -x grep '../outside/doc.txt'" }, REFUSED],
   ["C776", "time -p, then a second -p, which Bash runs as the program, then grep of a quoted file outside the allow list", "Bash", { command: "time -p -p grep '../outside/doc.txt'" }, REFUSED],
+  ["C777", "grep of a quoted file outside the allow list, then x$o, which Bash may split into x and an option", "Bash", { command: "grep '../outside/doc.txt' x$o" }, REFUSED],
+  ["C778", "git commit x$o, which Bash may split into x and --, so -m and a quoted file outside the allow list are pathspecs", "Bash", { command: "git commit x$o -m '../outside/doc.txt'" }, REFUSED],
 
   /* C52. What the options read as their programs read them still let through. */
   ["C521", "grep --binary -n whose pattern is an alternation of two one-letter keys", "Bash", { command: "grep --binary -n 'x: \\|y: ' README.md" }, ALLOWED],
