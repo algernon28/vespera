@@ -2486,6 +2486,14 @@ public final class Adr {
             FILE + "0349-the-docling-images-are-built-once-pushed-to-ghcr-as-public-packages-never-over-a-tag-already-there-and-pulled-by-digest.md";
 
     /**
+     * ADR-350 -- the claim of the current wayfinder map is NOT CHECKED on a pull request's CI and read on main's push
+     * and a daily schedule; and a record from ADR-350 on whose slug is past 120 characters fails the claims job (keeps
+     * ADR-346 §1 and §3).
+     */
+    public static final String THE_CLAIMS_JOB_READS_THE_TRACKER_OFF_A_PULL_REQUESTS_CI = FILE
+            + "0350-the-claims-job-reads-the-tracker-off-a-pull-requests-ci-and-a-new-records-slug-keeps-to-120-characters.md";
+
+    /**
      * ADR-352 -- a unit test's timing bound holds on a machine busy with other work: a bound on a cost is taken on the
      * processor time of the thread that pays it, a fixture's state changes on an event the code under test makes and
      * not after a time on the clock, and a limit a command must outlast to print is doubled until it does (decides

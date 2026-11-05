@@ -10,7 +10,9 @@
 // third made two such claims outside every guard until ADR-129.
 //
 //   node docs/check-claims.mjs                 everything that needs no network
-//   node docs/check-claims.mjs --with-network  also: is the named wayfinder map still open
+//   node docs/check-claims.mjs --with-network  also: is the named wayfinder map still open, except on a pull
+//                                              request's CI (GITHUB_EVENT_NAME pull_request or
+//                                              pull_request_target, ADR-350 §1)
 //
 // Why this exists: AGENTS.md is what an agent reads before doing anything, and on
 // 2026-09-08 six of its claims were false — the ADR count, the boundary between the
@@ -34,7 +36,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { adrCollisionClaim, agentsMdSize, sharedNumbers, unreadPullRequests } from "./check-claims-lib.mjs";
+import { adrCollisionClaim, agentsMdSize, readsTrackerState, sharedNumbers, slugClaim, unreadPullRequests } from "./check-claims-lib.mjs";
 
 const AGENTS = "AGENTS.md";
 const README = "README.md";
@@ -248,6 +250,10 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
   } else if (!withNetwork) {
     skip(NAME, named ? `#${named[1]} — run with --with-network to check it`
       : "none claimed open — run with --with-network to check it");
+  } else if (!readsTrackerState({ withNetwork, eventName: process.env.GITHUB_EVENT_NAME })) {
+    // ADR-350 §1: a label or a close the pull request did not make is no fault of it; every other run reads it.
+    skip(NAME, `${named ? `#${named[1]}` : "none claimed open"} — the tracker is not read on a pull request's CI,`
+      + ` but on main's push, the daily schedule, a dispatch and a run outside CI`);
   } else {
     const headers = { accept: "application/vnd.github+json" };
     if (process.env.GITHUB_TOKEN) headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
@@ -888,6 +894,13 @@ function markerPattern(source, whole = false) {
   const shared = sharedNumbers(adrFiles.map((f) => `${ADR_DIR}/${f}`));
   if (shared.length) fail(NAME, shared.map((s) => `${s.number} is taken by ${s.files.join(" and ")}`).join("; "));
   else pass(NAME, `${adrFiles.length} records, each number taken by one file`);
+}
+
+{
+  // ADR-350 §2: a slug of about 200 characters put a clone in a temporary folder past Windows' path limit.
+  const NAME = "the length of a decision record's slug";
+  const { state, detail } = slugClaim(adrFiles.map((f) => `${ADR_DIR}/${f}`));
+  results.push({ state, name: NAME, detail });
 }
 
 {
