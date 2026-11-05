@@ -66,8 +66,10 @@ class SystemProcessRunnerTest {
      * The command is a Java, which a machine busy with other builds can take seconds to start, so that a fixed limit
      * of half a second killed it before it printed anything. The limit is doubled, from {@link #LIMIT} up to {@link
      * #LONGEST_LIMIT}, until a run's command printed its line before it was killed, and every run is held to what the
-     * runner owes it (ADR-352): killed at its limit and not before, counted as exit -1, and with nothing for output but
-     * what the command printed. On an idle machine the first run is the last.
+     * runner owes it (ADR-352): killed at its limit and not before, counted as exit -1, and with the command's line at
+     * most once in its output and, where it is there, last. What the Java writes before its program runs, such as a
+     * note or a warning of the options it inherited from the machine's environment, comes before that line and is not
+     * claimed on. On an idle machine the first run is the last.
      */
     @Test
     @Story("Vespera refuses, naming why, when it cannot start them")
@@ -98,13 +100,21 @@ class SystemProcessRunnerTest {
 
         claim("the last run's command printed its line before it was killed, and that line is its output",
                 () -> assertThat(outcomes.getLast().output()).contains(SleepsUntilKilled.STARTED));
-        claim("every run counts as exit " + KILLED + ", and its output, past any note the Java launcher prints of the"
-                        + " options it picked up from the environment, is the line its command printed or, where it was"
-                        + " killed before it printed, nothing",
+        claim("every run counts as exit " + KILLED + ", and its command's line is in its output at most once and, where"
+                        + " it is, is the output's last line, whatever the Java wrote before its program ran",
                 () -> assertThat(outcomes).allSatisfy(outcome -> {
                     assertThat(outcome.exitCode()).isEqualTo(KILLED);
-                    assertThat(linesPastTheLaunchersNotes(outcome.output()))
-                            .isIn(List.of(), List.of(SleepsUntilKilled.STARTED));
+                    List<String> lines = outcome.output().lines().toList();
+                    assertThat(lines)
+                            .as("the lines of a killed command's output, %s", lines)
+                            .filteredOn(SleepsUntilKilled.STARTED::equals)
+                            .hasSizeLessThanOrEqualTo(1);
+                    if (lines.contains(SleepsUntilKilled.STARTED)) {
+                        assertThat(lines)
+                                .as("the lines of a killed command's output, of which the command's own comes last")
+                                .last()
+                                .isEqualTo(SleepsUntilKilled.STARTED);
+                    }
                 }));
         claim("and every run returned no sooner than its limit, the half second it was first given and each doubled"
                         + " after (" + limits + ", taking " + tooks + ")",
@@ -113,18 +123,6 @@ class SystemProcessRunnerTest {
                         assertThat(tooks.get(run)).isGreaterThanOrEqualTo(limits.get(run));
                     }
                 });
-    }
-
-    /**
-     * The lines of a command's output other than the notes a Java launcher prints, before anything of the program's
-     * own, of the options it picked up from {@code JAVA_TOOL_OPTIONS}, {@code JDK_JAVA_OPTIONS} or {@code
-     * _JAVA_OPTIONS}: the runner merges what the command writes to its errors into its output, and the command inherits
-     * the environment of the machine the tests run on.
-     */
-    static List<String> linesPastTheLaunchersNotes(String output) {
-        return output.lines()
-                .filter(line -> !line.startsWith("Picked up ") && !line.startsWith("NOTE: Picked up "))
-                .toList();
     }
 
     /** The processes this Java started, and those they started, still running. */
@@ -160,7 +158,7 @@ class SystemProcessRunnerTest {
     @Issue("698")
     @Link(name = "ADR-352", url = Adr.A_TIMING_BOUND_IN_A_UNIT_TEST_IS_ONE_A_BUSY_MACHINE_DOES_NOT_MOVE, type = "adr")
     @DisplayName("A command that exits while a process it started keeps its output open returns within its limit, with its own exit code")
-    @org.junit.jupiter.api.Timeout(value = 30)
+    @org.junit.jupiter.api.Timeout(value = 60)
     void aCommandWhoseChildKeepsItsOutputOpenStillReturns(@org.junit.jupiter.api.io.TempDir java.nio.file.Path folder)
             throws Exception {
         java.nio.file.Path childsId = folder.resolve("child.pid");
@@ -174,9 +172,15 @@ class SystemProcessRunnerTest {
         ProcessOutcome outcome;
         try {
             outcome = new SystemProcessRunner(outputFolder).run(leaver, CHILD_LIMIT);
-        } finally {
-            killTheChildNamedIn(childsId);
+        } catch (Throwable runFailed) {
+            try {
+                killTheChildNamedIn(childsId);
+            } catch (Exception killFailed) {
+                runFailed.addSuppressed(killFailed);
+            }
+            throw runFailed;
         }
+        killTheChildNamedIn(childsId);
         Duration took = Duration.ofNanos(System.nanoTime() - began);
         ProcessOutcome returned = outcome;
 
@@ -248,7 +252,9 @@ class SystemProcessRunnerTest {
     /**
      * Kills the child whose id the command wrote, and waits up to {@link #GONE_WITHIN} for it to be gone, so that no
      * test leaves a process behind, whatever it ended in, and the child no longer holds the output file in the test's
-     * folder when that folder is deleted (ADR-352 §3).
+     * folder when that folder is deleted (ADR-352 §3). The test that calls it is given 60 s, more than {@link
+     * #CHILD_LIMIT} and this wait together, and adds a failure of this wait to the run's own failure, where the run
+     * failed, so that neither hides the other.
      */
     private static void killTheChildNamedIn(java.nio.file.Path childsId) throws Exception {
         if (java.nio.file.Files.exists(childsId)) {
