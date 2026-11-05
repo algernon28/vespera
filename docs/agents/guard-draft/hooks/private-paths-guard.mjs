@@ -108,8 +108,11 @@
 // git's index form (ADR-343, which amends ADR-217 section 2 for that form): its rest is read as any token
 // is, against every folder the command names, and on Windows the word is read by its rest only, off Windows
 // as written as well. A git push refspec such as :claude/x is read so too. Not given that reading: a
-// redirect's target, a value after =, and any word in a command with a ( ) or backtick (or { } in
-// PowerShell). One letter and a colon stays a drive, and a name of spaces stays refused.
+// redirect's target (the word after any bare word that holds < or >), a value after =, any word in a
+// command with a ( ) or backtick (or { } in PowerShell), pieces cut at , { }, halves joined at an escaped
+// space, and a word with a quote inside it. No git segment is read where the cut may not be the shell's: a
+// break inside quotes, an unpaired quote, a Bash backslash before a quote or a break, a PowerShell
+// typographic quote or --%. One letter and a colon stays a drive, and a name of spaces stays refused.
 //
 // A link is followed before the check. A path that holds .. is read twice, and either reading refuses:
 // as text, where .. folds against the name before it, and as the file system walks it, which starts from
@@ -691,34 +694,59 @@ function variantsOf(text) {
 // Where the words that are git's index form start in a command (ADR-343), each with its prefix, : or :N:
 // for a stage N of 0 to 3. A word counts only in a segment (cut at ; & | and the line break) whose first
 // word is the bare word git, folded to one case in PowerShell, and in a command with no ( ) or backtick,
-// and, in PowerShell, no { }. A word after a redirect operator, a word with a quote inside it and a word
-// with no rest after the prefix do not count. A value after = is not the word, so it does not either.
-const INDEX_PREFIX = /^(:(?:[0-3]:)?)(?=[^])/;
+// and, in PowerShell, no { }. No segment counts where the cut may not be the shell's: a quoted span (quotes
+// paired left to right) that holds ; & | or a line break, an unpaired quote, in Bash a backslash before a
+// quote or a break, in PowerShell a typographic quote or the word --%. A word is a whole shell word; only
+// a word that is exactly one quoted string or holds no quote counts. A word after a redirect operator (any
+// bare word that holds < or >) does not count, nor does a word with no path after the prefix. A value
+// after = is not the word, so it does not either.
+const INDEX_PREFIX = /^(:(?:[0-3]:)?)/;
+function cutIsShells(command, bash) {
+  if (bash ? /\\["';&|\r\n]/.test(command) : /[‘-„]|(?:^|\s)--%(?:\s|$)/.test(command)) return false;
+  for (let i = 0; i < command.length; i++) {
+    const q = command[i];
+    if (q !== "'" && q !== '"') continue;
+    const end = command.indexOf(q, i + 1);
+    if (end < 0 || /[;&|\r\n]/.test(command.slice(i, end))) return false;
+    i = end;
+  }
+  return true;
+}
 function gitIndexForms(command, bash) {
   const forms = new Map();
-  if (/[()`]/.test(command) || (!bash && /[{}]/.test(command))) return forms;
+  // joined: the word git is given for each word that holds a quote, is not one quoted string and begins
+  // with the colon once its quotes are taken off; it is read as an ordinary token, not as git's form.
+  const joined = [];
+  const result = { forms, joined };
+  if (/[()`]/.test(command) || (!bash && /[{}]/.test(command))) return result;
+  if (!cutIsShells(command, bash)) return result;
   for (const segment of command.matchAll(/[^;&|\r\n]+/g)) {
-    const words = [...segment[0].matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)];
+    const words = [...segment[0].matchAll(/(?:"[^"]*"|'[^']*'|[^\s"'])+/g)];
     const [first, ...rest] = words;
-    if (!first || first[3] === undefined || (bash ? first[3] : first[3].toLowerCase()) !== "git") continue;
+    if (!first || (bash ? first[0] : first[0].toLowerCase()) !== "git") continue;
     let afterRedirect = false;
     for (const word of rest) {
-      const bare = word[3] !== undefined;
-      const text = word[1] ?? word[2] ?? word[3];
+      const whole = word[0];
+      const quoted = /^"[^"]*"$|^'[^']*'$/.test(whole);
+      const text = quoted ? whole.slice(1, -1) : whole;
       if (afterRedirect) {
         afterRedirect = false;
         continue;
       }
-      if (bare && /^\d*(?:>>?|<)$/.test(text)) {
+      if (!quoted && /[<>]/.test(text)) {
         afterRedirect = true;
         continue;
       }
-      if (bare && /["'`]/.test(text)) continue;
+      if (!quoted && /["'`]/.test(text)) {
+        const given = text.replace(/"([^"]*)"|'([^']*)'/g, (_, d, q) => d ?? q);
+        if (given.startsWith(":") && !/["'`]/.test(given)) joined.push(given);
+        continue;
+      }
       const prefix = INDEX_PREFIX.exec(text);
-      if (prefix) forms.set(segment.index + word.index + (bare ? 0 : 1), prefix[1]);
+      if (prefix) forms.set(segment.index + word.index + (quoted ? 1 : 0), prefix[1]);
     }
   }
-  return forms;
+  return result;
 }
 
 // What a command's text names: absolute paths, each as { label, text }, where text is read against the
@@ -890,7 +918,7 @@ function pathsInCommand(command, bash) {
 
   // In a segment whose program is git, a word that begins with : or :N: is git's index form, and is read
   // by its rest as well as, off Windows, as written (ADR-343). indexForms holds where each such word starts.
-  const indexForms = gitIndexForms(command, bash);
+  const { forms: indexForms, joined } = gitIndexForms(command, bash);
   const readWord = (text, offset) => {
     const prefix = indexForms.get(offset);
     if (prefix === undefined || !text.startsWith(prefix)) return read(text, offset);
@@ -898,6 +926,8 @@ function pathsInCommand(command, bash) {
     read(text.slice(prefix.length), offset >= 0 ? offset + prefix.length : -1);
   };
   for (const m of command.matchAll(COMMAND_TOKENS)) readWord(m[0], m.index);
+  // A word with a quote inside it is read in pieces above; the word git is given is read too, as a token.
+  for (const given of joined) read(given);
   // A backslash before a space joins what is on either side of it into one path.
   for (const m of command.matchAll(/(?:\\ |[^\s"'`;|&<>()])+/g)) {
     if (m[0].includes("\\ ")) read(m[0].replace(/\\ /g, " "));
