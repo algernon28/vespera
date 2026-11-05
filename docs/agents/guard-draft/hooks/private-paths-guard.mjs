@@ -659,6 +659,14 @@ function cut(text) {
   return parts;
 }
 
+// Whether a Bash text holds a ${NAME+word} or ${NAME:+word} and any other variable with a word, inside
+// the + word, around it or beside it, at any depth (ADR-348). Each variable's state is the shell's, which
+// the guard does not know, so such a text has more forms than two readings give; it is refused.
+function holdsPlusAndAnother(text) {
+  const signs = [...text.matchAll(/\$\{\w+:?([-=+?])/g)].map((m) => m[1]);
+  return signs.length > 1 && signs.includes("+");
+}
+
 // A Bash text read twice: with the word in the place of each ${NAME<sign>word} and, in the second reading,
 // with the name's value in its place where it has one and the sign is not +. A ${NAME+word} or
 // ${NAME:+word} never gives the value, whatever the name holds in the hook's environment: its second
@@ -772,6 +780,8 @@ function gitIndexForms(command, bash) {
 function pathsInCommand(command, bash) {
   const absolute = [];
   const relative = new Map();
+  // The Bash texts that hold a + or :+ and another variable with a word, which are refused (ADR-348).
+  const mixed = new Set();
   // The relative paths a token's own reading made, while it is being recorded, and the ones a piece of
   // that token must not count again. And the relative paths the first of a Bash token's two readings
   // made, which the second does not count again.
@@ -925,10 +935,13 @@ function pathsInCommand(command, bash) {
     uncounted = null;
   };
   // In a Bash command a text with a ${NAME-word} in it is read twice, with the word and with the value in
-  // the place of the expansion, or nothing for a + or :+ (see variantsOf), and not as it is written, so that the name is not read.
-  // A relative path the first reading made is not counted again by the second.
+  // the place of the expansion, or nothing for a + or :+ (see variantsOf), and not as it is written, so
+  // that the name is not read. A text that holds a + or :+ and another variable with a word has more forms
+  // than two readings give, and is recorded to be refused (ADR-348). A relative path the first reading
+  // made is not counted again by the second.
   const read = (text, base = -1) => {
     if (bash) {
+      if (holdsPlusAndAnother(text)) mixed.add(text);
       const [words, values] = variantsOf(text);
       if (words !== text) {
         const before = noted;
@@ -978,7 +991,7 @@ function pathsInCommand(command, bash) {
     if (m[0].includes("\\ ")) read(m[0].replace(/\\ /g, " "));
   }
   for (const { whole, from } of quotes) if (whole) readWord(whole, from);
-  return { absolute, relative };
+  return { absolute, relative, mixed: [...mixed] };
 }
 
 // The part of a search pattern before its first wildcard, which is the folder the search begins in.
@@ -1210,7 +1223,10 @@ function refusalsOf(call) {
     for (const [token] of command.matchAll(COMMAND_TOKENS)) {
       if (closedInText(token)) refused.push(`${token} (its text names a path ${CLOSED})`);
     }
-    const { absolute, relative } = pathsInCommand(command, tool === "Bash");
+    const { absolute, relative, mixed } = pathsInCommand(command, tool === "Bash");
+    for (const text of mixed) {
+      refused.push(`${text} (it holds a \${NAME+word} or \${NAME:+word} and another variable with a word, which has more forms than two readings give, so what it names cannot be ruled out)`);
+    }
 
     // The folders the command names, which a relative path may be read against, each with the least use
     // of every relative token over the chains of tokens that reach it. A folder that is refused is not
