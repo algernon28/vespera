@@ -30,7 +30,8 @@ public final class ChildCommand {
                     "Never passed (ADR-278 §1): it boots the context, takes the lock and prints no version."),
             new Argument("run", "<root>", "vespera.corpus-root", "The corpus root field, made absolute."),
             new Argument("run", "db-dir", "vespera.working-dir",
-                    "The working directory field, made absolute; also the child's current directory."),
+                    "The working directory field, made absolute; also the child's current directory. Where the field is"
+                            + " empty, the folder the jar would use on this machine is passed (ADR-345 §1)."),
             new Argument("label", "auto", "label-auto",
                     "Passed by Let the local model answer; Record my answers passes none."),
             new Argument("label", "<file>", "label-file",

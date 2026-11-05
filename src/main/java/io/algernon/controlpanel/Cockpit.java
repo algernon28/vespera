@@ -1074,10 +1074,10 @@ final class Cockpit {
                         fromTheCorpusRoot(chosen))));
         Button add = new Button("Add");
         add.setId("not-relevant-add");
-        add.setOnAction(event -> changeNotRelevant(null));
+        add.setOnAction(event -> changeNotRelevant(true, null));
         Button remove = new Button("Remove");
         remove.setId("not-relevant-remove");
-        remove.setOnAction(event -> changeNotRelevant(notRelevantList.getSelectionModel().getSelectedItem()));
+        remove.setOnAction(event -> changeNotRelevant(false, notRelevantList.getSelectionModel().getSelectedItem()));
         notRelevantOutcome.setId("not-relevant-outcome");
         notRelevantOutcome.setWrapText(true);
         Label words = new Label("Folders not relevant are still read: the relevance questions below them are answered"
@@ -1113,14 +1113,17 @@ final class Cockpit {
      * ADR-334 §6's one action, in one hold of the lock: the folder typed added to the list the file holds as read then, or
      * {@code removed} taken out of it, and every question of the label file answered from the list, all or none.
      */
-    private void changeNotRelevant(String removed) {
+    private void changeNotRelevant(boolean adding, String removed) {
         Optional<Path> folder = workingDirectory();
         if (folder.isEmpty()) {
             notRelevantOutcome.setText("name the working directory first");
             return;
         }
+        if (!adding && removed == null) {
+            notRelevantOutcome.setText("select a folder of the list to remove");
+            return;
+        }
         String typed = notRelevantFolder.getText().strip();
-        boolean adding = removed == null;
         if (adding && typed.isEmpty()) {
             notRelevantOutcome.setText("type a folder first, or select one of the list to remove");
             return;

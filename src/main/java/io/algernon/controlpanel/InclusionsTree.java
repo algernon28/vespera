@@ -49,6 +49,12 @@ final class InclusionsTree {
             setIndependent(true);
             setSelected(selected);
             selectedProperty().addListener((observed, was, now) -> ticked(now));
+            // once per folder, here: opens it the first time the operator expands it
+            expandedProperty().addListener((observed, was, now) -> {
+                if (now) {
+                    load();
+                }
+            });
         }
 
         private void ticked(boolean now) {
@@ -143,19 +149,7 @@ final class InclusionsTree {
             }
         }
         unresolved = missing;
-        watch(root);
         view.setRoot(root);
-    }
-
-    /** Opens each folder the first time the operator expands it. */
-    private void watch(Folder folder) {
-        folder.expandedProperty().addListener((observed, was, now) -> {
-            if (now) {
-                folder.load();
-                folder.getChildren().forEach(child -> watch((Folder) child));
-            }
-        });
-        folder.getChildren().forEach(child -> watch((Folder) child));
     }
 
     /** Loads down the elements of a listed folder, only along its own path, and unticks it; false where it is not there. */
