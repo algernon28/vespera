@@ -1,5 +1,7 @@
 # ADR-147 — The Docling sidecar is a derived image with LibreOffice Writer and Impress, and the image joins the extractor identity
 
+> **Partly amended — see [ADR-349](0349-the-docling-images-are-built-once-pushed-to-ghcr-as-public-packages-never-over-a-tag-already-there-and-pulled-by-digest.md)**, from its part 2, which pins the digests once both images are pushed and public. The image stops being built where it runs: *"`compose.yaml` builds it. `TestcontainersConfiguration` builds it from the same file under the same tag"*, the consequence that it is built on the operator's machine rather than pulled, and the consequence that a first build of the tests or a first `docker compose up` builds it stop being true. The `docling-image` workflow builds it once, from this `Containerfile`, and pushes it to `ghcr.io/algernon28`, and `compose.yaml` and `TestcontainersConfiguration` pull it by its `sha256` digest. The `Containerfile`, its layers, and the image's name in the extractor identity, with no digest in it, stand. Until part 2 lands, this record is what the code does.
+
 - **Date**: 2026-09-24
 - **Status**: accepted
 - **Amends**: [ADR-100](0100-docling-reads-the-bytes-too-so-stage-2-sends-a-canonical-extension-derived-from-the-detected-format-and-nothing-else.md). Its section *"LibreOffice is not in the image, and legacy Office therefore cannot convert"* stops being true of the sidecar this repository runs. Its table's `OLE_COMPOUND` row still sends `.doc` and `.ppt` as themselves, and they now convert.

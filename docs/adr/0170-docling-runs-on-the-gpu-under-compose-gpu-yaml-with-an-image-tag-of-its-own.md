@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-323](0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md) §2.** §3's `VESPERA_DOCLING_IMAGE`, naming the GPU tag, is also what makes Vespera's `up` name `compose.gpu.yaml`; a value neither file builds refuses the start before Docker is asked anything.
 
+> **Partly amended — see [ADR-349](0349-the-docling-images-are-built-once-pushed-to-ghcr-as-public-packages-never-over-a-tag-already-there-and-pulled-by-digest.md).** Of §2, from its part 2: `compose.gpu.yaml`'s `docling-serve` carries `image`, the CUDA image's reference with its `sha256` digest, and `deploy`, and no `build`; `DOCLING_SERVE_BASE` is passed by the `docling-image` workflow alone, which builds the GPU image once and pushes it to `ghcr.io/algernon28`. Of the consequence *"The GPU build is not exercised in CI"*: the workflow, added by ADR-349's part 1, builds the GPU image on GitHub's hosted runner each time it pushes one, and nothing converts on it there. §1's one `Containerfile`, with its base as a build argument, stands.
+
 - **Date**: 2026-09-28
 - **Status**: accepted
 - **Amends**: [ADR-165](0165-ollama-is-given-an-nvidia-gpu-by-an-override-file-and-compose-yaml-alone-asks-for-none.md). Its §2, *"docling-serve stays on its CPU image"*, stops being true under `compose.gpu.yaml`: the GPU file now gives the GPU to Ollama **and** to docling-serve. Its §1, *"The file carries nothing but the request"*, stays true of `ollama` and not of `docling-serve`, which the file also gives an image name and a build argument (§2 here). `compose.yaml` on its own still asks for no device, for any service, and everything else in ADR-165 stands.

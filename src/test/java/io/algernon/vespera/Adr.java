@@ -2477,6 +2477,15 @@ public final class Adr {
             FILE + "0345-the-cockpit-replaces-the-browser-control-panel-its-tree-writes-the-folders-not-walked-and-publish-offers-each-destination.md";
 
     /**
+     * ADR-349 -- the two Docling images are built once, by {@code .github/workflows/docling-image.yml}, pushed to
+     * {@code ghcr.io/algernon28/} as public packages under tags for base, parser and revision, never over a tag the
+     * registry already holds, and pulled by digest (amends ADR-147, ADR-163 §2, ADR-170 §2, ADR-179 §2 and §4, and
+     * ADR-323 §2, §4 and §8).
+     */
+    public static final String THE_DOCLING_IMAGES_ARE_BUILT_ONCE_AND_PULLED_BY_DIGEST =
+            FILE + "0349-the-docling-images-are-built-once-pushed-to-ghcr-as-public-packages-never-over-a-tag-already-there-and-pulled-by-digest.md";
+
+    /**
      * ADR-352 -- a unit test's timing bound holds on a machine busy with other work: a bound on a cost is taken on the
      * processor time of the thread that pays it, a fixture's state changes on an event the code under test makes and
      * not after a time on the clock, and a limit a command must outlast to print is doubled until it does (decides
