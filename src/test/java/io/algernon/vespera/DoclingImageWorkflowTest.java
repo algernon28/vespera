@@ -101,6 +101,33 @@ class DoclingImageWorkflowTest {
     /** The workflow's eight steps, in the order they run. */
     private static final List<String> STEPS = List.of(CHECKOUT, LOGIN, CHECK, FREE, ROOM, BUILD, PUSH, DIGEST);
 
+    /** What the registry shows beside each package, the same for both and free of any version that would go stale. */
+    private static final String DESCRIPTION = "docling-serve with LibreOffice, built once for Vespera";
+
+    /** A command that asks the registry, not the runner's own store, for a reference's manifest. */
+    private static final String INSPECT = "\\bdocker (manifest|buildx imagetools) inspect\\s+";
+
+    /**
+     * The check stopping the job when the registry answers with the manifest: an {@code if} on the inspect itself,
+     * not negated, whose branch exits non-zero before any {@code else} or {@code fi}; or the inspect followed by
+     * {@code &&} and such an exit.
+     */
+    private static final Pattern FAILS_WHEN_FOUND = Pattern.compile(
+            "\\bif\\s+(\\w+=\\$\\(\\s*)?docker (manifest|buildx imagetools) inspect\\s+" + variable(REFERENCE)
+                    + "[^\\n;]*(;|\\n)\\s*then\\b((?!\\b(else|elif|fi)\\b).)*\\bexit\\s+[1-9]"
+                    + "|" + INSPECT + variable(REFERENCE) + "[^\\n;|&]*&&\\s*(\\{[^}]*?)?\\bexit\\s+[1-9]",
+            Pattern.DOTALL);
+
+    /** The check going on only where the registry's answer says the manifest is unknown, and exiting otherwise. */
+    private static final Pattern GOES_ON_ONLY_WHEN_UNKNOWN = Pattern.compile(
+            "\\bgrep\\s+-\\w*q\\w*\\s+(-\\w+\\s+)*(['\"])[^'\"]*manifest unknown[^'\"]*\\2\\s*\\|\\|\\s*(\\{[^}]*?)?"
+                    + "\\bexit\\s+[1-9]");
+
+    /** Any of the ways a shell line lets a failed command pass. */
+    private static final Pattern SWALLOWS_A_FAILURE = Pattern.compile(
+            "\\|\\|\\s*(true|:)(\\s|;|$)|\\bset\\s+\\+e\\b|\\bset\\s+\\+o\\s+errexit\\b|\\bexit\\s+0\\b",
+            Pattern.MULTILINE);
+
     /** A shell variable as a run line names it, bare or braced, quoted or not. */
     private static String variable(String name) {
         return "\"?\\$\\{?" + name + "}?\"?";
@@ -279,9 +306,13 @@ class DoclingImageWorkflowTest {
                         "--label\\s+\"?org\\.opencontainers\\.image\\.revision=(" + variable("GITHUB_SHA")
                                 + "|\\$\\{\\{\\s*github\\.sha\\s*}})"));
         claim(
-                "and the base it was built on",
+                "the base it was built on",
                 () -> assertThat(build).containsPattern(
                         "--label\\s+\"?org\\.opencontainers\\.image\\.base\\.name=" + variable(BASE)));
+        claim(
+                "and what it is, in the words the registry shows beside the package: \"" + DESCRIPTION + "\"",
+                () -> assertThat(build).containsPattern("--label\\s+\"?org\\.opencontainers\\.image\\.description=\""
+                        + Pattern.quote(DESCRIPTION) + "\"(\\s|$)"));
     }
 
     @Test
@@ -291,6 +322,7 @@ class DoclingImageWorkflowTest {
         List<String> names = steps().stream().map(step -> (String) step.get("name")).toList();
         Map<Object, Object> concurrency = map(workflow().get("concurrency"));
         Pattern push = Pattern.compile("\\bdocker (image )?push\\b");
+        String check = run(CHECK);
 
         claim(
                 "the steps are these eight, in this order: check out, log in, check the tag, free the disk, check the"
@@ -298,8 +330,36 @@ class DoclingImageWorkflowTest {
                         + " anything is pulled or built, and the digest read only once the push is done",
                 () -> assertThat(names).isEqualTo(STEPS));
         claim(
-                "the check asks the registry about the very name the image is pushed under",
-                () -> assertThat(run(CHECK)).containsPattern(variable(REFERENCE)));
+                "the check asks the registry itself for the manifest of the very name the image is pushed under",
+                () -> assertThat(check).containsPattern(INSPECT + variable(REFERENCE) + "(\\s|\\)|;|$)"));
+        claim(
+                "and stops the job when the registry has it, so a tag already there is neither built nor pushed over",
+                () -> assertThat(check).containsPattern(FAILS_WHEN_FOUND));
+        claim(
+                "it goes on only when the registry says the manifest is unknown, and stops on any other answer, since a"
+                        + " check that cannot tell is not a check that passed",
+                () -> assertThat(check).containsPattern(GOES_ON_ONLY_WHEN_UNKNOWN));
+        claim(
+                "nothing in the check lets a failed command pass: no `|| true`, no `set +e`, no `exit 0`",
+                () -> assertThat(check).doesNotContainPattern(SWALLOWS_A_FAILURE));
+        claim(
+                "no job and no step goes on when it fails, so a check that stops is a push that never happens",
+                () -> {
+                    assertThat(job()).as("the job").doesNotContainKey("continue-on-error");
+                    assertThat(steps()).allSatisfy(step -> assertThat(step)
+                            .as("the step %s", step.get("name"))
+                            .doesNotContainKey("continue-on-error"));
+                });
+        claim(
+                "and none names a shell of its own, so each runs in the runner's bash, which stops at the first command"
+                        + " that fails",
+                () -> {
+                    assertThat(workflow()).as("the workflow").doesNotContainKey("defaults");
+                    assertThat(job()).as("the job").doesNotContainKey("defaults");
+                    assertThat(steps()).allSatisfy(step -> assertThat(step)
+                            .as("the step %s", step.get("name"))
+                            .doesNotContainKey("shell"));
+                });
         claim(
                 "one step pushes, the push step",
                 () -> assertThat(steps())
