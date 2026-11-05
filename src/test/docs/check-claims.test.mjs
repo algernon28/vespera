@@ -1,17 +1,22 @@
 // docs/check-claims-lib.mjs holds what the claims check and docs/next-adr-number.mjs compute without reading a file or
-// asking the network (ADR-346): AGENTS.md's size as git stores it, and a decision record's number, read, shared, taken
-// and chosen, the open pull requests read in full or cut short, and the claim of the numbers this branch adds, which
-// never passes where it did not read, and the exit of docs/next-adr-number.mjs. One test asks git whether it stores
-// AGENTS.md as text and whether HEAD's blob of it holds a CR. The last five run the scripts themselves and read their
-// lines: three run docs/check-claims.mjs without --with-network, and two run a script where the fetch of origin/main
-// fails, in an environment that asks no network (see offline()).
+// asking the network (ADR-346, ADR-350): AGENTS.md's size as git stores it, and a decision record's number, read,
+// shared, taken and chosen, the open pull requests read in full or cut short, and the claim of the numbers this branch
+// adds, which never passes where it did not read, and the exit of docs/next-adr-number.mjs; whether the claim of the
+// current wayfinder map reads the tracker on an event (readsTrackerState); and the length of a record's slug
+// (overlongSlugs, slugClaim). One test asks git whether it stores AGENTS.md as text and whether HEAD's blob of it
+// holds a CR. Eight run the scripts themselves and read their lines. Four read one run of docs/check-claims.mjs
+// without --with-network (see claims()): AGENTS.md's size, the shared numbers, the numbers this branch adds NOT
+// CHECKED, and the slug claim PASS, naming how many records from ADR-350 on it read. Four run a script in an
+// environment that asks no network, where the fetch of origin/main fails (see offline()): docs/check-claims.mjs
+// --with-network for the numbers this branch adds NOT CHECKED, for the map NOT CHECKED on a pull request, and for the
+// map reading the tracker on a push and with no event; and docs/next-adr-number.mjs for its exit.
 //
 //   node --test src/test/docs/check-claims.test.mjs
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -305,6 +310,49 @@ test("where gh cut an open pull request's files short, the claim is not checked 
   assert.equal(adrCollisionClaim({ ...READ(), prs: [...READ().prs, CUT(703, "mine")] }).state, "PASS");
 });
 
+/* ---------- whether the tracker's state is read (ADR-350 §1) ---------- */
+
+test("the tracker's state is read under --with-network on a push, a schedule, a dispatch and outside CI, and never on a pull request's CI", async () => {
+  const { readsTrackerState } = await lib();
+  for (const eventName of ["push", "schedule", "workflow_dispatch", undefined]) {
+    assert.equal(readsTrackerState({ withNetwork: true, eventName }), true, `under --with-network, event ${eventName}`);
+    assert.equal(readsTrackerState({ withNetwork: false, eventName }), false, `without --with-network, event ${eventName}`);
+  }
+  for (const eventName of ["pull_request", "pull_request_target"]) {
+    assert.equal(readsTrackerState({ withNetwork: true, eventName }), false, `under --with-network, event ${eventName}`);
+  }
+});
+
+/* ---------- the length of a record's slug (ADR-350 §2) ---------- */
+
+const slug = (n) => "s".repeat(n);
+
+test("a record from ADR-350 on whose slug is past 120 characters fails the claim, naming the record, its length and the limit", async () => {
+  const { slugClaim } = await lib();
+  const { state, detail } = slugClaim([`docs/adr/0350-${slug(121)}.md`, `docs/adr/0351-${slug(120)}.md`, "docs/adr/README.md"]);
+  assert.equal(state, "FAIL");
+  assert.match(detail, /\b0350\b/);
+  assert.match(detail, /\b121\b/);
+  assert.match(detail, /\b120\b/);
+  assert.doesNotMatch(detail, /\b0351\b/, "a slug of exactly 120 characters is within the limit");
+});
+
+test("a record before ADR-350 keeps its slug, however long, and a tree of slugs within the limit passes naming the limit", async () => {
+  const { slugClaim, overlongSlugs } = await lib();
+  const tree = [`docs/adr/0334-${slug(200)}.md`, `docs/adr/0349-${slug(121)}.md`, `docs/adr/0350-${slug(120)}.md`, "docs/adr/README.md"];
+  assert.deepEqual(overlongSlugs(tree), []);
+  const { state, detail } = slugClaim(tree);
+  assert.equal(state, "PASS");
+  assert.match(detail, /\b120\b/);
+  assert.match(detail, /^1 record from ADR-350 on\b/, "the PASS names how many records from ADR-350 on it read");
+});
+
+test("the slug is the file name between its number's dash and .md, and the over-long are listed by number", async () => {
+  const { overlongSlugs } = await lib();
+  const found = overlongSlugs([`docs/adr/0352-${slug(130)}.md`, `docs/adr/0350-${slug(125)}.md`, `docs/adr/drafts/0353-${slug(200)}.md`]);
+  assert.deepEqual(found.map(({ number, length }) => [number, length]), [[350, 125], [352, 130]]);
+});
+
 /* ---------- what docs/check-claims.mjs reports ---------- */
 
 let claimsOutput;
@@ -363,6 +411,38 @@ test("under --with-network, where the fetch of origin/main fails, the numbers of
   // A ref not fetched may lack a record merged since, and a collision with it would pass unseen.
   assert.match(line, /^NOT CHECKED +the numbers of the records this branch adds: .*origin\/main/);
   assert.match(line, /fetch/);
+});
+
+test("on a pull request's CI, under --with-network, the current wayfinder map is not checked and the line says where it is", () => {
+  const env = { ...offline(), GITHUB_EVENT_NAME: "pull_request" };
+  const run = spawnSync(process.execPath, [NO_FETCH, "docs/check-claims.mjs", "--with-network"], { cwd: ROOT, encoding: "utf8", env });
+  const line = run.stdout.split(/\r?\n/).find((l) => l.includes("  the current wayfinder map: "))
+    ?? `(no line names "the current wayfinder map")\n${run.stdout}\n${run.stderr}`;
+  // fetch() rejects here, so a line that read the tracker would be FAIL "could not reach the tracker".
+  assert.match(line, /^NOT CHECKED +the current wayfinder map: .*pull request.*main/);
+});
+
+test("on main's push and outside CI, under --with-network, the current wayfinder map reads the tracker", () => {
+  // The env is set here, not inherited: CI runs this file with GITHUB_EVENT_NAME pull_request.
+  for (const eventName of ["push", undefined]) {
+    const env = offline();
+    if (eventName === undefined) delete env.GITHUB_EVENT_NAME;
+    else env.GITHUB_EVENT_NAME = eventName;
+    const run = spawnSync(process.execPath, [NO_FETCH, "docs/check-claims.mjs", "--with-network"], { cwd: ROOT, encoding: "utf8", env });
+    const line = run.stdout.split(/\r?\n/).find((l) => l.includes("  the current wayfinder map: "))
+      ?? `(no line names "the current wayfinder map")\n${run.stdout}\n${run.stderr}`;
+    // fetch() rejects here, so only a line that read the tracker says it could not reach it.
+    assert.match(line, /^FAIL +the current wayfinder map: could not reach the tracker/, `event ${eventName}`);
+  }
+});
+
+test("check-claims holds the slugs of the decision records of this tree within 120 characters, naming how many it read", () => {
+  // Counted here, so that a claim that read no record, or not these, goes red. ADR-350 is in this tree, so n >= 1.
+  const n = readdirSync(join(ROOT, "docs/adr")).filter((f) => /^\d{4}-.+\.md$/.test(f) && Number(f.slice(0, 4)) >= 350).length;
+  assert.ok(n >= 1, "ADR-350 is in this tree");
+  const line = claimLine("the length of a decision record's slug");
+  assert.match(line, /^PASS +the length of a decision record's slug: .*\b120\b/);
+  assert.match(line, new RegExp(`: ${n} records? from ADR-350 on\\b`), `${n} record(s) from ADR-350 on are in this tree`);
 });
 
 test("where the fetch of origin/main fails, next-adr-number still prints a number, names origin/main and the fetch on standard error, and exits 2", () => {
