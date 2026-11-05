@@ -2476,6 +2476,15 @@ public final class Adr {
     public static final String THE_COCKPIT_REPLACES_THE_BROWSER_CONTROL_PANEL_AND_ITS_TREE_WRITES_THE_FOLDERS_NOT_WALKED =
             FILE + "0345-the-cockpit-replaces-the-browser-control-panel-its-tree-writes-the-folders-not-walked-and-publish-offers-each-destination.md";
 
+    /**
+     * ADR-349 -- the two Docling images are built once, by {@code .github/workflows/docling-image.yml}, pushed to
+     * {@code ghcr.io/algernon28/} as public packages under tags for base, parser and revision, never over a tag the
+     * registry already holds, and pulled by digest (amends ADR-147, ADR-163 §2, ADR-170 §2, ADR-179 §2 and §4, and
+     * ADR-323 §2, §4 and §8).
+     */
+    public static final String THE_DOCLING_IMAGES_ARE_BUILT_ONCE_AND_PULLED_BY_DIGEST =
+            FILE + "0349-the-docling-images-are-built-once-pushed-to-ghcr-as-public-packages-never-over-a-tag-already-there-and-pulled-by-digest.md";
+
     private Adr() {
     }
 }
