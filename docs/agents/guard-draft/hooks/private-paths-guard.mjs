@@ -110,8 +110,11 @@
 // as written as well. A git push refspec such as :claude/x is read so too. Not given that reading: a
 // redirect's target (the word after any bare word that holds < or >), a value after =, any word in a
 // command with a ( ) or backtick (or { } in PowerShell), pieces cut at , { }, halves joined at an escaped
-// space, and a word with a quote inside it. No git segment is read where the cut may not be the shell's: a
-// break inside quotes, an unpaired quote, a Bash backslash before a quote or a break, a PowerShell
+// space, and a word with a quote inside it, except that the word git is given for such a word (its quotes
+// taken off, when it then begins with : or :N:) is read as written and, on every platform, by its rest.
+// No git segment is read where the cut may not be the shell's: a
+// break inside quotes, an unpaired quote, a Bash backslash before a quote or a break, a Bash command that
+// holds << (a here-document or here-string), a PowerShell
 // typographic quote or --%. One letter and a colon stays a drive, and a name of spaces stays refused.
 //
 // A link is followed before the check. A path that holds .. is read twice, and either reading refuses:
@@ -696,12 +699,14 @@ function variantsOf(text) {
 // word is the bare word git, folded to one case in PowerShell, and in a command with no ( ) or backtick,
 // and, in PowerShell, no { }. No segment counts where the cut may not be the shell's: a quoted span (quotes
 // paired left to right) that holds ; & | or a line break, an unpaired quote, in Bash a backslash before a
-// quote or a break, in PowerShell a typographic quote or the word --%. A word is a whole shell word; only
+// quote or a break, in PowerShell a typographic quote or the word --%, and in Bash a command that holds
+// << (a here-document or here-string, whose body is no command). A word is a whole shell word; only
 // a word that is exactly one quoted string or holds no quote counts. A word after a redirect operator (any
 // bare word that holds < or >) does not count, nor does a word with no path after the prefix. A value
 // after = is not the word, so it does not either.
 const INDEX_PREFIX = /^(:(?:[0-3]:)?)/;
 function cutIsShells(command, bash) {
+  if (bash && /<</.test(command)) return false;
   if (bash ? /\\["';&|\r\n]/.test(command) : /[‘-„]|(?:^|\s)--%(?:\s|$)/.test(command)) return false;
   for (let i = 0; i < command.length; i++) {
     const q = command[i];
@@ -715,7 +720,8 @@ function cutIsShells(command, bash) {
 function gitIndexForms(command, bash) {
   const forms = new Map();
   // joined: the word git is given for each word that holds a quote, is not one quoted string and begins
-  // with the colon once its quotes are taken off; it is read as an ordinary token, not as git's form.
+  // with the colon once its quotes are taken off; it is read as an ordinary token as given, and, on every
+  // platform, by its rest after the prefix (: or :N:) when a path follows it.
   const joined = [];
   const result = { forms, joined };
   if (/[()`]/.test(command) || (!bash && /[{}]/.test(command))) return result;
@@ -926,8 +932,13 @@ function pathsInCommand(command, bash) {
     read(text.slice(prefix.length), offset >= 0 ? offset + prefix.length : -1);
   };
   for (const m of command.matchAll(COMMAND_TOKENS)) readWord(m[0], m.index);
-  // A word with a quote inside it is read in pieces above; the word git is given is read too, as a token.
-  for (const given of joined) read(given);
+  // A word with a quote inside it is read in pieces above; the word git is given is read too, as written
+  // and, on every platform, by its rest after the index prefix.
+  for (const given of joined) {
+    read(given);
+    const p = INDEX_PREFIX.exec(given);
+    if (p && given.length > p[1].length) read(given.slice(p[1].length));
+  }
   // A backslash before a space joins what is on either side of it into one path.
   for (const m of command.matchAll(/(?:\\ |[^\s"'`;|&<>()])+/g)) {
     if (m[0].includes("\\ ")) read(m[0].replace(/\\ /g, " "));
