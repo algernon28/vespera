@@ -14,7 +14,7 @@
 // or writes, and lets through Glob and a shell command whose every program is a lister or the Vespera jar;
 // a working directory is open as the place it lies in, and no search is refused for what lies beneath it.
 // The K6 cases and W10 are held to it, and so is every case whose claim it changed, each keeping its id.
-// docs/adr/0343 amends docs/adr/0217 section 2: in a segment whose program is git, a token :<path> or
+// docs/adr/0347 amends docs/adr/0217 section 2: in a segment whose program is git, a token :<path> or
 // :<N>:<path> is read as its path, from which the colon and stage are taken off; docs/adr/0196's drive of
 // one letter and docs/adr/0217's refusal of a name made only of spaces are kept. The O cases are held to it.
 //
@@ -1626,9 +1626,9 @@ cases.push(
   ["I605", "Read of a report through a stream name of the working directory that holds a line terminator", "Read", { file_path: `${WD}:x\ny/report.html` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
 );
 
-/* ---------- git's index form, held to docs/adr/0343 ---------- */
+/* ---------- git's index form, held to docs/adr/0347 ---------- */
 
-// docs/adr/0343 amends docs/adr/0217 section 2. In a segment of a command whose program is the bare word
+// docs/adr/0347 amends docs/adr/0217 section 2. In a segment of a command whose program is the bare word
 // git, a token that begins with :<N>: (N a stage, 0 to 3) or with : has that taken off, and the rest is
 // read as the path it names, as every relative token is: against each folder the command names, and
 // judged by the allow list like any path. A token after any other program, the target of a redirect, a
@@ -1725,7 +1725,7 @@ cases.push(
   ["O707", "git show of a word git is given as :../outside/doc.txt, read by its rest off Windows too", "Bash", { command: `git show ":."./outside/doc.txt` }, REFUSED],
 
   /* O8. A token whose rest reads as no path is read as written as well, on every platform, as every token
-     was before docs/adr/0343: as written each of O801 to O807 climbs out of the checkout, O801's first
+     was before docs/adr/0347: as written each of O801 to O807 climbs out of the checkout, O801's first
      name :-.. taken back by the .. after it. O806 is a climb on Windows alone, where \ separates names, and
      O808 is refused there alone, its one name made only of a stream name. */
   ["O801", "git commit -F of a token whose rest begins with -", "Bash", { command: "git commit -F :-../../../outside/doc.txt" }, REFUSED],

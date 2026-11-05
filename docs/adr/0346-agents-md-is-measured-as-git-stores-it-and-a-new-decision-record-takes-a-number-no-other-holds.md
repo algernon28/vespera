@@ -1,4 +1,4 @@
-# ADR-342 — AGENTS.md is measured as git stores it, and a new decision record takes a number no other holds
+# ADR-346 — AGENTS.md is measured as git stores it, and a new decision record takes a number no other holds
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.

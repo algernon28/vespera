@@ -1,5 +1,5 @@
 // What docs/check-claims.mjs and docs/next-adr-number.mjs compute without reading a file or asking the network
-// (ADR-342 §4). The scripts call git and gh themselves and pass what they read.
+// (ADR-346 §4). The scripts call git and gh themselves and pass what they read.
 
 const CEILING = 30000;
 const ADR_PATH = /^docs\/adr\/(\d{4})-[^/]+\.md$/;
@@ -31,7 +31,7 @@ export function sharedNumbers(paths) {
     .map(([number, files]) => ({ number, files: files.sort() }));
 }
 
-/** The paths of records a pull request adds, as ADR-342 §2 reads what it adds. */
+/** The paths of records a pull request adds, as ADR-346 §2 reads what it adds. */
 function addedBy(pr) {
   return (pr.files ?? []).filter((f) => !NOT_ADDED.has(f.changeType)).map((f) => f.path).filter((p) => adrNumber(p) !== null);
 }

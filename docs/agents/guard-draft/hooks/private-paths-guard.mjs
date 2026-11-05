@@ -105,7 +105,7 @@
 // Windows a rooted one is not read.
 //
 // In a segment whose first word is the bare word git, a word that begins with : or :N: (N from 0 to 3) is
-// git's index form (ADR-343, which amends ADR-217 section 2 for that form): its rest is read as any token
+// git's index form (ADR-347, which amends ADR-217 section 2 for that form): its rest is read as any token
 // is, against every folder the command names, and on Windows the word is read by its rest only, unless
 // that rest records no path (an empty rest among them), when it is read as written too; off Windows it is
 // read as written as well. A git push refspec such as :claude/x is read so too. Not given that reading: a
@@ -695,7 +695,7 @@ function variantsOf(text) {
   return [words, values];
 }
 
-// Where the words that are git's index form start in a command (ADR-343), each with its prefix, : or :N:
+// Where the words that are git's index form start in a command (ADR-347), each with its prefix, : or :N:
 // for a stage N of 0 to 3. A word counts only in a segment (cut at ; & | and the line break) whose first
 // word is the bare word git, folded to one case in PowerShell, and in a command with no ( ) or backtick,
 // and, in PowerShell, no { }. No segment counts where the cut may not be the shell's: a quoted span (quotes
@@ -931,7 +931,7 @@ function pathsInCommand(command, bash) {
   };
 
   // In a segment whose program is git, a word that begins with : or :N: is git's index form, and is read
-  // by its rest as well as, off Windows, as written (ADR-343). indexForms holds where each such word starts.
+  // by its rest as well as, off Windows, as written (ADR-347). indexForms holds where each such word starts.
   const { forms: indexForms, joined } = gitIndexForms(command, bash);
   const readWord = (text, offset) => {
     const prefix = indexForms.get(offset);

@@ -1,5 +1,5 @@
 // docs/check-claims-lib.mjs holds what the claims check and docs/next-adr-number.mjs compute without reading a file or
-// asking the network (ADR-342): AGENTS.md's size as git stores it, and a decision record's number, read, shared, taken
+// asking the network (ADR-346): AGENTS.md's size as git stores it, and a decision record's number, read, shared, taken
 // and chosen, the open pull requests read in full or cut short, and the claim of the numbers this branch adds, which
 // never passes where it did not read, and the exit of docs/next-adr-number.mjs. One test asks git whether it stores
 // AGENTS.md as text and whether HEAD's blob of it holds a CR. The last five run the scripts themselves and read their
@@ -59,7 +59,7 @@ test("the size is in UTF-8 bytes, and a CR standing alone is counted as it stand
 
 test("git stores AGENTS.md as text, so its blob has LF endings and counting each CRLF as one byte is its stored size", () => {
   const attr = execFileSync("git", ["check-attr", "text", "--", "AGENTS.md"], { cwd: ROOT, encoding: "utf8" }).trim();
-  assert.equal(attr, "AGENTS.md: text: set", "the .gitattributes line /AGENTS.md text is what makes ADR-342 §1's measure exact");
+  assert.equal(attr, "AGENTS.md: text: set", "the .gitattributes line /AGENTS.md text is what makes ADR-346 §1's measure exact");
   // The attribute binds a commit made through git's filters; a blob written past them can still hold a CR, which §1's
   // measure would count one byte short. HEAD's blob is what was committed, however it was written.
   const blob = execFileSync("git", ["cat-file", "blob", "HEAD:AGENTS.md"], { cwd: ROOT });

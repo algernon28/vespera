@@ -1,4 +1,4 @@
-# ADR-343 — In a git command the private-paths guard reads git's index form as the path it names, and keeps the drive of one letter and the name of spaces
+# ADR-347 — In a git command the private-paths guard reads git's index form as the path it names, and keeps the drive of one letter and the name of spaces
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.

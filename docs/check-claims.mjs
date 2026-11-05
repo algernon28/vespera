@@ -873,7 +873,7 @@ function markerPattern(source, whole = false) {
   const NAME = "how much AGENTS.md carries";
   const CEILING = 30000;
   const DETAIL = "docs/agents/private-paths-guard.md";
-  // As git stores it, each CRLF one byte (ADR-342 §1), so a checkout with core.autocrlf reads what CI reads.
+  // As git stores it, each CRLF one byte (ADR-346 §1), so a checkout with core.autocrlf reads what CI reads.
   const { size, within } = agentsMdSize(text);
   if (!within) fail(NAME, `${AGENTS} is ${size} bytes, over the ${CEILING} it keeps: move the detail to a document under docs/agents and point to it`);
   else if (!existsSync(DETAIL)) fail(NAME, `${DETAIL} is missing: it holds the guard's rules in full`);
@@ -881,7 +881,7 @@ function markerPattern(source, whole = false) {
   else pass(NAME, `${AGENTS} is ${size} bytes, within ${CEILING}, and points to ${DETAIL}`);
 }
 
-/* ---------- the numbers of the decision records (ADR-342 §3) ---------- */
+/* ---------- the numbers of the decision records (ADR-346 §3) ---------- */
 
 {
   const NAME = "no two decision records share a number";
