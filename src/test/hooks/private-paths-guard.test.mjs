@@ -1639,9 +1639,12 @@ cases.push(
 // , { or }, two halves joined at an escaped space and a word that holds a quote, unless it is one quoted
 // string and nothing else, are not given the reading; the word the shell gives git for such a word, its
 // quotes taken off, is read as written and by its rest on every platform, and either refuses.
+// A token whose rest reads as no path, empty or headed by -, / or \, a URL or an unset variable, is
+// read as written as well, so that on Windows docs/adr/0217 section 2 still refuses it.
 // docs/adr/0196's drive of one letter and docs/adr/0217's refusal of a name made only of spaces, which
 // the user kept, stand in a git segment as anywhere.
 const NOT_A_STREAM_ELSEWHERE = "a name made only of a stream name is refused on Windows alone (docs/adr/0217 section 2)";
+const NOT_SPACES_ELSEWHERE = "a name made only of spaces in a longer path is refused on Windows alone (docs/adr/0217 section 2)";
 
 cases.push(
   /* O1. Let through on every platform: the rest lies inside the allow list. */
@@ -1685,9 +1688,9 @@ cases.push(
 
   /* O5. docs/adr/0217's refusal of a name made only of spaces in a longer path, kept on the user's word:
      a sed or awk program goes in a file. */
-  ["O501", "sed whose program holds a name made only of a space between two slashes", "Bash", { command: "sed 's/ /_/g' README.md" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["O502", "cat of a quoted path one of whose names is a space", "Bash", { command: "cat 'scratch/ /note.txt'" }, REFUSED, { cwd: T, windows: ONLY_WINDOWS.drive }],
-  ["O503", "git show of a quoted index path one of whose names is a space", "Bash", { command: "git show ': /x.md'" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["O501", "sed whose program holds a name made only of a space between two slashes", "Bash", { command: "sed 's/ /_/g' README.md" }, REFUSED, { windows: NOT_SPACES_ELSEWHERE }],
+  ["O502", "cat of a quoted path one of whose names is a space", "Bash", { command: "cat 'scratch/ /note.txt'" }, REFUSED, { cwd: T, windows: NOT_SPACES_ELSEWHERE }],
+  ["O503", "git show of a quoted index path one of whose names is a space", "Bash", { command: "git show ': /x.md'" }, REFUSED, { windows: NOT_SPACES_ELSEWHERE }],
 
   /* O6. A command the guard would cut where the shell does not has no git segment: a token that begins
      with a colon in it is refused on Windows, as after any other program. Each but O603 and O606 is a
@@ -1720,6 +1723,20 @@ cases.push(
   // written and by its rest. As written it is a name :.. inside the checkout off Windows; its rest climbs
   // out of it.
   ["O707", "git show of a word git is given as :../outside/doc.txt, read by its rest off Windows too", "Bash", { command: `git show ":."./outside/doc.txt` }, REFUSED],
+
+  /* O8. A token whose rest reads as no path is read as written as well, on every platform, as every token
+     was before docs/adr/0343: as written each of O801 to O807 climbs out of the checkout, O801's first
+     name :-.. taken back by the .. after it. O806 is a climb on Windows alone, where \ separates names, and
+     O808 is refused there alone, its one name made only of a stream name. */
+  ["O801", "git commit -F of a token whose rest begins with -", "Bash", { command: "git commit -F :-../../../outside/doc.txt" }, REFUSED],
+  ["O802", "git commit -F of a token whose rest begins with /", "Bash", { command: "git commit -F :/../../outside/doc.txt" }, REFUSED],
+  ["O803", "git commit -F of a stage's token whose rest begins with /", "Bash", { command: "git commit -F :0:/../../outside/doc.txt" }, REFUSED],
+  ["O804", "git commit -F of a token whose rest is headed by a variable that has no value", "Bash", { command: "git commit -F :$NO_SUCH_VARIABLE/../../outside/doc.txt" }, REFUSED],
+  ["O805", "git show of a token whose rest is a URL", "Bash", { command: "git show :https://h/../../../outside/doc.txt" }, REFUSED],
+  ["O806", "git commit -F of a token whose rest begins with a backslash", "Bash", { command: String.raw`git commit -F :\..\..\outside\doc.txt` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O807", "git commit -F of a quoted token whose rest begins with /, in PowerShell", "PowerShell", { command: "git commit -F ':/../../outside/doc.txt'" }, REFUSED],
+  // An empty rest names no path: the token is read as written, and fails closed on Windows.
+  ["O808", "git show of a stage's token whose rest is empty", "Bash", { command: "git show :0:" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
