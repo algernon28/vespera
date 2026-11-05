@@ -1640,7 +1640,9 @@ cases.push(
 // string and nothing else, are not given the reading; the word the shell gives git for such a word, its
 // quotes taken off, is read as written and by its rest on every platform, and either refuses.
 // A token whose rest reads as no path, empty or headed by -, / or \, a URL or an unset variable, is
-// read as written as well, so that on Windows docs/adr/0217 section 2 still refuses it.
+// read as written as well, so that on Windows docs/adr/0217 section 2 still refuses it. The rest is
+// asked that whole, as one token, not cut at , { or } and not split at =: a piece or a value after =
+// that reads as a path does not stand in the place of the reading as written.
 // docs/adr/0196's drive of one letter and docs/adr/0217's refusal of a name made only of spaces, which
 // the user kept, stand in a git segment as anywhere.
 const NOT_A_STREAM_ELSEWHERE = "a name made only of a stream name is refused on Windows alone (docs/adr/0217 section 2)";
@@ -1737,6 +1739,25 @@ cases.push(
   ["O807", "git commit -F of a quoted token whose rest begins with /, in PowerShell", "PowerShell", { command: "git commit -F ':/../../outside/doc.txt'" }, REFUSED],
   // An empty rest names no path: the token is read as written, and fails closed on Windows.
   ["O808", "git show of a stage's token whose rest is empty", "Bash", { command: "git show :0:" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  /* Whether a rest records a path is asked of its whole text, read as one token: not cut at , { or },
+     and not split at =. Its pieces and its value after = are read too, and judged, but one of them that
+     reads as a path does not stand in the place of the token as written. Each of O809 to O818 is O801 to
+     O807's climb, as written, with a piece or a value beside it that is a path inside the checkout: the
+     x after a comma or inside braces, or after =. Bash expands O809 into O802 and a second word. O817 is
+     a climb on Windows alone, where \ separates names. O819 is section 5's git show :/<text>, whose rest
+     is cut at its braces into a piece u, a name inside the checkout: as written its first name is made
+     only of a stream name, and it is refused on Windows alone. */
+  ["O809", "git commit -F of a token whose rest begins with / and ends in a brace list", "Bash", { command: "git commit -F :/../../outside/doc.txt{,x}" }, REFUSED],
+  ["O810", "git commit -F of a token whose rest begins with / and ends in a comma and a name", "Bash", { command: "git commit -F :/../../outside/doc.txt,x" }, REFUSED],
+  ["O811", "git commit -F of a token whose rest begins with / and whose piece after a comma lies inside the checkout", "Bash", { command: "git commit -F :/../../outside,x/../outside/doc.txt" }, REFUSED],
+  ["O812", "git commit -F of a token whose rest begins with / and ends in = and a name", "Bash", { command: "git commit -F :/../../outside/doc.txt=x" }, REFUSED],
+  ["O813", "git commit -F of a token whose rest begins with / and whose value after = lies inside the checkout", "Bash", { command: "git commit -F :/../../outside=x/../outside/doc.txt" }, REFUSED],
+  ["O814", "git commit -F of a token whose rest begins with - and ends in = and a name", "Bash", { command: "git commit -F :-../../../outside/doc.txt=x" }, REFUSED],
+  ["O815", "git commit -F of a token whose rest is headed by a variable that has no value and ends in a comma and a name", "Bash", { command: "git commit -F :$NO_SUCH_VARIABLE/../../outside/doc.txt,x" }, REFUSED],
+  ["O816", "git commit -F of a stage's token whose rest begins with / and ends in a comma and a name", "Bash", { command: "git commit -F :0:/../../outside/doc.txt,x" }, REFUSED],
+  ["O817", "git commit -F of a token whose rest begins with a backslash and ends in a comma and a name", "Bash", { command: String.raw`git commit -F :\..\..\outside\doc.txt,x` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O818", "git commit -F of a quoted token whose rest begins with / and ends in a comma and a name, in PowerShell", "PowerShell", { command: "git commit -F ':/../../outside/doc.txt,x'" }, REFUSED],
+  ["O819", "git show of :/<text> whose text holds a brace group, a commit's message to git", "Bash", { command: "git show :/@{u}" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
