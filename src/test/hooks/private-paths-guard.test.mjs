@@ -18,8 +18,8 @@
 // :<N>:<path> is read as its path, from which the colon and stage are taken off; docs/adr/0196's drive of
 // one letter and docs/adr/0217's refusal of a name made only of spaces are kept. The O cases are held to it.
 // docs/adr/0348 corrects docs/adr/0201 section 5's and docs/adr/0233's reading of ${NAME+word} and
-// ${NAME:+word}: the word, or nothing, in the variable's place, and never its value. The G8 cases are held
-// to it.
+// ${NAME:+word}: the word, or nothing, in the variable's place, and never its value; and a token that holds
+// one beside or around another variable with a word is refused. The G8 and G9 cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -1813,6 +1813,31 @@ for (const [n, sign] of [["6", "-"], ["7", ":-"], ["8", "="], ["9", "?"]]) {
     cases.push([`G8${n}${s}`, `cat of ${sign} whose word climbs out of the allow list, read as before, the name ${state}`, "Bash", { command: `cat ${withWord(sign, "..")}/../outside/doc.txt` }, REFUSED, { cwd: `${C}/src`, env: { [PLUS]: value } }]);
   }
   cases.push([`G8${n}4`, `cat of ${sign} whose value lies outside the allow list and whose word inside it, read as before`, "Bash", { command: `cat ${withWord(sign, "x")}/doc.txt` }, REFUSED, { env: { [PLUS]: O } }]);
+}
+
+/* G9. docs/adr/0348 section 1: a Bash token that holds a ${NAME+word} or ${NAME:+word} and any other
+   variable with a word, inside the + word, around it or beside it, is refused, whatever the hook's
+   environment holds. Each variable's state is the shell's, so such a token has more forms than two
+   readings give, and the guard reads none of them. G901 to G913 nest a - in the word of a +, the inner
+   name VESPERA_GUARD_NAME set to the folder outside the allow list: where VESPERA_GUARD_PLUS is set, Bash
+   gives that folder's doc.txt. G921 to G932 put two + side by side, from src, VESPERA_GUARD_PLUS set to x
+   and VESPERA_GUARD_NAME not set: Bash gives ../../outside/doc.txt, outside the allow list. */
+const NAME = "VESPERA_GUARD_NAME";
+const nested = "${" + PLUS + "+${" + NAME + "-}}";
+for (const [s, state, value] of PLUS_SET) {
+  const env = { [PLUS]: value, [NAME]: O };
+  cases.push(
+    [`G90${s}`, `cat of a + whose word is a - variable whose value lies outside the allow list, the + name ${state}`, "Bash", { command: `cat ${nested}/doc.txt` }, REFUSED, { env }],
+    [`G91${s}`, `git show of an index path whose rest is a + whose word is a - variable whose value lies outside the allow list, the + name ${state}`, "Bash", { command: `git show :${nested}/doc.txt` }, REFUSED, { env }],
+  );
+}
+for (const [n, sign] of [["1", "+"], ["2", ":+"]]) {
+  const side = { cwd: `${C}/src`, env: { [PLUS]: "x", [NAME]: undefined } };
+  const twice = "${" + PLUS + sign + "..}${" + NAME + sign + "..}";
+  cases.push(
+    [`G92${n}`, `cat of two ${sign} side by side, one set and one not, which give one climb out of the allow list`, "Bash", { command: `cat ${twice}/../outside/doc.txt` }, REFUSED, side],
+    [`G93${n}`, `git show of an index path whose rest is two ${sign} side by side, one set and one not, which give one climb out of the allow list`, "Bash", { command: `git show :${twice}/../outside/doc.txt` }, REFUSED, side],
+  );
 }
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
