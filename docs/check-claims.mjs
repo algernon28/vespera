@@ -11,7 +11,8 @@
 //
 //   node docs/check-claims.mjs                 everything that needs no network
 //   node docs/check-claims.mjs --with-network  also: is the named wayfinder map still open, except on a pull
-//                                              request's CI (GITHUB_EVENT_NAME pull_request, ADR-350 §1)
+//                                              request's CI (GITHUB_EVENT_NAME pull_request or
+//                                              pull_request_target, ADR-350 §1)
 //
 // Why this exists: AGENTS.md is what an agent reads before doing anything, and on
 // 2026-09-08 six of its claims were false — the ADR count, the boundary between the
@@ -250,9 +251,9 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
     skip(NAME, named ? `#${named[1]} — run with --with-network to check it`
       : "none claimed open — run with --with-network to check it");
   } else if (!readsTrackerState({ withNetwork, eventName: process.env.GITHUB_EVENT_NAME })) {
-    // ADR-350 §1: a label or a close the pull request did not make is no fault of it; main's push and the schedule read it.
+    // ADR-350 §1: a label or a close the pull request did not make is no fault of it; every other run reads it.
     skip(NAME, `${named ? `#${named[1]}` : "none claimed open"} — the tracker is not read on a pull request's CI,`
-      + ` only on main's push and the daily schedule`);
+      + ` but on main's push, the daily schedule, a dispatch and a run outside CI`);
   } else {
     const headers = { accept: "application/vnd.github+json" };
     if (process.env.GITHUB_TOKEN) headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`;

@@ -416,6 +416,20 @@ test("on a pull request's CI, under --with-network, the current wayfinder map is
   assert.match(line, /^NOT CHECKED +the current wayfinder map: .*pull request.*main/);
 });
 
+test("on main's push and outside CI, under --with-network, the current wayfinder map reads the tracker", () => {
+  // The env is set here, not inherited: CI runs this file with GITHUB_EVENT_NAME pull_request.
+  for (const eventName of ["push", undefined]) {
+    const env = offline();
+    if (eventName === undefined) delete env.GITHUB_EVENT_NAME;
+    else env.GITHUB_EVENT_NAME = eventName;
+    const run = spawnSync(process.execPath, [NO_FETCH, "docs/check-claims.mjs", "--with-network"], { cwd: ROOT, encoding: "utf8", env });
+    const line = run.stdout.split(/\r?\n/).find((l) => l.includes("  the current wayfinder map: "))
+      ?? `(no line names "the current wayfinder map")\n${run.stdout}\n${run.stderr}`;
+    // fetch() rejects here, so only a line that read the tracker says it could not reach it.
+    assert.match(line, /^FAIL +the current wayfinder map: could not reach the tracker/, `event ${eventName}`);
+  }
+});
+
 test("check-claims holds the slugs of the decision records of this tree within 120 characters", () => {
   assert.match(claimLine("the length of a decision record's slug"), /^PASS +the length of a decision record's slug: .*\b120\b/);
 });

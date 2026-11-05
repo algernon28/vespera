@@ -15,8 +15,8 @@ name: claims
 #
 # On a pull request that claim is NOT CHECKED (ADR-350 §1): the tracker's labels are
 # no change of the pull request's, and a branch cut before main's last edit to
-# AGENTS.md would go red for a label it never touched. Main's push and the schedule
-# read it.
+# AGENTS.md would go red for a label it never touched. Main's push, the schedule, a
+# dispatch and a run outside CI read it.
 #
 # Named for what it checks rather than for what it runs. build.yml carries the same
 # note, after a job called "verify" was read as evidence the Java build had run.
