@@ -67,8 +67,8 @@ class SystemProcessRunnerTest {
      * of half a second killed it before it printed anything. The limit is doubled, from {@link #LIMIT} up to {@link
      * #LONGEST_LIMIT}, until a run's command printed its line before it was killed, and every run is held to what the
      * runner owes it (ADR-352): killed at its limit and not before, counted as exit -1, and with the command's line at
-     * most once in its output and, where it is there, last. What the Java writes before its program runs, such as a
-     * note or a warning of the options it inherited from the machine's environment, comes before that line and is not
+     * most once in its output. What else the Java writes, such as a note or a warning of the options it inherited from
+     * the machine's environment, or a log of the classes it loads, can come before that line or after it and is not
      * claimed on. On an idle machine the first run is the last.
      */
     @Test
@@ -100,8 +100,8 @@ class SystemProcessRunnerTest {
 
         claim("the last run's command printed its line before it was killed, and its output holds that line",
                 () -> assertThat(outcomes.getLast().output()).contains(SleepsUntilKilled.STARTED));
-        claim("every run counts as exit " + KILLED + ", and its command's line is in its output at most once and, where"
-                        + " it is, is the output's last line, whatever the Java wrote before its program ran",
+        claim("every run counts as exit " + KILLED + ", and its command's line is in its output at most once, whatever"
+                        + " else the Java wrote",
                 () -> assertThat(outcomes).allSatisfy(outcome -> {
                     assertThat(outcome.exitCode()).isEqualTo(KILLED);
                     List<String> lines = outcome.output().lines().toList();
@@ -109,12 +109,6 @@ class SystemProcessRunnerTest {
                             .as("the lines of a killed command's output, %s", lines)
                             .filteredOn(SleepsUntilKilled.STARTED::equals)
                             .hasSizeLessThanOrEqualTo(1);
-                    if (lines.contains(SleepsUntilKilled.STARTED)) {
-                        assertThat(lines)
-                                .as("the lines of a killed command's output, of which the command's own comes last")
-                                .last()
-                                .isEqualTo(SleepsUntilKilled.STARTED);
-                    }
                 }));
         claim("and every run returned no sooner than its limit, the half second it was first given and each doubled"
                         + " after (" + limits + ", taking " + tooks + ")",
