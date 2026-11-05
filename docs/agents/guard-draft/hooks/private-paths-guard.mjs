@@ -974,8 +974,8 @@ function pathsInCommand(command, bash) {
     noted = false;
     read(text.slice(prefix.length), offset >= 0 ? offset + prefix.length : -1);
     // On Windows the word is read by its rest only, unless the rest as a whole token records no path (an
-    // empty rest among them; pieces and a value after = do not count; a ${NAME-word}'s two readings must
-    // each record a path): then it is read as written too.
+    // empty rest among them; pieces and a value after = do not count; a ${NAME-word}'s or ${NAME+word}'s
+    // two readings must each record a path): then it is read as written too.
     if (windows && !noted) read(text, offset);
   };
   for (const m of command.matchAll(COMMAND_TOKENS)) readWord(m[0], m.index);
