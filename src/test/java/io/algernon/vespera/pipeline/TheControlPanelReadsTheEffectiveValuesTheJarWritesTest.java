@@ -86,7 +86,6 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
     /** The label model, said under the launch value's own key (ADR-334 §2). */
     private static final String LABEL_MODEL = "vespera.label.model";
 
-
     /** One layer of configuration: the name a process gives it, and what it names. */
     private record Layer(String name, Map<String, Object> values) {
 

@@ -53,7 +53,7 @@ ADR-298 refused `qwen3-embedding:8b` because it was not pulled on the operator's
 
 ### 3. Which run ids move
 
-**No implementation version moves.** The change is to `application.yaml`, to javadoc in `pipeline` (`EmbeddingModelGate`) and in `profile` (`Profile`), and to `io.algernon.controlpanel.ProfileKey`. No stage's version names `pipeline` or `profile` (`StageModules`, ADR-222, ADR-274 §5); `io.algernon.controlpanel` lies outside `src/main/java/io/algernon/vespera`, whose folders are the modules the build versions; and `application.yaml` is in none. So a run id moves only where its recorded settings do.
+**No implementation version moves.** The change is to `application.yaml`, to javadoc in `pipeline` (`EmbeddingModelGate`) and in `profile` (`Profile`), to the visibility of `pipeline`'s `EffectiveValuesFile.THE_CODES_LABEL_MODEL`, package-private for its test (§7), and to `io.algernon.controlpanel.ProfileKey`. No stage's version names `pipeline` or `profile` (`StageModules`, ADR-222, ADR-274 §5); `io.algernon.controlpanel` lies outside `src/main/java/io/algernon/vespera`, whose folders are the modules the build versions; and `application.yaml` is in none. So a run id moves only where its recorded settings do.
 
 **A profile whose `embeddingModel` is unset, or blank, under the shipped configuration**:
 
@@ -122,7 +122,7 @@ So **this record, and not a test, holds which model ships** (ADR-298 §7 as amen
 - **`ProfileKey.EMBEDDING_MODEL`**: its hint and example as §5 writes them.
 - **Javadoc corrected in the same change** (ADR-216): `EmbeddingModelGate`'s *"shipped as `bge-m3:latest`"* and `Profile`'s `embeddingModel`, *"application configuration carries `bge-m3:latest`"*, each naming the new default and citing this record.
 - **`README.md`**: the table's row for `embeddingModel`, the sentence naming the model documents are scored under, and the first `ollama pull` line name the new default; its example of a model file on Hugging Face stays `Q8_0`, another quantization.
-- **`docs/architecture.md`'s row for the embedding model** and **`docs/running-stage-by-stage.md`'s** rows for 5c and 5d and its *Needs* line for the scoring step name the new default.
+- **`docs/architecture.md`'s row for the embedding model** and **`docs/running-stage-by-stage.md`'s** rows for 5c and 5d, its *Set first* line for invocation 2 and its *Needs* line for the scoring step name the new default.
 - **The tests are brought under §7's rules where they hold a model**: `ShippedConfigurationTest`'s two, `ClusteringTest`'s block, `TheJarWritesItsEffectiveValuesInvocationTest`'s generation model, read from the shipped file, and every unit test that named a real model, embedding, generation or label, as a fixture's input or expected value, each given a name of its own.
 - **ADR-298, ADR-329 and ADR-331 carry a note at their heads** naming this record. No other line of those files is edited.
 - **`CONTEXT.md` gains nothing.**

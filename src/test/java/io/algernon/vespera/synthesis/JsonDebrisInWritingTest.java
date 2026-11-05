@@ -41,7 +41,7 @@ import org.springframework.ai.chat.model.Generation;
 @Link(name = "ADR-109", url = Adr.A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL, type = "adr")
 class JsonDebrisInWritingTest {
 
-    /** The model the call names; the shipped default, which is the one the defect was found under. */
+    /** The model the call names: a name of the test's own; the defect was measured under {@code qwen3:8b} (see the class javadoc). */
     private static final String MODEL_NAME = "a-writing-model:8b";
 
     /** The name the cluster the defect was found on carries before anything is written for it. */

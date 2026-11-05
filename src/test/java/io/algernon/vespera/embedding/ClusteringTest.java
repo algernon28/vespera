@@ -67,7 +67,6 @@ class ClusteringTest {
     private static final String CHUNKER_IDENTITY = "docling-hybrid-chunker-v1";
     private static final String CHUNKING_RULE_IDENTITY = "words-512-v1";
     private static final int DIMENSION = 4;
-
     private static final String EMBEDDER_IDENTITY =
             "model=" + MODEL + ";digest=d34db33f;dtype=F16;dimension=" + DIMENSION + ";instruction=none";
 

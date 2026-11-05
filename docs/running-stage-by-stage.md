@@ -126,7 +126,7 @@ A walk that has not finished is never used by a later stage. Nothing downstream 
 
 ## Stage 4 — content redundancy
 
-**Set first:** `boilerplateDocumentFrequencyFloor` in `profile.yaml`, read off `document-frequency.html` as the README says under the table of values to decide. Make sure `seedFolder` is there in the same edit: both are settable now, and setting them together saves you an invocation. Set `embeddingModel` only to score under a model other than `bge-m3:latest`.
+**Set first:** `boilerplateDocumentFrequencyFloor` in `profile.yaml`, read off `document-frequency.html` as the README says under the table of values to decide. Make sure `seedFolder` is there in the same edit: both are settable now, and setting them together saves you an invocation. Set `embeddingModel` only to score under a model other than `hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M`.
 
 **Run:** `vespera run <root>`
 

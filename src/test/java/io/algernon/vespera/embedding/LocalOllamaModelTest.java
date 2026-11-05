@@ -98,8 +98,8 @@ class LocalOllamaModelTest {
         claim(
                 "a name ending in cloud is refused as a cloud model, and Ollama is asked nothing",
                 () -> {
-                    assertThat(LocalOllamaModel.refusalOf("gpt-oss:120b-cloud", new OllamaClient(unasked.build())))
-                            .hasValueSatisfying(reason -> assertThat(reason).contains("gpt-oss:120b-cloud is a cloud model"));
+                    assertThat(LocalOllamaModel.refusalOf("a-large-model:120b-cloud", new OllamaClient(unasked.build())))
+                            .hasValueSatisfying(reason -> assertThat(reason).contains("a-large-model:120b-cloud is a cloud model"));
                     silent.verify();
                 });
 

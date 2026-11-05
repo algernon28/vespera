@@ -66,7 +66,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class LocalLabellerTest {
 
     private static final String SEED_SET = "C:/archive/seeds";
-    private static final String AN_EMBEDDER = "model=all-minilm;digest=abc;dtype=F16;dimension=384;instruction=none";
+    private static final String AN_EMBEDDER = "model=a-small-comparing-model;digest=abc;dtype=F16;dimension=384;instruction=none";
     private static final String ANOTHER_EMBEDDER = "model=a-comparing-model;digest=def;dtype=F16;dimension=1024";
     private static final String THE_LABELLER = "ollama:a-writing-model:8b";
     private static final String A_LOCAL_URL = "http://localhost:11434";
@@ -270,9 +270,9 @@ class LocalLabellerTest {
                 .andRespond(withServerError());
         return Stream.of(
                 Arguments.of(
-                        Named.of("a model whose tag ends in cloud, named with the reason", "gpt-oss:120b-cloud"),
+                        Named.of("a model whose tag ends in cloud, named with the reason", "a-large-model:120b-cloud"),
                         unaskedClient(),
-                        List.of("gpt-oss:120b-cloud", "is a cloud model")),
+                        List.of("a-large-model:120b-cloud", "is a cloud model")),
                 Arguments.of(
                         Named.of("a model Ollama reports as remote, whatever its name", "a-writing-model:8b"),
                         clientShowing("{\"remote_host\": \"https://ollama.com:443\", \"remote_model\": \"a-writing-model:8b\"}"),
