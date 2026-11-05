@@ -66,11 +66,11 @@ import org.springframework.test.context.DynamicPropertySource;
 class RelevanceFloorTest {
 
     private static final String THIS_RUNS_IDENTITY =
-            "model=qwen3-embedding:0.6b;digest=d34db33f;dtype=F16;dimension=8;instruction=none";
+            "model=a-comparing-model:0.6b;digest=d34db33f;dtype=F16;dimension=8;instruction=none";
     private static final String ANOTHER_MODELS_IDENTITY =
-            "model=nomic-embed-text;digest=0ff0ff0f;dtype=F32;dimension=768;instruction=none";
+            "model=acme-embed-text;digest=0ff0ff0f;dtype=F32;dimension=768;instruction=none";
     private static final String A_THIRD_MODELS_IDENTITY =
-            "model=mxbai-embed-large;digest=7e117e11;dtype=F16;dimension=1024;instruction=none";
+            "model=a-fifth-comparing-model;digest=7e117e11;dtype=F16;dimension=1024;instruction=none";
 
     /**
      * The step the floor is asked by, whose name opens the lines around the one read the floor makes
@@ -255,7 +255,7 @@ class RelevanceFloorTest {
     private void profileWithFloor(String value) {
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seedFolder.toString(), "set by this test")
-                .embeddingModel("qwen3-embedding:0.6b", "set by this test")
+                .embeddingModel("a-comparing-model:0.6b", "set by this test")
                 .relevanceScoreFloor(value, value == null ? null : "read off the labels")
                 .build());
     }

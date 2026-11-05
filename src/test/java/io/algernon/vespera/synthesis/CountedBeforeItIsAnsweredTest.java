@@ -58,7 +58,7 @@ import org.springframework.ai.retry.NonTransientAiException;
 @Link(name = "ADR-108", url = Adr.SIX_B_SENDS_ONE_EXEMPLAR_FIRST_CALL_PER_CLUSTER, type = "adr")
 class CountedBeforeItIsAnsweredTest {
 
-    private static final String MODEL_NAME = "qwen3:8b";
+    private static final String MODEL_NAME = "a-writing-model:8b";
 
     private static final String LABEL = "Scontrini";
 

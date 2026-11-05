@@ -309,7 +309,7 @@ class RunIdentityGoldenTest {
                         + " name pulled again under another digest is another piece of work, and the record"
                         + " says which pull scored",
                 () -> assertThat(run.get("config_consumed")).isEqualTo(
-                        ("{\"root\":\"%s\",\"embeddingModel\":\"qwen3-embedding:0.6b\","
+                        ("{\"root\":\"%s\",\"embeddingModel\":\"a-comparing-model:0.6b\","
                                         + "\"embeddingModelDigest\":\"" + EmbeddingScriptedBeans.DIGEST + "\","
                                         + "\"embeddingModelWeightDtype\":\"F16\","
                                         + "\"measurementRunId\":\"%s\",\"relevanceScoreFloor\":null,"

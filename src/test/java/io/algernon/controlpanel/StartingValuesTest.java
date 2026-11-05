@@ -123,7 +123,7 @@ class StartingValuesTest {
                 VESPERA_CORPUS_ROOT=D:/corpus
 
                 VESPERA_DOCLING_IMAGE = "vespera/docling-serve-cu128"
-                VESPERA_LABEL_MODEL='qwen3:8b'
+                VESPERA_LABEL_MODEL='a-writing-model:8b'
                 not a line of a variable
                 VESPERA_WORKING_DIR=E:/work=dir
                 """;
@@ -133,7 +133,7 @@ class StartingValuesTest {
                 () -> assertThat(StartingValues.readDotEnv(text)).containsExactlyInAnyOrderEntriesOf(Map.of(
                         "VESPERA_CORPUS_ROOT", "D:/corpus",
                         "VESPERA_DOCLING_IMAGE", "vespera/docling-serve-cu128",
-                        "VESPERA_LABEL_MODEL", "qwen3:8b",
+                        "VESPERA_LABEL_MODEL", "a-writing-model:8b",
                         "VESPERA_WORKING_DIR", "E:/work=dir")));
     }
 

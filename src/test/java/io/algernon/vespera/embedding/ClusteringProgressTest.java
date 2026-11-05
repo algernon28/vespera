@@ -44,7 +44,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-192", url = Adr.EVERY_LOOP_REPORTS_ITS_PROGRESS, type = "adr")
 class ClusteringProgressTest {
 
-    private static final String MODEL = "qwen3-embedding:0.6b";
+    private static final String MODEL = "a-comparing-model:0.6b";
     private static final String CHUNKER_IDENTITY = "docling-hybrid-chunker-v1";
     private static final String CHUNKING_RULE_IDENTITY = "words-512-v1";
     private static final int DIMENSION = 4;

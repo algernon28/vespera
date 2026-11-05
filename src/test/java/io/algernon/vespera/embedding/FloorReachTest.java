@@ -41,10 +41,10 @@ import org.junit.jupiter.api.Test;
 class FloorReachTest {
 
     private static final String THIS_RUNS_IDENTITY =
-            "model=qwen3-embedding:0.6b;digest=d34db33f;dtype=F16;dimension=8;instruction=none";
+            "model=a-comparing-model:0.6b;digest=d34db33f;dtype=F16;dimension=8;instruction=none";
 
     private static final String ANOTHER_MODELS_IDENTITY =
-            "model=nomic-embed-text;digest=0ff0ff0f;dtype=F32;dimension=768;instruction=none";
+            "model=acme-embed-text;digest=0ff0ff0f;dtype=F32;dimension=768;instruction=none";
 
     /** The number the profile sets, as {@code RelevanceScoreFloorValue} reads it for the run's identity. */
     private static final double FLOOR = 0.42;

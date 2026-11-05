@@ -43,7 +43,7 @@ class RelevanceScaleTest {
     private static final String SEED_SET = "C:/archive/seeds";
 
     private static final String EMBEDDER_IDENTITY =
-            "model=all-minilm;digest=abc;dtype=F16;dimension=384;instruction=none";
+            "model=a-small-comparing-model;digest=abc;dtype=F16;dimension=384;instruction=none";
 
     /** The number the application ships, under which no recorded answer's identity moves. */
     private static final int THE_SHIPPED_NUMBER = 3;

@@ -53,7 +53,7 @@ class LaunchValuesTest {
 
     /** Every launch value named, and the last seed folder, two of them holding characters outside Latin-1. */
     private static final LaunchValues EVERY_VALUE = new LaunchValues("/archive/łódź", "/work/漢字", "/out",
-            "vespera/docling-serve-cuda:v1", "http://localhost:5002", "http://localhost:11435", "qwen3:14b",
+            "vespera/docling-serve-cuda:v1", "http://localhost:5002", "http://localhost:11435", "a-writing-model:14b",
             "/seeds/łódź");
 
     /** The deliverable root relative, so that it must be made absolute before it reaches the child. */
@@ -152,16 +152,16 @@ class LaunchValuesTest {
     void aKeyTheControlPanelDoesNotKnowIsIgnoredAndNotWrittenBack(@TempDir Path temp) throws IOException {
         Path file = LaunchValues.fileIn(temp, USER);
         ownFolder(file.getParent());
-        Files.writeString(file, "vespera.label.model=qwen3:14b\nvespera.progress-interval=1s\n"
+        Files.writeString(file, "vespera.label.model=a-writing-model:14b\nvespera.progress-interval=1s\n"
                 + "spring.datasource.url=jdbc:sqlite:elsewhere\nsomething=else\n", UTF_8);
 
         LaunchValues loaded = LaunchValues.load(file, USER, line -> { });
         loaded.store(file, USER, line -> { });
 
         claim("only the label model is read, the progress interval, the datasource and the unknown key ignored",
-                () -> assertThat(loaded).isEqualTo(new LaunchValues("", "", "", "", "", "", "qwen3:14b", "")));
+                () -> assertThat(loaded).isEqualTo(new LaunchValues("", "", "", "", "", "", "a-writing-model:14b", "")));
         claim("and stored again, the file holds the label model alone",
-                () -> assertThat(propertiesOf(file)).isEqualTo(Map.of("vespera.label.model", "qwen3:14b")));
+                () -> assertThat(propertiesOf(file)).isEqualTo(Map.of("vespera.label.model", "a-writing-model:14b")));
     }
 
     @Test
@@ -296,7 +296,7 @@ class LaunchValuesTest {
     @DisplayName("Five values reach the child's environment under the jar's variable names, the deliverable root absolute, the empty ones not at all")
     void fiveValuesReachTheChildsEnvironmentUnderTheJarsVariableNames() {
         LaunchValues relative = new LaunchValues("/archive", "/work", RELATIVE_DELIVERABLE_ROOT, "image:v1",
-                "http://docling", "http://ollama", "qwen3:14b", "/seeds");
+                "http://docling", "http://ollama", "a-writing-model:14b", "/seeds");
         LaunchValues noImageNoModel = new LaunchValues("/archive", "/work", "", "", "http://docling", "", "", "");
 
         claim("each of the five is its variable, the deliverable root made absolute, and nothing of the corpus root,"
@@ -306,7 +306,7 @@ class LaunchValuesTest {
                         "VESPERA_DOCLING_IMAGE", "image:v1",
                         "VESPERA_DOCLING_BASE_URL", "http://docling",
                         "SPRING_AI_OLLAMA_BASE_URL", "http://ollama",
-                        "VESPERA_LABEL_MODEL", "qwen3:14b")));
+                        "VESPERA_LABEL_MODEL", "a-writing-model:14b")));
         claim("an empty value is not passed at all, so the jar's own default applies",
                 () -> assertThat(noImageNoModel.toChildEnvironment())
                         .isEqualTo(Map.of("VESPERA_DOCLING_BASE_URL", "http://docling")));

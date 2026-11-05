@@ -64,7 +64,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-190", url = Adr.STAGE_6_RULES_LIVE_IN_SYNTHESIS, type = "adr")
 class ClusterGenerationReportsEveryClusterTest {
 
-    private static final String MODEL_NAME = "qwen3:8b";
+    private static final String MODEL_NAME = "a-writing-model:8b";
     private static final int THE_WINDOW = 8192;
     private static final int COUNTED_PAST_THE_ROOM = THE_WINDOW - 1;
     private static final int A_SMALL_COUNT = 40;
