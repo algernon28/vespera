@@ -2491,7 +2491,7 @@ public final class Adr {
      * same model layer is another name and manifest, so another scoring run; only a profile naming no model mints its
      * embedding-scoring, arrangement and generation runs again; and no test names a model as expected or relies on how
      * the shipped file is configured, each setting the values it needs itself (amends ADR-298 §1 and §7, ADR-329's
-     * Consequences and ADR-331 §8).
+     * Consequences, ADR-331 §8 and ADR-342's Tests row).
      */
     public static final String THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE = FILE
             + "0353-the-embedding-models-shipped-default-is-qwen3-embedding-8b-and-only-a-profile-naming-no-model-moves-its-scoring-run.md";
