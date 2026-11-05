@@ -98,7 +98,7 @@ class SystemProcessRunnerTest {
             awaitTheEndOfEveryDescendantNotIn(before);
         }
 
-        claim("the last run's command printed its line before it was killed, and that line is its output",
+        claim("the last run's command printed its line before it was killed, and its output holds that line",
                 () -> assertThat(outcomes.getLast().output()).contains(SleepsUntilKilled.STARTED));
         claim("every run counts as exit " + KILLED + ", and its command's line is in its output at most once and, where"
                         + " it is, is the output's last line, whatever the Java wrote before its program ran",
@@ -170,8 +170,10 @@ class SystemProcessRunnerTest {
                 childsId.toString());
         long began = System.nanoTime();
         ProcessOutcome outcome;
+        Duration took;
         try {
             outcome = new SystemProcessRunner(outputFolder).run(leaver, CHILD_LIMIT);
+            took = Duration.ofNanos(System.nanoTime() - began);
         } catch (Throwable runFailed) {
             try {
                 killTheChildNamedIn(childsId);
@@ -181,12 +183,12 @@ class SystemProcessRunnerTest {
             throw runFailed;
         }
         killTheChildNamedIn(childsId);
-        Duration took = Duration.ofNanos(System.nanoTime() - began);
+        Duration returnedAfter = took;
         ProcessOutcome returned = outcome;
 
         claim("it returned within the " + CHILD_LIMIT.toSeconds() + " seconds it was given, although the process it"
                         + " started was still holding its output open",
-                () -> assertThat(took).isLessThan(CHILD_LIMIT));
+                () -> assertThat(returnedAfter).isLessThan(CHILD_LIMIT));
         claim("with the exit code the command itself exited with, 0, and not as a command killed at its limit",
                 () -> assertThat(returned.exitCode()).isZero());
     }
