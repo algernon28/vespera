@@ -108,7 +108,9 @@
 // git's index form (ADR-347, which amends ADR-217 section 2 for that form): its rest is read as any token
 // is, against every folder the command names, and on Windows the word is read by its rest only, unless
 // that rest, asked as a whole token (not a piece of it cut at , { } nor a value after =), records no path
-// (an empty rest among them), when it is read as written too; off Windows it is read as written as well. A git push refspec such as :claude/x is read so too. Not given that reading: a
+// (an empty rest among them), when it is read as written too; a ${NAME-word} in the rest records a path
+// only where each of its two readings does. Off Windows the word is read as written as well. A git push
+// refspec such as :claude/x is read so too. Not given that reading: a
 // redirect's target (the word after any bare word that holds < or >), a value after =, any word in a
 // command with a ( ) or backtick (or { } in PowerShell), pieces cut at , { }, halves joined at an escaped
 // space, and a word with a quote inside it, except that the word git is given for such a word (its quotes
@@ -706,7 +708,8 @@ function variantsOf(text) {
 // bare word that holds < or >) does not count, nor does a word with no path after the prefix. A value
 // after = is not the word, so it does not either. A word is read by its rest after the prefix and, off
 // Windows, as written as well; on Windows it is read as written too unless its rest, as a whole token
-// and not a piece cut at , { } or a value after =, records a path.
+// and not a piece cut at , { } or a value after =, records a path (a ${NAME-word} in it records one only
+// where each of its two readings does).
 const INDEX_PREFIX = /^(:(?:[0-3]:)?)/;
 function cutIsShells(command, bash) {
   if (bash && /<</.test(command)) return false;
@@ -924,12 +927,18 @@ function pathsInCommand(command, bash) {
     if (bash) {
       const [words, values] = variantsOf(text);
       if (words !== text) {
+        const before = noted;
         firstReading = new Set();
+        noted = false;
         readOnce(words, -1);
+        let each = noted;
         if (values !== words) {
           secondReading = true;
+          noted = false;
           readOnce(values, -1);
+          each = each && noted;
         }
+        noted = before || each;
         firstReading = null;
         secondReading = false;
         return;
@@ -948,7 +957,8 @@ function pathsInCommand(command, bash) {
     noted = false;
     read(text.slice(prefix.length), offset >= 0 ? offset + prefix.length : -1);
     // On Windows the word is read by its rest only, unless the rest as a whole token records no path (an
-    // empty rest among them; pieces and a value after = do not count): then it is read as written too.
+    // empty rest among them; pieces and a value after = do not count; a ${NAME-word}'s two readings must
+    // each record a path): then it is read as written too.
     if (windows && !noted) read(text, offset);
   };
   for (const m of command.matchAll(COMMAND_TOKENS)) readWord(m[0], m.index);
