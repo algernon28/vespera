@@ -1846,7 +1846,7 @@ for (const [n, sign] of [["1", "+"], ["2", ":+"]]) {
 }
 
 /* C5. docs/adr/0351: in a Bash command the guard reads as no path the argument of a flag that gives a
-   program text and never a file (git commit, tag, merge and stash's -m and --message, gh's --jq, -q and
+   program text and never a file (git commit, tag, merge and stash push's -m and --message, gh's --jq, -q and
    --body, grep's -e and --regexp), the first operand of grep, awk and jq when it is single-quoted and is
    the program's pattern or program, and the body of a here-document whose delimiter is quoted and which
    cat writes to a file in the temp folder. The text rule of docs/adr/0215 section 3(c) still reads a
@@ -1968,12 +1968,24 @@ cases.push(
   ["C764", "a for loop over PATH, then grep of a quoted file outside the allow list", "Bash", { command: "for PATH in 1; do grep '../outside/doc.txt'; done" }, REFUSED],
   ["C765", "PATH assigned by [[ ]]'s arithmetic, then grep of a quoted file outside the allow list", "Bash", { command: "[[ 0 -eq PATH=1 ]]; grep '../outside/doc.txt'" }, REFUSED],
 
+  /* C77. Forms the third gate of PR #709 found: git stash's show and list, whose -m takes no text, so the
+     next word is an option that names a file; a word headed by - that Bash may expand into an option; and
+     a word after time and its one -p and one --, which Bash runs as the program. Nothing is taken out. */
+  ["C771", "git stash show -m, which takes no text, then --output= of a file outside the allow list", "Bash", { command: "git stash show -m --output=../outside/doc.txt" }, REFUSED],
+  ["C772", "git stash list -m, which takes no text, then --output= of a file outside the allow list", "Bash", { command: "git stash list -m --output=../outside/doc.txt" }, REFUSED],
+  ["C773", "grep of a quoted file outside the allow list, then -{f,}, which Bash makes -f and -", "Bash", { command: "echo | grep '../outside/doc.txt' -{f,}" }, REFUSED],
+  ["C774", "git commit -{C,}, which Bash makes -C and -, then -m of a pathspec outside the allow list", "Bash", { command: "git commit -{C,} -m '../outside/doc.txt'" }, REFUSED],
+  ["C775", "time, then -x, which Bash runs as the program, then grep of a quoted file outside the allow list", "Bash", { command: "time -x grep '../outside/doc.txt'" }, REFUSED],
+  ["C776", "time -p, then a second -p, which Bash runs as the program, then grep of a quoted file outside the allow list", "Bash", { command: "time -p -p grep '../outside/doc.txt'" }, REFUSED],
+
   /* C52. What the options read as their programs read them still let through. */
   ["C521", "grep --binary -n whose pattern is an alternation of two one-letter keys", "Bash", { command: "grep --binary -n 'x: \\|y: ' README.md" }, ALLOWED],
   ["C522", "git --no-pager commit --author and -sm, whose message holds \\| and a word that begins with a slash", "Bash", { command: 'git --no-pager commit --author "A <a@b.c>" -sm "Split at \\| and keep /: as written"' }, ALLOWED],
   ["C523", "git merge --no-ff -m, whose message holds a word that begins with a slash", "Bash", { command: 'git merge --no-ff -m "keep /: as written" feature' }, ALLOWED],
   ["C524", "a for loop over a name that is not TEMP, then grep of a quoted pattern of two one-letter keys", "Bash", { command: "for f in a b; do grep -n 'x: \\|y: ' README.md; done" }, ALLOWED],
   ["C525", "cd to a folder of the checkout, then git commit -m whose message holds \\| and a word that begins with a slash", "Bash", { command: 'cd src && git commit -m "Split at \\| and keep /: as written"' }, ALLOWED],
+  ["C526", "git stash push -m, whose message holds a word that begins with a slash", "Bash", { command: 'git stash push -m "keep /: as written"' }, ALLOWED],
+  ["C527", "time -p and --, then grep whose pattern is an alternation of two one-letter keys", "Bash", { command: "time -p -- grep -n 'x: \\|y: ' README.md" }, ALLOWED],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {

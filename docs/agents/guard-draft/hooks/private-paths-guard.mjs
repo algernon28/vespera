@@ -125,7 +125,7 @@
 // expansion in it may assign or run (no ( ) or backtick outside quotes, no $( ${ $[ or backtick inside
 // double quotes, no $' $" $( ${ or $[ outside quotes, no unpaired quote, no backslash before a line
 // break, no here-string, no here-document whose delimiter is not quoted), the guard does not read for paths:
-// the literal argument of git's -m and --message after commit, tag, merge or stash (and -m ending a
+// the literal argument of git's -m and --message after commit, tag, merge, stash push or a bare stash (and -m ending a
 // cluster of letters that take nothing there), of gh's --jq, -q and --body after api, issue or pr, and
 // of grep's -e and --regexp, the next word or
 // the text after the =; and the single-quoted first operand of grep, egrep, fgrep, awk, gawk, mawk and
@@ -976,7 +976,8 @@ const TRUSTED_PROGRAMS = new Set([
 const LOOP_NAME = /^[a-z][a-z0-9_]*$/;
 
 // Where a segment's program stands: the index of its first word that is no reserved word, no time option,
-// no assignment and no redirect, or the length of the segment where none is.
+// no assignment and no redirect, or the length of the segment where none is. Bash's time takes one -p and
+// then one --, and nothing more: a later word headed by - is the program.
 function programIndex(words) {
   let k = 0;
   while (k < words.length) {
@@ -984,7 +985,10 @@ function programIndex(words) {
     if (word.op) k += word.op === "<<" ? 1 : 2;
     else if (RESERVED_HEADS.has(word.raw)) {
       k++;
-      if (word.raw === "time") while (k < words.length && /^-/.test(words[k].raw ?? "")) k++;
+      if (word.raw === "time") {
+        if (words[k]?.raw === "-p") k++;
+        if (words[k]?.raw === "--") k++;
+      }
     } else if (ASSIGNMENT.test(word.raw)) k++;
     else return k;
   }
@@ -1039,7 +1043,8 @@ const GIT_GLOBALS = new Set([
 ]);
 // The options of git's subcommands whose -m and --message give a message (ADR-351 section 1): the short
 // letters that take none (none), take the rest of the word or the next (args), and take only the rest of
-// the word (rest), and the long names.
+// the word (rest), and the long names. stash's are push's, read only after stash push or after stash with
+// no word of a subcommand (STASH_PUSH); show and list take -m as no text.
 const GIT_SUBCOMMANDS = new Map([
   ["commit", {
     none: "aeinopqsvz", args: "CcFmt", rest: "uS",
@@ -1070,6 +1075,7 @@ const GIT_SUBCOMMANDS = new Map([
     }),
   }],
 ]);
+const STASH_PUSH = "push";
 // gh's subcommands whose --jq, -q and --body take text (ADR-351 section 1); after any other word, an alias
 // or an extension among them, nothing is taken out.
 const GH_SUBCOMMANDS = new Set(["api", "issue", "pr"]);
@@ -1198,8 +1204,12 @@ function textSpans(words) {
       else if (!value.startsWith("-")) break;
       else if (!GIT_GLOBALS.has(value) && !/^--[\w-]+=/.test(value)) return spans;
     }
-    const spec = GIT_SUBCOMMANDS.get(shellValue(words[k]));
+    const subcommand = shellValue(words[k]);
+    const spec = GIT_SUBCOMMANDS.get(subcommand);
     if (!spec) return spans;
+    // git stash's first word that is no option names its subcommand: only push's -m gives a message, so
+    // after any other word, or after a message given before push, nothing of the segment is taken out.
+    let stashed = subcommand !== "stash";
     for (k++; k < words.length; k++) {
       if (words[k].op) {
         k = redirect(k);
@@ -1209,7 +1219,13 @@ function textSpans(words) {
       if (complete && text === "--") break;
       // A word that may become an option, or that is one git's subcommand does not have, ends the walk.
       if (!complete && !text) return spans;
-      if (!text.startsWith("-") || text === "-") continue;
+      if (!text.startsWith("-") || (complete && text === "-")) {
+        if (!stashed) {
+          if (!(complete && text === STASH_PUSH && spans.length === 0)) return [];
+          stashed = true;
+        }
+        continue;
+      }
       const option = readOption(text, complete, spec);
       if (option.kind === "unknown") return spans;
       if (option.flag === "m" || option.flag === "message") {
@@ -1234,12 +1250,13 @@ function textSpans(words) {
     }
     const { text, complete } = wordText(word);
     // An option is a word that begins with - and is not - alone. A word whose head the guard does not
-    // know may become one, or more than one word.
+    // know may become one, or more than one word; so may a word headed by - that is not all known, as
+    // -{f,}, which Bash makes -f and -.
     if (!operands && !complete && !text) {
       given = true;
       continue;
     }
-    if (operands || text === "-" || !text.startsWith("-")) {
+    if (operands || (complete && text === "-") || !text.startsWith("-")) {
       first ??= word;
       continue;
     }
