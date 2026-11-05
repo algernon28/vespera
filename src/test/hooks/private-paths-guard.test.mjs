@@ -23,7 +23,8 @@
 // docs/adr/0351 amends docs/adr/0196 section 4 and docs/adr/0215 section 3(c): in a Bash command a
 // message, a filter, a body or a pattern given by a flag named by program, a single-quoted pattern or
 // program of grep, awk or jq, and the lines of a quoted here-document cat writes into the temp folder are
-// not read as paths, and those lines not for a .claude folder either. The C5 and C6 cases are held to it.
+// not read as paths, and those lines not for a .claude folder either; nothing is taken out of a command
+// that may change what a program's name runs. The C5, C6 and C7 cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -1909,6 +1910,47 @@ cases.push(
   ["C632", "git commit -m whose skipped message is followed by a token that begins with a colon", "Bash", { command: 'git commit -m "Split at \\| and keep /: as written" :notes.txt' }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
   ["C633", "mawk -W exec of a program file outside the allow list, quoted", "Bash", { command: "mawk -W exec '../outside/doc.txt'" }, REFUSED],
   ["C634", "jq --run-tests of a file outside the allow list, quoted", "Bash", { command: "jq --run-tests '../outside/doc.txt'" }, REFUSED],
+
+  /* C70. A command that can change what a program's name runs: a function, an alias, the hash table, an
+     eval, a trap, a command word whose name is not written, or PATH assigned. Nothing is taken out. */
+  ["C701", "a function named grep that cats its argument, then grep of a quoted file outside the allow list", "Bash", { command: "function grep { cat $1; }; grep '../outside/doc.txt'" }, REFUSED],
+  ["C702", "a function named git that cats its third argument, then git commit -m of a file outside the allow list", "Bash", { command: "function git { cat \"$3\"; }; git commit -m '../outside/doc.txt'" }, REFUSED],
+  ["C703", "hash -p that makes grep cat, then grep of a quoted file outside the allow list", "Bash", { command: "hash -p /usr/bin/cat grep\ngrep '../outside/doc.txt'" }, REFUSED],
+  ["C704", "aliases expanded and grep aliased to cat, then grep of a quoted file outside the allow list", "Bash", { command: "shopt -s expand_aliases\nalias grep=cat\ngrep '../outside/doc.txt'" }, REFUSED],
+  ["C705", "eval of a function named grep, then grep of a quoted file outside the allow list", "Bash", { command: "eval 'function grep { cat $1; }'; grep '../outside/doc.txt'" }, REFUSED],
+  ["C706", "a function named cat that runs bash, then a here-document into the temp folder whose line reads a file outside the allow list", "Bash", { command: "function cat { bash; }\ncat > \"$TEMP/x.md\" <<'EOF'\ncat ../outside/doc.txt\nEOF" }, REFUSED],
+  ["C707", "a script named grep written into the temp folder, PATH exported with it first, then grep of a quoted file outside the allow list", "Bash", { command: "cat > \"$TEMP/bin/grep\" <<'EOF'\ncat \"$1\"\nEOF\nexport PATH=\"$TEMP/bin:$PATH\"\ngrep '../outside/doc.txt'" }, REFUSED],
+  ["C708", "BASH_CMDS assigned so that grep is cat, then grep of a quoted file outside the allow list", "Bash", { command: "BASH_CMDS[grep]=/usr/bin/cat; grep '../outside/doc.txt'" }, REFUSED],
+  ["C709", "eval by a variable's value, then grep of a quoted file outside the allow list", "Bash", { command: "e=eval; $e 'function grep { cat $1; }'; grep '../outside/doc.txt'" }, REFUSED],
+  ["C710", "eval named in quotes, then grep of a quoted file outside the allow list", "Bash", { command: "'eval' 'function grep { cat $1; }'; grep '../outside/doc.txt'" }, REFUSED],
+  ["C711", "a DEBUG trap that defines grep, then grep of a quoted file outside the allow list", "Bash", { command: "trap 'function grep { cat $1; }' DEBUG; grep '../outside/doc.txt'" }, REFUSED],
+
+  /* C72. A here-document's file named by a variable the command assigns, or by one no environment key spells. */
+  ["C721", "TEMP assigned on the line before a here-document into $TEMP, whose line names the hooks folder", "Bash", { command: "TEMP=src\ncat > \"$TEMP/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C722", "TEMP exported on the line before a here-document into $TEMP, whose line names the hooks folder", "Bash", { command: "export TEMP=src\ncat > \"$TEMP/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C723", "a here-document into $temp, which Bash reads as no variable of the environment, whose line names the hooks folder", "Bash", { command: "cat > \"$temp/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C724", "TEMP unset on the line before a here-document into $TEMP, whose line names the hooks folder", "Bash", { command: "unset TEMP\ncat > \"$TEMP/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+
+  /* C73. Options read as git, gh, grep and awk read them. */
+  ["C731", "git --namespace, which takes the next word, then am -m of a mailbox outside the allow list", "Bash", { command: "git --namespace commit am -m ../outside/doc.txt" }, REFUSED],
+  ["C732", "git --work-tree, which takes the next word, then am -m of a mailbox outside the allow list", "Bash", { command: "git --work-tree commit am -m ../outside/doc.txt" }, REFUSED],
+  ["C733", "git merge -sm, whose m is the strategy, of a revision outside the allow list", "Bash", { command: "git merge -sm ../outside/doc.txt" }, REFUSED],
+  ["C734", "git commit -C, which takes -m, of a pathspec outside the allow list", "Bash", { command: "git commit -C -m ../outside/doc.txt" }, REFUSED],
+  ["C735", "git commit --auth, a prefix of --author that takes -m, of a pathspec outside the allow list", "Bash", { command: "git commit --auth -m ../outside/doc.txt" }, REFUSED],
+  ["C736", "git commit of an unquoted variable before -m, which may be an option that takes it", "Bash", { command: "o=-C; git commit $o -m '../outside/doc.txt'" }, REFUSED],
+  ["C737", "gh alias set of a shell alias that cats, then the alias's --body of a file outside the allow list", "Bash", { command: "gh alias set --shell rd 'cat $2' && gh rd --body ../outside/doc.txt" }, REFUSED],
+  ["C738", "gh of an alias's --body, a file outside the allow list", "Bash", { command: "gh rd --body ../outside/doc.txt" }, REFUSED],
+  ["C739", "grep --binary, which takes no argument, then a pattern and a quoted file outside the allow list", "Bash", { command: "grep --binary x '../outside/doc.txt'" }, REFUSED],
+  ["C740", "grep of a quoted file outside the allow list, then an unquoted variable that may be -f", "Bash", { command: "o=-f; grep '../outside/doc.txt' $o README.md" }, REFUSED],
+  ["C741", "grep with a here-document first, then a pattern and a quoted file outside the allow list", "Bash", { command: "grep <<'EOF' 'pat' '../outside/doc.txt'\nx\nEOF" }, REFUSED],
+  ["C742", "awk -dF, whose F is -d's file, then a program and a quoted file outside the allow list", "Bash", { command: "awk -dF 'x' '../outside/doc.txt'" }, REFUSED],
+  ["C743", "grep of an option it does not have, then a quoted file outside the allow list", "Bash", { command: "grep --vespera-none x '../outside/doc.txt'" }, REFUSED],
+
+  /* C52. What the options read as their programs read them still let through. */
+  ["C521", "grep --binary -n whose pattern is an alternation of two one-letter keys", "Bash", { command: "grep --binary -n 'x: \\|y: ' README.md" }, ALLOWED],
+  ["C522", "git --no-pager commit --author and -sm, whose message holds \\| and a word that begins with a slash", "Bash", { command: 'git --no-pager commit --author "A <a@b.c>" -sm "Split at \\| and keep /: as written"' }, ALLOWED],
+  ["C523", "git merge --no-ff -m, whose message holds a word that begins with a slash", "Bash", { command: 'git merge --no-ff -m "keep /: as written" feature' }, ALLOWED],
+  ["C524", "a for loop over a name that is not TEMP, then grep of a quoted pattern of two one-letter keys", "Bash", { command: "for f in a b; do grep -n 'x: \\|y: ' README.md; done" }, ALLOWED],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
