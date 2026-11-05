@@ -1,5 +1,6 @@
 package io.algernon.controlpanel;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
@@ -14,14 +15,13 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
- * What the control panel holds between requests (ADR-302 §2): the launch values, the one child it started and how that
- * child ended, and the line each page is to show once. The pages read and change it only through this class, and the
- * checks that stand before an invocation starts (ADR-302 §2's lines, ADR-331 §6's two among them) are made here, so that Run, Label,
- * {@code save-then-run}, {@code save-then-label} and {@code label-auto} start a child by the same checks. Every write
- * of a working directory's file goes through {@link #write}, one at a time with every start (ADR-295 §1). As the
- * control panel's process ends, {@link #endWithTheControlPanel} ends the child with it (ADR-307 §1). It also holds,
- * in memory, the forms an operator pressed Browse on ({@link #heldForm}, ADR-331 §5) and the answers the sidecars
- * last gave the launch page ({@link #lastChecks}, ADR-331 §3).
+ * What the control panel holds while its window is open (ADR-302 §2, ADR-342): the launch values, the sources the
+ * window's fields start from (ADR-344 §3), the one child it started and how that child ended. The window reads and
+ * changes it only through this class, and the checks that stand before an invocation starts (ADR-302 §2's lines,
+ * ADR-331 §6's two among them) are made here, so that Run, Record my answers, Let the local model answer and Publish
+ * start a child by the same checks. Every write of a working directory's file goes through {@link #write}, one at a
+ * time with every start (ADR-295 §1). As the control panel's process ends, {@link #endWithTheControlPanel} ends the
+ * child with it (ADR-307 §1). It also holds the answers the sidecars last gave ({@link #lastChecks}).
  *
  * <p>The class holds no connection to {@code vespera.db} (ADR-278 §3) and writes no file but the launch values'
  * (ADR-292 §2), as an invocation starts.
@@ -54,19 +54,10 @@ final class ControlPanelState {
     private final String userName;
     private final WorkingDirectoryWrite writer;
     private final List<String> notes = new ArrayList<>();
-    private final Map<String, String> outcomes = new HashMap<>();
 
-    private final Map<String, Map<String, String>> heldForms = new HashMap<>();
-
-    /** What the tree of folders to process holds across a press of Open or a folder above (ADR-340 §5). */
-    private TreeHold heldTree = new TreeHold(Map.of(), Map.of(), Map.of());
-
-    /**
-     * The folder {@code vespera.working-dir} left empty names on this machine, with where it came from, read once as
-     * the control panel started (ADR-340 §6); a value no path can hold is kept as given.
-     */
-    private final WorkingDirectoryDefault workingDirectoryDefault;
-
+    private volatile StartingValues.Sources sources = StartingValues.Sources.none();
+    private volatile WorkingDirectoryDefault workingDirectoryDefault = WorkingDirectoryDefault.of(Path.of(""), Map.of(),
+            Map.of());
     private volatile LaunchValues values;
     private volatile SidecarChecks.Checks lastChecks = new SidecarChecks.Checks(
             new SidecarChecks.Check(SidecarChecks.Result.NOT_CHECKED),
@@ -77,14 +68,6 @@ final class ControlPanelState {
     private boolean controlPanelEnds;
 
     ControlPanelState(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder, String userName) {
-        this(runtime, launchValuesFile, corpusRootLockFolder, userName,
-                WorkingDirectoryDefault.of(Path.of(System.getProperty("user.dir")), Map.of(), Map.of()));
-    }
-
-    /** As above, the work folder left empty being {@code workingDirectoryDefault} (ADR-340 §6). */
-    ControlPanelState(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder, String userName,
-            WorkingDirectoryDefault workingDirectoryDefault) {
-        this.workingDirectoryDefault = workingDirectoryDefault;
         this.runtime = runtime;
         this.launchValuesFile = launchValuesFile;
         this.corpusRootLockFolder = corpusRootLockFolder;
@@ -93,82 +76,78 @@ final class ControlPanelState {
         this.values = LaunchValues.load(launchValuesFile, userName, notes::add);
     }
 
-    /**
-     * The launch values as the control panel reads them (ADR-334 §11): where no launch value names a Docling image, the
-     * image is {@link ControlPanelPage#DOCLING_IMAGE_GPU}, in the form, in the checks and in every start.
-     */
+    /** The launch values as held: what the launch values file said as the control panel started, then what each start kept. */
     LaunchValues values() {
-        return withThePreselectedImage(values);
+        return values;
     }
 
-    private static LaunchValues withThePreselectedImage(LaunchValues held) {
-        return held.doclingImage().isEmpty() ? held.withDoclingImage(ControlPanelPage.DOCLING_IMAGE_GPU) : held;
+    /** What the window's fields start from: the launch values file, the environment, {@code .env} and {@code application.yaml} (ADR-344 §3). */
+    StartingValues.Sources sources() {
+        return new StartingValues.Sources(launchValuesByProperty(values), sources.environment(), sources.dotEnv(),
+                sources.applicationYaml());
     }
 
-    /** The values as a start uses them: the image preselected and the work folder its default where either is left empty. */
-    private LaunchValues withTheDefaults(LaunchValues held) {
-        LaunchValues image = withThePreselectedImage(held);
-        return image.workingDirectory().isEmpty() ? image.withWorkingDirectory(workingDirectoryDefault.folder()) : image;
+    /** Hands the state what the environment, {@code .env} and {@code application.yaml} say; the launch values are its own. */
+    void useSources(StartingValues.Sources read) {
+        this.sources = read;
     }
 
-    /** The work folder left empty is this one, and this is where it came from (ADR-340 §6). */
+    /**
+     * Hands the state the folder the jar would use on this machine where no source names the working directory
+     * (ADR-340 §6, kept by ADR-345 §1), which {@code ControlPanel.open()} resolves once from its JVM. A state given none
+     * holds the one of the JVM's current directory, with no property or variable.
+     */
+    void useWorkingDirectoryDefault(WorkingDirectoryDefault resolved) {
+        this.workingDirectoryDefault = resolved;
+    }
+
+    /** The folder an empty working directory field stands for (ADR-345 §1). */
     WorkingDirectoryDefault workingDirectoryDefault() {
         return workingDirectoryDefault;
     }
 
-    /**
-     * The work folder as the pages and the starts read it: the one typed, or its default where the field is empty; empty
-     * only where the one typed is no path this system can hold.
-     */
-    String effectiveWorkingDirectory() {
-        String named = values.workingDirectory();
-        if (named.isEmpty()) {
-            return pathOf(workingDirectoryDefault.folder()).isPresent() ? workingDirectoryDefault.folder() : "";
-        }
-        return pathOf(named.stripTrailing()).isPresent() ? named : "";
-    }
-
-    /** The launch values as held, the Docling image empty where none is named, for a change that holds them again. */
-    LaunchValues heldValues() {
-        return values;
-    }
-
-    /** Whether a launch value names the Docling image, so the image read is not the one the control panel preselects. */
-    boolean doclingImageIsNamed() {
-        return !values.doclingImage().isEmpty();
+    private static Map<String, String> launchValuesByProperty(LaunchValues held) {
+        Map<String, String> byProperty = new HashMap<>();
+        byProperty.put("vespera.corpus-root", held.corpusRoot());
+        byProperty.put("vespera.working-dir", held.workingDirectory());
+        byProperty.put("vespera.deliverable-root", held.deliverableRoot());
+        byProperty.put("vespera.docling.image", held.doclingImage());
+        byProperty.put("vespera.docling.base-url", held.doclingBaseUrl());
+        byProperty.put("spring.ai.ollama.base-url", held.ollamaBaseUrl());
+        byProperty.put("vespera.label.model", held.labelModel());
+        return byProperty;
     }
 
     /**
-     * Whether a Confluence rendering is drawn where the launch values say the tree lies (ADR-308 §6): a page list
-     * under the deliverable root where one is named, else under a generation run's folder in the working directory's
-     * {@code deliverable/}. Read from the files alone, as the control panel links no class of the jar (ADR-285).
+     * Whether any destination's rendering is drawn where the fields say the tree lies (ADR-308 §6, ADR-333 §6,
+     * ADR-345 §4).
      */
-    boolean aRenderingIsDrawn() {
-        return !destinationsDrawn().isEmpty();
+    boolean aRenderingIsDrawn(Optional<Path> workingDirectory, String deliverableRoot) {
+        return !destinationsDrawn(workingDirectory, deliverableRoot).isEmpty();
     }
 
     /**
-     * The destinations, of {@link ChildCommand#DESTINATIONS} and in its order, whose rendering's list is found where the
-     * launch values say the tree lies (ADR-333 §6): what the invocation page's Publish offers a checkbox for.
+     * The destinations, of {@link ChildCommand#DESTINATIONS} and in its order, whose rendering's list is found at the
+     * top of the tree the output folder names, or of a generation run's folder under the working directory's
+     * {@code deliverable/} where it names none (ADR-334 §1). Read from the files alone, as the control panel links no
+     * class of the jar (ADR-285).
      */
-    List<String> destinationsDrawn() {
-        return ChildCommand.DESTINATIONS.stream().filter(this::isDrawn).toList();
+    List<String> destinationsDrawn(Optional<Path> workingDirectory, String deliverableRoot) {
+        return ChildCommand.DESTINATIONS.stream().filter(each -> isDrawn(each, workingDirectory, deliverableRoot))
+                .toList();
     }
 
-    private boolean isDrawn(String destination) {
-        LaunchValues now = values;
-        String list = java.util.Objects.requireNonNull(
-                ChildCommand.DESTINATION_LISTS.get(destination), "no list named for destination " + destination);
+    private static boolean isDrawn(String destination, Optional<Path> workingDirectory, String deliverableRoot) {
+        String list = ChildCommand.DESTINATION_LISTS.get(destination);
         try {
-            if (now.deliverableRoot() != null && !now.deliverableRoot().isBlank() && !namesTheDefaultFolder(now)) {
-                return Files.isRegularFile(
-                        Path.of(now.deliverableRoot().stripTrailing()).resolve(destination).resolve(list));
+            if (deliverableRoot != null && !deliverableRoot.isBlank()
+                    && !namesTheDefaultFolder(workingDirectory, deliverableRoot)) {
+                return Files.isRegularFile(Path.of(deliverableRoot.stripTrailing()).resolve(destination).resolve(list));
             }
-            String working = effectiveWorkingDirectory();
-            if (working.isBlank()) {
+            if (workingDirectory.isEmpty()) {
                 return false;
             }
-            Path trees = Path.of(working.stripTrailing()).resolve("deliverable");
+            Path trees = workingDirectory.get().resolve("deliverable");
             if (!Files.isDirectory(trees)) {
                 return false;
             }
@@ -184,16 +163,29 @@ final class ControlPanelState {
      * Whether the output folder named is the working directory's {@code deliverable} folder, which is read as no folder
      * named (ADR-334 §1): the trees lie in a folder of their own for each run there.
      */
-    private boolean namesTheDefaultFolder(LaunchValues now) {
-        String working = effectiveWorkingDirectory();
-        if (working.isBlank()) {
+    private static boolean namesTheDefaultFolder(Optional<Path> workingDirectory, String deliverableRoot) {
+        if (workingDirectory.isEmpty()) {
             return false;
         }
         try {
-            Path theDefault = Path.of(working.stripTrailing()).toAbsolutePath().normalize()
-                    .resolve("deliverable");
-            return LaunchPages.namesTheSameFolder(now.deliverableRoot(), theDefault.toString());
+            Path theDefault = workingDirectory.get().toAbsolutePath().normalize().resolve("deliverable");
+            return namesTheSameFolder(deliverableRoot, theDefault.toString());
         } catch (RuntimeException cannotBeHeld) {
+            return false;
+        }
+    }
+
+    /** Whether the two name the same folder, compared by their real paths where they exist, as ADR-276 §2 compares. */
+    static boolean namesTheSameFolder(String typed, String theDefault) {
+        try {
+            Path one = Path.of(typed.stripTrailing()).toAbsolutePath().normalize();
+            Path other = Path.of(theDefault).toAbsolutePath().normalize();
+            if (Files.exists(one) && Files.exists(other)) {
+                return Files.isSameFile(one, other);
+            }
+            return one.toString().equalsIgnoreCase(other.toString())
+                    && (File.separatorChar == '\\' || one.toString().equals(other.toString()));
+        } catch (IOException | RuntimeException cannotBeHeld) {
             return false;
         }
     }
@@ -202,60 +194,13 @@ final class ControlPanelState {
         this.values = replacement;
     }
 
-    /**
-     * What the launch page was last told by the sidecars, {@code not-checked} for each until it has asked: only the
-     * launch page asks, and the other pages show these answers (ADR-331 §3).
-     */
+    /** What the sidecars last said, {@code not-checked} for each until the window has asked (ADR-302 §5). */
     SidecarChecks.Checks lastChecks() {
         return lastChecks;
     }
 
     void keepChecks(SidecarChecks.Checks asked) {
         this.lastChecks = asked;
-    }
-
-    /** What the form {@code form} held as an operator pressed its Browse, by control name; empty where it holds none (ADR-331 §5). */
-    synchronized Map<String, String> heldForm(String form) {
-        return Map.copyOf(heldForms.getOrDefault(form, Map.of()));
-    }
-
-    /** Holds {@code fields} for {@code form} in memory, in place of what it held, until {@link #letGoOfForm}. */
-    synchronized void holdForm(String form, Map<String, String> fields) {
-        heldForms.put(form, new HashMap<>(fields));
-    }
-
-    /** Puts {@code value} in the control {@code name} of the held form {@code form}, the rest as it was held. */
-    synchronized void holdField(String form, String name, String value) {
-        heldForms.computeIfAbsent(form, ignored -> new HashMap<>()).put(name, value);
-    }
-
-    /** Lets go of what {@code form} held: it is saved, and its page shows what the files say again. */
-    synchronized void letGoOfForm(String form) {
-        heldForms.remove(form);
-    }
-
-    /**
-     * What the tree of folders to process holds in memory beside the files (ADR-340 §5): by folder, as the tree spells
-     * it, whether a folder is read and whether it is marked as a code set, each only where it differs from what the
-     * files state, and the name typed for a folder marked.
-     */
-    record TreeHold(Map<String, Boolean> walked, Map<String, Boolean> marked, Map<String, String> names) {
-    }
-
-    /** What the tree holds now; empty maps where it holds nothing. */
-    synchronized TreeHold heldTree() {
-        return heldTree;
-    }
-
-    /** Holds {@code held} in place of what the tree held, until {@link #letGoOfTree}. */
-    synchronized void holdTree(TreeHold held) {
-        heldTree = new TreeHold(Map.copyOf(held.walked()), Map.copyOf(held.marked()), Map.copyOf(held.names()));
-    }
-
-    /** Lets go of everything the tree held: it is saved or reset, and shows what the files say again. */
-    synchronized void letGoOfTree() {
-        heldTree = new TreeHold(Map.of(), Map.of(), Map.of());
-        heldForms.remove("folders-to-process");
     }
 
     /** The lines the launch values' file gave as it was loaded. */
@@ -278,36 +223,21 @@ final class ControlPanelState {
         return writer.write(workingDirectory, changes);
     }
 
-    /** The working directory held: the one named, or its default; empty only where the one named is no path this system can hold. */
-    Optional<Path> workingDirectory() {
-        String named = values.workingDirectory();
-        return pathOf(named.isEmpty() ? workingDirectoryDefault.folder() : named);
-    }
-
     /**
      * What the jar last said it would use where the profile names nothing, read at each request that shows it
      * (ADR-330 §1); empty where no working directory is held or the file is absent or cannot be read.
      */
-    Optional<EffectiveValues> effectiveValues() {
-        return EffectiveValues.read(workingDirectory(), runtime.jar());
+    Optional<EffectiveValues> effectiveValues(Optional<Path> workingDirectory) {
+        return EffectiveValues.read(workingDirectory, runtime.jar());
     }
 
     /** {@code text} as a path, empty where the system refuses it: a value it refuses names no folder (ADR-331 §6). */
-    private static Optional<Path> pathOf(String text) {
+    static Optional<Path> pathOf(String text) {
         try {
             return Optional.of(Path.of(text));
         } catch (InvalidPathException refused) {
             return Optional.empty();
         }
-    }
-
-    synchronized void say(String page, String line) {
-        outcomes.put(page, line);
-    }
-
-    /** The line {@code page} is to show, once; {@code null} where it has none. */
-    synchronized String takeOutcome(String page) {
-        return outcomes.remove(page);
     }
 
     /** The line a lock gives for the working directory held and for the corpus root held, each empty where it is held by nobody. */
@@ -317,13 +247,17 @@ final class ControlPanelState {
         }
     }
 
-    Holders holders() {
-        Optional<String> working = workingDirectory()
+    /** Who holds the working directory and the corpus root named here, which the caller reads from what it is about to use. */
+    Holders holders(Optional<Path> workingDirectory, Optional<Path> corpusRoot) {
+        Optional<String> working = workingDirectory
                 .flatMap(folder -> heldByAnother(folder.resolve(WorkingDirectoryWrite.LOCK_FILE_NAME)));
-        Optional<String> root = values.corpusRoot().isEmpty() ? Optional.empty()
-                : pathOf(values.corpusRoot())
-                        .flatMap(corpus -> held(CorpusRootLockFile.in(corpusRootLockFolder, corpus)));
+        Optional<String> root = corpusRoot
+                .flatMap(corpus -> held(CorpusRootLockFile.in(corpusRootLockFolder, corpus)));
         return new Holders(working, root);
+    }
+
+    private static Optional<Path> folderOf(String named) {
+        return named == null || named.isBlank() ? Optional.empty() : pathOf(named.stripTrailing());
     }
 
     /**
@@ -407,21 +341,52 @@ final class ControlPanelState {
      * @return the refusal, empty where the child was started
      */
     synchronized Optional<String> start(Start kind, List<String> stored) {
-        return start(kind, stored, List.of());
+        LaunchValues held = values;
+        return start(kind, new Plan(held, held, Map.of(), null), stored);
     }
 
     /**
-     * As {@link #start(Start, List)}, a publish delivering to {@code destinations}, the boxes checked on the invocation
-     * page (ADR-333 §6); the other kinds take none. A publish naming none, or one outside {@link
-     * ChildCommand#DESTINATIONS}, is refused in one line and starts nothing.
+     * What the window starts an invocation with (ADR-344 §3, §4, ADR-345 §4): the values passed to the child, the values
+     * kept in the launch values file as it starts, the presets passed as options of the command line, the label file,
+     * null where none is named, and the destinations ticked, which only a publish passes.
      */
-    synchronized Optional<String> start(Start kind, List<String> stored, List<String> destinations) {
+    record Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets, Path labelFile,
+            List<String> destinations) {
+
+        Plan {
+            destinations = List.copyOf(destinations);
+        }
+
+        /** A plan ticking no destination, as every start but a publish has. */
+        Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets, Path labelFile) {
+            this(toPass, toKeep, presets, labelFile, List.of());
+        }
+    }
+
+    /** The command {@code kind} starts with {@code plan}, or the refusal of its values (ADR-292 §7); the window shows its line. */
+    static ChildCommand commandOf(ChildRuntime runtime, Start kind, Plan plan) {
+        LaunchValues now = plan.toPass();
+        ChildCommand command = switch (kind) {
+            case RUN -> ChildCommand.run(runtime.java(), runtime.jar(), now);
+            case LABEL -> ChildCommand.label(runtime.java(), runtime.jar(), false, now);
+            case LABEL_AUTO -> ChildCommand.label(runtime.java(), runtime.jar(), true, now);
+            case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now, plan.destinations());
+        };
+        command = command.withOptions(plan.presets());
+        return kind == Start.LABEL && plan.labelFile() != null ? command.withLabelFile(plan.labelFile()) : command;
+    }
+
+    ChildRuntime runtime() {
+        return runtime;
+    }
+
+    /** As {@link #start(Start, List)}, with the values, presets and label file of {@code plan}. */
+    synchronized Optional<String> start(Start kind, Plan plan, List<String> stored) {
         if (controlPanelEnds) {
             return Optional.of(kind.name + " is not started: the control panel is ending");
         }
-        // one read of the held values, so the child and the file stored are of the same values
-        LaunchValues held = values;
-        LaunchValues now = withTheDefaults(held);
+        LaunchValues held = plan.toKeep();
+        LaunchValues now = plan.toPass();
         Optional<String> refusal = kind == Start.RUN ? now.refusalToRun() : now.refusalToLabel();
         if (refusal.isPresent()) {
             return refusal;
@@ -440,7 +405,7 @@ final class ControlPanelState {
         if (childRuns()) {
             return Optional.of(kind.name + " is not started while the invocation the control panel started runs");
         }
-        Holders holders = holders();
+        Holders holders = holders(folderOf(now.workingDirectory()), folderOf(now.corpusRoot()));
         if (holders.workingDirectory().isPresent()) {
             return Optional.of(kind.name + " is not started: the working directory " + now.workingDirectory()
                     + " is held by another Vespera invocation (" + holders.workingDirectory().get() + ")");
@@ -451,17 +416,13 @@ final class ControlPanelState {
         }
         ChildCommand command;
         try {
-            command = switch (kind) {
-                case RUN -> ChildCommand.run(runtime.java(), runtime.jar(), now);
-                case LABEL -> ChildCommand.label(runtime.java(), runtime.jar(), false, now);
-                case LABEL_AUTO -> ChildCommand.label(runtime.java(), runtime.jar(), true, now);
-                case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now, destinations);
-            };
+            command = commandOf(runtime, kind, plan);
         } catch (RuntimeException notBuilt) {
             return Optional.of(kind.name + " is not started: " + (notBuilt.getMessage() == null
                     ? notBuilt.getClass().getSimpleName() : notBuilt.getMessage()));
         }
-        // the values as held, so that a preselected image is given to the child but not stored as one named (ADR-334 §11)
+        // the values kept, so that a value left as a source started it is passed and never stored (ADR-344 §3)
+        this.values = held;
         held.store(launchValuesFile, userName, stored::add);
         try {
             child = Child.start(command.processBuilder());

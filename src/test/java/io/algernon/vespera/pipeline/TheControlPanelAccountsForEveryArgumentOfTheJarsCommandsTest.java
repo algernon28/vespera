@@ -29,8 +29,10 @@ import picocli.CommandLine.Model.PositionalParamSpec;
 /**
  * Every option and positional argument of the commands the control panel starts is accounted for by the control
  * panel (ADR-336 §2): {@link ChildCommand#ARGUMENTS} holds each one of picocli's model of {@code vespera} and of each
- * of its commands, once, by the command's name and the argument's, with the control that sets it and the form it
- * stands on, the launch form or the invocation page's Publish (ADR-339 §1), or none, and why.
+ * of its commands, once, by the command's name and the argument's, with the control of the control panel's window
+ * that sets it or none, and why (ADR-344 §4: label's file is set by the label file option; ADR-345 §4: publish's
+ * destinations are set by the boxes beside Publish, and vespera's help and version and serve's working directory are
+ * the only three never passed, the window starting no serve, ADR-341 §2).
  *
  * <p>The table names an option without its leading {@code --}, {@code help} for {@code --help}, so that no class of the
  * control panel holds the text of the two options ADR-278 §1's scan forbids it (ADR-336 §2); this test strips the
@@ -38,17 +40,14 @@ import picocli.CommandLine.Model.PositionalParamSpec;
  *
  * <p>The model is read as the jar builds it, its mixins included, so an option added to a command, a mixin's among
  * them, or a command added with arguments of its own, fails here until the control panel's table says how it is set
- * or that it is never passed. That each control the table names is drawn on the form its entry names is held by
- * {@code controlpanel.TheLaunchPageStartsLabelAutoScreenTest.everyControlTheTableNamesIsOnTheFormItsEntryNames}.
- *
- * <p>{@code vespera serve} is an entry of the tree, so that help lists it (ADR-333 §8), and the control panel starts no
- * {@code serve} (ADR-333, amending ADR-278 §1), so its {@code --db-dir} is in the table as never passed, by ADR-336 §2's
- * rule for a command added with arguments of its own.
+ * or that it is never passed. That each control the table names is a control of the window is held by {@code
+ * controlpanel.TheControlPanelsWindowTest.everyControlTheArgumentsTableNamesIsAControlOfTheWindow}.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-336", url = Adr.THE_LAUNCH_PAGE_STARTS_LABEL_AUTO_AND_EVERY_ARGUMENT_OF_THE_JAR_IS_ACCOUNTED_FOR, type = "adr")
 @Link(name = "ADR-278", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN, type = "adr")
+@Link(name = "ADR-345", url = Adr.THE_COCKPIT_REPLACES_THE_BROWSER_CONTROL_PANEL_AND_ITS_TREE_WRITES_THE_FOLDERS_NOT_WALKED, type = "adr")
 class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
 
     /**
@@ -70,18 +69,6 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
     /** The launch form's control for the working directory, which sets every command's {@code --db-dir}. */
     private static final String THE_WORKING_DIRECTORY = "vespera.working-dir";
 
-    /** The top bar's form, whose box Autolabel sets {@code label --auto} (ADR-340 §1). */
-    private static final String LAUNCH = "launch";
-
-    /** The drawer's form of the launch values, whose folder fields set the root and {@code --db-dir} (ADR-340 §3). */
-    private static final String LAUNCH_VALUES = "launch-values";
-
-    /** The invocation page's form that starts a publish, whose checkboxes set {@code --to} (ADR-333 §6). */
-    private static final String PUBLISH = "publish";
-
-    /** The forms a control of the table stands on (ADR-339 §1, as ADR-340 amends it). */
-    private static final Set<String> THE_FORMS = Set.of(LAUNCH, LAUNCH_VALUES, PUBLISH);
-
     @Test
     @Story("Every option of the jar's commands is set from the control panel or said not to be")
     @DisplayName("Every option and positional argument of vespera and its commands is in the control panel's table, once, and the table holds no other")
@@ -96,7 +83,7 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
         claim("the model was read through the command's own tree, so the answers below are about the command line an"
                         + " operator types, its mixins included",
                 () -> assertThat(inTheModel).contains("vespera help", "run <root>", "label auto", "publish db-dir",
-                        "serve db-dir"));
+                        "publish to", "serve db-dir"));
         claim("the table names each argument once",
                 () -> assertThat(inTheTable).doesNotHaveDuplicates());
         claim("and it names every option and positional argument of the model, by command and name, and nothing the"
@@ -106,21 +93,14 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
 
     @Test
     @Story("Every option of the jar's commands is set from the control panel or said not to be")
-    @DisplayName("Each argument is set by a control of the launch form or of Publish, the form named beside it, or never passed, and the table says why for each")
-    @Link(name = "ADR-339", url = Adr.AN_ARGUMENT_NAMES_THE_FORM_ITS_CONTROL_STANDS_ON_AND_THE_WEBSITE_IS_BUILT_AS_RECORDED, type = "adr")
+    @DisplayName("Each argument is set by a control of the control panel or never passed, and the table says why for each")
+    @Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+    @Link(name = "ADR-341", url = Adr.SERVE_TELLS_A_PAGE_FROM_A_COPY_BY_THE_LIST_AND_THE_NAME, type = "adr")
     void eachArgumentIsSetByAControlOfTheControlPanelOrNeverPassedAndSaysWhy() {
         Map<String, String> controls = new LinkedHashMap<>();
-        Map<String, String> forms = new LinkedHashMap<>();
         for (ChildCommand.Argument argument : ChildCommand.ARGUMENTS) {
             controls.put(argument.command() + " " + argument.name(), argument.control());
-            forms.put(argument.command() + " " + argument.name(), argument.form());
         }
-        Set<String> withAFormOutOfPlace = ChildCommand.ARGUMENTS.stream()
-                .filter(argument -> argument.control().isEmpty()
-                        ? !argument.form().isEmpty()
-                        : !THE_FORMS.contains(argument.form()))
-                .map(argument -> argument.command() + " " + argument.name() + " on '" + argument.form() + "'")
-                .collect(Collectors.toCollection(TreeSet::new));
         Set<String> withoutAReason = ChildCommand.ARGUMENTS.stream()
                 .filter(argument -> argument.reason() == null || argument.reason().isBlank())
                 .map(argument -> argument.command() + " " + argument.name())
@@ -133,31 +113,20 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
         claim("every argument says why it is set as it is, or never passed",
                 () -> assertThat(withoutAReason).as("arguments of the table with no reason").isEmpty());
         claim("the corpus root is set by its field, every command's working directory by the working directory's,"
-                        + " --auto by Have the local model answer, and --to by the destinations' checkboxes",
+                        + " --auto by Let the local model answer, label's file by the label file option, and publish's"
+                        + " destinations by the boxes beside Publish",
                 () -> assertThat(controls).containsAllEntriesOf(Map.of(
                         "run <root>", "vespera.corpus-root",
                         "run db-dir", THE_WORKING_DIRECTORY,
                         "label db-dir", THE_WORKING_DIRECTORY,
                         "publish db-dir", THE_WORKING_DIRECTORY,
                         "label auto", "label-auto",
-                        "publish to", "to")));
-        claim("the folder fields stand on the launch values' form, the Autolabel box on the top bar's, and the"
-                        + " destinations on the invocation page's Publish, the launch values staying seven (ADR-292 §1,"
-                        + " ADR-339 §1, ADR-340 §1 and §3)",
-                () -> assertThat(forms).containsAllEntriesOf(Map.of(
-                        "run <root>", LAUNCH_VALUES,
-                        "run db-dir", LAUNCH_VALUES,
-                        "label db-dir", LAUNCH_VALUES,
-                        "publish db-dir", LAUNCH_VALUES,
-                        "label auto", LAUNCH,
-                        "publish to", PUBLISH)));
-        claim("an argument names a form exactly where it names a control, and the form is the top bar's, the launch values' or Publish",
-                () -> assertThat(withAFormOutOfPlace).as("arguments whose form does not go with their control")
-                        .isEmpty());
-        claim("and the arguments never passed are vespera's help and version options, label's file and serve's working"
-                        + " directory, since the control panel starts no vespera serve, and no other",
+                        "label <file>", "label-file",
+                        "publish to", "publish-to")));
+        claim("and the arguments never passed are vespera's help and version options and serve's working directory,"
+                        + " the control panel starting no serve, and no other",
                 () -> assertThat(neverPassed).containsExactlyInAnyOrder("vespera help", "vespera version",
-                        "label <file>", "serve db-dir"));
+                        "serve db-dir"));
     }
 
     /**

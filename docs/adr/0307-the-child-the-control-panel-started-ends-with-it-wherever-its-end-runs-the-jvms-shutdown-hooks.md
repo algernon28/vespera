@@ -73,8 +73,8 @@ No file under `src/main/java/io/algernon/vespera` changes, and no dependency or 
 
 | Method | What it holds |
 | --- | --- |
-| `controlpanel.TheChildEndsWithTheControlPanelTest.endingTheControlPanelInAnOrderlyWayEndsTheChildItStarted` | a control panel started as a process of its own through `ControlPanel.serve`, Run pressed on its launch page, its child alive: `Process.destroy`, a `SIGTERM` to the control panel alone, ends it, and once it has ended its child has ended too (§1). Disabled on Windows, where `destroy` is a forced end and Java sends no console event to another process |
-| `controlpanel.TheChildEndsWithTheControlPanelTest.noChildIsStartedOnceTheControlPanelIsEnding` | after `endWithTheControlPanel`, Run is refused with §1's line and no child is started (§1) |
+| `controlpanel.TheChildEndsWithTheControlPanelTest.endingTheControlPanelInAnOrderlyWayEndsTheChildItStarted` (removed with the control panel's server and pages, ADR-342 §6, #700) | a control panel started as a process of its own through `ControlPanel.serve`, Run pressed on its launch page, its child alive: `Process.destroy`, a `SIGTERM` to the control panel alone, ends it, and once it has ended its child has ended too (§1). Disabled on Windows, where `destroy` is a forced end and Java sends no console event to another process |
+| `controlpanel.TheChildEndsWithTheControlPanelTest.noChildIsStartedOnceTheControlPanelIsEnding` (removed with the control panel's server and pages, ADR-342 §6, #700) | after `endWithTheControlPanel`, Run is refused with §1's line and no child is started (§1) |
 | `controlpanel.ChildTest.theControlPanelsEndLeavesNeitherTheChildNorItsGrandchild` | `Child.endWithin` with the bound of 2 seconds, on a child that started a grandchild: both are seen to end within it, and neither is alive (§1) |
 
 **No test holds the hook on Windows**, nor a forced end leaving the child running (§2), which is the absence of a hook and holds by the JVM's own rule.

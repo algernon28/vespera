@@ -1,0 +1,143 @@
+/*
+ * The control panel's one stylesheet (ADR-342 section 3): every colour, size and space the window draws. No class sets
+ * a style of its own.
+ */
+.root {
+    -vespera-ink: #1e1b2e;
+    -vespera-dim: #67637a;
+    -vespera-surface: #ffffff;
+    -vespera-ground: #f5f4f1;
+    -vespera-rule: #dfdce6;
+    -vespera-accent: #4c3fb1;
+    -vespera-accent-ink: #ffffff;
+    -vespera-bad: #b3282d;
+    -fx-font-size: 13px;
+    -fx-base: #efedf3;
+    -fx-background: -vespera-ground;
+    -fx-text-fill: -vespera-ink;
+}
+
+.cockpit {
+    -fx-background-color: -vespera-ground;
+}
+
+.main {
+    -fx-padding: 12px;
+    -fx-spacing: 8px;
+}
+
+.header .label {
+    -fx-font-size: 15px;
+}
+
+.card {
+    -fx-background-color: -vespera-surface;
+    -fx-border-color: -vespera-rule;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+    -fx-padding: 12px;
+}
+
+.outcome {
+    -fx-text-fill: -vespera-accent;
+}
+
+.button {
+    -fx-background-color: -vespera-accent;
+    -fx-text-fill: -vespera-accent-ink;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px 12px 4px 12px;
+}
+
+.button:disabled {
+    -fx-opacity: 0.45;
+}
+
+.hyperlink {
+    -fx-text-fill: -vespera-accent;
+}
+
+.small {
+    -fx-font-size: 11px;
+    -fx-text-fill: -vespera-dim;
+}
+
+.dim {
+    -fx-text-fill: -vespera-dim;
+}
+
+.grey {
+    -fx-text-fill: #a29db8;
+}
+
+.key-name,
+.field-name {
+    -fx-font-weight: bold;
+}
+
+.section {
+    -fx-padding: 8px;
+    -fx-spacing: 8px;
+}
+
+.profile-row {
+    -fx-border-color: transparent transparent -vespera-rule transparent;
+    -fx-padding: 6px 0 10px 0;
+}
+
+.spaced-row,
+.actions,
+.charts,
+.card,
+.step {
+    -fx-spacing: 8px;
+}
+
+.tight-column {
+    -fx-spacing: 2px;
+}
+
+.repair {
+    -fx-spacing: 4px;
+}
+
+.tab-content {
+    -fx-padding: 8px;
+    -fx-spacing: 8px;
+}
+
+.steps-and-output {
+    -fx-pref-height: 300px;
+}
+
+.form-tabs {
+    -fx-pref-height: 420px;
+}
+
+.progress-chart {
+    -fx-pref-height: 240px;
+}
+
+.step {
+    -fx-alignment: center-left;
+    -fx-padding: 2px 0 2px 0;
+}
+
+.step .progress-bar {
+    -fx-pref-width: 160px;
+}
+
+.command-line {
+    -fx-font-family: monospace;
+    -fx-font-size: 11px;
+}
+
+.output .list-cell {
+    -fx-font-family: monospace;
+    -fx-font-size: 11px;
+}
+
+.sidebar {
+    -fx-pref-width: 420px;
+    -fx-background-color: -vespera-surface;
+}

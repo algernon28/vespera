@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of §1: the forms an entry names gain `launch-values`, where the corpus root's and the working directory's fields stand; `launch`, the top bar's form, holds `label-auto` alone. The rest of this record stands.
 
+> **Partly amended — see [ADR-345](0345-the-cockpit-replaces-the-browser-control-panel-its-tree-writes-the-folders-not-walked-and-publish-offers-each-destination.md).** Of §1: `Argument` has no `form`, a control being found by its id in the window, and `publish to` is set by `publish-to`, the boxes beside the window's Publish. §3's offer of Publish holds in the window. The rest of this record stands.
+
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.
 - **Decided**: here. Each choice is one that building ADR-333's second step needed, which ADR-333's Decided line leaves to its building; none is a ruling of the operator's. §1 settles a conflict between ADR-336 §2 and ADR-333 §6 by the reading that keeps both rulings and ADR-292 §1 whole.
@@ -91,13 +93,13 @@ No other member of `ClusterPage` or of its breaks is public, and the breaks' con
 
 | Method | What it holds |
 | --- | --- |
-| `pipeline.TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest.eachArgumentIsSetByAControlOfTheControlPanelOrNeverPassedAndSaysWhy` | `publish to` by `to` on `publish`; the other five controlled entries on `launch`; a form exactly where a control is, `launch` or `publish` (§1) |
-| `controlpanel.TheLaunchPageStartsLabelAutoScreenTest.everyControlTheTableNamesIsOnTheFormItsEntryNames` | each control on the form its entry names, `to` alone on `publish`, and no control of `launch` named `to` (§1) |
+| `pipeline.TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest.eachArgumentIsSetByAControlOfTheControlPanelOrNeverPassedAndSaysWhy` | `publish to` by `to` on `publish`; the other five controlled entries on `launch`; a form exactly where a control is, `launch` or `publish` (§1); by ADR-345 §4, `publish to` by `publish-to` and no form |
+| `controlpanel.TheLaunchPageStartsLabelAutoScreenTest.everyControlTheTableNamesIsOnTheFormItsEntryNames` (removed with the pages, ADR-342 §6; held now by `controlpanel.TheControlPanelsWindowTest.everyControlTheArgumentsTableNamesIsAControlOfTheWindow`, ADR-345, #704) | each control on the form its entry names, `to` alone on `publish`, and no control of `launch` named `to` (§1) |
 | `DeliverableRulesHaveOneHomeTest.theClusterPageOpensWhatTheRenderingsReadAndNothingMore` | `ClusterPage`'s public members and its breaks' exactly those §2 and ADR-333 §2 and ADR-338 §2 list, and no public constructor of the breaks (§2) |
 | `website.TheWebsitesListsHoldTheirFormatAndFieldsTest` | both lists at format 1, each entry its fields and no other, the website's own list naming each path the rendering's lists (§3) |
 | `pipeline.PublishToEachDestinationInTurnInvocationTest.aThrowIsAStopNamedByItsType` | the whole line of a plugin that throws, and the next destination still delivered (§3) |
 | `website.PublishRefreshesTheWebsiteByDigestTest.aStopMidwayResumes` | a source unlike its list stops the delivery, its page not written, and the next publish leaves no file but the rendering's, the marker and the list (§3) |
 | `website.PublishRefreshesTheWebsiteByDigestTest.aFileRenamedByCaseAloneIsNotRemoved` | on a file system that takes `a` and `A` for one file, a copy whose list path changes by case alone, its `sha256` the same, still stands where the page links it, counted standing, and nothing is counted removed; skipped where the names are two files (§3) |
 | `website.PublishRefreshesTheWebsiteByDigestTest.aFileRenamedByAFoldLowerCaseMissesIsNotRemoved` | the same where the name changes from `ΟΔΟΣ 1.docx` to `ΟΔΟσ 1.docx`, which a key by lower case holds apart and ADR-280 §1.4's per-unit key does not; skipped where the names are two files (§3) |
-| `controlpanel.InvocationScreenTest.publishIsOfferedOnceARenderingIsDrawnAndStartsThePublish` | a box per destination drawn, in `DESTINATIONS` order, Confluence's checked and the website's not (§3) |
+| `controlpanel.InvocationScreenTest.publishIsOfferedOnceARenderingIsDrawnAndStartsThePublish` (removed with the pages, ADR-342 §6; held now by `controlpanel.PublishOffersEachDestinationDrawnTest.withTheWebsiteAloneDrawnItsBoxIsOfferedAndNothingStartsUntilItIsTicked`, ADR-345, #704) | a box per destination drawn, in `DESTINATIONS` order, Confluence's checked and the website's not (§3) |
 | `website.TheWebsiteIsInTheDeliverableLanguageTest` | every word of `FixedWords`, the three added here among them, Italian on an Italian tree (§3) |

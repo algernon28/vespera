@@ -32,7 +32,8 @@
         <spring-modulith.version>2.1.0</spring-modulith.version>
         <picocli.version>4.7.7</picocli.version>
         <memoryfilesystem.version>2.8.1</memoryfilesystem.version>
-        <jsoup.version>1.23.2</jsoup.version>
+        <!-- ADR-342: the OpenJFX release of the JDK's own major; Spring Boot's parent manages no version of it. -->
+        <javafx.version>26.0.2</javafx.version>
         <!-- ADR-073: pinned to Lingua's latest release, 1.2.2 (2022), the record's own note that this line is stable rather than actively developed. -->
         <lingua.version>1.2.2</lingua.version>
         <!--
@@ -77,6 +78,25 @@
         <maven.test.redirectTestOutputToFile>true</maven.test.redirectTestOutputToFile>
     </properties>
     <dependencies>
+        <!--
+          ADR-342: the control panel's window. javafx-controls brings javafx-graphics and javafx-base; the pom names no
+          classifier, so the jar carries the native libraries of the platform it is built on.
+        -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <!--
+              ADR-342 section 1, ADR-344 section 6: the reports open in a tab of the window, in a WebView. No classifier,
+              as for javafx-controls: the build platform's natives only. It adds about 37 MB to the jar, which the
+              operator approved.
+            -->
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
         <dependency>
             <!-- ADR-093: declared explicitly per ADR-046's convention, rather than left to arrive only
                  transitively via spring-boot-starter-logging. logback-classic itself stays un-added and
@@ -165,18 +185,6 @@
             <groupId>org.apache.groovy</groupId>
             <artifactId>groovy</artifactId>
             <version>${groovy.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <!--
-          ADR-297: the control panel's screens are tested through PanelBrowser, which parses each page
-          the panel serves as a browser parses HTML and reads a form's fields as a browser sends them.
-          Test scope: the control panel's jar stays on java.base and jdk.httpserver (ADR-285 section 3).
-          Maven brings nothing with it: its compile dependency re2j is optional, jspecify provided.
-        -->
-        <dependency>
-            <groupId>org.jsoup</groupId>
-            <artifactId>jsoup</artifactId>
-            <version>${jsoup.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -278,35 +286,22 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- ADR-342 section 2: the jar's Start-Class is the entry point that opens the window or runs the command line. -->
+                    <mainClass>io.algernon.EntryPoint</mainClass>
+                </configuration>
             </plugin>
             <plugin>
-                <!-- Two jars from one build (ADR-285): default-jar, which the Boot plugin repackages, leaves the control panel out; a plain jar with classifier control-panel holds only it, and its manifest names the entry point and the jar beside it (ADR-288). -->
+                <!-- ADR-342 section 2: JavaFX's restricted methods are called from the unnamed module; the entry keeps the four warnings off standard error. -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <executions>
                     <execution>
                         <id>default-jar</id>
                         <configuration>
-                            <excludes>
-                                <exclude>io/algernon/controlpanel/**</exclude>
-                            </excludes>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>control-panel</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                        <configuration>
-                            <classifier>control-panel</classifier>
-                            <includes>
-                                <include>io/algernon/controlpanel/**</include>
-                            </includes>
                             <archive>
                                 <manifestEntries>
-                                    <Main-Class>io.algernon.controlpanel.ControlPanel</Main-Class>
-                                    <Vespera-Jar>${project.build.finalName}.jar</Vespera-Jar>
+                                    <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
                                 </manifestEntries>
                             </archive>
                         </configuration>
@@ -498,11 +493,11 @@
     </build>
 
     <!--
-      Launch shortcuts: each profile builds both jars, skipping the tests, and then starts one of
-      them with the java running Maven, from the root of the repository, until it ends.
-      `./mvnw -Pheadless -Dvespera.args="run <root>"` runs one command of the Vespera jar, no
-      control panel; `./mvnw -Pgui` starts the control panel, which starts that same jar for each
-      command it runs. Neither starts the sidecars.
+      Launch shortcuts: each profile builds the jar, skipping the tests, and then starts it with the
+      java running Maven, from the root of the repository, until it ends (ADR-342 section 2).
+      `./mvnw -Pheadless -Dvespera.args="run <root>"` runs one command of the jar headless, so
+      no window opens; `./mvnw -Pgui` starts the jar with no argument, which opens the control panel's
+      window, which starts that same jar for each command it runs. Neither starts the sidecars.
     -->
     <profiles>
         <profile>
@@ -526,7 +521,7 @@
                                 </goals>
                                 <configuration>
                                     <executable>${java.home}/bin/java</executable>
-                                    <commandlineArgs>-jar "${project.build.directory}/${project.build.finalName}.jar" ${vespera.args}</commandlineArgs>
+                                    <commandlineArgs>-jar "${project.build.directory}/${project.build.finalName}.jar" --headless ${vespera.args}</commandlineArgs>
                                 </configuration>
                             </execution>
                         </executions>
@@ -554,7 +549,7 @@
                                 </goals>
                                 <configuration>
                                     <executable>${java.home}/bin/java</executable>
-                                    <commandlineArgs>-jar "${project.build.directory}/${project.build.finalName}-control-panel.jar"</commandlineArgs>
+                                    <commandlineArgs>-jar "${project.build.directory}/${project.build.finalName}.jar"</commandlineArgs>
                                 </configuration>
                             </execution>
                         </executions>

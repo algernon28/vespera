@@ -1,5 +1,7 @@
 # ADR-306 — The control panel reads a holder line of its own process as held by nobody, and serves the cluster pages' sizes as a sixteenth report
 
+> **Partly amended — see [ADR-344](0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §2: the sixteenth report is listed in the window's Reports section and opened in a tab of the window, not served. Of §3: the Profile tab lists each key's reports beside it, `Reports.OF_A_KEY`. §1 stands.
+
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
 - **Settles**: two rulings of the operator's on [#629](https://github.com/algernon28/vespera/issues/629), the build of ADR-302's screens: a holder line of `vespera.lock` naming the control panel's own process is held by nobody on its pages and in its start checks; and `cluster-page-sizes.html` is served as the sixteenth report and linked for `clusterPageByteCeiling`. §3, where the key's link stands, is the reading the records leave.
@@ -91,18 +93,18 @@ No file under `src/main/java/io/algernon/vespera` changes, and no dependency or 
 
 | Method | What it holds |
 | --- | --- |
-| `controlpanel.LaunchScreenTest.aSaveOfTheControlPanelsOwnLeavesTheWorkingDirectoryHeldByNobody` | after a run ends with 0 and `save` on `/next` writes into the working directory, `vespera.lock` holds a line naming the control panel's pid; `/` shows `holder-working-directory` empty and `run` and `label` enabled; `save-then-run` then lands on `/invocation` with a child started (§1) |
+| `controlpanel.LaunchScreenTest.aSaveOfTheControlPanelsOwnLeavesTheWorkingDirectoryHeldByNobody` (removed with the control panel's server and pages, ADR-342 §6, #700) | after a run ends with 0 and `save` on `/next` writes into the working directory, `vespera.lock` holds a line naming the control panel's pid; `/` shows `holder-working-directory` empty and `run` and `label` enabled; `save-then-run` then lands on `/invocation` with a child started (§1) |
 | `controlpanel.ControlPanelStateTest.noChildIsStartedWhileAWriteHoldsTheWorkingDirectoryLock` | a start asked for on a second thread while a write's change waits inside the working-directory lock waits on the `ControlPanelState`, unreturned, until the write ends, and only then starts the child (§1) |
-| `controlpanel.ReportScreenTest.eachReportIsServedAsWrittenInASandboxAtItsOwnPath` | each of the sixteen, `cluster-page-sizes.html` among them, as ADR-302 §3 serves a report (§2) |
-| `controlpanel.ProfileScreenTest.eachKeyIsLinkedToTheReportsItIsReadOffAndThePageSizesToTheirReport` | with no next act read, the form of every `ProfileKey` holds `report-<key>` exactly where the table names reports for it, those links in its order, each in a tab of its own; `report-clusterPageByteCeiling` holds one link, to `/report/cluster-page-sizes.html` (§2, §3) |
-| `controlpanel.TheReportLinksAreTheReadmesTableTest.eachKeysReportLinksAreTheReportsTheReadmesTableNamesForIt` | ADR-302's owed test: §8's table, key by key, equals the README's table of values, each key's reports in the README's order, a key whose row names none having none (§2) |
-| `pipeline.TheControlPanelServesEveryReportTheJarWritesTest.everyReportTheJarWritesIsListedAndServedByTheControlPanel` | the report file names of `pipeline`'s and `deliverable`'s classes, the tree's `index.html` not among them, are sixteen, and the control panel lists and serves each of them and no other (§2) |
+| `controlpanel.ReportScreenTest.eachReportIsServedAsWrittenInASandboxAtItsOwnPath` (removed with the control panel's server and pages, ADR-342 §6, #700) | each of the sixteen, `cluster-page-sizes.html` among them, as ADR-302 §3 serves a report (§2) |
+| `controlpanel.ProfileScreenTest.eachKeyIsLinkedToTheReportsItIsReadOffAndThePageSizesToTheirReport` (removed with the control panel's server and pages, ADR-342 §6, #700) | with no next act read, the form of every `ProfileKey` holds `report-<key>` exactly where the table names reports for it, those links in its order, each in a tab of its own; `report-clusterPageByteCeiling` holds one link, to `/report/cluster-page-sizes.html` (§2, §3) |
+| `controlpanel.TheReportLinksAreTheReadmesTableTest.eachKeysReportLinksAreTheReportsTheReadmesTableNamesForIt` (removed with the control panel's server and pages, ADR-342 §6, #700) | ADR-302's owed test: §8's table, key by key, equals the README's table of values, each key's reports in the README's order, a key whose row names none having none (§2) |
+| `pipeline.TheControlPanelServesEveryReportTheJarWritesTest.everyReportTheJarWritesIsListedAndServedByTheControlPanel` (removed with the control panel's server and pages, ADR-342 §6, #700) | the report file names of `pipeline`'s and `deliverable`'s classes, the tree's `index.html` not among them, are sixteen, and the control panel lists and serves each of them and no other (§2) |
 
 **Holding a held working directory or corpus root as a line naming another live process**, the tests' JVM's parent, which started before it and is alive while it runs, so that the line is held by ADR-278 §4's rule:
 
-- `controlpanel.LaunchScreenTest.runAndLabelAreDisabledWhileAnotherInvocationHoldsTheWorkingDirectory`;
-- `controlpanel.LaunchScreenTest.runPressedOnceTheWorkingDirectoryIsHeldIsRefusedWithALineOfItsOwn`;
-- `controlpanel.LaunchScreenTest.runAndLabelAreDisabledWhileAnotherInvocationHoldsTheCorpusRoot`, whose corpus-root lock §1 leaves as it was.
+- `controlpanel.LaunchScreenTest.runAndLabelAreDisabledWhileAnotherInvocationHoldsTheWorkingDirectory` (removed with the control panel's server and pages, ADR-342 §6, #700);
+- `controlpanel.LaunchScreenTest.runPressedOnceTheWorkingDirectoryIsHeldIsRefusedWithALineOfItsOwn` (removed with the control panel's server and pages, ADR-342 §6, #700);
+- `controlpanel.LaunchScreenTest.runAndLabelAreDisabledWhileAnotherInvocationHoldsTheCorpusRoot` (removed with the control panel's server and pages, ADR-342 §6, #700), whose corpus-root lock §1 leaves as it was.
 
 ## What this does not decide
 

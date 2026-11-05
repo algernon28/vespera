@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-334](0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md).** Of §2: the files the control panel writes gain `not-relevant-folders.yaml`, one action writing it and the answers it gives. Of §5: the table gains `codeSetFolders`. Of §6: the answers are given by folder. Of §7: a folder may be spelt absolute below a code set folder outside the corpus root. The rest of this record stands.
 
+> **Partly amended — see [ADR-343](0343-the-note-saved-with-a-profile-value-is-filled-in-for-the-operator-set-in-the-control-panel-or-the-provenance-already-saved-and-a-value-changed-under-its-old-note-is-saved-with-the-filled-in-one.md).** Of §3: the control panel offers a provenance, the note filled in for the operator, the provenance the file states or `set in the control panel`. Of §4: its refusal of a blank provenance stays for every write, and the window, saving none, never meets it. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-061](0061-the-profile-is-yaml-typed-java-records-one-object-per-value.md), [ADR-062](0062-census-merges-new-profile-keys-and-never-touches-an-existing-value.md) and [ADR-120](0120-a-profile-values-type-is-its-keys-and-an-unreadable-value-is-a-third-state-beside-unset.md): a profile value is `value`, `provenance` and `measurement` under its key; a key the file does not hold is unset at the next load; a value the key cannot use is unreadable, a state beside unset. The control panel writes no unreadable value (§4) and keeps `measurement` as it is (§3).
