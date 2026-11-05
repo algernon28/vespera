@@ -44,9 +44,9 @@ The copies' bound is **3 s** of that time: three times the most the pass took wi
 
 ### 3. A limit a command must outlast to print is doubled until it does
 
-**Where a test needs a command started by the code under test to have printed before a limit runs out, and the code starts the command itself, the test gives a first limit and doubles it until the command printed, up to a longest limit, and holds every run to what the code owes it.** The command killed at its limit is given half a second, then one second, two, four and so on up to 32 s, until its output holds its line. Every run is claimed to count as exit -1, to have for output its line or, where it was killed before it printed, nothing, and to have returned no sooner than its limit. The last is claimed to have its line for output. Alone, the first run is the last, as before.
+**Where a test needs a command started by the code under test to have printed before a limit runs out, and the code starts the command itself, the test gives a first limit and doubles it until the command printed, up to a longest limit, and holds every run to what the code owes it.** The command killed at its limit is given half a second, then one second, two, four and so on up to 32 s, until its output holds its line. Every run is claimed to count as exit -1, to have for output its line or, where it was killed before it printed, nothing, and to have returned no sooner than its limit. The last is claimed to have its line for output. Alone, the first run is the last, as before. The output is read past the notes a Java launcher prints first of the options it picked up from the environment (`Picked up JAVA_TOOL_OPTIONS: …`, `NOTE: Picked up JDK_JAVA_OPTIONS: …`): the runner merges the command's errors into its output, and the command inherits the environment of the machine the tests run on, so the claim holds whatever options that machine sets.
 
-After each run the test waits, up to 30 s, for every process started since the run began to be gone, so that a killed command no longer holds the output file in the test's folder when that folder is deleted.
+After each run the test waits, up to 30 s, for every process started since the run began to be gone, so that a killed command no longer holds the output file in the test's folder when that folder is deleted. The test of a command that leaves a child holding its output does the same for that child: it kills it and waits, up to 30 s, for it to be gone, as its `@TempDir` could not be deleted beside load while the child still held the output file.
 
 ## Decided here
 
@@ -64,11 +64,12 @@ After each run the test waits, up to 30 s, for every process started since the r
 
 ## What this does not decide
 
-- The other tests that take a time on the wall, which no failure beside load has named.
+- The other tests that take a time on the wall, which no failure beside load has named. Among them is `SystemProcessRunnerTest.aCommandWhoseChildKeepsItsOutputOpenStillReturns`'s claim that the command returned in less than its 10 s limit, measured on the wall, which took 8.2 s beside 128 busy threads and has not failed.
 - `ModelPullTest`'s bounds, held on a loaded machine since ADR-329 by bounds of their own.
 
 ## Tests
 
 - `similarity.RedundancyResolutionTest.aFamilyOfCopiesIsResolvedInTimeThatDoesNotGrowWithTheSquareOfItsSize`: 4,000 copies resolve to one, in less than 3 s of the processor time of the thread that resolves, which the machine is claimed able to measure (§1).
 - `pipeline.StageTwoWaitsForAConverterStillStartingTest.aConverterClosingConnectionsWhileItStartsIsWaitedFor`: the converter closes every connection until the start check's warning is written, and the test claims one warning, a connection closed, and a connection answered (§2).
-- `pipeline.SystemProcessRunnerTest.aCommandPastItsLimitIsKilledAndCountsAsMinusOne`: the limits doubled from half a second to at most 32 s, every run killed at its limit and not before, counted as -1, its output its line or nothing, and the last run's output its line (§3). With the runner changed to give a killed command no output, it fails at the last run, 32 s.
+- `pipeline.SystemProcessRunnerTest.aCommandPastItsLimitIsKilledAndCountsAsMinusOne`: the limits doubled from half a second to at most 32 s, every run killed at its limit and not before, counted as -1, its output past the launcher's notes of options picked up its line or nothing, and the last run's output its line (§3). With the runner changed to give a killed command no output, it fails at the last run, 32 s. With `JAVA_TOOL_OPTIONS` set, it holds.
+- `pipeline.SystemProcessRunnerTest.aCommandWhoseChildKeepsItsOutputOpenStillReturns`: the child the command leaves behind is killed and waited for, up to 30 s, to be gone before the test's folder is deleted (§3). Its claim that the command returned in less than 10 s stays a bound on the wall, 8.2 s seen beside 128 busy threads, which this record does not move.

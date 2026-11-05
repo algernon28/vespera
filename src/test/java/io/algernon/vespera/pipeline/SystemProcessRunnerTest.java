@@ -98,11 +98,13 @@ class SystemProcessRunnerTest {
 
         claim("the last run's command printed its line before it was killed, and that line is its output",
                 () -> assertThat(outcomes.getLast().output()).contains(SleepsUntilKilled.STARTED));
-        claim("every run counts as exit " + KILLED + ", and its output is the line its command printed or, where it was"
+        claim("every run counts as exit " + KILLED + ", and its output, past any note the Java launcher prints of the"
+                        + " options it picked up from the environment, is the line its command printed or, where it was"
                         + " killed before it printed, nothing",
                 () -> assertThat(outcomes).allSatisfy(outcome -> {
                     assertThat(outcome.exitCode()).isEqualTo(KILLED);
-                    assertThat(outcome.output()).isIn("", SleepsUntilKilled.STARTED + "\n");
+                    assertThat(linesPastTheLaunchersNotes(outcome.output()))
+                            .isIn(List.of(), List.of(SleepsUntilKilled.STARTED));
                 }));
         claim("and every run returned no sooner than its limit, the half second it was first given and each doubled"
                         + " after (" + limits + ", taking " + tooks + ")",
@@ -111,6 +113,18 @@ class SystemProcessRunnerTest {
                         assertThat(tooks.get(run)).isGreaterThanOrEqualTo(limits.get(run));
                     }
                 });
+    }
+
+    /**
+     * The lines of a command's output other than the notes a Java launcher prints, before anything of the program's
+     * own, of the options it picked up from {@code JAVA_TOOL_OPTIONS}, {@code JDK_JAVA_OPTIONS} or {@code
+     * _JAVA_OPTIONS}: the runner merges what the command writes to its errors into its output, and the command inherits
+     * the environment of the machine the tests run on.
+     */
+    static List<String> linesPastTheLaunchersNotes(String output) {
+        return output.lines()
+                .filter(line -> !line.startsWith("Picked up ") && !line.startsWith("NOTE: Picked up "))
+                .toList();
     }
 
     /** The processes this Java started, and those they started, still running. */
@@ -143,6 +157,8 @@ class SystemProcessRunnerTest {
 
     @Test
     @Story("Vespera refuses, naming why, when it cannot start them")
+    @Issue("698")
+    @Link(name = "ADR-352", url = Adr.A_TIMING_BOUND_IN_A_UNIT_TEST_IS_ONE_A_BUSY_MACHINE_DOES_NOT_MOVE, type = "adr")
     @DisplayName("A command that exits while a process it started keeps its output open returns within its limit, with its own exit code")
     @org.junit.jupiter.api.Timeout(value = 30)
     void aCommandWhoseChildKeepsItsOutputOpenStillReturns(@org.junit.jupiter.api.io.TempDir java.nio.file.Path folder)
@@ -229,11 +245,19 @@ class SystemProcessRunnerTest {
                         }));
     }
 
-    /** Kills the child whose id the command wrote, so that no test leaves a process behind, whatever it ended in. */
-    private static void killTheChildNamedIn(java.nio.file.Path childsId) throws IOException {
+    /**
+     * Kills the child whose id the command wrote, and waits up to {@link #GONE_WITHIN} for it to be gone, so that no
+     * test leaves a process behind, whatever it ended in, and the child no longer holds the output file in the test's
+     * folder when that folder is deleted (ADR-352 §3).
+     */
+    private static void killTheChildNamedIn(java.nio.file.Path childsId) throws Exception {
         if (java.nio.file.Files.exists(childsId)) {
             long pid = Long.parseLong(java.nio.file.Files.readString(childsId).strip());
-            ProcessHandle.of(pid).ifPresent(ProcessHandle::destroyForcibly);
+            java.util.Optional<ProcessHandle> child = ProcessHandle.of(pid);
+            if (child.isPresent()) {
+                child.get().destroyForcibly();
+                child.get().onExit().get(GONE_WITHIN.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+            }
         }
     }
 }
