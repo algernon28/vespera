@@ -73,7 +73,7 @@ class EmbeddingRefusesAModelNotServedHereInvocationTest {
     private static final String THE_STAGE = "stage 5's scoring step";
 
     /** A tag of the shape Ollama gives a cloud model. */
-    private static final String A_CLOUD_TAGGED_EMBEDDING_MODEL = "qwen3-embedding:0.6b-cloud";
+    private static final String A_CLOUD_TAGGED_EMBEDDING_MODEL = "a-comparing-model:0.6b-cloud";
 
     /** A name that says nothing about where it runs, scripted as one Ollama reports as remote. */
     private static final String AN_EMBEDDING_MODEL_OLLAMA_FORWARDS = "an-embedder-made-from-a-cloud-one:0.6b";

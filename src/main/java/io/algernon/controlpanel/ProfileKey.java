@@ -30,7 +30,8 @@ public enum ProfileKey {
             "A passage found in at least this share of the documents, from 0 to 1, is taken for template text and not"
                     + " compared."),
     EMBEDDING_MODEL("embeddingModel", Kind.TEXT, Run.EMBEDDING_SCORING,
-            "whichever model you can serve locally, if you want one other than bge-m3:latest", "bge-m3:latest",
+            "whichever model you can serve locally, if you want one other than hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M",
+            "hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M",
             "Comparing model",
             "The local model that turns each text into numbers, so that documents can be compared."),
     RELEVANCE_SCORE_FLOOR("relevanceScoreFloor", Kind.NUMBER, Run.EMBEDDING_SCORING,

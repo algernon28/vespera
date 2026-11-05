@@ -44,7 +44,7 @@ import org.yaml.snakeyaml.Yaml;
 class NativePickersScreenTest {
 
     /** The models the stub Ollama serves, in the order it answers them, which is neither sorted nor reversed. */
-    private static final List<String> MODELS = List.of("qwen3:8b", "bge-m3:latest", "llama3.1:70b");
+    private static final List<String> MODELS = List.of("a-writing-model:8b", "another-comparing-model:latest", "a-model-not-served:70b");
 
     /** The list of models a field names. */
     private static final String MODELS_LIST = "models";

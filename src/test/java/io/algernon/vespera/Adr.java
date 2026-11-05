@@ -2438,6 +2438,17 @@ public final class Adr {
     public static final String SERVE_TELLS_A_PAGE_FROM_A_COPY_BY_THE_LIST_AND_THE_NAME = FILE
             + "0341-vespera-serve-tells-a-page-from-a-copy-by-the-websites-list-and-the-files-name-serves-working-directory-is-never-passed-and-its-refusals-answers-and-readings-are-as-built.md";
 
+    /**
+     * ADR-346 -- the embedding model's shipped default is Qwen3-Embedding-8B, named as its file on Hugging Face,
+     * {@code hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M}, in place of {@code bge-m3:latest}; Ollama's library tag of the
+     * same model layer is another name and manifest, so another scoring run; only a profile naming no model mints its
+     * embedding-scoring, arrangement and generation runs again; and no test names a model as expected or relies on how
+     * the shipped file is configured, each setting the values it needs itself (amends ADR-298 §1 and §7, ADR-329's
+     * Consequences and ADR-331 §8).
+     */
+    public static final String THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE = FILE
+            + "0346-the-embedding-models-shipped-default-is-qwen3-embedding-8b-named-as-its-file-on-hugging-face-and-only-a-profile-naming-no-model-moves-its-scoring-run.md";
+
     private Adr() {
     }
 }

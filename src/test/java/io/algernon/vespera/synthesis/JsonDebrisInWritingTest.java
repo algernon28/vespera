@@ -42,7 +42,7 @@ import org.springframework.ai.chat.model.Generation;
 class JsonDebrisInWritingTest {
 
     /** The model the call names; the shipped default, which is the one the defect was found under. */
-    private static final String MODEL_NAME = "qwen3:8b";
+    private static final String MODEL_NAME = "a-writing-model:8b";
 
     /** The name the cluster the defect was found on carries before anything is written for it. */
     private static final String LABEL = "AcquiringBancario_ProcessiGestioneParco_1_3";

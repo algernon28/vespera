@@ -114,14 +114,14 @@ class ModelPullTest {
     /** How many bytes of a refusal's body come before the rest never does, or the connection is dropped. */
     private static final int BYTES_BEFORE_IT_STOPS = 10;
 
-    /** The shipped embedding model. */
-    private static final String MODEL = "bge-m3:latest";
+    /** A model of Ollama's own library, named by its tag. */
+    private static final String MODEL = "another-comparing-model:latest";
 
     /** A GGUF file on Hugging Face, named as Ollama names one, capitals and all. */
-    private static final String HUGGING_FACE_MODEL = "hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q8_0";
+    private static final String HUGGING_FACE_MODEL = "hf.co/An-Owner/A-Comparing-Model-GGUF:Q8_0";
 
     /** A name of the shape Ollama gives a cloud model. */
-    private static final String CLOUD_MODEL = "qwen3-embedding:0.6b-cloud";
+    private static final String CLOUD_MODEL = "a-comparing-model:0.6b-cloud";
 
     /** The one layer the pulls here report, of a hundred million bytes: a hundred megabytes. */
     private static final long LAYER_BYTES = 100_000_000L;

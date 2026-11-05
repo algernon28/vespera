@@ -63,10 +63,11 @@ class ClusteringTest {
 
     private static final OccurrenceId NO_SEED = new OccurrenceId(1);
 
-    private static final String MODEL = "qwen3-embedding:0.6b";
+    private static final String MODEL = "a-comparing-model:0.6b";
     private static final String CHUNKER_IDENTITY = "docling-hybrid-chunker-v1";
     private static final String CHUNKING_RULE_IDENTITY = "words-512-v1";
     private static final int DIMENSION = 4;
+
     private static final String EMBEDDER_IDENTITY =
             "model=" + MODEL + ";digest=d34db33f;dtype=F16;dimension=" + DIMENSION + ";instruction=none";
 
@@ -321,6 +322,33 @@ class ClusteringTest {
                 "and a model wide enough that one vector exceeds the whole budget still gets a block of"
                         + " one document, which is slow rather than a pass that reads nothing",
                 () -> assertThat(Clustering.blockSizeFor(64_000_000)).isEqualTo(1));
+    }
+
+    /**
+     * ADR-346 §4, after ADR-087: the widest vector at which a block keeps its whole document count is the width the byte
+     * budget allows those documents, computed here from the two constants and not taken from any model. A model of that
+     * width or narrower keeps the block whole; one component wider and the bytes bind.
+     */
+    @Test
+    @Story("The ceiling does not move with the partition or the model")
+    @DisplayName("Up to the width the byte budget allows a whole block, a block keeps every document it can, and one component wider it holds fewer")
+    @Link(name = "ADR-346", url = Adr.THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE, type = "adr")
+    void upToTheWidthTheBudgetAllowsAWholeBlockABlockKeepsEveryDocument() {
+        int widestWholeBlock = (int) (Clustering.BLOCK_BUDGET_BYTES / ((long) Clustering.BLOCK_DOCUMENTS * Float.BYTES));
+
+        claim(
+                "at " + widestWholeBlock + " components a vector, the byte budget of " + Clustering.BLOCK_BUDGET_BYTES
+                        + " bytes divided among " + Clustering.BLOCK_DOCUMENTS + " documents of " + Float.BYTES
+                        + " bytes a component, a block still holds all " + Clustering.BLOCK_DOCUMENTS + " documents",
+                () -> assertThat(Clustering.blockSizeFor(widestWholeBlock)).isEqualTo(Clustering.BLOCK_DOCUMENTS));
+        claim(
+                "and that whole block is within the byte budget, so the two blocks a pass holds are no larger than at"
+                        + " any narrower width",
+                () -> assertThat((long) Clustering.BLOCK_DOCUMENTS * widestWholeBlock * Float.BYTES)
+                        .isLessThanOrEqualTo(Clustering.BLOCK_BUDGET_BYTES));
+        claim(
+                "one component wider, the budget binds and a block holds fewer documents",
+                () -> assertThat(Clustering.blockSizeFor(widestWholeBlock + 1)).isLessThan(Clustering.BLOCK_DOCUMENTS));
     }
 
     /** Which cluster each document landed in, keyed by document so two runs can be compared. */

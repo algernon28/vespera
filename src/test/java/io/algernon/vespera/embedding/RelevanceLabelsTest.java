@@ -78,7 +78,7 @@ class RelevanceLabelsTest {
     private static final String AN_EMBEDDER = "model=all-minilm;digest=abc;dtype=F16;dimension=384;instruction=none";
 
     private static final String A_LATER_EMBEDDER =
-            "model=qwen3-embedding;digest=def;dtype=F16;dimension=1024;instruction=none";
+            "model=a-comparing-model;digest=def;dtype=F16;dimension=1024;instruction=none";
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

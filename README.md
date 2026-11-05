@@ -52,7 +52,7 @@ Vespera writes reports beside the database. Each one measures something; none of
 |---|---|---|
 | `seedFolder` | your own knowledge of the archive | — |
 | `boilerplateDocumentFrequencyFloor` | how many documents share the same passages | `document-frequency.html` |
-| `embeddingModel` | whichever model you can serve locally, if you want one other than `bge-m3:latest` | — |
+| `embeddingModel` | whichever model you can serve locally, if you want one other than `hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M` | — |
 | `relevanceScoreFloor` | what each possible cut would cost you, in documents | `relevance-labelling.html`, `cluster-sizes.html`, `seed-corpus-comparison.html` |
 | `degenerateOutputConfidenceFloor` | how well the text extraction went | `confidence-distribution.html` |
 | `degenerateOutputWordFloor` | how many words each kind of file held once its text was extracted, and what each floor would remove | `word-count-distribution.html` |
@@ -305,17 +305,17 @@ If a sidecar stops on its own, Docker starts it again, and it does the same afte
 
 **Ollama's models.** Ollama serves only the models it has been given. `vespera run` gives it the two it needs, each when it first needs it, if Ollama does not serve it yet:
 
-- The embedding model, at scoring in invocation 2. That is `bge-m3:latest`, unless you set `embeddingModel`.
+- The embedding model, at scoring in invocation 2. That is `hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M`, unless you set `embeddingModel`: Qwen3-Embedding-8B, named by its file on Hugging Face, 4.7 GB.
 - The model the connecting text is written with, at the writing in invocation 5. That is `qwen3:8b`, unless you set `generationModel`.
 
-Either can be a model file on Hugging Face, named as Ollama names one, such as `hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q8_0`. Vespera pulls only a model Ollama does not serve: one it already has is never pulled again, so it cannot change under your archive. While it pulls, a line in the log and the bar on the progress page say how many megabytes it has. A pull of several gigabytes takes as long as your connection needs; Vespera gives up only when the pull has gone ten minutes without getting any further, and `vespera.models.pull-stalled-at-most` changes those ten minutes.
+Either can be a model of Ollama's own library, such as `bge-m3:latest`, or a model file on Hugging Face, named as Ollama names one, such as `hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q8_0`. A model named another way is another model to Vespera, even where its file is the same: `qwen3-embedding:8b` holds the file the embedding model's name holds, and the documents are embedded and scored again under it. Vespera pulls only a model Ollama does not serve: one it already has is never pulled again, so it cannot change under your archive. While it pulls, a line in the log and the bar on the progress page say how many megabytes it has. A pull of several gigabytes takes as long as your connection needs; Vespera gives up only when the pull has gone ten minutes without getting any further, and `vespera.models.pull-stalled-at-most` changes those ten minutes.
 
 If a pull fails, the command stops before it sends anything to the model, and its line names the model and quotes what Ollama said: a name it does not know, a network it cannot reach, a drive that is full. Fix what that says and run the same command again. A pull that stops part-way, for that reason or because you stopped the command, leaves no half-model behind: Ollama serves the model only once all of it has arrived, and the next pull carries on from what Ollama kept.
 
 To pull them yourself instead, set `VESPERA_MODELS_PULL=false`. A model Ollama does not serve then stops the command at the step that needs it, with a line naming it. These are the lines:
 
 ```
-docker compose -p vespera exec ollama ollama pull bge-m3:latest
+docker compose -p vespera exec ollama ollama pull hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M
 docker compose -p vespera exec ollama ollama pull qwen3:8b
 ```
 

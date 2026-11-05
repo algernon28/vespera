@@ -65,7 +65,7 @@ class LaunchScreenTest {
     private static final String IMAGE_RUN = "ghcr.io/docling-project/docling-serve-cu128:v1.0.0";
 
     /** The label model the launch values name, which the stub Ollama does not serve. */
-    private static final String MODEL_NOT_SERVED = "llama3.1:70b";
+    private static final String MODEL_NOT_SERVED = "a-model-not-served:70b";
 
     @TempDir
     Path folder;
@@ -239,7 +239,7 @@ class LaunchScreenTest {
         HttpServer sidecars = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         sidecars.createContext("/version", exchange -> answer(exchange, "{\"vespera-image\": \"" + IMAGE_RUN + "\"}"));
         sidecars.createContext("/api/tags",
-                exchange -> answer(exchange, "{\"models\": [{\"name\": \"qwen3:8b\", \"size\": 5}]}"));
+                exchange -> answer(exchange, "{\"models\": [{\"name\": \"a-writing-model:8b\", \"size\": 5}]}"));
         sidecars.start();
         try {
             String stub = "http://127.0.0.1:" + sidecars.getAddress().getPort();

@@ -71,11 +71,14 @@ class ProfileEditorScreenTest {
     /** The file the jar writes for the control panel, in the working directory. */
     private static final String EFFECTIVE_VALUES = "effective-values.properties";
 
-    /** The embedding model the jar says it ships. */
-    private static final String SHIPPED_EMBEDDING_MODEL = "bge-m3:latest";
+    /**
+     * The embedding model this test has the jar say it uses: a name of the test's own, never the one the jar ships, so
+     * that what the page shows can only have come from the file the test wrote (ADR-346 §7).
+     */
+    private static final String THE_EMBEDDING_MODEL_THE_JAR_SAID = "a-comparing-model:1b";
 
     /** The generation model the jar says it ships. */
-    private static final String SHIPPED_GENERATION_MODEL = "qwen3:8b";
+    private static final String SHIPPED_GENERATION_MODEL = "a-writing-model:8b";
 
     /** A value the jar reads as nothing, written with a decimal comma, which a number control would blank. */
     private static final String A_DECIMAL_COMMA = "0,4";
@@ -151,7 +154,7 @@ class ProfileEditorScreenTest {
     @DisplayName("A value shows the one in use and its source: the profile's where it names one, the jar's where it does not, and none where nothing does")
     void theValueInUseAndWhereItCameFromAreShown() throws IOException {
         Path work = workingDirectory();
-        theJarSaid(work, Map.of("embeddingModel", SHIPPED_EMBEDDING_MODEL, "embeddingModel.source", "shipped",
+        theJarSaid(work, Map.of("embeddingModel", THE_EMBEDDING_MODEL_THE_JAR_SAID, "embeddingModel.source", "shipped",
                 "generationModel", SHIPPED_GENERATION_MODEL, "generationModel.source", "shipped",
                 "generationContextWindow", "8192", "generationContextWindow.source", "code"));
         theProfileIs(work, """
@@ -165,7 +168,7 @@ class ProfileEditorScreenTest {
             Page page = screens.browser().go("/profile").page();
 
             claim("the embedding model the profile leaves unset is the one the jar ships, and says so",
-                    () -> assertThat(inUse(page, "embeddingModel")).containsExactly(SHIPPED_EMBEDDING_MODEL, "shipped"));
+                    () -> assertThat(inUse(page, "embeddingModel")).containsExactly(THE_EMBEDDING_MODEL_THE_JAR_SAID, "shipped"));
             claim("the generation model the profile names is the profile's, whatever the jar ships",
                     () -> assertThat(inUse(page, "generationModel"))
                             .containsExactly("a-named-generation-model:8b", "profile"));
@@ -186,13 +189,13 @@ class ProfileEditorScreenTest {
     void aSourceHoldingAQuotationMarkReadsBackWhole() throws IOException {
         String aSource = "shipped\" data-stray=\"1\"><b id=\"a-stray-element\">";
         Path work = workingDirectory();
-        theJarSaid(work, Map.of("embeddingModel", SHIPPED_EMBEDDING_MODEL, "embeddingModel.source", aSource));
+        theJarSaid(work, Map.of("embeddingModel", THE_EMBEDDING_MODEL_THE_JAR_SAID, "embeddingModel.source", aSource));
         try (ScreenServer screens = start(work)) {
             Page page = screens.browser().go("/profile").page();
             Element inUse = byId(page, "in-use-embeddingModel");
 
             claim("the source reads back whole, and the value beside it is still the jar's",
-                    () -> assertThat(inUse(page, "embeddingModel")).containsExactly(SHIPPED_EMBEDDING_MODEL, aSource));
+                    () -> assertThat(inUse(page, "embeddingModel")).containsExactly(THE_EMBEDDING_MODEL_THE_JAR_SAID, aSource));
             claim("the element carries its four attributes and no other",
                     () -> assertThat(inUse.attributes().asList().stream().map(Attribute::getKey).toList())
                             .containsExactlyInAnyOrder("id", "data-value", "data-source", "data-fresh"));
@@ -251,7 +254,7 @@ class ProfileEditorScreenTest {
             claim("and a floor, which has no default, is unset whatever the jar would say",
                     () -> assertThat(inUse(none, "relevanceScoreFloor")).containsExactly("", "unset"));
 
-            theJarSaid(work, Map.of("embeddingModel", SHIPPED_EMBEDDING_MODEL, "embeddingModel.source", "shipped"));
+            theJarSaid(work, Map.of("embeddingModel", THE_EMBEDDING_MODEL_THE_JAR_SAID, "embeddingModel.source", "shipped"));
             Page fresh = screens.browser().go("/profile").page();
             claim("a file written after the jar beside the control panel is fresh",
                     () -> assertThat(byId(fresh, "in-use-embeddingModel").attr("data-fresh")).isEqualTo("fresh"));
@@ -262,7 +265,7 @@ class ProfileEditorScreenTest {
             claim("a file older than that jar is still shown, marked stale, so the value is not lost and not trusted",
                     () -> assertThat(List.of(byId(stale, "in-use-embeddingModel").attr("data-value"),
                                     byId(stale, "in-use-embeddingModel").attr("data-fresh")))
-                            .containsExactly(SHIPPED_EMBEDDING_MODEL, "stale"));
+                            .containsExactly(THE_EMBEDDING_MODEL_THE_JAR_SAID, "stale"));
         }
     }
 
@@ -273,7 +276,7 @@ class ProfileEditorScreenTest {
     @DisplayName("Each field holds the value and provenance the file states, and a value the jar ships stays out of the field, shown as the value in use")
     void theFieldsHoldTheFilesOwnWordsAndADefaultStaysOutOfThem() throws IOException {
         Path work = workingDirectory();
-        theJarSaid(work, Map.of("embeddingModel", SHIPPED_EMBEDDING_MODEL, "embeddingModel.source", "shipped"));
+        theJarSaid(work, Map.of("embeddingModel", THE_EMBEDDING_MODEL_THE_JAR_SAID, "embeddingModel.source", "shipped"));
         theProfileIs(work, TWO_KEYS);
         try (ScreenServer screens = start(work)) {
             Page page = screens.browser().go("/profile").page();
@@ -289,7 +292,7 @@ class ProfileEditorScreenTest {
                             .containsExactly("", ""));
             claim("and its placeholder is what the jar ships, in use",
                     () -> assertThat(valueOf(page, "embeddingModel").attr("placeholder"))
-                            .isEqualTo("in use: " + SHIPPED_EMBEDDING_MODEL));
+                            .isEqualTo("in use: " + THE_EMBEDDING_MODEL_THE_JAR_SAID));
         }
     }
 
@@ -421,7 +424,7 @@ class ProfileEditorScreenTest {
     @DisplayName("With no address on the launch page, the model service is asked where the jar last asked it, and the profile page offers what it said")
     void withNoLaunchAddressOllamaIsAskedWhereTheJarLastAskedIt() throws IOException {
         Path work = workingDirectory();
-        HttpServer ollama = anOllamaServing("bge-m3:latest", "qwen3:8b");
+        HttpServer ollama = anOllamaServing("another-comparing-model:latest", "a-writing-model:8b");
         try {
             String address = "http://127.0.0.1:" + ollama.getAddress().getPort();
             theJarSaid(work, Map.of("spring.ai.ollama.base-url", address, "spring.ai.ollama.base-url.source", "code"));
@@ -430,12 +433,12 @@ class ProfileEditorScreenTest {
 
                 claim("the launch page asked at that address and offers the models, in the order answered",
                         () -> assertThat(byId(browser.page(), "models").select("option").eachAttr("value"))
-                                .containsExactly("bge-m3:latest", "qwen3:8b"));
+                                .containsExactly("another-comparing-model:latest", "a-writing-model:8b"));
 
                 Page profile = browser.go("/profile").page();
                 claim("and the profile page offers what the launch page was told",
                         () -> assertThat(byId(profile, "models").select("option").eachAttr("value"))
-                                .containsExactly("bge-m3:latest", "qwen3:8b"));
+                                .containsExactly("another-comparing-model:latest", "a-writing-model:8b"));
             }
         } finally {
             ollama.stop(0);

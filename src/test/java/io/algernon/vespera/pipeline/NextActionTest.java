@@ -794,7 +794,7 @@ class NextActionTest {
     private static final String THE_BOILERPLATE_FLOOR = "0.4";
 
     /** Gate 3's model, answered: the name opens the gate, and nothing here embeds anything. */
-    private static final String THE_EMBEDDING_MODEL = "embeddinggemma";
+    private static final String THE_EMBEDDING_MODEL = "a-third-comparing-model";
 
     /** A threshold on the run's own scale, answered, and parseable -- the contrast to the mistyped one. */
     private static final String THE_RELEVANCE_FLOOR = "0.62";

@@ -67,8 +67,8 @@ class LocalLabellerTest {
 
     private static final String SEED_SET = "C:/archive/seeds";
     private static final String AN_EMBEDDER = "model=all-minilm;digest=abc;dtype=F16;dimension=384;instruction=none";
-    private static final String ANOTHER_EMBEDDER = "model=qwen3-embedding;digest=def;dtype=F16;dimension=1024";
-    private static final String THE_LABELLER = "ollama:qwen3:8b";
+    private static final String ANOTHER_EMBEDDER = "model=a-comparing-model;digest=def;dtype=F16;dimension=1024";
+    private static final String THE_LABELLER = "ollama:a-writing-model:8b";
     private static final String A_LOCAL_URL = "http://localhost:11434";
     private static final String OLLAMA = "http://ollama.example";
     private static final String A_DIGEST = "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d";
@@ -228,7 +228,7 @@ class LocalLabellerTest {
     void theLabellerRefusesAHostedEndpoint() {
         AtomicInteger calls = new AtomicInteger();
         OllamaRelevanceLabeller labeller = new OllamaRelevanceLabeller(
-                saying("relevant", calls), "qwen3:8b", A_HOSTED_URL, unaskedClient());
+                saying("relevant", calls), "a-writing-model:8b", A_HOSTED_URL, unaskedClient());
 
         Optional<Boolean> answer = labeller.answer(aQuestion());
 
@@ -274,11 +274,11 @@ class LocalLabellerTest {
                         unaskedClient(),
                         List.of("gpt-oss:120b-cloud", "is a cloud model")),
                 Arguments.of(
-                        Named.of("a model Ollama reports as remote, whatever its name", "qwen3:8b"),
-                        clientShowing("{\"remote_host\": \"https://ollama.com:443\", \"remote_model\": \"qwen3:8b\"}"),
-                        List.of("reports the model qwen3:8b as remote")),
+                        Named.of("a model Ollama reports as remote, whatever its name", "a-writing-model:8b"),
+                        clientShowing("{\"remote_host\": \"https://ollama.com:443\", \"remote_model\": \"a-writing-model:8b\"}"),
+                        List.of("reports the model a-writing-model:8b as remote")),
                 Arguments.of(
-                        Named.of("a model whose remoteness cannot be established, not assumed local", "qwen3:8b"),
+                        Named.of("a model whose remoteness cannot be established, not assumed local", "a-writing-model:8b"),
                         new OllamaClient(failing.build()),
                         List.of("could not be established", "is not assumed to be local")));
     }
@@ -301,7 +301,7 @@ class LocalLabellerTest {
                                 MediaType.APPLICATION_JSON));
             }
             OllamaRelevanceLabeller labeller = new OllamaRelevanceLabeller(
-                    saying("relevant", calls), "qwen3:8b", A_LOCAL_URL, new OllamaClient(builder.build()));
+                    saying("relevant", calls), "a-writing-model:8b", A_LOCAL_URL, new OllamaClient(builder.build()));
 
             Optional<Boolean> answer = labeller.answer(aQuestion());
 
@@ -326,12 +326,12 @@ class LocalLabellerTest {
                 .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
         expectTags(server);
         OllamaRelevanceLabeller labeller = new OllamaRelevanceLabeller(
-                saying("relevant", new AtomicInteger()), "qwen3:8b", A_LOCAL_URL, new OllamaClient(builder.build()));
+                saying("relevant", new AtomicInteger()), "a-writing-model:8b", A_LOCAL_URL, new OllamaClient(builder.build()));
 
         claim(
                 "two models sharing a name and differing in weights do not share an identity, as with the"
                         + " generator's",
-                () -> assertThat(labeller.identity()).contains("qwen3:8b").contains(A_DIGEST));
+                () -> assertThat(labeller.identity()).contains("a-writing-model:8b").contains(A_DIGEST));
     }
 
     @Test
@@ -381,7 +381,7 @@ class LocalLabellerTest {
                 () -> {
                     int before = calls.get();
                     Optional<Boolean> answer = new OllamaRelevanceLabeller(
-                                    saying("relevant", calls), "qwen3:8b", A_LOCAL_URL, clientShowing("{}"))
+                                    saying("relevant", calls), "a-writing-model:8b", A_LOCAL_URL, clientShowing("{}"))
                             .answer(new LabelQuestion("a.pdf", "seed.pdf", Optional.empty()));
                     assertThat(answer).isEmpty();
                     assertThat(calls.get()).isEqualTo(before);
@@ -389,7 +389,7 @@ class LocalLabellerTest {
     }
 
     private Optional<Boolean> labelWith(String reply, AtomicInteger calls) {
-        return new OllamaRelevanceLabeller(saying(reply, calls), "qwen3:8b", A_LOCAL_URL, clientShowing("{}"))
+        return new OllamaRelevanceLabeller(saying(reply, calls), "a-writing-model:8b", A_LOCAL_URL, clientShowing("{}"))
                 .answer(aQuestion());
     }
 
@@ -408,7 +408,7 @@ class LocalLabellerTest {
     private static void expectTags(MockRestServiceServer server) {
         server.expect(requestTo(OLLAMA + "/api/tags"))
                 .andRespond(withSuccess(
-                        "{\"models\": [{\"name\": \"qwen3:8b\", \"digest\": \"" + A_DIGEST
+                        "{\"models\": [{\"name\": \"a-writing-model:8b\", \"digest\": \"" + A_DIGEST
                                 + "\", \"details\": {\"quantization_level\": \"Q4_K_M\"}}]}",
                         MediaType.APPLICATION_JSON));
     }

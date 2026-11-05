@@ -49,10 +49,10 @@ import org.springframework.test.context.ActiveProfiles;
 class AModelNameMatchesOnlyItselfTest {
 
     /** A model whose name carries an underscore, which an unescaped pattern reads as any one character. */
-    private static final String UNDERSCORED_MODEL = "nomic_embed";
+    private static final String UNDERSCORED_MODEL = "acme_embed";
 
     /** A second model, named so that the first name, read as a pattern, would match it too. */
-    private static final String LOOKALIKE_MODEL = "nomicXembed";
+    private static final String LOOKALIKE_MODEL = "acmeXembed";
 
     /**
      * A model whose name carries a backslash. Under the reader's escape character, an unescaped backslash
@@ -67,7 +67,7 @@ class AModelNameMatchesOnlyItselfTest {
      * A model whose name begins with all of {@link #UNDERSCORED_MODEL}'s, which a pattern that did not end the
      * name where the identity ends it would match as well.
      */
-    private static final String LONGER_MODEL = "nomic_embed-v2";
+    private static final String LONGER_MODEL = "acme_embed-v2";
 
     /** A text that is only a percent sign, which an unescaped pattern reads as any text at all. */
     private static final String A_PERCENT_SIGN = "%";

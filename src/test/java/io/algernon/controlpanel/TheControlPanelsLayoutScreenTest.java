@@ -60,9 +60,9 @@ class TheControlPanelsLayoutScreenTest {
 
     private static final String ANOTHER_IMAGE = "vespera/docling-serve-cu128-libreoffice:v1";
 
-    private static final String MODEL = "qwen3:8b";
+    private static final String MODEL = "a-writing-model:8b";
 
-    private static final String MODEL_NOT_SERVED = "llama3.1:70b";
+    private static final String MODEL_NOT_SERVED = "a-model-not-served:70b";
 
     /** What opens the style's rule for a narrow window. */
     private static final Pattern NARROW_WINDOW_RULE = Pattern.compile("@media\\s*\\(\\s*max-width\\s*:\\s*\\d+px\\s*\\)\\s*\\{");

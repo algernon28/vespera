@@ -174,9 +174,9 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
         cli.run("run", root.toString());
         Properties said = theFile();
 
-        claim("the generation model the jar ships, and that it ships it",
+        claim("the generation model the shipped file names, and that it ships it",
                 () -> assertThat(List.of(said.getProperty("generationModel"), said.getProperty("generationModel.source")))
-                        .containsExactly("qwen3:8b", "shipped"));
+                        .containsExactly(theShippedGenerationModel(), "shipped"));
         claim("the window the code carries, and that the code carries it",
                 () -> assertThat(List.of(said.getProperty("generationContextWindow"),
                                 said.getProperty("generationContextWindow.source")))
@@ -250,8 +250,8 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
 
         cli.run("run", root.toString());
 
-        claim("the generation model in the file is the one the jar ships, not the one the profile names",
-                () -> assertThat(theFile().getProperty("generationModel")).isEqualTo("qwen3:8b"));
+        claim("the generation model in the file is the one the shipped file names, not the one the profile names",
+                () -> assertThat(theFile().getProperty("generationModel")).isEqualTo(theShippedGenerationModel()));
     }
 
     @Test
@@ -288,7 +288,7 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
                 () -> assertThat(cli.getExitCode()).isZero());
         Properties said = theFile();
         claim("and wrote the file, with what applies",
-                () -> assertThat(said.getProperty("generationModel")).isEqualTo("qwen3:8b"));
+                () -> assertThat(said.getProperty("generationModel")).isEqualTo(theShippedGenerationModel()));
     }
 
     @Test
@@ -304,7 +304,7 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
                 () -> assertThat(cli.getExitCode()).isZero());
         Properties said = theFile();
         claim("and wrote the file, with what applies",
-                () -> assertThat(said.getProperty("generationModel")).isEqualTo("qwen3:8b"));
+                () -> assertThat(said.getProperty("generationModel")).isEqualTo(theShippedGenerationModel()));
     }
 
     @Test
@@ -340,9 +340,21 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
 
     /** Read from the shipped file, so a change of the image fails {@code DoclingSidecarImageTest} and not this. */
     private static String theShippedImage() {
+        return theShipped("vespera.docling.image");
+    }
+
+    /**
+     * The generation model the shipped file names, read from it: the value the jar says it ships is held to the file and
+     * not to a name this test would expect (ADR-346 §7), so a changed default changes no test.
+     */
+    private static String theShippedGenerationModel() {
+        return theShipped("spring.ai.ollama.chat.options.model");
+    }
+
+    private static String theShipped(String key) {
         YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
         yaml.setResources(new ClassPathResource("application.yaml"));
-        return yaml.getObject().getProperty("vespera.docling.image");
+        return yaml.getObject().getProperty(key);
     }
 
     private static Properties theFile() throws IOException {

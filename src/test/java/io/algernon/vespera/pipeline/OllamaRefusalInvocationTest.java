@@ -134,7 +134,7 @@ class OllamaRefusalInvocationTest {
                         OLLAMA + "/api/show"))
                 .andRespond(withServerError());
         AtomicInteger chatCalls = new AtomicInteger();
-        CURRENT.set(OllamaLabellerFixture.over("qwen3:8b", LOCAL_URL, builder, chatCalls));
+        CURRENT.set(OllamaLabellerFixture.over("a-writing-model:8b", LOCAL_URL, builder, chatCalls));
 
         cli.run("label", "--auto");
 

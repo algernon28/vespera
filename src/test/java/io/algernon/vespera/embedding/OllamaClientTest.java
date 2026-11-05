@@ -48,7 +48,7 @@ class OllamaClientTest {
     private static final String TAGS_ENDPOINT = BASE_URL + "/api/tags";
 
     /** The model this fixture asks about, tag included, as a profile would resolve it. */
-    private static final String MODEL = "qwen3-embedding:0.6b";
+    private static final String MODEL = "a-comparing-model:0.6b";
 
     /** The manifest digest measured for that model against a real sidecar, used here as a fixture. */
     private static final String DIGEST = "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d";
@@ -107,9 +107,9 @@ class OllamaClientTest {
         claim(
                 "a model name the runtime does not list is refused by name, since the alternative is"
                         + " an identity composed around a model nobody is serving",
-                () -> assertThatThrownBy(() -> client.artefactOf("nomic-embed-text:latest"))
+                () -> assertThatThrownBy(() -> client.artefactOf("acme-embed-text:latest"))
                         .isInstanceOf(IllegalStateException.class)
-                        .hasMessageContaining("nomic-embed-text:latest"));
+                        .hasMessageContaining("acme-embed-text:latest"));
     }
 
     @Test

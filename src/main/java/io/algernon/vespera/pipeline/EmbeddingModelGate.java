@@ -12,7 +12,8 @@ import org.springframework.stereotype.Component;
  * shape {@link SeedGate} and {@link RedundancyGate} already use for their own keys.
  *
  * <p>The name resolves in order: the profile's {@code embeddingModel}, then the configured {@value
- * #CONFIGURED_DEFAULT_KEY} (shipped as {@code bge-m3:latest}), then none. A blank value in either is
+ * #CONFIGURED_DEFAULT_KEY} (shipped as {@code
+ * hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M}, ADR-346), then none. A blank value in either is
  * unset. The gate is shut only where neither names one, which no operator meets with the shipped
  * configuration; blanking the key holds scoring until a candidate is chosen.
  *

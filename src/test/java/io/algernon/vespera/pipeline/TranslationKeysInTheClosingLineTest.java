@@ -86,6 +86,6 @@ class TranslationKeysInTheClosingLineTest {
         return ProfileFixture.profile()
                 .seedFolder("/corpus/exemplars", RECORDED_BY_THE_OPERATOR)
                 .boilerplateDocumentFrequencyFloor("0.4", RECORDED_BY_THE_OPERATOR)
-                .embeddingModel("embeddinggemma", RECORDED_BY_THE_OPERATOR);
+                .embeddingModel("a-third-comparing-model", RECORDED_BY_THE_OPERATOR);
     }
 }
