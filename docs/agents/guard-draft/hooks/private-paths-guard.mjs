@@ -121,21 +121,23 @@
 // typographic quote or --%. One letter and a colon stays a drive, and a name of spaces stays refused.
 //
 // In a Bash command some text is no path (ADR-351, docs/adr/0351, which amends ADR-196 section 4 and
-// ADR-215 section 3(c)). Where the command can be cut into words and segments as Bash cuts it (no ( ) or
-// backtick outside quotes, no $( or backtick inside double quotes, no $' $" or ${ outside quotes, no
-// unpaired quote, no backslash before a line break, no here-string), the guard does not read for paths:
+// ADR-215 section 3(c)). Where the command can be cut into words and segments as Bash cuts it and no
+// expansion in it may assign or run (no ( ) or backtick outside quotes, no $( ${ $[ or backtick inside
+// double quotes, no $' $" $( ${ or $[ outside quotes, no unpaired quote, no backslash before a line
+// break, no here-string, no here-document whose delimiter is not quoted), the guard does not read for paths:
 // the literal argument of git's -m and --message after commit, tag, merge or stash (and -m ending a
 // cluster of letters that take nothing there), of gh's --jq, -q and --body after api, issue or pr, and
 // of grep's -e and --regexp, the next word or
 // the text after the =; and the single-quoted first operand of grep, egrep, fgrep, awk, gawk, mawk and
 // jq where no option gives the pattern, the program or a file of them, an awk program only with no " in
-// it and a jq program only with no import or include. The text rule above still reads all of these. And
-// the lines of a here-document whose delimiter is quoted, on a line that is cat, > or >> and one file
-// beneath the folder ${TEMP} names and nothing else, are read for neither, the variable spelled as an
-// environment key, case for case, and not assigned by the command. Each program's options are read from
-// a table of them, and one it does not have takes nothing out. Nothing is taken out of a command that may
-// change what a name runs: function, alias, hash, enable, shopt, eval, source, . or trap as a program, a
-// program whose name is not written whole, or PATH, ENV, SHELLOPTS or a BASH name assigned. That text is
+// it and a jq program only with no import, include or modulemeta. The text rule above still reads all of
+// these. And the lines of a here-document whose delimiter is quoted, on a line that is cat, > or >> and
+// one file beneath the folder ${TEMP} names and nothing else, are read for neither, the variable TEMP,
+// TMP or TMPDIR spelled as an environment key, case for case. Each program's options are read from a
+// table of them, and one it does not have takes nothing out. Something is taken out only of a command
+// every segment of which runs a program of a fixed set (those above, cd, echo, true, ls, head, tail, wc
+// and sort) or is a for loop over a lower-case name, with no assignment before a program and no {NAME}
+// redirect: anything else may change what a name runs or what a variable holds. That text is
 // blanked, offset for offset; git's index form, a listed command and the counting command are told from
 // the command as written. A PowerShell command is read whole.
 //
@@ -793,15 +795,16 @@ function gitIndexForms(command, bash) {
 }
 
 // Text that is no path (ADR-351). A Bash command is cut into its words and segments as the shell cuts
-// them, or not at all where this reading may not be the shell's: a ( ) or backtick outside quotes, a $( or
-// backtick inside double quotes, a $' $" or ${ outside quotes, a quote left unpaired, a backslash before
-// a line break or at the end, and a here-string. Each word is { start, end, raw }, and an operator of
-// redirection { op, start, end, raw }. A segment is cut at ; & | and the line break, and says whether it
-// began a line and whether a line break or the end ended it. A here-document's lines are no words: each
-// is { segment, delimiter, quoted, bodyStart, bodyEnd }, its body running from the line after its
-// operator's to the end of the line that is its delimiter (with <<- with the tabs that begin it taken
-// off), or to the end of the command. A # at the start of a word begins a comment, which runs to the
-// line break.
+// them, or not at all where this reading may not be the shell's, or where an expansion in it may run or
+// assign: a ( ) or backtick outside quotes, a $( ${ $[ or backtick inside double quotes, a $' $" $( ${ or
+// $[ outside quotes, a quote left unpaired, a backslash before a line break or at the end, a here-string,
+// and a here-document whose delimiter is not quoted, whose lines the shell expands. Each word is
+// { start, end, raw }, and an operator of redirection { op, start, end, raw }. A segment is cut at ; & |
+// and the line break, and says whether it began a line and whether a line break or the end ended it. A
+// here-document's lines are no words: each is { segment, delimiter, bodyStart, bodyEnd }, its body running
+// from the line after its operator's to the end of the line that is its delimiter (with <<- with the tabs
+// that begin it taken off), or to the end of the command. A # at the start of a word begins a comment,
+// which runs to the line break.
 function bashSegments(command) {
   const segments = [];
   const documents = [];
@@ -854,9 +857,11 @@ function bashSegments(command) {
     if (c === "<" || c === ">") {
       if (command.startsWith("<<<", i)) return null;
       if (command.startsWith("<<", i)) {
-        const m = /^<<(-?)[ \t]*(?:'([A-Za-z_]\w*)'|"([A-Za-z_]\w*)"|([A-Za-z_]\w*)(?=$|[\s;&|<>]))/.exec(command.slice(i));
+        // Only a quoted delimiter: the lines of any other are expanded, in this shell where the program is
+        // a builtin, and may assign or run.
+        const m = /^<<(-?)[ \t]*(?:'([A-Za-z_]\w*)'|"([A-Za-z_]\w*)")(?=$|[\s;&|<>])/.exec(command.slice(i));
         if (!m) return null;
-        const document = { segment, dash: m[1] === "-", delimiter: m[2] ?? m[3] ?? m[4], quoted: m[4] === undefined };
+        const document = { segment, dash: m[1] === "-", delimiter: m[2] ?? m[3] };
         segment.words.push({ op: "<<", start: i, end: i + m[0].length, raw: m[0] });
         pending.push(document);
         documents.push(document);
@@ -880,14 +885,14 @@ function bashSegments(command) {
         let j = i + 1;
         for (; j < n && command[j] !== '"'; j++) {
           if (command[j] === "\\") j++;
-          else if (command[j] === "`" || command.startsWith("$(", j)) return null;
+          else if (command[j] === "`" || (command[j] === "$" && /[({[]/.test(command[j + 1] ?? ""))) return null;
         }
         if (j >= n) return null;
         i = j + 1;
       } else if (ch === "\\") {
         if (i + 1 >= n || command[i + 1] === "\n") return null;
         i += 2;
-      } else if (ch === "$" && /['"({]/.test(command[i + 1] ?? "")) {
+      } else if (ch === "$" && /['"({[]/.test(command[i + 1] ?? "")) {
         return null;
       } else {
         i++;
@@ -956,16 +961,19 @@ const LITERAL = /^(?:'[^']*'|"(?:[^"\\]|\\[^])*"|(?:[^'"$`*?[\]{}~\\\s]|\\[^\n])
 // An assignment, as written: a name, a subscript or none, and = or +=.
 const ASSIGNMENT = /^([A-Za-z_]\w*)(?:\[[^\]]*\])?\+?=/;
 // The words Bash reads before a segment's program and that are no program: the reserved words that may
-// begin a command, and time.
-const RESERVED_HEADS = new Set(["!", "{", "}", "if", "then", "elif", "else", "do", "while", "until", "time"]);
-// The commands that change what a program's name runs, or run text as commands in this shell (ADR-351
-// section 4): a function, an alias, the hash table, a builtin turned on or off, the shell's options, eval,
-// a script read into this shell and a trap.
-const SHELL_CHANGERS = new Set(["function", "alias", "hash", "enable", "shopt", "eval", "source", ".", "trap"]);
-// The builtins that assign or unset a variable named by a word after them.
-const ASSIGNERS = new Set(["declare", "typeset", "local", "export", "readonly", "unset", "read", "mapfile", "readarray", "getopts", "printf", "let"]);
-// The variables whose value changes which program a name runs or how this shell reads a command.
-const RUNNING_VARIABLE = /^(?:PATH|ENV|SHELLOPTS|BASH\w*)$/;
+// begin a command or end a compound one, and time.
+const RESERVED_HEADS = new Set(["!", "{", "}", "if", "then", "elif", "else", "fi", "do", "done", "while", "until", "time"]);
+// The programs a command may run for anything to be taken out of it (ADR-351 section 4): those sections 1
+// to 3 read, and a few that change nothing in the shell that runs them, so that nothing in the command
+// can change what a name runs or what a variable holds. Each but cd, echo and true runs as a program of
+// its own; those three assign nothing a program's name or section 3's file is read by.
+const TRUSTED_PROGRAMS = new Set([
+  "git", "gh", "grep", "egrep", "fgrep", "awk", "gawk", "mawk", "jq", "cat",
+  "cd", "echo", "true", "ls", "head", "tail", "wc", "sort",
+]);
+// The name a for loop may assign: lower case at its head, as no variable of Bash's own and none of the
+// environment's that section 3 reads is.
+const LOOP_NAME = /^[a-z][a-z0-9_]*$/;
 
 // Where a segment's program stands: the index of its first word that is no reserved word, no time option,
 // no assignment and no redirect, or the length of the segment where none is.
@@ -983,62 +991,30 @@ function programIndex(words) {
   return k;
 }
 
-// What a cut command may change before its programs run (ADR-351 sections 3 and 4): whether it can change
-// what a program's name runs, so that nothing is taken out (changes), and the names it assigns, exports,
-// unsets, reads into or loops over (assigned).
-function shellChanges(segments) {
-  const assigned = new Set();
-  let changes = false;
+// Whether a cut command is one whose programs are what their names say and whose variables hold what the
+// guard's environment gives (ADR-351 section 4): every segment's program, its name all written, is one of
+// TRUSTED_PROGRAMS, or for with a LOOP_NAME; no word before a program assigns; and no {NAME} word stands
+// against a redirect operator, which assigns NAME the descriptor. The cut has already refused every
+// expansion that may assign or run. Anything else may change what a name runs, and nothing is taken out.
+function trusted(segments) {
   for (const { words } of segments) {
-    for (const word of words) {
-      if (word.op) continue;
-      const m = ASSIGNMENT.exec(word.raw) ?? ASSIGNMENT.exec(shellValue(word) ?? "");
-      if (m) assigned.add(m[1]);
+    for (let j = 0; j < words.length; j++) {
+      const word = words[j];
+      if (!word.op && /^\{[^}]*\}$/.test(word.raw) && words[j + 1]?.op && words[j + 1].start === word.end) return false;
     }
-    let k = programIndex(words);
-    if (k >= words.length) continue;
-    let program = shellValue(words[k]);
-    // command and builtin run the builtin named after their options.
-    while (program === "command" || program === "builtin") {
-      for (k++; k < words.length && /^-/.test(words[k].raw ?? ""); k++);
-      if (k >= words.length) break;
-      program = shellValue(words[k]);
+    const k = programIndex(words);
+    for (let j = 0; j < k; j++) {
+      if (!words[j].op && (ASSIGNMENT.test(words[j].raw) || ASSIGNMENT.test(shellValue(words[j]) ?? ""))) return false;
     }
     if (k >= words.length) continue;
-    // A program whose name is not all written may be any of these.
-    if (program === null || SHELL_CHANGERS.has(program)) {
-      changes = true;
+    const program = shellValue(words[k]);
+    if (program === "for") {
+      if (!LOOP_NAME.test(shellValue(words[k + 1]) ?? "")) return false;
       continue;
     }
-    if (program === "for" || program === "select") {
-      const name = shellValue(words[k + 1]);
-      if (name === null) changes = true;
-      else assigned.add(name);
-      continue;
-    }
-    if (!ASSIGNERS.has(program)) continue;
-    for (let j = k + 1; j < words.length; j++) {
-      if (words[j].op) {
-        if (words[j].op !== "<<") j++;
-        continue;
-      }
-      // NAME=value names NAME whatever its value.
-      const named = ASSIGNMENT.exec(words[j].raw);
-      if (named) {
-        assigned.add(named[1]);
-        continue;
-      }
-      const value = shellValue(words[j]);
-      // A name not all written may be any; a nameref makes a name another's.
-      if (value === null || (["declare", "typeset", "local"].includes(program) && /^-[^-]*n/.test(value))) {
-        changes = true;
-        break;
-      }
-      if (!value.startsWith("-")) assigned.add(/^[^=[+]*/.exec(value)[0]);
-    }
+    if (!TRUSTED_PROGRAMS.has(program)) return false;
   }
-  if ([...assigned].some((name) => RUNNING_VARIABLE.test(name))) changes = true;
-  return { changes, assigned };
+  return true;
 }
 
 // Long options, as their programs read them: each name with how many words it takes after it written
@@ -1145,8 +1121,8 @@ const JQ = {
     2: "arg argjson slurpfile rawfile argfile",
   }),
   longGiven: new Set(["from-file", "slurpfile", "rawfile", "argfile", "library-path", "run-tests"]),
-  // A jq program names a file only by import or include.
-  operand: (text) => !/\b(?:import|include)\b/.test(text),
+  // A jq program names a file only by import or include, or loads one by modulemeta.
+  operand: (text) => !/\b(?:import|include|modulemeta)\b/.test(text),
 };
 const OPERAND_PROGRAMS = new Map([
   ["grep", GREP],
@@ -1295,9 +1271,11 @@ function textSpans(words) {
 // The place a here-document is written to, when it is a file in the temp folder (ADR-351 section 3): one
 // word, bare or quoted, that is a path from a root, or a variable of the environment at its head and a
 // path after it, with no .., no . name, no other $, ~, wildcard or brace, and that lies beneath the folder
-// ${TEMP} names in the allow list. The variable is one whose name an environment key spells, case for
-// case, as Bash reads it, and that the command does not assign.
-function inTempFolder(word, assigned) {
+// ${TEMP} names in the allow list. The variable is TEMP, TMP or TMPDIR, which Bash never assigns by itself,
+// spelt as an environment key spells it, case for case, as Bash reads it; a command section 4 trusts
+// assigns none of them.
+const TEMP_VARIABLES = new Set(["TEMP", "TMP", "TMPDIR"]);
+function inTempFolder(word) {
   // In single quotes a $ is no variable, and the path is taken only where it holds none.
   const given = /^'([^'$]*)'$|^"([^"\\`]*)"$|^([^'"\\`\s]*)$/.exec(word.raw);
   if (!given) return false;
@@ -1305,7 +1283,7 @@ function inTempFolder(word, assigned) {
   const m = /^(?:\$(\w+)|\$\{(\w+)\})?([^$~*?[\]{}]*)$/.exec(value);
   if (!m) return false;
   const name = m[1] ?? m[2];
-  if (name !== undefined && (assigned.has(name) || !Object.keys(process.env).includes(name))) return false;
+  if (name !== undefined && (!TEMP_VARIABLES.has(name) || !Object.keys(process.env).includes(name))) return false;
   const head = name === undefined ? "" : valueOf(name);
   if (name !== undefined && !head) return false;
   const text = fromGitBash((head + m[3]).replace(/\\/g, "/"));
@@ -1318,20 +1296,18 @@ function inTempFolder(word, assigned) {
 // so that every offset stays where it was: paths, the text the guard reads for paths, and tokens, the text
 // it reads for a closed .claude folder (ADR-215 section 3(c)). paths blanks the text a flag or an operand
 // gives a program (sections 1 and 2) and the body of a here-document that cat writes to a file in the temp
-// folder (section 3); tokens blanks that body alone. A command the cut above does not read, or that may
-// change what a program's name runs (section 4), is its own two.
+// folder (section 3); tokens blanks that body alone. A command the cut above does not read, or that runs a
+// program section 4 does not trust, is its own two.
 function textsRead(command) {
   const cut = bashSegments(command);
-  if (!cut) return { paths: command, tokens: command };
-  const { changes, assigned } = shellChanges(cut.segments);
-  if (changes) return { paths: command, tokens: command };
+  if (!cut || !trusted(cut.segments)) return { paths: command, tokens: command };
   const flagged = cut.segments.flatMap(({ words }) => textSpans(words));
   const bodies = cut.documents
-    .filter(({ segment, quoted, bodyStart }) => {
-      if (!quoted || bodyStart === undefined || !segment.startsLine || !segment.endsLine) return false;
+    .filter(({ segment, bodyStart }) => {
+      if (bodyStart === undefined || !segment.startsLine || !segment.endsLine) return false;
       const words = segment.words.filter((word) => word.op !== "<<");
       if (words.length !== 3 || segment.words.length !== 4) return false;
-      return plainValue(words[0]) === "cat" && [">", ">>"].includes(words[1].op) && inTempFolder(words[2], assigned);
+      return plainValue(words[0]) === "cat" && [">", ">>"].includes(words[1].op) && inTempFolder(words[2]);
     })
     .map(({ bodyStart, bodyEnd }) => [bodyStart, bodyEnd]);
   // Each UTF-16 unit is blanked, so that a character outside the basic plane keeps its two offsets.

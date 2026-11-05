@@ -1945,12 +1945,35 @@ cases.push(
   ["C741", "grep with a here-document first, then a pattern and a quoted file outside the allow list", "Bash", { command: "grep <<'EOF' 'pat' '../outside/doc.txt'\nx\nEOF" }, REFUSED],
   ["C742", "awk -dF, whose F is -d's file, then a program and a quoted file outside the allow list", "Bash", { command: "awk -dF 'x' '../outside/doc.txt'" }, REFUSED],
   ["C743", "grep of an option it does not have, then a quoted file outside the allow list", "Bash", { command: "grep --vespera-none x '../outside/doc.txt'" }, REFUSED],
+  ["C744", "jq whose program loads, by modulemeta, the module a string names outside the allow list", "Bash", { command: "jq -n '\"../outside/doc\" | modulemeta'" }, REFUSED],
+
+  /* C75. A command that assigns, or runs a program the record does not name, by a form the second gate of
+     PR #709 found: an expansion with a word or an arithmetic one in double quotes or in a here-document
+     whose delimiter is not quoted, $[ ], an array's subscript, a {NAME} redirect, wait -p, coproc, a for
+     loop over PATH and [[ ]]; and a here-document's file named by PWD, which Bash assigns by itself.
+     Nothing is taken out (section 4), and the body is read (section 3). */
+  ["C751", "BASH_CMDS assigned by ${NAME=word} in double quotes, then grep of a quoted file outside the allow list", "Bash", { command: "true \"${BASH_CMDS[grep]=/usr/bin/cat}\"; grep '../outside/doc.txt'" }, REFUSED],
+  ["C752", "BASH_CMDS assigned in a here-document whose delimiter is not quoted, then grep of a quoted file outside the allow list", "Bash", { command: "true <<EOF\n${BASH_CMDS[grep]=/usr/bin/cat}\nEOF\ngrep '../outside/doc.txt'" }, REFUSED],
+  ["C753", "PATH assigned by $(( )) in a here-document whose delimiter is not quoted, then grep of a quoted file outside the allow list", "Bash", { command: "true <<EOF\n$((PATH=1))\nEOF\ngrep '../outside/doc.txt'" }, REFUSED],
+  ["C754", "PATH assigned by an array's subscript, then grep of a quoted file outside the allow list", "Bash", { command: "a[PATH=1]=x; grep '../outside/doc.txt'" }, REFUSED],
+  ["C755", "PATH assigned by a {NAME} redirect, then grep of a quoted file outside the allow list", "Bash", { command: "true {PATH}>/dev/null; grep '../outside/doc.txt'" }, REFUSED],
+  ["C756", "PATH assigned by wait -p, then grep of a quoted file outside the allow list", "Bash", { command: "sleep 0 & wait -n -p PATH; grep '../outside/doc.txt'" }, REFUSED],
+  ["C757", "PATH assigned by coproc, then grep of a quoted file outside the allow list", "Bash", { command: "coproc PATH { true; }; grep '../outside/doc.txt'" }, REFUSED],
+  ["C758", "TEMP assigned by a {NAME} redirect before a here-document into $TEMP, whose line names the hooks folder", "Bash", { command: "true {TEMP}>/dev/null\ncat > \"$TEMP/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C759", "TEMP assigned by an array's subscript before a here-document into $TEMP, whose line names the hooks folder", "Bash", { command: "a[TEMP=1]=x\ncat > \"$TEMP/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C760", "cd, then a here-document into $PWD, which Bash assigns, under the temp folder when the guard started, whose line names the hooks folder", "Bash", { command: "cd src\ncat > \"$PWD/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED, { startedIn: `${T}/scratch` }],
+  ["C761", "PATH assigned by $[ ], then grep of a quoted file outside the allow list", "Bash", { command: "true $[PATH=1]; grep '../outside/doc.txt'" }, REFUSED],
+  ["C762", "PATH assigned by $[ ] in double quotes, then grep of a quoted file outside the allow list", "Bash", { command: "true \"$[PATH=1]\"; grep '../outside/doc.txt'" }, REFUSED],
+  ["C763", "PATH assigned by $(( )) in double quotes, then grep of a quoted file outside the allow list", "Bash", { command: "true \"$((PATH=1))\"; grep '../outside/doc.txt'" }, REFUSED],
+  ["C764", "a for loop over PATH, then grep of a quoted file outside the allow list", "Bash", { command: "for PATH in 1; do grep '../outside/doc.txt'; done" }, REFUSED],
+  ["C765", "PATH assigned by [[ ]]'s arithmetic, then grep of a quoted file outside the allow list", "Bash", { command: "[[ 0 -eq PATH=1 ]]; grep '../outside/doc.txt'" }, REFUSED],
 
   /* C52. What the options read as their programs read them still let through. */
   ["C521", "grep --binary -n whose pattern is an alternation of two one-letter keys", "Bash", { command: "grep --binary -n 'x: \\|y: ' README.md" }, ALLOWED],
   ["C522", "git --no-pager commit --author and -sm, whose message holds \\| and a word that begins with a slash", "Bash", { command: 'git --no-pager commit --author "A <a@b.c>" -sm "Split at \\| and keep /: as written"' }, ALLOWED],
   ["C523", "git merge --no-ff -m, whose message holds a word that begins with a slash", "Bash", { command: 'git merge --no-ff -m "keep /: as written" feature' }, ALLOWED],
   ["C524", "a for loop over a name that is not TEMP, then grep of a quoted pattern of two one-letter keys", "Bash", { command: "for f in a b; do grep -n 'x: \\|y: ' README.md; done" }, ALLOWED],
+  ["C525", "cd to a folder of the checkout, then git commit -m whose message holds \\| and a word that begins with a slash", "Bash", { command: 'cd src && git commit -m "Split at \\| and keep /: as written"' }, ALLOWED],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
@@ -1970,7 +1993,7 @@ for (const [id, what, tool, input, expected, options = {}] of cases) {
             : false;
   test(`${id} ${expected === ALLOWED ? "allowed" : "refused"}: ${what}`, { skip }, () => {
     const cwd = options.noCwd ? undefined : (options.cwd ?? C);
-    const result = startGuard({ stdin: hookInput(tool, input, cwd), env: options.env });
+    const result = startGuard({ stdin: hookInput(tool, input, cwd), env: options.env, startedIn: options.startedIn });
     claim(result, expected, `${tool} ${JSON.stringify(input)} with ${cwd ? `the current directory ${cwd}` : "no current directory given"}`);
   });
 }
