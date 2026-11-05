@@ -106,8 +106,9 @@
 //
 // In a segment whose first word is the bare word git, a word that begins with : or :N: (N from 0 to 3) is
 // git's index form (ADR-343, which amends ADR-217 section 2 for that form): its rest is read as any token
-// is, against every folder the command names, and on Windows the word is read by its rest only, off Windows
-// as written as well. A git push refspec such as :claude/x is read so too. Not given that reading: a
+// is, against every folder the command names, and on Windows the word is read by its rest only, unless
+// that rest records no path (an empty rest among them), when it is read as written too; off Windows it is
+// read as written as well. A git push refspec such as :claude/x is read so too. Not given that reading: a
 // redirect's target (the word after any bare word that holds < or >), a value after =, any word in a
 // command with a ( ) or backtick (or { } in PowerShell), pieces cut at , { }, halves joined at an escaped
 // space, and a word with a quote inside it, except that the word git is given for such a word (its quotes
@@ -703,7 +704,8 @@ function variantsOf(text) {
 // << (a here-document or here-string, whose body is no command). A word is a whole shell word; only
 // a word that is exactly one quoted string or holds no quote counts. A word after a redirect operator (any
 // bare word that holds < or >) does not count, nor does a word with no path after the prefix. A value
-// after = is not the word, so it does not either.
+// after = is not the word, so it does not either. A word is read by its rest after the prefix and, off
+// Windows, as written as well; on Windows it is read as written too only when its rest records no path.
 const INDEX_PREFIX = /^(:(?:[0-3]:)?)/;
 function cutIsShells(command, bash) {
   if (bash && /<</.test(command)) return false;
@@ -769,8 +771,14 @@ function pathsInCommand(command, bash) {
   let uncounted = null;
   let firstReading = null;
   let secondReading = false;
-  const addAbsolute = (label, text) => absolute.push({ label, text });
+  // Whether any path was recorded since it was last cleared: a path already in the map still counts.
+  let noted = false;
+  const addAbsolute = (label, text) => {
+    noted = true;
+    absolute.push({ label, text });
+  };
   const addRelative = (label, rel) => {
+    noted = true;
     recorded?.add(rel);
     if (!secondReading) firstReading?.add(rel);
     if (uncounted?.has(rel)) return;
@@ -929,7 +937,11 @@ function pathsInCommand(command, bash) {
     const prefix = indexForms.get(offset);
     if (prefix === undefined || !text.startsWith(prefix)) return read(text, offset);
     if (!windows) read(text, offset);
+    noted = false;
     read(text.slice(prefix.length), offset >= 0 ? offset + prefix.length : -1);
+    // On Windows the word is read by its rest only, unless the rest records no path (an empty rest among
+    // them): then it is read as written too, as before.
+    if (windows && !noted) read(text, offset);
   };
   for (const m of command.matchAll(COMMAND_TOKENS)) readWord(m[0], m.index);
   // A word with a quote inside it is read in pieces above; the word git is given is read too, as written
