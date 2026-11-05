@@ -26,7 +26,7 @@
 
 ### 1. The cockpit is the control panel; what of ADR-340 stands
 
-**The window ADR-342 and ADR-344 describe is the control panel's one face.** ADR-340 §1 to §5 and §7 lay out pages ADR-342 §5 removes, and go with them: the top bar and Autolabel, the home page and its reload, the drawer and its sections, the next step's box, the form `folders-to-process` with its boxes Read and Code, and the words of the pages and their sections. A code set is named in the sidebar's Code sets section (ADR-344 §1), and not in the tree. The names and lines ADR-340 §7 gives each key, `ProfileKey`'s, are what the Profile tab shows as a key's descriptive name and description (ADR-344 §1).
+**The window ADR-342 and ADR-344 describe is the control panel's one face.** ADR-340 §1 to §5 and §7 lay out pages ADR-342 §5 removes, and go with them: the top bar and Autolabel, the home page and its reload, the drawer and its sections, the next step's box, the form `folders-to-process` with its boxes Read and Code, and the words of the pages and their sections. A code set is named in the sidebar's Code sets section (ADR-344 §1), and not in the tree. The names and lines ADR-340 §7 gives each key, `ProfileKey`'s, are what the Profile tab shows as a key's descriptive name and description (ADR-344 §1), but for `foldersNotWalked`'s line, which names the Inclusions tab in place of the form that is gone: *Folders of the documents folder that Vespera never reads. Untick them in the Inclusions tab.*
 
 **§8 and §9 stand whole**: the key, the walk, its two tables, its accounting and the runs it moves.
 
@@ -40,8 +40,8 @@
 
 - **the value** is the highest unticked folder of each branch, spelt from the corpus root with `/` between its names, and each piece the profile lists that names no folder there, kept as stated; the pieces the profile already lists come first, in its order, and the others after them, in the tree's order; joined by the system's path separator, as `CorpusFoldersValue` reads them;
 - **a value as the file states it is not written**; a changed one is written with `set in the control panel`, the tab showing no note;
-- **with no folder unticked and none kept**, the key is taken out of the file, so every folder is read, as an unset key reads. A value the walk cannot read names no folder, so it keeps no piece: a Save with nothing unticked takes it out, and one with folders unticked writes them in its place;
-- **where no tree can be drawn**, the corpus root the field names being no folder that is there, every piece the profile lists is kept as stated, so a Save writes the value as the file states it, which is not written.
+- **with no folder unticked and none kept**, the key is taken out of the file, so every folder is read, as an unset key reads. A value the walk cannot read is read as no value (ADR-340 §8.1), so it has no piece to keep: a Save with nothing unticked takes it out, and one with folders unticked writes them in its place;
+- **where no tree can be drawn**, the corpus root the field names being no folder that is there, every piece of a value the walk reads is kept as stated, so a Save writes the value as the file states it, which is not written.
 
 **Reset, `inclusions-reset`**, puts the tree back to the profile as last saved, and writes nothing. The Profile tab shows `foldersNotWalked` read-only, as it shows `seedFolder` and `codeSetFolders`, with a link that opens the Inclusions tab. The tab's line above the tree says, in the implementation's words, that an unticked folder is never read, and that a change makes the next walk another, every run after it new.
 
