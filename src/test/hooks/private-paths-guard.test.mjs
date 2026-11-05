@@ -1635,9 +1635,10 @@ cases.push(
 // value after = and a token of a command that holds ( ) or a backtick keep docs/adr/0217's refusal on
 // Windows. So does every token of a command where the guard's cut into segments is not the shell's: a
 // ; & | or line break inside quotes, a quote left unpaired, in Bash a backslash before a quote or one of
-// those breaks, and in PowerShell a typographic quote or --%. A piece of a token cut at , { or }, two
-// halves joined at an escaped space and a word that holds a quote, unless it is one quoted string and
-// nothing else, are not given the reading.
+// those breaks or a << anywhere, and in PowerShell a typographic quote or --%. A piece of a token cut at
+// , { or }, two halves joined at an escaped space and a word that holds a quote, unless it is one quoted
+// string and nothing else, are not given the reading; the word the shell gives git for such a word, its
+// quotes taken off, is read as written and by its rest on every platform, and either refuses.
 // docs/adr/0196's drive of one letter and docs/adr/0217's refusal of a name made only of spaces, which
 // the user kept, stand in a git segment as anywhere.
 const NOT_A_STREAM_ELSEWHERE = "a name made only of a stream name is refused on Windows alone (docs/adr/0217 section 2)";
@@ -1702,6 +1703,9 @@ cases.push(
   // Only the backslash before a quote finds this one: its quotes pair with no break inside and none is
   // left unpaired, while to Bash each \" is a character of one double-quoted string, all of it cat's.
   ["O609", "cat of a double-quoted string whose escaped quotes hide ; git and a token that begins with a colon", "Bash", { command: `cat "a\\" ; git show :README.md \\""` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  // A here-document's lines are text given to the program before <<, here cat through xargs, and no
+  // command of the shell's: a cut at their line breaks finds a git segment Bash never runs.
+  ["O610", "xargs cat of a here-document whose line is git and a token that begins with a colon", "Bash", { command: "xargs cat <<EOF\ngit :README.md\nEOF" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
 
   /* O7. A token git is given, which the guard does not read as git's word: refused on Windows. Only a
      word that is one quoted string and nothing else is read whole; any other word that holds a quote,
@@ -1712,6 +1716,10 @@ cases.push(
   ["O704", "git show of a bare word that begins with a colon and holds a quoted part", "Bash", { command: `git show :a"b"` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
   ["O705", "git show of a word that begins with a quoted string that begins with a colon, and goes on", "Bash", { command: `git show ":a"b` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
   ["O706", "git show of a word that git is given as :../outside/doc.txt, a quoted :. and then ./outside/doc.txt", "Bash", { command: `git show ":."./outside/doc.txt` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  // The same command on every platform: the word git is given, with its quotes taken off, is read as
+  // written and by its rest. As written it is a name :.. inside the checkout off Windows; its rest climbs
+  // out of it.
+  ["O707", "git show of a word git is given as :../outside/doc.txt, read by its rest off Windows too", "Bash", { command: `git show ":."./outside/doc.txt` }, REFUSED],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
