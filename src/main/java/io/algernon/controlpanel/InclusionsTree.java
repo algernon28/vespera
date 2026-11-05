@@ -15,7 +15,8 @@ import javafx.scene.control.TreeView;
 import javafx.scene.control.cell.CheckBoxTreeCell;
 
 /**
- * The folders to include, as a tree of the corpus root's folders each with a box (ADR-344 §1, ADR-334 §6): every one
+ * The folders to include, as a tree of the corpus root's folders each with a box (ADR-344 §1), which writes the profile's
+ * {@code foldersNotWalked} (ADR-345 §2, ADR-340 §8): every one
  * ticked at first, an unticked folder standing unticked with every folder below it, and a folder with one below it
  * unticked half-ticked. A folder's subfolders are listed when it is first opened and never before, so a corpus root is
  * never walked to draw it, and no file's name is listed. What is written is the highest unticked folder of each branch,
@@ -121,21 +122,22 @@ final class InclusionsTree {
     }
 
     /**
-     * Draws the tree of {@code corpusRoot} with each folder of {@code notRelevant} unticked. A folder listed that is no
-     * longer there is kept for the next save as it stands.
+     * Draws the tree of {@code corpusRoot} with each folder of {@code notWalked} unticked. A folder listed that is no
+     * longer there, or where no tree can be drawn, is kept for the next save as it stands.
      */
-    void draw(Optional<Path> corpusRoot, List<String> notRelevant) {
+    void draw(Optional<Path> corpusRoot, List<String> notWalked) {
         root = null;
         unresolved = List.of();
         view.setRoot(null);
         if (corpusRoot.isEmpty() || !Files.isDirectory(corpusRoot.get())) {
+            unresolved = List.copyOf(notWalked);
             return;
         }
         root = new Folder(corpusRoot.get(), "", true);
         root.load();
         root.setExpanded(true);
         List<String> missing = new ArrayList<>();
-        for (String listed : notRelevant) {
+        for (String listed : notWalked) {
             if (!untick(root, listed.split("/"), 0)) {
                 missing.add(listed);
             }
@@ -173,14 +175,34 @@ final class InclusionsTree {
         return false;
     }
 
-    /** The highest unticked folder of each branch, then each listed folder that is no longer there. */
-    List<String> notRelevant() {
-        List<String> folders = new ArrayList<>();
+    /**
+     * What a save writes (ADR-345 §2): the highest unticked folder of each branch and each folder {@code listed} that
+     * names no folder there, kept as stated; the pieces already {@code listed} come first, in their order, and the others
+     * after them, in the tree's order.
+     */
+    List<String> toWrite(List<String> listed) {
+        List<String> unticked = new ArrayList<>();
         if (root != null) {
-            collect(root, folders);
+            collect(root, unticked);
         }
-        folders.addAll(unresolved);
-        return folders;
+        List<String> written = new ArrayList<>();
+        for (String piece : listed) {
+            boolean kept = unresolved.contains(piece) || unticked.stream().anyMatch(each -> same(each, piece));
+            if (kept && !written.contains(piece)) {
+                written.add(piece);
+            }
+        }
+        for (String each : unticked) {
+            if (listed.stream().noneMatch(piece -> same(each, piece))) {
+                written.add(each);
+            }
+        }
+        return written;
+    }
+
+    /** Whether the two spell one folder, element by element and without regard to case on Windows (ADR-340 §8.2). */
+    private static boolean same(String a, String b) {
+        return NotRelevantFolders.lies(a, b) && NotRelevantFolders.lies(b, a);
     }
 
     private static void collect(Folder from, List<String> into) {

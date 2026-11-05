@@ -41,11 +41,6 @@ final class ControlPanelState {
         }
     }
 
-    /** The rendering's folder at a tree's root, and its page list, as the jar writes them (ADR-312, ADR-316 §1). */
-    private static final String RENDERING = "confluence";
-
-    private static final String PAGE_LIST = "pages.json";
-
     private static final Duration LOOK = Duration.ofMillis(50);
 
     private static final Duration ENDING_BOUND = Duration.ofSeconds(10);
@@ -61,6 +56,8 @@ final class ControlPanelState {
     private final List<String> notes = new ArrayList<>();
 
     private volatile StartingValues.Sources sources = StartingValues.Sources.none();
+    private volatile WorkingDirectoryDefault workingDirectoryDefault = WorkingDirectoryDefault.of(Path.of(""), Map.of(),
+            Map.of());
     private volatile LaunchValues values;
     private volatile SidecarChecks.Checks lastChecks = new SidecarChecks.Checks(
             new SidecarChecks.Check(SidecarChecks.Result.NOT_CHECKED),
@@ -95,6 +92,20 @@ final class ControlPanelState {
         this.sources = read;
     }
 
+    /**
+     * Hands the state the folder the jar would use on this machine where no source names the working directory
+     * (ADR-340 §6, kept by ADR-345 §1), which {@code ControlPanel.open()} resolves once from its JVM. A state given none
+     * holds the one of the JVM's current directory, with no property or variable.
+     */
+    void useWorkingDirectoryDefault(WorkingDirectoryDefault resolved) {
+        this.workingDirectoryDefault = resolved;
+    }
+
+    /** The folder an empty working directory field stands for (ADR-345 §1). */
+    WorkingDirectoryDefault workingDirectoryDefault() {
+        return workingDirectoryDefault;
+    }
+
     private static Map<String, String> launchValuesByProperty(LaunchValues held) {
         Map<String, String> byProperty = new HashMap<>();
         byProperty.put("vespera.corpus-root", held.corpusRoot());
@@ -108,15 +119,30 @@ final class ControlPanelState {
     }
 
     /**
-     * Whether a Confluence rendering is drawn where the launch values say the tree lies (ADR-308 §6): a page list
-     * under the deliverable root where one is named, else under a generation run's folder in the working directory's
-     * {@code deliverable/}. Read from the files alone, as the control panel links no class of the jar (ADR-285).
+     * Whether any destination's rendering is drawn where the fields say the tree lies (ADR-308 §6, ADR-333 §6,
+     * ADR-345 §4).
      */
     boolean aRenderingIsDrawn(Optional<Path> workingDirectory, String deliverableRoot) {
+        return !destinationsDrawn(workingDirectory, deliverableRoot).isEmpty();
+    }
+
+    /**
+     * The destinations, of {@link ChildCommand#DESTINATIONS} and in its order, whose rendering's list is found at the
+     * top of the tree the output folder names, or of a generation run's folder under the working directory's
+     * {@code deliverable/} where it names none (ADR-334 §1). Read from the files alone, as the control panel links no
+     * class of the jar (ADR-285).
+     */
+    List<String> destinationsDrawn(Optional<Path> workingDirectory, String deliverableRoot) {
+        return ChildCommand.DESTINATIONS.stream().filter(each -> isDrawn(each, workingDirectory, deliverableRoot))
+                .toList();
+    }
+
+    private static boolean isDrawn(String destination, Optional<Path> workingDirectory, String deliverableRoot) {
+        String list = ChildCommand.DESTINATION_LISTS.get(destination);
         try {
             if (deliverableRoot != null && !deliverableRoot.isBlank()
                     && !namesTheDefaultFolder(workingDirectory, deliverableRoot)) {
-                return Files.isRegularFile(Path.of(deliverableRoot.stripTrailing()).resolve(RENDERING).resolve(PAGE_LIST));
+                return Files.isRegularFile(Path.of(deliverableRoot.stripTrailing()).resolve(destination).resolve(list));
             }
             if (workingDirectory.isEmpty()) {
                 return false;
@@ -126,7 +152,7 @@ final class ControlPanelState {
                 return false;
             }
             try (Stream<Path> runs = Files.list(trees)) {
-                return runs.anyMatch(tree -> Files.isRegularFile(tree.resolve(RENDERING).resolve(PAGE_LIST)));
+                return runs.anyMatch(tree -> Files.isRegularFile(tree.resolve(destination).resolve(list)));
             }
         } catch (IOException | RuntimeException unreadable) {
             return false;
@@ -320,11 +346,21 @@ final class ControlPanelState {
     }
 
     /**
-     * What the window starts an invocation with (ADR-344 §3, §4): the values passed to the child, the values kept in the
-     * launch values file as it starts, the presets passed as options of the command line, and the label file, null where
-     * none is named.
+     * What the window starts an invocation with (ADR-344 §3, §4, ADR-345 §4): the values passed to the child, the values
+     * kept in the launch values file as it starts, the presets passed as options of the command line, the label file,
+     * null where none is named, and the destinations ticked, which only a publish passes.
      */
-    record Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets, Path labelFile) {
+    record Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets, Path labelFile,
+            List<String> destinations) {
+
+        Plan {
+            destinations = List.copyOf(destinations);
+        }
+
+        /** A plan ticking no destination, as every start but a publish has. */
+        Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets, Path labelFile) {
+            this(toPass, toKeep, presets, labelFile, List.of());
+        }
     }
 
     /** The command {@code kind} starts with {@code plan}, or the refusal of its values (ADR-292 §7); the window shows its line. */
@@ -334,7 +370,7 @@ final class ControlPanelState {
             case RUN -> ChildCommand.run(runtime.java(), runtime.jar(), now);
             case LABEL -> ChildCommand.label(runtime.java(), runtime.jar(), false, now);
             case LABEL_AUTO -> ChildCommand.label(runtime.java(), runtime.jar(), true, now);
-            case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now);
+            case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now, plan.destinations());
         };
         command = command.withOptions(plan.presets());
         return kind == Start.LABEL && plan.labelFile() != null ? command.withLabelFile(plan.labelFile()) : command;

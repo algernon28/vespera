@@ -122,6 +122,29 @@ public final class ProfileEdit {
         return YamlLines.join(lines);
     }
 
+    /**
+     * The text of the file with {@code key}'s whole block taken out, every other byte kept, so that the jar reads the
+     * key as unset (ADR-345 §2); the text as it is where the file holds no block of the key.
+     */
+    public static String without(String current, ProfileKey key) {
+        Parsed parsed = parse(current);
+        Block block = parsed.blocks().get(key);
+        if (block == null) {
+            return current;
+        }
+        int next = parsed.lines().size();
+        for (Block other : parsed.blocks().values()) {
+            if (other.keyLine() > block.keyLine() && other.keyLine() < next) {
+                next = other.keyLine();
+            }
+        }
+        List<Line> lines = parsed.lines();
+        for (int n = next - 1; n >= block.keyLine(); n--) {
+            lines.remove(n);
+        }
+        return YamlLines.join(lines);
+    }
+
     /** The value and provenance the file states for each key it holds, decoded as the jar reads them (§3, §3a). */
     public static Map<ProfileKey, Stated> read(String text) {
         Parsed parsed = parse(text);

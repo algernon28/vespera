@@ -100,6 +100,11 @@ final class Cockpit {
     private boolean seedStated;
     private final InclusionsTree inclusions = new InclusionsTree();
     private final Label inclusionsOutcome = new Label();
+    private final ListView<String> notRelevantList = new ListView<>();
+    private final TextField notRelevantFolder = new TextField();
+    private final Label notRelevantOutcome = new Label();
+    private final HBox publishTo = new HBox();
+    private List<String> notWalkedListed = List.of();
     private final VBox codeSets = new VBox();
     private final List<CodeSet> codeSetEntries = new ArrayList<>();
     private final TextField codeSetNote = new TextField();
@@ -126,9 +131,11 @@ final class Cockpit {
         final Label startingLine = new Label();
         final Label status = new Label();
         final StartingValues.Starting starting;
+        private final boolean createdByTheJar;
 
         LaunchField(String property, boolean folder, boolean createdByTheJar) {
             this.property = property;
+            this.createdByTheJar = createdByTheJar;
             this.starting = StartingValues.of(property, state.sources());
             input.setId(property);
             input.setText(starting.value());
@@ -139,9 +146,8 @@ final class Cockpit {
             status.setId("status-" + property);
             status.getStyleClass().add("small");
             if (folder) {
-                input.textProperty().addListener((observed, was, now) -> status.setText(
-                        FolderStatus.of(now, createdByTheJar).words()));
-                status.setText(FolderStatus.of(input.getText(), createdByTheJar).words());
+                input.textProperty().addListener((observed, was, now) -> status.setText(statusWords(now)));
+                status.setText(statusWords(input.getText()));
             }
             input.textProperty().addListener((observed, was, now) -> {
                 showCommandLines();
@@ -152,6 +158,15 @@ final class Cockpit {
 
         String text() {
             return input.getText().strip();
+        }
+
+        /** What the field says of its folder; an empty working directory says the folder it stands for (ADR-345 §1). */
+        private String statusWords(String text) {
+            if (property.equals("vespera.working-dir") && text.isBlank()) {
+                String theDefault = state.workingDirectoryDefault().folder();
+                return "In use: " + theDefault + " (" + FolderStatus.of(theDefault, true).words() + ")";
+            }
+            return FolderStatus.of(text, createdByTheJar).words();
         }
     }
 
@@ -247,7 +262,9 @@ final class Cockpit {
         label.setOnAction(event -> begin(ControlPanelState.Start.LABEL, "Record my answers"));
         labelAuto.setOnAction(event -> begin(ControlPanelState.Start.LABEL_AUTO, "Let the local model answer"));
         stop.setOnAction(event -> stopAfterConfirming());
-        actions.getChildren().addAll(run, stop);
+        publishTo.setId("publish-to");
+        publishTo.getStyleClass().add("spaced-row");
+        actions.getChildren().addAll(run, stop, publishTo);
         actions.getStyleClass().add("actions");
         wanted.setId("wanted");
         wanted.getStyleClass().add("wanted");
@@ -381,7 +398,39 @@ final class Cockpit {
             }
         }
         Path file = labelFile.getText().isBlank() ? null : InclusionsTree.pathOf(labelFile.getText().strip()).orElse(null);
-        return new ControlPanelState.Plan(valuesOf(passed, seed), valuesOf(kept, seed), options, file);
+        if (!passed.containsKey("vespera.working-dir")) {
+            // the field left empty stands for the folder the jar would use on this machine (ADR-345 §1)
+            passed.put("vespera.working-dir", state.workingDirectoryDefault().folder());
+        }
+        List<String> ticked = publishTo.getChildren().stream().filter(CheckBox.class::isInstance)
+                .map(CheckBox.class::cast).filter(CheckBox::isSelected)
+                .map(box -> box.getId().substring("publish-to-".length())).toList();
+        return new ControlPanelState.Plan(valuesOf(passed, seed), valuesOf(kept, seed), options, file, ticked);
+    }
+
+    /** Draws a box for each destination whose rendering is drawn, Confluence's ticked and the others not, as each is added (ADR-345 §4). */
+    private void drawDestinations(List<String> drawn) {
+        List<String> shown = publishTo.getChildren().stream().map(Node::getId)
+                .map(id -> id.substring("publish-to-".length())).toList();
+        if (shown.equals(drawn)) {
+            return;
+        }
+        List<Node> boxes = new ArrayList<>();
+        for (String destination : drawn) {
+            Node existing = publishTo.getChildren().stream()
+                    .filter(each -> ("publish-to-" + destination).equals(each.getId())).findFirst().orElse(null);
+            if (existing != null) {
+                boxes.add(existing);
+                continue;
+            }
+            CheckBox box = new CheckBox(destination);
+            box.setId("publish-to-" + destination);
+            box.setSelected(destination.equals("confluence"));
+            box.selectedProperty().addListener((observed, was, now) -> showCommandLines());
+            boxes.add(box);
+        }
+        publishTo.getChildren().setAll(boxes);
+        showCommandLines();
     }
 
     private static LaunchValues valuesOf(Map<String, String> by, String lastSeedFolder) {
@@ -627,9 +676,16 @@ final class Cockpit {
         return folderOf(fields.get("vespera.corpus-root"));
     }
 
-    /** The working directory as the field names it now: it is what a Run is passed, whether or not it is ever remembered. */
+    /**
+     * The working directory as the field names it now: it is what a Run is passed, whether or not it is ever remembered.
+     * Where the field is empty it stands for the folder the jar would use on this machine (ADR-345 §1).
+     */
     private Optional<Path> workingDirectory() {
-        return folderOf(fields.get("vespera.working-dir"));
+        LaunchField field = fields.get("vespera.working-dir");
+        if (field == null || !field.text().isEmpty()) {
+            return folderOf(field);
+        }
+        return ControlPanelState.pathOf(state.workingDirectoryDefault().folder());
     }
 
     private static Optional<Path> folderOf(LaunchField field) {
@@ -991,15 +1047,215 @@ final class Cockpit {
         save.setOnAction(event -> saveInclusions());
         reset.setOnAction(event -> {
             drawInclusions();
-            inclusionsOutcome.setText("the tree is back to not-relevant-folders.yaml as last saved");
+            inclusionsOutcome.setText("the tree is back to profile.yaml as last saved");
         });
         inclusionsOutcome.setId("inclusions-outcome");
         inclusionsOutcome.setWrapText(true);
         VBox.setVgrow(inclusions.view(), Priority.ALWAYS);
-        VBox content = new VBox(new Label("Untick a folder holding nothing you want."), inclusions.view(),
-                inclusionsOutcome, row(save, reset));
+        Label words = new Label("Untick a folder holding nothing you want. An unticked folder is never read, and a"
+                + " change makes the next walk another, so every run after it is new.");
+        words.setWrapText(true);
+        VBox content = new VBox(words, inclusions.view(), inclusionsOutcome, row(save, reset), notRelevantPane());
         content.getStyleClass().add("tab-content");
         return content;
+    }
+
+    /** The folders not relevant, a list beneath the tree (ADR-345 §2, ADR-334 §6). */
+    private Node notRelevantPane() {
+        notRelevantList.setId("not-relevant-list");
+        notRelevantList.setPrefHeight(120);
+        notRelevantFolder.setId("not-relevant-folder");
+        notRelevantFolder.setPromptText("A folder, from the corpus root, / between its names");
+        HBox.setHgrow(notRelevantFolder, Priority.ALWAYS);
+        Button browse = new Button("Browse");
+        browse.setId("not-relevant-browse");
+        browse.setOnAction(event -> dialogs.folder("Choose a folder not relevant",
+                corpusRoot().map(Path::toString).orElse("")).ifPresent(chosen -> notRelevantFolder.setText(
+                        fromTheCorpusRoot(chosen))));
+        Button add = new Button("Add");
+        add.setId("not-relevant-add");
+        add.setOnAction(event -> changeNotRelevant(null));
+        Button remove = new Button("Remove");
+        remove.setId("not-relevant-remove");
+        remove.setOnAction(event -> changeNotRelevant(notRelevantList.getSelectionModel().getSelectedItem()));
+        notRelevantOutcome.setId("not-relevant-outcome");
+        notRelevantOutcome.setWrapText(true);
+        Label words = new Label("Folders not relevant are still read: the relevance questions below them are answered"
+                + " not relevant, and no run changes.");
+        words.setWrapText(true);
+        VBox pane = new VBox(new Label("Folders not relevant"), words, notRelevantList,
+                row(notRelevantFolder, browse, add, remove), notRelevantOutcome);
+        pane.getStyleClass().add("section");
+        return pane;
+    }
+
+    /** {@code chosen} as a folder not relevant is spelt: from the corpus root with {@code /} between its names where it lies below it. */
+    private String fromTheCorpusRoot(Path chosen) {
+        Optional<Path> root = corpusRoot();
+        Path absolute = chosen.toAbsolutePath().normalize();
+        if (root.isPresent() && absolute.startsWith(root.get().toAbsolutePath().normalize())
+                && !absolute.equals(root.get().toAbsolutePath().normalize())) {
+            return root.get().toAbsolutePath().normalize().relativize(absolute).toString().replace('\\', '/');
+        }
+        return absolute.toString().replace('\\', '/');
+    }
+
+    private void drawNotRelevant() {
+        try {
+            notRelevantList.getItems().setAll(NotRelevantFolders.read(readFile(NotRelevantFolders.FILE_NAME)));
+        } catch (IOException | IllegalArgumentException unreadable) {
+            notRelevantList.getItems().clear();
+            notRelevantOutcome.setText(String.valueOf(unreadable.getMessage()));
+        }
+    }
+
+    /**
+     * ADR-334 §6's one action, in one hold of the lock: the folder typed added to the list the file holds as read then, or
+     * {@code removed} taken out of it, and every question of the label file answered from the list, all or none.
+     */
+    private void changeNotRelevant(String removed) {
+        Optional<Path> folder = workingDirectory();
+        if (folder.isEmpty()) {
+            notRelevantOutcome.setText("name the working directory first");
+            return;
+        }
+        String typed = notRelevantFolder.getText().strip();
+        boolean adding = removed == null;
+        if (adding && typed.isEmpty()) {
+            notRelevantOutcome.setText("type a folder first, or select one of the list to remove");
+            return;
+        }
+        if (adding) {
+            Optional<String> refusal = refusalOfNotRelevantFolder(typed, List.of());
+            if (refusal.isPresent()) {
+                notRelevantOutcome.setText(refusal.get());
+                return;
+            }
+        }
+        List<String> kept = new ArrayList<>();
+        int[] counts = new int[2];
+        boolean[] answered = {false};
+        List<WorkingDirectoryWrite.Change> changes = List.of(
+                new WorkingDirectoryWrite.Change(NotRelevantFolders.FILE_NAME, current -> {
+                    // rebuilt from the file as read under the lock, never from the list as drawn (ADR-334 §6)
+                    List<String> list = new ArrayList<>(NotRelevantFolders.read(current));
+                    if (!adding) {
+                        list.removeIf(listed -> listed.equals(removed));
+                    } else {
+                        Optional<String> refusal = refusalOfNotRelevantFolder(typed, list);
+                        if (refusal.isPresent()) {
+                            throw new IllegalArgumentException(refusal.get());
+                        }
+                        list.add(typed);
+                    }
+                    kept.clear();
+                    kept.addAll(list);
+                    return NotRelevantFolders.render(list);
+                }),
+                new WorkingDirectoryWrite.Change(LabelAnswers.FILE_NAME, current -> {
+                    if (current.isEmpty()) {
+                        return null;
+                    }
+                    answered[0] = true;
+                    return answersGivenBy(current.get(), kept, counts);
+                }));
+        Optional<String> refusal = state.write(folder.get(), changes);
+        if (refusal.isPresent()) {
+            notRelevantOutcome.setText(refusal.get());
+            return;
+        }
+        if (adding) {
+            notRelevantFolder.clear();
+        }
+        Path file = folder.get().resolve(NotRelevantFolders.FILE_NAME);
+        drawNotRelevant();
+        notRelevantOutcome.setText(answered[0]
+                ? "the folders not relevant are saved in " + file + ", and the " + counts[0] + " questions answered: "
+                        + counts[1] + " not relevant, " + (counts[0] - counts[1]) + " relevant"
+                : "the folders not relevant are saved in " + file + "; there are no questions to answer yet");
+    }
+
+    /**
+     * The label file's text with each question answered by the folders listed (ADR-334 §6): {@code false} where its
+     * path lies at or below one, {@code true} otherwise. Only a {@code relevant} line whose answer changes is rewritten.
+     *
+     * @param counts set to the number of questions and the number answered not relevant
+     */
+    private static String answersGivenBy(String text, List<String> folders, int[] counts) {
+        List<LabelAnswers.Question> questions = LabelAnswers.read(text);
+        Map<String, Optional<Boolean>> changed = new LinkedHashMap<>();
+        counts[0] = questions.size();
+        counts[1] = 0;
+        for (LabelAnswers.Question question : questions) {
+            boolean relevant = folders.stream().noneMatch(folder -> NotRelevantFolders.lies(question.path(), folder));
+            if (!relevant) {
+                counts[1]++;
+            }
+            if (!question.relevant().equals(Optional.of(relevant))) {
+                changed.put(question.path(), Optional.of(relevant));
+            }
+        }
+        return LabelAnswers.rewrite(Optional.of(text), changed);
+    }
+
+    /** The line refusing {@code typed} as a folder not relevant, or none (ADR-334 §6). */
+    private Optional<String> refusalOfNotRelevantFolder(String typed, List<String> listed) {
+        String refused = "the folder " + typed + " is not added: ";
+        if (typed.equals(".") || typed.equals("./") || typed.equals(".\\") || namesTheCorpusRoot(typed)) {
+            return Optional.of(refused + "the corpus root holds every question; name a folder below it");
+        }
+        boolean belowACodeSetFolder = NotRelevantFolders.isAbsolute(typed)
+                && codeSetFoldersStated().stream().map(CodeSetFolderChecks::spelt)
+                        .anyMatch(stated -> NotRelevantFolders.lies(typed, stated));
+        if (!NotRelevantFolders.isWritten(typed) || (NotRelevantFolders.isAbsolute(typed) && !belowACodeSetFolder)) {
+            return Optional.of(refused
+                    + "it is not a folder below the corpus root, written with / between its elements");
+        }
+        if (listed.stream().anyMatch(stated -> NotRelevantFolders.lies(typed, stated)
+                && NotRelevantFolders.lies(stated, typed))) {
+            return Optional.of(refused + "it is listed already");
+        }
+        return Optional.empty();
+    }
+
+    /** The code set folders the profile states, outside the corpus root; none where it states none or cannot be read. */
+    private List<String> codeSetFoldersStated() {
+        try {
+            Optional<String> text = readFile(ProfileEdit.FILE_NAME);
+            if (text.isEmpty()) {
+                return List.of();
+            }
+            ProfileEdit.Stated stated = ProfileEdit.read(text.get()).get(ProfileKey.CODE_SET_FOLDERS);
+            return stated == null || stated.value() == null ? List.of() : CodeSetFolderChecks.statedIn(stated.value());
+        } catch (IOException | IllegalArgumentException unreadable) {
+            return List.of();
+        }
+    }
+
+    /** Whether {@code typed} spells the corpus root itself, with either separator, with or without a trailing one. */
+    private boolean namesTheCorpusRoot(String typed) {
+        Optional<Path> root = corpusRoot();
+        if (root.isEmpty() || !NotRelevantFolders.isAbsolute(typed.replace('\\', '/'))) {
+            return false;
+        }
+        String given = withoutTrailingSeparators(typed);
+        String own = withoutTrailingSeparators(root.get().toString());
+        if (NotRelevantFolders.lies(given, own) && NotRelevantFolders.lies(own, given)) {
+            return true;
+        }
+        try {
+            return Files.isSameFile(Path.of(typed), root.get());
+        } catch (IOException | RuntimeException cannotBeCompared) {
+            return false;
+        }
+    }
+
+    private static String withoutTrailingSeparators(String path) {
+        String slashed = path.strip().replace('\\', '/');
+        while (slashed.length() > 1 && slashed.endsWith("/")) {
+            slashed = slashed.substring(0, slashed.length() - 1);
+        }
+        return slashed;
     }
 
     private Optional<String> readFile(String name) throws IOException {
@@ -1010,26 +1266,87 @@ final class Cockpit {
         return Optional.of(Files.readString(folder.get().resolve(name), StandardCharsets.UTF_8));
     }
 
+    /**
+     * Draws the tree of the corpus root the field names, with each folder the profile's {@code foldersNotWalked} lists
+     * unticked (ADR-345 §2); a value the walk cannot read is drawn as the walk reads it, every folder ticked, and said.
+     */
     private void drawInclusions() {
         List<String> listed = List.of();
         try {
-            listed = NotRelevantFolders.read(readFile(NotRelevantFolders.FILE_NAME));
+            Optional<String> text = readFile(ProfileEdit.FILE_NAME);
+            ProfileEdit.Stated stated = text.isEmpty() ? null
+                    : ProfileEdit.read(text.get()).get(ProfileKey.FOLDERS_NOT_WALKED);
+            if (stated != null && stated.value() != null && !stated.value().isBlank()) {
+                if (ProfileEdit.isReadable(ProfileKey.FOLDERS_NOT_WALKED, stated.value())) {
+                    listed = List.of(stated.value().split(java.util.regex.Pattern.quote(java.io.File.pathSeparator)))
+                            .stream().map(String::strip).filter(piece -> !piece.isEmpty()).toList();
+                } else {
+                    inclusionsOutcome.setText(ProfileKey.FOLDERS_NOT_WALKED.key() + " in " + ProfileEdit.FILE_NAME
+                            + " cannot be read, so the walk reads every folder and every folder is drawn ticked; a Save"
+                            + " takes the value out");
+                }
+            }
         } catch (IOException | IllegalArgumentException unreadable) {
             inclusionsOutcome.setText(String.valueOf(unreadable.getMessage()));
         }
+        notWalkedListed = listed;
         inclusions.draw(corpusRoot(), listed);
+        drawNotRelevant();
     }
 
+    /**
+     * Writes the profile's {@code foldersNotWalked} and nothing else (ADR-345 §2): the highest unticked folder of each
+     * branch, the pieces already listed first; a value as the file states it is not written, a changed one is written
+     * with the note filled in, and with no folder unticked and none kept the key is taken out.
+     */
     private void saveInclusions() {
         Optional<Path> folder = workingDirectory();
         if (folder.isEmpty()) {
             inclusionsOutcome.setText("name the working directory first");
             return;
         }
-        List<String> chosen = inclusions.notRelevant();
-        Optional<String> failed = state.write(folder.get(), NotRelevantFolders.FILE_NAME,
-                current -> NotRelevantFolders.render(chosen));
-        inclusionsOutcome.setText(failed.orElse(NotRelevantFolders.FILE_NAME + " saved in " + folder.get()));
+        ProfileKey key = ProfileKey.FOLDERS_NOT_WALKED;
+        Map<ProfileKey, ProfileEdit.Stated> stated;
+        try {
+            stated = ProfileRow.statedIn(folder.get());
+        } catch (IOException | IllegalArgumentException unreadable) {
+            inclusionsOutcome.setText(String.valueOf(unreadable.getMessage()));
+            return;
+        }
+        Optional<ProfileEdit.Stated> inFile = Optional.ofNullable(stated.get(key));
+        List<String> pieces = inclusions.toWrite(notWalkedListed);
+        String saidSo = "; the next walk is another, so every run after it is new";
+        if (pieces.isEmpty()) {
+            if (inFile.map(ProfileEdit.Stated::value).filter(value -> value != null && !value.isBlank()).isEmpty()) {
+                inclusionsOutcome.setText("nothing was written: every folder is ticked and the profile lists none");
+                return;
+            }
+            Optional<String> failed = state.write(folder.get(), ProfileEdit.FILE_NAME,
+                    current -> ProfileEdit.without(current.orElseThrow(), key));
+            inclusionsOutcome.setText(failed.orElse(key.key() + " is taken out of " + folder.get().resolve(
+                    ProfileEdit.FILE_NAME) + saidSo));
+            loadFiles();
+            return;
+        }
+        String value = String.join(java.io.File.pathSeparator, pieces);
+        Optional<String> note = ProfileEdit.noteToSave(key, value, ProfileEdit.noteShown(inFile), inFile);
+        if (note.isEmpty()) {
+            inclusionsOutcome.setText("nothing was written: the folders not walked are as " + ProfileEdit.FILE_NAME
+                    + " states them");
+            return;
+        }
+        Optional<String> refusal = ProfileEdit.refusalOfSave(key, value, note.get(), inFile, Optional.empty());
+        if (refusal.isPresent()) {
+            inclusionsOutcome.setText(refusal.get());
+            return;
+        }
+        Optional<String> failed = state.write(folder.get(), ProfileEdit.FILE_NAME,
+                current -> ProfileEdit.rewrite(current, key, value, note.get()));
+        inclusionsOutcome.setText(failed.orElse(key.key() + " saved in " + folder.get().resolve(ProfileEdit.FILE_NAME)
+                + saidSo));
+        if (failed.isEmpty()) {
+            loadFiles();
+        }
     }
 
     /** Reads the working directory's files into the profile form, the seed folder, the code sets and the tree. */
@@ -1070,8 +1387,14 @@ final class Cockpit {
             Optional<EffectiveValues.Value> beneath = key.hasAValueBeneath()
                     ? effective.flatMap(said -> said.named(key.key())) : Optional.empty();
             ProfileRow row = new ProfileRow(key, "profile-", models, beneath, dialogs,
-                    chosen -> sidebar.setExpandedPane(sections.get(chosen == ProfileKey.SEED_FOLDER
-                            ? "seed-folder" : "code-sets")), this::openReport, written);
+                    chosen -> {
+                        if (chosen == ProfileKey.FOLDERS_NOT_WALKED) {
+                            tabs.getSelectionModel().select(inclusionsTab);
+                        } else {
+                            sidebar.setExpandedPane(sections.get(chosen == ProfileKey.SEED_FOLDER
+                                    ? "seed-folder" : "code-sets"));
+                        }
+                    }, this::openReport, written);
             row.load(Optional.ofNullable(stated.get(key)));
             profileRows.add(row);
             profileBody.getChildren().add(row.node());
@@ -1238,12 +1561,15 @@ final class Cockpit {
         labelAuto.setDisable(busy);
         publish.setDisable(busy);
         stop.setDisable(!runs);
-        boolean drawn = state.aRenderingIsDrawn(workingDirectory(), fields.get("vespera.deliverable-root").text());
+        List<String> drawnDestinations = state.destinationsDrawn(workingDirectory(),
+                fields.get("vespera.deliverable-root").text());
+        boolean drawn = !drawnDestinations.isEmpty();
         if (drawn && !actions.getChildren().contains(publish)) {
-            actions.getChildren().add(publish);
+            actions.getChildren().add(actions.getChildren().indexOf(publishTo), publish);
         } else if (!drawn) {
             actions.getChildren().remove(publish);
         }
+        drawDestinations(drawnDestinations);
         child.setText(childWords(runs, ending));
         List<String> tail = state.tail();
         if (!tail.equals(lastOutput)) {

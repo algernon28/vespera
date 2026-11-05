@@ -42,10 +42,14 @@ public final class StopCosts {
     /**
      * The stage under whose runs the jar records {@code step}'s completion (ADR-269 section 5, ADR-344 section 1), held
      * as text because the window links no class of the jar (ADR-285 section 3); empty for a step the jar records under no
-     * stage's run: the census, the relevance floor and the relevance report.
+     * stage's run, the number the records give it (ADR-345 section 3): {@code 0} for the census, {@code 5e} for the
+     * relevance floor and {@code 5} for the relevance report; empty for a step the table does not name.
      */
     public static String stageOf(String step) {
         return switch (step) {
+            case "census" -> "0";
+            case "relevance-floor" -> "5e";
+            case "relevance-report" -> "5";
             case "byte-level-reduction" -> "byte-level-reduction";
             case "extraction" -> "extraction";
             case "content-census" -> "content-census";

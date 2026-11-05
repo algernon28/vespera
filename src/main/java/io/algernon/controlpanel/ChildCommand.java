@@ -11,8 +11,9 @@ import java.util.Map;
  * The command line, environment and current directory of the child the control panel starts (ADR-278 §1, ADR-285 §5):
  * only the jar's {@code run}, {@code label} and {@code publish} commands (ADR-308 §6), after both encoding flags, with
  * absolute paths and {@code CI=1}, then the options of the command line the operator set in the window (ADR-344 §4). A
- * publish's child inherits the five values it reads from the operator's environment, as every child inherits it; the
- * control panel adds none of them.
+ * child inherits the operator's environment less the eight variables that name the working directory (ADR-340 §6, kept
+ * by ADR-345 §1), so that the folder passed is the folder the jar opens; a publish's child still inherits the five
+ * values it reads, and the control panel adds none of them.
  */
 public final class ChildCommand {
 
@@ -36,7 +37,32 @@ public final class ChildCommand {
                     "Passed by the label file option, absolute, to Record my answers alone: label --auto refuses one"
                             + " (ADR-197 §6)."),
             new Argument("label", "db-dir", "vespera.working-dir", "As for run."),
-            new Argument("publish", "db-dir", "vespera.working-dir", "As for run; Publish stands in the action card."));
+            new Argument("publish", "to", "publish-to",
+                    "The boxes beside Publish, one for each destination drawn; never a launch value."),
+            new Argument("publish", "db-dir", "vespera.working-dir", "As for run; Publish stands in the action row."),
+            new Argument("serve", "db-dir", "",
+                    "Never passed: the window starts no vespera serve, a reader's server being a command the operator"
+                            + " starts and ends."));
+
+    /**
+     * The destinations the control panel offers, which {@code publish --to} names, in the order the boxes are offered: a
+     * closed list of the control panel's own, which names no class of the jar (ADR-285 §3, ADR-333 §6). A test holds it
+     * to the names of the plugins compiled into the jar.
+     */
+    public static final List<String> DESTINATIONS = List.copyOf(destinationLists().keySet());
+
+    /** The file of each destination's rendering that says it is drawn, beside {@link #DESTINATIONS}, whose order it fixes. */
+    static final Map<String, String> DESTINATION_LISTS = destinationLists();
+
+    private static Map<String, String> destinationLists() {
+        Map<String, String> lists = new LinkedHashMap<>();
+        lists.put("confluence", "pages.json");
+        lists.put("website", "files.json");
+        return Collections.unmodifiableMap(lists);
+    }
+
+    private static final List<String> NAMING_THE_WORKING_DIRECTORY = List.of("VESPERA_WORKINGDIR",
+            "VESPERA_WORKING_DIR", "vespera_workingdir", "vespera_working_dir", "DBDIR", "DB_DIR", "dbdir", "db_dir");
 
     /**
      * One option of the command line the window passes (ADR-344 §4): the jar's property, the commands it is passed
@@ -123,13 +149,25 @@ public final class ChildCommand {
                 auto ? List.of("label", "--auto") : List.of("label"), auto ? "label --auto" : "label", Map.of());
     }
 
-    /** @throws IllegalArgumentException with {@link LaunchValues#refusalToLabel()}'s line where there is one: a publish, as a label, needs the working directory alone */
-    public static ChildCommand publish(Path java, Path jar, LaunchValues values) {
+    /**
+     * {@code publish --to <destinations>}, joined by commas in the order given (ADR-333 §6, ADR-345 §4).
+     *
+     * @throws IllegalArgumentException with {@link LaunchValues#refusalToLabel()}'s line where there is one: a publish,
+     *     as a label, needs the working directory alone; or with a line of its own where {@code destinations} is empty
+     *     or names one outside {@link #DESTINATIONS}
+     */
+    public static ChildCommand publish(Path java, Path jar, LaunchValues values, List<String> destinations) {
         values.refusalToLabel().ifPresent(line -> {
             throw new IllegalArgumentException(line);
         });
-        return new ChildCommand(java, jar, values, Path.of(values.workingDirectory()), List.of("publish"), "publish",
-                Map.of());
+        if (destinations.isEmpty()) {
+            throw new IllegalArgumentException("no destination is ticked");
+        }
+        if (!DESTINATIONS.containsAll(destinations)) {
+            throw new IllegalArgumentException("a destination outside the ones the control panel offers was named");
+        }
+        return new ChildCommand(java, jar, values, Path.of(values.workingDirectory()),
+                List.of("publish", "--to", String.join(",", destinations)), "publish", Map.of());
     }
 
     /**
@@ -180,9 +218,19 @@ public final class ChildCommand {
         return directory;
     }
 
+    /** The child's whole environment where the control panel's is {@code inherited}: it less the eight, {@link #environment()} over it (ADR-340 §6). */
+    public Map<String, String> environmentFrom(Map<String, String> inherited) {
+        Map<String, String> whole = new LinkedHashMap<>(inherited);
+        NAMING_THE_WORKING_DIRECTORY.forEach(whole::remove);
+        whole.putAll(environment());
+        return whole;
+    }
+
     public ProcessBuilder processBuilder() {
         ProcessBuilder builder = new ProcessBuilder(command);
-        builder.environment().putAll(environment());
+        Map<String, String> whole = environmentFrom(new LinkedHashMap<>(builder.environment()));
+        builder.environment().clear();
+        builder.environment().putAll(whole);
         builder.directory(directory.toFile());
         return builder;
     }

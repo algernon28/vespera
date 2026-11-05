@@ -76,10 +76,12 @@ final class ProfileRow {
         about.setWrapText(true);
         about.getStyleClass().add("dim");
         node.getChildren().addAll(title, small, about);
-        if (key == ProfileKey.CODE_SET_FOLDERS || (key == ProfileKey.SEED_FOLDER && opensSection != null)) {
+        if (key == ProfileKey.CODE_SET_FOLDERS
+                || ((key == ProfileKey.SEED_FOLDER || key == ProfileKey.FOLDERS_NOT_WALKED) && opensSection != null)) {
             Label shown = new Label();
             shown.setId(idPrefix + key.key());
-            Hyperlink opens = new Hyperlink("Edit it in its section");
+            Hyperlink opens = new Hyperlink(key == ProfileKey.FOLDERS_NOT_WALKED ? "Edit it in the Inclusions tab"
+                    : "Edit it in its section");
             opens.setOnAction(event -> opensSection.accept(key));
             value = shown::getText;
             setValue = shown::setText;

@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
 import javafx.application.Application;
 
@@ -50,6 +51,9 @@ public final class ControlPanel {
                 corpusRootLockFolder(System.getenv(CORPUS_ROOT_LOCK_FOLDER_VARIABLE), System.getProperty("user.home")),
                 userName);
         state.useSources(readSources());
+        Map<String, String> properties = new HashMap<>();
+        System.getProperties().stringPropertyNames().forEach(name -> properties.put(name, System.getProperty(name)));
+        state.useWorkingDirectoryDefault(WorkingDirectoryDefault.of(Path.of(""), properties, System.getenv()));
         endChildWithThisJvm(state);
         ControlPanelWindow.launchedWith(state);
         try {
