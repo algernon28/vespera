@@ -20,6 +20,10 @@
 // docs/adr/0348 corrects docs/adr/0201 section 5's and docs/adr/0233's reading of ${NAME+word} and
 // ${NAME:+word}: the word, or nothing, in the variable's place, and never its value; and a token that holds
 // one beside or around another variable with a word is refused. The G8 and G9 cases are held to it.
+// docs/adr/0351 amends docs/adr/0196 section 4 and docs/adr/0215 section 3(c): in a Bash command a
+// message, a filter, a body or a pattern given by a flag named by program, a single-quoted pattern or
+// program of grep, awk or jq, and the lines of a quoted here-document cat writes into the temp folder are
+// not read as paths, and those lines not for a .claude folder either. The C5 and C6 cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -1839,6 +1843,73 @@ for (const [n, sign] of [["1", "+"], ["2", ":+"]]) {
     [`G93${n}`, `git show of an index path whose rest is two ${sign} side by side, one set and one not, which give one climb out of the allow list`, "Bash", { command: `git show :${twice}/../outside/doc.txt` }, REFUSED, side],
   );
 }
+
+/* C5. docs/adr/0351: in a Bash command the guard reads as no path the argument of a flag that gives a
+   program text and never a file (git commit, tag, merge and stash's -m and --message, gh's --jq, -q and
+   --body, grep's -e and --regexp), the first operand of grep, awk and jq when it is single-quoted and is
+   the program's pattern or program, and the body of a here-document whose delimiter is quoted and which
+   cat writes to a file in the temp folder. The text rule of docs/adr/0215 section 3(c) still reads a
+   flag's argument and an operand (Q108 stands), and is lifted from such a body alone. Each of C501 to
+   C505 is one of the five commands issue #697 names. Before this record C501 to C504 were refused on
+   Windows, each for a piece of its text read as a name made only of a stream name or of spaces
+   (docs/adr/0217 section 2), and C505 everywhere, for its lines' text (docs/adr/0215 section 3(c)). */
+const ISSUE_697 = [
+  ["C501", "gh with a --jq filter that interpolates with \\( and a colon between", "gh issue view 697 --repo algernon28/vespera --json title,state --jq '\"\\(.title):\\(.state)\"'"],
+  ["C502", "awk whose program counts lines of seven = and matches a line of seven > and a space", "awk '/^=======$/{n++} /^>>>>>>> /{print NR}' README.md"],
+  ["C503", "git commit -m whose message holds \\| and a word that begins with a slash", 'git commit -m "Split at \\| and keep /: as written"'],
+  ["C504", "grep whose pattern is an alternation of two one-letter keys written with \\|", "grep -n 'x: \\|y: ' README.md"],
+  ["C505", "cat of a here-document into the temp folder whose lines name files in the hooks and agents folders", "cat > \"$TEMP/issue-697-body.md\" <<'EOF'\nThe guard at .claude/hooks/private-paths-guard.mjs refused it.\nSo did a check named in .claude/agents/architect.md, and ../outside/doc.txt is named too.\nEOF"],
+];
+for (const [id, what, command] of ISSUE_697) cases.push([id, what, "Bash", { command }, ALLOWED]);
+cases.push(
+  /* C51. More of what the record lets through. */
+  ["C511", "grep -e whose pattern is an alternation written with \\|", "Bash", { command: "grep -n -e 'guard\\|fixture' README.md" }, ALLOWED],
+  ["C512", "git commit -m whose message names a climb out of the checkout", "Bash", { command: 'git commit -m "Compare it with ../outside/doc.txt."' }, ALLOWED],
+  ["C513", "git commit --message= whose message holds \\|", "Bash", { command: "git commit --message='split at \\| and /x/'" }, ALLOWED],
+  ["C514", "gh pr create whose --body names a climb out of the checkout", "Bash", { command: "gh pr create --title t --body 'Refs ../outside/doc.txt and /x\\|y/'" }, ALLOWED],
+  ["C515", "gh api whose -q filter interpolates with \\(", "Bash", { command: "gh api repos/o/r/issues --jq '.[] | \"\\(.number) \\(.title)\"' -q '.[0]'" }, ALLOWED],
+  ["C516", "git commit -m whose message names a drive no allowed root is on", "Bash", { command: `git commit -m "${NO_DRIVE} is text here."` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["C517", "jq whose program interpolates with \\(", "Bash", { command: "jq -r '.[] | \"\\(.a)/\\(.b)\"' README.md" }, ALLOWED],
+  ["C518", "a here-document appended to a file in the temp folder, the redirect after the delimiter", "Bash", { command: "cat <<'EOF' >> \"$TEMP/notes.md\"\n.claude/settings.json and ../outside/doc.txt\nEOF" }, ALLOWED],
+  ["C519", "a here-document into the temp folder, then a command that reads a file inside the checkout", "Bash", { command: "cat > \"$TEMP/b.md\" <<'EOF'\n.claude/hooks/x\nEOF\ncat README.md" }, ALLOWED],
+
+  /* C6. A real path beside a flag or operand that is no path is still read, and refused. */
+  ["C601", "git commit -m with a file outside the allow list after the message", "Bash", { command: 'git commit -m "fix" ../outside/doc.txt' }, REFUSED],
+  ["C602", "git commit -m, then -- and a file outside the allow list", "Bash", { command: "git commit -m fix -- ../outside/doc.txt" }, REFUSED],
+  ["C603", "git commit --message= with a file outside the allow list after it", "Bash", { command: "git commit --message=fix ../outside/doc.txt" }, REFUSED],
+  ["C604", "grep -e with a file outside the allow list after the pattern", "Bash", { command: "grep -e 'a\\|b' ../outside/doc.txt" }, REFUSED],
+  ["C605", "grep with a quoted pattern and a file outside the allow list", "Bash", { command: "grep 'a\\|b' ../outside/doc.txt" }, REFUSED],
+  ["C606", "grep --exclude-from a file outside the allow list, before a quoted pattern", "Bash", { command: "grep --exclude-from '../outside/doc.txt' 'x' README.md" }, REFUSED],
+  ["C607", "grep -f a file outside the allow list, quoted", "Bash", { command: "grep -f '../outside/doc.txt' README.md" }, REFUSED],
+  ["C608", "gh api whose --jq is skipped and whose --input names a file outside the allow list", "Bash", { command: "gh api repos/o/r --jq '.x' --input ../outside/doc.txt" }, REFUSED],
+  ["C609", "cat -e, whose -e takes no text, of a file outside the allow list", "Bash", { command: "cat -e ../outside/doc.txt" }, REFUSED],
+  ["C610", "head -q, whose -q takes no text, of a file outside the allow list", "Bash", { command: "head -q ../outside/doc.txt" }, REFUSED],
+  ["C611", "git am -m, which takes no text, of a mailbox outside the allow list", "Bash", { command: "git am -m ../outside/doc.txt" }, REFUSED],
+  ["C612", "git commit -m of a command substitution that reads a file outside the allow list", "Bash", { command: 'git commit -m "$(cat ../outside/doc.txt)"' }, REFUSED],
+  ["C613", "git commit -m of an unquoted word, then a second segment that reads a file outside the allow list", "Bash", { command: "git commit -m x && cat ../outside/doc.txt" }, REFUSED],
+  ["C614", "awk whose program is skipped, of a file outside the allow list", "Bash", { command: "awk '{ print }' ../outside/doc.txt" }, REFUSED],
+  ["C615", "awk whose program reads a file outside the allow list by getline", "Bash", { command: "awk 'BEGIN { while ((getline l < \"../outside/doc.txt\") > 0) print l }'" }, REFUSED],
+  ["C616", "awk -f of a program file outside the allow list, quoted", "Bash", { command: "awk -f '../outside/doc.txt' README.md" }, REFUSED],
+  ["C617", "jq whose program imports a module outside the allow list", "Bash", { command: "jq 'import \"../outside/doc\" as $d; .' README.md" }, REFUSED],
+  ["C618", "jq whose quoted filter is skipped, of a file outside the allow list", "Bash", { command: "jq '.x' ../outside/doc.txt" }, REFUSED],
+  ["C619", "sed, whose program is not skipped, of a quoted program that names a file outside the allow list", "Bash", { command: "sed 'r ../outside/doc.txt' README.md" }, REFUSED],
+  ["C620", "git commit -m of a message that names the allow list, which the text rule still reads", "Bash", { command: "git commit -m 'See .claude/allowed-paths.txt.'" }, REFUSED],
+  ["C621", "git commit -m of a message that climbs out of the checkout, in PowerShell, which skips nothing", "PowerShell", { command: 'git commit -m "Compare it with ../outside/doc.txt."' }, REFUSED],
+  ["C622", "a here-document whose delimiter is not quoted, into the temp folder, whose line names the hooks folder", "Bash", { command: "cat > \"$TEMP/x.md\" <<EOF\n.claude/hooks/private-paths-guard.mjs\nEOF" }, REFUSED],
+  ["C623", "a here-document whose delimiter is quoted, written to a file outside the allow list", "Bash", { command: "cat > ../outside/new.md <<'EOF'\nnote\nEOF" }, REFUSED],
+  ["C624", "a here-document whose delimiter is quoted, given to bash, whose line reads a file outside the allow list", "Bash", { command: "cat <<'EOF' | bash\ncat ../outside/doc.txt\nEOF" }, REFUSED],
+  ["C625", "a here-document into the temp folder, then a line that reads a file outside the allow list", "Bash", { command: "cat > \"$TEMP/x.md\" <<'EOF'\nnote\nEOF\ncat ../outside/doc.txt" }, REFUSED],
+  ["C626", "a here-document into a closed .claude folder under the temp folder", "Bash", { command: "cat > \"$TEMP/elsewhere/.claude/settings.json\" <<'EOF'\n{}\nEOF" }, REFUSED],
+  ["C627", "a here-document into the temp folder by a path that climbs out of it", "Bash", { command: "cat > \"$TEMP/../outside/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C628", "a here-document into the temp folder whose line after the delimiter runs a second command", "Bash", { command: "cat > \"$TEMP/x.md\" <<'EOF' && cat ../outside/doc.txt\nnote\nEOF" }, REFUSED],
+  ["C629", "a here-document into a file inside the checkout, not the temp folder, whose line names the hooks folder", "Bash", { command: "cat > notes.md <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C630", "a here-document into the temp folder by tee, not cat, whose line names the hooks folder", "Bash", { command: "tee \"$TEMP/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  // The pattern is skipped; the quoted file after it is read, and on Windows it is on drive X.
+  ["C631", "grep whose skipped pattern is followed by a quoted file headed by one letter and a colon", "Bash", { command: "grep -n 'x: \\|y: ' 'x: notes.txt'" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["C632", "git commit -m whose skipped message is followed by a token that begins with a colon", "Bash", { command: 'git commit -m "Split at \\| and keep /: as written" :notes.txt' }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["C633", "mawk -W exec of a program file outside the allow list, quoted", "Bash", { command: "mawk -W exec '../outside/doc.txt'" }, REFUSED],
+  ["C634", "jq --run-tests of a file outside the allow list, quoted", "Bash", { command: "jq --run-tests '../outside/doc.txt'" }, REFUSED],
+);
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
   const skip =

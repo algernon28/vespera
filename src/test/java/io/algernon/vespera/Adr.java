@@ -2476,6 +2476,16 @@ public final class Adr {
     public static final String THE_COCKPIT_REPLACES_THE_BROWSER_CONTROL_PANEL_AND_ITS_TREE_WRITES_THE_FOLDERS_NOT_WALKED =
             FILE + "0345-the-cockpit-replaces-the-browser-control-panel-its-tree-writes-the-folders-not-walked-and-publish-offers-each-destination.md";
 
+    /**
+     * ADR-351 -- in a Bash command the private-paths guard reads as no path the argument of git's {@code -m} and
+     * {@code --message}, gh's {@code --jq}, {@code -q} and {@code --body} and grep's {@code -e} and {@code --regexp}; the
+     * single-quoted first operand of grep, awk and jq where no option gives the pattern or program; and the lines of a
+     * here-document whose delimiter is quoted and which cat writes into the temp folder, which ADR-215 §3(c) no longer
+     * reads either (amends ADR-196 §4 and ADR-215 §3(c)).
+     */
+    public static final String THE_GUARD_READS_A_MESSAGE_A_PATTERN_AND_A_HERE_DOCUMENT_INTO_THE_TEMP_FOLDER_AS_NO_PATH =
+            FILE + "0351-the-private-paths-guard-reads-a-message-a-pattern-a-program-and-a-here-document-into-the-temp-folder-as-no-path.md";
+
     private Adr() {
     }
 }
