@@ -1,5 +1,7 @@
 # ADR-233 — The private-paths guard reads what stands beside the name `.claude`, a leading `~` in a field, and a link out of its own folder
 
+> **Partly amended — see [ADR-348](0348-the-private-paths-guard-reads-a-variable-with-a-plus-sign-as-its-word-or-as-nothing-and-never-as-the-names-value.md).** Of "Read, and not executed": `${NAME+word}` substitutes `word` where the name is set, and `${NAME:+word}` where it is set and not empty, and each gives nothing otherwise. Of §1's second point: `${NAME+` and `${NAME:+` stay among what may stand before `.claude`, their word being the one given where the name is set. The rest of this record stands.
+
 - **Date**: 2026-10-10
 - **Status**: accepted.
 - **Amends**: [ADR-215](0215-no-agent-writes-into-a-claude-folder-and-the-private-paths-guard-closes-each-one-but-for-what-it-names.md), in these places and no others:

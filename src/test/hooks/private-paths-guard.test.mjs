@@ -17,6 +17,9 @@
 // docs/adr/0347 amends docs/adr/0217 section 2: in a segment whose program is git, a token :<path> or
 // :<N>:<path> is read as its path, from which the colon and stage are taken off; docs/adr/0196's drive of
 // one letter and docs/adr/0217's refusal of a name made only of spaces are kept. The O cases are held to it.
+// docs/adr/0348 corrects docs/adr/0201 section 5's and docs/adr/0233's reading of ${NAME+word} and
+// ${NAME:+word}: the word, or nothing, in the variable's place, and never its value. The G8 cases are held
+// to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -1766,6 +1769,51 @@ cases.push(
   ["O820", "git commit -F of a token whose rest is a variable with a value, whose word begins with /", "Bash", { command: "git commit -F :${VESPERA_GUARD_NAME-/../../outside/doc.txt}" }, REFUSED, { env: { VESPERA_GUARD_NAME: "x" } }],
   ["O821", "git commit -F of a stage's token whose rest is a variable with a value, whose word begins with /", "Bash", { command: "git commit -F :0:${VESPERA_GUARD_NAME-/../../outside/doc.txt}" }, REFUSED, { env: { VESPERA_GUARD_NAME: "x" } }],
 );
+
+/* G8. docs/adr/0348 corrects docs/adr/0201 section 5's and docs/adr/0233's reading of ${NAME+word} and
+   ${NAME:+word}. Bash gives the word where NAME is set (with the colon, set and not empty) and the empty
+   string where it is not, and never NAME's value. The guard cannot know whether NAME will be set when
+   the command runs, so it reads such a token twice, with the word in the variable's place and with
+   nothing there, and either refuses. ${NAME-word}, ${NAME:-word}, ${NAME=word} and ${NAME?word} keep
+   docs/adr/0201's two readings, the word and, where NAME has a value, that value.
+   Each case is started three times, through its env: VESPERA_GUARD_PLUS not set, set to the empty string,
+   and set to a value, so that none depends on the machine's environment. In the refusals the value is x,
+   a name inside the checkout, so no reading of the value is what refuses; in G84 and G85 it is the
+   folder outside the allow list, so a reading of the value would refuse. G864 to G894 give the other
+   signs that same value, which is read. The climbs start from src, one folder below the checkout:
+   ../../outside/doc.txt from there lies outside the allow list, and a/../../outside/doc.txt is a name
+   inside the checkout. */
+const PLUS = "VESPERA_GUARD_PLUS";
+const withWord = (sign, word) => "${" + PLUS + sign + word + "}";
+const PLUS_SET = [
+  ["1", "not set", undefined],
+  ["2", "set to the empty string", ""],
+  ["3", "set to a value", "x"],
+];
+const PLUS_SIGNS = [
+  ["0", "+", "set"],
+  ["1", ":+", "set and not empty"],
+];
+for (const [n, sign, when] of PLUS_SIGNS) {
+  for (const [s, state, value] of PLUS_SET) {
+    const env = { [PLUS]: value };
+    const outsideValue = { [PLUS]: value === "x" ? O : value };
+    cases.push(
+      [`G8${n}${s}`, `cat of ${sign} whose word, given where the name is ${when}, takes back one climb out of the allow list, the name ${state}`, "Bash", { command: `cat ${withWord(sign, "a/")}../../outside/doc.txt` }, REFUSED, { cwd: `${C}/src`, env }],
+      [`G8${Number(n) + 2}${s}`, `git show of an index path whose rest is ${sign} whose word takes back one climb out of the allow list, the name ${state}`, "Bash", { command: `git show :${withWord(sign, "a/")}../../outside/doc.txt` }, REFUSED, { cwd: `${C}/src`, env }],
+      [`G8${Number(n) + 4}${s}`, `cat of ${sign} where both the word and nothing in its place name a file inside the checkout, the name ${state}`, "Bash", { command: `cat ${withWord(sign, "a/")}README.md` }, ALLOWED, { env: outsideValue }],
+    );
+  }
+  // The variable alone, whose value names the folder outside the allow list: Bash gives the word or
+  // nothing, never that value, so nothing outside the allow list is named.
+  cases.push([`G8${Number(n) + 4}4`, `cat of ${sign} alone whose word is a file inside the checkout, the name set to a folder outside the allow list`, "Bash", { command: `cat ${withWord(sign, "README.md")}` }, ALLOWED, { env: { [PLUS]: O } }]);
+}
+for (const [n, sign] of [["6", "-"], ["7", ":-"], ["8", "="], ["9", "?"]]) {
+  for (const [s, state, value] of PLUS_SET) {
+    cases.push([`G8${n}${s}`, `cat of ${sign} whose word climbs out of the allow list, read as before, the name ${state}`, "Bash", { command: `cat ${withWord(sign, "..")}/../outside/doc.txt` }, REFUSED, { cwd: `${C}/src`, env: { [PLUS]: value } }]);
+  }
+  cases.push([`G8${n}4`, `cat of ${sign} whose value lies outside the allow list and whose word inside it, read as before`, "Bash", { command: `cat ${withWord(sign, "x")}/doc.txt` }, REFUSED, { env: { [PLUS]: O } }]);
+}
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
   const skip =
