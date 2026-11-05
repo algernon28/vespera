@@ -2486,6 +2486,14 @@ public final class Adr {
             FILE + "0349-the-docling-images-are-built-once-pushed-to-ghcr-as-public-packages-never-over-a-tag-already-there-and-pulled-by-digest.md";
 
     /**
+     * ADR-350 -- the claim of the current wayfinder map is NOT CHECKED on a pull request's CI and read on main's push
+     * and a daily schedule; and a record from ADR-350 on whose slug is past 120 characters fails the claims job (keeps
+     * ADR-346 §1 and §3).
+     */
+    public static final String THE_CLAIMS_JOB_READS_THE_TRACKER_OFF_A_PULL_REQUESTS_CI = FILE
+            + "0350-the-claims-job-reads-the-tracker-off-a-pull-requests-ci-and-a-new-records-slug-keeps-to-120-characters.md";
+
+    /**
      * ADR-354 -- the two Docling images are built where they run, by {@code compose.yaml}, {@code compose.gpu.yaml}
      * and {@code TestcontainersConfiguration} from the one {@code Containerfile}, under the {@code -r2} tags; no
      * workflow pushes them to a registry, and the drift of a rebuild from CentOS's live repositories is accepted
