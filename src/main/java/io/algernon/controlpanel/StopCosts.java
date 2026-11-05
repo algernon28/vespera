@@ -3,8 +3,8 @@ package io.algernon.controlpanel;
 import java.util.List;
 
 /**
- * What a stop costs at each step of {@code vespera run}, in the order the job runs them (ADR-302 §7, which ADR-339
- * keeps): the window shows the running step's row beside its own Stop (ADR-341 §1, §8). Each step is named as the job
+ * What a stop costs at each step of {@code vespera run}, in the order the job runs them (ADR-302 §7, which ADR-342
+ * keeps): the window shows the running step's row beside its own Stop (ADR-344 §1, §8). Each step is named as the job
  * names it, as text, because the control panel links no class of the jar (ADR-285 §3); a test holds the names to the
  * job's.
  */
@@ -40,7 +40,7 @@ public final class StopCosts {
     }
 
     /**
-     * The stage under whose runs the jar records {@code step}'s completion (ADR-269 section 5, ADR-341 section 1), held
+     * The stage under whose runs the jar records {@code step}'s completion (ADR-269 section 5, ADR-344 section 1), held
      * as text because the window links no class of the jar (ADR-285 section 3); empty for a step the jar records under no
      * stage's run: the census, the relevance floor and the relevance report.
      */

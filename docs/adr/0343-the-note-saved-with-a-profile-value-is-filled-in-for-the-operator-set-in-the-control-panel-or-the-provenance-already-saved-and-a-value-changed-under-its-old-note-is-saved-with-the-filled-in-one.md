@@ -1,4 +1,4 @@
-# ADR-340 — The note saved with a profile value is filled in for the operator, `set in the control panel` or the provenance already saved, and a value changed under its old note is saved with the filled-in one
+# ADR-343 — The note saved with a profile value is filled in for the operator, `set in the control panel` or the provenance already saved, and a value changed under its old note is saved with the filled-in one
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.
@@ -10,8 +10,8 @@
 - **Keeps**: [ADR-061](0061-the-profile-is-yaml-typed-java-records-one-object-per-value.md): each value is `value`, `provenance` and `measurement` under its key, the provenance free text. [ADR-062](0062-census-merges-new-profile-keys-and-never-touches-an-existing-value.md): the jar's merge never touches a value or its provenance.
 - **Keeps**: [ADR-197](0197-a-local-model-answers-the-relevance-questions-and-the-floor-is-a-rule-over-the-labels-so-no-document-reaches-a-hosted-model.md) §4: `vespera label --auto` writes the floor only where the key is unset or its provenance begins with the rule's words; ADR-295 §4's refusal of those words from the control panel stands (§4).
 - **Keeps**: [ADR-261](0261-an-agent-may-read-and-write-a-working-directorys-profile-and-read-its-pages-of-paths-counts-and-reasons-and-nothing-else-in-it.md): an agent writes no provenance but the operator's own words or words they approve. The filled-in note is the window's, saved by the operator's Save, and never an agent's.
-- **Read with**: [ADR-339](0339-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md), whose window holds the form, and [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md) §1, where the notes stand.
-- **Settles**: [#700](https://github.com/algernon28/vespera/issues/700), with ADR-339 and ADR-341.
+- **Read with**: [ADR-342](0342-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md), whose window holds the form, and [ADR-344](0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md) §1, where the notes stand.
+- **Settles**: [#700](https://github.com/algernon28/vespera/issues/700), with ADR-342 and ADR-344.
 
 ## Context
 
@@ -31,7 +31,7 @@ So each value the operator changes costs a sentence before it is saved, and a Sa
 
 ### 1. Each value has a note, filled in
 
-**The form asks no "Why this value?"** Beside each value of the profile, on the Profile tab and where a value the next invocation wants is edited in place (ADR-341 §1), stands one field, **the note saved with it**, which is saved as the key's `provenance`. It is filled in:
+**The form asks no "Why this value?"** Beside each value of the profile, on the Profile tab and where a value the next invocation wants is edited in place (ADR-344 §1), stands one field, **the note saved with it**, which is saved as the key's `provenance`. It is filled in:
 
 - with **the provenance the file states for the key**, where it states one that is not blank;
 - otherwise with **`set in the control panel`**.
@@ -114,9 +114,9 @@ No run id moves: the profile's provenance enters no run's identity, and no file 
 | `controlpanel.TheNoteSavedWithAValueTest.aValueChangedUnderTheProvenanceTheFileStatesIsNotRefused` | `refusalOfSave` lets a value changed under the stated provenance through (§3) |
 | `controlpanel.TheNoteSavedWithAValueTest.aFloorTheLocalModelSetChangedUnderItsNoteBecomesTheOperators` | the floor changed under the rule's words is saved with the filled-in note, which `refusalOf` accepts for the floor (§4) |
 
-`controlpanel.ProfileEditTest.theProvenanceIsRequiredAndNeverTheAutoRules` stands, holding that every write still refuses a blank provenance and the rule's words for the floor (§3). The two screen tests that read the refusal of a value changed under its old provenance go with the pages (ADR-339 §6), and the refusal with them (§3).
+`controlpanel.ProfileEditTest.theProvenanceIsRequiredAndNeverTheAutoRules` stands, holding that every write still refuses a blank provenance and the rule's words for the floor (§3). The two screen tests that read the refusal of a value changed under its old provenance go with the pages (ADR-342 §6), and the refusal with them (§3).
 
 ## What this does not decide
 
-- **Where on the window each note stands**: ADR-341 §1.
+- **Where on the window each note stands**: ADR-344 §1.
 - **The words of the note's hint**, beyond what §1 says.

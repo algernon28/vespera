@@ -25,7 +25,7 @@ import javafx.scene.web.WebView;
 import javafx.stage.Stage;
 
 /**
- * The control panel's window shown on a stage of the Headless platform (ADR-339 §6), as {@code ControlPanelWindow}
+ * The control panel's window shown on a stage of the Headless platform (ADR-342 §6), as {@code ControlPanelWindow}
  * shows it when it starts, with dialogs a test answers: what the window tests that act on it, wait for its clock and read
  * it again share. Every read and every act runs on the toolkit's thread. Closing it stops the child its state started
  * and closes the stage.
@@ -143,7 +143,7 @@ final class WindowForTests implements AutoCloseable {
     }
 
     /**
-     * What a report's tab of the window shows (ADR-341 §6): whether the tab is selected, the file its viewer is on, null
+     * What a report's tab of the window shows (ADR-344 §6): whether the tab is selected, the file its viewer is on, null
      * before it is on any, the title of the page it shows, and whether that page has loaded.
      */
     record ReportTab(boolean selected, Path shows, String title, boolean loaded) {

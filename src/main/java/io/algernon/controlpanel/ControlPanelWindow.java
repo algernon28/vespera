@@ -7,11 +7,11 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 
 /**
- * The control panel's window (ADR-339 §2, ADR-341 §1): the one class of the control panel that extends
+ * The control panel's window (ADR-342 §2, ADR-344 §1): the one class of the control panel that extends
  * {@link Application}, launched by {@link ControlPanel#open()}, opening at 1500 by 960. Its root is drawn by
  * {@link #drawn(ControlPanelState)} from the state it is given, which owns every rule; the window reads no environment and
  * no file of configuration of its own. The one stylesheet, a resource of this package, owns every colour, size and space
- * (ADR-339 §3).
+ * (ADR-342 §3).
  */
 public final class ControlPanelWindow extends Application {
 

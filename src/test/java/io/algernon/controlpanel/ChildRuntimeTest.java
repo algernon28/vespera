@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * How the control panel finds what it starts its child with (ADR-288 §3, as ADR-339 §2 leaves §4): the {@code java}
+ * How the control panel finds what it starts its child with (ADR-288 §3, as ADR-342 §2 leaves §4): the {@code java}
  * of the runtime running it, never one of {@code PATH} or {@code JAVA_HOME}, and the jar it runs from, the one file
  * {@code java.class.path} names, with one line of refusal where the class path names no jar.
  */
@@ -35,7 +35,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Issue("567")
 @Issue("700")
 @Link(name = "ADR-288", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_BESIDE_ITS_OWN_WITH_THE_JAVA_RUNNING_IT, type = "adr")
-@Link(name = "ADR-339", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+@Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
 class ChildRuntimeTest {
 
     /** The Spring Boot jar's file name, as the build names it. */
@@ -50,7 +50,7 @@ class ChildRuntimeTest {
 
     private static final String WINDOWS = "Windows 11";
 
-    /** What the refusal says before the class path, which ends the line (ADR-339 §2). */
+    /** What the refusal says before the class path, which ends the line (ADR-342 §2). */
     private static final String REFUSAL = "the control panel starts the Vespera jar it runs from, and runs from no jar: ";
 
     @Test
@@ -103,7 +103,7 @@ class ChildRuntimeTest {
     }
 
     /**
-     * ADR-288 §3 as ADR-339 leaves it: the browser opener and the folder page, which read {@code PATH} or held the word,
+     * ADR-288 §3 as ADR-342 leaves it: the browser opener and the folder page, which read {@code PATH} or held the word,
      * go with the pages, so no class holds it; the start names the runtime and the jar by {@code java.home},
      * {@code os.name} and {@code java.class.path}.
      */

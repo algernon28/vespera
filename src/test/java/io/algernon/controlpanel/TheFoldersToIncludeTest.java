@@ -32,7 +32,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * The Inclusions tab writes {@code not-relevant-folders.yaml} as the labels page wrote it (ADR-341 §1, keeping ADR-334
+ * The Inclusions tab writes {@code not-relevant-folders.yaml} as the labels page wrote it (ADR-344 §1, keeping ADR-334
  * §6): the highest folder the operator unticked of each branch, and only that. A folder unticked is written alone, though
  * its subfolders were listed. A folder whose subfolders the operator unticked, the only one or every one, stands
  * half-ticked, since the files lying in it directly are still wanted, and only those subfolders are written. A folder the
@@ -46,7 +46,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
 class TheFoldersToIncludeTest {
 
@@ -162,7 +162,7 @@ class TheFoldersToIncludeTest {
     }
 
     /**
-     * The tree is the folders of the corpus root the field names (ADR-341 §1, read with §3: the field is what the window
+     * The tree is the folders of the corpus root the field names (ADR-344 §1, read with §3: the field is what the window
      * reads): a window drawn over one corpus root, its field then set to another, draws the other's folders and none of
      * the first's, and its Save writes the folders unticked as paths under the other.
      */

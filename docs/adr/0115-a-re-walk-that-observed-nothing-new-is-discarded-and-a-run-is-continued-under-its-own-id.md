@@ -1,5 +1,7 @@
 # ADR-115 — A re-walk that observed nothing new is discarded, and a run is continued under its own id
 
+> **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** A walk given another list of folders not walked than the walk before it, compared piece by piece in their order, is no repetition, whatever occurrences it holds. The rest of this record stands.
+
 - **Date**: 2026-09-14
 - **Status**: accepted
 - **Amends**: [ADR-048](0048-walk-and-run-identity.md) — it supplies the *"continuation vs. minting rule"* that record's reconstituted summary claims and its text does not carry, for both identities. Its two identities, its four hashed inputs and its content-derived/surrogate split are untouched.

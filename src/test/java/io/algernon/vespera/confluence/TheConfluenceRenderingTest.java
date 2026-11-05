@@ -30,6 +30,7 @@ import io.algernon.vespera.synthesis.ClusterSlot;
 import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
+import io.algernon.vespera.website.WebsitePlugin;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -140,6 +141,17 @@ class TheConfluenceRenderingTest {
     private static final Pattern A_STORAGE_PICTURE =
             Pattern.compile("<ac:image ac:alt=\"[^\"]*\"><ri:attachment ri:filename=\"([^\"]+)\" />");
 
+    /** Both plugins compiled into the jar, the Confluence rendering's and the website rendering's (ADR-333 §1, §3). */
+    private static final List<Plugin> EVERY_PLUGIN =
+            List.of(new ConfluencePlugin(new Publisher("", "", "", "")), new WebsitePlugin());
+
+    /** An entry of a website page: the id its citations link to, whatever element carries it (ADR-333 §3). */
+    private static final Pattern A_WEBSITE_ENTRY = Pattern.compile("\\bid=\"document-(\\d+)\"");
+
+    /** A picture a website page inlines, as the HTML tree's pages inline it (ADR-286, ADR-333 §3). */
+    private static final Pattern A_WEBSITE_PICTURE =
+            Pattern.compile("<img\\b[^>]*\\bsrc=\"data:image/png;base64,([^\"]+)\"");
+
     @Test
     @Story("Every page is titled by its text and its place")
     @DisplayName("The root page is Vespera, and the seed partition's page and each group's page are titled by their text and their place alone")
@@ -229,13 +241,40 @@ class TheConfluenceRenderingTest {
                 });
     }
 
+    /**
+     * The renderings' parity test (ADR-301 §4), holding three renderings since ADR-333 §3: the HTML tree's page, the
+     * Confluence page and the website's page of one group, drawn by one drawing with both plugins, carry the same
+     * entries, citations and pictures in the same order. The website's page lies at the HTML page's place under {@code
+     * website/}, and its writing is rendered through the HTML tree's renderer, so its citations are the HTML page's
+     * links.
+     */
     @Test
     @Story("Both renderings carry the same entries and citations")
-    @DisplayName("A group's HTML page and its Confluence page carry the same entries, citations and pictures in the same order")
+    @DisplayName("A group's HTML page, its Confluence page and its website page carry the same entries, citations and pictures in the same order")
     void bothRenderingsCarryTheSameEntriesAndCitations(@TempDir Path base) throws IOException {
-        Path tree = draw(base, picturesOfTheFirst());
+        Path tree = draw(base, picturesOfTheFirst(), "d.txt", DeliverableProgress.NONE, EVERY_PLUGIN);
         String html = Files.readString(tree.resolve("1-fire-safety/1-fire-doors/index.html"), StandardCharsets.UTF_8);
         String storage = Files.readString(doorsFolder(tree).resolve(ConfluencePages.BODY_NAME), StandardCharsets.UTF_8);
+        String website = Files.readString(
+                tree.resolve("website/1-fire-safety/1-fire-doors/index.html"), StandardCharsets.UTF_8);
+
+        claim(
+                "the HTML page has entries, citations and pictures, so the comparisons below compare something",
+                () -> {
+                    assertThat(groups(AN_HTML_ENTRY, html, 1)).hasSize(4);
+                    assertThat(groups(AN_HTML_CITATION, html, 1)).isNotEmpty();
+                    assertThat(groups(AN_HTML_PICTURE, html, 1)).hasSize(2);
+                });
+        claim(
+                "the website page's entries are the HTML page's numbers in the same order",
+                () -> assertThat(groups(A_WEBSITE_ENTRY, website, 1)).isEqualTo(groups(AN_HTML_ENTRY, html, 1)));
+        claim(
+                "its citations name the same entries in the same order, each a link to its entry's id",
+                () -> assertThat(groups(AN_HTML_CITATION, website, 1)).isEqualTo(groups(AN_HTML_CITATION, html, 1)));
+        claim(
+                "and it inlines the same pictures in the same order, the image document's copy among them, byte for"
+                        + " byte",
+                () -> assertThat(groups(A_WEBSITE_PICTURE, website, 1)).isEqualTo(groups(AN_HTML_PICTURE, html, 1)));
 
         claim(
                 "the entries are the same numbers in the same order",
@@ -601,6 +640,13 @@ class TheConfluenceRenderingTest {
      */
     private static Path draw(Path base, SurvivorPictures pictures, String fourthName, DeliverableProgress progress)
             throws IOException {
+        return draw(base, pictures, fourthName, progress, THE_CONFLUENCE_PLUGIN);
+    }
+
+    /** As above, {@code plugins} drawing beside the tree. */
+    private static Path draw(
+            Path base, SurvivorPictures pictures, String fourthName, DeliverableProgress progress, List<Plugin> plugins)
+            throws IOException {
         Path archive = base.resolve(THE_CORPUS_ROOT);
         Files.createDirectories(archive.resolve("reports"));
         Files.createDirectories(archive.resolve("notes"));
@@ -625,7 +671,7 @@ class TheConfluenceRenderingTest {
                 ListedCodeSets.NONE,
                 pictures,
                 new ClusterPageCeiling.Unset(),
-                THE_CONFLUENCE_PLUGIN,
+                plugins,
                 progress);
     }
 

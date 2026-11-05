@@ -21,7 +21,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * The folders not relevant, as the Inclusions tab writes and reads them (ADR-334 §6, which ADR-339 keeps and ADR-341
+ * The folders not relevant, as the Inclusions tab writes and reads them (ADR-334 §6, which ADR-342 keeps and ADR-344
  * §1 draws as a tree): {@code not-relevant-folders.yaml} written whole and read back equal, a folder written as
  * occurrences' paths spell one, and a question below a folder listed lying below it. Held without a page, in
  * {@code NotRelevantFolders} itself.
@@ -30,7 +30,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Feature("The control panel")
 @Issue("700")
 @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 class NotRelevantFoldersTest {
 
     @Test

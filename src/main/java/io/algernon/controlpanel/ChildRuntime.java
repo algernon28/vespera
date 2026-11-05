@@ -7,7 +7,7 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 
 /**
- * What the control panel starts its child with (ADR-288 §3, ADR-339 §2): the {@code java} of the runtime running it,
+ * What the control panel starts its child with (ADR-288 §3, ADR-342 §2): the {@code java} of the runtime running it,
  * and the jar it runs from, the one file the class path names.
  */
 public record ChildRuntime(Path java, Path jar) {
@@ -16,7 +16,7 @@ public record ChildRuntime(Path java, Path jar) {
      * @param classPath the class path of the running JVM, which under {@code java -jar} is the jar's path alone
      * @param javaHome the Java home of the running JVM
      * @param osName the system's name, whose {@code Windows} prefix gives {@code java.exe}
-     * @throws FileNotFoundException with ADR-339 §2's one line where the class path is not one regular file
+     * @throws FileNotFoundException with ADR-342 §2's one line where the class path is not one regular file
      */
     public static ChildRuntime find(String classPath, Path javaHome, String osName) throws FileNotFoundException {
         Path jar = null;

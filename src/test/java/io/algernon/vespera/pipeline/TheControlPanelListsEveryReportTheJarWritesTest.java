@@ -23,7 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The control panel lists every report the jar writes in the working directory, and no other (ADR-341 §6, keeping
+ * The control panel lists every report the jar writes in the working directory, and no other (ADR-344 §6, keeping
  * ADR-306 §2's sixteenth): its list, {@link Reports#ALL}, is the set of report file names the classes of
  * {@code pipeline} and {@code deliverable} hold.
  *
@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 class TheControlPanelListsEveryReportTheJarWritesTest {
 
     /** The packages whose classes name the reports of the working directory. */

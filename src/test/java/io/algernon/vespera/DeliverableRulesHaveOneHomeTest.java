@@ -104,6 +104,14 @@ class DeliverableRulesHaveOneHomeTest {
     /** What a plugin reads of a member's copy (ADR-333 §2, §5): its outcome, its name and its path, and no writing. */
     private static final Set<String> WHAT_A_PLUGIN_READS_OF_THE_COPIES = Set.of("outcomeOf", "nameOf", "pathOf");
 
+    /** What a plugin reads of {@code ClusterPage} (ADR-333 §2, ADR-339 §2). */
+    private static final Set<String> WHAT_A_PLUGIN_READS_OF_THE_CLUSTER_PAGE = new TreeSet<>(Set.of(
+            "ANCHOR_PREFIX", "firstPageBody", "listOpening", "nameOfPage", "navigation", "percentEncoded"));
+
+    /** What a plugin reads of {@code ClusterPage.PageBreaks} (ADR-333 §2, ADR-338 §2, ADR-339 §2). */
+    private static final Set<String> WHAT_A_PLUGIN_READS_OF_THE_PAGE_BREAKS =
+            new TreeSet<>(Set.of("pages", "firstEntryOf", "nameOfPageHolding"));
+
     @Test
     @Story("Each rule has one class")
     @DisplayName("Each collaborator the tree's writer is split into exists in its module, and only those a plugin reads are public")
@@ -153,6 +161,47 @@ class DeliverableRulesHaveOneHomeTest {
         claim(
                 "and no constructor of Copies is public, so no plugin makes one of its own and opens the archive",
                 () -> assertThat(constructible).isFalse());
+    }
+
+    /**
+     * {@code ClusterPage} opens what the two renderings read of it and nothing more: ADR-333 §2's anchor prefix and
+     * breaks, ADR-338 §2's first entry of a page, and the six members the website draws its pages through, so that the
+     * first page's body, the list's opening, the pages' names and navigation, a citation's page and a copy's link keep
+     * one rule each (ADR-339 §2, ADR-213 §1).
+     */
+    @Test
+    @Story("Each rule has one class")
+    @DisplayName("ClusterPage opens what the renderings read of it and nothing more, and no plugin can make page breaks")
+    @Link(name = "ADR-339", url = Adr.AN_ARGUMENT_NAMES_THE_FORM_ITS_CONTROL_STANDS_ON_AND_THE_WEBSITE_IS_BUILT_AS_RECORDED, type = "adr")
+    void theClusterPageOpensWhatTheRenderingsReadAndNothingMore() throws Exception {
+        Class<?> page = loaded(IN_DELIVERABLE + "ClusterPage");
+        Class<?> breaks = loaded(IN_DELIVERABLE + "ClusterPage$PageBreaks");
+        boolean breaksConstructible = Arrays.stream(breaks.getDeclaredConstructors())
+                .anyMatch(constructor -> Modifier.isPublic(constructor.getModifiers()));
+
+        claim(
+                "ClusterPage's public members are the anchor's prefix, the first page's body, the list's opening, a"
+                        + " page's name, the navigation between pages and a name percent-encoded",
+                () -> assertThat(publicMembersOf(page)).isEqualTo(WHAT_A_PLUGIN_READS_OF_THE_CLUSTER_PAGE));
+        claim(
+                "its breaks' are their count of pages, each page's first entry and the name of the page holding an"
+                        + " entry",
+                () -> assertThat(publicMembersOf(breaks)).isEqualTo(WHAT_A_PLUGIN_READS_OF_THE_PAGE_BREAKS));
+        claim(
+                "and no constructor of the breaks is public, so only deliverable splits a page (ADR-338 §2)",
+                () -> assertThat(breaksConstructible).isFalse());
+    }
+
+    /** The names of {@code type}'s own public methods and fields, none a compiler wrote. */
+    private static Set<String> publicMembersOf(Class<?> type) {
+        Set<String> open = new TreeSet<>();
+        Arrays.stream(type.getDeclaredMethods())
+                .filter(method -> Modifier.isPublic(method.getModifiers()) && !method.isSynthetic())
+                .forEach(method -> open.add(method.getName()));
+        Arrays.stream(type.getDeclaredFields())
+                .filter(field -> Modifier.isPublic(field.getModifiers()) && !field.isSynthetic())
+                .forEach(field -> open.add(field.getName()));
+        return open;
     }
 
     @Test

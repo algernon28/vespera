@@ -9,7 +9,7 @@ The vocabulary below is the project's own. Decisions that established these term
 ### Identity
 
 **Entry**:
-Anything a walk finds beneath a corpus root, before anything has been decided about it. The denominator a walk is accountable for: every entry is either recorded as a file occurrence, recorded as a walk anomaly, or — a readable directory only — descended into, which is what makes "excludes nothing" a claim anyone can check rather than assert.
+Anything a walk finds beneath a corpus root, before anything has been decided about it. The denominator a walk is accountable for: every entry is either recorded as a file occurrence, recorded as a walk anomaly, or — a readable directory only — descended into, or, a folder not walked, counted and not entered (ADR-340), which is what makes "excludes nothing" a claim anyone can check rather than assert.
 _Avoid_: node, item, dirent
 
 **File occurrence**:
@@ -163,7 +163,7 @@ _Renders as_: the one sentence ADR-174 gives its case, in italics under the grou
 ### Measurement
 
 **Census**:
-A verdict-free measurement pass. It renders no verdicts, excludes nothing, and mutates nothing; it produces re-analyzable data and a draft profile with thresholds left unset.
+A verdict-free measurement pass. It renders no verdicts, excludes nothing but the folders not walked (ADR-340), and mutates nothing; it produces re-analyzable data and a draft profile with thresholds left unset.
 _Avoid_: scan, audit, inventory
 
 **Observe before enforce**:
@@ -193,7 +193,7 @@ _Avoid_: fallback, oracle, champion, second opinion
 ### Operation
 
 **Profile**:
-The per-corpus record of every judgement the engine cannot make for itself. Authored by a person, never guessed at; each value carries its provenance, the reason the operator wrote or, for a value set in the control panel and given none, the control panel's filled-in note, `set in the control panel` (ADR-340).
+The per-corpus record of every judgement the engine cannot make for itself. Authored by a person, never guessed at; each value carries its provenance, the reason the operator wrote or, for a value set in the control panel and given none, the control panel's filled-in note, `set in the control panel` (ADR-343).
 _Avoid_: config, settings, parameters
 
 **Unreadable**:
@@ -209,7 +209,7 @@ The operator's files as they lie on disk, whether or not any walk has observed t
 _Avoid_: knowledge base (what Vespera makes from an archive, never the archive itself), repository (this project's git checkout), dataset, source folder
 
 **Corpus root**:
-The directory a walk starts from: the one `vespera run <root>` names, or `vespera.corpus-root` when the command names none (ADR-066). A path, and the whole of a corpus's identity (ADR-054), but for the code set folders outside it the profile names, which the same walk reads after it and records with it, the corpus root staying the path the walk is found by (ADR-334). The root is where a walk enters an archive, and the corpus is the part of the archive beneath it.
+The directory a walk starts from: the one `vespera run <root>` names, or `vespera.corpus-root` when the command names none (ADR-066). A path, and the whole of a corpus's identity (ADR-054), but for the code set folders outside it the profile names, which the same walk reads after it and records with it, the corpus root staying the path the walk is found by (ADR-334). The root is where a walk enters an archive, and the corpus is the part of the archive beneath it, less the folders not walked (ADR-340).
 _Avoid_: archive root, archive (the files, where this is the path), input directory, base path
 
 **Working directory**:
@@ -234,6 +234,10 @@ _Not to be confused with_: SQLite's **WAL checkpoint**, which copies its write-a
 **Walk anomaly**:
 An entry a walk encountered and did not record as a file occurrence, carrying the reason. Not an error — most are not failures — and not a verdict: a verdict needs an occurrence to attach to, and an anomaly is exactly the case where none exists. Kinds are observations rather than policy, which is what makes the first walk of an archive a measurement.
 _Avoid_: error, skip, exclusion, warning
+
+**Folder not walked**:
+A folder below the corpus root that the profile's `foldersNotWalked` lists, by its path from the corpus root: the walk counts it as an entry and does not enter it, so nothing below it is a file occurrence, a walk anomaly or an entry of the walk (ADR-340). A profile value, since it changes what a corpus is: a walk given another list is another walk, and every run over it is new. The operator unticks it in the control panel's tree of the corpus's folders. Not a walk anomaly, which is an observation of the archive, and not out of scope, which is a verdict on a file the walk recorded.
+_Avoid_: excluded folder, skipped folder, ignored folder, filtered folder
 
 **Stage**:
 One step of the cascade, identified by the verdicts it writes. The two measurement stages write none. There are seven, ending at generation (6b), and nothing follows them.
@@ -273,7 +277,7 @@ _Avoid_: phase (the Stage entry's rejected word), stage (there are seven, and a 
 _Renders as_: its own name, and **part** in prose written for the operator.
 
 **Control panel**:
-The JavaFX window inside the Vespera jar, opened by starting the jar with no argument, that starts one invocation at a time as its own child, from the jar it runs from, shows how it goes and how it ended, and stops it by ending its process (ADR-278, ADR-339). A start of the jar with any argument is the command line, and `--headless` as the first argument never opens the window (ADR-339). It listens on no port and serves nothing. A report opens in a tab of the window, never in a browser, and a link inside one to a file that is no report is handed to the operating system (ADR-341). It runs the command as shipped (ADR-278), judges nothing, and passes a value only where the operator set it or the child would otherwise read another; each field starts from the launch values, the environment, `.env`, the GPU image or the jar's own `application.yaml`, and says which (ADR-341). What the next invocation wants it reads from `next-invocation.properties`, which the jar writes with the closing line, and never from the line's words (ADR-294); the steps and the progress page's charts from `progress.json`, which the jar writes beside `progress.html` (ADR-341). What applies where the profile names nothing it reads from the effective values; each value of the profile it edits in a form filled from what the file states, each with the note saved as its provenance filled in (ADR-340), a save of `profile.yaml` making a working directory that is not there and a file not in the jar's form shown, and repaired only where a repair loses nothing (ADR-330).
+The JavaFX window inside the Vespera jar, opened by starting the jar with no argument, that starts one invocation at a time as its own child, from the jar it runs from, shows how it goes and how it ended, and stops it by ending its process (ADR-278, ADR-342). A start of the jar with any argument is the command line, and `--headless` as the first argument never opens the window (ADR-342). It listens on no port and serves nothing. A report opens in a tab of the window, never in a browser, and a link inside one to a file that is no report is handed to the operating system (ADR-344). It runs the command as shipped (ADR-278), judges nothing, and passes a value only where the operator set it or the child would otherwise read another; each field starts from the launch values, the environment, `.env`, the GPU image or the jar's own `application.yaml`, and says which (ADR-344). What the next invocation wants it reads from `next-invocation.properties`, which the jar writes with the closing line, and never from the line's words (ADR-294); the steps and the progress page's charts from `progress.json`, which the jar writes beside `progress.html` (ADR-344). What applies where the profile names nothing it reads from the effective values; each value of the profile it edits in a form filled from what the file states, each with the note saved as its provenance filled in (ADR-343), a save of `profile.yaml` making a working directory that is not there and a file not in the jar's form shown, and repaired only where a repair loses nothing (ADR-330).
 _Avoid_: console (the jar's standard output, ADR-093), launcher (ADR-158; the Docling image's `launcher.py`, ADR-179), GUI, dashboard, front-end, app, UI, wrapper. Also "panel" alone, in a name of ours.
 
 **Launch value**:

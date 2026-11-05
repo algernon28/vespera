@@ -20,12 +20,14 @@ public class ExcludesNothingViolationException extends IllegalStateException {
     private static final long serialVersionUID = 1L;
 
     ExcludesNothingViolationException(WalkId walkId, Walk.Progress asWritten) {
-        super(("walk %d met %d entries and entered %d directories, but the ledger holds %d occurrences and %d"
-                        + " anomalies: %d entries are unaccounted for, so this walk does not exclude nothing")
+        super(("walk %d met %d entries, entered %d directories and left %d folders not walked, but the ledger holds"
+                        + " %d occurrences and %d anomalies: %d entries are unaccounted for, so this walk does not"
+                        + " exclude nothing")
                 .formatted(
                         walkId.value(),
                         asWritten.entriesSeen(),
                         asWritten.directoriesEntered(),
+                        asWritten.foldersNotWalked(),
                         asWritten.occurrences(),
                         asWritten.anomalies(),
                         asWritten.unaccountedFor()));

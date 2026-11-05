@@ -62,7 +62,12 @@ import picocli.CommandLine.Spec;
 @Command(
         name = "vespera",
         mixinStandardHelpOptions = true,
-        subcommands = {VesperaCommand.Run.class, VesperaCommand.Label.class, VesperaCommand.Publish.class},
+        subcommands = {
+            VesperaCommand.Run.class,
+            VesperaCommand.Label.class,
+            VesperaCommand.Publish.class,
+            VesperaCommand.Serve.class
+        },
         description = "Curates a local archive into a publication-ready knowledge base.")
 public class VesperaCommand implements Callable<Integer> {
 
@@ -128,6 +133,31 @@ public class VesperaCommand implements Callable<Integer> {
                 return CommandLine.defaultFactory().create(type);
             }
         });
+    }
+
+    /**
+     * Serves the website folder of the working directory on loopback (ADR-333 §8). An entry of the tree so that help
+     * lists it and so that {@link ServeCommand} parses the same {@code --db-dir} mixin; it is never executed through
+     * Spring, since {@code VesperaApplication.main} hands {@code serve} to {@link ServeCommand} before any context
+     * exists.
+     */
+    @Command(name = ServeCommand.NAME, description = "Serves the website folder of the working directory at"
+            + " 127.0.0.1, until this process ends. Takes no lock and opens no database.")
+    public static class Serve implements Callable<Integer> {
+
+        @Mixin
+        private WorkingDirectoryOption databaseDirectory = new WorkingDirectoryOption();
+
+        /** The option picocli parsed into this command, which {@link ServeCommand} asks for its refusal. */
+        WorkingDirectoryOption databaseDirectory() {
+            return databaseDirectory;
+        }
+
+        @Override
+        public Integer call() {
+            System.err.println("vespera serve is started by the jar's main before Spring, and is not run through it.");
+            return CommandLine.ExitCode.SOFTWARE;
+        }
     }
 
     /** Walks a corpus and takes it as far as the next missing value: the whole job, each step behind its own gate (ADR-101). */
@@ -344,7 +374,7 @@ public class VesperaCommand implements Callable<Integer> {
                 }
             }
             return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                    null, null, null, null, null);
+                    null, null, null, null, null, null);
         }
 
         /**
@@ -572,23 +602,27 @@ public class VesperaCommand implements Callable<Integer> {
     }
 
     /**
-     * Sends the Confluence rendering of the generation run this working directory last drew to the operator's
-     * Confluence Cloud site (ADR-308 §5): a separate command because it is a separate act, the one that sends anything
-     * off the machine, and the operator's alone to ask for.
+     * Delivers the rendering of the generation run this working directory last drew to each destination {@code --to}
+     * names (ADR-333 §6): a separate command because it is a separate act, the one that sends anything off the machine,
+     * and the operator's alone to ask for. A bare publish is Confluence (ADR-308 §5).
      *
-     * <p>The generation run is found through the ledger: the last one minted whose generation step is recorded as
-     * finished and whose tree holds a page list. Where the tree lies is the deliverable root {@code run} draws it at
-     * (ADR-276). It mints no run and opens no archive file; what it sends and how is {@link Publisher}'s.
+     * <p>Each destination runs in turn, in the order written, a name written twice delivered once, and one stopping
+     * does not stop the next. Each finds its own rendering: the last generation run minted whose generation step is
+     * recorded as finished and whose tree holds that plugin's folder with its list or a {@code drawing.txt}. Where the
+     * tree lies is the deliverable root {@code run} draws it at (ADR-276). It mints no run and opens no archive file;
+     * what each sends and how is its plugin's.
      */
     @Component
-    @Command(name = "publish", description = "Sends the Confluence rendering of the last generation run to the"
-            + " operator's Confluence Cloud site, as the VESPERA_CONFLUENCE_* variables name it.")
+    @Command(name = "publish", description = "Delivers the rendering of the last generation run to each destination"
+            + " named on --to: the operator's Confluence Cloud site, as the VESPERA_CONFLUENCE_* variables name it,"
+            + " or the website folder of the working directory. Bare, it delivers to Confluence.")
     public static class Publish implements Callable<Integer> {
 
+        /** The destination a bare publish takes, the only one before {@code --to} (ADR-333 §6). */
         private static final String DESTINATION = Publisher.RENDERING_FOLDER;
 
         private final Ledger ledger;
-        private final Plugin plugin;
+        private final List<Plugin> plugins;
         private final Path workingDirectoryInUse;
         private final DeliverableRoot deliverableRoot;
 
@@ -596,9 +630,17 @@ public class VesperaCommand implements Callable<Integer> {
         @Mixin
         private WorkingDirectoryOption databaseDirectory = new WorkingDirectoryOption();
 
+        /** The destinations named, by the plugins' names, in the order written (ADR-333 §6). */
+        @Option(
+                names = "--to",
+                split = ",",
+                paramLabel = "<destination>",
+                description = "The destinations to deliver to, by their names, separated by commas.")
+        private List<String> destinations = new java.util.ArrayList<>();
+
         /**
-         * The plugins in the jar, of which a bare publish takes the one named {@value #DESTINATION}, the only
-         * destination before {@code --to} (ADR-333 §6, §13).
+         * The plugins in the jar, sorted by name as a drawing orders them, of which a bare publish takes the one named
+         * {@value #DESTINATION} (ADR-333 §6).
          */
         @Autowired
         Publish(
@@ -607,10 +649,10 @@ public class VesperaCommand implements Callable<Integer> {
                 @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse,
                 @Value("${" + Run.DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot) {
             this.ledger = ledger;
-            this.plugin = plugins.stream()
-                    .filter(candidate -> DESTINATION.equals(candidate.name()))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("no plugin named " + DESTINATION));
+            this.plugins = plugins.stream().sorted(java.util.Comparator.comparing(Plugin::name)).toList();
+            if (this.plugins.stream().noneMatch(candidate -> DESTINATION.equals(candidate.name()))) {
+                throw new IllegalStateException("no plugin named " + DESTINATION);
+            }
             this.workingDirectoryInUse = workingDirectoryInUse;
             this.deliverableRoot = DeliverableRoot.of(deliverableRoot);
         }
@@ -623,6 +665,7 @@ public class VesperaCommand implements Callable<Integer> {
         /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
         void forgetPreviousInvocation() {
             databaseDirectory = new WorkingDirectoryOption();
+            destinations = new java.util.ArrayList<>();
         }
 
         @Override
@@ -632,38 +675,81 @@ public class VesperaCommand implements Callable<Integer> {
                 System.err.println(misnamedDatabaseDirectory);
                 return CommandLine.ExitCode.SOFTWARE;
             }
-            Optional<String> generation = lastDrawn();
-            if (generation.isEmpty()) {
-                System.err.println("vespera publish sent nothing: no Confluence rendering is drawn in this working"
-                        + " directory. Run vespera run to the deliverable, and publish again.");
-                return CommandLine.ExitCode.SOFTWARE;
+            boolean bare = destinations == null || destinations.isEmpty();
+            List<Plugin> chosen = new java.util.ArrayList<>();
+            for (String name : bare ? List.of(DESTINATION) : destinations) {
+                Optional<Plugin> named = plugins.stream().filter(candidate -> candidate.name().equals(name.strip())).findFirst();
+                if (named.isEmpty()) {
+                    System.err.println("vespera publish has no destination " + name.strip() + ": it knows "
+                            + plugins.stream().map(Plugin::name).collect(java.util.stream.Collectors.joining(", "))
+                            + ".");
+                    return CommandLine.ExitCode.USAGE;
+                }
+                if (!chosen.contains(named.get())) {
+                    chosen.add(named.get());
+                }
             }
-            Path confluence = renderingOf(generation.get());
-            if (!drawingFinished(confluence)) {
-                System.err.println("vespera publish sent nothing to " + plugin.name() + ": the last drawing"
-                        + " of its rendering did not finish. Run vespera run to draw it again, and publish again.");
-                return CommandLine.ExitCode.SOFTWARE;
+            Map<String, Set<String>> finished = ledger.runs().finishedSteps();
+            List<Runs.Listed> runs = ledger.runs().listed();
+            int exit = CommandLine.ExitCode.OK;
+            for (Plugin plugin : chosen) {
+                if (!deliverTo(plugin, bare, finished, runs)) {
+                    exit = CommandLine.ExitCode.SOFTWARE;
+                }
             }
-            Plugin.Delivery outcome =
-                    plugin.deliver(confluence, generation.get(), workingDirectoryInUse, System.out::println);
-            if (!outcome.delivered()) {
-                System.err.println(outcome.closingLine());
-                return CommandLine.ExitCode.SOFTWARE;
-            }
-            System.out.println(outcome.closingLine());
-            return CommandLine.ExitCode.OK;
+            return exit;
         }
 
         /**
-         * The last generation run minted whose generation step finished and whose tree holds the rendering's folder
-         * with a page list or a {@code drawing.txt}: the last run to have drawn it, or begun to, so that an older run's
+         * Delivers the last rendering {@code plugin} drew, in one closing line: on standard output where it was
+         * delivered and on standard error where it stopped or was refused (ADR-333 §6). A plugin that throws is a stop,
+         * its line naming it and the exception's type and never its message, which could name a document (ADR-274 §8).
+         *
+         * @param bare whether this is a bare publish, which says what ADR-308 §5 said before {@code --to}
+         * @return whether it was delivered
+         */
+        private boolean deliverTo(Plugin plugin, boolean bare, Map<String, Set<String>> finished, List<Runs.Listed> runs) {
+            Optional<String> generation = lastDrawn(plugin, finished, runs);
+            if (generation.isEmpty()) {
+                System.err.println(bare
+                        ? "vespera publish sent nothing: no Confluence rendering is drawn in this working directory."
+                                + " Run vespera run to the deliverable, and publish again."
+                        : "vespera publish sent nothing to " + plugin.name() + ": no " + plugin.name()
+                                + " rendering is drawn in this working directory. Run vespera run to the deliverable,"
+                                + " and publish again.");
+                return false;
+            }
+            Path rendering = renderingOf(plugin, generation.get());
+            if (!drawingFinished(rendering)) {
+                System.err.println("vespera publish sent nothing to " + plugin.name() + ": the last drawing"
+                        + " of its rendering did not finish. Run vespera run to draw it again, and publish again.");
+                return false;
+            }
+            Plugin.Delivery outcome;
+            try {
+                outcome = plugin.deliver(rendering, generation.get(), workingDirectoryInUse, System.out::println);
+            } catch (RuntimeException thrown) {
+                System.err.println("vespera publish stopped " + plugin.name() + ": it threw "
+                        + thrown.getClass().getSimpleName() + ", whose message is not written. Publish again once"
+                        + " that is dealt with.");
+                return false;
+            }
+            if (!outcome.delivered()) {
+                System.err.println(outcome.closingLine());
+                return false;
+            }
+            System.out.println(outcome.closingLine());
+            return true;
+        }
+
+        /**
+         * The last generation run minted whose generation step finished and whose tree holds {@code plugin}'s folder
+         * with its list or a {@code drawing.txt}: the last run to have drawn it, or begun to, so that an older run's
          * rendering is never sent in place of one whose drawing did not finish (ADR-333 §6, §11).
          */
-        private Optional<String> lastDrawn() {
-            Map<String, Set<String>> finished = ledger.runs().finishedSteps();
-            List<Runs.Listed> runs = ledger.runs().listed();
+        private Optional<String> lastDrawn(Plugin plugin, Map<String, Set<String>> finished, List<Runs.Listed> runs) {
             for (Runs.Listed listed : runs.reversed()) {
-                Path rendering = renderingOf(listed.id());
+                Path rendering = renderingOf(plugin, listed.id());
                 if (StageModules.GENERATION.stage().equals(listed.stage())
                         && finished.getOrDefault(listed.id(), Set.of()).contains(StepNames.GENERATION)
                         && (Files.isRegularFile(rendering.resolve(plugin.listName()))
@@ -691,7 +777,7 @@ public class VesperaCommand implements Callable<Integer> {
             }
         }
 
-        private Path renderingOf(String generationRun) {
+        private Path renderingOf(Plugin plugin, String generationRun) {
             return deliverableRoot.treeOf(workingDirectoryInUse, generationRun).resolve(plugin.name());
         }
     }

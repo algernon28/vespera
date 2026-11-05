@@ -26,7 +26,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * Where each field of the window starts, and what of it reaches the child and the launch values file (ADR-341 §3): the
+ * Where each field of the window starts, and what of it reaches the child and the launch values file (ADR-344 §3): the
  * first of the launch values file, the environment, {@code .env}, for the Docling image the GPU image, and the jar's
  * {@code application.yaml} that names it; a value passed only where the child would read another without it; and a
  * value remembered only where it came from the launch values file or the operator changed it.
@@ -34,7 +34,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
 class StartingValuesTest {
 

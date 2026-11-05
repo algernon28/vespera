@@ -30,7 +30,7 @@ import picocli.CommandLine.Model.PositionalParamSpec;
  * Every option and positional argument of the commands the control panel starts is accounted for by the control
  * panel (ADR-336 §2): {@link ChildCommand#ARGUMENTS} holds each one of picocli's model of {@code vespera} and of each
  * of its commands, once, by the command's name and the argument's, with the control of the control panel's window
- * that sets it or none, and why (ADR-341 §4: label's file is set by the label file option, and only vespera's help and
+ * that sets it or none, and why (ADR-344 §4: label's file is set by the label file option, and only vespera's help and
  * version are never passed).
  *
  * <p>The table names an option without its leading {@code --}, {@code help} for {@code --help}, so that no class of the
@@ -91,7 +91,7 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
     @Test
     @Story("Every option of the jar's commands is set from the control panel or said not to be")
     @DisplayName("Each argument is set by a control of the control panel or never passed, and the table says why for each")
-    @Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+    @Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
     void eachArgumentIsSetByALaunchControlOrNeverPassedAndSaysWhy() {
         Map<String, String> controls = new LinkedHashMap<>();
         for (ChildCommand.Argument argument : ChildCommand.ARGUMENTS) {

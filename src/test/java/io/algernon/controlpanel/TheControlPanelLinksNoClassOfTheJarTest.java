@@ -23,9 +23,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The control panel and the jar link no class of each other (ADR-285 §3, as ADR-339 §3 leaves it): the control panel
+ * The control panel and the jar link no class of each other (ADR-285 §3, as ADR-342 §3 leaves it): the control panel
  * names only its own package, the JDK module {@code java.base}, JavaFX's public packages, those whose names begin
- * {@code javafx.}, and Jackson's, with which it reads the jar's {@code application.yaml} (ADR-341 §3); so nothing of
+ * {@code javafx.}, and Jackson's, with which it reads the jar's {@code application.yaml} (ADR-344 §3); so nothing of
  * {@code io.algernon.vespera}, of the jar's entry point, of Spring, of {@code java.sql}, of {@code java.desktop}, of
  * {@code jdk.httpserver} or of JavaFX's internals. No class of the jar names the control panel or JavaFX, so a command
  * of the jar never loads JavaFX. Its contract with the jar is the process and the files ADR-278 names.
@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Test;
 @Issue("562")
 @Issue("700")
 @Link(name = "ADR-285", url = Adr.THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR, type = "adr")
-@Link(name = "ADR-339", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+@Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
 class TheControlPanelLinksNoClassOfTheJarTest {
 
     private static final String CONTROL_PANEL = "io.algernon.controlpanel";

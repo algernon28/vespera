@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Each value the next invocation wants is edited in place in {@code wanted}, with its reports (ADR-341 §1, §6, keeping
+ * Each value the next invocation wants is edited in place in {@code wanted}, with its reports (ADR-344 §1, §6, keeping
  * ADR-294 and ADR-306 §3): a report of the key that the working directory holds is a link there, opened in its own tab
  * of the window, as on the key's row of the Profile tab. A wanted value the profile states none for is offered what
  * the next page offered (ADR-294 §4, ADR-292 §6): the arrangement the file names, as the approval, and the last seed
@@ -41,7 +41,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 @Link(name = "ADR-294", url = Adr.THE_CONTROL_PANEL_LEARNS_WHAT_THE_NEXT_INVOCATION_WANTS_FROM_A_FILE, type = "adr")
 @Link(name = "ADR-306", url = Adr.THE_CONTROL_PANELS_OWN_HOLDER_LINE_IS_HELD_BY_NOBODY, type = "adr")
 class TheValuesTheNextInvocationWantsTest {
@@ -95,14 +95,14 @@ class TheValuesTheNextInvocationWantsTest {
 
     /**
      * Where the next invocation wants the approval and names the arrangement it arrived at, that name is put into
-     * {@code arrangementApproved} (ADR-294 §4, which ADR-339 keeps), as the next page put it: the profile stating no
+     * {@code arrangementApproved} (ADR-294 §4, which ADR-342 keeps), as the next page put it: the profile stating no
      * approval, the wanted value's control is offered the name, and the wanted values' Save writes it with the filled-in
-     * note (ADR-340 §2).
+     * note (ADR-343 §2).
      */
     @Test
     @Story("The control panel shows what the next invocation wants")
     @DisplayName("The arrangement the next invocation names is offered as the approval it wants, and Save writes it with the filled-in note")
-    @Link(name = "ADR-340", url = Adr.THE_NOTE_SAVED_WITH_A_PROFILE_VALUE_IS_FILLED_IN, type = "adr")
+    @Link(name = "ADR-343", url = Adr.THE_NOTE_SAVED_WITH_A_PROFILE_VALUE_IS_FILLED_IN, type = "adr")
     void theArrangementTheNextInvocationNamesIsOfferedAsTheApprovalItWants(@TempDir Path folder) throws Exception {
         Path workingDirectory = aWorkingDirectoryStatingAModel(folder);
         Files.writeString(workingDirectory.resolve(NextInvocation.FILE_NAME), "invocation=run\nwants=arrangementApproved\n"

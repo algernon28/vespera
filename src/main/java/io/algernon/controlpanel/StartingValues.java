@@ -7,7 +7,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.dataformat.yaml.YAMLMapper;
 
 /**
- * Where each field of the window starts, and what of it reaches the child and the launch values file (ADR-341 §3).
+ * Where each field of the window starts, and what of it reaches the child and the launch values file (ADR-344 §3).
  *
  * <p>A field starts from the first of the launch values file, the window's environment, {@code .env}, for the Docling
  * image alone the GPU image, and the jar's own {@code application.yaml} that names it, not blank; and says which. A

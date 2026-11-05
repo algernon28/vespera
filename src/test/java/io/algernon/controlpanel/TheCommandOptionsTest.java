@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The presets the window passes as options of the command line, and the command lines it shows (ADR-341 §4): five
+ * The presets the window passes as options of the command line, and the command lines it shows (ADR-344 §4): five
  * presets the jar ships, each passed only to the commands it is for, after the command's own arguments, in the table's
  * order; the label file passed to {@code label} and never to {@code label --auto}; and each command line shown as
  * exactly the arguments the child is started with.
@@ -32,13 +32,13 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 class TheCommandOptionsTest {
 
     /** The jar's own configuration, which every option must be a value of. */
     private static final Path SHIPPED_APPLICATION_YAML = Path.of("src", "main", "resources", "application.yaml");
 
-    /** The five presets, in the table's order, as ADR-341 §4 lists them. */
+    /** The five presets, in the table's order, as ADR-344 §4 lists them. */
     private static final List<String> THE_FIVE = List.of(
             "vespera.progress-interval",
             "vespera.sidecars.start",

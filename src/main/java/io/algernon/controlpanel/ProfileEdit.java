@@ -228,7 +228,7 @@ public final class ProfileEdit {
     /**
      * §5's second step for one value, before anything is written: the line refusing it where the file moved since the
      * form was drawn, or by §4's checks; empty where it may be written. A value changed under the provenance the file
-     * states is no refusal: the form sends the filled-in note then (ADR-340 §3).
+     * states is no refusal: the form sends the filled-in note then (ADR-343 §3).
      *
      * @param inFile what the file states for the key now, empty where it states none
      * @param drawn what the form carried as {@code drawn}, empty where it carried none
@@ -242,16 +242,16 @@ public final class ProfileEdit {
         return refusalOf(key, value, provenance);
     }
 
-    /** The words a note is filled in with where the file states no provenance, and saved with where ADR-340 §2 says. */
+    /** The words a note is filled in with where the file states no provenance, and saved with where ADR-343 §2 says. */
     public static final String FILLED_IN_NOTE = "set in the control panel";
 
-    /** The note a form shows beside a key: the provenance the file states, where not blank, else {@link #FILLED_IN_NOTE} (ADR-340 §1). */
+    /** The note a form shows beside a key: the provenance the file states, where not blank, else {@link #FILLED_IN_NOTE} (ADR-343 §1). */
     public static String noteShown(Optional<Stated> inFile) {
         return inFile.map(Stated::provenance).filter(stated -> !stated.isBlank()).orElse(FILLED_IN_NOTE);
     }
 
     /**
-     * The provenance a save writes for the key by the table of ADR-340 §2; empty where the key is not written (the
+     * The provenance a save writes for the key by the table of ADR-343 §2; empty where the key is not written (the
      * first row: the value as the file states it and the note left as shown).
      *
      * @param value what the form holds for the value
@@ -279,7 +279,7 @@ public final class ProfileEdit {
 
     private static String normalized(ProfileKey key, String value) {
         String typed = trimmed(key, withoutBreaks(value == null ? "" : value));
-        if (key.kind() == ProfileKey.Kind.FOLDERS) {
+        if (key.kind() == ProfileKey.Kind.FOLDERS || key.kind() == ProfileKey.Kind.CORPUS_FOLDERS) {
             return String.join(java.io.File.pathSeparator, foldersOf(typed));
         }
         return key.kind() == ProfileKey.Kind.NAME_ENDINGS || key.kind() == ProfileKey.Kind.LANGUAGES
@@ -305,6 +305,30 @@ public final class ProfileEdit {
                 }
             } catch (InvalidPathException cannotBeHeld) {
                 return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Whether the value holds one or more folders, each below the corpus root and relative to it (ADR-340 §8.1): elements
+     * separated by {@code /}, none empty, none {@code .} or {@code ..}, no {@code \}, neither beginning nor ending with
+     * {@code /}, and not absolute.
+     */
+    private static boolean areFoldersBelowTheCorpusRoot(String value) {
+        List<String> folders = foldersOf(value);
+        if (folders.isEmpty()) {
+            return false;
+        }
+        for (String folder : folders) {
+            if (folder.indexOf('\\') >= 0 || folder.startsWith("/") || folder.endsWith("/")
+                    || folder.matches("^[A-Za-z]:.*")) {
+                return false;
+            }
+            for (String element : folder.split("/", -1)) {
+                if (element.isEmpty() || element.equals(".") || element.equals("..")) {
+                    return false;
+                }
             }
         }
         return true;
@@ -353,6 +377,9 @@ public final class ProfileEdit {
                     : Optional.of(quoted + " is not a list of two-letter language codes");
             case CODE_SET_FOLDERS -> areFolders(value) ? Optional.empty()
                     : Optional.of(quoted + " is not a list of absolute folders, separated by " + java.io.File.pathSeparator);
+            case FOLDERS_NOT_WALKED -> areFoldersBelowTheCorpusRoot(value) ? Optional.empty()
+                    : Optional.of(quoted + " is not a list of folders below the corpus root, written with / between"
+                            + " their elements and separated by " + java.io.File.pathSeparator);
             case CLUSTER_RESOLUTION -> number(value).filter(number -> number > 0).isPresent() ? Optional.empty()
                     : Optional.of(quoted + " is not a number above 0");
             default -> number(value).isPresent() ? Optional.empty() : Optional.of(quoted + " is not a number");

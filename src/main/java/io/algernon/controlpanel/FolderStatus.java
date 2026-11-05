@@ -7,7 +7,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * What a folder field of the window says of its folder (ADR-331 §6, which ADR-339 keeps): not chosen, found with the free
+ * What a folder field of the window says of its folder (ADR-331 §6, which ADR-342 keeps): not chosen, found with the free
  * space of its drive, to be created where the jar creates it, or no such folder.
  *
  * @param state {@code not-chosen}, {@code found}, {@code will-be-created} or {@code no-such-folder}

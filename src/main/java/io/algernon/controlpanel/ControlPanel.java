@@ -10,9 +10,9 @@ import java.util.Map;
 import javafx.application.Application;
 
 /**
- * The control panel's one entry (ADR-339 §2): {@link #open()} finds the runtime the child starts with, registers the
+ * The control panel's one entry (ADR-342 §2): {@link #open()} finds the runtime the child starts with, registers the
  * shutdown hook that ends the child with the JVM (ADR-307 §1), reads the four sources the window's fields start from
- * (ADR-341 §3), and launches {@link ControlPanelWindow}. It keeps no {@code main}: the jar's entry point calls it with no
+ * (ADR-344 §3), and launches {@link ControlPanelWindow}. It keeps no {@code main}: the jar's entry point calls it with no
  * argument, and does as the answer says.
  */
 public final class ControlPanel {
@@ -34,7 +34,7 @@ public final class ControlPanel {
      * Opens the window and answers once it has closed. Where the class path names no jar the answer is
      * {@link Opening.Result#NO_JAR} with the refusal's line and no window is tried; where the toolkit throws as it starts,
      * on a machine with no display or from a jar built for another platform, {@link Opening.Result#NO_WINDOW} with
-     * what it threw (ADR-339 §2).
+     * what it threw (ADR-342 §2).
      */
     public static Opening open() {
         ChildRuntime runtime;
@@ -89,7 +89,7 @@ public final class ControlPanel {
 
     /**
      * What the environment, {@code .env} in the current directory and the jar's own {@code application.yaml} say, read
-     * once for the window's fields (ADR-341 §3). A source that cannot be read says nothing; {@code .env} is never written.
+     * once for the window's fields (ADR-344 §3). A source that cannot be read says nothing; {@code .env} is never written.
      */
     private static StartingValues.Sources readSources() {
         Map<String, String> dotEnv = Map.of();

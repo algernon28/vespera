@@ -35,6 +35,7 @@ import io.algernon.vespera.synthesis.ClusterGeneration;
 import io.algernon.vespera.synthesis.ClusterSynthesis;
 import io.algernon.vespera.synthesis.Clusters;
 import io.algernon.vespera.synthesis.SynthesisDocs;
+import io.algernon.vespera.website.WebsitePlugin;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -107,8 +108,10 @@ import org.springframework.transaction.annotation.Transactional;
     VesperaCommand.Label.class,
     VesperaCommand.Publish.class,
     Publisher.class,
-    // The Confluence rendering's plugin, which every drawing draws beside the tree (ADR-333 §1, §4).
+    // The plugins, the Confluence rendering's and the website rendering's, which every drawing draws beside the
+    // tree (ADR-333 §1, §4).
     ConfluencePlugin.class,
+    WebsitePlugin.class,
     NextAction.class,
     VesperaJobConfiguration.class,
     // The progress page's opener, which records and opens nothing, in place of the system's (ADR-266): no

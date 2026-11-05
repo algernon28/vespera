@@ -156,6 +156,32 @@ public final class ListedTree {
                 progress);
     }
 
+    /**
+     * As {@link #writeWithCeiling}, {@code plugins} drawing a rendering of their own beside the tree (ADR-333 §2, §4),
+     * through the public way in {@code pipeline} hands the plugin beans to.
+     */
+    static Path writeWithCeiling(
+            Path workingDirectory,
+            Path corpusRoot,
+            List<RecordedCluster> arrangement,
+            Map<ClusterSlot, SynthesisDoc> written,
+            List<ListedSurvivor> survivors,
+            Map<ClusterSlot, Unwritten> unwritten,
+            SurvivorPictures pictures,
+            ClusterPageCeiling ceiling,
+            List<Plugin> plugins) {
+        return Deliverable.writeTo(
+                workingDirectory,
+                DeliverableRoot.UNNAMED,
+                provenance(corpusRoot),
+                of(arrangement, written, survivors, unwritten),
+                ListedCodeSets.NONE,
+                pictures,
+                ceiling,
+                plugins,
+                DeliverableProgress.NONE);
+    }
+
     /** As {@link #writeWithCeiling}, every page put in place by {@code moves}. */
     static Path writeWithCeiling(
             Path workingDirectory,

@@ -23,7 +23,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * The jar's entry point (ADR-339 §2): started with no argument, the Vespera jar opens the control panel's window;
+ * The jar's entry point (ADR-342 §2): started with no argument, the Vespera jar opens the control panel's window;
  * started with any argument, it is the command line as before, and nothing of the control panel is reached.
  *
  * <p>{@code EntryPoint} is the jar's {@code Start-Class}, in {@code io.algernon}, outside both the ten modules and the
@@ -34,7 +34,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-339", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+@Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
 class EntryPointTest {
 
     /** The class whose {@code main} opens the window. */

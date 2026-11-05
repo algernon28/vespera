@@ -2406,32 +2406,64 @@ public final class Adr {
             + "0337-every-claim-can-fail-a-decision-is-held-once-and-a-records-tests-name-tests-that-exist.md";
 
     /**
-     * ADR-339 -- the control panel is a JavaFX window inside the Vespera jar, OpenJFX 26.0.2's {@code javafx-controls}
+     * ADR-339 -- an entry of {@code ChildCommand.ARGUMENTS} names the form its control stands on, {@code launch} or
+     * {@code publish}, so {@code publish --to}'s {@code to} stands on the invocation page's Publish and never on the
+     * launch form; six members of {@code ClusterPage} are public for the website rendering; and the website's two lists,
+     * the words of a stopped delivery, the source check, the pages' ceiling, the Publish form's offer and three fixed
+     * words are as built (amends ADR-336 §2 and its Tests, and ADR-338 §1).
+     */
+    public static final String AN_ARGUMENT_NAMES_THE_FORM_ITS_CONTROL_STANDS_ON_AND_THE_WEBSITE_IS_BUILT_AS_RECORDED =
+            FILE + "0339-an-argument-of-the-control-panels-table-names-the-form-its-control-stands-on-six-members-of-cluster-page-are-public-for-the-website-and-its-lists-stops-and-pages-are-as-recorded.md";
+
+    /**
+     * ADR-340 -- the control panel is one home page under a top bar holding Run, Label, Check and a box Autolabel on
+     * every page, the reports, the progress page, the preflight and the next step on it, and every value it edits in
+     * one drawer of foldable sections, the folders not relevant among them; an empty field shows the value in use, an
+     * empty work folder being the jar's default, which Run passes; every field is named in plain words; and a folder
+     * the profile's {@code foldersNotWalked} names, unticked in a tree of the corpus's folders, is counted by the walk
+     * and never entered (amends ADR-302 §2, §4, §8 and §9, ADR-292 §5, ADR-331 §3, §5, §6 and §8, ADR-334 §1 to §3,
+     * §5.2, §5.5, §6 and §7, ADR-335 §1, §4 and §5, ADR-330 §2, §4 and §12, ADR-336 §1, ADR-050, ADR-054, ADR-055, ADR-056
+     * and ADR-115).
+     */
+    public static final String THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED =
+            FILE + "0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md";
+
+    /**
+     * ADR-341 -- {@code vespera serve} tells a page, an asset or the listing from a copy by {@code vespera-website.json}
+     * and the file's name together; {@code serve}'s {@code --db-dir} is a fourth argument the control panel never
+     * passes; and its refusal of a port that is no port, its exit 2, its blank values, its environment names, its 301,
+     * 403, 405 and 500 and its rereading of the list are as built (amends ADR-333 §8, ADR-336 §2 and ADR-339 §1).
+     */
+    public static final String SERVE_TELLS_A_PAGE_FROM_A_COPY_BY_THE_LIST_AND_THE_NAME = FILE
+            + "0341-vespera-serve-tells-a-page-from-a-copy-by-the-websites-list-and-the-files-name-serves-working-directory-is-never-passed-and-its-refusals-answers-and-readings-are-as-built.md";
+
+    /**
+     * ADR-342 -- the control panel is a JavaFX window inside the Vespera jar, OpenJFX 26.0.2's {@code javafx-controls}
      * of the building platform's classifier, opened by the jar started with no argument through {@code
      * io.algernon.EntryPoint}, its child the jar it runs from; its loopback server, pages and second jar go, and a
      * window is tested on JavaFX's Headless platform (supersedes ADR-291, ADR-297, ADR-302 but for §5 to §7, ADR-325,
      * ADR-331 but for §6 and §8, and ADR-335; amends ADR-285 §2 to §4, ADR-288 §1 and §4, and ADR-278 §2).
      */
     public static final String THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR = FILE
-            + "0339-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md";
+            + "0342-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md";
 
     /**
-     * ADR-340 -- the note saved with a profile value is filled in, the provenance the file states or {@code set in the
+     * ADR-343 -- the note saved with a profile value is filled in, the provenance the file states or {@code set in the
      * control panel}, and a value changed under the note as shown is saved with the filled-in one; the refusal of a
      * value changed under its old provenance goes (amends ADR-295 §3 and §4, ADR-330 §5 and ADR-334 §7).
      */
     public static final String THE_NOTE_SAVED_WITH_A_PROFILE_VALUE_IS_FILLED_IN = FILE
-            + "0340-the-note-saved-with-a-profile-value-is-filled-in-for-the-operator-set-in-the-control-panel-or-the-provenance-already-saved-and-a-value-changed-under-its-old-note-is-saved-with-the-filled-in-one.md";
+            + "0343-the-note-saved-with-a-profile-value-is-filled-in-for-the-operator-set-in-the-control-panel-or-the-provenance-already-saved-and-a-value-changed-under-its-old-note-is-saved-with-the-filled-in-one.md";
 
     /**
-     * ADR-341 -- the control panel's window is one cockpit: Run and Stop side by side, the sixteen steps as bars beside
+     * ADR-344 -- the control panel's window is one cockpit: Run and Stop side by side, the sixteen steps as bars beside
      * the output, the progress page's three charts from {@code progress.json}, the Profile and Inclusions tabs and seven
      * sections of a sidebar; its starting values from the launch values, the environment, {@code .env} and {@code
      * application.yaml}; and five options and the label file set in it, with the command lines they make shown
      * (amends ADR-278 §1, ADR-330 §1, ADR-336 §1 to §3 and ADR-302 §7).
      */
     public static final String THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT = FILE
-            + "0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md";
+            + "0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md";
 
     private Adr() {
     }

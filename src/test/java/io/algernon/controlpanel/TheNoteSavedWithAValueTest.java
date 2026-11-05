@@ -20,23 +20,23 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * The note saved with a profile value (ADR-340): no field asks why a value was chosen; each value's note is filled in,
+ * The note saved with a profile value (ADR-343): no field asks why a value was chosen; each value's note is filled in,
  * with the provenance the file states or {@code set in the control panel}, and is saved as the operator leaves it,
  * except that a blank note, or a note left as shown beside a value changed, is saved as {@code set in the control
  * panel}. A key whose value and note are both as they were is not written.
  *
  * <p>The rule is {@code ProfileEdit}'s, which every write of the profile passes through (ADR-295 §4); the window that
- * shows the notes calls it. Each expected note is written out: {@code set in the control panel} is the words ADR-340 §1
+ * shows the notes calls it. Each expected note is written out: {@code set in the control panel} is the words ADR-343 §1
  * fixes.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-340", url = Adr.THE_NOTE_SAVED_WITH_A_PROFILE_VALUE_IS_FILLED_IN, type = "adr")
+@Link(name = "ADR-343", url = Adr.THE_NOTE_SAVED_WITH_A_PROFILE_VALUE_IS_FILLED_IN, type = "adr")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
 class TheNoteSavedWithAValueTest {
 
-    /** The words a note is filled in with, as ADR-340 §1 fixes them. */
+    /** The words a note is filled in with, as ADR-343 §1 fixes them. */
     private static final String FILLED_IN = "set in the control panel";
 
     /** A key whose value is a share, whose checks pass for every value these tests save. */

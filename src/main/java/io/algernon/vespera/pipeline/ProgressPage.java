@@ -59,7 +59,7 @@ final class ProgressPage implements JobExecutionListener {
 
     static final String FILE_NAME = "progress.html";
 
-    /** What the page's steps and charts are written as beside it, for the control panel's window (ADR-341 section 2). */
+    /** What the page's steps and charts are written as beside it, for the control panel's window (ADR-344 section 2). */
     static final String NUMBERS_FILE_NAME = "progress.json";
 
     private static final Logger log = LoggerFactory.getLogger(ProgressPage.class);
@@ -1088,7 +1088,7 @@ final class ProgressPage implements JobExecutionListener {
                 + databaseChart() + (card ? counts : "") + verdictsChart() + "</div>\n" + (card ? "" : counts);
     }
 
-    /** A chart's numbers before they are drawn: the page draws them as a figure and progress.json writes them (ADR-341 section 2). */
+    /** A chart's numbers before they are drawn: the page draws them as a figure and progress.json writes them (ADR-344 section 2). */
     private record ChartData(
             String key, String title, String caption, List<Long> seconds, List<Line> lines, Axis axis,
             DoubleFunction<String> show) {}
@@ -1404,7 +1404,7 @@ final class ProgressPage implements JobExecutionListener {
     }
 
     /**
-     * The file the window reads, progress.json, of a write, from the reading the page was drawn from (ADR-341 section 2): whether the invocation
+     * The file the window reads, progress.json, of a write, from the reading the page was drawn from (ADR-344 section 2): whether the invocation
      * has ended, each step of the job in order with its state and, where its last progress line is a counter, how far
      * it has got, and the charts the page draws now with the series the page's own rules picked. Numbers and the
      * page's own words: no path and no text of a document.

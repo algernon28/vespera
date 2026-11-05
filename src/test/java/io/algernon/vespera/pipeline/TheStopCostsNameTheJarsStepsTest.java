@@ -26,7 +26,7 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * The control panel's table of what a stop costs at each step names the steps of the job {@code vespera run} starts,
- * every one, in the order the job runs them (ADR-302 §7, which ADR-339 keeps and ADR-341 §2 shows beside each step's
+ * every one, in the order the job runs them (ADR-302 §7, which ADR-342 keeps and ADR-344 §2 shows beside each step's
  * bar): the steps are read from the job as the jar builds it, and the rows from {@code StopCosts}, where the window
  * reads them.
  */
@@ -35,7 +35,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
 class TheStopCostsNameTheJarsStepsTest {
 
@@ -65,7 +65,7 @@ class TheStopCostsNameTheJarsStepsTest {
     }
 
     /**
-     * Each row of the window's steps shows its stage (ADR-341 §1): the stage under whose runs the jar records the step's
+     * Each row of the window's steps shows its stage (ADR-344 §1): the stage under whose runs the jar records the step's
      * completion, as the progress page's tab of runs reads it (ADR-269 §5), and none for a step the jar records under no
      * stage's run, the census, which mints none, and the relevance floor and report, which record no completion
      * (ADR-118). The window holds the rule as text, linking no class of the jar (ADR-285 §3); this holds it to the jar's.

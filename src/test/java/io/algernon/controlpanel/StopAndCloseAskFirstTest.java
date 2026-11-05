@@ -25,11 +25,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Stop, and closing the window while its child runs, ask first (ADR-278 §6, ADR-285 §5, ADR-341 §7): each asks with the
+ * Stop, and closing the window while its child runs, ask first (ADR-278 §6, ADR-285 §5, ADR-344 §7): each asks with the
  * one sentence a stop is confirmed by, {@link Child#STOP_CONFIRMATION}, through the window's dialogs, which a test
- * answers (ADR-339 §6). Stop ends the child only on the answer that goes on, from the action card's {@code stop} and from
+ * answers (ADR-342 §6). Stop ends the child only on the answer that goes on, from the action card's {@code stop} and from
  * the running step's {@code stop-step} alike, which stands shown on that step's row, as {@code progress.json} names it,
- * and on no other: every row holds a {@code stop-step}, so it is looked up inside the row. Closing asks once, with the two answers ADR-341 §7 names; Keep the window
+ * and on no other: every row holds a {@code stop-step}, so it is looked up inside the row. Closing asks once, with the two answers ADR-344 §7 names; Keep the window
  * keeps it open and the child running. A close with no child running asks nothing.
  *
  * <p>The child is {@link SleepingJar}'s, started by the state as Run starts it. Stop and close, which ends the JVM, is
@@ -38,7 +38,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 @Link(name = "ADR-285", url = Adr.THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR, type = "adr")
 @Link(name = "ADR-278", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN, type = "adr")
 class StopAndCloseAskFirstTest {

@@ -1,5 +1,7 @@
 # ADR-050 — The pipeline has exclusive access to the corpus
 
+> **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of its Consequences' *"The walk is accountable for every entry beneath the corpus root it was given"*: a folder the profile's `foldersNotWalked` names is an entry the walk counts and does not enter, and nothing below it is accounted for. The rest of this record stands.
+
 - **Date**: 2026-08-26
 - **Status**: accepted
 

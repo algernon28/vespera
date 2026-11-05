@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * The command line, environment and current directory of the child the control panel starts (ADR-278 §1, ADR-285 §5):
  * only the jar's {@code run}, {@code label} and {@code publish} commands (ADR-308 §6), after both encoding flags, with
- * absolute paths and {@code CI=1}, then the options of the command line the operator set in the window (ADR-341 §4). A
+ * absolute paths and {@code CI=1}, then the options of the command line the operator set in the window (ADR-344 §4). A
  * publish's child inherits the five values it reads from the operator's environment, as every child inherits it; the
  * control panel adds none of them.
  */
@@ -39,13 +39,13 @@ public final class ChildCommand {
             new Argument("publish", "db-dir", "vespera.working-dir", "As for run; Publish stands in the action card."));
 
     /**
-     * One option of the command line the window passes (ADR-341 §4): the jar's property, the commands it is passed
+     * One option of the command line the window passes (ADR-344 §4): the jar's property, the commands it is passed
      * to, among {@code run}, {@code label} and {@code label --auto}, and why it is among the five.
      */
     public record Option(String property, List<String> commands, String reason) {
     }
 
-    /** The five presets the window offers, in the order they are passed (ADR-341 §4). */
+    /** The five presets the window offers, in the order they are passed (ADR-344 §4). */
     public static final List<Option> OPTIONS = List.of(
             new Option("vespera.progress-interval", List.of("run", "label", "label --auto"),
                     "How often the progress page and its data file are rewritten; no run's identity holds it."),
@@ -59,7 +59,7 @@ public final class ChildCommand {
                     "How long a pull may stall before it is given up; no run's identity holds it."));
 
     /**
-     * What is not offered, each by its property and why (ADR-341 §4): the window passes none of them, and the control
+     * What is not offered, each by its property and why (ADR-344 §4): the window passes none of them, and the control
      * panel's test holds that no option of {@link #OPTIONS} is among them.
      */
     public static final Map<String, String> NOT_OFFERED = Map.of(
@@ -135,7 +135,7 @@ public final class ChildCommand {
     /**
      * The same command with each of {@code presets} that {@link #OPTIONS} lists for it added as
      * {@code --<property>=<value>} after the command's own arguments, in the table's order; a property not in the table,
-     * or not listed for this command, is not passed (ADR-341 §4).
+     * or not listed for this command, is not passed (ADR-344 §4).
      */
     public ChildCommand withOptions(Map<String, String> presets) {
         return new ChildCommand(java, jar, values, directory, arguments, commandName, presets);
@@ -150,7 +150,7 @@ public final class ChildCommand {
                 commandName, passed);
     }
 
-    /** {@code vespera} and the arguments after {@code -jar <jar>}, one holding a space in double quotes (ADR-341 §4). */
+    /** {@code vespera} and the arguments after {@code -jar <jar>}, one holding a space in double quotes (ADR-344 §4). */
     public String shown() {
         List<String> after = command.subList(command.indexOf("-jar") + 2, command.size());
         StringBuilder line = new StringBuilder("vespera");

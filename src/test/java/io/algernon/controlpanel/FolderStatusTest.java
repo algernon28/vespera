@@ -17,14 +17,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * What a folder field of the window says of its folder (ADR-331 §6, which ADR-339 keeps): not chosen, found with the
+ * What a folder field of the window says of its folder (ADR-331 §6, which ADR-342 keeps): not chosen, found with the
  * free space of its drive, to be created where the jar creates it, or no such folder, by {@code FolderStatus}, where
- * the rule the pages held now lives (ADR-341 §8).
+ * the rule the pages held now lives (ADR-344 §8).
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 @Link(name = "ADR-331", url = Adr.THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT, type = "adr")
 class FolderStatusTest {
 

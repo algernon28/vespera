@@ -32,7 +32,7 @@
         <spring-modulith.version>2.1.0</spring-modulith.version>
         <picocli.version>4.7.7</picocli.version>
         <memoryfilesystem.version>2.8.1</memoryfilesystem.version>
-        <!-- ADR-339: the OpenJFX release of the JDK's own major; Spring Boot's parent manages no version of it. -->
+        <!-- ADR-342: the OpenJFX release of the JDK's own major; Spring Boot's parent manages no version of it. -->
         <javafx.version>26.0.2</javafx.version>
         <!-- ADR-073: pinned to Lingua's latest release, 1.2.2 (2022), the record's own note that this line is stable rather than actively developed. -->
         <lingua.version>1.2.2</lingua.version>
@@ -79,7 +79,7 @@
     </properties>
     <dependencies>
         <!--
-          ADR-339: the control panel's window. javafx-controls brings javafx-graphics and javafx-base; the pom names no
+          ADR-342: the control panel's window. javafx-controls brings javafx-graphics and javafx-base; the pom names no
           classifier, so the jar carries the native libraries of the platform it is built on.
         -->
         <dependency>
@@ -89,7 +89,7 @@
         </dependency>
         <dependency>
             <!--
-              ADR-339 section 1, ADR-341 section 6: the reports open in a tab of the window, in a WebView. No classifier,
+              ADR-342 section 1, ADR-344 section 6: the reports open in a tab of the window, in a WebView. No classifier,
               as for javafx-controls: the build platform's natives only. It adds about 37 MB to the jar, which the
               operator approved.
             -->
@@ -287,12 +287,12 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <!-- ADR-339 section 2: the jar's Start-Class is the entry point that opens the window or runs the command line. -->
+                    <!-- ADR-342 section 2: the jar's Start-Class is the entry point that opens the window or runs the command line. -->
                     <mainClass>io.algernon.EntryPoint</mainClass>
                 </configuration>
             </plugin>
             <plugin>
-                <!-- ADR-339 section 2: JavaFX's restricted methods are called from the unnamed module; the entry keeps the four warnings off standard error. -->
+                <!-- ADR-342 section 2: JavaFX's restricted methods are called from the unnamed module; the entry keeps the four warnings off standard error. -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <executions>
@@ -494,7 +494,7 @@
 
     <!--
       Launch shortcuts: each profile builds the jar, skipping the tests, and then starts it with the
-      java running Maven, from the root of the repository, until it ends (ADR-339 section 2).
+      java running Maven, from the root of the repository, until it ends (ADR-342 section 2).
       `./mvnw -Pheadless -Dvespera.args="run <root>"` runs one command of the jar headless, so
       no window opens; `./mvnw -Pgui` starts the jar with no argument, which opens the control panel's
       window, which starts that same jar for each command it runs. Neither starts the sidecars.

@@ -1069,9 +1069,12 @@ class DeliverableInvocationTest {
      * (ADR-135).
      */
     private Path theClusterPageFileOf(Path root) throws IOException {
-        List<Path> pages = everyFileIn(theTreeOf(root)).stream()
+        Path tree = theTreeOf(root);
+        List<Path> pages = everyFileIn(tree).stream()
                 .filter(file -> file.getFileName().toString().endsWith(".html"))
                 .filter(file -> !file.equals(theIndexFileOf(root)))
+                // The HTML tree's pages alone: the plugins' renderings beside it are their own (ADR-333 §3).
+                .filter(file -> !tree.relativize(file).getName(0).toString().matches("website|confluence"))
                 .toList();
         if (pages.size() != ONE_CLUSTER) {
             throw new IllegalStateException(

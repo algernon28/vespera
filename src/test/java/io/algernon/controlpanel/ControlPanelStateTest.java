@@ -38,7 +38,7 @@ import org.junit.jupiter.api.io.TempDir;
  * a thread of its own, and since a holder line of the control panel's own process reads as held by nobody, only the
  * {@link ControlPanelState}'s monitor keeps a start from passing its checks while a write holds the working-directory
  * lock. The state also tells whether a Confluence rendering is drawn under the working directory and the output folder
- * it is given, as the window's fields name them and not as the launch values hold them (ADR-341 §1, §3), and reads the
+ * it is given, as the window's fields name them and not as the launch values hold them (ADR-344 §1, §3), and reads the
  * working directory's {@code deliverable} folder, named as the output folder, as no folder named (ADR-334 §1).
  */
 @Epic("Operation")
@@ -168,13 +168,13 @@ class ControlPanelStateTest {
     }
 
     /**
-     * A start is refused where the working directory it passes is held by another invocation (ADR-278 §4, ADR-341 §3):
+     * A start is refused where the working directory it passes is held by another invocation (ADR-278 §4, ADR-344 §3):
      * the one the window passes, which may have come from the environment and be kept nowhere, and not the one the state
      * held before. The holder is a live process of the test's own, named by a holder line as the jar writes one.
      */
     @Test
     @Issue("700")
-    @Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+    @Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
     @Link(name = "ADR-278", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN, type = "adr")
     @Story("The control panel starts no invocation where another holds the working directory")
     @DisplayName("A start is refused where the working directory it passes is held by another invocation, whatever the one held before")
@@ -231,7 +231,7 @@ class ControlPanelStateTest {
 
     /**
      * What the window passes for a Run whose corpus root and working directory came from the environment: both passed,
-     * as the command's own arguments, and neither kept (ADR-341 §3).
+     * as the command's own arguments, and neither kept (ADR-344 §3).
      */
     private static ControlPanelState.Plan passing(Path corpusRoot, Path workingDirectory) {
         return new ControlPanelState.Plan(
@@ -241,7 +241,7 @@ class ControlPanelStateTest {
 
     /**
      * Whether a rendering is drawn, by what each output folder named is called, asked of the working directory and the
-     * output folder as the window's fields name them, whatever the launch values hold (ADR-341 §1, §3).
+     * output folder as the window's fields name them, whatever the launch values hold (ADR-344 §1, §3).
      */
     private static Map<String, Boolean> drawnFor(ControlPanelState state, Path workingDirectory,
             Map<String, String> named) {

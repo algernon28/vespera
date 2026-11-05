@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * A report opens inside the control panel's window and never in a browser (ADR-341 §6): pressing its link, in the
+ * A report opens inside the control panel's window and never in a browser (ADR-344 §6): pressing its link, in the
  * Reports section or beside a key, opens it in a closable tab of its own, {@code report-<file name>}, beside Profile
  * and Inclusions, whose viewer {@code viewer-<file name>} runs the report's own script and whose
  * {@code reload-<file name>} reads it again; a report already open is selected, not opened twice. A link inside a
@@ -38,15 +38,15 @@ import org.junit.jupiter.api.io.TempDir;
  * report again from its file each time. The tabs are the working directory's: another one named in the field closes
  * them.
  *
- * <p>The viewer is JavaFX's own {@code WebView}, on the Headless platform as every window test is (ADR-339 §6); a link
+ * <p>The viewer is JavaFX's own {@code WebView}, on the Headless platform as every window test is (ADR-342 §6); a link
  * inside a report is pressed by the page's own {@code click()}, and what is handed to the system is answered by the
  * test's dialogs, so no program of the system is started.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
-@Link(name = "ADR-339", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
 class TheReportsOpenInTheWindowTest {
 
     /** A report the jar writes in the working directory, read off the boilerplate floor. */

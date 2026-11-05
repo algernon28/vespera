@@ -30,7 +30,7 @@ import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The invocation the control panel started ends with the control panel's JVM (ADR-307 §1, which ADR-339 keeps): the
+ * The invocation the control panel started ends with the control panel's JVM (ADR-307 §1, which ADR-342 keeps): the
  * shutdown hook {@code ControlPanel.endChildWithThisJvm} registers kills the child, with its descendants, as the JVM
  * ends in an orderly way; and no invocation is started once it has. Held with no window and no server, through the
  * state and the hook alone, which is all ADR-307 rests on.
@@ -39,7 +39,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("700")
 @Link(name = "ADR-307", url = Adr.THE_CHILD_ENDS_WITH_THE_CONTROL_PANEL, type = "adr")
-@Link(name = "ADR-339", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+@Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
 class TheChildEndsWithTheControlPanelsJvmTest {
 
     private static final String USER = System.getProperty("user.name");

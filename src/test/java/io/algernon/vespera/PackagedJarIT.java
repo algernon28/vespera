@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 /**
  * The packaged jar carries no Spring compose support (ADR-158, ADR-179), it carries the compose files its own
  * starter brings the sidecars up from (ADR-323), and it carries the control panel, started at its entry point with no
- * argument (ADR-339).
+ * argument (ADR-342).
  *
  * <p>Spring Boot's Docker Compose support reconciles running containers to the files it is given and stops them at
  * exit, which is what ADR-179 records going wrong; the jar's own starter recreates and stops nothing. That holds only
@@ -54,7 +54,7 @@ class PackagedJarIT {
     /** The packaged, executable jar the operator runs, at the path README.md names. */
     private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0.0.1-SNAPSHOT.jar");
 
-    /** The folder the build writes its jars in, which holds no second jar of the control panel's (ADR-339 §5). */
+    /** The folder the build writes its jars in, which holds no second jar of the control panel's (ADR-342 §5). */
     private static final Path TARGET = Path.of("target");
 
     /** Where the Boot plugin puts the application's own classes. */
@@ -72,16 +72,16 @@ class PackagedJarIT {
     /** A class of the jar the Spring Boot jar must hold, so that an absence below is a real one. */
     private static final String A_CLASS_OF_THE_JAR = "io/algernon/vespera/VesperaApplication.class";
 
-    /** The jar's entry point, outside both packages, as a jar names its entry (ADR-339 §2). */
+    /** The jar's entry point, outside both packages, as a jar names its entry (ADR-342 §2). */
     private static final String THE_ENTRY_POINT = "io/algernon/EntryPoint.class";
 
-    /** The class the Boot launcher hands the start to, which opens the window or runs the command line (ADR-339 §2). */
+    /** The class the Boot launcher hands the start to, which opens the window or runs the command line (ADR-342 §2). */
     private static final String ENTRY_POINT_CLASS = "io.algernon.EntryPoint";
 
     /** The manifest entry Spring Boot's launcher reads the class it starts from. */
     private static final String START_CLASS = "Start-Class";
 
-    /** The manifest entry that lets JavaFX load its native libraries with no warning (ADR-339 §2). */
+    /** The manifest entry that lets JavaFX load its native libraries with no warning (ADR-342 §2). */
     private static final String ENABLE_NATIVE_ACCESS = "Enable-Native-Access";
 
     /** The Spring Boot jar's own entry point, which a jar it repackages names as its {@code Main-Class}. */
@@ -90,7 +90,7 @@ class PackagedJarIT {
     /**
      * The six OpenJFX jars of one platform's classifier, as the Boot plugin names them under {@code BOOT-INF/lib/}:
      * {@code javafx-controls}' three, and {@code javafx-web}, which brings {@code javafx-media} and
-     * {@code jdk-jsobject}; the version ADR-339 §1 names, and the classifier of whichever platform built the jar.
+     * {@code jdk-jsobject}; the version ADR-342 §1 names, and the classifier of whichever platform built the jar.
      */
     private static final java.util.regex.Pattern JAVAFX_OF_ONE_PLATFORM = java.util.regex.Pattern.compile(
             "(javafx-(base|graphics|controls|media|web)|jdk-jsobject)-26\\.0\\.2-"
@@ -121,14 +121,14 @@ class PackagedJarIT {
     }
 
     /**
-     * The control panel ships inside the jar (ADR-339 §1, §2): its classes, the jar's entry point, and OpenJFX's six
-     * jars of the building platform's classifier, the web jar among them, which a report's viewer is (ADR-341 §6);
+     * The control panel ships inside the jar (ADR-342 §1, §2): its classes, the jar's entry point, and OpenJFX's six
+     * jars of the building platform's classifier, the web jar among them, which a report's viewer is (ADR-344 §6);
      * Spring Boot's launcher stays the {@code Main-Class} and hands the start to the entry point, and the manifest lets
      * JavaFX load its native libraries.
      */
     @Test
     @Issue("700")
-    @Link(name = "ADR-339", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+    @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
     @Story("The control panel ships inside the jar")
     @DisplayName("The packaged jar carries the control panel, JavaFX of one platform with its web viewer, and starts at the entry point")
     void theJarCarriesTheControlPanelAndJavaFxAndStartsAtTheEntryPoint() throws IOException {
@@ -161,10 +161,10 @@ class PackagedJarIT {
                 () -> assertThat(manifest.getValue(ENABLE_NATIVE_ACCESS)).isEqualTo("ALL-UNNAMED"));
     }
 
-    /** The build writes one jar: the second jar the control panel was built as is gone (ADR-339 §5). */
+    /** The build writes one jar: the second jar the control panel was built as is gone (ADR-342 §5). */
     @Test
     @Issue("700")
-    @Link(name = "ADR-339", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+    @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
     @Story("The control panel ships inside the jar")
     @DisplayName("No jar of the control panel's own is built beside the packaged jar")
     void noControlPanelJarIsBuiltBesideIt() throws IOException {

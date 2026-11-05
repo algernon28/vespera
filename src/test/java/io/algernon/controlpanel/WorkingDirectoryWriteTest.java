@@ -237,7 +237,7 @@ class WorkingDirectoryWriteTest {
 
     /**
      * A save of {@code profile.yaml} makes a working directory that is not there, and each folder it makes is this
-     * user's alone from the moment it is made (ADR-330 §7, kept by ADR-339 §4): on POSIX permissions {@code rwx------},
+     * user's alone from the moment it is made (ADR-330 §7, kept by ADR-342 §4): on POSIX permissions {@code rwx------},
      * and on a volume with access control lists, NTFS among them, one entry, this user's, which the file written there
      * inherits. The text saved is the one {@code ProfileEdit} composes for a file that is absent, then for the file as
      * it stands. On a volume with neither, such as FAT32, the folder is made as the volume makes it and there is no

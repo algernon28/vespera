@@ -21,7 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * What the Code sets section checks of a folder outside the corpus root before it adds it to the profile's
- * {@code codeSetFolders} (ADR-334 §5, which ADR-339 keeps and ADR-341 §1 draws in the sidebar): the whole path of a
+ * {@code codeSetFolders} (ADR-334 §5, which ADR-342 keeps and ADR-344 §1 draws in the sidebar): the whole path of a
  * folder that is there, apart from the corpus root, the working directory, the seed folder, the deliverable root and
  * every folder already stated, each refusal one line. Held without a page, in {@code CodeSetFolderChecks} itself.
  */
@@ -29,7 +29,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("700")
 @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 class CodeSetFolderChecksTest {
 
     @TempDir

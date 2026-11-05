@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The reports the jar writes in the working directory, and the ones each profile key is read off (ADR-341 §6, which
+ * The reports the jar writes in the working directory, and the ones each profile key is read off (ADR-344 §6, which
  * keeps ADR-306 §2 and §3): the Reports section lists {@link #ALL} and a key's row lists {@link #OF_A_KEY}. A report is
  * named by its file name; the window serves none and reads none.
  */

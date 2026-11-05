@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Each profile value's hint and its reports, wherever the window shows the value, are the README's table of values'
- * row for it (ADR-331 §8 and ADR-306 §3, which ADR-339 and ADR-341 §6 keep): the hint is the row's second cell, its code
+ * row for it (ADR-331 §8 and ADR-306 §3, which ADR-342 and ADR-344 §6 keep): the hint is the row's second cell, its code
  * quotes taken out, its first letter small and no stop at its end; the reports are the third cell's, in its order,
  * and a key whose row names none has none.
  *
@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 @Link(name = "ADR-331", url = Adr.THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT, type = "adr")
 class TheWindowFollowsTheReadmesTableOfValuesTest {
 

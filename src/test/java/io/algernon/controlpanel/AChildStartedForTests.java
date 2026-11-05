@@ -7,7 +7,7 @@ import java.util.Optional;
 
 /**
  * A control panel's state the tests start in a process of its own, with the shutdown hook {@code ControlPanel}
- * registers as the window opens (ADR-307 §1, ADR-339 §2), and a {@code run} child of {@link SleepingJar} started, with
+ * registers as the window opens (ADR-307 §1, ADR-342 §2), and a {@code run} child of {@link SleepingJar} started, with
  * no window and no server: what ADR-307 holds of the JVM's end needs neither.
  *
  * <p>Its arguments are a folder of the test's own, the corpus root and the working directory. It prints

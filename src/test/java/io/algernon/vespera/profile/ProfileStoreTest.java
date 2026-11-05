@@ -293,6 +293,9 @@ class ProfileStoreTest {
             codeSetFolders:
               value: "D:/code/billing"
               provenance: "the billing engine's checkout, beside the archive"
+            foldersNotWalked:
+              value: "archive/old-flows"
+              provenance: "exports of the old flows, nothing to read"
             """;
 
     /** The value {@link #EVERY_KEY_ANSWERED} writes under each key, copied from it. */
@@ -315,7 +318,8 @@ class ProfileStoreTest {
             Map.entry("preferredLanguages", "it, en"),
             Map.entry("configurationSettingShareFloor", "0.56"),
             Map.entry("deliverableLanguage", "it"),
-            Map.entry("clusterResolution", "2.5"));
+            Map.entry("clusterResolution", "2.5"),
+            Map.entry("foldersNotWalked", "archive/old-flows"));
 
     @Test
     @Story("What census writes to the profile")
@@ -324,6 +328,7 @@ class ProfileStoreTest {
     @Link(name = "ADR-119", url = Adr.PROFILE_HAS_ONE_CONSTRUCTOR, type = "adr")
     @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
     @Link(name = "ADR-287", url = Adr.LOGS_AND_CONFIGURATION_FILES_ARE_TOLD_BY_THEIR_BYTES, type = "adr")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
     void everyAnswerLandsOnTheKeyThatCarriedIt(@TempDir Path workingDirectory) throws IOException {
         Files.writeString(workingDirectory.resolve("profile.yaml"), EVERY_KEY_ANSWERED);
 

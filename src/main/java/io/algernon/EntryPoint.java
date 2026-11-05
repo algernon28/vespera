@@ -5,7 +5,7 @@ import io.algernon.vespera.VesperaApplication;
 import java.util.Arrays;
 
 /**
- * The jar's {@code Start-Class} (ADR-339 §2), outside the ten modules and outside the control panel's package, the one
+ * The jar's {@code Start-Class} (ADR-342 §2), outside the ten modules and outside the control panel's package, the one
  * class that names both. It extends no JavaFX {@code Application}, so the Java launcher's check for JavaFX's modules is
  * never reached and Spring Boot's launcher stays the jar's {@code Main-Class}.
  *

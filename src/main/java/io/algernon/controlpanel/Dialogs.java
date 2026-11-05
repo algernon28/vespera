@@ -15,7 +15,7 @@ import javafx.stage.Window;
 
 /**
  * What the window asks of the system beyond JavaFX's own scene: a folder, a file and a document handed to the
- * system (ADR-339 §6, ADR-341 §6); HostServices is used for that hand-off alone. A test answers it without a native dialog; that {@code DirectoryChooser} and {@code FileChooser} open is
+ * system (ADR-342 §6, ADR-344 §6); HostServices is used for that hand-off alone. A test answers it without a native dialog; that {@code DirectoryChooser} and {@code FileChooser} open is
  * not held by any test.
  */
 interface Dialogs {
@@ -26,7 +26,7 @@ interface Dialogs {
     /** The file the operator chose, empty where they chose none. */
     Optional<Path> file(String title, String initial);
 
-    /** Hands {@code address}, a document that is no report of the window, to the operating system to open (ADR-341 §6). */
+    /** Hands {@code address}, a document that is no report of the window, to the operating system to open (ADR-344 §6). */
     void handToTheSystem(URI address);
 
     /** Asks {@code sentence} with two answers; true where the operator gives {@code yes}, the one that goes on. */

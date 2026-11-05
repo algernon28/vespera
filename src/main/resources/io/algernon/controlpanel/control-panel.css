@@ -1,5 +1,5 @@
 /*
- * The control panel's one stylesheet (ADR-339 section 3): every colour, size and space the window draws. No class sets
+ * The control panel's one stylesheet (ADR-342 section 3): every colour, size and space the window draws. No class sets
  * a style of its own.
  */
 .root {

@@ -48,10 +48,10 @@ import javafx.scene.web.WebView;
 import javafx.util.Duration;
 
 /**
- * The control panel's window as one cockpit (ADR-341 §1): Run and Stop, the job's steps as a bar each beside the
+ * The control panel's window as one cockpit (ADR-344 §1): Run and Stop, the job's steps as a bar each beside the
  * child's output, the progress page's three charts, the Profile and Inclusions tabs and a sidebar of seven sections in
  * their order. Every part is found by its id. The cockpit reads and writes only through the {@link ControlPanelState}
- * it is given, and reads the sources its fields start from from that state (ADR-341 §3), so a cockpit a test draws
+ * it is given, and reads the sources its fields start from from that state (ADR-344 §3), so a cockpit a test draws
  * starts from what the test gives it. Every colour, size and space is the stylesheet's; no node here sets a style.
  */
 final class Cockpit {
@@ -155,7 +155,7 @@ final class Cockpit {
         }
     }
 
-    /** A preset passed as an option of the command line, its control and whether the operator changed it (ADR-341 §4). */
+    /** A preset passed as an option of the command line, its control and whether the operator changed it (ADR-344 §4). */
     private final class Preset {
         final String property;
         final StartingValues.Starting starting;
@@ -622,7 +622,7 @@ final class Cockpit {
         return pane;
     }
 
-    /** The corpus root as the field names it now, which the window uses wherever it reads or holds one (ADR-341 §3). */
+    /** The corpus root as the field names it now, which the window uses wherever it reads or holds one (ADR-344 §3). */
     private Optional<Path> corpusRoot() {
         return folderOf(fields.get("vespera.corpus-root"));
     }
@@ -811,7 +811,7 @@ final class Cockpit {
         }
     }
 
-    /** Opens {@code report}, a file of the working directory, in a tab of its own, or selects the tab it already has (ADR-341 §6). */
+    /** Opens {@code report}, a file of the working directory, in a tab of its own, or selects the tab it already has (ADR-344 §6). */
     private void openReport(String report) {
         Optional<Path> folder = workingDirectory();
         if (folder.isEmpty()) {
@@ -844,7 +844,7 @@ final class Cockpit {
     }
 
     /**
-     * Decides a location a viewer is about to show (ADR-341 §6). The same report, with or without a fragment, is
+     * Decides a location a viewer is about to show (ADR-344 §6). The same report, with or without a fragment, is
      * followed; another report of the working directory opens in its own tab; a report not written, or an address that
      * is not a file's, opens nothing and is said on the outcome line; any other file is handed to the system. Where it is
      * not followed the viewer goes back to its report.
@@ -1385,7 +1385,7 @@ final class Cockpit {
         }
     }
 
-    /** Whether the child runs now, which closing the window asks about once (ADR-341 §7). */
+    /** Whether the child runs now, which closing the window asks about once (ADR-344 §7). */
     boolean childRuns() {
         return state.childRuns();
     }

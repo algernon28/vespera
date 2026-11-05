@@ -16,9 +16,9 @@
 
 > **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Of §1: the `publish` child carries `--to`. The control panel starts no `serve`. The rest of this record stands.
 
-> **Partly amended — see [ADR-339](0339-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md).** Of §2: the pages are the control panel's window, as ADR-341 lays it out. The rest of this record stands.
+> **Partly amended — see [ADR-342](0342-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md).** Of §2: the pages are the control panel's window, as ADR-344 lays it out. The rest of this record stands.
 
-> **Partly amended — see [ADR-341](0341-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §1: each command line gains, after its arguments, the options ADR-341 §4 passes where they differ from what the child would read without them, and `label` its `<file>` where one is set. The rest of this record stands.
+> **Partly amended — see [ADR-344](0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §1: each command line gains, after its arguments, the options ADR-344 §4 passes where they differ from what the child would read without them, and `label` its `<file>` where one is set. The rest of this record stands.
 
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.

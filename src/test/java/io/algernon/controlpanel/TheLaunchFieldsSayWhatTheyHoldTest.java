@@ -16,14 +16,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Each launch value's field carries a real example and a one-line hint (ADR-331 §8, which ADR-339 keeps), from
- * {@code LaunchValues}, where the words the launch page held now live (ADR-341 §8). The examples and hints are ADR-331
+ * Each launch value's field carries a real example and a one-line hint (ADR-331 §8, which ADR-342 keeps), from
+ * {@code LaunchValues}, where the words the launch page held now live (ADR-344 §8). The examples and hints are ADR-331
  * §8's table's, written out here; the Docling image's example is the CPU image the table names by its section.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 @Link(name = "ADR-331", url = Adr.THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT, type = "adr")
 class TheLaunchFieldsSayWhatTheyHoldTest {
 

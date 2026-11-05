@@ -15,8 +15,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
- * What the control panel holds while its window is open (ADR-302 §2, ADR-339): the launch values, the sources the
- * window's fields start from (ADR-341 §3), the one child it started and how that child ended. The window reads and
+ * What the control panel holds while its window is open (ADR-302 §2, ADR-342): the launch values, the sources the
+ * window's fields start from (ADR-344 §3), the one child it started and how that child ended. The window reads and
  * changes it only through this class, and the checks that stand before an invocation starts (ADR-302 §2's lines,
  * ADR-331 §6's two among them) are made here, so that Run, Record my answers, Let the local model answer and Publish
  * start a child by the same checks. Every write of a working directory's file goes through {@link #write}, one at a
@@ -84,7 +84,7 @@ final class ControlPanelState {
         return values;
     }
 
-    /** What the window's fields start from: the launch values file, the environment, {@code .env} and {@code application.yaml} (ADR-341 §3). */
+    /** What the window's fields start from: the launch values file, the environment, {@code .env} and {@code application.yaml} (ADR-344 §3). */
     StartingValues.Sources sources() {
         return new StartingValues.Sources(launchValuesByProperty(values), sources.environment(), sources.dotEnv(),
                 sources.applicationYaml());
@@ -320,7 +320,7 @@ final class ControlPanelState {
     }
 
     /**
-     * What the window starts an invocation with (ADR-341 §3, §4): the values passed to the child, the values kept in the
+     * What the window starts an invocation with (ADR-344 §3, §4): the values passed to the child, the values kept in the
      * launch values file as it starts, the presets passed as options of the command line, and the label file, null where
      * none is named.
      */
@@ -385,7 +385,7 @@ final class ControlPanelState {
             return Optional.of(kind.name + " is not started: " + (notBuilt.getMessage() == null
                     ? notBuilt.getClass().getSimpleName() : notBuilt.getMessage()));
         }
-        // the values kept, so that a value left as a source started it is passed and never stored (ADR-341 §3)
+        // the values kept, so that a value left as a source started it is passed and never stored (ADR-344 §3)
         this.values = held;
         held.store(launchValuesFile, userName, stored::add);
         try {

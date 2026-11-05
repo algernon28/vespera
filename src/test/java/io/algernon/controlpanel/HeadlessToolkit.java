@@ -17,7 +17,7 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.TitledPane;
 
 /**
- * JavaFX's toolkit for the tests, on its Headless platform (ADR-339 §6): started once per JVM, since JavaFX starts
+ * JavaFX's toolkit for the tests, on its Headless platform (ADR-342 §6): started once per JVM, since JavaFX starts
  * once, with {@code glass.platform} set to {@code Headless} and {@code prism.order} to {@code sw} before it starts, so a
  * window is drawn with no display, on Linux and on Windows alike, and with no dependency beyond JavaFX's own.
  *

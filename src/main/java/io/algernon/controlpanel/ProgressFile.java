@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * What the jar writes for the window beside the progress page, {@code progress.json} (ADR-341 §2): whether the
+ * What the jar writes for the window beside the progress page, {@code progress.json} (ADR-344 §2): whether the
  * invocation has ended, each step of the job in order with its state and how far it has got, and the charts the page
  * draws now with the series the page's own rules picked. The window draws them and decides none; it reads the file
  * with {@link JsonReader}, in {@code java.base} alone.

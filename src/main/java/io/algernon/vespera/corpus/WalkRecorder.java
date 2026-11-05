@@ -74,7 +74,7 @@ public class WalkRecorder {
     // Explicit, because there are two constructors and Spring will not choose between them.
     @Autowired
     public WalkRecorder(Ledger ledger, AnomalyLog anomalyLog, PlatformTransactionManager transactionManager) {
-        this(ledger, anomalyLog, new TransactionTemplate(transactionManager), Walk::walk, COMMIT_INTERVAL);
+        this(ledger, anomalyLog, new TransactionTemplate(transactionManager), ON_DISK, COMMIT_INTERVAL);
     }
 
     /**
@@ -98,7 +98,30 @@ public class WalkRecorder {
     @FunctionalInterface
     interface Traversal {
         Walk.Outcome traverse(Path root, Walk.Observer observer, Checkpoint resumeFrom) throws IOException;
+
+        /**
+         * As above, not entering the folders of {@code foldersNotWalked} beneath the root (ADR-340 section 8.2); a
+         * traversal that knows no such folder ignores them.
+         */
+        default Walk.Outcome traverse(Path root, Walk.Observer observer, Checkpoint resumeFrom,
+                List<String> foldersNotWalked) throws IOException {
+            return traverse(root, observer, resumeFrom);
+        }
     }
+
+    /** The traversal of production: {@link Walk#walk}, which knows the folders not walked. */
+    private static final Traversal ON_DISK = new Traversal() {
+        @Override
+        public Walk.Outcome traverse(Path root, Walk.Observer observer, Checkpoint resumeFrom) throws IOException {
+            return Walk.walk(root, observer, resumeFrom);
+        }
+
+        @Override
+        public Walk.Outcome traverse(Path root, Walk.Observer observer, Checkpoint resumeFrom,
+                List<String> foldersNotWalked) throws IOException {
+            return Walk.walk(root, observer, resumeFrom, null, foldersNotWalked);
+        }
+    };
 
     /**
      * Walks {@code root}, persisting everything it finds, and returns the walk's own id — a new one,
@@ -122,17 +145,33 @@ public class WalkRecorder {
      * @throws ExcludesNothingViolationException if a finished walk cannot account for every entry it met
      */
     public WalkId walk(Path root, List<Path> folders) throws IOException {
+        return walk(root, folders, List.of());
+    }
+
+    /**
+     * Walks {@code root} as {@link #walk(Path, List)} does, counting as an entry and never entering each folder of
+     * {@code foldersNotWalked} beneath it (ADR-340 section 8). The list is recorded with the walk, and an unfinished walk
+     * is continued with the list it recorded, whatever {@code foldersNotWalked} now says (ADR-055).
+     *
+     * @param foldersNotWalked folders relative to the root with {@code /} between their elements, in the profile's order
+     * @throws CheckpointMismatchException if a resumed walk finds a tree that no longer matches its checkpoint
+     * @throws ExcludesNothingViolationException if a finished walk cannot account for every entry it met
+     */
+    public WalkId walk(Path root, List<Path> folders, List<String> foldersNotWalked) throws IOException {
         Path canonical = Walk.canonicalRoot(root);
         Optional<ResumableWalk> unfinished = ledger.walks().unfinishedWalk(canonical);
 
         List<Path> toRead = unfinished.isPresent()
                 ? ledger.walks().foldersOf(unfinished.get().walkId())
                 : folders.stream().map(Walk::canonicalRoot).toList();
+        List<String> notWalked = unfinished.isPresent()
+                ? ledger.walks().foldersNotWalkedOf(unfinished.get().walkId())
+                : List.copyOf(foldersNotWalked);
         WalkId walkId = unfinished
                 .map(ResumableWalk::walkId)
-                .orElseGet(() -> toRead.isEmpty()
+                .orElseGet(() -> toRead.isEmpty() && notWalked.isEmpty()
                         ? ledger.walks().startWalk(canonical)
-                        : transactions.execute(status -> ledger.walks().startWalk(canonical, toRead)));
+                        : transactions.execute(status -> ledger.walks().startWalk(canonical, toRead, notWalked)));
         Optional<Checkpoint> resumeFrom =
                 unfinished.flatMap(walk -> Checkpoint.of(walk.checkpointOrdinals(), walk.checkpointPath()));
         WalkCounts alreadyCounted = unfinished.map(ResumableWalk::counts).orElse(new WalkCounts(0, 0));
@@ -144,7 +183,9 @@ public class WalkRecorder {
         Session session = new Session(walkId, alreadyCounted);
         Checkpoint resume = resumeFrom.orElse(null);
         if (resume == null || resume.folder() == 0) {
-            Walk.Outcome outcome = traversal.traverse(canonical, session, resume);
+            Walk.Outcome outcome = notWalked.isEmpty()
+                    ? traversal.traverse(canonical, session, resume)
+                    : traversal.traverse(canonical, session, resume, notWalked);
             if (!outcome.finished()) {
                 // Everything since the last checkpoint is dropped, which is what leaves the database at
                 // a point the next session can resume from. The walk stays unfinished, and therefore
@@ -227,10 +268,12 @@ public class WalkRecorder {
      */
     private boolean sawTheSameThing(WalkId earlier, WalkId later) {
         return ledger.walks().foldersOf(earlier).equals(ledger.walks().foldersOf(later))
+                && ledger.walks().foldersNotWalkedOf(earlier).equals(ledger.walks().foldersNotWalkedOf(later))
                 && ledger.occurrences().sameOccurrences(earlier, later)
                 && anomalyLog.sameAnomalies(earlier, later)
                 && ledger.walks().countsFor(earlier).directoriesEntered()
-                        == ledger.walks().countsFor(later).directoriesEntered();
+                        == ledger.walks().countsFor(later).directoriesEntered()
+                && ledger.walks().foldersNotEnteredCount(earlier) == ledger.walks().foldersNotEnteredCount(later);
     }
 
     /**
@@ -250,8 +293,8 @@ public class WalkRecorder {
         // The arithmetic itself is Progress's, not restated here: what the ledger holds is the whole
         // walk's counts, so it is a Progress like any other and answers the same question. Spelling
         // the identity out a second time would let the check and the rule drift apart silently.
-        Walk.Progress asWritten =
-                new Walk.Progress(counts.entriesSeen(), counts.directoriesEntered(), occurrences, anomalies);
+        Walk.Progress asWritten = new Walk.Progress(
+                counts.entriesSeen(), counts.directoriesEntered(), occurrences, anomalies, ledger.walks().foldersNotEnteredCount(walkId));
 
         if (!asWritten.accountsForEveryEntry()) {
             throw new ExcludesNothingViolationException(walkId, asWritten);
@@ -278,6 +321,8 @@ public class WalkRecorder {
 
         private long completedDirectories;
 
+        private final List<String> foldersNotEntered = new ArrayList<>();
+
         private Session(WalkId walkId, WalkCounts alreadyCounted) {
             this.walkId = walkId;
             this.alreadyCounted = alreadyCounted;
@@ -286,6 +331,11 @@ public class WalkRecorder {
         @Override
         public void fileOccurrence(OccurrencePath path, long sizeInBytes, Instant lastModified, Instant creationTime) {
             occurrences.add(new PendingOccurrence(path, sizeInBytes, lastModified, creationTime));
+        }
+
+        @Override
+        public void folderNotEntered(String path) {
+            foldersNotEntered.add(path);
         }
 
         @Override
@@ -384,8 +434,12 @@ public class WalkRecorder {
             for (PendingAnomaly anomaly : anomalies) {
                 anomalyLog.anomaly(walkId, anomaly.pathRendering(), anomaly.kind(), anomaly.detail());
             }
+            for (String path : foldersNotEntered) {
+                ledger.walks().folderNotEntered(walkId, path);
+            }
             occurrences.clear();
             anomalies.clear();
+            foldersNotEntered.clear();
         }
     }
 

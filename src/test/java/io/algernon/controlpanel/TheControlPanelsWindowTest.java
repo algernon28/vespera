@@ -32,20 +32,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The control panel's window, as the operator laid it out (ADR-341 §1): Run and Stop side by side; the job's steps as
+ * The control panel's window, as the operator laid it out (ADR-344 §1): Run and Stop side by side; the job's steps as
  * a chart of a bar each, beside the output; the progress page's three charts; the two label commands by the names the
  * operator chose; Profile and Inclusions as tabs; a sidebar of seven sections in order; and every control the table of
- * the jar's arguments names, there to set it (ADR-341 §4).
+ * the jar's arguments names, there to set it (ADR-344 §4).
  *
  * <p>Each test draws the window from a control panel's state that names no launch value, as on a first start, shows it
- * on a stage on the Headless platform (ADR-339 §6) and finds its parts by the ids ADR-341 §1 gives them. The words are
+ * on a stage on the Headless platform (ADR-342 §6) and finds its parts by the ids ADR-344 §1 gives them. The words are
  * read only where the record fixes them.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
-@Link(name = "ADR-339", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
 class TheControlPanelsWindowTest {
 
     /** The sidebar's sections, in the order the operator laid them out. */

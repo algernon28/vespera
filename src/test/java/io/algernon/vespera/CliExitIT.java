@@ -56,7 +56,7 @@ class CliExitIT {
     /** A glass platform JavaFX does not have, so that its toolkit fails as it starts, as with no display. */
     private static final String NO_SUCH_PLATFORM = "-Dglass.platform=NoSuchPlatform";
 
-    /** What the line says before the toolkit's reason, as ADR-339 §2 gives it. */
+    /** What the line says before the toolkit's reason, as ADR-342 §2 gives it. */
     private static final String NO_WINDOW =
             "the control panel cannot open a window here, so the jar answers as its command line: ";
 
@@ -92,14 +92,14 @@ class CliExitIT {
     }
 
     /**
-     * The jar started with no argument where the window cannot open answers as its command line (ADR-339 §2): one line
+     * The jar started with no argument where the window cannot open answers as its command line (ADR-342 §2): one line
      * saying why, then the commands' usage, and picocli's usage code. A platform JavaFX does not have makes the
      * toolkit fail as it starts, as a machine with no display does: measured, {@code Platform.startup} throws within
      * a fraction of a second and the JVM goes on. It runs in a JVM of its own, since a JavaFX toolkit starts once.
      */
     @Test
     @Issue("700")
-    @Link(name = "ADR-339", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+    @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
     @Story("A start with no window answers as the command line")
     @DisplayName("Started with no argument where no window can open, the jar says why in one line and prints the commands' usage")
     void aJarThatCannotOpenTheWindowAnswersAsItsCommandLine() throws Exception {

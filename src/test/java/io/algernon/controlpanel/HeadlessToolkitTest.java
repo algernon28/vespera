@@ -20,7 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The harness every window test runs on (ADR-339 §6): JavaFX's toolkit started by {@link HeadlessToolkit} runs its
+ * The harness every window test runs on (ADR-342 §6): JavaFX's toolkit started by {@link HeadlessToolkit} runs its
  * Headless platform, so a window is drawn in the test JVM with no display; and a stage shown there takes a press of a
  * control found by its id, and draws its scene. Every window test rests on these two, as the browser panel's screen
  * tests rested on their browser's test.
@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-339", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+@Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
 class HeadlessToolkitTest {
 
     /** The width and height of the scene the stage shows, in pixels, which its snapshot must have. */

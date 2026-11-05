@@ -15,7 +15,7 @@ import javafx.scene.control.TreeView;
 import javafx.scene.control.cell.CheckBoxTreeCell;
 
 /**
- * The folders to include, as a tree of the corpus root's folders each with a box (ADR-341 §1, ADR-334 §6): every one
+ * The folders to include, as a tree of the corpus root's folders each with a box (ADR-344 §1, ADR-334 §6): every one
  * ticked at first, an unticked folder standing unticked with every folder below it, and a folder with one below it
  * unticked half-ticked. A folder's subfolders are listed when it is first opened and never before, so a corpus root is
  * never walked to draw it, and no file's name is listed. What is written is the highest unticked folder of each branch,

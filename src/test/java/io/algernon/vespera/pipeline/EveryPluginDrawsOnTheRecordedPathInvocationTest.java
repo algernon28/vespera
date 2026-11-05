@@ -66,6 +66,9 @@ class EveryPluginDrawsOnTheRecordedPathInvocationTest {
     /** The scripted plugin's name, and its folder at the tree's root. */
     private static final String SCRIPTED = "scripted";
 
+    /** The website rendering's plugin's name, and its folder at the tree's root (ADR-333 §3). */
+    private static final String WEBSITE = "website";
+
     /** The file of a plugin's folder holding the state of its drawing (ADR-333 §11). */
     private static final String THE_STATE_OF_THE_DRAWING = "drawing.txt";
 
@@ -166,11 +169,17 @@ class EveryPluginDrawsOnTheRecordedPathInvocationTest {
                 "and the recorded path drew it again, call for call",
                 () -> assertThat(again).isEqualTo(first));
         claim(
-                "each plugin's drawing.txt in the tree says drawn, the Confluence rendering's and the scripted one's",
+                "each plugin's drawing.txt in the tree says drawn, the Confluence rendering's, the website rendering's"
+                        + " and the scripted one's",
                 () -> {
                     assertThat(stateOf(theTreeOf(root), Publisher.RENDERING_FOLDER)).isEqualTo("drawn");
+                    assertThat(stateOf(theTreeOf(root), WEBSITE)).isEqualTo("drawn");
                     assertThat(stateOf(theTreeOf(root), SCRIPTED)).isEqualTo("drawn");
                 });
+        claim(
+                "and the website rendering's list, files.json, stands beside its pages, as the page list stands in"
+                        + " confluence/ (ADR-333 §3)",
+                () -> assertThat(theTreeOf(root).resolve(WEBSITE).resolve("files.json")).isRegularFile());
     }
 
     @Test

@@ -26,7 +26,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 /**
- * One value of the profile in the window (ADR-341 §1, ADR-340): its descriptive name, its key beneath it in small type,
+ * One value of the profile in the window (ADR-344 §1, ADR-343): its descriptive name, its key beneath it in small type,
  * a plain description and which steps a change makes again; a control that constrains the value by its kind; the
  * reports that inform it; and the note saved with it, filled in. The row holds what the file stated as it was loaded, and
  * a save compares the form with it by {@link ProfileEdit#noteToSave} and writes by {@link ProfileEdit#rewrite}, never a
@@ -113,7 +113,7 @@ final class ProfileRow {
         node.getChildren().addAll(noteLine, hint);
     }
 
-    /** Draws the key's reports, each a link where the working directory holds it and grey where it does not (ADR-341 §6). */
+    /** Draws the key's reports, each a link where the working directory holds it and grey where it does not (ADR-344 §6). */
     void showReports(Map<String, Boolean> written) {
         links.getChildren().setAll(new Label("Reports:"));
         for (String report : Reports.OF_A_KEY.getOrDefault(key.key(), List.of())) {
@@ -166,7 +166,7 @@ final class ProfileRow {
         load(loaded);
     }
 
-    /** The provenance to write for this row by ADR-340 §2's table; empty where the key is not written. */
+    /** The provenance to write for this row by ADR-343 §2's table; empty where the key is not written. */
     Optional<String> noteToSave() {
         return ProfileEdit.noteToSave(key, value(), note.getText(), loaded);
     }
@@ -187,7 +187,7 @@ final class ProfileRow {
     }
 
     /**
-     * Saves every row ADR-340 §2 says to write, under ADR-295's lock and the checks of ADR-330 §5: all refused before any
+     * Saves every row ADR-343 §2 says to write, under ADR-295's lock and the checks of ADR-330 §5: all refused before any
      * is written, the first refusal said.
      */
     static Saved save(ControlPanelState state, Optional<Path> folder, List<ProfileRow> rows) {
@@ -239,7 +239,7 @@ final class ProfileRow {
         return switch (key.kind()) {
             case NUMBER -> numberControl();
             case NAME_ENDINGS, LANGUAGES -> listControl();
-            case FOLDERS -> new Label();
+            case FOLDERS, CORPUS_FOLDERS -> new Label();
             case TEXT -> switch (key) {
                 case EMBEDDING_MODEL, GENERATION_MODEL -> choice(models);
                 case ARRANGEMENT_APPROVED -> choice(List.of("auto"));

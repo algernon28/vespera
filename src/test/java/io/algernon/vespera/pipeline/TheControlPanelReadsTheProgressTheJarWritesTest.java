@@ -29,7 +29,7 @@ import org.springframework.batch.core.job.parameters.JobParameters;
 import org.springframework.batch.core.step.StepExecution;
 
 /**
- * The control panel reads what the jar writes for its window beside the progress page (ADR-341 §2):
+ * The control panel reads what the jar writes for its window beside the progress page (ADR-344 §2):
  * {@code progress.json}, written by {@code ProgressPage} with each write of the page, read by the control panel's
  * {@code ProgressFile} in {@code java.base} alone. Its class path holds both, as the holder line's contract test's does.
  *
@@ -39,7 +39,7 @@ import org.springframework.batch.core.step.StepExecution;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 class TheControlPanelReadsTheProgressTheJarWritesTest {
 
     /** Long enough that no scheduled write lands while the test runs: the writes it reads are the listener's. */

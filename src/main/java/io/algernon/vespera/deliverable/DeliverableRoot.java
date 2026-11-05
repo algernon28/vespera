@@ -1,5 +1,6 @@
 package io.algernon.vespera.deliverable;
 
+import io.algernon.vespera.ledger.ReplacingMove;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -32,6 +33,9 @@ public final class DeliverableRoot {
 
     /** The marker at the top of every tree: two lines, the working directory and the generation run (ADR-276 §3). */
     public static final String MARKER_FILE_NAME = "vespera-deliverable.txt";
+
+    /** The website's folder in the working directory, and the one line its marker holds (ADR-333 §7). */
+    public static final String WEBSITE_FOLDER_NAME = "website";
 
     /** No root named: the tree lies in the working directory's {@code deliverable/} folder. */
     public static final DeliverableRoot UNNAMED = new DeliverableRoot(null);
@@ -108,6 +112,11 @@ public final class DeliverableRoot {
         if (overlap.isPresent()) {
             return overlap;
         }
+        Optional<String> inTheWebsite =
+                overlapWithTheWebsite(root, realPathOf(workingDirectory.resolve(WEBSITE_FOLDER_NAME)));
+        if (inTheWebsite.isPresent()) {
+            return inTheWebsite;
+        }
         if (named == null || namesTheDefaultFolder(workingDirectory) || !Files.exists(root)) {
             return Optional.empty();
         }
@@ -147,6 +156,17 @@ public final class DeliverableRoot {
                     + " was drawn. Name an empty folder in vespera.deliverable-root, and run again.");
         }
         return Optional.empty();
+    }
+
+    /**
+     * Writes the marker at the top of the website {@code website}: one line, {@value #WEBSITE_FOLDER_NAME}, and no path,
+     * since the operator's sync carries it (ADR-333 §7). It is written beside its place and moved into it. {@link
+     * #markerOf} reads it as the marker of no tree, as it holds neither of the two keys.
+     */
+    public static void markWebsite(Path website, ReplacingMove moves) throws IOException {
+        Path part = website.resolve(MARKER_FILE_NAME + Deliverable.PART_SUFFIX);
+        Files.writeString(part, WEBSITE_FOLDER_NAME + "\n", StandardCharsets.UTF_8);
+        moves.intoPlace(part, website.resolve(MARKER_FILE_NAME));
     }
 
     /** Writes the marker at the top of {@code tree}, in place and over itself (ADR-276 §3). */
@@ -214,6 +234,20 @@ public final class DeliverableRoot {
         }
         return Optional.of("vespera run refused the deliverable root " + root + ": it is " + relation + " " + folder
                 + NAME_A_FOLDER_OUTSIDE);
+    }
+
+    /** The line refusing {@code root} at or inside the working directory's {@code website}, or none (ADR-333 §7). */
+    private static Optional<String> overlapWithTheWebsite(Path root, Path website) {
+        String relation;
+        if (lies(root, website) && lies(website, root)) {
+            relation = "the website folder";
+        } else if (lies(root, website)) {
+            relation = "inside the website folder";
+        } else {
+            return Optional.empty();
+        }
+        return Optional.of("vespera run refused the deliverable root " + root + ": it is " + relation
+                + " of this working directory. Name a folder outside it in vespera.deliverable-root.");
     }
 
     /** Whether {@code path} is {@code folder} or lies inside it, compared name by name. */

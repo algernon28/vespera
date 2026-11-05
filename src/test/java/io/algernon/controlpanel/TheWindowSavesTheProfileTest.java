@@ -24,21 +24,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * What the window's Saves write to {@code profile.yaml} (ADR-340 §2, ADR-341 §1), pressed in the window on the Headless
- * platform (ADR-339 §6): the Profile tab's one Save writes each key by the table of the filled-in note, and the Seed
+ * What the window's Saves write to {@code profile.yaml} (ADR-343 §2, ADR-344 §1), pressed in the window on the Headless
+ * platform (ADR-342 §6): the Profile tab's one Save writes each key by the table of the filled-in note, and the Seed
  * folder section's Save writes the seed folder the window offered from the last one started with (ADR-292 §1), which
  * the file did not state.
  *
- * <p>Each expected value and note is written out; {@code set in the control panel} is the words ADR-340 §1 fixes.
+ * <p>Each expected value and note is written out; {@code set in the control panel} is the words ADR-343 §1 fixes.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
-@Link(name = "ADR-340", url = Adr.THE_NOTE_SAVED_WITH_A_PROFILE_VALUE_IS_FILLED_IN, type = "adr")
-@Link(name = "ADR-341", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-343", url = Adr.THE_NOTE_SAVED_WITH_A_PROFILE_VALUE_IS_FILLED_IN, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 class TheWindowSavesTheProfileTest {
 
-    /** The words a note is filled in with, as ADR-340 §1 fixes them. */
+    /** The words a note is filled in with, as ADR-343 §1 fixes them. */
     private static final String FILLED_IN = "set in the control panel";
 
     private static final String MEASURED = "measured on the seed set";

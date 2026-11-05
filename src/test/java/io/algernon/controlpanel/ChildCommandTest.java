@@ -145,43 +145,89 @@ class ChildCommandTest {
                 });
     }
 
+    /**
+     * Every child is given {@code --db-dir}, which the jar reads only as {@code application.yaml}'s fallback for
+     * {@code vespera.working-dir}: a spelling of that key in the environment it inherits comes before it, and the jar then
+     * refuses the start, the folder opened not being the one given (ADR-340 §6). So the child inherits the control
+     * panel's environment less the four spellings of {@code vespera.working-dir} and the four of {@code db-dir}.
+     */
+    @Test
+    @Story("The control panel passes its launch values to the jar")
+    @DisplayName("The child inherits no variable naming the working directory or db-dir, so the folder it is given is the one it opens")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
+    @Link(name = "ADR-292", url = Adr.THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES, type = "adr")
+    void theChildInheritsNoVariableNamingTheWorkingDirectory() {
+        List<String> theEight = List.of("VESPERA_WORKINGDIR", "VESPERA_WORKING_DIR", "vespera_workingdir",
+                "vespera_working_dir", "DBDIR", "DB_DIR", "dbdir", "db_dir");
+        Map<String, String> theControlPanels = new HashMap<>();
+        for (String name : theEight) {
+            theControlPanels.put(name, "D:\\another\\work\\folder");
+        }
+        theControlPanels.put("PATH", "the-path");
+        theControlPanels.put("CI", "0");
+        Map<String, String> expected = new HashMap<>(EVERY_VALUE.toChildEnvironment());
+        expected.put("CI", "1");
+        expected.put("PATH", "the-path");
+        for (ChildCommand command : List.of(ChildCommand.run(JAVA, JAR, EVERY_VALUE),
+                ChildCommand.label(JAVA, JAR, false, EVERY_VALUE),
+                ChildCommand.publish(JAVA, JAR, EVERY_VALUE, List.of(ChildCommand.DESTINATIONS.getFirst())))) {
+            String which = command.command().get(BEFORE_THE_COMMAND.size());
+            claim(which + "'s environment, over a control panel's carrying all eight, is that environment less the eight,"
+                            + " with CI=1 and the launch values' five added",
+                    () -> assertThat(command.environmentFrom(theControlPanels)).isEqualTo(expected));
+            claim("what it adds names none of the eight",
+                    () -> assertThat(command.environment()).doesNotContainKeys(theEight.toArray(String[]::new)));
+            claim("and its process builder's environment is the one over the control panel's own, none of the eight in it",
+                    () -> assertThat(command.processBuilder().environment())
+                            .isEqualTo(command.environmentFrom(System.getenv()))
+                            .doesNotContainKeys(theEight.toArray(String[]::new)));
+        }
+    }
+
     @Test
     @Story("The control panel refuses what it cannot start")
-    @DisplayName("Run without a corpus root and Label without a working directory are not built, the refusal given")
+    @DisplayName("Run without a corpus root is not built, the refusal given")
     @Issue("564")
     @Link(name = "ADR-292", url = Adr.THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES, type = "adr")
     void aRefusedCommandIsNotBuilt() {
         LaunchValues noCorpusRoot = new LaunchValues("", WORKING_DIRECTORY.toString(), "", "", "", "", "", "");
-        LaunchValues noWorkingDirectory = new LaunchValues(CORPUS_ROOT.toString(), "", "", "", "", "", "", "");
 
         claim("Run with no corpus root is refused, with Run's refusal as the message",
                 () -> assertThatThrownBy(() -> ChildCommand.run(JAVA, JAR, noCorpusRoot))
                         .isInstanceOf(IllegalArgumentException.class)
                         .hasMessage(noCorpusRoot.refusalToRun().orElseThrow()));
-        claim("Label with no working directory is refused, with Label's refusal as the message",
-                () -> assertThatThrownBy(() -> ChildCommand.label(JAVA, JAR, false, noWorkingDirectory))
-                        .isInstanceOf(IllegalArgumentException.class)
-                        .hasMessage(noWorkingDirectory.refusalToLabel().orElseThrow()));
     }
 
     @Test
     @Story("The control panel starts the jar as shipped")
     @Issue("633")
-    @DisplayName("Publish is the jar's publish command with the working directory absolute, and adds no Confluence value to the child's environment")
+    @DisplayName("Publish is the jar's publish command with its destinations and the working directory absolute, and adds no Confluence value to the child's environment")
+    @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
     void publishIsTheJarsPublishCommandAndAddsNoConfluenceValue() {
-        ChildCommand publish = ChildCommand.publish(JAVA, JAR, EVERY_VALUE);
+        ChildCommand publish = ChildCommand.publish(JAVA, JAR, EVERY_VALUE, List.of("confluence"));
 
-        claim("the command line ends with publish and --db-dir",
-                () -> assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO).command())
-                        .containsExactlyElementsOf(with("publish", DB_DIR)));
+        claim("the command line ends with publish, --to and the destinations checked, joined by commas in the order"
+                        + " given, and --db-dir",
+                () -> {
+                    assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("confluence")).command())
+                            .containsExactlyElementsOf(with("publish", "--to", "confluence", DB_DIR));
+                    assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("confluence", "website")).command())
+                            .containsExactlyElementsOf(with("publish", "--to", "confluence,website", DB_DIR));
+                    assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("website")).command())
+                            .containsExactlyElementsOf(with("publish", "--to", "website", DB_DIR));
+                });
         claim("and no variable the control panel adds names Confluence: the child inherits the five values from the"
                         + " operator's environment, and the control panel holds none of them",
                 () -> assertThat(publish.environment().keySet()).noneMatch(name -> name.contains("CONFLUENCE")));
-        LaunchValues noWorkingDirectory = new LaunchValues(CORPUS_ROOT.toString(), "", "", "", "", "", "", "");
-        claim("a publish with no working directory is not built, the label's refusal given as the message",
-                () -> assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR, noWorkingDirectory))
-                        .isInstanceOf(IllegalArgumentException.class)
-                        .hasMessage(noWorkingDirectory.refusalToLabel().orElseThrow()));
+        claim("a publish to no destination, or to a name outside the control panel's closed list, is not built",
+                () -> {
+                    assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR, THE_TWO, List.of()))
+                            .isInstanceOf(IllegalArgumentException.class);
+                    assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("confluence", "nowhere")))
+                            .isInstanceOf(IllegalArgumentException.class);
+                });
+        claim("the closed list is the two destinations, in the order the invocation page offers them",
+                () -> assertThat(ChildCommand.DESTINATIONS).containsExactly("confluence", "website"));
     }
 
     @Test
