@@ -35,10 +35,12 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The working directory the Folders section's field names is the one whose files the window reads and writes (ADR-344
- * §1, §3): the profile, the folders not relevant, the reports and {@code progress.json}. That holds where the field
- * started from the environment or from {@code .env} and no launch value names it, after a Run that kept nothing of it
- * (ADR-344 §3's "What is kept"), and where the operator types another folder in the field. Publish stands beside Run and
- * Stop where the folders the fields name hold a Confluence rendering (ADR-344 §1, ADR-308 §6), whatever is kept.
+ * §1, §3): the profile, the folders not walked it states, which the Inclusions tab's tree draws and writes (ADR-345 §2),
+ * the reports and {@code progress.json}. That holds where the field started from the environment or from {@code .env}
+ * and no launch value names it, after a Run that kept nothing of it (ADR-344 §3's "What is kept"), where the operator
+ * types another folder in the field, and where no source names one, the field then standing for the folder the jar
+ * would use on this machine (ADR-345 §1, keeping ADR-340 §6). Publish stands beside Run and Stop where the folders the
+ * fields name hold a Confluence rendering (ADR-344 §1, ADR-308 §6), whatever is kept.
  *
  * <p>Each test gives the window's state its sources itself, so that no variable of the test JVM and no file of the
  * checkout is read. A Run starts {@link SleepingJar}'s child, which the test then stops.
@@ -70,8 +72,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         Files.createDirectories(corpus.resolve("Old"));
         Files.createDirectories(corpus.resolve("Other"));
         Path workingDirectory = aWorkingDirectory(folder.resolve("working"), "qwen3:8b");
-        Files.writeString(workingDirectory.resolve(NotRelevantFolders.FILE_NAME), "---\n- folder: \"Old\"\n",
-                StandardCharsets.UTF_8);
+        notWalked(workingDirectory, "Old");
         Files.writeString(workingDirectory.resolve(A_REPORT), "<html></html>", StandardCharsets.UTF_8);
         Files.writeString(workingDirectory.resolve(ProgressFile.FILE_NAME), PROGRESS, StandardCharsets.UTF_8);
         Map<String, String> named = Map.of("VESPERA_CORPUS_ROOT", corpus.toString(), "VESPERA_WORKING_DIR",
@@ -110,7 +111,8 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
                 () -> assertThat(before.model()).isEqualTo("qwen3:8b"));
         claim("the Reports section links the report the working directory holds, and that one alone",
                 () -> assertThat(before.links()).containsExactly(A_REPORT));
-        claim("and the Inclusions tab draws Old unticked, as the working directory's file lists it, and Other ticked",
+        claim("and the Inclusions tab draws Old unticked, as the working directory's profile lists it among the folders"
+                        + " not walked, and Other ticked",
                 () -> assertThat(List.of(before.oldTicked(), before.otherTicked())).containsExactly(false, true));
         claim("once the Run has ended, the steps are drawn from the working directory's progress.json: extraction's bar"
                         + " at three of four",
@@ -119,10 +121,8 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
                 () -> assertThat(ProfileEdit.read(Files.readString(workingDirectory.resolve(ProfileEdit.FILE_NAME),
                         StandardCharsets.UTF_8))).containsEntry(ProfileKey.GENERATION_MODEL,
                         new Stated("qwen3:14b", "set in the control panel")));
-        claim("as the Inclusions tab's Save writes its not-relevant-folders.yaml",
-                () -> assertThat(NotRelevantFolders.read(Optional.of(Files.readString(
-                        workingDirectory.resolve(NotRelevantFolders.FILE_NAME), StandardCharsets.UTF_8))))
-                        .containsExactlyInAnyOrder("Old", "Other"));
+        claim("as the Inclusions tab's Save writes its folders not walked there, Old as listed and Other after it",
+                () -> assertThat(TheFoldersToIncludeTest.listedIn(workingDirectory)).containsExactly("Old", "Other"));
     }
 
     static Stream<Arguments> whereTheFoldersComeFrom() {
@@ -139,8 +139,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         Files.createDirectories(corpus.resolve("Old"));
         Path first = aWorkingDirectory(folder.resolve("first"), "qwen3:8b");
         Path second = aWorkingDirectory(folder.resolve("second"), "llama3.1:8b");
-        Files.writeString(second.resolve(NotRelevantFolders.FILE_NAME), "---\n- folder: \"Old\"\n",
-                StandardCharsets.UTF_8);
+        notWalked(second, "Old");
         Files.writeString(second.resolve(A_REPORT), "<html></html>", StandardCharsets.UTF_8);
         ControlPanelState state = WindowForTests.aState(folder,
                 new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")));
@@ -163,8 +162,60 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
                 () -> assertThat(seen.model()).isEqualTo("llama3.1:8b"));
         claim("the Reports section links the report the second working directory holds",
                 () -> assertThat(seen.links()).containsExactly(A_REPORT));
-        claim("and the Inclusions tab draws Old unticked, as the second working directory's file lists it",
+        claim("and the Inclusions tab draws Old unticked, as the second working directory's profile lists it",
                 () -> assertThat(seen.oldTicked()).isFalse());
+    }
+
+    /**
+     * A working directory no source of ADR-344 §3 names leaves its field empty, and the field stands for the folder the
+     * jar would use on this machine (ADR-345 §1, keeping ADR-340 §6): here the one the environment's {@code DB_DIR} names,
+     * a spelling ADR-344 §3's sources do not read. That folder is the one whose profile the window shows, and the one Run
+     * passes as {@code --db-dir}.
+     */
+    @Test
+    @Story("The control panel's values start from the real configuration")
+    @DisplayName("An empty working directory field stands for the folder the jar would use on this machine, whose profile is shown and which Run passes")
+    @Link(name = "ADR-345", url = Adr.THE_COCKPIT_REPLACES_THE_BROWSER_CONTROL_PANEL_AND_ITS_TREE_WRITES_THE_FOLDERS_NOT_WALKED, type = "adr")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
+    void anEmptyWorkingDirectoryFieldIsTheFolderTheJarWouldUseWhichRunPasses(@TempDir Path folder) throws Exception {
+        Path corpus = Files.createDirectories(folder.resolve("corpus"));
+        Path theMachines = aWorkingDirectory(folder.resolve("the-machines"), "qwen3:8b");
+        ControlPanelState state = WindowForTests.aState(folder,
+                new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")));
+        state.hold(new LaunchValues(corpus.toString(), "", "", "", "", "", "", ""));
+        state.useSources(new StartingValues.Sources(Map.of(), Map.of(), Map.of(), Map.of()));
+        state.useWorkingDirectoryDefault(WorkingDirectoryDefault.of(folder, Map.of(),
+                Map.of("DB_DIR", theMachines.toString())));
+
+        record Seen(String field, String model, String run) {
+        }
+        Seen seen;
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            seen = window.read(root -> new Seen(
+                    WindowForTests.node(root, "vespera.working-dir", TextField.class).getText(), model(root),
+                    WindowForTests.node(root, "command-line-run", javafx.scene.control.Label.class).getText()));
+        }
+
+        claim("the working directory's field is empty, no source naming it",
+                () -> assertThat(seen.field()).isEmpty());
+        claim("the Profile tab shows the profile of the folder the machine names",
+                () -> assertThat(seen.model()).isEqualTo("qwen3:8b"));
+        claim("and Run would pass that folder as the working directory",
+                () -> assertThat(seen.run()).isEqualTo("vespera run " + quoted(corpus.toAbsolutePath().toString()) + " "
+                        + quoted("--db-dir=" + theMachines.toAbsolutePath())));
+    }
+
+    /** An argument as {@code ChildCommand.shown()} writes it: in double quotes where it holds a space. */
+    private static String quoted(String argument) {
+        return argument.contains(" ") ? "\"" + argument + "\"" : argument;
+    }
+
+    /** Adds {@code folders} to the working directory's profile as the folders not walked, with a note of the operator's. */
+    private static void notWalked(Path workingDirectory, String... folders) throws IOException {
+        Path file = workingDirectory.resolve(ProfileEdit.FILE_NAME);
+        Files.writeString(file, ProfileEdit.rewrite(Optional.of(Files.readString(file, StandardCharsets.UTF_8)),
+                ProfileKey.FOLDERS_NOT_WALKED, String.join(java.io.File.pathSeparator, folders),
+                "exports of old flows, nothing to read"), StandardCharsets.UTF_8);
     }
 
     /**

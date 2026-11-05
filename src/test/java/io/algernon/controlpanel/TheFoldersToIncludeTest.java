@@ -4,18 +4,22 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import io.algernon.controlpanel.ProfileEdit.Stated;
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
@@ -32,30 +36,34 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * The Inclusions tab writes {@code not-relevant-folders.yaml} as the labels page wrote it (ADR-344 §1, keeping ADR-334
- * §6): the highest folder the operator unticked of each branch, and only that. A folder unticked is written alone, though
- * its subfolders were listed. A folder whose subfolders the operator unticked, the only one or every one, stands
- * half-ticked, since the files lying in it directly are still wanted, and only those subfolders are written. A folder the
- * file lists, below another, comes back from a Save as it was, and one the file lists that is no longer there is kept.
- * The tree is the folders of the corpus root the field names now, and Save writes paths under that one.
+ * The Inclusions tab's tree writes the profile's {@code foldersNotWalked} (ADR-345 §2, the walk's list of ADR-340 §8):
+ * the highest folder the operator unticked of each branch, and only that, into {@code profile.yaml} and nothing else. A
+ * folder unticked is written alone, though its subfolders were listed. A folder whose subfolders the operator unticked,
+ * the only one or every one, stands half-ticked, since the files lying in it directly are still read, and only those
+ * subfolders are written. A folder the profile lists, below another, comes back from a Save as it was, and one it lists
+ * that is no longer there is kept, the folders it lists first and in its order. With every folder ticked again, the key
+ * is taken out. The tree is the folders of the corpus root the field names now, and Save writes paths under that one.
  *
  * <p>Each test draws the window over a corpus root and a working directory of its own, held as launch values, ticks and
- * unticks the tree's boxes as the operator does, presses Save and reads the file the working directory then holds. The
- * file's text is written out where it is compared whole.
+ * unticks the tree's boxes as the operator does, presses Save and reads the profile the working directory then holds.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
+@Link(name = "ADR-345", url = Adr.THE_COCKPIT_REPLACES_THE_BROWSER_CONTROL_PANEL_AND_ITS_TREE_WRITES_THE_FOLDERS_NOT_WALKED, type = "adr")
 @Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
-@Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
+@Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
 class TheFoldersToIncludeTest {
 
-    /** The file listing the folder {@code A/B} alone, as the labels page wrote it: one double-quoted folder a line. */
-    private static final String A_B_LISTED = "---\n- folder: \"A/B\"\n";
+    /** The note a value the window changed is saved with (ADR-343 §2). */
+    private static final String FILLED_IN = "set in the control panel";
+
+    /** A note of the operator's own, as a profile states one. */
+    private static final String THE_OPERATORS_NOTE = "exports of old flows, nothing to read";
 
     @Test
-    @Story("The operator says which folders hold nothing they want")
-    @DisplayName("A folder unticked is written alone, though its subfolders were listed, and they stand unticked with it")
+    @Story("The operator says which folders hold nothing to read")
+    @DisplayName("A folder unticked is written alone into the profile's folders not walked, though its subfolders were listed, and they stand unticked with it")
     void aFolderUntickedIsWrittenAloneThoughItsSubfoldersWereListed(@TempDir Path folder) throws Exception {
         Path workingDirectory = aCorpusAndWorkingDirectory(folder, "A/B", "A/C", "D");
         record Seen(boolean b, boolean c, boolean d) {
@@ -74,13 +82,17 @@ class TheFoldersToIncludeTest {
 
         claim("with A unticked, the folders below it stand unticked with it, and D, beside it, stays ticked",
                 () -> assertThat(List.of(seen.b(), seen.c(), seen.d())).containsExactly(false, false, true));
-        claim("and the file lists A alone, not the subfolders listed under it",
-                () -> assertThat(listedIn(workingDirectory)).containsExactly("A"));
+        claim("the profile's folders not walked are A alone, not the subfolders listed under it, with the note the"
+                        + " window fills in",
+                () -> assertThat(statedIn(workingDirectory)).containsEntry(ProfileKey.FOLDERS_NOT_WALKED,
+                        new Stated("A", FILLED_IN)));
+        claim("and the tree writes no list of folders not relevant",
+                () -> assertThat(workingDirectory.resolve(NotRelevantFolders.FILE_NAME)).doesNotExist());
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("subfoldersUnticked")
-    @Story("The operator says which folders hold nothing they want")
+    @Story("The operator says which folders hold nothing to read")
     @DisplayName("A folder whose subfolders are all unticked stands half-ticked, and only those subfolders are written")
     void untickingEverySubfolderLeavesTheFolderHalfTickedAndWritesOnlyThem(List<String> subfolders, List<String> written,
             @TempDir Path folder) throws Exception {
@@ -99,9 +111,9 @@ class TheFoldersToIncludeTest {
             save(window);
         }
 
-        claim("A stands half-ticked: the files lying in it directly are still wanted",
+        claim("A stands half-ticked: the files lying in it directly are still read",
                 () -> assertThat(seen.halfTicked()).isTrue());
-        claim("and the file lists the subfolders unticked, and not A",
+        claim("and the profile's folders not walked are the subfolders unticked, and not A",
                 () -> assertThat(listedIn(workingDirectory)).containsExactlyElementsOf(written));
     }
 
@@ -113,12 +125,12 @@ class TheFoldersToIncludeTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("subfoldersOfA")
-    @Story("The operator says which folders hold nothing they want")
-    @DisplayName("A subfolder the file lists is drawn unticked under a half-ticked folder and comes back from a Save unchanged")
+    @Story("The operator says which folders hold nothing to read")
+    @DisplayName("A subfolder the profile lists is drawn unticked under a half-ticked folder, and a Save leaves the profile as it was")
     void aListedSubfolderComesBackUnchanged(List<String> subfolders, @TempDir Path folder) throws Exception {
         Path workingDirectory = aCorpusAndWorkingDirectory(folder,
                 subfolders.stream().map(name -> "A/" + name).toArray(String[]::new));
-        Files.writeString(workingDirectory.resolve(NotRelevantFolders.FILE_NAME), A_B_LISTED, StandardCharsets.UTF_8);
+        String stated = aProfileListing(workingDirectory, "A/B");
         record Seen(boolean bTicked, boolean aHalfTicked) {
         }
         Seen seen;
@@ -128,11 +140,11 @@ class TheFoldersToIncludeTest {
             save(window);
         }
 
-        claim("the tree draws B unticked and A half-ticked above it, as the file says",
+        claim("the tree draws B unticked and A half-ticked above it, as the profile says",
                 () -> assertThat(List.of(seen.bTicked(), seen.aHalfTicked())).containsExactly(false, true));
-        claim("and a Save with nothing changed writes the file as it was, A/B and nothing else",
-                () -> assertThat(Files.readString(workingDirectory.resolve(NotRelevantFolders.FILE_NAME),
-                        StandardCharsets.UTF_8)).isEqualTo(A_B_LISTED));
+        claim("and a Save with nothing changed leaves profile.yaml byte for byte as it was, its note the operator's",
+                () -> assertThat(Files.readString(workingDirectory.resolve(ProfileEdit.FILE_NAME), StandardCharsets.UTF_8))
+                        .isEqualTo(stated));
     }
 
     static Stream<Arguments> subfoldersOfA() {
@@ -142,23 +154,50 @@ class TheFoldersToIncludeTest {
     }
 
     @Test
-    @Story("The operator says which folders hold nothing they want")
-    @DisplayName("A folder the file lists that is no longer there is kept by a Save")
+    @Story("The operator says which folders hold nothing to read")
+    @DisplayName("A folder the profile lists that is no longer there is kept by a Save, the folders it lists first and in its order")
     void aListedFolderNoLongerThereIsKept(@TempDir Path folder) throws Exception {
         Path workingDirectory = aCorpusAndWorkingDirectory(folder, "A/B", "C");
-        Files.writeString(workingDirectory.resolve(NotRelevantFolders.FILE_NAME),
-                "---\n- folder: \"Gone\"\n- folder: \"A/Gone\"\n", StandardCharsets.UTF_8);
+        aProfileListing(workingDirectory, "Gone", "A/Gone");
         List<Boolean> ticked;
         try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
             ticked = window.read(root -> List.of(WindowForTests.folder(root, "A").isSelected(),
                     WindowForTests.folder(root, "A").isIndeterminate(), WindowForTests.folder(root, "C").isSelected()));
+            window.act(root -> WindowForTests.folder(root, "C").setSelected(false));
             save(window);
         }
 
-        claim("the folders that are there stand ticked, A wholly and C",
+        claim("the folders that are there stand ticked at first, A wholly and C",
                 () -> assertThat(ticked).containsExactly(true, false, true));
-        claim("and the two folders listed that are no longer there are still listed after a Save",
-                () -> assertThat(listedIn(workingDirectory)).containsExactlyInAnyOrder("Gone", "A/Gone"));
+        claim("and after C is unticked and saved, the two folders listed that are no longer there come first, in the"
+                        + " profile's order, and C after them",
+                () -> assertThat(listedIn(workingDirectory)).containsExactly("Gone", "A/Gone", "C"));
+    }
+
+    @Test
+    @Story("The operator says which folders hold nothing to read")
+    @DisplayName("With every folder ticked again, a Save takes the folders not walked out of the profile and leaves the rest")
+    void everyFolderTickedAgainTakesTheKeyOut(@TempDir Path folder) throws Exception {
+        Path workingDirectory = aCorpusAndWorkingDirectory(folder, "A", "B");
+        Optional<String> text = Optional.of(ProfileEdit.rewrite(Optional.empty(), ProfileKey.GENERATION_MODEL,
+                "qwen3:8b", THE_OPERATORS_NOTE));
+        text = Optional.of(ProfileEdit.rewrite(text, ProfileKey.FOLDERS_NOT_WALKED, "A", THE_OPERATORS_NOTE));
+        Files.writeString(workingDirectory.resolve(ProfileEdit.FILE_NAME), text.orElseThrow(), StandardCharsets.UTF_8);
+        boolean drawnUnticked;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
+            drawnUnticked = window.read(root -> !WindowForTests.folder(root, "A").isSelected());
+            window.act(root -> WindowForTests.folder(root, "A").setSelected(true));
+            save(window);
+        }
+
+        Map<ProfileKey, Stated> stated = statedIn(workingDirectory);
+        claim("the tree drew A unticked, as the profile lists it",
+                () -> assertThat(drawnUnticked).isTrue());
+        claim("ticked again and saved, the profile no longer states the folders not walked, so every folder is read",
+                () -> assertThat(stated).doesNotContainKey(ProfileKey.FOLDERS_NOT_WALKED));
+        claim("and the value beside it stands as it was",
+                () -> assertThat(stated).containsEntry(ProfileKey.GENERATION_MODEL,
+                        new Stated("qwen3:8b", THE_OPERATORS_NOTE)));
     }
 
     /**
@@ -167,7 +206,7 @@ class TheFoldersToIncludeTest {
      * the first's, and its Save writes the folders unticked as paths under the other.
      */
     @Test
-    @Story("The operator says which folders hold nothing they want")
+    @Story("The operator says which folders hold nothing to read")
     @DisplayName("Another corpus root set in the field is the one whose folders the tree draws and whose paths Save writes")
     void anotherCorpusRootSetInTheFieldIsTheTreeDrawnAndSaved(@TempDir Path folder) throws Exception {
         Path first = Files.createDirectories(folder.resolve("corpus-a"));
@@ -221,6 +260,14 @@ class TheFoldersToIncludeTest {
         return Files.createDirectories(folder.resolve("working"));
     }
 
+    /** Writes a profile stating {@code folders} as the folders not walked, with the operator's note; answers its text. */
+    private static String aProfileListing(Path workingDirectory, String... folders) throws IOException {
+        String text = ProfileEdit.rewrite(Optional.empty(), ProfileKey.FOLDERS_NOT_WALKED,
+                String.join(File.pathSeparator, folders), THE_OPERATORS_NOTE);
+        Files.writeString(workingDirectory.resolve(ProfileEdit.FILE_NAME), text, StandardCharsets.UTF_8);
+        return text;
+    }
+
     /** A state holding the corpus root and the working directory under {@code folder} as launch values. */
     private static ControlPanelState aStateOver(Path folder, Path workingDirectory) throws IOException {
         ControlPanelState state = WindowForTests.aState(folder,
@@ -234,10 +281,17 @@ class TheFoldersToIncludeTest {
         window.act(root -> WindowForTests.node(root, "inclusions-save", Button.class).fire());
     }
 
-    /** The folders the working directory's file lists, read as the control panel reads it; none where it is not there. */
-    private static List<String> listedIn(Path workingDirectory) throws IOException {
-        Path file = workingDirectory.resolve(NotRelevantFolders.FILE_NAME);
-        return NotRelevantFolders.read(Files.isRegularFile(file)
-                ? Optional.of(Files.readString(file, StandardCharsets.UTF_8)) : Optional.empty());
+    /** What the working directory's profile states, read as the control panel reads it; nothing where it is not there. */
+    private static Map<ProfileKey, Stated> statedIn(Path workingDirectory) throws IOException {
+        Path file = workingDirectory.resolve(ProfileEdit.FILE_NAME);
+        return Files.isRegularFile(file) ? ProfileEdit.read(Files.readString(file, StandardCharsets.UTF_8)) : Map.of();
+    }
+
+    /** The folders not walked the working directory's profile states, in its order; none where it states none. */
+    static List<String> listedIn(Path workingDirectory) throws IOException {
+        Stated stated = statedIn(workingDirectory).get(ProfileKey.FOLDERS_NOT_WALKED);
+        return stated == null ? List.of()
+                : Stream.of(stated.value().split(Pattern.quote(File.pathSeparator))).map(String::strip)
+                        .filter(piece -> !piece.isEmpty()).toList();
     }
 }

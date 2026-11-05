@@ -30,8 +30,9 @@ import picocli.CommandLine.Model.PositionalParamSpec;
  * Every option and positional argument of the commands the control panel starts is accounted for by the control
  * panel (ADR-336 §2): {@link ChildCommand#ARGUMENTS} holds each one of picocli's model of {@code vespera} and of each
  * of its commands, once, by the command's name and the argument's, with the control of the control panel's window
- * that sets it or none, and why (ADR-344 §4: label's file is set by the label file option, and only vespera's help and
- * version are never passed).
+ * that sets it or none, and why (ADR-344 §4: label's file is set by the label file option; ADR-345 §4: publish's
+ * destinations are set by the boxes beside Publish, and vespera's help and version and serve's working directory are
+ * the only three never passed, the window starting no serve, ADR-341 §2).
  *
  * <p>The table names an option without its leading {@code --}, {@code help} for {@code --help}, so that no class of the
  * control panel holds the text of the two options ADR-278 §1's scan forbids it (ADR-336 §2); this test strips the
@@ -46,6 +47,7 @@ import picocli.CommandLine.Model.PositionalParamSpec;
 @Feature("The control panel")
 @Link(name = "ADR-336", url = Adr.THE_LAUNCH_PAGE_STARTS_LABEL_AUTO_AND_EVERY_ARGUMENT_OF_THE_JAR_IS_ACCOUNTED_FOR, type = "adr")
 @Link(name = "ADR-278", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN, type = "adr")
+@Link(name = "ADR-345", url = Adr.THE_COCKPIT_REPLACES_THE_BROWSER_CONTROL_PANEL_AND_ITS_TREE_WRITES_THE_FOLDERS_NOT_WALKED, type = "adr")
 class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
 
     /**
@@ -80,7 +82,8 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
 
         claim("the model was read through the command's own tree, so the answers below are about the command line an"
                         + " operator types, its mixins included",
-                () -> assertThat(inTheModel).contains("vespera help", "run <root>", "label auto", "publish db-dir"));
+                () -> assertThat(inTheModel).contains("vespera help", "run <root>", "label auto", "publish db-dir",
+                        "publish to", "serve db-dir"));
         claim("the table names each argument once",
                 () -> assertThat(inTheTable).doesNotHaveDuplicates());
         claim("and it names every option and positional argument of the model, by command and name, and nothing the"
@@ -92,7 +95,8 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
     @Story("Every option of the jar's commands is set from the control panel or said not to be")
     @DisplayName("Each argument is set by a control of the control panel or never passed, and the table says why for each")
     @Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
-    void eachArgumentIsSetByALaunchControlOrNeverPassedAndSaysWhy() {
+    @Link(name = "ADR-341", url = Adr.SERVE_TELLS_A_PAGE_FROM_A_COPY_BY_THE_LIST_AND_THE_NAME, type = "adr")
+    void eachArgumentIsSetByAControlOfTheControlPanelOrNeverPassedAndSaysWhy() {
         Map<String, String> controls = new LinkedHashMap<>();
         for (ChildCommand.Argument argument : ChildCommand.ARGUMENTS) {
             controls.put(argument.command() + " " + argument.name(), argument.control());
@@ -109,16 +113,20 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
         claim("every argument says why it is set as it is, or never passed",
                 () -> assertThat(withoutAReason).as("arguments of the table with no reason").isEmpty());
         claim("the corpus root is set by its field, every command's working directory by the working directory's,"
-                        + " --auto by Let the local model answer, and label's file by the label file option",
+                        + " --auto by Let the local model answer, label's file by the label file option, and publish's"
+                        + " destinations by the boxes beside Publish",
                 () -> assertThat(controls).containsAllEntriesOf(Map.of(
                         "run <root>", "vespera.corpus-root",
                         "run db-dir", THE_WORKING_DIRECTORY,
                         "label db-dir", THE_WORKING_DIRECTORY,
                         "publish db-dir", THE_WORKING_DIRECTORY,
                         "label auto", "label-auto",
-                        "label <file>", "label-file")));
-        claim("and the arguments never passed are vespera's help and version options, and no other",
-                () -> assertThat(neverPassed).containsExactlyInAnyOrder("vespera help", "vespera version"));
+                        "label <file>", "label-file",
+                        "publish to", "publish-to")));
+        claim("and the arguments never passed are vespera's help and version options and serve's working directory,"
+                        + " the control panel starting no serve, and no other",
+                () -> assertThat(neverPassed).containsExactlyInAnyOrder("vespera help", "vespera version",
+                        "serve db-dir"));
     }
 
     /**

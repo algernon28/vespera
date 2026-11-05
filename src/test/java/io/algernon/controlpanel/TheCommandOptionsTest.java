@@ -86,7 +86,8 @@ class TheCommandOptionsTest {
         List<String> run = argumentsOf(ChildCommand.run(java(), jar(), values).withOptions(EVERY_OPTION_SET));
         List<String> label = argumentsOf(ChildCommand.label(java(), jar(), false, values).withOptions(EVERY_OPTION_SET));
         List<String> auto = argumentsOf(ChildCommand.label(java(), jar(), true, values).withOptions(EVERY_OPTION_SET));
-        List<String> publish = argumentsOf(ChildCommand.publish(java(), jar(), values).withOptions(EVERY_OPTION_SET));
+        List<String> publish = argumentsOf(ChildCommand.publish(java(), jar(), values, List.of("confluence"))
+                .withOptions(EVERY_OPTION_SET));
 
         claim("run is given all five, after its corpus root and working directory, in the table's order",
                 () -> assertThat(run).containsExactly("run", Path.of(values.corpusRoot()).toAbsolutePath().toString(),
@@ -99,8 +100,8 @@ class TheCommandOptionsTest {
                 () -> assertThat(auto).containsExactly("label", "--auto", workingDirectory,
                         "--vespera.progress-interval=2s", "--vespera.sidecars.start=false",
                         "--vespera.sidecars.wait-at-most=60s"));
-        claim("and publish none",
-                () -> assertThat(publish).containsExactly("publish", workingDirectory));
+        claim("and publish none, after its destinations and working directory",
+                () -> assertThat(publish).containsExactly("publish", "--to", "confluence", workingDirectory));
     }
 
     @Test

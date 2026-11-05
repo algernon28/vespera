@@ -2089,7 +2089,7 @@ public final class Adr {
     /**
      * ADR-297 -- the control panel's screens were tested failing-first through the pages it served, read as a browser
      * reads them, by the JDK's HTTP client and jsoup at test scope, every such test a unit test on both CI jobs.
-     * Superseded by ADR-339, whose window is tested on JavaFX's Headless platform; the pages and their tests are gone.
+     * Superseded by ADR-342, whose window is tested on JavaFX's Headless platform; the pages and their tests are gone.
      */
     public static final String THE_CONTROL_PANELS_SCREENS_ARE_TESTED_THROUGH_THE_PAGES_IT_SERVES = FILE
             + "0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md";
@@ -2464,6 +2464,17 @@ public final class Adr {
      */
     public static final String THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT = FILE
             + "0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md";
+
+    /**
+     * ADR-345 -- the cockpit is the control panel's one face, in place of ADR-340's home page, top bar and drawer; ADR-340
+     * §6's working directory left empty and child's environment and its folders not walked stand; the Inclusions tab's
+     * tree writes {@code foldersNotWalked}, and beneath it ADR-334 §6's list of folders not relevant is added to and taken
+     * from; the census, the relevance floor and the relevance report show stages 0, 5e and 5; and Publish offers a box
+     * for each destination drawn, {@code publish to} set by {@code publish-to} and {@code serve db-dir} never passed
+     * (supersedes ADR-340 §1 to §5 and §7; amends ADR-344 §1, §3 and §4, ADR-339 §1, ADR-341 §2 and ADR-334 §6).
+     */
+    public static final String THE_COCKPIT_REPLACES_THE_BROWSER_CONTROL_PANEL_AND_ITS_TREE_WRITES_THE_FOLDERS_NOT_WALKED =
+            FILE + "0345-the-cockpit-replaces-the-browser-control-panel-its-tree-writes-the-folders-not-walked-and-publish-offers-each-destination.md";
 
     private Adr() {
     }
