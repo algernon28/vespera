@@ -1,5 +1,7 @@
 # ADR-163 — The Docling sidecar pins docling-parse 7.17.0, and its image is tagged for the pin
 
+> **Partly amended — see [ADR-349](0349-the-docling-images-are-built-once-pushed-to-ghcr-as-public-packages-never-over-a-tag-already-there-and-pulled-by-digest.md)**, from its part 2. Of §2: the image is named in four places, not three, the `docling-image` workflow's matrix beside `compose.yaml`, `vespera.docling.image` and `TestcontainersConfiguration`, and they still change together; `compose.yaml` names it with its `sha256` digest after the tag, the other three without. The tag still names the base release and the parser pin, and the rest of this record stands. Until part 2 lands, §2's three places are what the code holds.
+
 - **Date**: 2026-09-26
 - **Status**: accepted
 - **Amends**: [ADR-147](0147-the-docling-sidecar-is-a-derived-image-with-libreoffice-writer-and-impress-and-the-image-joins-the-extractor-identity.md), in three places. Its `Containerfile` gains one layer, which replaces the PDF parser the base image ships. Its tag `vespera/docling-serve-cpu-libreoffice:v1.32.0` becomes `vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0`. Its consequence *"One segmentation fault stays unexplained"* is explained below.

@@ -98,13 +98,13 @@ class DoclingSidecarImageTest {
     private static final String BASE_ARG = "DOCLING_SERVE_BASE";
 
     /** The base every build uses unless told otherwise: docling-serve's CPU image, at the pinned release. */
-    private static final String CPU_BASE = "quay.io/docling-project/docling-serve-cpu:v1.32.0";
+    static final String CPU_BASE = "quay.io/docling-project/docling-serve-cpu:v1.32.0";
 
     /**
      * docling-serve's CUDA 12.8 image, without its tag: the RTX 50 series needs CUDA 12.8 or later, and
      * {@code cu126} has no v1.32.0 tag (ADR-170).
      */
-    private static final String GPU_BASE_REPOSITORY = "quay.io/docling-project/docling-serve-cu128";
+    static final String GPU_BASE_REPOSITORY = "quay.io/docling-project/docling-serve-cu128";
 
     @Test
     @Story("One image, named the same everywhere")
@@ -372,8 +372,11 @@ class DoclingSidecarImageTest {
                 .toList();
     }
 
-    /** The release after {@code docling-parse==} in the {@code Containerfile}, or {@code null} if nothing pins one. */
-    private static String pinnedParserVersion() throws IOException {
+    /**
+     * The release after {@code docling-parse==} in the {@code Containerfile}, or {@code null} if nothing pins one.
+     * Shared with {@link DoclingImageWorkflowTest}, whose tags name the same release.
+     */
+    static String pinnedParserVersion() throws IOException {
         for (String instruction : instructionsInstallingTheParser()) {
             Matcher pin = PINNED_PARSER.matcher(instruction);
             if (pin.find()) {
@@ -386,8 +389,9 @@ class DoclingSidecarImageTest {
     /**
      * The tag of the image the {@code Containerfile} is built {@code FROM} when no build argument is
      * passed: the {@code FROM} line's own image, or, where it names an {@code ARG}, that argument's default.
+     * Shared with {@link DoclingImageWorkflowTest}, whose tags and bases name the same release.
      */
-    private static String baseTag() throws IOException {
+    static String baseTag() throws IOException {
         List<String> instructions = instructions();
         String from = instructions.stream()
                 .filter(instruction -> instruction.startsWith("FROM "))
