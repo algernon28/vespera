@@ -916,33 +916,40 @@ function plainValue(word) {
 // What the shell makes of a word, as far as the guard knows it: text, with its quotes and backslashes
 // taken off, and complete, whether that is the whole of it. Text stops before the first $ or backtick
 // and before a wildcard, brace or ~ outside quotes, which the shell expands into another text or into
-// more words; what stands before it is the head of each word it may become.
+// more words; what stands before it is the head of each word it may become. splits, whether the word holds
+// a $ or backtick outside quotes anywhere, whose value Bash splits at its spaces into more words than one,
+// any of them an option (x$o); inside double quotes it is one word, and a wildcard, brace or ~ keeps the
+// head on every word it makes.
 function wordText(word) {
   const raw = word.raw;
   let text = "";
+  let complete = true;
+  let splits = false;
   for (let i = 0; i < raw.length; i++) {
     const c = raw[i];
     if (c === "'") {
       const end = raw.indexOf("'", i + 1);
-      text += raw.slice(i + 1, end);
+      if (complete) text += raw.slice(i + 1, end);
       i = end;
     } else if (c === '"') {
       let j = i + 1;
       for (; raw[j] !== '"'; j++) {
-        if (raw[j] === "$" || raw[j] === "`") return { text, complete: false };
+        if (raw[j] === "$" || raw[j] === "`") complete = false;
         if (raw[j] === "\\" && /[$`"\\\n]/.test(raw[j + 1] ?? "")) j++;
-        text += raw[j];
+        if (complete) text += raw[j];
       }
       i = j;
     } else if (c === "\\") {
-      text += raw[++i];
+      i++;
+      if (complete) text += raw[i];
     } else if (/[$`*?[{~]/.test(c)) {
-      return { text, complete: false };
-    } else {
+      complete = false;
+      if (c === "$" || c === "`") splits = true;
+    } else if (complete) {
       text += c;
     }
   }
-  return { text, complete: true };
+  return { text, complete, splits };
 }
 
 // The shell's text of a word where the guard knows all of it, else null.
@@ -1215,10 +1222,11 @@ function textSpans(words) {
         k = redirect(k);
         continue;
       }
-      const { text, complete } = wordText(words[k]);
+      const { text, complete, splits } = wordText(words[k]);
       if (complete && text === "--") break;
-      // A word that may become an option, or that is one git's subcommand does not have, ends the walk.
-      if (!complete && !text) return spans;
+      // A word that may become an option, or more words than one, or that is one git's subcommand does not
+      // have, ends the walk.
+      if ((!complete && !text) || splits) return spans;
       if (!text.startsWith("-") || (complete && text === "-")) {
         if (!stashed) {
           if (!(complete && text === STASH_PUSH && spans.length === 0)) return [];
@@ -1248,11 +1256,12 @@ function textSpans(words) {
       k = redirect(k);
       continue;
     }
-    const { text, complete } = wordText(word);
+    const { text, complete, splits } = wordText(word);
     // An option is a word that begins with - and is not - alone. A word whose head the guard does not
     // know may become one, or more than one word; so may a word headed by - that is not all known, as
-    // -{f,}, which Bash makes -f and -.
-    if (!operands && !complete && !text) {
+    // -{f,}, which Bash makes -f and -, and a word with a $ outside quotes, as x$o, which Bash may split
+    // into x and an option.
+    if (!operands && ((!complete && !text) || splits)) {
       given = true;
       continue;
     }
