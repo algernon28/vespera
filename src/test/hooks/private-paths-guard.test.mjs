@@ -14,6 +14,12 @@
 // or writes, and lets through Glob and a shell command whose every program is a lister or the Vespera jar;
 // a working directory is open as the place it lies in, and no search is refused for what lies beneath it.
 // The K6 cases and W10 are held to it, and so is every case whose claim it changed, each keeping its id.
+// docs/adr/0347 amends docs/adr/0217 section 2: in a segment whose program is git, a token :<path> or
+// :<N>:<path> is read as its path, from which the colon and stage are taken off; docs/adr/0196's drive of
+// one letter and docs/adr/0217's refusal of a name made only of spaces are kept. The O cases are held to it.
+// docs/adr/0348 corrects docs/adr/0201 section 5's and docs/adr/0233's reading of ${NAME+word} and
+// ${NAME:+word}: the word, or nothing, in the variable's place, and never its value; and a token that holds
+// one beside or around another variable with a word is refused. The G8 and G9 cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -1622,6 +1628,217 @@ cases.push(
   ["I604", "Write of the checkout's settings through a stream name of .claude that holds a line terminator", "Write", { file_path: `${C}/.claude:x\ny/settings.json`, content: "x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
   ["I605", "Read of a report through a stream name of the working directory that holds a line terminator", "Read", { file_path: `${WD}:x\ny/report.html` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
 );
+
+/* ---------- git's index form, held to docs/adr/0347 ---------- */
+
+// docs/adr/0347 amends docs/adr/0217 section 2. In a segment of a command whose program is the bare word
+// git, a token that begins with :<N>: (N a stage, 0 to 3) or with : has that taken off, and the rest is
+// read as the path it names, as every relative token is: against each folder the command names, and
+// judged by the allow list like any path. A token after any other program, the target of a redirect, a
+// value after = and a token of a command that holds ( ) or a backtick keep docs/adr/0217's refusal on
+// Windows. So does every token of a command where the guard's cut into segments is not the shell's: a
+// ; & | or line break inside quotes, a quote left unpaired, in Bash a backslash before a quote or one of
+// those breaks or a << anywhere, and in PowerShell a typographic quote or --%. A piece of a token cut at
+// , { or }, two halves joined at an escaped space and a word that holds a quote, unless it is one quoted
+// string and nothing else, are not given the reading; the word the shell gives git for such a word, its
+// quotes taken off, is read as written and by its rest on every platform, and either refuses.
+// A token whose rest reads as no path, empty or headed by -, / or \, a URL or an unset variable, is
+// read as written as well, so that on Windows docs/adr/0217 section 2 still refuses it. The rest is
+// asked that whole, as one token, not cut at , { or } and not split at =: a piece or a value after =
+// that reads as a path does not stand in the place of the reading as written.
+// docs/adr/0196's drive of one letter and docs/adr/0217's refusal of a name made only of spaces, which
+// the user kept, stand in a git segment as anywhere.
+const NOT_A_STREAM_ELSEWHERE = "a name made only of a stream name is refused on Windows alone (docs/adr/0217 section 2)";
+const NOT_SPACES_ELSEWHERE = "a name made only of spaces in a longer path is refused on Windows alone (docs/adr/0217 section 2)";
+
+cases.push(
+  /* O1. Let through on every platform: the rest lies inside the allow list. */
+  ["O101", "git show of a file in the index, :<path>", "Bash", { command: "git show :AGENTS.md" }, ALLOWED],
+  ["O102", "git show of a file at stage 0 of the index, :0:<path>", "Bash", { command: "git show :0:docs/x.md" }, ALLOWED],
+  ["O103", "git diff of a file at stage 2 of the index", "Bash", { command: "git diff :2:src/a.java" }, ALLOWED],
+  ["O104", "git show of a file in the index, in a PowerShell command", "PowerShell", { command: "git show :README.md" }, ALLOWED],
+  ["O105", "git -C a folder of the checkout, then a file in the index read against it", "Bash", { command: "git -C src show :Example.java" }, ALLOWED],
+  ["O106", "git push of a refspec that deletes a branch, whose rest is read as a path in the checkout", "Bash", { command: "git push origin :claude/x" }, ALLOWED],
+  ["O107", "git show of a quoted index path whose name holds a space", "Bash", { command: "git show ':my notes/readme.txt'" }, ALLOWED],
+  ["O108", "git show of a file in the index in a second segment whose program is git", "Bash", { command: "git status && git show :README.md" }, ALLOWED],
+  ["O109", "git show of a file in the index after a git segment whose quoted message holds no segment break", "Bash", { command: `git commit -m "fix it" && git show :README.md` }, ALLOWED],
+
+  /* O2. Refused: the rest is read as every path is, and lies outside the allow list. */
+  ["O201", "git show of an index path that climbs out of the checkout", "Bash", { command: "git show :../outside/doc.txt" }, REFUSED],
+  ["O202", "git show of an index path that is a drive path", "Bash", { command: `git show :${ON_THE_FIXTURES_DRIVE}/x` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["O203", "git show of a stage's index path that is a drive path no allowed root is on", "Bash", { command: `git show :0:${NO_DRIVE}` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["O204", "git show of an index path headed by a variable whose value lies outside the allow list", "Bash", { command: "git show :$HOME/Documents/x.txt" }, REFUSED],
+
+  /* O3. The same token where git is not the program that is given it: refused on Windows, as before. */
+  ["O301", "cat of a token that begins with a colon", "Bash", { command: "cat :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O302", "echo of git and a token that begins with a colon, whose program is echo", "Bash", { command: "echo git :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O303", "cat of such a token in a segment after one whose program is git", "Bash", { command: "git status; cat :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O304", "git show of such a token in a command quoted for bash, whose program is bash", "Bash", { command: "bash -c 'git show :README.md'" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O305", "git show of a file in the index, redirected into a token that begins with a colon", "Bash", { command: "git show :README.md > :out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O306", "git diff whose option's value after = begins with a colon", "Bash", { command: "git diff --output=:out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O307", "git show of a command substitution that cats a token that begins with a colon", "Bash", { command: "git show $(cat :README.md)" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O308", "a sed label, which docs/adr/0217 refuses and this record keeps", "Bash", { command: "sed ':a;N;$!ba;s/x/y/g' README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O309", "a JSON value written after its colon with no space", "Bash", { command: `echo '{"a":1}'` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O310", "git show redirected for reading and writing, <>, into a token that begins with a colon", "Bash", { command: "git show :README.md <> :out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O311", "git show redirected through a named descriptor, {fd}>, into a token that begins with a colon", "Bash", { command: "git show {fd}> :out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O312", "git show with every stream redirected, *>, into a token that begins with a colon, in PowerShell", "PowerShell", { command: "git show :README.md *> :out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O313", "git show with every stream appended, *>>, to a token that begins with a colon, in PowerShell", "PowerShell", { command: "git show :README.md *>> :out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O314", "git show whose index path has the redirect written onto its end, into a token that begins with a colon", "Bash", { command: "git show :README.md> :out.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+
+  /* O4. docs/adr/0196's drive of one letter, kept on the user's word: one letter and a colon at the head
+     of a token is a drive, in a git segment too and in the rest of an index path. */
+  ["O401", "a lambda whose parameter is one letter, written m:m.group", "Bash", { command: `python -c "f = lambda m:m.group(0)"` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["O402", "git show of one letter, a colon and a name", "Bash", { command: "git show Q:x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["O403", "git show of a stage's index path that is one letter, a colon and a name", "Bash", { command: "git show :0:Q:x" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+
+  /* O5. docs/adr/0217's refusal of a name made only of spaces in a longer path, kept on the user's word:
+     a sed or awk program goes in a file. */
+  ["O501", "sed whose program holds a name made only of a space between two slashes", "Bash", { command: "sed 's/ /_/g' README.md" }, REFUSED, { windows: NOT_SPACES_ELSEWHERE }],
+  ["O502", "cat of a quoted path one of whose names is a space", "Bash", { command: "cat 'scratch/ /note.txt'" }, REFUSED, { cwd: T, windows: NOT_SPACES_ELSEWHERE }],
+  ["O503", "git show of a quoted index path one of whose names is a space", "Bash", { command: "git show ': /x.md'" }, REFUSED, { windows: NOT_SPACES_ELSEWHERE }],
+
+  /* O6. A command the guard would cut where the shell does not has no git segment: a token that begins
+     with a colon in it is refused on Windows, as after any other program. Each but O603 and O606 is a
+     command in which the shell gives that token to cat or another program, not to git. */
+  ["O601", "cat of a quoted string that holds ; git and of a token that begins with a colon", "Bash", { command: `cat "a; git show" :README.md` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O602", "cat of an escaped quote, a double-quoted string that holds ; git, and a token that begins with a colon", "Bash", { command: `cat \\' "x' ; git show" :README.md` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O603", "git show of a file in the index after a git commit whose quoted message holds a ;", "Bash", { command: `git commit -m "a;b" && git show :README.md` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O604", "cat of a word that ends in an escaped ;, then git, show and a token that begins with a colon", "Bash", { command: "cat a\\; git show :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O605", "cat, a line continued by a backslash, then git, show and a token that begins with a colon", "Bash", { command: "cat \\\ngit show :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O606", "git show of a file in the index in a command whose quote is left unpaired", "Bash", { command: `git show :README.md "` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O607", "cat of a string in typographic double quotes that holds ; git, in PowerShell", "PowerShell", { command: "cat “a; git show” :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O608", "a native command whose --% passes ; git and a token that begins with a colon on, in PowerShell", "PowerShell", { command: "findstr --% x a; git show :README.md" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  // Only the backslash before a quote finds this one: its quotes pair with no break inside and none is
+  // left unpaired, while to Bash each \" is a character of one double-quoted string, all of it cat's.
+  ["O609", "cat of a double-quoted string whose escaped quotes hide ; git and a token that begins with a colon", "Bash", { command: `cat "a\\" ; git show :README.md \\""` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  // A here-document's lines are text given to the program before <<, here cat through xargs, and no
+  // command of the shell's: a cut at their line breaks finds a git segment Bash never runs.
+  ["O610", "xargs cat of a here-document whose line is git and a token that begins with a colon", "Bash", { command: "xargs cat <<EOF\ngit :README.md\nEOF" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+
+  /* O7. A token git is given, which the guard does not read as git's word: refused on Windows. Only a
+     word that is one quoted string and nothing else is read whole; any other word that holds a quote,
+     whether the quote stands inside it or a quoted string begins it and the word goes on, is not. */
+  ["O701", "git show of a token cut at a comma into two pieces, the second of which begins with a colon", "Bash", { command: "git show :a,:b" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O702", "git show of a brace list whose members begin with a colon", "Bash", { command: "git show {:README.md,:src/Example.java}" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O703", "git show of an index path whose space is escaped by a backslash", "Bash", { command: "git show :my\\ notes/r.txt" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O704", "git show of a bare word that begins with a colon and holds a quoted part", "Bash", { command: `git show :a"b"` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O705", "git show of a word that begins with a quoted string that begins with a colon, and goes on", "Bash", { command: `git show ":a"b` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O706", "git show of a word that git is given as :../outside/doc.txt, a quoted :. and then ./outside/doc.txt", "Bash", { command: `git show ":."./outside/doc.txt` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  // The same command on every platform: the word git is given, with its quotes taken off, is read as
+  // written and by its rest. As written it is a name :.. inside the checkout off Windows; its rest climbs
+  // out of it.
+  ["O707", "git show of a word git is given as :../outside/doc.txt, read by its rest off Windows too", "Bash", { command: `git show ":."./outside/doc.txt` }, REFUSED],
+
+  /* O8. A token whose rest reads as no path is read as written as well, on every platform, as every token
+     was before docs/adr/0347: as written each of O801 to O807 climbs out of the checkout, O801's first
+     name :-.. taken back by the .. after it. O806 is a climb on Windows alone, where \ separates names, and
+     O808 is refused there alone, its one name made only of a stream name. */
+  ["O801", "git commit -F of a token whose rest begins with -", "Bash", { command: "git commit -F :-../../../outside/doc.txt" }, REFUSED],
+  ["O802", "git commit -F of a token whose rest begins with /", "Bash", { command: "git commit -F :/../../outside/doc.txt" }, REFUSED],
+  ["O803", "git commit -F of a stage's token whose rest begins with /", "Bash", { command: "git commit -F :0:/../../outside/doc.txt" }, REFUSED],
+  ["O804", "git commit -F of a token whose rest is headed by a variable that has no value", "Bash", { command: "git commit -F :$NO_SUCH_VARIABLE/../../outside/doc.txt" }, REFUSED],
+  ["O805", "git show of a token whose rest is a URL", "Bash", { command: "git show :https://h/../../../outside/doc.txt" }, REFUSED],
+  ["O806", "git commit -F of a token whose rest begins with a backslash", "Bash", { command: String.raw`git commit -F :\..\..\outside\doc.txt` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O807", "git commit -F of a quoted token whose rest begins with /, in PowerShell", "PowerShell", { command: "git commit -F ':/../../outside/doc.txt'" }, REFUSED],
+  // An empty rest names no path: the token is read as written, and fails closed on Windows.
+  ["O808", "git show of a stage's token whose rest is empty", "Bash", { command: "git show :0:" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  /* Whether a rest records a path is asked of its whole text, read as one token: not cut at , { or },
+     and not split at =. Its pieces and its value after = are read too, and judged, but one of them that
+     reads as a path does not stand in the place of the token as written. Each of O809 to O818 is O801 to
+     O807's climb, as written, with a piece or a value beside it that is a path inside the checkout: the
+     x after a comma or inside braces, or after =. Bash expands O809 into O802 and a second word. O817 is
+     a climb on Windows alone, where \ separates names. O819 is section 5's git show :/<text>, whose rest
+     is cut at its braces into a piece u, a name inside the checkout: as written its first name is made
+     only of a stream name, and it is refused on Windows alone. */
+  ["O809", "git commit -F of a token whose rest begins with / and ends in a brace list", "Bash", { command: "git commit -F :/../../outside/doc.txt{,x}" }, REFUSED],
+  ["O810", "git commit -F of a token whose rest begins with / and ends in a comma and a name", "Bash", { command: "git commit -F :/../../outside/doc.txt,x" }, REFUSED],
+  ["O811", "git commit -F of a token whose rest begins with / and whose piece after a comma lies inside the checkout", "Bash", { command: "git commit -F :/../../outside,x/../outside/doc.txt" }, REFUSED],
+  ["O812", "git commit -F of a token whose rest begins with / and ends in = and a name", "Bash", { command: "git commit -F :/../../outside/doc.txt=x" }, REFUSED],
+  ["O813", "git commit -F of a token whose rest begins with / and whose value after = lies inside the checkout", "Bash", { command: "git commit -F :/../../outside=x/../outside/doc.txt" }, REFUSED],
+  ["O814", "git commit -F of a token whose rest begins with - and ends in = and a name", "Bash", { command: "git commit -F :-../../../outside/doc.txt=x" }, REFUSED],
+  ["O815", "git commit -F of a token whose rest is headed by a variable that has no value and ends in a comma and a name", "Bash", { command: "git commit -F :$NO_SUCH_VARIABLE/../../outside/doc.txt,x" }, REFUSED],
+  ["O816", "git commit -F of a stage's token whose rest begins with / and ends in a comma and a name", "Bash", { command: "git commit -F :0:/../../outside/doc.txt,x" }, REFUSED],
+  ["O817", "git commit -F of a token whose rest begins with a backslash and ends in a comma and a name", "Bash", { command: String.raw`git commit -F :\..\..\outside\doc.txt,x` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["O818", "git commit -F of a quoted token whose rest begins with / and ends in a comma and a name, in PowerShell", "PowerShell", { command: "git commit -F ':/../../outside/doc.txt,x'" }, REFUSED],
+  ["O819", "git show of :/<text> whose text holds a brace group, a commit's message to git", "Bash", { command: "git show :/@{u}" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  /* In Bash a ${NAME-word} makes two readings of the rest, the variable's value and its word, and the
+     rest records a path only where each of them does. In O820 and O821 the variable is given the value
+     x, a name inside the checkout, and the word is O802's climb, which begins with / and records no path:
+     the token is read as written as well, and as written it climbs out of the checkout. The value is set
+     for the guard by the case, so neither depends on the machine's environment. */
+  ["O820", "git commit -F of a token whose rest is a variable with a value, whose word begins with /", "Bash", { command: "git commit -F :${VESPERA_GUARD_NAME-/../../outside/doc.txt}" }, REFUSED, { env: { VESPERA_GUARD_NAME: "x" } }],
+  ["O821", "git commit -F of a stage's token whose rest is a variable with a value, whose word begins with /", "Bash", { command: "git commit -F :0:${VESPERA_GUARD_NAME-/../../outside/doc.txt}" }, REFUSED, { env: { VESPERA_GUARD_NAME: "x" } }],
+);
+
+/* G8. docs/adr/0348 corrects docs/adr/0201 section 5's and docs/adr/0233's reading of ${NAME+word} and
+   ${NAME:+word}. Bash gives the word where NAME is set (with the colon, set and not empty) and the empty
+   string where it is not, and never NAME's value. The guard cannot know whether NAME will be set when
+   the command runs, so it reads such a token twice, with the word in the variable's place and with
+   nothing there, and either refuses. ${NAME-word}, ${NAME:-word}, ${NAME=word} and ${NAME?word} keep
+   docs/adr/0201's two readings, the word and, where NAME has a value, that value.
+   Each case is started three times, through its env: VESPERA_GUARD_PLUS not set, set to the empty string,
+   and set to a value, so that none depends on the machine's environment. In the refusals the value is x,
+   a name inside the checkout, so no reading of the value is what refuses; in G84 and G85 it is the
+   folder outside the allow list, so a reading of the value would refuse. G864 to G894 give the other
+   signs that same value, which is read. The climbs start from src, one folder below the checkout:
+   ../../outside/doc.txt from there lies outside the allow list, and a/../../outside/doc.txt is a name
+   inside the checkout. */
+const PLUS = "VESPERA_GUARD_PLUS";
+const withWord = (sign, word) => "${" + PLUS + sign + word + "}";
+const PLUS_SET = [
+  ["1", "not set", undefined],
+  ["2", "set to the empty string", ""],
+  ["3", "set to a value", "x"],
+];
+const PLUS_SIGNS = [
+  ["0", "+", "set"],
+  ["1", ":+", "set and not empty"],
+];
+for (const [n, sign, when] of PLUS_SIGNS) {
+  for (const [s, state, value] of PLUS_SET) {
+    const env = { [PLUS]: value };
+    const outsideValue = { [PLUS]: value === "x" ? O : value };
+    cases.push(
+      [`G8${n}${s}`, `cat of ${sign} whose word, given where the name is ${when}, takes back one climb out of the allow list, the name ${state}`, "Bash", { command: `cat ${withWord(sign, "a/")}../../outside/doc.txt` }, REFUSED, { cwd: `${C}/src`, env }],
+      [`G8${Number(n) + 2}${s}`, `git show of an index path whose rest is ${sign} whose word takes back one climb out of the allow list, the name ${state}`, "Bash", { command: `git show :${withWord(sign, "a/")}../../outside/doc.txt` }, REFUSED, { cwd: `${C}/src`, env }],
+      [`G8${Number(n) + 4}${s}`, `cat of ${sign} where both the word and nothing in its place name a file inside the checkout, the name ${state}`, "Bash", { command: `cat ${withWord(sign, "a/")}README.md` }, ALLOWED, { env: outsideValue }],
+    );
+  }
+  // The variable alone, whose value names the folder outside the allow list: Bash gives the word or
+  // nothing, never that value, so nothing outside the allow list is named.
+  cases.push([`G8${Number(n) + 4}4`, `cat of ${sign} alone whose word is a file inside the checkout, the name set to a folder outside the allow list`, "Bash", { command: `cat ${withWord(sign, "README.md")}` }, ALLOWED, { env: { [PLUS]: O } }]);
+}
+for (const [n, sign] of [["6", "-"], ["7", ":-"], ["8", "="], ["9", "?"]]) {
+  for (const [s, state, value] of PLUS_SET) {
+    cases.push([`G8${n}${s}`, `cat of ${sign} whose word climbs out of the allow list, read as before, the name ${state}`, "Bash", { command: `cat ${withWord(sign, "..")}/../outside/doc.txt` }, REFUSED, { cwd: `${C}/src`, env: { [PLUS]: value } }]);
+  }
+  cases.push([`G8${n}4`, `cat of ${sign} whose value lies outside the allow list and whose word inside it, read as before`, "Bash", { command: `cat ${withWord(sign, "x")}/doc.txt` }, REFUSED, { env: { [PLUS]: O } }]);
+}
+
+/* G9. docs/adr/0348 section 1: a Bash token that holds a ${NAME+word} or ${NAME:+word} and any other
+   variable with a word, inside the + word, around it or beside it, is refused, whatever the hook's
+   environment holds. Each variable's state is the shell's, so such a token has more forms than two
+   readings give, and the guard reads none of them. G901 to G913 nest a - in the word of a +, the inner
+   name VESPERA_GUARD_NAME set to the folder outside the allow list: where VESPERA_GUARD_PLUS is set, Bash
+   gives that folder's doc.txt. G921 to G932 put two + side by side, from src, VESPERA_GUARD_PLUS set to x
+   and VESPERA_GUARD_NAME not set: Bash gives ../../outside/doc.txt, outside the allow list. */
+const NAME = "VESPERA_GUARD_NAME";
+const nested = "${" + PLUS + "+${" + NAME + "-}}";
+for (const [s, state, value] of PLUS_SET) {
+  const env = { [PLUS]: value, [NAME]: O };
+  cases.push(
+    [`G90${s}`, `cat of a + whose word is a - variable whose value lies outside the allow list, the + name ${state}`, "Bash", { command: `cat ${nested}/doc.txt` }, REFUSED, { env }],
+    [`G91${s}`, `git show of an index path whose rest is a + whose word is a - variable whose value lies outside the allow list, the + name ${state}`, "Bash", { command: `git show :${nested}/doc.txt` }, REFUSED, { env }],
+  );
+}
+for (const [n, sign] of [["1", "+"], ["2", ":+"]]) {
+  const side = { cwd: `${C}/src`, env: { [PLUS]: "x", [NAME]: undefined } };
+  const twice = "${" + PLUS + sign + "..}${" + NAME + sign + "..}";
+  cases.push(
+    [`G92${n}`, `cat of two ${sign} side by side, one set and one not, which give one climb out of the allow list`, "Bash", { command: `cat ${twice}/../outside/doc.txt` }, REFUSED, side],
+    [`G93${n}`, `git show of an index path whose rest is two ${sign} side by side, one set and one not, which give one climb out of the allow list`, "Bash", { command: `git show :${twice}/../outside/doc.txt` }, REFUSED, side],
+  );
+}
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
   const skip =

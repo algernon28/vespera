@@ -149,14 +149,14 @@ class ShippedConfigurationTest {
     }
 
     /**
-     * ADR-298 §1 as ADR-346 §7 holds it: a name is shipped, one name with no space in it, and which one is the shipped
+     * ADR-298 §1 as ADR-353 §7 holds it: a name is shipped, one name with no space in it, and which one is the shipped
      * file's alone. No test names the model, so a changed default changes this file and the record, and no test.
      */
     @Test
     @Story("The embedding model ships with a default")
     @DisplayName("The model documents are scored with is named, as one name, and is not blank")
     @Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
-    @Link(name = "ADR-346", url = Adr.THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE, type = "adr")
+    @Link(name = "ADR-353", url = Adr.THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE, type = "adr")
     void namesTheEmbeddingModel() throws IOException {
         Map<Object, Object> properties = shippedProperties();
 
@@ -171,7 +171,7 @@ class ShippedConfigurationTest {
     }
 
     /**
-     * ADR-346 §5, after ADR-331 §8: the control panel's example for {@code embeddingModel} is whatever model the jar
+     * ADR-353 §5, after ADR-331 §8: the control panel's example for {@code embeddingModel} is whatever model the jar
      * ships, as the writing model's example is its own, and its hint names that model as the one to replace. The control
      * panel reads no configuration of the jar's (ADR-285 §3), so the two are held here to the value the shipped file
      * names, read from it.
@@ -179,7 +179,7 @@ class ShippedConfigurationTest {
     @Test
     @Story("The embedding model ships with a default")
     @DisplayName("The control panel's example and hint for the comparing model name the model the application ships, whichever it is")
-    @Link(name = "ADR-346", url = Adr.THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE, type = "adr")
+    @Link(name = "ADR-353", url = Adr.THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE, type = "adr")
     void theControlPanelsExampleAndHintNameTheShippedEmbeddingModel() throws IOException {
         String shipped = String.valueOf(shippedProperties().get(EMBEDDING_MODEL));
 

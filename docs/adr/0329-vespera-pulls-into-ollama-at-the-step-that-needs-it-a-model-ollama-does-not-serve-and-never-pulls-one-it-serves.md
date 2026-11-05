@@ -1,6 +1,6 @@
 # ADR-329 — Vespera pulls into Ollama, at the step that needs it, a model Ollama does not serve, and never pulls one it serves
 
-> **Partly amended — see [ADR-346](0346-the-embedding-models-shipped-default-is-qwen3-embedding-8b-named-as-its-file-on-hugging-face-and-only-a-profile-naming-no-model-moves-its-scoring-run.md).** Of Consequences' first bullet: a fresh machine pulls `hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M`, 4,676,804,928 bytes of weights, where it pulled `bge-m3:latest`, 1.2 GB. The rule stands.
+> **Partly amended — see [ADR-353](0353-the-embedding-models-shipped-default-is-qwen3-embedding-8b-and-only-a-profile-naming-no-model-moves-its-scoring-run.md).** Of Consequences' first bullet: a fresh machine pulls `hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M`, 4,676,804,928 bytes of weights, where it pulled `bge-m3:latest`, 1.2 GB. The rule stands.
 
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.

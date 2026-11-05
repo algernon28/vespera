@@ -1,5 +1,7 @@
 # ADR-341 — `vespera serve` tells a page from a copy by the website's list and the file's name, `serve`'s working directory is a fourth argument never passed, and its refusals, answers and readings are as built
 
+> **Partly amended — see [ADR-345](0345-the-cockpit-replaces-the-browser-control-panel-its-tree-writes-the-folders-not-walked-and-publish-offers-each-destination.md).** Of §2: `serve db-dir` has no control, the table having no form, and the entries never passed are three, `vespera help`, `vespera version` and `serve db-dir`. The rest of this record stands.
+
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.
 - **Decided**: here. Each choice is one that building ADR-333's third step needed, which ADR-333's Decided line leaves to its building; none is a ruling of the operator's. §1 settles a gap between ADR-333 §8 and ADR-339 §3 by the reading that keeps ADR-339's list at its format and fields.

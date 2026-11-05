@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-331](0331-the-control-panel-opens-a-window-of-its-own-and-its-pages-are-a-cockpit-with-a-picker-an-example-and-a-hint-on-its-fields.md).** Of §3: neither `PATH` nor `JAVA_HOME` picks the child's `java`, which stays that of the runtime running the control panel; `PATH` is read by `SystemBrowserOpener.windowCommand` alone, to find a browser, and `JAVA_HOME` by no class. Of its Tests: `ChildRuntimeTest.noClassOfTheControlPanelReadsPathOrJavaHome` is `neitherPathNorJavaHomePicksTheChildsJava`, holding `java.home` and `os.name` in the compiled texts, `JAVA_HOME` in no class, the word `PATH` in `SystemBrowserOpener` and in `FolderPages`'s query alone, and no call of `System.getenv` in `ChildRuntime`, `ChildCommand` or `FolderPages`. The rest of this record stands.
 
+> **Partly amended — see [ADR-342](0342-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md).** Of §1: the operator opens the control panel by `java -jar` on the Vespera jar with no argument, whose `Start-Class` is `io.algernon.EntryPoint`; there is no control-panel jar and no `Vespera-Jar` entry. Of §4: the child is the jar the window runs from, read from `java.class.path`. §3 stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md): no launcher script, installer or image is shipped, and the operator starts the control panel as they start the jar, by `java -jar` (§1); distribution stays out of scope.
@@ -117,13 +119,12 @@ No file under `src/main/java/io/algernon/vespera` changes, so no run id moves. T
 | Method | What it holds |
 | --- | --- |
 | `controlpanel.ChildRuntimeTest.theChildsJavaIsTheJavaOfTheRuntimeRunningTheControlPanel` | `java()` is `<java.home>/bin/java` on Linux and macOS, and `<java.home>/bin/java.exe` where `os.name` starts with `Windows` (§3) |
-| `controlpanel.ChildRuntimeTest.theJarIsFoundBesideTheControlPanelsJarByTheNameItIsGiven` | `jar()` is the control panel's folder joined with the name given, whatever the control panel's own jar is called (§4) |
-| `controlpanel.ChildRuntimeTest.noJarBesideTheControlPanelIsRefusedWithOneLineNamingWhereItLooked` | no file of that name, or a folder of that name: refused, the line naming the path looked at (§4) |
-| `controlpanel.ChildRuntimeTest.aControlPanelRunFromAFolderOfClassesIsRefusedWithOneLineNamingTheFolder` | a location that is a folder: refused, the line naming the folder (§4) |
-| `controlpanel.ChildRuntimeTest.neitherPathNorJavaHomePicksTheChildsJava` (#684) | the control panel's compiled texts hold `java.home` and `os.name`, and neither `PATH` nor `JAVA_HOME` (§3) |
-| `PackagedJarIT.theControlPanelJarsManifestNamesItsMainClassAndTheJarBesideIt` | the control-panel jar's manifest: `Main-Class` `io.algernon.controlpanel.ControlPanel`, `Vespera-Jar` the Spring Boot jar's file name; the Spring Boot jar's `Main-Class` still Spring Boot's (§1) |
-| `pipeline.TheControlPanelsChildIT.theControlPanelStartedByJavaJarNamesTheJarBesideItAndItsOwnJava` | `java -jar` on the control-panel jar in `target`: exit 0, standard error empty, one line naming the jar beside it and the `java` of the runtime that started it (§1, §3, §4) |
-| `pipeline.TheControlPanelsChildIT.theControlPanelWithNoJarBesideItRefusesWithOneLine` | a copy of the control-panel jar alone in a folder: exit 1, standard output empty, one line on standard error naming where it looked (§4) |
+| `controlpanel.ChildRuntimeTest.theJarIsTheOneTheClassPathNames` ([#700](https://github.com/algernon28/vespera/issues/700)) | `jar()` is the class path's one file, as ADR-342 §2 leaves §4 |
+| `controlpanel.ChildRuntimeTest.aClassPathThatNamesNoJarIsRefusedWithOneLine` ([#700](https://github.com/algernon28/vespera/issues/700)) | a class path of a folder, of a file not there or of two entries: refused, the line naming it, as ADR-342 §2 leaves §4 |
+| `controlpanel.ChildRuntimeTest.neitherPathNorJavaHomePicksTheChildsJava` (#684) ([#700](https://github.com/algernon28/vespera/issues/700)) | the control panel's compiled texts hold `java.home`, `os.name` and `java.class.path`, and neither `PATH` nor `JAVA_HOME` (§3) |
+| `PackagedJarIT.theJarCarriesTheControlPanelAndJavaFxAndStartsAtTheEntryPoint` ([#700](https://github.com/algernon28/vespera/issues/700)) | in place of §1's manifest of a second jar, the Spring Boot jar's: `Main-Class` still Spring Boot's, `Start-Class` `io.algernon.EntryPoint`, as ADR-342 §2 has it |
+| `pipeline.TheControlPanelsChildIT.theControlPanelStartedByJavaJarNamesTheJarBesideItAndItsOwnJava` (removed with the control panel's jar, ADR-342 §6, #700) | `java -jar` on the control-panel jar in `target`: exit 0, standard error empty, one line naming the jar beside it and the `java` of the runtime that started it (§1, §3, §4) |
+| `pipeline.TheControlPanelsChildIT.theControlPanelWithNoJarBesideItRefusesWithOneLine` (removed with the control panel's jar, ADR-342 §6, #700) | a copy of the control-panel jar alone in a folder: exit 1, standard output empty, one line on standard error naming where it looked (§4) |
 
 §2's refusal is the JDK's, measured above, and held by no test of this build: the build has no older JDK to start.
 

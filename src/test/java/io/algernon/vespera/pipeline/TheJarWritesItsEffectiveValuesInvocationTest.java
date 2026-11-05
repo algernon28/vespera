@@ -345,7 +345,7 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
 
     /**
      * The generation model the shipped file names, read from it: the value the jar says it ships is held to the file and
-     * not to a name this test would expect (ADR-346 §7), so a changed default changes no test.
+     * not to a name this test would expect (ADR-353 §7), so a changed default changes no test.
      */
     private static String theShippedGenerationModel() {
         return theShipped("spring.ai.ollama.chat.options.model");

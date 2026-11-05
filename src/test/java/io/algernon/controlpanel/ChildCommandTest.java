@@ -148,13 +148,15 @@ class ChildCommandTest {
     /**
      * Every child is given {@code --db-dir}, which the jar reads only as {@code application.yaml}'s fallback for
      * {@code vespera.working-dir}: a spelling of that key in the environment it inherits comes before it, and the jar then
-     * refuses the start, the folder opened not being the one given (ADR-340 §6). So the child inherits the control
-     * panel's environment less the four spellings of {@code vespera.working-dir} and the four of {@code db-dir}.
+     * refuses the start, the folder opened not being the one given (ADR-340 §6, which ADR-345 §1 keeps in the window). So
+     * the child inherits the control panel's environment less the four spellings of {@code vespera.working-dir} and the
+     * four of {@code db-dir}.
      */
     @Test
     @Story("The control panel passes its launch values to the jar")
     @DisplayName("The child inherits no variable naming the working directory or db-dir, so the folder it is given is the one it opens")
     @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
+    @Link(name = "ADR-345", url = Adr.THE_COCKPIT_REPLACES_THE_BROWSER_CONTROL_PANEL_AND_ITS_TREE_WRITES_THE_FOLDERS_NOT_WALKED, type = "adr")
     @Link(name = "ADR-292", url = Adr.THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES, type = "adr")
     void theChildInheritsNoVariableNamingTheWorkingDirectory() {
         List<String> theEight = List.of("VESPERA_WORKINGDIR", "VESPERA_WORKING_DIR", "vespera_workingdir",
@@ -203,6 +205,7 @@ class ChildCommandTest {
     @Issue("633")
     @DisplayName("Publish is the jar's publish command with its destinations and the working directory absolute, and adds no Confluence value to the child's environment")
     @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+    @Link(name = "ADR-345", url = Adr.THE_COCKPIT_REPLACES_THE_BROWSER_CONTROL_PANEL_AND_ITS_TREE_WRITES_THE_FOLDERS_NOT_WALKED, type = "adr")
     void publishIsTheJarsPublishCommandAndAddsNoConfluenceValue() {
         ChildCommand publish = ChildCommand.publish(JAVA, JAR, EVERY_VALUE, List.of("confluence"));
 
@@ -226,7 +229,7 @@ class ChildCommandTest {
                     assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("confluence", "nowhere")))
                             .isInstanceOf(IllegalArgumentException.class);
                 });
-        claim("the closed list is the two destinations, in the order the invocation page offers them",
+        claim("the closed list is the two destinations, in the order the window offers them",
                 () -> assertThat(ChildCommand.DESTINATIONS).containsExactly("confluence", "website"));
     }
 

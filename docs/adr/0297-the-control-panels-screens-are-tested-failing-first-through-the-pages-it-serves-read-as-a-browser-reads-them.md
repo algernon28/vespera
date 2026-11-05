@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-325](0325-the-control-panel-opens-the-browser-itself-at-a-fixed-port-and-a-tab-of-its-last-start-comes-back-to-the-next-in-place-of-a-new-one.md).** Of §2 and its Keeps of ADR-291: no token is exchanged and no cookie set, so `PanelBrowser` holds none, and a screen test passes the server's checks of `Host`, `Sec-Fetch-Site` and `Origin`. Of §7: `PanelBrowserTest` holds the landing on the root at the printed address, with no redirect, and the next page answered. The rest of this record stands.
 
+> **Superseded — see ADR-342.** [ADR-342](0342-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md) **supersedes this record**: a window is tested on JavaFX's Headless platform, its controls found by their ids, and jsoup leaves the pom with the pages.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel's jar names `java.base` and `jdk.httpserver` alone; the one dependency added here is at test scope and is in neither jar (§3).

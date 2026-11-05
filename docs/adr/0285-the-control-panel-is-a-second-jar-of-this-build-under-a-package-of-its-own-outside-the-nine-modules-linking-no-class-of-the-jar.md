@@ -8,6 +8,8 @@
 
 > **Partly amended — see [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** Of §3: the files that are the control panel's contract with the jar also hold `effective-values.properties`, which `vespera run` and `vespera label` write in the working directory, saying what the jar would use where the profile names nothing; it is parsed in `java.base`, and no class of the jar is linked. The rest of this record stands.
 
+> **Partly amended — see [ADR-342](0342-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md).** Of §2: no second jar is built; the control panel ships inside the Spring Boot jar. Of §3: it names its own package, `java.base`, JavaFX's `javafx.` packages and, to read `application.yaml`, `tools.jackson`, and no longer `jdk.httpserver`. Of §4: ADR-130's rule binds one stylesheet. Of its refusal of one jar holding both: that is now the decision. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-040](0040-modules-are-capability-shaped-not-stage-shaped.md) and [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md): the nine modules stay nine, and the module rule is unchanged, since the control panel's code is outside `io.algernon.vespera` (§1).
@@ -98,12 +100,12 @@ Two of ADR-278's tests wait for the screens: Run and Label disabled while a line
 
 | Method | What it holds |
 | --- | --- |
-| `controlpanel.TheControlPanelLinksNoClassOfTheJarTest.theControlPanelNamesOnlyTypesOfItsOwnPackageAndOfTheJdksBaseAndHttpServerModules` | every type a compiled class of `io.algernon.controlpanel` names is its own package's or of `java.base` or `jdk.httpserver` (§3) |
+| `controlpanel.TheControlPanelLinksNoClassOfTheJarTest.theControlPanelNamesOnlyTypesOfItsOwnPackageTheJdksBaseJavaFxAndJackson` ([#700](https://github.com/algernon28/vespera/issues/700)) | every type a compiled class of `io.algernon.controlpanel` names is its own package's or of `java.base`, of a `javafx.` package or of `tools.jackson`, as ADR-342 §3 leaves §3 |
 | `controlpanel.TheControlPanelLinksNoClassOfTheJarTest.noClassOfTheJarNamesTheControlPanel` | no compiled class of `io.algernon.vespera` names a type of `io.algernon.controlpanel` (§3) |
 | `pipeline.TheControlPanelReadsTheHolderLinesTheJarWritesTest.theWorkingDirectoryLocksHolderLineIsReadAsHeldWhileItsHolderLives` | a second JVM holding a working directory: its `vespera.lock` line is read whole, with that JVM's pid, held while it lives and not once it is killed (§3) |
 | `pipeline.TheControlPanelReadsTheHolderLinesTheJarWritesTest.theCorpusRootLocksHolderLineIsReadAsHeldWhileItsHolderLives` | the same of a corpus-root lock's line (§3) |
-| `PackagedJarIT.theSpringBootJarCarriesNoClassOfTheControlPanel` | the Spring Boot jar holds `VesperaApplication` and nothing under `io/algernon/controlpanel/` (§2) |
-| `PackagedJarIT.theControlPanelJarCarriesOnlyTheControlPanelsClasses` | the `control-panel` jar holds classes of `io/algernon/controlpanel/` and nothing else outside `META-INF/`, so no Spring and no nested library (§2) |
+| `PackagedJarIT.theJarCarriesTheControlPanelAndJavaFxAndStartsAtTheEntryPoint` ([#700](https://github.com/algernon28/vespera/issues/700)) | in place of §2's two jars, the Spring Boot jar holds the control panel, as ADR-342 §1 and §2 have it |
+| `PackagedJarIT.noControlPanelJarIsBuiltBesideIt` ([#700](https://github.com/algernon28/vespera/issues/700)) | no `control-panel` jar is built, as ADR-342 §5 has it |
 | `controlpanel.HolderLineTest.aLineIsReadIntoItsPidAndStartedAndKeptWhole` | a holder line's pid, its `started` as an instant, and its text whole |
 | `controlpanel.HolderLineTest.aLineIsHeldWhileItsProcessIsAliveAndStartedInTime` | the rule case by case: held at its bound and before it, a reused pid not held, a dead pid not held whatever its start, a missing start instant counted as held (#682) |
 | `controlpanel.HolderLineTest.theRuleReadsTheProcessTheSystemNames` | the rule against real processes: this JVM held, this JVM's pid under a `started` before it began not held, an ended process's pid not held |

@@ -92,7 +92,7 @@ public enum ProfileKey {
             "Folders of code elsewhere on this machine, read with the documents and kept as code sets of their own."),
     FOLDERS_NOT_WALKED("foldersNotWalked", Kind.CORPUS_FOLDERS, Run.BYTE_LEVEL_REDUCTION,
             "which folders of the corpus hold nothing you want read", "archive/old-flows", "Folders not read",
-            "Folders of the documents folder that Vespera never reads. Untick them under Folders to process.");
+            "Folders of the documents folder that Vespera never reads. Untick them in the Inclusions tab.");
 
     /** The type of a key's value, which is how the jar reads it. */
     public enum Kind { TEXT, NUMBER, NAME_ENDINGS, LANGUAGES, FOLDERS, CORPUS_FOLDERS }

@@ -19,8 +19,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The packaged jar carries no Spring compose support (ADR-158, ADR-179), and it carries the compose files its own
- * starter brings the sidecars up from (ADR-323).
+ * The packaged jar carries no Spring compose support (ADR-158, ADR-179), it carries the compose files its own
+ * starter brings the sidecars up from (ADR-323), and it carries the control panel, started at its entry point with no
+ * argument (ADR-342).
  *
  * <p>Spring Boot's Docker Compose support reconciles running containers to the files it is given and stops them at
  * exit, which is what ADR-179 records going wrong; the jar's own starter recreates and stops nothing. That holds only
@@ -53,8 +54,8 @@ class PackagedJarIT {
     /** The packaged, executable jar the operator runs, at the path README.md names. */
     private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0.0.1-SNAPSHOT.jar");
 
-    /** The control panel's jar, which the same build writes beside it (ADR-285 §2). */
-    private static final Path CONTROL_PANEL_JAR = Path.of("target", "vespera-0.0.1-SNAPSHOT-control-panel.jar");
+    /** The folder the build writes its jars in, which holds no second jar of the control panel's (ADR-342 §5). */
+    private static final Path TARGET = Path.of("target");
 
     /** Where the Boot plugin puts the application's own classes. */
     private static final String CLASSES = "BOOT-INF/classes/";
@@ -65,23 +66,35 @@ class PackagedJarIT {
     /** The control panel's classes, as a jar names their entries. */
     private static final String CONTROL_PANEL = "io/algernon/controlpanel/";
 
-    /** A class of the control panel each jar is read for. */
+    /** A class of the control panel the jar is read for. */
     private static final String A_CLASS_OF_THE_CONTROL_PANEL = CONTROL_PANEL + "HolderLine.class";
 
     /** A class of the jar the Spring Boot jar must hold, so that an absence below is a real one. */
     private static final String A_CLASS_OF_THE_JAR = "io/algernon/vespera/VesperaApplication.class";
 
-    /** What a plain jar carries beside its classes: its manifest and Maven's description of the build. */
-    private static final String META_INF = "META-INF/";
+    /** The jar's entry point, outside both packages, as a jar names its entry (ADR-342 §2). */
+    private static final String THE_ENTRY_POINT = "io/algernon/EntryPoint.class";
 
-    /** The class whose {@code main} the operator's {@code java -jar} on the control panel's jar runs (ADR-288 §1). */
-    private static final String CONTROL_PANELS_MAIN_CLASS = "io.algernon.controlpanel.ControlPanel";
+    /** The class the Boot launcher hands the start to, which opens the window or runs the command line (ADR-342 §2). */
+    private static final String ENTRY_POINT_CLASS = "io.algernon.EntryPoint";
 
-    /** The control panel's manifest entry naming the file name of the jar it starts (ADR-288 §1). */
-    private static final String VESPERA_JAR = "Vespera-Jar";
+    /** The manifest entry Spring Boot's launcher reads the class it starts from. */
+    private static final String START_CLASS = "Start-Class";
+
+    /** The manifest entry that lets JavaFX load its native libraries with no warning (ADR-342 §2). */
+    private static final String ENABLE_NATIVE_ACCESS = "Enable-Native-Access";
 
     /** The Spring Boot jar's own entry point, which a jar it repackages names as its {@code Main-Class}. */
     private static final String SPRING_BOOTS_JAR_LAUNCHER = "org.springframework.boot.loader.launch.JarLauncher";
+
+    /**
+     * The six OpenJFX jars of one platform's classifier, as the Boot plugin names them under {@code BOOT-INF/lib/}:
+     * {@code javafx-controls}' three, and {@code javafx-web}, which brings {@code javafx-media} and
+     * {@code jdk-jsobject}; the version ADR-342 §1 names, and the classifier of whichever platform built the jar.
+     */
+    private static final java.util.regex.Pattern JAVAFX_OF_ONE_PLATFORM = java.util.regex.Pattern.compile(
+            "(javafx-(base|graphics|controls|media|web)|jdk-jsobject)-26\\.0\\.2-"
+                    + "(win|linux|mac|mac-aarch64|linux-aarch64)\\.jar");
 
     /** Where the Boot plugin puts the jar's dependencies, one nested jar each. */
     private static final String LIBRARIES = "BOOT-INF/lib/";
@@ -108,70 +121,78 @@ class PackagedJarIT {
     }
 
     /**
-     * The control panel is built by the same pom, and the Spring Boot jar the operator runs carries none of it
-     * (ADR-285 §2).
+     * The control panel ships inside the jar (ADR-342 §1, §2): its classes, the jar's entry point, and OpenJFX's six
+     * jars of the building platform's classifier, the web jar among them, which a report's viewer is (ADR-344 §6);
+     * Spring Boot's launcher stays the {@code Main-Class} and hands the start to the entry point, and the manifest lets
+     * JavaFX load its native libraries.
      */
     @Test
-    @Issue("562")
-    @Link(name = "ADR-285", url = Adr.THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR, type = "adr")
-    @Story("The control panel is built beside the jar, not into it")
-    @DisplayName("The packaged jar carries the application's classes and none of the control panel's")
-    void theSpringBootJarCarriesNoClassOfTheControlPanel() throws IOException {
+    @Issue("700")
+    @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+    @Story("The control panel ships inside the jar")
+    @DisplayName("The packaged jar carries the control panel, JavaFX of one platform with its web viewer, and starts at the entry point")
+    void theJarCarriesTheControlPanelAndJavaFxAndStartsAtTheEntryPoint() throws IOException {
         List<String> entries = entriesOf(EXECUTABLE_JAR);
+        List<String> javaFx = libraries().stream()
+                .filter(name -> (name.startsWith("javafx-") || name.startsWith("jdk-jsobject-")) && name.contains("-26.0.2-"))
+                .sorted().toList();
+        Attributes manifest = mainAttributesOf(EXECUTABLE_JAR);
 
-        claim("the packaged jar carries the application's own classes, so an absence below is a real one",
-                () -> assertThat(entries).contains(CLASSES + A_CLASS_OF_THE_JAR));
-        claim("and no class of the control panel",
-                () -> assertThat(entries).noneMatch(name -> name.startsWith(CLASSES + CONTROL_PANEL)));
-    }
-
-    /**
-     * The control panel's jar holds its classes and nothing else of the build's: no class of the jar, no library and
-     * no Spring (ADR-285 §2).
-     */
-    @Test
-    @Issue("562")
-    @Link(name = "ADR-285", url = Adr.THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR, type = "adr")
-    @Story("The control panel is built beside the jar, not into it")
-    @DisplayName("The control panel's jar carries the control panel's classes and nothing else")
-    void theControlPanelJarCarriesOnlyTheControlPanelsClasses() throws IOException {
-        claim("the control panel's jar exists, since this test reads it and needs verify to have built it",
-                () -> assertThat(Files.exists(CONTROL_PANEL_JAR)).isTrue());
-        List<String> entries = entriesOf(CONTROL_PANEL_JAR);
-
-        claim("it carries the control panel's classes",
-                () -> assertThat(entries).contains(A_CLASS_OF_THE_CONTROL_PANEL));
-        claim("and, beside its manifest and Maven's description of the build, nothing outside the control panel's"
-                        + " package: no class of the application, no Spring and no nested library",
-                () -> assertThat(entries)
-                        .filteredOn(name -> !name.startsWith(META_INF))
-                        .allMatch(name -> CONTROL_PANEL.startsWith(name) || name.startsWith(CONTROL_PANEL)));
-    }
-
-    /**
-     * The operator starts the control panel by {@code java -jar} on its jar, whose manifest names its entry point and
-     * the file name of the jar it starts beside it (ADR-288 §1); the Spring Boot jar's manifest is left as it was.
-     */
-    @Test
-    @Issue("567")
-    @Link(name = "ADR-288", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_BESIDE_ITS_OWN_WITH_THE_JAVA_RUNNING_IT, type = "adr")
-    @Story("The operator starts the control panel with java -jar")
-    @DisplayName("The control panel's jar names its main class and the file name of the packaged jar beside it")
-    void theControlPanelJarsManifestNamesItsMainClassAndTheJarBesideIt() throws IOException {
-        Attributes controlPanel = mainAttributesOf(CONTROL_PANEL_JAR);
-
-        claim("the control panel's jar names " + CONTROL_PANELS_MAIN_CLASS + " as its main class, so java -jar starts it",
-                () -> assertThat(controlPanel.getValue(Attributes.Name.MAIN_CLASS)).isEqualTo(CONTROL_PANELS_MAIN_CLASS));
-        claim("and names, as " + VESPERA_JAR + ", the file name of the packaged jar the same build writes beside it",
-                () -> assertThat(controlPanel.getValue(VESPERA_JAR)).isEqualTo(EXECUTABLE_JAR.getFileName().toString()));
-
-        Attributes springBoot = mainAttributesOf(EXECUTABLE_JAR);
-
-        claim("the packaged jar's main class is still Spring Boot's own, and it names no jar to start",
+        claim("the packaged jar carries the application's classes, the control panel's and the entry point that"
+                        + " chooses between them",
+                () -> assertThat(entries).contains(CLASSES + A_CLASS_OF_THE_JAR, CLASSES + A_CLASS_OF_THE_CONTROL_PANEL,
+                        CLASSES + THE_ENTRY_POINT));
+        String classifier = theBuildPlatformsClassifier();
+        claim("it carries OpenJFX 26.0.2's base, graphics, controls, media and web, and the JavaScript object classes web"
+                        + " needs, each once, of the classifier of the platform it was built on, here " + classifier,
+                () -> assertThat(javaFx).allMatch(name -> JAVAFX_OF_ONE_PLATFORM.matcher(name).matches())
+                        .containsExactly("javafx-base-26.0.2-" + classifier + ".jar",
+                                "javafx-controls-26.0.2-" + classifier + ".jar",
+                                "javafx-graphics-26.0.2-" + classifier + ".jar",
+                                "javafx-media-26.0.2-" + classifier + ".jar",
+                                "javafx-web-26.0.2-" + classifier + ".jar",
+                                "jdk-jsobject-26.0.2-" + classifier + ".jar"));
+        claim("its main class is still Spring Boot's launcher, which starts the entry point",
                 () -> {
-                    assertThat(springBoot.getValue(Attributes.Name.MAIN_CLASS)).isEqualTo(SPRING_BOOTS_JAR_LAUNCHER);
-                    assertThat(springBoot.getValue(VESPERA_JAR)).isNull();
+                    assertThat(manifest.getValue(Attributes.Name.MAIN_CLASS)).isEqualTo(SPRING_BOOTS_JAR_LAUNCHER);
+                    assertThat(manifest.getValue(START_CLASS)).isEqualTo(ENTRY_POINT_CLASS);
                 });
+        claim("and it lets code on the class path load native libraries, so JavaFX's start writes no warning of it",
+                () -> assertThat(manifest.getValue(ENABLE_NATIVE_ACCESS)).isEqualTo("ALL-UNNAMED"));
+    }
+
+    /** The build writes one jar: the second jar the control panel was built as is gone (ADR-342 §5). */
+    @Test
+    @Issue("700")
+    @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+    @Story("The control panel ships inside the jar")
+    @DisplayName("No jar of the control panel's own is built beside the packaged jar")
+    void noControlPanelJarIsBuiltBesideIt() throws IOException {
+        claim("the packaged jar exists, since this test reads the folder it is built in and needs verify to have built it",
+                () -> assertThat(Files.exists(EXECUTABLE_JAR)).isTrue());
+        try (java.util.stream.Stream<Path> built = Files.list(TARGET)) {
+            List<String> jars = built.map(path -> path.getFileName().toString()).filter(name -> name.endsWith(".jar"))
+                    .toList();
+            claim("and no jar beside it is the control panel's, by the classifier it was built with",
+                    () -> assertThat(jars).noneMatch(name -> name.endsWith("-control-panel.jar")));
+        }
+    }
+
+    /**
+     * The OpenJFX classifier of the platform this test runs on, which built the jar: {@code win}, {@code linux},
+     * {@code linux-aarch64}, {@code mac} or {@code mac-aarch64}, by {@code os.name} and {@code os.arch} as OpenJFX's
+     * own build profiles pick it.
+     */
+    private static String theBuildPlatformsClassifier() {
+        String system = System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT);
+        boolean arm = System.getProperty("os.arch").equals("aarch64");
+        if (system.startsWith("windows")) {
+            return "win";
+        }
+        if (system.startsWith("mac")) {
+            return arm ? "mac-aarch64" : "mac";
+        }
+        return arm ? "linux-aarch64" : "linux";
     }
 
     /** The main section of the jar's manifest. */

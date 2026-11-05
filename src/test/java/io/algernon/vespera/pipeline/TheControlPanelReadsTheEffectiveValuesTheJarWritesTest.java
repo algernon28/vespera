@@ -57,7 +57,7 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
 
     /**
      * The embedding model this test's layer of the jar's own file names: a name of the test's own, with a slash and a
-     * colon in it as a model file's name on a registry has, and not the one the jar ships (ADR-346 §7).
+     * colon in it as a model file's name on a registry has, and not the one the jar ships (ADR-353 §7).
      */
     private static final String AN_EMBEDDING_MODEL_OF_THE_JARS_FILE = "a.registry/an-owner/a-comparing-model:Q4";
 
@@ -65,7 +65,7 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
 
     /**
      * The generation model this test's layer of the jar's own file names, which the label model falls back to: a name
-     * of the test's own, not the one the jar ships (ADR-346 §7).
+     * of the test's own, not the one the jar ships (ADR-353 §7).
      */
     private static final String A_GENERATION_MODEL_OF_THE_JARS_FILE = "a-writing-model:8b";
 

@@ -16,6 +16,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,8 +37,9 @@ import org.junit.jupiter.api.io.TempDir;
  * The control panel's writes and its starts one at a time (ADR-295 §1, ADR-306 §1): the server answers each request on
  * a thread of its own, and since a holder line of the control panel's own process reads as held by nobody, only the
  * {@link ControlPanelState}'s monitor keeps a start from passing its checks while a write holds the working-directory
- * lock. The state also tells whether a Confluence rendering is drawn, and reads the working directory's
- * {@code deliverable} folder, named as the output folder, as no folder named (ADR-334 §1).
+ * lock. The state also tells whether a Confluence rendering is drawn under the working directory and the output folder
+ * it is given, as the window's fields name them and not as the launch values hold them (ADR-344 §1, §3), and reads the
+ * working directory's {@code deliverable} folder, named as the output folder, as no folder named (ADR-334 §1).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -114,7 +118,6 @@ class ControlPanelStateTest {
     @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
     void theDefaultFolderNamedFindsARenderingAsNoneNamedDoes(@TempDir Path folder) throws IOException {
         Path workingDirectory = Files.createDirectory(folder.resolve("working"));
-        Path corpusRoot = Files.createDirectory(folder.resolve("corpus"));
         Path theDefault = workingDirectory.resolve("deliverable");
         aRenderingDrawnAtTheTopOf(theDefault.resolve(A_RUN));
         Path elsewhere = folder.resolve("elsewhere");
@@ -131,7 +134,7 @@ class ControlPanelStateTest {
         named.put("another folder named, holding a rendering at its own top", aTree.toString());
         ControlPanelState state = aState(folder);
 
-        Map<String, Boolean> drawn = drawnFor(state, corpusRoot, workingDirectory, named);
+        Map<String, Boolean> drawn = drawnFor(state, workingDirectory, named);
 
         claim("with none named, and with the working directory's deliverable folder named however it is spelt, the"
                         + " rendering in a run's folder under it is found; another folder named is the tree itself, so"
@@ -153,26 +156,98 @@ class ControlPanelStateTest {
     @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
     void onWindowsTheDefaultFolderInCapitalsFindsARendering(@TempDir Path folder) throws IOException {
         Path workingDirectory = Files.createDirectory(folder.resolve("working"));
-        Path corpusRoot = Files.createDirectory(folder.resolve("corpus"));
         aRenderingDrawnAtTheTopOf(workingDirectory.resolve("deliverable").resolve(A_RUN));
         Map<String, String> named = new LinkedHashMap<>();
         named.put("the deliverable folder named in capitals", workingDirectory.resolve("DELIVERABLE").toString());
 
-        Map<String, Boolean> drawn = drawnFor(aState(folder), corpusRoot, workingDirectory, named);
+        Map<String, Boolean> drawn = drawnFor(aState(folder), workingDirectory, named);
 
         claim("the folder named in capitals is the working directory's deliverable folder, and the rendering in a run's"
                         + " folder under it is found",
                 () -> assertThat(drawn).containsExactly(Map.entry("the deliverable folder named in capitals", true)));
     }
 
-    /** Whether a rendering is drawn, by what each output folder named is called, the state holding it as launch value. */
-    private static Map<String, Boolean> drawnFor(ControlPanelState state, Path corpusRoot, Path workingDirectory,
+    /**
+     * A start is refused where the working directory it passes is held by another invocation (ADR-278 §4, ADR-344 §3):
+     * the one the window passes, which may have come from the environment and be kept nowhere, and not the one the state
+     * held before. The holder is a live process of the test's own, named by a holder line as the jar writes one.
+     */
+    @Test
+    @Issue("700")
+    @Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+    @Link(name = "ADR-278", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN, type = "adr")
+    @Story("The control panel starts no invocation where another holds the working directory")
+    @DisplayName("A start is refused where the working directory it passes is held by another invocation, whatever the one held before")
+    void aStartIsRefusedWhereTheWorkingDirectoryItPassesIsHeld(@TempDir Path folder) throws Exception {
+        Path corpusRoot = Files.createDirectory(folder.resolve("corpus"));
+        Path free = Files.createDirectory(folder.resolve("free"));
+        Path held = Files.createDirectory(folder.resolve("held"));
+        Process holder = ChildForTests.builder("sleep").start();
+        try {
+            Files.writeString(held.resolve(WorkingDirectoryWrite.LOCK_FILE_NAME), "pid=" + holder.pid() + " started="
+                    + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS))
+                    + " command=run\n", StandardCharsets.UTF_8);
+            ControlPanelState passingTheHeldOne = new ControlPanelState(SleepingJar.runtime(),
+                    LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp-one")), USER),
+                    Files.createDirectories(folder.resolve("root-locks-one")), USER);
+            passingTheHeldOne.hold(new LaunchValues(corpusRoot.toString(), free.toString(), "", "", "", "", "", ""));
+            ControlPanelState passingTheFreeOne = new ControlPanelState(SleepingJar.runtime(),
+                    LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp-two")), USER),
+                    Files.createDirectories(folder.resolve("root-locks-two")), USER);
+            passingTheFreeOne.hold(new LaunchValues(corpusRoot.toString(), held.toString(), "", "", "", "", "", ""));
+            Optional<String> refusedForTheHeldOne;
+            boolean startedForTheHeldOne;
+            Optional<String> refusedForTheFreeOne;
+            boolean startedForTheFreeOne;
+            try {
+                refusedForTheHeldOne = passingTheHeldOne.start(ControlPanelState.Start.RUN, passing(corpusRoot, held),
+                        new ArrayList<>());
+                startedForTheHeldOne = passingTheHeldOne.childWasStarted();
+                refusedForTheFreeOne = passingTheFreeOne.start(ControlPanelState.Start.RUN, passing(corpusRoot, free),
+                        new ArrayList<>());
+                startedForTheFreeOne = passingTheFreeOne.childWasStarted();
+            } finally {
+                passingTheHeldOne.stop();
+                passingTheFreeOne.stop();
+            }
+
+            claim("passing a working directory another invocation holds, while the one held before is free, is refused,"
+                            + " naming the one passed, and starts nothing",
+                    () -> {
+                        assertThat(refusedForTheHeldOne).hasValueSatisfying(line -> assertThat(line).startsWith(
+                                "Run is not started: the working directory " + held
+                                        + " is held by another Vespera invocation ("));
+                        assertThat(startedForTheHeldOne).isFalse();
+                    });
+            claim("and passing a free one, while the one held before is held, starts the invocation",
+                    () -> {
+                        assertThat(refusedForTheFreeOne).isEmpty();
+                        assertThat(startedForTheFreeOne).isTrue();
+                    });
+        } finally {
+            holder.destroyForcibly().waitFor(BOUND.toSeconds(), TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * What the window passes for a Run whose corpus root and working directory came from the environment: both passed,
+     * as the command's own arguments, and neither kept (ADR-344 §3).
+     */
+    private static ControlPanelState.Plan passing(Path corpusRoot, Path workingDirectory) {
+        return new ControlPanelState.Plan(
+                new LaunchValues(corpusRoot.toString(), workingDirectory.toString(), "", "", "", "", "", ""),
+                new LaunchValues("", "", "", "", "", "", "", ""), Map.of(), null);
+    }
+
+    /**
+     * Whether a rendering is drawn, by what each output folder named is called, asked of the working directory and the
+     * output folder as the window's fields name them, whatever the launch values hold (ADR-344 §1, §3).
+     */
+    private static Map<String, Boolean> drawnFor(ControlPanelState state, Path workingDirectory,
             Map<String, String> named) {
         Map<String, Boolean> drawn = new LinkedHashMap<>();
         for (Map.Entry<String, String> each : named.entrySet()) {
-            state.hold(new LaunchValues(corpusRoot.toString(), workingDirectory.toString(), each.getValue(), "", "", "",
-                    "", ""));
-            drawn.put(each.getKey(), state.aRenderingIsDrawn());
+            drawn.put(each.getKey(), state.aRenderingIsDrawn(Optional.of(workingDirectory), each.getValue()));
         }
         return drawn;
     }

@@ -1,0 +1,93 @@
+name: docling-image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "docker/docling-serve/**"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docling-image
+  cancel-in-progress: false
+
+jobs:
+  image:
+    if: github.ref == 'refs/heads/main'
+    name: Build and push ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ghcr.io/algernon28/vespera-docling-serve-cpu-libreoffice
+            tag: v1.32.0-docling-parse-7.17.0-r3
+            base: quay.io/docling-project/docling-serve-cpu:v1.32.0
+            free-disk: false
+            needs-gb: 12
+          - image: ghcr.io/algernon28/vespera-docling-serve-cu128-libreoffice
+            tag: v1.32.0-docling-parse-7.17.0-r3
+            base: quay.io/docling-project/docling-serve-cu128:v1.32.0
+            free-disk: true
+            needs-gb: 30
+    env:
+      REFERENCE: ${{ matrix.image }}:${{ matrix.tag }}
+      BASE: ${{ matrix.base }}
+      NEEDS_GB: ${{ matrix.needs-gb }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Log in to ghcr.io
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: The tag is not in the registry yet
+        run: |
+          if out=$(docker manifest inspect "$REFERENCE" 2>&1); then
+            echo "$REFERENCE is already in the registry; a changed image takes a new tag"; exit 1
+          fi
+          echo "$out" | grep -qiE 'manifest unknown|not found' || { echo "$out"; exit 1; }
+
+      - name: Free the runner's disk
+        if: matrix.free-disk
+        run: |
+          df -h "$(docker info --format '{{.DockerRootDir}}')"
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          docker image prune --all --force
+
+      - name: The disk has room for the build
+        run: |
+          root=$(docker info --format '{{.DockerRootDir}}')
+          df -h "$root"
+          free=$(df --output=avail -BG "$root" | tail -1 | tr -dc 0-9)
+          [ "$free" -ge "$NEEDS_GB" ] || { echo "$free GB free, $NEEDS_GB GB needed"; exit 1; }
+
+      - name: Build the image
+        run: |
+          docker build --pull \
+            --build-arg DOCLING_SERVE_BASE="$BASE" \
+            --build-arg VESPERA_IMAGE="$REFERENCE" \
+            --label org.opencontainers.image.source=https://github.com/algernon28/vespera \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
+            --label org.opencontainers.image.base.name="$BASE" \
+            --label org.opencontainers.image.description="docling-serve with LibreOffice, built once for Vespera" \
+            -t "$REFERENCE" \
+            -f docker/docling-serve/Containerfile docker/docling-serve
+          df -h "$(docker info --format '{{.DockerRootDir}}')"
+
+      - name: Push the image
+        run: docker push "$REFERENCE"
+
+      - name: The digest the registry holds
+        run: |
+          digest=$(docker buildx imagetools inspect "$REFERENCE" --format '{{json .Manifest}}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["digest"])')
+          echo "$REFERENCE@$digest" >> "$GITHUB_STEP_SUMMARY"

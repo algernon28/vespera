@@ -33,6 +33,8 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { adrCollisionClaim, agentsMdSize, sharedNumbers, unreadPullRequests } from "./check-claims-lib.mjs";
 
 const AGENTS = "AGENTS.md";
 const README = "README.md";
@@ -871,11 +873,89 @@ function markerPattern(source, whole = false) {
   const NAME = "how much AGENTS.md carries";
   const CEILING = 30000;
   const DETAIL = "docs/agents/private-paths-guard.md";
-  const size = Buffer.byteLength(text, "utf8");
-  if (size > CEILING) fail(NAME, `${AGENTS} is ${size} bytes, over the ${CEILING} it keeps: move the detail to a document under docs/agents and point to it`);
+  // As git stores it, each CRLF one byte (ADR-346 §1), so a checkout with core.autocrlf reads what CI reads.
+  const { size, within } = agentsMdSize(text);
+  if (!within) fail(NAME, `${AGENTS} is ${size} bytes, over the ${CEILING} it keeps: move the detail to a document under docs/agents and point to it`);
   else if (!existsSync(DETAIL)) fail(NAME, `${DETAIL} is missing: it holds the guard's rules in full`);
   else if (!text.includes(DETAIL)) fail(NAME, `${AGENTS} does not point to ${DETAIL}`);
   else pass(NAME, `${AGENTS} is ${size} bytes, within ${CEILING}, and points to ${DETAIL}`);
+}
+
+/* ---------- the numbers of the decision records (ADR-346 §3) ---------- */
+
+{
+  const NAME = "no two decision records share a number";
+  const shared = sharedNumbers(adrFiles.map((f) => `${ADR_DIR}/${f}`));
+  if (shared.length) fail(NAME, shared.map((s) => `${s.number} is taken by ${s.files.join(" and ")}`).join("; "));
+  else pass(NAME, `${adrFiles.length} records, each number taken by one file`);
+}
+
+{
+  const NAME = "the numbers of the records this branch adds";
+  const LIMIT = 100;
+  const REPO = "algernon28/vespera";
+  const run = (cmd, args) => {
+    const r = spawnSync(cmd, args, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+    return { ok: r.status === 0 && !r.error, out: r.stdout ?? "", err: (r.error?.message || r.stderr || "").trim().split(/\r?\n/)[0] };
+  };
+  const reasons = [];
+
+  let branchName = run("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
+  branchName = branchName.ok && branchName.out.trim() !== "HEAD" ? branchName.out.trim() : process.env.GITHUB_HEAD_REF || null;
+
+  // Under --with-network the ref is fetched first; a failed fetch leaves origin/main unread, though the ref stands.
+  let fetchFailed = false;
+  if (withNetwork) {
+    const fetched = run("git", ["fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main"]);
+    if (!fetched.ok) {
+      fetchFailed = true;
+      reasons.push(`the fetch of origin/main failed: ${fetched.err}`);
+    }
+  }
+  const tree = run("git", ["ls-tree", "-r", "-z", "--name-only", "origin/main", "--", ADR_DIR]);
+  if (!tree.ok && !fetchFailed) reasons.push(`origin/main cannot be resolved: ${tree.err}`);
+  const main = tree.ok && !fetchFailed ? tree.out.split("\0").filter(Boolean) : null;
+
+  let added = null;
+  const base = run("git", ["merge-base", "origin/main", "HEAD"]);
+  if (!base.ok) reasons.push(`no merge base of origin/main and HEAD: ${base.err}`);
+  else {
+    const diff = run("git", ["diff", "--no-renames", "--diff-filter=A", "--name-only", "-z", base.out.trim(), "HEAD"]);
+    if (diff.ok) added = diff.out.split("\0").filter(Boolean);
+    else reasons.push(`the files this branch adds could not be listed: ${diff.err}`);
+  }
+
+  let prs = null;
+  if (!withNetwork) reasons.push("the open pull requests are read only with --with-network");
+  else {
+    const list = run("gh", ["pr", "list", "--repo", REPO, "--state", "open", "--limit", String(LIMIT), "--json", "number,headRefName,changedFiles,files"]);
+    try {
+      if (!list.ok) reasons.push(`gh: ${list.err}`);
+      else prs = JSON.parse(list.out);
+    } catch (e) {
+      reasons.push(`gh answered something unreadable: ${e.message}`);
+    }
+    if (prs) {
+      for (const n of unreadPullRequests({ prs, limit: Infinity, branchName }).incomplete) {
+        const pr = prs.find((p) => p.number === n);
+        const paged = run("gh", ["api", `repos/${REPO}/pulls/${n}/files`, "--paginate", "--jq", ".[] | {filename, status}"]);
+        if (!paged.ok) continue;
+        try {
+          pr.files = paged.out.split(/\r?\n/).filter(Boolean).map((l) => {
+            const f = JSON.parse(l);
+            const status = f.status === "removed" ? "DELETED" : String(f.status ?? "").toUpperCase();
+            return { path: f.filename, changeType: status || undefined };
+          });
+        } catch {
+          // stays cut short
+        }
+      }
+    }
+  }
+
+  const { state, detail } = adrCollisionClaim({ added, main, prs, branchName, limit: LIMIT });
+  const why = state === "NOT CHECKED" && reasons.length ? ` (${reasons.join("; ")})` : "";
+  results.push({ state, name: NAME, detail: detail + why });
 }
 
 /* ---------- what this does not check ---------- */

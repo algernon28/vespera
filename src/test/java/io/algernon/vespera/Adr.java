@@ -2087,10 +2087,9 @@ public final class Adr {
             + "0296-each-code-set-is-copied-whole-under-code-its-paths-kept-and-each-file-checked-against-the-size-and-time-the-walk-recorded.md";
 
     /**
-     * ADR-297 -- the control panel's screens are tested failing-first through {@code PanelBrowser}, the JDK's HTTP
-     * client with a cookie store and jsoup at test scope, which opens the printed address, follows a {@code 303},
-     * and submits a form by its name as a browser sends it, a {@code POST} from the panel's own origin; no browser is
-     * downloaded, and every such test is a unit test on both CI jobs.
+     * ADR-297 -- the control panel's screens were tested failing-first through the pages it served, read as a browser
+     * reads them, by the JDK's HTTP client and jsoup at test scope, every such test a unit test on both CI jobs.
+     * Superseded by ADR-342, whose window is tested on JavaFX's Headless platform; the pages and their tests are gone.
      */
     public static final String THE_CONTROL_PANELS_SCREENS_ARE_TESTED_THROUGH_THE_PAGES_IT_SERVES = FILE
             + "0297-the-control-panels-screens-are-tested-failing-first-through-the-pages-it-serves-read-as-a-browser-reads-them.md";
@@ -2439,7 +2438,55 @@ public final class Adr {
             + "0341-vespera-serve-tells-a-page-from-a-copy-by-the-websites-list-and-the-files-name-serves-working-directory-is-never-passed-and-its-refusals-answers-and-readings-are-as-built.md";
 
     /**
-     * ADR-346 -- the embedding model's shipped default is Qwen3-Embedding-8B, named as its file on Hugging Face,
+     * ADR-342 -- the control panel is a JavaFX window inside the Vespera jar, OpenJFX 26.0.2's {@code javafx-controls}
+     * and {@code javafx-web} of the building platform's classifier, opened by the jar started with no argument through {@code
+     * io.algernon.EntryPoint}, its child the jar it runs from; its loopback server, pages and second jar go, and a
+     * window is tested on JavaFX's Headless platform (supersedes ADR-291, ADR-297, ADR-302 but for §5 to §7, ADR-325,
+     * ADR-331 but for §6 and §8, and ADR-335; amends ADR-285 §2 to §4, ADR-288 §1 and §4, and ADR-278 §2).
+     */
+    public static final String THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR = FILE
+            + "0342-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md";
+
+    /**
+     * ADR-343 -- the note saved with a profile value is filled in, the provenance the file states or {@code set in the
+     * control panel}, and a value changed under the note as shown is saved with the filled-in one; the refusal of a
+     * value changed under its old provenance goes (amends ADR-295 §3 and §4, ADR-330 §5 and ADR-334 §7).
+     */
+    public static final String THE_NOTE_SAVED_WITH_A_PROFILE_VALUE_IS_FILLED_IN = FILE
+            + "0343-the-note-saved-with-a-profile-value-is-filled-in-for-the-operator-set-in-the-control-panel-or-the-provenance-already-saved-and-a-value-changed-under-its-old-note-is-saved-with-the-filled-in-one.md";
+
+    /**
+     * ADR-344 -- the control panel's window is one cockpit: Run and Stop side by side, the sixteen steps as bars beside
+     * the output, the progress page's three charts from {@code progress.json}, the Profile and Inclusions tabs and seven
+     * sections of a sidebar; its starting values from the launch values, the environment, {@code .env} and {@code
+     * application.yaml}; and five options and the label file set in it, with the command lines they make shown
+     * (amends ADR-278 §1, ADR-330 §1, ADR-336 §1 to §3 and ADR-302 §7).
+     */
+    public static final String THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT = FILE
+            + "0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md";
+
+    /**
+     * ADR-345 -- the cockpit is the control panel's one face, in place of ADR-340's home page, top bar and drawer; ADR-340
+     * §6's working directory left empty and child's environment and its folders not walked stand; the Inclusions tab's
+     * tree writes {@code foldersNotWalked}, and beneath it ADR-334 §6's list of folders not relevant is added to and taken
+     * from; the census, the relevance floor and the relevance report show stages 0, 5e and 5; and Publish offers a box
+     * for each destination drawn, {@code publish to} set by {@code publish-to} and {@code serve db-dir} never passed
+     * (supersedes ADR-340 §1 to §5 and §7; amends ADR-344 §1, §3 and §4, ADR-339 §1, ADR-341 §2 and ADR-334 §6).
+     */
+    public static final String THE_COCKPIT_REPLACES_THE_BROWSER_CONTROL_PANEL_AND_ITS_TREE_WRITES_THE_FOLDERS_NOT_WALKED =
+            FILE + "0345-the-cockpit-replaces-the-browser-control-panel-its-tree-writes-the-folders-not-walked-and-publish-offers-each-destination.md";
+
+    /**
+     * ADR-349 -- the two Docling images are built once, by {@code .github/workflows/docling-image.yml}, pushed to
+     * {@code ghcr.io/algernon28/} as public packages under tags for base, parser and revision, never over a tag the
+     * registry already holds, and pulled by digest (amends ADR-147, ADR-163 §2, ADR-170 §2, ADR-179 §2 and §4, and
+     * ADR-323 §2, §4 and §8).
+     */
+    public static final String THE_DOCLING_IMAGES_ARE_BUILT_ONCE_AND_PULLED_BY_DIGEST =
+            FILE + "0349-the-docling-images-are-built-once-pushed-to-ghcr-as-public-packages-never-over-a-tag-already-there-and-pulled-by-digest.md";
+
+    /**
+     * ADR-353 -- the embedding model's shipped default is Qwen3-Embedding-8B, named as its file on Hugging Face,
      * {@code hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M}, in place of {@code bge-m3:latest}; Ollama's library tag of the
      * same model layer is another name and manifest, so another scoring run; only a profile naming no model mints its
      * embedding-scoring, arrangement and generation runs again; and no test names a model as expected or relies on how
@@ -2447,7 +2494,7 @@ public final class Adr {
      * Consequences and ADR-331 §8).
      */
     public static final String THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE = FILE
-            + "0346-the-embedding-models-shipped-default-is-qwen3-embedding-8b-named-as-its-file-on-hugging-face-and-only-a-profile-naming-no-model-moves-its-scoring-run.md";
+            + "0353-the-embedding-models-shipped-default-is-qwen3-embedding-8b-and-only-a-profile-naming-no-model-moves-its-scoring-run.md";
 
     private Adr() {
     }

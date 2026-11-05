@@ -51,7 +51,7 @@ package io.algernon.vespera.profile;
  *     ratios").
  * @param embeddingModel gate 3's key (ADR-084, ADR-298): which embedding model stage 5 scores under.
  *     Ships unset, and unset means a default applies — application configuration carries {@code
- *     hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M} (ADR-346) and this key overrides it; stage 5 is gated only where neither names a model. The
+ *     hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M} (ADR-353) and this key overrides it; stage 5 is gated only where neither names a model. The
  *     third such key, after {@code generationModel} and {@code generationContextWindow}. Nothing is
  *     written here when the default applies. No {@code Measurement}-pointer method exists for this
  *     key: naming a model is not something a measurement pass could inform.

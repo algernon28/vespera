@@ -324,14 +324,14 @@ class ClusteringTest {
     }
 
     /**
-     * ADR-346 §4, after ADR-087: the widest vector at which a block keeps its whole document count is the width the byte
+     * ADR-353 §4, after ADR-087: the widest vector at which a block keeps its whole document count is the width the byte
      * budget allows those documents, computed here from the two constants and not taken from any model. A model of that
      * width or narrower keeps the block whole; one component wider and the bytes bind.
      */
     @Test
     @Story("The ceiling does not move with the partition or the model")
     @DisplayName("Up to the width the byte budget allows a whole block, a block keeps every document it can, and one component wider it holds fewer")
-    @Link(name = "ADR-346", url = Adr.THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE, type = "adr")
+    @Link(name = "ADR-353", url = Adr.THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE, type = "adr")
     void upToTheWidthTheBudgetAllowsAWholeBlockABlockKeepsEveryDocument() {
         int widestWholeBlock = (int) (Clustering.BLOCK_BUDGET_BYTES / ((long) Clustering.BLOCK_DOCUMENTS * Float.BYTES));
 
