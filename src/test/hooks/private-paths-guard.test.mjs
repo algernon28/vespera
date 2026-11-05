@@ -1758,6 +1758,13 @@ cases.push(
   ["O817", "git commit -F of a token whose rest begins with a backslash and ends in a comma and a name", "Bash", { command: String.raw`git commit -F :\..\..\outside\doc.txt,x` }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
   ["O818", "git commit -F of a quoted token whose rest begins with / and ends in a comma and a name, in PowerShell", "PowerShell", { command: "git commit -F ':/../../outside/doc.txt,x'" }, REFUSED],
   ["O819", "git show of :/<text> whose text holds a brace group, a commit's message to git", "Bash", { command: "git show :/@{u}" }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  /* In Bash a ${NAME-word} makes two readings of the rest, the variable's value and its word, and the
+     rest records a path only where each of them does. In O820 and O821 the variable is given the value
+     x, a name inside the checkout, and the word is O802's climb, which begins with / and records no path:
+     the token is read as written as well, and as written it climbs out of the checkout. The value is set
+     for the guard by the case, so neither depends on the machine's environment. */
+  ["O820", "git commit -F of a token whose rest is a variable with a value, whose word begins with /", "Bash", { command: "git commit -F :${VESPERA_GUARD_NAME-/../../outside/doc.txt}" }, REFUSED, { env: { VESPERA_GUARD_NAME: "x" } }],
+  ["O821", "git commit -F of a stage's token whose rest is a variable with a value, whose word begins with /", "Bash", { command: "git commit -F :0:${VESPERA_GUARD_NAME-/../../outside/doc.txt}" }, REFUSED, { env: { VESPERA_GUARD_NAME: "x" } }],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
