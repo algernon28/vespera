@@ -1,4 +1,5 @@
 /mvnw text eol=lf
+/AGENTS.md text
 *.cmd text eol=crlf
 /docker/**/Containerfile text eol=lf
 *.pdf binary

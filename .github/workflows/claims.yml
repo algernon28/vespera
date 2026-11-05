@@ -25,6 +25,7 @@ on:
 permissions:
   contents: read
   issues: read
+  pull-requests: read
 
 concurrency:
   group: claims-${{ github.ref }}
@@ -36,7 +37,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # Full history, so that origin/main has a merge base with the pull request's head (ADR-342 §6).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -52,3 +56,6 @@ jobs:
 
       - name: The script that updates the review register
         run: node --test src/test/docs/review-register.test.mjs
+
+      - name: The functions the claims check computes
+        run: node --test src/test/docs/check-claims.test.mjs

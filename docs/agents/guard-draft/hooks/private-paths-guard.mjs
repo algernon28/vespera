@@ -104,6 +104,22 @@
 // it, so it is read as a path only where that makes one, as after an =, and on a system that is not
 // Windows a rooted one is not read.
 //
+// In a segment whose first word is the bare word git, a word that begins with : or :N: (N from 0 to 3) is
+// git's index form (ADR-347, which amends ADR-217 section 2 for that form): its rest is read as any token
+// is, against every folder the command names, and on Windows the word is read by its rest only, unless
+// that rest, asked as a whole token (not a piece of it cut at , { } nor a value after =), records no path
+// (an empty rest among them), when it is read as written too; a ${NAME-word} in the rest records a path
+// only where each of its two readings does. Off Windows the word is read as written as well. A git push
+// refspec such as :claude/x is read so too. Not given that reading: a
+// redirect's target (the word after any bare word that holds < or >), a value after =, any word in a
+// command with a ( ) or backtick (or { } in PowerShell), pieces cut at , { }, halves joined at an escaped
+// space, and a word with a quote inside it, except that the word git is given for such a word (its quotes
+// taken off, when it then begins with : or :N:) is read as written and, on every platform, by its rest.
+// No git segment is read where the cut may not be the shell's: a
+// break inside quotes, an unpaired quote, a Bash backslash before a quote or a break, a Bash command that
+// holds << (a here-document or here-string), a PowerShell
+// typographic quote or --%. One letter and a colon stays a drive, and a name of spaces stays refused.
+//
 // A link is followed before the check. A path that holds .. is read twice, and either reading refuses:
 // as text, where .. folds against the name before it, and as the file system walks it, which starts from
 // the real path of the folder the path is read against (for an absolute path, from its root) and at each
@@ -681,6 +697,70 @@ function variantsOf(text) {
   return [words, values];
 }
 
+// Where the words that are git's index form start in a command (ADR-347), each with its prefix, : or :N:
+// for a stage N of 0 to 3. A word counts only in a segment (cut at ; & | and the line break) whose first
+// word is the bare word git, folded to one case in PowerShell, and in a command with no ( ) or backtick,
+// and, in PowerShell, no { }. No segment counts where the cut may not be the shell's: a quoted span (quotes
+// paired left to right) that holds ; & | or a line break, an unpaired quote, in Bash a backslash before a
+// quote or a break, in PowerShell a typographic quote or the word --%, and in Bash a command that holds
+// << (a here-document or here-string, whose body is no command). A word is a whole shell word; only
+// a word that is exactly one quoted string or holds no quote counts. A word after a redirect operator (any
+// bare word that holds < or >) does not count, nor does a word with no path after the prefix. A value
+// after = is not the word, so it does not either. A word is read by its rest after the prefix and, off
+// Windows, as written as well; on Windows it is read as written too unless its rest, as a whole token
+// and not a piece cut at , { } or a value after =, records a path (a ${NAME-word} in it records one only
+// where each of its two readings does).
+const INDEX_PREFIX = /^(:(?:[0-3]:)?)/;
+function cutIsShells(command, bash) {
+  if (bash && /<</.test(command)) return false;
+  if (bash ? /\\["';&|\r\n]/.test(command) : /[‘-„]|(?:^|\s)--%(?:\s|$)/.test(command)) return false;
+  for (let i = 0; i < command.length; i++) {
+    const q = command[i];
+    if (q !== "'" && q !== '"') continue;
+    const end = command.indexOf(q, i + 1);
+    if (end < 0 || /[;&|\r\n]/.test(command.slice(i, end))) return false;
+    i = end;
+  }
+  return true;
+}
+function gitIndexForms(command, bash) {
+  const forms = new Map();
+  // joined: the word git is given for each word that holds a quote, is not one quoted string and begins
+  // with the colon once its quotes are taken off; it is read as an ordinary token as given, and, on every
+  // platform, by its rest after the prefix (: or :N:) when a path follows it.
+  const joined = [];
+  const result = { forms, joined };
+  if (/[()`]/.test(command) || (!bash && /[{}]/.test(command))) return result;
+  if (!cutIsShells(command, bash)) return result;
+  for (const segment of command.matchAll(/[^;&|\r\n]+/g)) {
+    const words = [...segment[0].matchAll(/(?:"[^"]*"|'[^']*'|[^\s"'])+/g)];
+    const [first, ...rest] = words;
+    if (!first || (bash ? first[0] : first[0].toLowerCase()) !== "git") continue;
+    let afterRedirect = false;
+    for (const word of rest) {
+      const whole = word[0];
+      const quoted = /^"[^"]*"$|^'[^']*'$/.test(whole);
+      const text = quoted ? whole.slice(1, -1) : whole;
+      if (afterRedirect) {
+        afterRedirect = false;
+        continue;
+      }
+      if (!quoted && /[<>]/.test(text)) {
+        afterRedirect = true;
+        continue;
+      }
+      if (!quoted && /["'`]/.test(text)) {
+        const given = text.replace(/"([^"]*)"|'([^']*)'/g, (_, d, q) => d ?? q);
+        if (given.startsWith(":") && !/["'`]/.test(given)) joined.push(given);
+        continue;
+      }
+      const prefix = INDEX_PREFIX.exec(text);
+      if (prefix) forms.set(segment.index + word.index + (quoted ? 1 : 0), prefix[1]);
+    }
+  }
+  return result;
+}
+
 // What a command's text names: absolute paths, each as { label, text }, where text is read against the
 // current directory by the caller, and relative ones, each as rel -> { label, written }, where written
 // is how many times the command writes that token. A relative one is read against a directory by the
@@ -695,8 +775,14 @@ function pathsInCommand(command, bash) {
   let uncounted = null;
   let firstReading = null;
   let secondReading = false;
-  const addAbsolute = (label, text) => absolute.push({ label, text });
+  // Whether any path was recorded since it was last cleared: a path already in the map still counts.
+  let noted = false;
+  const addAbsolute = (label, text) => {
+    noted = true;
+    absolute.push({ label, text });
+  };
   const addRelative = (label, rel) => {
+    noted = true;
     recorded?.add(rel);
     if (!secondReading) firstReading?.add(rel);
     if (uncounted?.has(rel)) return;
@@ -773,11 +859,18 @@ function pathsInCommand(command, bash) {
     addRelative(t, s);
   };
 
+  // A reading of a piece of a token, or of the value after its =, records paths but does not set noted:
+  // whether a token's rest records a path is asked of the whole of its text (ADR-347).
+  const apart = (reading) => {
+    const before = noted;
+    reading();
+    noted = before;
+  };
   // A token, and the value after its first =.
   const readOne = (text, key = false) => {
     readToken(text, key);
     const equals = text.indexOf("=");
-    if (equals >= 0) readToken(text.slice(equals + 1));
+    if (equals >= 0) apart(() => readToken(text.slice(equals + 1)));
   };
   // A quoted string is a path with its spaces in it as often as it is a sentence, and may hold a brace
   // group that is the object of a second program, as in jq '{t:.title}'. Where the first letter of a
@@ -823,7 +916,7 @@ function pathsInCommand(command, bash) {
       recorded = null;
     }
     if (parts.length > 1) {
-      for (const { piece, start } of parts) if (piece) readOne(piece, keyAt(start));
+      for (const { piece, start } of parts) if (piece) apart(() => readOne(piece, keyAt(start)));
     }
     uncounted = null;
   };
@@ -834,12 +927,18 @@ function pathsInCommand(command, bash) {
     if (bash) {
       const [words, values] = variantsOf(text);
       if (words !== text) {
+        const before = noted;
         firstReading = new Set();
+        noted = false;
         readOnce(words, -1);
+        let each = noted;
         if (values !== words) {
           secondReading = true;
+          noted = false;
           readOnce(values, -1);
+          each = each && noted;
         }
+        noted = before || each;
         firstReading = null;
         secondReading = false;
         return;
@@ -848,12 +947,33 @@ function pathsInCommand(command, bash) {
     readOnce(text, base);
   };
 
-  for (const m of command.matchAll(COMMAND_TOKENS)) read(m[0], m.index);
+  // In a segment whose program is git, a word that begins with : or :N: is git's index form, and is read
+  // by its rest as well as, off Windows, as written (ADR-347). indexForms holds where each such word starts.
+  const { forms: indexForms, joined } = gitIndexForms(command, bash);
+  const readWord = (text, offset) => {
+    const prefix = indexForms.get(offset);
+    if (prefix === undefined || !text.startsWith(prefix)) return read(text, offset);
+    if (!windows) read(text, offset);
+    noted = false;
+    read(text.slice(prefix.length), offset >= 0 ? offset + prefix.length : -1);
+    // On Windows the word is read by its rest only, unless the rest as a whole token records no path (an
+    // empty rest among them; pieces and a value after = do not count; a ${NAME-word}'s two readings must
+    // each record a path): then it is read as written too.
+    if (windows && !noted) read(text, offset);
+  };
+  for (const m of command.matchAll(COMMAND_TOKENS)) readWord(m[0], m.index);
+  // A word with a quote inside it is read in pieces above; the word git is given is read too, as written
+  // and, on every platform, by its rest after the index prefix.
+  for (const given of joined) {
+    read(given);
+    const p = INDEX_PREFIX.exec(given);
+    if (p && given.length > p[1].length) read(given.slice(p[1].length));
+  }
   // A backslash before a space joins what is on either side of it into one path.
   for (const m of command.matchAll(/(?:\\ |[^\s"'`;|&<>()])+/g)) {
     if (m[0].includes("\\ ")) read(m[0].replace(/\\ /g, " "));
   }
-  for (const { whole, from } of quotes) if (whole) read(whole, from);
+  for (const { whole, from } of quotes) if (whole) readWord(whole, from);
   return { absolute, relative };
 }
 
