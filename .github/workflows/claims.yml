@@ -4,14 +4,14 @@ name: claims
 # claims away from the tree without a single check going red: docs.yml filters on
 # docs/**, and AGENTS.md is at the root, so nothing had ever opened it.
 #
-# No paths filter, deliberately, and for two separate reasons:
+# No paths filter, deliberately: a change anywhere in src/ can falsify a sentence
+# here. Adding a module package, or a class named *IT, makes AGENTS.md wrong without
+# touching AGENTS.md.
 #
-#   1. A change anywhere in src/ can falsify a sentence here. Adding a module package,
-#      or a class named *IT, makes AGENTS.md wrong without touching AGENTS.md.
-#   2. One claim can rot with no commit at all. The wayfinder map named as current
-#      closes on the tracker, and nothing in this repository changes when it does --
-#      which is exactly how issue #1 stayed named as current for ten days after it
-#      closed. The daily schedule catches it with no commit at all.
+# A daily schedule as well, because one claim can rot with no commit at all. The
+# wayfinder map named as current closes on the tracker, and nothing in this
+# repository changes when it does -- which is exactly how issue #1 stayed named as
+# current for ten days after it closed.
 #
 # On a pull request that claim is NOT CHECKED (ADR-350 §1): the tracker's labels are
 # no change of the pull request's, and a branch cut before main's last edit to

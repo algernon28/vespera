@@ -1,17 +1,22 @@
 // docs/check-claims-lib.mjs holds what the claims check and docs/next-adr-number.mjs compute without reading a file or
-// asking the network (ADR-346): AGENTS.md's size as git stores it, and a decision record's number, read, shared, taken
-// and chosen, the open pull requests read in full or cut short, and the claim of the numbers this branch adds, which
-// never passes where it did not read, and the exit of docs/next-adr-number.mjs. One test asks git whether it stores
-// AGENTS.md as text and whether HEAD's blob of it holds a CR. The last five run the scripts themselves and read their
-// lines: three run docs/check-claims.mjs without --with-network, and two run a script where the fetch of origin/main
-// fails, in an environment that asks no network (see offline()).
+// asking the network (ADR-346, ADR-350): AGENTS.md's size as git stores it, and a decision record's number, read,
+// shared, taken and chosen, the open pull requests read in full or cut short, and the claim of the numbers this branch
+// adds, which never passes where it did not read, and the exit of docs/next-adr-number.mjs; whether the claim of the
+// current wayfinder map reads the tracker on an event (readsTrackerState); and the length of a record's slug
+// (overlongSlugs, slugClaim). One test asks git whether it stores AGENTS.md as text and whether HEAD's blob of it
+// holds a CR. Eight run the scripts themselves and read their lines. Four read one run of docs/check-claims.mjs
+// without --with-network (see claims()): AGENTS.md's size, the shared numbers, the numbers this branch adds NOT
+// CHECKED, and the slug claim PASS, naming how many records from ADR-350 on it read. Four run a script in an
+// environment that asks no network, where the fetch of origin/main fails (see offline()): docs/check-claims.mjs
+// --with-network for the numbers this branch adds NOT CHECKED, for the map NOT CHECKED on a pull request, and for the
+// map reading the tracker on a push and with no event; and docs/next-adr-number.mjs for its exit.
 //
 //   node --test src/test/docs/check-claims.test.mjs
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -339,6 +344,7 @@ test("a record before ADR-350 keeps its slug, however long, and a tree of slugs 
   const { state, detail } = slugClaim(tree);
   assert.equal(state, "PASS");
   assert.match(detail, /\b120\b/);
+  assert.match(detail, /^1 record from ADR-350 on\b/, "the PASS names how many records from ADR-350 on it read");
 });
 
 test("the slug is the file name between its number's dash and .md, and the over-long are listed by number", async () => {
@@ -430,8 +436,13 @@ test("on main's push and outside CI, under --with-network, the current wayfinder
   }
 });
 
-test("check-claims holds the slugs of the decision records of this tree within 120 characters", () => {
-  assert.match(claimLine("the length of a decision record's slug"), /^PASS +the length of a decision record's slug: .*\b120\b/);
+test("check-claims holds the slugs of the decision records of this tree within 120 characters, naming how many it read", () => {
+  // Counted here, so that a claim that read no record, or not these, goes red. ADR-350 is in this tree, so n >= 1.
+  const n = readdirSync(join(ROOT, "docs/adr")).filter((f) => /^\d{4}-.+\.md$/.test(f) && Number(f.slice(0, 4)) >= 350).length;
+  assert.ok(n >= 1, "ADR-350 is in this tree");
+  const line = claimLine("the length of a decision record's slug");
+  assert.match(line, /^PASS +the length of a decision record's slug: .*\b120\b/);
+  assert.match(line, new RegExp(`: ${n} records? from ADR-350 on\\b`), `${n} record(s) from ADR-350 on are in this tree`);
 });
 
 test("where the fetch of origin/main fails, next-adr-number still prints a number, names origin/main and the fetch on standard error, and exits 2", () => {

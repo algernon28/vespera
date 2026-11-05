@@ -108,9 +108,15 @@ export function overlongSlugs(paths) {
     .sort((a, b) => a.number - b.number);
 }
 
-/** { state, detail } of the claim of the records' slugs: FAIL naming each over-long one and the limit, else PASS. */
+/**
+ * { state, detail } of the claim of the records' slugs: FAIL naming each over-long one and the limit, else PASS naming
+ * how many records from FIRST_CAPPED on it read and the limit.
+ */
 export function slugClaim(paths) {
   const over = overlongSlugs(paths);
+  const read = paths
+    .map((p) => ADR_SLUG.exec(String(p).replaceAll("\\", "/")))
+    .filter((m) => m && Number(m[1]) >= FIRST_CAPPED).length;
   if (over.length) {
     return {
       state: "FAIL",
@@ -118,7 +124,10 @@ export function slugClaim(paths) {
         + `, over the ${SLUG_LIMIT} a record's slug keeps from ADR-${FIRST_CAPPED} on: shorten it, so that a clone's path stays within Windows' limit`,
     };
   }
-  return { state: "PASS", detail: `every slug from ADR-${FIRST_CAPPED} on is within ${SLUG_LIMIT} characters` };
+  return {
+    state: "PASS",
+    detail: `${read} record${read === 1 ? "" : "s"} from ADR-${FIRST_CAPPED} on, every slug within ${SLUG_LIMIT} characters`,
+  };
 }
 
 /** { state, detail } of the claim of the numbers this branch adds; it never passes where it did not read. */

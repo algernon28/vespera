@@ -28,7 +28,7 @@ The claim "the length of a decision record's slug" fails where a record under `d
 - `readsTrackerState({ withNetwork, eventName })` gives §1's answer: true under `--with-network` where `eventName` is neither `pull_request` nor `pull_request_target`.
 - `SLUG_LIMIT` is 120 and `FIRST_CAPPED` is 350.
 - `overlongSlugs(paths)` gives `{ number, path, length }` for each record of §2 past the limit, in order of number.
-- `slugClaim(paths)` gives `{ state, detail }`, `FAIL` naming each such record, its length and the limit, or `PASS` naming the limit.
+- `slugClaim(paths)` gives `{ state, detail }`, `FAIL` naming each such record, its length and the limit, or `PASS` naming how many records from ADR-350 on it read, and the limit, so that a claim that read no record cannot pass as one that read them all.
 
 ### 4. Run ids
 
@@ -50,7 +50,7 @@ No class under `src/main` changes, so no stage's version moves.
 
 ## Tests
 
-- `src/test/docs/check-claims.test.mjs` holds §3's `readsTrackerState` on a push, a schedule, a dispatch, outside CI and on both pull request events, with and without `--with-network`; `slugClaim` failing on a slug of 121 characters from ADR-350 on, naming the record, its length and 120, and a slug of exactly 120 passing; a record before ADR-350 kept, however long; and `overlongSlugs` reading the slug between the number's dash and `.md`, a file under a folder of `docs/adr` being no record. It runs `docs/check-claims.mjs --with-network` with `GITHUB_EVENT_NAME` `pull_request` where `fetch()` rejects and holds the map claim NOT CHECKED, naming the pull request and main; in the test "on main's push and outside CI, under --with-network, the current wayfinder map reads the tracker", runs it with `GITHUB_EVENT_NAME` `push` and with the variable deleted, set explicitly since CI runs the file under `pull_request`, and holds the map claim FAIL "could not reach the tracker", so that a script that never read the tracker would go red; and runs it without the flag and holds the slug claim `PASS` on this tree, naming 120.
+- `src/test/docs/check-claims.test.mjs` holds §3's `readsTrackerState` on a push, a schedule, a dispatch, outside CI and on both pull request events, with and without `--with-network`; `slugClaim` failing on a slug of 121 characters from ADR-350 on, naming the record, its length and 120, and a slug of exactly 120 passing; a record before ADR-350 kept, however long; and `overlongSlugs` reading the slug between the number's dash and `.md`, a file under a folder of `docs/adr` being no record. It runs `docs/check-claims.mjs --with-network` with `GITHUB_EVENT_NAME` `pull_request` where `fetch()` rejects and holds the map claim NOT CHECKED, naming the pull request and main; in the test "on main's push and outside CI, under --with-network, the current wayfinder map reads the tracker", runs it with `GITHUB_EVENT_NAME` `push` and with the variable deleted, set explicitly since CI runs the file under `pull_request`, and holds the map claim FAIL "could not reach the tracker", so that a script that never read the tracker would go red; and runs it without the flag and holds the slug claim `PASS` on this tree, naming 120 and the number of records from ADR-350 on that the test itself counts in `docs/adr`, at least one, so that a claim that read no record, or not these, goes red.
 - Not held by a test: §1's schedule and concurrency group in the workflow.
 
 ## What this does not decide
