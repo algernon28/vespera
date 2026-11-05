@@ -3,6 +3,8 @@
 > **Partly amended — see [ADR-326](0326-a-command-whose-output-file-cannot-be-written-or-read-refuses-the-start-in-a-line-of-its-own-and-only-a-program-that-cannot-be-started-is-docker-not-installed.md).** Of §5: only a program that cannot be started is Docker not installed, or exit 127; a temporary file a command's output goes to that cannot be created or read refuses the start with a line of its own, whatever the program, and the next start command is not tried. Of §8: a ninth line, `CommandOutputFileUnusableException`'s, and eight exception types. Of Tests: `SidecarStartTest` and `SystemProcessRunnerTest` gain its claims.
 >
 > **Partly amended — see [ADR-329](0329-vespera-pulls-into-ollama-at-the-step-that-needs-it-a-model-ollama-does-not-serve-and-never-pulls-one-it-serves.md).** Of *What this does not decide*: pulling Ollama's models is decided there. `vespera run` pulls a model Ollama does not serve at the step that needs it, stage 5's scoring step for the embedding model and the generation step for the generation model, under `vespera.models.pull` and not `vespera.sidecars.start`. The starter still pulls nothing, so the rejected *"Pull Ollama's models after `up`"* stands, and §4's never-run `pull`, `docker compose pull`, stands.
+>
+> **Partly amended — see [ADR-352](0352-a-timing-bound-in-a-unit-test-is-one-a-busy-machine-does-not-move.md).** Of Tests: `StageTwoWaitsForAConverterStillStartingTest`'s server closes every connection until the start check has written that it waits, and not for 300 ms; `SystemProcessRunnerTest`'s command killed at its limit is given limits doubled from half a second until it printed. What each claims stands.
 
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
