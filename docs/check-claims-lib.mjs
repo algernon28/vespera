@@ -86,6 +86,41 @@ export function nextAdrNumberExit({ fetched, prs, limit, branchName }) {
   return full || incomplete.length ? 2 : 0;
 }
 
+/**
+ * Whether the claim of the current wayfinder map reads the tracker (ADR-350 §1): under --with-network, and never on a
+ * pull request's CI, where a label or a close the pull request did not make would turn it red.
+ */
+export function readsTrackerState({ withNetwork, eventName }) {
+  return Boolean(withNetwork) && eventName !== "pull_request" && eventName !== "pull_request_target";
+}
+
+/** The longest slug a record from FIRST_CAPPED on may have, and that first record (ADR-350 §2). */
+export const SLUG_LIMIT = 120;
+export const FIRST_CAPPED = 350;
+const ADR_SLUG = /^docs\/adr\/(\d{4})-([^/]+)\.md$/;
+
+/** { number, path, length } for each record from FIRST_CAPPED on whose slug is past SLUG_LIMIT, in order of number. */
+export function overlongSlugs(paths) {
+  return paths
+    .map((p) => ADR_SLUG.exec(String(p).replaceAll("\\", "/")))
+    .filter((m) => m && Number(m[1]) >= FIRST_CAPPED && m[2].length > SLUG_LIMIT)
+    .map((m) => ({ number: Number(m[1]), path: m[0], length: m[2].length }))
+    .sort((a, b) => a.number - b.number);
+}
+
+/** { state, detail } of the claim of the records' slugs: FAIL naming each over-long one and the limit, else PASS. */
+export function slugClaim(paths) {
+  const over = overlongSlugs(paths);
+  if (over.length) {
+    return {
+      state: "FAIL",
+      detail: over.map((o) => `${o.path.slice("docs/adr/".length, "docs/adr/".length + 4)}'s slug is ${o.length} characters`).join("; ")
+        + `, over the ${SLUG_LIMIT} a record's slug keeps from ADR-${FIRST_CAPPED} on: shorten it, so that a clone's path stays within Windows' limit`,
+    };
+  }
+  return { state: "PASS", detail: `every slug from ADR-${FIRST_CAPPED} on is within ${SLUG_LIMIT} characters` };
+}
+
 /** { state, detail } of the claim of the numbers this branch adds; it never passes where it did not read. */
 export function adrCollisionClaim({ added, main, prs, branchName, limit }) {
   const collisions = adrCollisions({ added, main, prs, branchName });
