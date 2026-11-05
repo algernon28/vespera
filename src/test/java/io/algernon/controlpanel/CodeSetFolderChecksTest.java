@@ -67,10 +67,11 @@ class CodeSetFolderChecksTest {
     @Story("The operator adds code kept outside the corpus root")
     @DisplayName("The folders the profile states are read in their order, split on the system's path separator")
     void theFoldersStatedAreReadInTheirOrder() {
-        String stated = "D:/code/billing" + File.pathSeparator + " " + File.pathSeparator + "E:/code/tools ";
+        // No drive letter: on Linux the separator is ':', which a drive letter would split.
+        String stated = "/code/billing" + File.pathSeparator + " " + File.pathSeparator + "/code/tools ";
 
         claim("each folder stated is read, stripped, in its order, an empty piece left out",
-                () -> assertThat(CodeSetFolderChecks.statedIn(stated)).containsExactly("D:/code/billing", "E:/code/tools"));
+                () -> assertThat(CodeSetFolderChecks.statedIn(stated)).containsExactly("/code/billing", "/code/tools"));
         claim("and a profile stating none gives none",
                 () -> assertThat(CodeSetFolderChecks.statedIn(null)).isEmpty());
     }
