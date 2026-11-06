@@ -133,7 +133,12 @@
 // target or the descriptor number before it among them; the next word or
 // the text after the =; and the single-quoted first operand of grep, egrep, fgrep, awk, gawk, mawk and
 // jq where no option gives the pattern, the program or a file of them, an awk program only with no " in
-// it and a jq program only with no import, include or modulemeta. The text rule above still reads all of
+// it and a jq program only with no import, include or modulemeta. In that walk a word the guard cannot
+// read whole or that splits, or an option the table lacks, or a letter that takes a value and ends the
+// known text of a word not all known, as -e{x,} or -e"$o", or any of the words after an option that
+// takes the next word or two where the guard does not read that word whole or it splits, as -e $o or
+// --arg a {x,.}, ends it: the spans found before it stay, and a
+// single-quoted first operand after it is taken out no more. The text rule above still reads all of
 // these. And the lines of a here-document whose delimiter is quoted, on a line that is cat, > or >> and
 // one file beneath the folder ${TEMP} names and nothing else, are read for neither, the variable TEMP,
 // TMP or TMPDIR spelled as an environment key, case for case. Each program's options are read from a
@@ -143,6 +148,11 @@
 // redirect: anything else may change what a name runs or what a variable holds. That text is
 // blanked, offset for offset; git's index form, a listed command and the counting command are told from
 // the command as written. A PowerShell command is read whole.
+//
+// That reading is held against Bash itself (ADR-356, docs/adr/0356): bashReading exports it, and the test
+// runs each case's command in Bash with every trusted program replaced by a function that records the
+// arguments it is given. Imported by its URL with ?reading, this file decides no call; started by node,
+// as the wrapper starts it, it decides every one.
 //
 // A link is followed before the check. A path that holds .. is read twice, and either reading refuses:
 // as text, where .. folds against the name before it, and as the file system walks it, which starts from
@@ -1197,7 +1207,12 @@ function readOption(text, complete, spec) {
   for (let x = 1; x < text.length; x++) {
     const letter = text[x];
     letters.push(letter);
-    if (spec.args.includes(letter)) return { kind: "short", flag: letter, letters, takes: x === text.length - 1 && complete ? 1 : 0 };
+    if (spec.args.includes(letter)) {
+      // A letter that takes a value and ends the known text of a word not all known may take the next word
+      // or the rest of this one, which the guard cannot tell.
+      if (x === text.length - 1 && !complete) return { kind: "unknown" };
+      return { kind: "short", flag: letter, letters, takes: x === text.length - 1 ? 1 : 0 };
+    }
     if (spec.rest.includes(letter)) return { kind: "short", flag: null, letters, takes: 0 };
     if (!spec.none.includes(letter)) return { kind: "unknown" };
   }
@@ -1251,6 +1266,12 @@ function textSpans(segmentWords) {
       if (!text.startsWith("-") || text === "-") continue;
       const option = readOption(text, complete, spec);
       if (option.kind === "unknown") return spans;
+      // Every value word an option takes that the guard does not read whole may be no word, so that the option takes the
+      // word after it, or several (ADR-356 section 3).
+      for (let v = 1; v <= option.takes; v++) {
+        const w = words[k + v];
+        if (w) { const value = wordText(w); if (!value.complete || value.splits) return spans; }
+      }
       if (GH_TEXT_FLAGS.has(option.flag)) {
         if (option.takes) skip(words[k + 1]);
         else if (option.eq > 0 && words[k].raw.startsWith(text.slice(0, option.eq + 1))) skip(words[k], words[k].start + option.eq + 1);
@@ -1289,6 +1310,12 @@ function textSpans(segmentWords) {
       }
       const option = readOption(text, complete, spec);
       if (option.kind === "unknown") return spans;
+      // Every value word an option takes that the guard does not read whole may be no word, so that the option takes the
+      // word after it, or several (ADR-356 section 3).
+      for (let v = 1; v <= option.takes; v++) {
+        const w = words[k + v];
+        if (w) { const value = wordText(w); if (!value.complete || value.splits) return spans; }
+      }
       if (option.flag === "m" || option.flag === "message") {
         if (option.takes) skip(words[k + 1]);
         else if (option.eq > 0 && words[k].raw.startsWith(text.slice(0, option.eq + 1))) skip(words[k], words[k].start + option.eq + 1);
@@ -1310,10 +1337,7 @@ function textSpans(segmentWords) {
     // know may become one, or more than one word; so may a word headed by - that is not all known, as
     // -{f,}, which Bash makes -f and -, and a word with a $ outside quotes, as x$o, which Bash may split
     // into x and an option.
-    if (!operands && ((!complete && !text) || splits)) {
-      given = true;
-      continue;
-    }
+    if (!operands && ((!complete && !text) || splits)) return spans;
     if (operands || (complete && text === "-") || !text.startsWith("-")) {
       first ??= word;
       continue;
@@ -1323,9 +1347,12 @@ function textSpans(segmentWords) {
       continue;
     }
     const option = readOption(text, complete, spec);
-    if (option.kind === "unknown") {
-      given = true;
-      continue;
+    if (option.kind === "unknown") return spans;
+    // Every value word an option takes that the guard does not read whole may be no word, so that the option takes the
+    // word after it, or several (ADR-356 section 3).
+    for (let v = 1; v <= option.takes; v++) {
+      const w = words[k + v];
+      if (w) { const value = wordText(w); if (!value.complete || value.splits) return spans; }
     }
     if (option.kind === "long") {
       if (spec.longGiven.has(option.flag)) given = true;
@@ -1392,6 +1419,29 @@ function textsRead(command) {
     return text;
   };
   return { paths: blank([...flagged, ...bodies]), tokens: blank(bodies) };
+}
+
+// How the guard reads a Bash command, for src/test/hooks/private-paths-guard.test.mjs to hold against the
+// arguments Bash gives (ADR-356): null where the cut above does not read it, else whether section 4 trusts
+// it, and for each segment its program's word, the words Bash gives that program (argumentsOf) and the
+// spans textSpans takes out as text, each [start, end). Each word is { start, end, raw, value }, value
+// being the text the guard reads the shell as giving, or null where it does not know all of it. The guard
+// itself reads none of this: textsRead above is what decides.
+export function bashReading(command) {
+  const cut = bashSegments(command);
+  if (!cut) return null;
+  const read = (word) => ({ start: word.start, end: word.end, raw: word.raw, value: shellValue(word) });
+  return {
+    trusted: trusted(cut.segments),
+    segments: cut.segments.map(({ words }) => {
+      const at = programIndex(words);
+      return {
+        program: at < words.length ? read(words[at]) : null,
+        given: at < words.length ? argumentsOf(words, at).map(read) : [],
+        spans: textSpans(words),
+      };
+    }),
+  };
 }
 
 // What a command's text names: absolute paths, each as { label, text }, where text is read against the
@@ -2004,4 +2054,17 @@ function main() {
   );
 }
 
-process.exitCode = main();
+// Imported by its URL with ?reading, for bashReading alone, the file decides no call (ADR-356 section 2).
+// node gives the file it is started on a URL with no query, so as the wrapper starts it, it decides every
+// call. A file started by node may still carry a query in the URL it is given, as a loader or a link to it
+// may add one, so the guard decides when process.argv[1] is this file, whatever the URL says; only an import
+// by the ?reading URL, with another file started, decides nothing. Where the file cannot be told, it decides.
+const startedOnThisFile = (() => {
+  try {
+    const fold = (p) => (windows ? p.toLowerCase() : p);
+    return !!process.argv[1] && fold(realpathSync.native(resolve(process.argv[1]))) === fold(realpathSync.native(fileURLToPath(import.meta.url)));
+  } catch {
+    return true;
+  }
+})();
+if (startedOnThisFile || new URL(import.meta.url).search !== "?reading") process.exitCode = main();
