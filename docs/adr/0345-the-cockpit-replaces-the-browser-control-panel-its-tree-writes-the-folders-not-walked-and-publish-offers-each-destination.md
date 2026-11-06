@@ -1,6 +1,6 @@
 # ADR-345 — The cockpit replaces the browser control panel ADR-340 laid out, its tree writes the folders not walked beside a list of folders not relevant, its steps show the census, the relevance floor and the relevance report as stages 0, 5e and 5, and Publish offers each destination drawn
 
-> **Partly amended — see [ADR-359](0359-the-publish-reads-its-confluence-values-from-the-profile-and-the-control-panel-passes-the-token-to-its-child-alone.md).** Of §1 and §4: a publish's child is also given `VESPERA_STARTED_BY=control-panel` and, where Confluence is ticked, the API token Publish asks for in a masked field, as `VESPERA_CONFLUENCE_TOKEN`; `ChildCommand` gains `withConfluenceToken`, and `ChildCommandTest.publishIsTheJarsPublishCommandAndAddsNoConfluenceValue` holds of a publish given no token. The rest stands.
+> **Partly amended — see [ADR-359](0359-the-publish-reads-its-confluence-values-from-the-profile-and-the-control-panel-passes-the-token-to-its-child-alone.md).** Of §1 and §4: a publish's child inherits no `VESPERA_CONFLUENCE_*` variable from the window, and is given `VESPERA_STARTED_BY=control-panel` and, where Confluence is ticked, the API token Publish asks for in a masked field, as `VESPERA_CONFLUENCE_TOKEN`; `ChildCommand` gains `withConfluenceToken`, and `ChildCommandTest.publishIsTheJarsPublishCommandAndAddsNoConfluenceValue` holds of a publish given no token. The rest stands.
 
 - **Date**: 2026-11-05
 - **Status**: accepted on 2026-11-05.

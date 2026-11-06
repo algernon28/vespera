@@ -31,8 +31,11 @@ import org.junit.jupiter.api.io.TempDir;
 class TheConfluenceValuesAreProfileKeysTest {
 
     /** The five keys, in the order the record declares them: the site, the space, the parent two ways, the email. */
-    private static final List<String> THE_FIVE = List.of("confluenceBaseUrl", "confluenceSpaceKey", "confluenceFolderId",
-            "confluenceFolderTitle", "confluenceEmail");
+    private static final List<String> THE_FIVE = ProfileKeys.CONFLUENCE_KEYS;
+
+    /** The values {@link #THE_FIVE_ANSWERED} writes, each one no other key carries. */
+    private static final List<String> THE_FIVE_VALUES = List.of("https://wiki.example.com", "DOCS", "123456789",
+            "Hand-overs", "operator@example.org");
 
     /** A file answering the five, each with a value no other key carries. */
     private static final String THE_FIVE_ANSWERED = """
@@ -94,5 +97,31 @@ class TheConfluenceValuesAreProfileKeysTest {
                         "confluenceFolderId", "123456789",
                         "confluenceFolderTitle", "Hand-overs",
                         "confluenceEmail", "operator@example.org")));
+    }
+
+    /**
+     * The deliverable's index states every key but the five (ADR-359 §7, amending ADR-186 §1): they say where the tree
+     * is sent, not how it was made. {@code keysAsWritten} keeps them for every other reader.
+     */
+    @Test
+    @Story("The deliverable's index says how it was made, not where it was sent")
+    @DisplayName("The keys the deliverable's index states are every key of the profile but the five values of a publish, none of whose values is among them")
+    @Link(name = "ADR-186", url = Adr.THE_INDEX_STATES_EVERY_PROFILE_KEY_READ_OFF_THE_RECORD, type = "adr")
+    void theIndexStatesEveryKeyButTheFive(@TempDir Path workingDirectory) throws IOException {
+        Files.writeString(workingDirectory.resolve("profile.yaml"), THE_FIVE_ANSWERED);
+        Profile loaded = new ProfileStore(workingDirectory).load();
+
+        Map<String, String> stated = loaded.keysTheIndexStates();
+
+        claim("the index states every key of the record but the five, in the record's order",
+                () -> assertThat(List.copyOf(stated.keySet()))
+                        .containsExactlyElementsOf(ProfileKeys.everyKeyTheIndexStates())
+                        .doesNotContainAnyElementsOf(THE_FIVE));
+        claim("each as written, as every key of the profile is written",
+                () -> assertThat(loaded.keysAsWritten()).containsAllEntriesOf(stated));
+        claim("and none of the values the five hold is among what it states",
+                () -> assertThat(stated.values()).doesNotContainAnyElementsOf(THE_FIVE_VALUES));
+        claim("while every reader of keysAsWritten still finds the five",
+                () -> assertThat(loaded.keysAsWritten()).containsKeys(THE_FIVE.toArray(String[]::new)));
     }
 }

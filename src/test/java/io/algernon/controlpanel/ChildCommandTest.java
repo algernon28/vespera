@@ -293,6 +293,46 @@ class ChildCommandTest {
     }
 
     /**
+     * In the window, the Profile tab is the one source of a publish's four plain values, and the token typed the one
+     * token (ADR-359 §3): a publish's child inherits no variable whose name, in any case, begins with {@code
+     * VESPERA_CONFLUENCE_}, as it inherits none of the eight naming the working directory (ADR-340 §6).
+     */
+    @Test
+    @Story("The control panel passes the API token to its child alone")
+    @DisplayName("A publish's child inherits none of the window's Confluence variables, in either case, and holds the token typed alone, every other variable inherited")
+    @Link(name = "ADR-359", url = Adr.THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN, type = "adr")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
+    void aPublishsChildInheritsNoConfluenceVariableButTheTokenTyped() {
+        Map<String, String> theWindows = new HashMap<>();
+        theWindows.put("VESPERA_CONFLUENCE_SPACE_KEY", "OLDSPACE");
+        theWindows.put(TOKEN_VARIABLE, "stale");
+        theWindows.put("VESPERA_CONFLUENCE_BASE_URL", "https://old-site.example");
+        theWindows.put("VESPERA_CONFLUENCE_EMAIL", "old@example.org");
+        theWindows.put("vespera_confluence_folder_id", "9009");
+        theWindows.put("PATH", "the-path");
+        ChildCommand publish = ChildCommand.publish(JAVA, JAR, EVERY_VALUE, List.of("confluence"));
+        ChildCommand typed = publish.withConfluenceToken(TOKEN);
+
+        claim("given no token, the publish's environment over the window's holds no variable beginning with"
+                        + " VESPERA_CONFLUENCE_, in any case",
+                () -> assertThat(publish.environmentFrom(theWindows).keySet())
+                        .noneMatch(name -> name.toUpperCase(java.util.Locale.ROOT).startsWith("VESPERA_CONFLUENCE_")));
+        claim("given the token typed, it holds that token alone of them: not OLDSPACE, not the stale token, not the"
+                        + " window's site, email or folder",
+                () -> assertThat(typed.environmentFrom(theWindows).entrySet().stream()
+                                .filter(entry -> entry.getKey().toUpperCase(java.util.Locale.ROOT)
+                                        .startsWith("VESPERA_CONFLUENCE_"))
+                                .toList())
+                        .containsExactly(Map.entry(TOKEN_VARIABLE, TOKEN)));
+        claim("every other variable the window holds is inherited as before",
+                () -> assertThat(typed.environmentFrom(theWindows)).containsEntry("PATH", "the-path")
+                        .containsAllEntriesOf(publish.environment()));
+        claim("and its process builder's environment is the one over the control panel's own",
+                () -> assertThat(typed.processBuilder().environment())
+                        .isEqualTo(typed.environmentFrom(System.getenv())));
+    }
+
+    /**
      * A publish the control panel starts writes no template and names the Profile tab's keys when a value is missing
      * (ADR-359 §4), so its child is told the control panel started it.
      */

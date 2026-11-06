@@ -33,6 +33,18 @@ public final class ProfileKeys {
                 .toList();
     }
 
+    /**
+     * The five keys saying where a publish sends the Confluence rendering, in the record's order (ADR-359 §1): the one
+     * list of them a test may hold, as {@link #everyKey()} is of every key.
+     */
+    public static final List<String> CONFLUENCE_KEYS = List.of("confluenceBaseUrl", "confluenceSpaceKey",
+            "confluenceFolderId", "confluenceFolderTitle", "confluenceEmail");
+
+    /** Every key the deliverable's index states: every key but {@link #CONFLUENCE_KEYS}, in the record's order (ADR-359 §7). */
+    public static List<String> everyKeyTheIndexStates() {
+        return everyKey().stream().filter(key -> !CONFLUENCE_KEYS.contains(key)).toList();
+    }
+
     /** Every key of {@code profile} with the value it holds, in the record's order. */
     public static Map<String, ProfileValue> valuesOf(Profile profile) {
         Map<String, ProfileValue> values = new LinkedHashMap<>();

@@ -66,6 +66,17 @@ public final class ProfileFixture {
 
     private FoldersValue codeSetFolders = FoldersValue.unset();
 
+    /** The five values of a publish (ADR-359 §1), each a text. */
+    private TextValue confluenceBaseUrl = TextValue.unset();
+
+    private TextValue confluenceSpaceKey = TextValue.unset();
+
+    private TextValue confluenceFolderId = TextValue.unset();
+
+    private TextValue confluenceFolderTitle = TextValue.unset();
+
+    private TextValue confluenceEmail = TextValue.unset();
+
     private ProfileFixture() {
     }
 
@@ -97,6 +108,11 @@ public final class ProfileFixture {
         fixture.deliverableLanguage = existing.deliverableLanguage();
         fixture.clusterResolution = existing.clusterResolution();
         fixture.codeSetFolders = existing.codeSetFolders();
+        fixture.confluenceBaseUrl = existing.confluenceBaseUrl();
+        fixture.confluenceSpaceKey = existing.confluenceSpaceKey();
+        fixture.confluenceFolderId = existing.confluenceFolderId();
+        fixture.confluenceFolderTitle = existing.confluenceFolderTitle();
+        fixture.confluenceEmail = existing.confluenceEmail();
         return fixture;
     }
 
@@ -276,6 +292,20 @@ public final class ProfileFixture {
         return this;
     }
 
+    /**
+     * The five values of a publish (ADR-359 §1), each written as text, or unset where {@code value} is null: the site's
+     * address, the space's key, the parent by its id and by its title, and the account's email.
+     */
+    public ProfileFixture confluenceValues(String baseUrl, String spaceKey, String folderId, String folderTitle,
+            String email, String provenance) {
+        this.confluenceBaseUrl = someText(baseUrl, baseUrl == null ? null : provenance);
+        this.confluenceSpaceKey = someText(spaceKey, spaceKey == null ? null : provenance);
+        this.confluenceFolderId = someText(folderId, folderId == null ? null : provenance);
+        this.confluenceFolderTitle = someText(folderTitle, folderTitle == null ? null : provenance);
+        this.confluenceEmail = someText(email, email == null ? null : provenance);
+        return this;
+    }
+
     /** The profile itself, through the one constructor {@link Profile} has. */
     public Profile build() {
         return new Profile(
@@ -299,6 +329,11 @@ public final class ProfileFixture {
                 deliverableLanguage,
                 clusterResolution,
                 codeSetFolders,
-                CorpusFoldersValue.unset());
+                CorpusFoldersValue.unset(),
+                confluenceBaseUrl,
+                confluenceSpaceKey,
+                confluenceFolderId,
+                confluenceFolderTitle,
+                confluenceEmail);
     }
 }
