@@ -59,7 +59,7 @@ class JsonReaderTest {
     void theTwoAnswersOfTheSidecarsAreReadToTheEntriesLookedFor() {
         Object version = JsonReader.read("{\"docling-serve\":\"1.0.0\",\"vespera-image\":\"vespera/docling:v1\"}");
         Object tags = JsonReader.read("""
-                {"models":[{"name":"bge-m3:latest","size":1157672605},{"name":"qwen3:8b","details":{"family":"qwen3"}}]}
+                {"models":[{"name":"another-comparing-model:latest","size":1157672605},{"name":"a-writing-model:8b","details":{"family":"a-writing-model"}}]}
                 """);
 
         claim("the converter's image is the string entry vespera-image of the object answered",
@@ -67,7 +67,7 @@ class JsonReaderTest {
         claim("and the models served are the string name of each object of the array models, in its order",
                 () -> assertThat(((List<?>) ((Map<?, ?>) tags).get("models")).stream()
                                 .<Object>map(model -> ((Map<?, ?>) model).get("name")).toList())
-                        .containsExactly("bge-m3:latest", "qwen3:8b"));
+                        .containsExactly("another-comparing-model:latest", "a-writing-model:8b"));
     }
 
     @Test

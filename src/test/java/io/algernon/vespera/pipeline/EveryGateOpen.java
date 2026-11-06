@@ -19,7 +19,7 @@ final class EveryGateOpen {
     static final String BOILERPLATE_FLOOR = "1.0";
 
     /** The embedding model the scripted serving runtime answers for, so gate 3 and everything behind it open. */
-    static final String EMBEDDING_MODEL = "qwen3-embedding:0.6b";
+    static final String EMBEDDING_MODEL = "a-comparing-model:0.6b";
 
     private EveryGateOpen() {}
 

@@ -52,7 +52,7 @@ class LabelAnswersTest {
               band: 1
               closestSeed: "seed/two.docx"
               relevant: false
-              labelledBy: "qwen3:8b"
+              labelledBy: "a-writing-model:8b"
             """;
 
     private static final String NOT_IN_FORM =

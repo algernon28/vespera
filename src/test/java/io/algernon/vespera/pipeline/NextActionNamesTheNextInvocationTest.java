@@ -67,7 +67,7 @@ class NextActionNamesTheNextInvocationTest {
 
     private static final String THE_BOILERPLATE_FLOOR = "0.4";
 
-    private static final String THE_EMBEDDING_MODEL = "embeddinggemma";
+    private static final String THE_EMBEDDING_MODEL = "a-third-comparing-model";
 
     private static final String THE_RELEVANCE_FLOOR = "0.62";
 

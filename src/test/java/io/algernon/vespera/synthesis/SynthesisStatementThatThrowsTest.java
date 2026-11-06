@@ -53,7 +53,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Link(name = "ADR-204", url = Adr.PART_B_OF_THE_STATEMENTS_WRITTEN_OUT, type = "adr")
 class SynthesisStatementThatThrowsTest {
 
-    private static final String MODEL_NAME = "qwen3:8b";
+    private static final String MODEL_NAME = "a-writing-model:8b";
     private static final int THE_WINDOW = 8192;
     private static final String SEED_PATH = "seeds/safety.docx";
 

@@ -38,7 +38,7 @@ class LabelFileReaderTest {
     /** Some other run, whose sample asked about different documents. */
     private static final String A_DIFFERENT_RUN = "0011ffee";
 
-    private static final String THE_EMBEDDER = "model=all-minilm;digest=abc;dtype=F16;dimension=384;instruction=none";
+    private static final String THE_EMBEDDER = "model=a-small-comparing-model;digest=abc;dtype=F16;dimension=384;instruction=none";
 
     /** The seed set the sample was drawn against, which the file also has to name (ADR-169). */
     private static final String THE_SEED_SET = "/corpus/seeds";

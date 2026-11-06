@@ -59,7 +59,7 @@ class ARunReadsTheVectorsOfOneEmbedderIdentityTest {
     /** The number of similarities the application ships (vespera.relevance.top-similarities). */
     private static final int TOP_SIMILARITIES = 3;
 
-    private static final String MODEL = "qwen3-embedding:0.6b";
+    private static final String MODEL = "a-comparing-model:0.6b";
 
     /** The survivor here is one chunk long, and each identity stores one vector for it. */
     private static final int ONE_CHUNK = 1;

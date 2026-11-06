@@ -63,7 +63,7 @@ class ChunkEmbedderTest {
     private static final String CONTENT_HASH = "0".repeat(63) + "1";
     private static final String CHUNKER_IDENTITY = "docling-hybrid-chunker-v1";
     private static final String CHUNKING_RULE_IDENTITY = "words-512-v1";
-    private static final String MODEL = "qwen3-embedding:0.6b";
+    private static final String MODEL = "a-comparing-model:0.6b";
     private static final String DIGEST = "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d";
     private static final String DTYPE = "Q4_K_M";
 

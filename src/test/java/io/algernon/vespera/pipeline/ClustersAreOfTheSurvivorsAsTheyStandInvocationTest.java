@@ -76,7 +76,7 @@ class ClustersAreOfTheSurvivorsAsTheyStandInvocationTest {
     private static final double A_SCORE_UNDER_THE_FLOOR = 0.2;
 
     private static final String ANOTHER_MODELS_IDENTITY =
-            "model=nomic-embed-text;digest=0ff0ff0f;dtype=F32;dimension=768;instruction=none";
+            "model=acme-embed-text;digest=0ff0ff0f;dtype=F32;dimension=768;instruction=none";
 
     /**
      * The corpus of {@code survivorsTheFloorNoLongerRemovesAreClusteredAndArranged} and {@code

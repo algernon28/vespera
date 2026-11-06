@@ -2494,6 +2494,17 @@ public final class Adr {
             + "0350-the-claims-job-reads-the-tracker-off-a-pull-requests-ci-and-a-new-records-slug-keeps-to-120-characters.md";
 
     /**
+     * ADR-353 -- the embedding model's shipped default is Qwen3-Embedding-8B, named as its file on Hugging Face,
+     * {@code hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M}, in place of {@code bge-m3:latest}; Ollama's library tag of the
+     * same model layer is another name and manifest, so another scoring run; only a profile naming no model mints its
+     * embedding-scoring, arrangement and generation runs again; and no test names a model as expected or relies on how
+     * the shipped file is configured, each setting the values it needs itself (amends ADR-298 §1 and §7, ADR-329's
+     * Consequences, ADR-331 §8 and ADR-342's Tests row).
+     */
+    public static final String THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE = FILE
+            + "0353-the-embedding-models-shipped-default-is-qwen3-embedding-8b-and-only-a-profile-naming-no-model-moves-its-scoring-run.md";
+
+    /**
      * ADR-354 -- the two Docling images are built where they run, by {@code compose.yaml}, {@code compose.gpu.yaml}
      * and {@code TestcontainersConfiguration} from the one {@code Containerfile}, under the {@code -r2} tags; no
      * workflow pushes them to a registry, and the drift of a rebuild from CentOS's live repositories is accepted

@@ -33,7 +33,7 @@ class TranslationReportTest {
 
     private static final RunId SCORING = new RunId("a-scoring-run-of-this-test");
 
-    private static final String MODEL = "bge-m3";
+    private static final String MODEL = "another-comparing-model";
 
     private static final Pattern A_ROW = Pattern.compile("<tr>(.*?)</tr>", Pattern.DOTALL);
 

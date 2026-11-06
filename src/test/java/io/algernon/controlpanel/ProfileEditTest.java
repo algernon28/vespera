@@ -164,10 +164,10 @@ class ProfileEditTest {
         otherForms.put("a plain scalar over two lines", "relevanceScoreFloor:\n  value: 0.4\n    more\n");
         otherForms.put("a single-quoted scalar over two lines", "relevanceScoreFloor:\n  value: '0.4\n    more'\n");
         otherForms.put("a block scalar", "relevanceScoreFloor:\n  value: |\n    0.4\n");
-        otherForms.put("a plain scalar holding a colon and a space", "generationModel:\n  value: qwen3: 14b\n");
+        otherForms.put("a plain scalar holding a colon and a space", "generationModel:\n  value: a-writing-model: 14b\n");
         otherForms.put("a comment after a plain scalar", "relevanceScoreFloor:\n  value: 0.4 # guessed\n");
         otherForms.put("a plain scalar beginning with an indicator", "generationModel:\n  value: *anchor\n");
-        otherForms.put("a plain scalar ending with a colon", "generationModel:\n  value: qwen3:\n");
+        otherForms.put("a plain scalar ending with a colon", "generationModel:\n  value: a-writing-model:\n");
         otherForms.put("a flow mapping", "relevanceScoreFloor: {value: \"0.4\"}\n");
         otherForms.put("a key the profile does not have", "seedFolders:\n  value: null\n");
         otherForms.put("a key twice", "seedFolder:\n  value: null\nseedFolder:\n  value: null\n");
@@ -201,7 +201,7 @@ class ProfileEditTest {
                   provenance: ''
                 embeddingModel:
                   value: ~
-                  provenance: nomic-embed-text:v1.5
+                  provenance: acme-embed-text:v1.5
                 """;
 
         claim("the single-quoted Windows path is read with its backslashes, a plain number as its text without the"
@@ -214,7 +214,7 @@ class ProfileEditTest {
                         ProfileKey.TRANSLATION_SIMILARITY_FLOOR,
                                 new Stated("-0.2", "it's the lowest row with no refuted pair"),
                         ProfileKey.GENERATION_MODEL, new Stated(null, ""),
-                        ProfileKey.EMBEDDING_MODEL, new Stated("~", "nomic-embed-text:v1.5"))));
+                        ProfileKey.EMBEDDING_MODEL, new Stated("~", "acme-embed-text:v1.5"))));
         claim("and saving the seed folder replaces its single-quoted lines with double-quoted ones, every other byte kept",
                 () -> assertThat(ProfileEdit.rewrite(Optional.of(byHand), ProfileKey.SEED_FOLDER, seeds.toString(), "moved"))
                         .isEqualTo(byHand.replace("""
@@ -256,8 +256,8 @@ class ProfileEditTest {
         Path aFile = Files.createFile(temp.resolve("a-file"));
         List<Sample> accepted = List.of(
                 new Sample(ProfileKey.SEED_FOLDER, aFolder.toString()),
-                new Sample(ProfileKey.EMBEDDING_MODEL, "nomic-embed-text:v1.5"),
-                new Sample(ProfileKey.GENERATION_MODEL, "qwen3:14b"),
+                new Sample(ProfileKey.EMBEDDING_MODEL, "acme-embed-text:v1.5"),
+                new Sample(ProfileKey.GENERATION_MODEL, "a-writing-model:14b"),
                 new Sample(ProfileKey.ARRANGEMENT_APPROVED, "0123456789ab"),
                 new Sample(ProfileKey.ARRANGEMENT_APPROVED, "auto"),
                 new Sample(ProfileKey.RELEVANCE_SCORE_FLOOR, "0.579"),
@@ -314,7 +314,7 @@ class ProfileEditTest {
                 "codeNameEndings is not saved: \"..\" is not a list of name endings, each beginning with a dot");
         refused.put(new Sample(ProfileKey.PREFERRED_LANGUAGES, "it, eng"),
                 "preferredLanguages is not saved: \"it, eng\" is not a list of two-letter language codes");
-        refused.put(new Sample(ProfileKey.GENERATION_MODEL, "qwen3\n14b"), "generationModel is not saved: a value is one line");
+        refused.put(new Sample(ProfileKey.GENERATION_MODEL, "a-writing-model\n14b"), "generationModel is not saved: a value is one line");
         refused.put(new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "fr"), "deliverableLanguage is not saved: \"fr\" is not en or it");
         refused.put(new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "italian"),
                 "deliverableLanguage is not saved: \"italian\" is not en or it");

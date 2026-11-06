@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 class EmbedderIdentityTest {
 
     /** A model name as the profile resolves it, tag included — the tag is part of what was asked for. */
-    private static final String MODEL = "qwen3-embedding:0.6b";
+    private static final String MODEL = "a-comparing-model:0.6b";
 
     /** A manifest digest as {@code /api/tags} reports it, over the layers and the modelfile. */
     private static final String DIGEST = "7f9c2ba4e88f827d616045507605853ed73b8093f6efbc88eb1a6eacfa66ef26";
