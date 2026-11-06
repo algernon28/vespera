@@ -1,4 +1,4 @@
-# ADR-354 — The architect probes how a change behaves against each sentence of the record it implements
+# ADR-355 — The architect probes how a change behaves against each sentence of the record it implements
 
 - **Date**: 2026-11-05
 - **Status**: accepted on 2026-11-05.

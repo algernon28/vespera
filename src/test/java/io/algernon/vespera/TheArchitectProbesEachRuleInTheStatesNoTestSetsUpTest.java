@@ -19,17 +19,16 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The architect's gate probes the code a change carries against each sentence of the record it implements, in four
- * states no test may set up, and its report names the sentence each probe tested (ADR-354 §1, §2).
+ * states no test may set up, and its report names the sentence each probe tested (ADR-355 §1, §2).
  *
  * <p>The definition held is the draft in {@code docs/agents/agent-draft} while it is there, and the installed one in
- * {@code .claude/agents} once the operator has put the draft in place and removed it (ADR-215 §7, ADR-354 §4). Each
+ * {@code .claude/agents} once the operator has put the draft in place and removed it (ADR-215 §7, ADR-355 §4). Each
  * claim matches whole lines of the definition, so a probe dropped, merged into another or reworded fails it.
  */
 @Epic("Architecture")
 @Feature("The gate before a change lands")
 @Issue("695")
-@Link(name = "ADR-354", url = Adr.THE_ARCHITECT_PROBES_HOW_THE_CHANGE_BEHAVES_AGAINST_EACH_SENTENCE_OF_ITS_RECORD,
-        type = "adr")
+@Link(name = "ADR-355", url = Adr.THE_ARCHITECT_PROBES_HOW_THE_CHANGE_BEHAVES_AGAINST_EACH_SENTENCE_OF_ITS_RECORD, type = "adr")
 class TheArchitectProbesEachRuleInTheStatesNoTestSetsUpTest {
 
     /** The definition as drafted, outside every {@code .claude} folder. */
@@ -40,7 +39,7 @@ class TheArchitectProbesEachRuleInTheStatesNoTestSetsUpTest {
 
     /** The gate's ninth item, which asks for the probes. */
     private static final String THE_STEP = "9. **The code does what each sentence of its record says, in the states no"
-            + " test sets up** (ADR-354). Green tests and every amendment applied show only the states someone thought"
+            + " test sets up** (ADR-355). Green tests and every amendment applied show only the states someone thought"
             + " to build. For each rule of the record the diff implements, read the changed code that carries it out"
             + " against the sentence, and probe it in these four states:";
 
