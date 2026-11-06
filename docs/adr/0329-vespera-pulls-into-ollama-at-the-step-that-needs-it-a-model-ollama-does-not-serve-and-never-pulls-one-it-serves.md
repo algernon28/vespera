@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-353](0353-the-embedding-models-shipped-default-is-qwen3-embedding-8b-and-only-a-profile-naming-no-model-moves-its-scoring-run.md).** Of Consequences' first bullet: a fresh machine pulls `hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M`, 4,676,804,928 bytes of weights, where it pulled `bge-m3:latest`, 1.2 GB. The rule stands.
 
+> **Partly amended — see [ADR-358](0358-a-bound-the-code-under-test-keeps-in-real-time-is-held-on-the-wall-clock-from-the-event-it-races.md).** Of Tests: `ModelPullTest`'s pulls given up at a bound are given up no sooner than the bound after the pull was begun and within the bound and a margin after the stub read the request; the late refusal's status comes half way into a bound of ten seconds; and the stub finds a closed connection within the bound and the margin of its read. Every decision stands.
+
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
 - **Decided**: by the operator, who decided that Vespera pulls into Ollama, through `/api/pull` and showing its progress, a model the profile names, or the default, that Ollama does not serve, before the step that needs it: the embedding model for stage 5's scoring step and the generation model for the generation step; that a model Ollama already serves is never pulled again; and that `hf.co/…` GGUF names are covered as Ollama accepts them. Where the pull is made, which commands make it, the opt-out, how progress shows, the bound on the wait, an interrupted pull, the failure lines and the tests are decided under delegation.

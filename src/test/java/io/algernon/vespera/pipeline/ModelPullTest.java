@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
@@ -41,19 +42,33 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>Ollama is a {@link StubOllama} on the loopback address, answering {@code /api/show} and {@code /api/pull} as
  * Ollama's source at {@code v0.33.2} reads; the client asking it is the production {@link OllamaClient}, and the
  * check asked before and after the pull the production one. The bound on a pull that has stopped moving is one second
- * in the tests of a pull that stops moving or never moves, and four in the two where a refusal's status must come inside it before its
- * body stops; a test not about a pull that stopped moving has a bound no pull here comes near, so a loaded machine
- * slows it and does not fail it. Each that a pull which never ends could hold is cut by a timeout of its own, so it
- * fails rather than hangs.
+ * in the tests of a pull that stops moving or never moves, and ten in the two where a refusal's status must come
+ * inside it before its body stops; a test not about a pull that stopped moving has a bound no pull here comes near, so
+ * a loaded machine slows it and does not fail it. Each that a pull which never ends could hold is cut by a timeout of
+ * its own, its largest bound, the margin and ten seconds, so it fails rather than hangs, and a timeout means only that
+ * the pull never ended.
+ *
+ * <p>The bounds are held on the clock on the wall (ADR-358). A bound here is one the code under test keeps in real
+ * time, a pull given up so long after it last moved, and none of ADR-352's three ways applies to it: the thread that
+ * waits spends no processor time waiting, so its processor time (§1) cannot tell a pull given up at the bound from one
+ * given up a minute late; what the code races is the absence of an event, so a fixture that changes on an event of the
+ * code (§2) has none to change on; and the bound is the code's own, given by the test, so doubling it until something
+ * happens (§3) would hold another bound than the one set. A clock put into the code under test in place of the system's
+ * would test another program. Each such test claims the pull was given up no sooner than the bound, timed from before
+ * the pull was asked for, and within the bound and a margin, timed from when the stub read the request: a loaded
+ * machine delays the client's way to the stub by seconds, and the code's give-up past the bound by milliseconds. One
+ * pull made before the first test takes the first run's cost of loading and compiling the client out of the tests. The
+ * late refusal's status is a fixture timed on the clock, in exception to ADR-352 §2: the time that passed is what shows
+ * the status and the body share one bound.
  */
 @Epic("Relevance")
 @Feature("A model Ollama does not serve is pulled")
 @Issue("669")
 @Link(name = "ADR-329", url = Adr.A_MODEL_OLLAMA_DOES_NOT_SERVE_IS_PULLED_AT_THE_STEP_THAT_NEEDS_IT, type = "adr")
 @Link(name = "ADR-202", url = Adr.GENERATION_AND_EMBEDDING_REFUSE_A_MODEL_NOT_SERVED_HERE, type = "adr")
+@Link(name = "ADR-358", url = Adr.A_BOUND_THE_CODE_KEEPS_IN_REAL_TIME_IS_HELD_ON_THE_WALL_CLOCK, type = "adr")
 class ModelPullTest {
 
-    /** The step asking, as stage 5's scoring step names itself in its lines. */
     /**
      * What the JDK's HTTP client says when the connection closes before an answer's body has all come, as the
      * innermost cause's message: written out as the client words it, read off this test's run.
@@ -67,46 +82,74 @@ class ModelPullTest {
      */
     private static final String THE_JDK_ON_A_REFUSED_CONNECTION = "Connection refused";
 
+    /** The step asking, as stage 5's scoring step names itself in its lines. */
     private static final String STAGE = "Stage 5c (embedding scoring)";
 
     /** The label of the counter line the pull writes for that step. */
     private static final String COUNTER_LABEL = "Stage 5c (embedding scoring, megabytes pulled)";
+
+    /** The bound of the tests of a pull that stops moving or never moves, in the whole seconds the stalled reason states. */
+    private static final long BOUND_SECONDS = 1;
 
     /**
      * How long a pull may go without moving before it is given up, in the tests of a pull that stops moving or never
      * moves: the bound counts from before the request is sent, and a status or a line a slow machine delivers past it
      * still ends the pull as stalled, so a slow machine cannot change which reason they end in.
      */
-    private static final Duration BOUND = Duration.ofSeconds(1);
+    private static final Duration BOUND = Duration.ofSeconds(BOUND_SECONDS);
 
-    /** The bound in the whole seconds the stalled reason states. */
-    private static final long BOUND_SECONDS = 1;
+    /** The bound in every test not about a pull that stopped moving, in whole seconds. */
+    private static final long A_BOUND_NO_PULL_HERE_REACHES_SECONDS = 30;
 
     /**
      * The bound in every test not about a pull that stopped moving: one no pull here comes near, so the time a loaded
      * machine takes to connect and send the first line is never taken for a stall. Those pulls end as soon as the
-     * stub's script does.
+     * stub's script does; the slowest whole pull of them measured beside 128 busy threads took 15.3 s, and it was the
+     * first of its Java.
      */
-    private static final Duration A_BOUND_NO_PULL_HERE_REACHES = Duration.ofSeconds(30);
+    private static final Duration A_BOUND_NO_PULL_HERE_REACHES = Duration.ofSeconds(A_BOUND_NO_PULL_HERE_REACHES_SECONDS);
 
-    /** What a test allows past the bound for the connection to be closed and the reason composed. */
-    private static final Duration MARGIN = Duration.ofSeconds(5);
+    /** The margin, in whole seconds. */
+    private static final long MARGIN_SECONDS = 5;
+
+    /**
+     * What a test allows past the bound, timed from when the stub read the request, for the code to see the bound has
+     * passed, close the connection and compose the reason: five seconds, where the most measured beside 128 busy
+     * threads was 30 ms.
+     */
+    private static final Duration MARGIN = Duration.ofSeconds(MARGIN_SECONDS);
+
+    /** The bound in the two tests of a refusal whose body stops coming after the status, in the whole seconds a reason states. */
+    private static final long REFUSAL_BOUND_SECONDS = 10;
 
     /**
      * The bound in the two tests of a refusal whose body stops coming after the status: the status must come inside it,
-     * or the pull ends as one Ollama sent no status for, and four seconds leave the status room on a loaded machine.
+     * or the pull ends as one Ollama sent no status for.
      */
-    private static final Duration REFUSAL_BOUND = Duration.ofSeconds(4);
-
-    /** That bound in the whole seconds a reason states. */
-    private static final long REFUSAL_BOUND_SECONDS = 4;
+    private static final Duration REFUSAL_BOUND = Duration.ofSeconds(REFUSAL_BOUND_SECONDS);
 
     /**
-     * How long after it has read the request the stub sends the status of a late refusal: half way into the refusal
-     * bound, so a fresh bound for the body would end no sooner than this and a whole bound after the stub read the
-     * request, at six seconds.
+     * How long after it has read the request the stub sends the status of a late refusal: half the refusal bound, five
+     * seconds. A fresh bound for the body would end no sooner than this and a whole bound after the stub read the
+     * request, so the five seconds are the room the claim of one bound leaves past it, no less than {@link #MARGIN};
+     * and the bound leaves the client the other five to reach the stub, where it took at most 2.06 s beside 128 busy
+     * threads once its Java had made a pull.
      */
-    private static final Duration LATE_STATUS = Duration.ofSeconds(2);
+    private static final Duration LATE_STATUS = REFUSAL_BOUND.dividedBy(2);
+
+    /** What a timeout allows past a test's largest bound and the margin, in whole seconds. */
+    private static final long PAST_THE_MARGIN_SECONDS = 10;
+
+    /** The timeout of a test whose largest bound is {@link #BOUND}, in whole seconds. */
+    private static final long WITHIN_THE_BOUND_SECONDS = BOUND_SECONDS + MARGIN_SECONDS + PAST_THE_MARGIN_SECONDS;
+
+    /** The timeout of a test whose largest bound is {@link #REFUSAL_BOUND}, in whole seconds. */
+    private static final long WITHIN_THE_REFUSAL_BOUND_SECONDS =
+            REFUSAL_BOUND_SECONDS + MARGIN_SECONDS + PAST_THE_MARGIN_SECONDS;
+
+    /** The timeout of a test whose largest bound is {@link #A_BOUND_NO_PULL_HERE_REACHES}, in whole seconds. */
+    private static final long WITHIN_A_BOUND_NO_PULL_HERE_REACHES_SECONDS =
+            A_BOUND_NO_PULL_HERE_REACHES_SECONDS + MARGIN_SECONDS + PAST_THE_MARGIN_SECONDS;
 
     /** The words of a refusal that Ollama sends for a name it cannot parse. */
     private static final String INVALID_NAME = "{\"error\":\"invalid model name\"}";
@@ -156,6 +199,22 @@ class ModelPullTest {
     private ModelPull pull;
     private ListAppender<ILoggingEvent> logged;
     private Logger root;
+
+    /**
+     * One pull of a model a stub of its own does not serve, ending in success, made before the first test: a loaded
+     * machine took up to 23.5 s past the bound over the first pull of a Java, loading and compiling the client, and at
+     * most 2.1 s over each after it (ADR-358).
+     */
+    @BeforeAll
+    static void oneFirstPullOfThisJava() {
+        try (StubOllama first = StubOllama.started()) {
+            first.pulls(MODEL, aPullThatEnds(SUCCESS));
+            new ModelPull(
+                            new ModelPullSettings(true, first.baseUrl(), A_BOUND_NO_PULL_HERE_REACHES),
+                            new OllamaClient(first.baseUrl().toString()))
+                    .refusalOf(STAGE, MODEL);
+        }
+    }
 
     @BeforeEach
     void anOllamaThatServesNothing() {
@@ -440,7 +499,7 @@ class ModelPullTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("pullsThatStopMoving")
-    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @Timeout(value = WITHIN_THE_BOUND_SECONDS, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     @Story("A pull that has stopped moving is given up")
     @DisplayName("A pull that has stopped moving is given up once the bound has passed since it last moved")
     void aPullThatStopsMovingIsGivenUp(StubOllama.PullAnswer stopsMoving) {
@@ -449,18 +508,18 @@ class ModelPullTest {
         ModelPull underTheBound = pullingWith(true, BOUND);
         long started = System.nanoTime();
         Optional<String> refusal = underTheBound.refusalOf(STAGE, MODEL);
-        Duration took = Duration.ofNanos(System.nanoTime() - started);
+        long givenUp = System.nanoTime();
 
         claim("the reason says the pull stalled for the bound's " + BOUND_SECONDS + " seconds",
                 () -> assertThat(refusal).contains(stalled()));
-        claim(
-                "and it was given up no sooner than the bound and within it and a margin, whether or not Ollama"
-                        + " kept sending",
-                () -> assertThat(took).isGreaterThanOrEqualTo(BOUND).isLessThan(BOUND.plus(MARGIN)));
+        claimGivenUpAtTheBound(started, givenUp, BOUND, MARGIN,
+                "and it was given up no sooner than the bound after the pull was begun, and within the bound and a"
+                        + " margin of " + MARGIN_SECONDS + " seconds after the stub read the pull's request, whether"
+                        + " or not Ollama kept sending");
     }
 
     @Test
-    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @Timeout(value = WITHIN_THE_REFUSAL_BOUND_SECONDS, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     @Story("A pull that has stopped moving is given up")
     @DisplayName("A refusal whose body stops coming after the status is given up once the bound has passed")
     void aRefusalWhoseBodyStallsIsGivenUp() {
@@ -469,7 +528,7 @@ class ModelPullTest {
         ModelPull underTheRefusalBound = pullingWith(true, REFUSAL_BOUND);
         long started = System.nanoTime();
         Optional<String> refusal = underTheRefusalBound.refusalOf(STAGE, MODEL);
-        Duration took = Duration.ofNanos(System.nanoTime() - started);
+        long givenUp = System.nanoTime();
 
         claim(
                 "the reason keeps the 400 Ollama sent and says the rest of its answer had not come the bound's "
@@ -478,13 +537,13 @@ class ModelPullTest {
                 () -> assertThat(refusal)
                         .contains(refusedAndThen(400, "had not come " + REFUSAL_BOUND_SECONDS
                                 + " seconds after the pull was asked for")));
-        claim(
-                "and it was given up no sooner than the bound and within it and a margin",
-                () -> assertThat(took).isGreaterThanOrEqualTo(REFUSAL_BOUND).isLessThan(REFUSAL_BOUND.plus(MARGIN)));
+        claimGivenUpAtTheBound(started, givenUp, REFUSAL_BOUND, MARGIN,
+                "and it was given up no sooner than the bound after the pull was begun, and within the bound and a"
+                        + " margin of " + MARGIN_SECONDS + " seconds after the stub read the pull's request");
     }
 
     @Test
-    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @Timeout(value = WITHIN_THE_REFUSAL_BOUND_SECONDS, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     @Story("A pull that has stopped moving is given up")
     @DisplayName("A refusal whose status comes late and whose body then stops coming is given up one bound after the pull was asked for, not two")
     void aLateRefusalWhoseBodyStallsIsGivenUpWithinOneBound() {
@@ -494,7 +553,6 @@ class ModelPullTest {
         long started = System.nanoTime();
         Optional<String> refusal = underTheRefusalBound.refusalOf(STAGE, MODEL);
         long givenUp = System.nanoTime();
-        Duration took = Duration.ofNanos(givenUp - started);
 
         claim(
                 "the reason keeps the 400 Ollama sent and says the rest of its answer had not come the bound's "
@@ -502,21 +560,16 @@ class ModelPullTest {
                 () -> assertThat(refusal)
                         .contains(refusedAndThen(400, "had not come " + REFUSAL_BOUND_SECONDS
                                 + " seconds after the pull was asked for")));
-        claim(
-                "and it was given up no sooner than the bound of " + REFUSAL_BOUND_SECONDS + " seconds, and sooner"
-                        + " after the stub read the request than the bound and the " + LATE_STATUS.toSeconds()
-                        + " seconds the stub waited before the status: the status and the body share one bound counted"
-                        + " from the request, and a fresh bound for the body would end no sooner than that",
-                () -> {
-                    assertThat(took).isGreaterThanOrEqualTo(REFUSAL_BOUND);
-                    assertThat(Duration.ofNanos(givenUp
-                                    - ollama.requestsTo("/api/pull").getFirst().readAt()))
-                            .isLessThan(REFUSAL_BOUND.plus(LATE_STATUS));
-                });
+        claimGivenUpAtTheBound(started, givenUp, REFUSAL_BOUND, LATE_STATUS,
+                "and it was given up no sooner than the bound of " + REFUSAL_BOUND_SECONDS + " seconds after the"
+                        + " pull was begun, and sooner after the stub read the request than the bound and the "
+                        + LATE_STATUS.toSeconds() + " seconds the stub waited before the status: the status and the"
+                        + " body share one bound counted from the request, and a fresh bound for the body would end"
+                        + " no sooner than that");
     }
 
     @Test
-    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @Timeout(value = WITHIN_A_BOUND_NO_PULL_HERE_REACHES_SECONDS, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     @Story("A pull that cannot be made stops the step in one line")
     @DisplayName("A refusal whose body the connection drops keeps its status, and quotes the failure as the transport reported it")
     void aRefusalWhoseBodyIsCutOffKeepsItsStatus() {
@@ -538,7 +591,7 @@ class ModelPullTest {
     }
 
     @Test
-    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @Timeout(value = WITHIN_THE_BOUND_SECONDS, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     @Story("A pull that has stopped moving is given up")
     @DisplayName("A pull given up at the bound has its connection closed, and Ollama sees Vespera go")
     void aPullGivenUpHasItsConnectionClosed() {
@@ -547,10 +600,14 @@ class ModelPullTest {
         Optional<String> refusal = pullingWith(true, BOUND).refusalOf(STAGE, MODEL);
 
         claim("the pull was given up as stalled", () -> assertThat(refusal).contains(stalled()));
+        Optional<Long> wentAt = ollama.whenTheClientWent(MODEL, MARGIN);
         claim(
-                "Ollama, still sending, found the connection closed at the other end within the margin: a"
-                        + " connection left open would hold Ollama's answer for nothing",
-                () -> assertThat(ollama.sawTheClientGo(MODEL, MARGIN)).isTrue());
+                "Ollama, still sending, found the connection closed at the other end within the bound and a margin of "
+                        + MARGIN_SECONDS + " seconds after it read the pull's request: a connection left open would"
+                        + " hold Ollama's answer for nothing",
+                () -> assertThat(wentAt).hasValueSatisfying(went -> assertThat(Duration.ofNanos(
+                                went - ollama.requestsTo("/api/pull").getFirst().readAt()))
+                        .isLessThan(BOUND.plus(MARGIN))));
     }
 
     @Test
@@ -571,7 +628,7 @@ class ModelPullTest {
     }
 
     @Test
-    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @Timeout(value = WITHIN_A_BOUND_NO_PULL_HERE_REACHES_SECONDS, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     @Story("A pull that cannot be made stops the step in one line")
     @DisplayName("A pull no Ollama listens for is refused with the failure as the transport reported it")
     void aRefusedConnectionIsReportedByItsInnermostCause() throws IOException {
@@ -601,7 +658,7 @@ class ModelPullTest {
     }
 
     @Test
-    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @Timeout(value = WITHIN_A_BOUND_NO_PULL_HERE_REACHES_SECONDS, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     @Story("A pull that cannot be made stops the step in one line")
     @DisplayName("A connection dropped in the middle of a pull is refused with the failure as the transport reported it")
     void aConnectionDroppedMidStreamIsReportedByItsInnermostCause() {
@@ -626,7 +683,7 @@ class ModelPullTest {
      * (ADR-329 §4).
      */
     @Test
-    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @Timeout(value = WITHIN_THE_BOUND_SECONDS, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     @Story("A pull that cannot be made removes nothing from Ollama")
     @DisplayName("A pull given up as stalled asks Ollama only whether it serves the model and to pull it, and removes nothing")
     void aStalledPullSendsOnlyTheQuestionsAndThePull() {
@@ -643,7 +700,7 @@ class ModelPullTest {
      * nothing (ADR-329 §4).
      */
     @Test
-    @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @Timeout(value = WITHIN_A_BOUND_NO_PULL_HERE_REACHES_SECONDS, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     @Story("A pull that cannot be made removes nothing from Ollama")
     @DisplayName("A pull whose connection is dropped asks Ollama only whether it serves the model and to pull it, and removes nothing")
     void aDroppedPullSendsOnlyTheQuestionsAndThePull() {
@@ -688,6 +745,22 @@ class ModelPullTest {
                         + " and again before pulling, then the one pull; nothing that deletes, copies, creates or"
                         + " pushes a model, and no second pull",
                 () -> assertThat(paths).isEqualTo(WHAT_A_PULL_SENDS));
+    }
+
+    /**
+     * That the pull was given up no sooner than {@code bound} after {@code started}, before the pull was asked for, and
+     * sooner than {@code bound} and {@code margin} after the stub read the pull's request: the time a loaded machine
+     * takes the client to reach the stub is in the first and not in the second (ADR-358).
+     */
+    private void claimGivenUpAtTheBound(long started, long givenUp, Duration bound, Duration margin, String words) {
+        Duration sinceBegun = Duration.ofNanos(givenUp - started);
+        Duration sinceRead = Duration.ofNanos(givenUp - ollama.requestsTo("/api/pull").getFirst().readAt());
+        claim(words + " (" + sinceBegun.toMillis() + " ms after it was begun, " + sinceRead.toMillis()
+                        + " ms after the stub read it)",
+                () -> {
+                    assertThat(sinceBegun).isGreaterThanOrEqualTo(bound);
+                    assertThat(sinceRead).isLessThan(bound.plus(margin));
+                });
     }
 
     private static String couldNotPull(String words) {
