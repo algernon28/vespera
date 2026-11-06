@@ -108,6 +108,8 @@ import org.springframework.transaction.annotation.Transactional;
     VesperaCommand.Label.class,
     VesperaCommand.Publish.class,
     Publisher.class,
+    // What the publisher reads of the working directory's profile (ADR-359 §5).
+    ConfluenceValuesOfTheProfile.class,
     // The plugins, the Confluence rendering's and the website rendering's, which every drawing draws beside the
     // tree (ADR-333 §1, §4).
     ConfluencePlugin.class,

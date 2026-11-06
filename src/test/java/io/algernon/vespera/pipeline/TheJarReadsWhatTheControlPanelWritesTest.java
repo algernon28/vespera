@@ -409,6 +409,12 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         // ADR-340 §8.1: folders below the corpus root, one or two, a piece naming no folder that is there among them.
         samples.put(foldersNotWalked(), List.of("archive/old-flows",
                 "archive/old-flows" + java.io.File.pathSeparator + "tools/build", " gone "));
+        // ADR-359 §1: where a publish sends, each a text the publish reads as the file holds it.
+        samples.put(ProfileKey.CONFLUENCE_BASE_URL, List.of("https://wiki.example.com", "https://wiki.example.com/wiki"));
+        samples.put(ProfileKey.CONFLUENCE_SPACE_KEY, List.of("DOCS"));
+        samples.put(ProfileKey.CONFLUENCE_FOLDER_ID, List.of("123456789"));
+        samples.put(ProfileKey.CONFLUENCE_FOLDER_TITLE, List.of("Hand-overs", "Consegne del gruppo"));
+        samples.put(ProfileKey.CONFLUENCE_EMAIL, List.of("you@example.com"));
         return samples;
     }
 
@@ -485,6 +491,20 @@ class TheJarReadsWhatTheControlPanelWritesTest {
                 } catch (IllegalStateException stopped) {
                     yield false;
                 }
+            }
+            // ADR-359 §2, §5: what the publish acts on is what the profile's reader hands confluence for the key.
+            case CONFLUENCE_BASE_URL, CONFLUENCE_SPACE_KEY, CONFLUENCE_FOLDER_ID, CONFLUENCE_FOLDER_TITLE,
+                    CONFLUENCE_EMAIL -> {
+                io.algernon.vespera.confluence.ConfluenceValues read =
+                        new ConfluenceValuesOfTheProfile().of(store.file().getParent());
+                String inUse = switch (key) {
+                    case CONFLUENCE_BASE_URL -> read.baseUrl();
+                    case CONFLUENCE_SPACE_KEY -> read.spaceKey();
+                    case CONFLUENCE_FOLDER_ID -> read.folderId();
+                    case CONFLUENCE_FOLDER_TITLE -> read.folderTitle();
+                    default -> read.email();
+                };
+                yield loaded.value().equals(inUse);
             }
             default -> ((NumericValue) loaded).reading() instanceof NumericValue.Answered;
         };
