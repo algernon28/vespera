@@ -28,7 +28,7 @@
 // docs/adr/0356 holds that reading against Bash itself: each C case's command that the guard cuts and
 // trusts is run in Bash, every program the guard trusts replaced by a function that records the
 // arguments Bash gives it, and the guard's reading, which it exports as bashReading, is compared with
-// them. C792 to C797 are the forms it amends docs/adr/0351 sections 1 and 2 by.
+// them. C792 to C801 are the forms it amends docs/adr/0351 sections 1 and 2 by.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -2023,6 +2023,13 @@ cases.push(
   ["C795", "grep -e\"$o\", which Bash makes -e where o is unset, which takes the next -e as its pattern, so a quoted file outside the allow list is read", "Bash", { command: "grep -e\"$o\" -e '../outside/doc.txt'" }, REFUSED],
   ["C796", "grep -e{x,}, which Bash makes -ex and -e, which takes --regexp as its pattern, so a quoted file outside the allow list is read", "Bash", { command: "grep -e{x,} --regexp '../outside/doc.txt'" }, REFUSED],
   ["C797", "git commit -m\"$o\", which Bash makes -m where o is unset, which takes the next -m as its message, so a quoted file outside the allow list is a pathspec", "Bash", { command: "git commit -m\"$o\" -m '../outside/doc.txt'" }, REFUSED],
+  /* The value word of an option that takes the next word, where the guard does not read it whole: Bash may
+     make it no word, as $o with o unset and {,} give none, or several, so the option takes the word after it.
+     Nothing from such a value is taken out. */
+  ["C798", "grep -e $o, which Bash makes no word where o is unset, so -e takes the next -e as its pattern and a quoted file outside the allow list is read", "Bash", { command: "grep -e $o -e '../outside/doc.txt'" }, REFUSED],
+  ["C799", "grep -e {,}, which Bash makes no word, so -e takes the next -e as its pattern and a quoted file outside the allow list is read", "Bash", { command: "grep -e {,} -e '../outside/doc.txt'" }, REFUSED],
+  ["C800", "grep --regexp $o, which Bash makes no word where o is unset, so --regexp takes -e as its pattern and a quoted file outside the allow list is read", "Bash", { command: "grep --regexp $o -e '../outside/doc.txt'" }, REFUSED],
+  ["C801", "git commit -m $o, which Bash makes no word where o is unset, so -m takes the next -m as its message and a quoted file outside the allow list is a pathspec", "Bash", { command: "git commit -m $o -m '../outside/doc.txt'" }, REFUSED],
 
   /* C52. What the options read as their programs read them still let through. */
   ["C521", "grep --binary -n whose pattern is an alternation of two one-letter keys", "Bash", { command: "grep --binary -n 'x: \\|y: ' README.md" }, ALLOWED],
@@ -2135,7 +2142,7 @@ function agrees(segment, call) {
 }
 
 for (const [id, what, tool, input] of cases) {
-  if (!/^C[5-7]\d\d$/.test(id) || tool !== "Bash") continue;
+  if (!/^C[5-8]\d\d$/.test(id) || tool !== "Bash") continue;
   const { command } = input;
   const read = bashReading?.(command);
   if (bashReading && (!read || !read.trusted)) {
