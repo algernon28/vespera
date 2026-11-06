@@ -144,6 +144,11 @@
 // blanked, offset for offset; git's index form, a listed command and the counting command are told from
 // the command as written. A PowerShell command is read whole.
 //
+// That reading is held against Bash itself (ADR-356, docs/adr/0356): bashReading exports it, and the test
+// runs each case's command in Bash with every trusted program replaced by a function that records the
+// arguments it is given. Imported by its URL with ?reading, this file decides no call; started by node,
+// as the wrapper starts it, it decides every one.
+//
 // A link is followed before the check. A path that holds .. is read twice, and either reading refuses:
 // as text, where .. folds against the name before it, and as the file system walks it, which starts from
 // the real path of the folder the path is read against (for an absolute path, from its root) and at each
@@ -1394,6 +1399,29 @@ function textsRead(command) {
   return { paths: blank([...flagged, ...bodies]), tokens: blank(bodies) };
 }
 
+// How the guard reads a Bash command, for src/test/hooks/private-paths-guard.test.mjs to hold against the
+// arguments Bash gives (ADR-356): null where the cut above does not read it, else whether section 4 trusts
+// it, and for each segment its program's word, the words Bash gives that program (argumentsOf) and the
+// spans textSpans takes out as text, each [start, end). Each word is { start, end, raw, value }, value
+// being the text the guard reads the shell as giving, or null where it does not know all of it. The guard
+// itself reads none of this: textsRead above is what decides.
+export function bashReading(command) {
+  const cut = bashSegments(command);
+  if (!cut) return null;
+  const read = (word) => ({ start: word.start, end: word.end, raw: word.raw, value: shellValue(word) });
+  return {
+    trusted: trusted(cut.segments),
+    segments: cut.segments.map(({ words }) => {
+      const at = programIndex(words);
+      return {
+        program: at < words.length ? read(words[at]) : null,
+        given: at < words.length ? argumentsOf(words, at).map(read) : [],
+        spans: textSpans(words),
+      };
+    }),
+  };
+}
+
 // What a command's text names: absolute paths, each as { label, text }, where text is read against the
 // current directory by the caller, and relative ones, each as rel -> { label, written }, where written
 // is how many times the command writes that token. A relative one is read against a directory by the
@@ -2004,4 +2032,7 @@ function main() {
   );
 }
 
-process.exitCode = main();
+// Imported by its URL with ?reading, for bashReading alone, the file decides no call (ADR-356 section 2).
+// node gives the file it is started on a URL with no query, so as the wrapper starts it, it decides every
+// call, and nothing a call holds can make it do otherwise.
+if (new URL(import.meta.url).search !== "?reading") process.exitCode = main();

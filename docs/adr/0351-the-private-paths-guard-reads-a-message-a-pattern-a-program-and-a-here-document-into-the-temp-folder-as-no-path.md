@@ -1,5 +1,7 @@
 # ADR-351 — The private-paths guard reads a message, a pattern, a program and a here-document into the temp folder as no path
 
+> **Partly amended — see [ADR-356](0356-the-private-paths-guards-reading-of-a-bash-command-is-held-against-the-arguments-bash-gives.md).** In §2's walk over the words of `grep`, `awk` and `jq`, and so for §1's `grep -e`, a word the guard does not read whole, or an option the program's table does not have, ends the walk, and no later `-e` or `--regexp` gives its argument as text. Everything else in this record stands.
+
 - **Date**: 2026-11-05
 - **Status**: accepted on 2026-11-05.
 - **Amends**: [ADR-196](0196-no-agent-reads-the-operators-documents-and-an-allow-list-hook-that-fails-closed-refuses-every-other-path.md) §4, what a Bash command's text is read for as paths: §1 to §3 below take some of that text out, and nothing else of §4 changes.
