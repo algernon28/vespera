@@ -2000,6 +2000,13 @@ cases.push(
   ["C787", "grep --label written into a file outside the allow list, the redirect's target standing where --label's value would", "Bash", { command: "grep --label >'../outside/out.txt' 'pat' README.md" }, REFUSED],
   ["C788", "jq --arg a written into a file outside the allow list, the redirect's target standing where --arg's value would", "Bash", { command: "jq --arg a >'../outside/out.txt' b '.'" }, REFUSED],
 
+  /* C78, continued. Forms the seventh gate of PR #709 found: digits against a redirect that Bash reads as
+     no descriptor, being more than an int holds, so they are the option's value and the word after the
+     redirect's target is read as the program's own. */
+  ["C789", "gh api --jq 2147483648>/dev/null, whose digits are --jq's value, then --input= of a file outside the allow list", "Bash", { command: "gh api --jq 2147483648>/dev/null --input=../outside/doc.txt repos/o/r" }, REFUSED],
+  ["C790", "git commit -m 2147483648>/dev/null, whose digits are the message, and a quoted file outside the allow list is a pathspec", "Bash", { command: "git commit -m 2147483648>/dev/null '../outside/doc.txt'" }, REFUSED],
+  ["C791", "grep -e 99999999999999999999>/dev/null, whose digits are the pattern, and a quoted file outside the allow list is read", "Bash", { command: "grep -e 99999999999999999999>/dev/null '../outside/doc.txt'" }, REFUSED],
+
   /* C52. What the options read as their programs read them still let through. */
   ["C521", "grep --binary -n whose pattern is an alternation of two one-letter keys", "Bash", { command: "grep --binary -n 'x: \\|y: ' README.md" }, ALLOWED],
   ["C522", "git --no-pager commit --author and -sm, whose message holds \\| and a word that begins with a slash", "Bash", { command: 'git --no-pager commit --author "A <a@b.c>" -sm "Split at \\| and keep /: as written"' }, ALLOWED],

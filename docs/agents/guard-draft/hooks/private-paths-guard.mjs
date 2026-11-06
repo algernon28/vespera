@@ -130,7 +130,7 @@
 // issue or pr that has them, where no option before it takes it as its value and no word before it is
 // an option the command's table does not have or one the shell may split or make an option, and
 // of grep's -e and --regexp, each read in the words Bash gives the program, with no redirect, its
-// target or the digits before it among them; the next word or
+// target or the descriptor number before it among them; the next word or
 // the text after the =; and the single-quoted first operand of grep, egrep, fgrep, awk, gawk, mawk and
 // jq where no option gives the pattern, the program or a file of them, an awk program only with no " in
 // it and a jq program only with no import, include or modulemeta. The text rule above still reads all of
@@ -1206,8 +1206,10 @@ function readOption(text, complete, spec) {
 
 // The words after a segment's program that Bash gives it, in order: a redirect operator, its target (but
 // for <<, whose delimiter is in its own text) and a word of digits alone that touches the operator after
-// it, as 2 in 2>&1, are taken out of them wherever they stand, as Bash takes them out. So an option that
-// takes a value takes the word after a redirect's target, and a target is never an option's value.
+// it and that Bash reads as a descriptor, a number an int holds (no more than 2147483647), as 2 in 2>&1,
+// are taken out of them wherever they stand, as Bash takes them out; larger digits stay an argument. So
+// an option that takes a value takes the word after a redirect's target, and a target is never its value.
+const MOST_DESCRIPTOR = 2147483647;
 function argumentsOf(words, at) {
   const given = [];
   for (let k = at + 1; k < words.length; k++) {
@@ -1216,7 +1218,7 @@ function argumentsOf(words, at) {
       if (word.op !== "<<") k++;
       continue;
     }
-    if (/^\d+$/.test(word.raw) && words[k + 1]?.op && words[k + 1].start === word.end) continue;
+    if (/^\d+$/.test(word.raw) && Number(word.raw) <= MOST_DESCRIPTOR && words[k + 1]?.op && words[k + 1].start === word.end) continue;
     given.push(word);
   }
   return given;
