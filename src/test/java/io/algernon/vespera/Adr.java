@@ -2480,7 +2480,7 @@ public final class Adr {
      * ADR-349 -- the two Docling images are built once, by {@code .github/workflows/docling-image.yml}, pushed to
      * {@code ghcr.io/algernon28/} as public packages under tags for base, parser and revision, never over a tag the
      * registry already holds, and pulled by digest (amends ADR-147, ADR-163 §2, ADR-170 §2, ADR-179 §2 and §4, and
-     * ADR-323 §2, §4 and §8).
+     * ADR-323 §2, §4 and §8). Superseded whole by ADR-354: the workflow and the test that held its shape are gone.
      */
     public static final String THE_DOCLING_IMAGES_ARE_BUILT_ONCE_AND_PULLED_BY_DIGEST =
             FILE + "0349-the-docling-images-are-built-once-pushed-to-ghcr-as-public-packages-never-over-a-tag-already-there-and-pulled-by-digest.md";
@@ -2522,6 +2522,15 @@ public final class Adr {
      */
     public static final String THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE = FILE
             + "0353-the-embedding-models-shipped-default-is-qwen3-embedding-8b-and-only-a-profile-naming-no-model-moves-its-scoring-run.md";
+
+    /**
+     * ADR-354 -- the two Docling images are built where they run, by {@code compose.yaml}, {@code compose.gpu.yaml}
+     * and {@code TestcontainersConfiguration} from the one {@code Containerfile}, under the {@code -r2} tags; no
+     * workflow pushes them to a registry, and the drift of a rebuild from CentOS's live repositories is accepted
+     * (supersedes ADR-349; keeps ADR-147, ADR-163 §2, ADR-170, ADR-179 §2 to §4 and ADR-323 §2, §4 and §8).
+     */
+    public static final String THE_DOCLING_IMAGES_ARE_BUILT_WHERE_THEY_RUN_AND_NO_WORKFLOW_PUSHES_THEM =
+            FILE + "0354-the-docling-images-are-built-where-they-run-from-the-one-containerfile-and-no-workflow-pushes-them-to-a-registry.md";
 
     /**
      * ADR-355 -- the architect's gate gains a ninth item: the changed code is probed against each sentence of the

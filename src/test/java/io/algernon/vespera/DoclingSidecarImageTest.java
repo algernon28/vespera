@@ -15,8 +15,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
@@ -43,6 +45,9 @@ import org.yaml.snakeyaml.Yaml;
  * it, and starts through a launcher that adds it to the sidecar's {@code /version} report, where stage 2
  * compares it with the configured name before recording anything. That change made a different image,
  * so both tags carry a revision of Vespera's own layers, {@code -r2}, after the base and the parser.
+ *
+ * <p>Since ADR-354 the images are built where they run and nowhere else: no workflow of the repository builds them
+ * to push them to a registry, so the only images under these names are the ones each machine built for itself.
  *
  * <p>Read from the files themselves, with no Docker: each fact here is a line an operator can edit.
  */
@@ -98,13 +103,29 @@ class DoclingSidecarImageTest {
     private static final String BASE_ARG = "DOCLING_SERVE_BASE";
 
     /** The base every build uses unless told otherwise: docling-serve's CPU image, at the pinned release. */
-    static final String CPU_BASE = "quay.io/docling-project/docling-serve-cpu:v1.32.0";
+    private static final String CPU_BASE = "quay.io/docling-project/docling-serve-cpu:v1.32.0";
 
     /**
      * docling-serve's CUDA 12.8 image, without its tag: the RTX 50 series needs CUDA 12.8 or later, and
      * {@code cu126} has no v1.32.0 tag (ADR-170).
      */
-    static final String GPU_BASE_REPOSITORY = "quay.io/docling-project/docling-serve-cu128";
+    private static final String GPU_BASE_REPOSITORY = "quay.io/docling-project/docling-serve-cu128";
+
+    /** Where GitHub reads the repository's workflows from, relative to the same root. */
+    private static final Path WORKFLOWS = Path.of(".github", "workflows");
+
+    /** The workflow that built the two images to push them, which ADR-354 removes. */
+    private static final String THE_PUSHING_WORKFLOW = "docling-image.yml";
+
+    /** GitHub's container registry, where the repository's owner keeps packages. */
+    private static final String GITHUB_REGISTRY = "ghcr.io";
+
+    /** A command or an action that sends an image to a registry. */
+    private static final Pattern PUSHES_AN_IMAGE =
+            Pattern.compile("\\bdocker\\s+(image\\s+)?push\\b|build-push-action|\\s--push\\b");
+
+    /** The permission a workflow's token needs to write the repository's packages. */
+    private static final Pattern WRITES_PACKAGES = Pattern.compile("\\bpackages\\s*:\\s*write\\b");
 
     @Test
     @Story("One image, named the same everywhere")
@@ -324,6 +345,55 @@ class DoclingSidecarImageTest {
                 () -> assertThat(buildArgs(gpu)).containsEntry(IMAGE_NAME_ARG, (String) gpu.get("image")));
     }
 
+    @Test
+    @Story("The image with LibreOffice is built here and runs locked down")
+    @DisplayName("No workflow sends the converter's images to a registry, so each machine runs the image it built")
+    @Link(name = "ADR-354", url = Adr.THE_DOCLING_IMAGES_ARE_BUILT_WHERE_THEY_RUN_AND_NO_WORKFLOW_PUSHES_THEM, type = "adr")
+    void noWorkflowPushesTheImagesToARegistry() throws IOException {
+        Map<String, String> workflows = workflows();
+
+        claim(
+                "the repository has workflows to read under " + WORKFLOWS + ", so a check of none is not a check"
+                        + " that passed",
+                () -> assertThat(workflows).isNotEmpty());
+        claim(
+                "the workflow that built the two images to push them, " + THE_PUSHING_WORKFLOW + ", is gone",
+                () -> assertThat(workflows).doesNotContainKey(THE_PUSHING_WORKFLOW));
+        claim(
+                "no workflow names " + GITHUB_REGISTRY + ", the registry the images would be sent to",
+                () -> assertThat(workflows).allSatisfy((name, text) -> assertThat(text)
+                        .as("the workflow %s", name)
+                        .doesNotContain(GITHUB_REGISTRY)));
+        claim(
+                "no workflow sends an image to any registry, with docker push, a build that pushes, or an action"
+                        + " that does",
+                () -> assertThat(workflows).allSatisfy((name, text) -> assertThat(text)
+                        .as("the workflow %s", name)
+                        .doesNotContainPattern(PUSHES_AN_IMAGE)));
+        claim(
+                "and no workflow's token may write the repository's packages, so none could push one if it tried",
+                () -> assertThat(workflows).allSatisfy((name, text) -> assertThat(text)
+                        .as("the workflow %s", name)
+                        .doesNotContainPattern(WRITES_PACKAGES)));
+    }
+
+    /** Each workflow file's text, by its file name, or an empty map where the folder holds none. */
+    private static Map<String, String> workflows() throws IOException {
+        Map<String, String> workflows = new TreeMap<>();
+        if (!Files.isDirectory(WORKFLOWS)) {
+            return workflows;
+        }
+        try (Stream<Path> files = Files.list(WORKFLOWS)) {
+            for (Path file : files.filter(Files::isRegularFile).toList()) {
+                String name = file.getFileName().toString();
+                if (name.endsWith(".yml") || name.endsWith(".yaml")) {
+                    workflows.put(name, Files.readString(file));
+                }
+            }
+        }
+        return workflows;
+    }
+
     /** A service's {@code build.args}, empty where it passes none. */
     @SuppressWarnings("unchecked")
     private static Map<String, String> buildArgs(Map<String, Object> service) {
@@ -372,11 +442,8 @@ class DoclingSidecarImageTest {
                 .toList();
     }
 
-    /**
-     * The release after {@code docling-parse==} in the {@code Containerfile}, or {@code null} if nothing pins one.
-     * Shared with {@link DoclingImageWorkflowTest}, whose tags name the same release.
-     */
-    static String pinnedParserVersion() throws IOException {
+    /** The release after {@code docling-parse==} in the {@code Containerfile}, or {@code null} if nothing pins one. */
+    private static String pinnedParserVersion() throws IOException {
         for (String instruction : instructionsInstallingTheParser()) {
             Matcher pin = PINNED_PARSER.matcher(instruction);
             if (pin.find()) {
@@ -389,9 +456,8 @@ class DoclingSidecarImageTest {
     /**
      * The tag of the image the {@code Containerfile} is built {@code FROM} when no build argument is
      * passed: the {@code FROM} line's own image, or, where it names an {@code ARG}, that argument's default.
-     * Shared with {@link DoclingImageWorkflowTest}, whose tags and bases name the same release.
      */
-    static String baseTag() throws IOException {
+    private static String baseTag() throws IOException {
         List<String> instructions = instructions();
         String from = instructions.stream()
                 .filter(instruction -> instruction.startsWith("FROM "))

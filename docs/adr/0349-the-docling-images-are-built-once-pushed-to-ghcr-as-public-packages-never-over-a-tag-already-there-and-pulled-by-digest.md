@@ -1,5 +1,7 @@
 # ADR-349 — The Docling images are built once, pushed to GHCR as public packages never over a tag already there, and pulled by digest
 
+> **Superseded — see ADR-354.** [ADR-354](0354-the-docling-images-are-built-where-they-run-from-the-one-containerfile-and-no-workflow-pushes-them-to-a-registry.md) **supersedes this record** whole: the Docling images are built where they run, by the compose files and `TestcontainersConfiguration` from the `Containerfile`, under the `-r2` tags; `.github/workflows/docling-image.yml` goes, nothing is pushed to a registry, and part 2 is not built. The five records this one amended stand as they did before it.
+
 - **Date**: 2026-11-05
 - **Status**: accepted on 2026-11-05.
 - **Decided**: by the operator, who decided that both Docling images, the processor build and the CUDA build, are built once, pushed to the GitHub Container Registry as public packages under `algernon28`, and pulled by their `sha256` digest; that pinning a dated CentOS Stream 9 compose is not the way, because CentOS keeps those composes for about four weeks; and that the move costs one new tag and so one re-extraction of the corpus. The names, the tags, the workflow, its triggers and permissions, the disk, how the digest is pinned and what the starter becomes are decided under delegation.
@@ -190,7 +192,7 @@ The identity is composed as before: `image=<vespera.docling.image>`, the whole `
 
 ## Tests
 
-Part 1, `DoclingImageWorkflowTest` (unit, no Docker, reads `.github/workflows/docling-image.yml` with SnakeYAML and the `Containerfile` as `DoclingSidecarImageTest` reads it):
+Part 1, `DoclingImageWorkflowTest` (removed: ADR-354 supersedes this record, and the workflow goes) (unit, no Docker, reads `.github/workflows/docling-image.yml` with SnakeYAML and the `Containerfile` as `DoclingSidecarImageTest` reads it):
 
 - `startsOnADispatchOrOnAChangeToTheImageOnMain`: the triggers are exactly `workflow_dispatch` and `push`; `push` names branch `main` alone and path `docker/docling-serve/**` alone; and the job's `if` is `github.ref == 'refs/heads/main'` and nothing else, so a dispatch from another branch runs nothing.
 - `holdsNoPermissionButReadingTheRepositoryAndWritingItsPackages`: the workflow's permissions are exactly `contents: read` and `packages: write`, no job declares its own, the only secret named is `GITHUB_TOKEN`, and the checkout keeps no credential.
@@ -204,7 +206,7 @@ Part 1, `DoclingImageWorkflowTest` (unit, no Docker, reads `.github/workflows/do
 
 Part 2, owed by the change that pins:
 
-- `DoclingSidecarImageTest`: `namesOneImageEverywhere` reads `compose.yaml`'s image up to its `@`, and that, `vespera.docling.image`, `TestcontainersConfiguration.DOCLING_SERVE_IMAGE` and the workflow's processor reference are one; `compose.gpu.yaml`'s, up to its `@`, is the workflow's CUDA reference; both compose images end in `@sha256:` and 64 hexadecimal digits, and `TestcontainersConfiguration.DOCLING_SERVE_DIGEST` is `compose.yaml`'s; `tagsTheImageForItsBaseAndItsParser` and `tagsTheGpuImageApartWithTheSameSuffix` read each tag up to its `@`; `buildsTheImageAndRunsItLockedDown` becomes a claim that the service pulls, has no `build`, and runs locked down as before; `eachComposeFilePassesTheImageItsOwnName` and `buildsTheGpuImageOnCu128AtTheSameRelease` move to `DoclingImageWorkflowTest`, which holds them already; the revision is `-r3`.
+- `DoclingSidecarImageTest`: `namesOneImageEverywhere` reads `compose.yaml`'s image up to its `@`, and that, `vespera.docling.image`, `TestcontainersConfiguration.DOCLING_SERVE_IMAGE` and the workflow's processor reference are one; `compose.gpu.yaml`'s, up to its `@`, is the workflow's CUDA reference; both compose images end in `@sha256:` and 64 hexadecimal digits, and `TestcontainersConfiguration.DOCLING_SERVE_DIGEST` is `compose.yaml`'s; `tagsTheImageForItsBaseAndItsParser` and `tagsTheGpuImageApartWithTheSameSuffix` read each tag up to its `@`; `buildsTheImageAndRunsItLockedDown` becomes a claim that the service pulls, has no `build`, and runs locked down as before; `eachComposeFilePassesTheImageItsOwnName` and `buildsTheGpuImageOnCu128AtTheSameRelease` move to `DoclingImageWorkflowTest` (removed: ADR-354), which held them; the revision is `-r3`.
 - `OllamaGpuOverrideTest`: `compose.gpu.yaml`'s `docling-serve` carries exactly `image` and `deploy`.
 - `SidecarStartTest`: every `up` carries `--no-recreate` and no `--build`; an image compared up to its `@`; the refusal for an image no file runs.
 - `ComposeFilesTest` and `PackagedJarIT`: the jar carries the two compose files under `sidecars/` and nothing under `docker/`.
