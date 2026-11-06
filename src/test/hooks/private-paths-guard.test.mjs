@@ -25,6 +25,10 @@
 // program of grep, awk or jq, and the lines of a quoted here-document cat writes into the temp folder are
 // not read as paths, and those lines not for a .claude folder either; nothing is taken out of a command
 // that may change what a program's name runs. The C5, C6 and C7 cases are held to it.
+// docs/adr/0356 holds that reading against Bash itself: each C case's command that the guard cuts and
+// trusts is run in Bash, every program the guard trusts replaced by a function that records the
+// arguments Bash gives it, and the guard's reading, which it exports as bashReading, is compared with
+// them. C792 to C803 are the forms it amends docs/adr/0351 sections 1 and 2 by.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -109,7 +113,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ALLOWED = 0;
 const REFUSED = 2;
@@ -2007,6 +2011,30 @@ cases.push(
   ["C790", "git commit -m 2147483648>/dev/null, whose digits are the message, and a quoted file outside the allow list is a pathspec", "Bash", { command: "git commit -m 2147483648>/dev/null '../outside/doc.txt'" }, REFUSED],
   ["C791", "grep -e 99999999999999999999>/dev/null, whose digits are the pattern, and a quoted file outside the allow list is read", "Bash", { command: "grep -e 99999999999999999999>/dev/null '../outside/doc.txt'" }, REFUSED],
 
+  /* C79. Forms the reading held against Bash found (docs/adr/0356 section 3): a word before grep's -e that the guard
+     cannot read whole, which Bash may make an option that takes that -e as its value, so the word after it
+     is no pattern but a file grep reads. Nothing after such a word is taken out. */
+  ["C792", "grep {-e,}, which Bash makes -e, which takes the next -e as its pattern, so a quoted file outside the allow list is read", "Bash", { command: "grep {-e,} -e '../outside/doc.txt'" }, REFUSED],
+  ["C793", "grep $o, which may be an option that takes -e as its value, so a quoted file outside the allow list is read", "Bash", { command: "grep $o -e '../outside/doc.txt'" }, REFUSED],
+  /* A word headed by an option letter that takes a value, whose value the guard does not know: Bash may
+     leave the letter bare, as -e"$o" with o unset gives -e, or make a second word of it, as -e{x,} gives
+     -ex and -e, and that -e takes the next -e as its pattern. Nothing after such a word is taken out. */
+  ["C794", "grep -e{x,}, which Bash makes -ex and -e, which takes the next -e as its pattern, so a quoted file outside the allow list is read", "Bash", { command: "grep -e{x,} -e '../outside/doc.txt'" }, REFUSED],
+  ["C795", "grep -e\"$o\", which Bash makes -e where o is unset, which takes the next -e as its pattern, so a quoted file outside the allow list is read", "Bash", { command: "grep -e\"$o\" -e '../outside/doc.txt'" }, REFUSED],
+  ["C796", "grep -e{x,}, which Bash makes -ex and -e, which takes --regexp as its pattern, so a quoted file outside the allow list is read", "Bash", { command: "grep -e{x,} --regexp '../outside/doc.txt'" }, REFUSED],
+  ["C797", "git commit -m\"$o\", which Bash makes -m where o is unset, which takes the next -m as its message, so a quoted file outside the allow list is a pathspec", "Bash", { command: "git commit -m\"$o\" -m '../outside/doc.txt'" }, REFUSED],
+  /* The value word of an option that takes the next word, where the guard does not read it whole: Bash may
+     make it no word, as $o with o unset and {,} give none, or several, so the option takes the word after it.
+     Nothing from such a value is taken out. */
+  ["C798", "grep -e $o, which Bash makes no word where o is unset, so -e takes the next -e as its pattern and a quoted file outside the allow list is read", "Bash", { command: "grep -e $o -e '../outside/doc.txt'" }, REFUSED],
+  ["C799", "grep -e {,}, which Bash makes no word, so -e takes the next -e as its pattern and a quoted file outside the allow list is read", "Bash", { command: "grep -e {,} -e '../outside/doc.txt'" }, REFUSED],
+  ["C800", "grep --regexp $o, which Bash makes no word where o is unset, so --regexp takes -e as its pattern and a quoted file outside the allow list is read", "Bash", { command: "grep --regexp $o -e '../outside/doc.txt'" }, REFUSED],
+  ["C801", "git commit -m $o, which Bash makes no word where o is unset, so -m takes the next -m as its message and a quoted file outside the allow list is a pathspec", "Bash", { command: "git commit -m $o -m '../outside/doc.txt'" }, REFUSED],
+  /* An option that takes two value words, jq's --arg and --argjson: the second is read as the first is, and
+     a brace list there may give more words than one, so the word after it is no program but jq's input. */
+  ["C802", "jq --arg a {x,.}, which Bash makes x and ., so . is the program and a quoted file outside the allow list is jq's input", "Bash", { command: "jq --arg a {x,.} '../outside/doc.txt'" }, REFUSED],
+  ["C803", "jq --argjson a {1,2}, which Bash makes 1 and 2, so 2 is the program and a quoted file outside the allow list is jq's input", "Bash", { command: "jq --argjson a {1,2} '../outside/doc.txt' '.'" }, REFUSED],
+
   /* C52. What the options read as their programs read them still let through. */
   ["C521", "grep --binary -n whose pattern is an alternation of two one-letter keys", "Bash", { command: "grep --binary -n 'x: \\|y: ' README.md" }, ALLOWED],
   ["C522", "git --no-pager commit --author and -sm, whose message holds \\| and a word that begins with a slash", "Bash", { command: 'git --no-pager commit --author "A <a@b.c>" -sm "Split at \\| and keep /: as written"' }, ALLOWED],
@@ -2036,6 +2064,135 @@ for (const [id, what, tool, input, expected, options = {}] of cases) {
     const cwd = options.noCwd ? undefined : (options.cwd ?? C);
     const result = startGuard({ stdin: hookInput(tool, input, cwd), env: options.env, startedIn: options.startedIn });
     claim(result, expected, `${tool} ${JSON.stringify(input)} with ${cwd ? `the current directory ${cwd}` : "no current directory given"}`);
+  });
+}
+
+/* ---------- each C case's reading, held against the arguments Bash gives ---------- */
+
+// docs/adr/0356 section 1: what the guard takes out of a Bash command as text rests on its reading of the
+// command's words: which word is each segment's program, which words Bash gives that program once the
+// redirects are taken out (argumentsOf), and which of those a flag or an operand gives as text
+// (textSpans). Each C case's command that the guard cuts and trusts (docs/adr/0351 section 4) is run in
+// Bash itself, with every program section 4 trusts replaced by a function that appends the name it was
+// called by, how many arguments it was given and each argument, each ended by a NUL, to a file of its own;
+// redirects, here-documents, quotes and brace and variable expansion stay Bash's. The command runs in a
+// folder of this fixture with a TEMP, TMP and TMPDIR of its own, exported as the script starts since a
+// Git Bash may set TEMP to /tmp itself, so its relative and $TEMP targets land beside it, and nothing but
+// a stand-in runs. A case the guard reads whole has nothing taken out, and is not run.
+//
+// The reading is imported from the guard that is held, by its URL with ?reading, under which the guard
+// decides no call (docs/adr/0356 section 2). A guard that exports none fails every one of these, and so
+// does a machine on which no bash can be started, so that neither ends green having compared nothing.
+const TRUSTED_BY_THE_RECORD = ["git", "gh", "grep", "egrep", "fgrep", "awk", "gawk", "mawk", "jq", "cat", "cd", "echo", "true", "ls", "head", "tail", "wc", "sort"];
+const READING_EXPORTED = /^export function bashReading\(/m.test(readFileSync(held(GUARD), "utf8"));
+const bashReading = READING_EXPORTED ? (await import(`${pathToFileURL(held(GUARD)).href}?reading`)).bashReading : null;
+const NO_READING = `${held(GUARD)} exports no bashReading, so there is no reading of the guard's to hold against Bash's (docs/adr/0356 section 2)`;
+
+const BESIDE = `${base}/bash-arguments`;
+const BESIDE_CWD = `${BESIDE}/run`;
+const BESIDE_TEMP = `${BESIDE}/temp`;
+for (const folder of [`${BESIDE_CWD}/src`, `${BESIDE}/outside`, `${BESIDE_TEMP}/elsewhere/.claude`, `${BESIDE_TEMP}/lower-case`]) {
+  mkdirSync(folder, { recursive: true });
+}
+// The child is given TEMP, TMP and TMPDIR, and a Git Bash may still set TEMP and TMP to /tmp as it starts,
+// which is the runner's own temp folder: so each is exported again as the script starts. C723 writes into
+// $temp, which Bash reads as no variable of the environment; given a value here, its file lands in this
+// fixture and not at the root. No argument of any call changes.
+const STAND_INS = [
+  `export TEMP='${BESIDE_TEMP}' TMP='${BESIDE_TEMP}' TMPDIR='${BESIDE_TEMP}'`,
+  `temp='${BESIDE_TEMP}/lower-case'`,
+  ...TRUSTED_BY_THE_RECORD.map((name) => `${name}() { printf '%s\\0' ${name} "$#" "$@" >> "$VESPERA_ARGUMENT_LOG"; }`),
+].join("\n");
+
+// The calls Bash made of the stand-ins, in order, each the name it was called by and its arguments.
+function callsBashMade(log) {
+  const parts = readFileSync(log, "utf8").split("\0");
+  const calls = [];
+  for (let i = 0; i + 1 < parts.length; ) {
+    const count = Number(parts[i + 1]);
+    calls.push({ name: parts[i], given: parts.slice(i + 2, i + 2 + count) });
+    i += 2 + count;
+  }
+  return calls;
+}
+
+function runInBash(id, command) {
+  const log = `${BESIDE}/${id}.log`;
+  const script = `${BESIDE}/${id}.sh`;
+  writeFileSync(log, "");
+  writeFileSync(script, `${STAND_INS}\n${command}\n`);
+  const result = spawnSync(bash, [script], {
+    cwd: BESIDE_CWD,
+    input: "",
+    encoding: "utf8",
+    timeout: 60_000,
+    windowsHide: true,
+    env: childEnv({ TEMP: BESIDE_TEMP, TMP: BESIDE_TEMP, TMPDIR: BESIDE_TEMP, VESPERA_ARGUMENT_LOG: log, o: undefined, BASH_ENV: undefined, ENV: undefined }),
+  });
+  return { result, calls: result.error ? [] : callsBashMade(log) };
+}
+
+const listed = (values) => values.map((value) => `[${value}]`).join("") || "no argument";
+const listedAsRead = (words) => words.map((word) => (word.value === null ? `${word.raw} (not read whole)` : `[${word.value}]`)).join("") || "no argument";
+const listedCalls = (calls) => calls.map((call) => `${call.name} ${listed(call.given)}`).join("; ") || "no call of any program the record trusts";
+// A segment's reading agrees with a call where the program is the one called, every argument up to the
+// first word the guard cannot read whole is the one Bash gave, and, where it reads every word whole,
+// Bash gave no more.
+function agrees(segment, call) {
+  if (call.name !== segment.program.value) return false;
+  const unread = segment.given.findIndex((word) => word.value === null);
+  const known = unread < 0 ? segment.given : segment.given.slice(0, unread);
+  return known.every((word, i) => call.given[i] === word.value) && (unread >= 0 || call.given.length === segment.given.length);
+}
+
+for (const [id, what, tool, input] of cases) {
+  if (!/^C[5-8]\d\d$/.test(id) || tool !== "Bash") continue;
+  const { command } = input;
+  const read = bashReading?.(command);
+  if (bashReading && (!read || !read.trusted)) {
+    test(`${id} read whole, as Bash need not be asked: ${what}`, () => {
+      assert.ok(!read || !read.trusted, `the guard cuts and trusts ${JSON.stringify(command)}, so Bash's reading of it must be compared`);
+    });
+    continue;
+  }
+  test(`${id} read as Bash gives its arguments: ${what}`, () => {
+    assert.ok(bashReading, NO_READING);
+    const { result, calls } = runInBash(id, command);
+    assert.ok(!result.error, `no bash could be started (${bash}): ${result.error?.message}; the guard's reading of ${JSON.stringify(command)} was held against nothing`);
+    const said = `What Bash wrote: ${(result.stderr || "").trim() || "(nothing)"}`;
+    const segments = read.segments.filter((segment) => segment.program && TRUSTED_BY_THE_RECORD.includes(segment.program.value));
+    for (const segment of segments) {
+      assert.ok(
+        calls.some((call) => agrees(segment, call)),
+        `the guard reads ${segment.program.value} as given ${listedAsRead(segment.given)}, and Bash made ${listedCalls(calls)}. ${said}`,
+      );
+    }
+    for (const call of calls) {
+      assert.ok(
+        segments.some((segment) => agrees(segment, call)),
+        `Bash called ${call.name} with ${listed(call.given)}, which no segment the guard read gives that program. ${said}`,
+      );
+    }
+    for (const segment of read.segments) {
+      for (const [from, to] of segment.spans) {
+        const text = command.slice(from, to);
+        const at = segment.given.findIndex((word) => word.start <= from && to <= word.end);
+        const word = segment.given[at];
+        assert.ok(
+          word && to === word.end && (from === word.start || word.raw[from - word.start - 1] === "="),
+          `the guard takes ${text} out as text, and it is not the whole of a word ${segment.program?.value} is given, nor what follows the = of one`,
+        );
+        const unread = segment.given.slice(0, at + 1).find((before) => before.value === null);
+        const call = calls.find((made) => agrees(segment, made));
+        assert.equal(
+          unread,
+          undefined,
+          `the guard takes ${text} out as text, argument ${at + 1} of ${segment.program.value}, after ${unread?.raw}, a word it cannot read ` +
+            `whole, and Bash gave ${segment.program.value} ${listed(call?.given ?? [])}: what the program reads in ${text} rests on every argument before it`,
+        );
+        assert.equal(call.given[at], word.value, `the guard takes ${text} out as argument ${at + 1} of ${segment.program.value}, ${word.value}, and Bash gave ${listed(call.given)}`);
+      }
+    }
   });
 }
 
