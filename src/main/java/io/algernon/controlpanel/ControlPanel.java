@@ -35,7 +35,9 @@ public final class ControlPanel {
      * Opens the window and answers once it has closed. Where the class path names no jar the answer is
      * {@link Opening.Result#NO_JAR} with the refusal's line and no window is tried; where the toolkit throws as it starts,
      * on a machine with no display or from a jar built for another platform, {@link Opening.Result#NO_WINDOW} with
-     * what it threw (ADR-342 §2).
+     * what it threw (ADR-342 §2). {@link ClassPathLine#install()} runs in step 3 of ADR-342 §2, immediately before
+     * {@code Application.launch}, inside the attempt whose throw answers {@link Opening.Result#NO_WINDOW}, and drops JavaFX's class path line from its
+     * logger before the toolkit starts (ADR-360 §2).
      */
     public static Opening open() {
         ChildRuntime runtime;
@@ -57,6 +59,7 @@ public final class ControlPanel {
         endChildWithThisJvm(state);
         ControlPanelWindow.launchedWith(state);
         try {
+            ClassPathLine.install();
             Application.launch(ControlPanelWindow.class);
         } catch (RuntimeException | LinkageError cannotStart) {
             String message = cannotStart.getMessage();

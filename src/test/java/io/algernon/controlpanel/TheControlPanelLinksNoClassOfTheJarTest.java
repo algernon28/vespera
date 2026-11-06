@@ -34,13 +34,18 @@ import org.junit.jupiter.api.Test;
  * The control panel is outside {@code io.algernon.vespera}, so {@code ModuleBoundariesTest} does not see it; this is
  * the boundary that holds it. JavaFX and Jackson run on the class path, in no named module, so they are admitted by
  * their packages; the JDK's modules by the module a type is loaded from.
+ *
+ * <p>One class names one JDK module more (ADR-360 §3): {@code ClassPathLine}, the filter the control panel's start puts
+ * on JavaFX's logger, names {@code java.logging}, and no other class of the control panel does.
  */
 @Epic("Architecture")
 @Feature("Module boundaries")
 @Issue("562")
 @Issue("700")
+@Issue("723")
 @Link(name = "ADR-285", url = Adr.THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR, type = "adr")
 @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+@Link(name = "ADR-360", url = Adr.THE_CONTROL_PANEL_DROPS_JAVAFXS_CLASS_PATH_LINE, type = "adr")
 class TheControlPanelLinksNoClassOfTheJarTest {
 
     private static final String CONTROL_PANEL = "io.algernon.controlpanel";
@@ -49,6 +54,12 @@ class TheControlPanelLinksNoClassOfTheJarTest {
 
     /** The JDK modules whose types the control panel may name: the base alone. */
     private static final Set<String> JDK_MODULES = Set.of("java.base");
+
+    /** The one class of the control panel that may also name {@code java.logging}: the filter on JavaFX's logger. */
+    private static final String THE_CLASS_PATH_LINE = CONTROL_PANEL + ".ClassPathLine";
+
+    /** The JDK modules that class may name: the base, and the one {@code java.util.logging} is in. */
+    private static final Set<String> JDK_MODULES_OF_THE_CLASS_PATH_LINE = Set.of("java.base", "java.logging");
 
     /** The packages of libraries the control panel may name, by their names' beginnings: JavaFX's API, and Jackson's. */
     private static final List<String> LIBRARY_PACKAGES = List.of("javafx.", "tools.jackson.");
@@ -68,16 +79,35 @@ class TheControlPanelLinksNoClassOfTheJarTest {
 
     @Test
     @Story("The control panel and the jar meet only at the process")
-    @DisplayName("The control panel names only types of its own package, of the JDK's base module, of JavaFX and of Jackson")
+    @DisplayName("Every class of the control panel but its filter on JavaFX's logger names only types of its own package, of the JDK's base module, of JavaFX and of Jackson")
     void theControlPanelNamesOnlyTypesOfItsOwnPackageTheJdksBaseJavaFxAndJackson() {
         claim("the import read the control panel's compiled classes, checked by one it must hold",
                 () -> assertThat(CONTROL_PANEL_CLASSES.contain(A_CLASS_OF_THE_CONTROL_PANEL)).isTrue());
-        claim("and every type each of them names is of the control panel's own package, of the JDK's java.base, of a"
-                        + " javafx package or of Jackson, so none is of the jar, of Spring, of the JDK's database,"
-                        + " desktop or HTTP server modules, or of JavaFX's internals",
+        claim("and every type each of them but the filter on JavaFX's logger names is of the control panel's own"
+                        + " package, of the JDK's java.base, of a javafx package or of Jackson, so none is of the jar, of"
+                        + " Spring, of the JDK's logging, database, desktop or HTTP server modules, or of JavaFX's"
+                        + " internals",
                 () -> assertThatCode(() -> classes()
                                 .that().resideInAPackage(CONTROL_PANEL + "..")
-                                .should().onlyDependOnClassesThat(ofTheControlPanelOrWhatItMayName())
+                                .and(DescribedPredicate.not(theClassPathLine()))
+                                .should().onlyDependOnClassesThat(ofTheControlPanelOrWhatItMayName(JDK_MODULES))
+                                .check(CONTROL_PANEL_CLASSES))
+                        .doesNotThrowAnyException());
+    }
+
+    @Test
+    @Story("The control panel and the jar meet only at the process")
+    @DisplayName("The control panel's filter on JavaFX's logger names what the rest may name, and the JDK's logging module besides")
+    void onlyTheClassPathLineNamesTheJdksLoggingModule() {
+        claim("the import read the filter the control panel puts on JavaFX's logger",
+                () -> assertThat(CONTROL_PANEL_CLASSES.contain(THE_CLASS_PATH_LINE)).isTrue());
+        claim("and every type it names is of the control panel's own package, of the JDK's java.base or java.logging,"
+                        + " of a javafx package or of Jackson, so it names nothing of the jar, of Spring or of JavaFX's"
+                        + " internals, and knows JavaFX's logger by its name alone",
+                () -> assertThatCode(() -> classes()
+                                .that(theClassPathLine())
+                                .should().onlyDependOnClassesThat(
+                                        ofTheControlPanelOrWhatItMayName(JDK_MODULES_OF_THE_CLASS_PATH_LINE))
                                 .check(CONTROL_PANEL_CLASSES))
                         .doesNotThrowAnyException());
     }
@@ -115,9 +145,15 @@ class TheControlPanelLinksNoClassOfTheJarTest {
                 .importPackages(basePackage);
     }
 
-    private static DescribedPredicate<JavaClass> ofTheControlPanelOrWhatItMayName() {
+    /** The filter on JavaFX's logger. */
+    private static DescribedPredicate<JavaClass> theClassPathLine() {
+        return DescribedPredicate.describe("are " + THE_CLASS_PATH_LINE,
+                type -> type.getName().equals(THE_CLASS_PATH_LINE));
+    }
+
+    private static DescribedPredicate<JavaClass> ofTheControlPanelOrWhatItMayName(Set<String> jdkModules) {
         return DescribedPredicate.describe(
-                "are of " + CONTROL_PANEL + ", of the JDK modules " + JDK_MODULES + " or of the packages beginning "
+                "are of " + CONTROL_PANEL + ", of the JDK modules " + jdkModules + " or of the packages beginning "
                         + LIBRARY_PACKAGES,
                 type -> {
                     JavaClass base = type.getBaseComponentType();
@@ -132,7 +168,7 @@ class TheControlPanelLinksNoClassOfTheJarTest {
                         Module module = Class.forName(
                                         base.getName(), false, TheControlPanelLinksNoClassOfTheJarTest.class.getClassLoader())
                                 .getModule();
-                        return module.isNamed() && JDK_MODULES.contains(module.getName());
+                        return module.isNamed() && jdkModules.contains(module.getName());
                     } catch (ClassNotFoundException notOnTheClassPath) {
                         return false;
                     }
