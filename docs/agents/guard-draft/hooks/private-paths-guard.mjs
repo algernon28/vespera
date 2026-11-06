@@ -120,6 +120,30 @@
 // holds << (a here-document or here-string), a PowerShell
 // typographic quote or --%. One letter and a colon stays a drive, and a name of spaces stays refused.
 //
+// In a Bash command some text is no path (ADR-351, docs/adr/0351, which amends ADR-196 section 4 and
+// ADR-215 section 3(c)). Where the command can be cut into words and segments as Bash cuts it and no
+// expansion in it may assign or run (no ( ) or backtick outside quotes, no $( ${ $[ or backtick inside
+// double quotes, no $' $" $( ${ or $[ outside quotes, no unpaired quote, no backslash before a line
+// break, no here-string, no here-document whose delimiter is not quoted), the guard does not read for paths:
+// the literal argument of git's -m and --message after commit, tag, merge, stash push or a bare stash (and -m ending a
+// cluster of letters that take nothing there), of gh's --jq, -q and --body after api or a subcommand of
+// issue or pr that has them, where no option before it takes it as its value and no word before it is
+// an option the command's table does not have or one the shell may split or make an option, and
+// of grep's -e and --regexp, each read in the words Bash gives the program, with no redirect, its
+// target or the descriptor number before it among them; the next word or
+// the text after the =; and the single-quoted first operand of grep, egrep, fgrep, awk, gawk, mawk and
+// jq where no option gives the pattern, the program or a file of them, an awk program only with no " in
+// it and a jq program only with no import, include or modulemeta. The text rule above still reads all of
+// these. And the lines of a here-document whose delimiter is quoted, on a line that is cat, > or >> and
+// one file beneath the folder ${TEMP} names and nothing else, are read for neither, the variable TEMP,
+// TMP or TMPDIR spelled as an environment key, case for case. Each program's options are read from a
+// table of them, and one it does not have takes nothing out. Something is taken out only of a command
+// every segment of which runs a program of a fixed set (those above, cd, echo, true, ls, head, tail, wc
+// and sort) or is a for loop over a lower-case name, with no assignment before a program and no {NAME}
+// redirect: anything else may change what a name runs or what a variable holds. That text is
+// blanked, offset for offset; git's index form, a listed command and the counting command are told from
+// the command as written. A PowerShell command is read whole.
+//
 // A link is followed before the check. A path that holds .. is read twice, and either reading refuses:
 // as text, where .. folds against the name before it, and as the file system walks it, which starts from
 // the real path of the folder the path is read against (for an absolute path, from its root) and at each
@@ -773,11 +797,610 @@ function gitIndexForms(command, bash) {
   return result;
 }
 
+// Text that is no path (ADR-351). A Bash command is cut into its words and segments as the shell cuts
+// them, or not at all where this reading may not be the shell's, or where an expansion in it may run or
+// assign: a ( ) or backtick outside quotes, a $( ${ $[ or backtick inside double quotes, a $' $" $( ${ or
+// $[ outside quotes, a quote left unpaired, a backslash before a line break or at the end, a here-string,
+// and a here-document whose delimiter is not quoted, whose lines the shell expands. Each word is
+// { start, end, raw }, and an operator of redirection { op, start, end, raw }. A segment is cut at ; & |
+// and the line break, and says whether it began a line and whether a line break or the end ended it. A
+// here-document's lines are no words: each is { segment, delimiter, bodyStart, bodyEnd }, its body running
+// from the line after its operator's to the end of the line that is its delimiter (with <<- with the tabs
+// that begin it taken off), or to the end of the command. A # at the start of a word begins a comment,
+// which runs to the line break.
+function bashSegments(command) {
+  const segments = [];
+  const documents = [];
+  let pending = [];
+  let segment = { words: [], startsLine: true };
+  const close = (byLine) => {
+    segment.endsLine = byLine;
+    if (segment.words.length) segments.push(segment);
+    segment = { words: [], startsLine: byLine };
+  };
+  const n = command.length;
+  let i = 0;
+  while (i < n) {
+    const c = command[i];
+    if (c === "\n") {
+      close(true);
+      i++;
+      for (const document of pending) {
+        document.bodyStart = i;
+        document.bodyEnd = n;
+        for (let p = i; p < n; ) {
+          const nl = command.indexOf("\n", p);
+          const lineEnd = nl < 0 ? n : nl;
+          const line = command.slice(p, lineEnd);
+          if ((document.dash ? line.replace(/^\t+/, "") : line) === document.delimiter) {
+            document.bodyEnd = lineEnd;
+            break;
+          }
+          p = lineEnd + 1;
+        }
+        i = Math.min(n, document.bodyEnd + 1);
+      }
+      pending = [];
+      continue;
+    }
+    if (c === " " || c === "\t") {
+      i++;
+      continue;
+    }
+    if (c === "#") {
+      const nl = command.indexOf("\n", i);
+      i = nl < 0 ? n : nl;
+      continue;
+    }
+    if (c === ";" || c === "&" || c === "|") {
+      close(false);
+      i++;
+      continue;
+    }
+    if (c === "<" || c === ">") {
+      if (command.startsWith("<<<", i)) return null;
+      if (command.startsWith("<<", i)) {
+        // Only a quoted delimiter: the lines of any other are expanded, in this shell where the program is
+        // a builtin, and may assign or run.
+        const m = /^<<(-?)[ \t]*(?:'([A-Za-z_]\w*)'|"([A-Za-z_]\w*)")(?=$|[\s;&|<>])/.exec(command.slice(i));
+        if (!m) return null;
+        const document = { segment, dash: m[1] === "-", delimiter: m[2] ?? m[3] };
+        segment.words.push({ op: "<<", start: i, end: i + m[0].length, raw: m[0] });
+        pending.push(document);
+        documents.push(document);
+        i += m[0].length;
+        continue;
+      }
+      const op = /^(?:>>|>\||>&|<&|<>|>|<)/.exec(command.slice(i))[0];
+      segment.words.push({ op, start: i, end: i + op.length, raw: op });
+      i += op.length;
+      continue;
+    }
+    if (c === "(" || c === ")" || c === "`") return null;
+    const start = i;
+    while (i < n && !/[ \t\n;&|<>()`]/.test(command[i])) {
+      const ch = command[i];
+      if (ch === "'") {
+        const end = command.indexOf("'", i + 1);
+        if (end < 0) return null;
+        i = end + 1;
+      } else if (ch === '"') {
+        let j = i + 1;
+        for (; j < n && command[j] !== '"'; j++) {
+          if (command[j] === "\\") j++;
+          else if (command[j] === "`" || (command[j] === "$" && /[({[]/.test(command[j + 1] ?? ""))) return null;
+        }
+        if (j >= n) return null;
+        i = j + 1;
+      } else if (ch === "\\") {
+        if (i + 1 >= n || command[i + 1] === "\n") return null;
+        i += 2;
+      } else if (ch === "$" && /['"({[]/.test(command[i + 1] ?? "")) {
+        return null;
+      } else {
+        i++;
+      }
+    }
+    segment.words.push({ start, end: i, raw: command.slice(start, i) });
+  }
+  close(true);
+  return { segments, documents };
+}
+
+// A word's text as the program is given it, where that is plain: its quotes taken off when it is one
+// quoted string, and the word as written when it holds no quote, $, backtick or backslash; else null.
+function plainValue(word) {
+  if (!word || word.op) return null;
+  const quoted = /^'([^']*)'$|^"([^"\\$`]*)"$/.exec(word.raw);
+  if (quoted) return quoted[1] ?? quoted[2];
+  return /^[^'"$`\\]*$/.test(word.raw) ? word.raw : null;
+}
+
+// What the shell makes of a word, as far as the guard knows it: text, with its quotes and backslashes
+// taken off, and complete, whether that is the whole of it. Text stops before the first $ or backtick
+// and before a wildcard, brace or ~ outside quotes, which the shell expands into another text or into
+// more words; what stands before it is the head of each word it may become. splits, whether the word holds
+// a $ or backtick outside quotes anywhere, whose value Bash splits at its spaces into more words than one,
+// any of them an option (x$o); inside double quotes it is one word, and a wildcard, brace or ~ keeps the
+// head on every word it makes.
+function wordText(word) {
+  const raw = word.raw;
+  let text = "";
+  let complete = true;
+  let splits = false;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    if (c === "'") {
+      const end = raw.indexOf("'", i + 1);
+      if (complete) text += raw.slice(i + 1, end);
+      i = end;
+    } else if (c === '"') {
+      let j = i + 1;
+      for (; raw[j] !== '"'; j++) {
+        if (raw[j] === "$" || raw[j] === "`") complete = false;
+        if (raw[j] === "\\" && /[$`"\\\n]/.test(raw[j + 1] ?? "")) j++;
+        if (complete) text += raw[j];
+      }
+      i = j;
+    } else if (c === "\\") {
+      i++;
+      if (complete) text += raw[i];
+    } else if (/[$`*?[{~]/.test(c)) {
+      complete = false;
+      if (c === "$" || c === "`") splits = true;
+    } else if (complete) {
+      text += c;
+    }
+  }
+  return { text, complete, splits };
+}
+
+// The shell's text of a word where the guard knows all of it, else null.
+const shellValue = (word) => {
+  if (!word || word.op) return null;
+  const { text, complete } = wordText(word);
+  return complete ? text : null;
+};
+
+// Whether a word, or the text after the = of one, is a literal that the shell gives a program as one
+// argument and nothing else: one single-quoted string, one double-quoted string (the cut above has refused
+// a $( or backtick in it), or a bare word with no quote, $, backtick, wildcard, brace or ~, which the shell
+// would expand into other words or another text.
+const LITERAL = /^(?:'[^']*'|"(?:[^"\\]|\\[^])*"|(?:[^'"$`*?[\]{}~\\\s]|\\[^\n])+)$/;
+
+// An assignment, as written: a name, a subscript or none, and = or +=.
+const ASSIGNMENT = /^([A-Za-z_]\w*)(?:\[[^\]]*\])?\+?=/;
+// The words Bash reads before a segment's program and that are no program: the reserved words that may
+// begin a command or end a compound one, and time.
+const RESERVED_HEADS = new Set(["!", "{", "}", "if", "then", "elif", "else", "fi", "do", "done", "while", "until", "time"]);
+// The programs a command may run for anything to be taken out of it (ADR-351 section 4): those sections 1
+// to 3 read, and a few that change nothing in the shell that runs them, so that nothing in the command
+// can change what a name runs or what a variable holds. Each but cd, echo and true runs as a program of
+// its own; those three assign nothing a program's name or section 3's file is read by.
+const TRUSTED_PROGRAMS = new Set([
+  "git", "gh", "grep", "egrep", "fgrep", "awk", "gawk", "mawk", "jq", "cat",
+  "cd", "echo", "true", "ls", "head", "tail", "wc", "sort",
+]);
+// The name a for loop may assign: lower case at its head, as no variable of Bash's own and none of the
+// environment's that section 3 reads is.
+const LOOP_NAME = /^[a-z][a-z0-9_]*$/;
+
+// Where a segment's program stands: the index of its first word that is no reserved word, no time option,
+// no assignment and no redirect, or the length of the segment where none is. Bash's time takes one -p and
+// then one --, and nothing more: a later word headed by - is the program.
+function programIndex(words) {
+  let k = 0;
+  while (k < words.length) {
+    const word = words[k];
+    if (word.op) k += word.op === "<<" ? 1 : 2;
+    else if (RESERVED_HEADS.has(word.raw)) {
+      k++;
+      if (word.raw === "time") {
+        if (words[k]?.raw === "-p") k++;
+        if (words[k]?.raw === "--") k++;
+      }
+    } else if (ASSIGNMENT.test(word.raw)) k++;
+    else return k;
+  }
+  return k;
+}
+
+// Whether a cut command is one whose programs are what their names say and whose variables hold what the
+// guard's environment gives (ADR-351 section 4): every segment's program, its name all written, is one of
+// TRUSTED_PROGRAMS, or for with a LOOP_NAME; no word before a program assigns; and no {NAME} word stands
+// against a redirect operator, which assigns NAME the descriptor. The cut has already refused every
+// expansion that may assign or run. Anything else may change what a name runs, and nothing is taken out.
+function trusted(segments) {
+  for (const { words } of segments) {
+    for (let j = 0; j < words.length; j++) {
+      const word = words[j];
+      if (!word.op && /^\{[^}]*\}$/.test(word.raw) && words[j + 1]?.op && words[j + 1].start === word.end) return false;
+    }
+    const k = programIndex(words);
+    for (let j = 0; j < k; j++) {
+      if (!words[j].op && (ASSIGNMENT.test(words[j].raw) || ASSIGNMENT.test(shellValue(words[j]) ?? ""))) return false;
+    }
+    if (k >= words.length) continue;
+    const program = shellValue(words[k]);
+    if (program === "for") {
+      if (!LOOP_NAME.test(shellValue(words[k + 1]) ?? "")) return false;
+      continue;
+    }
+    if (!TRUSTED_PROGRAMS.has(program)) return false;
+  }
+  return true;
+}
+
+// Long options, as their programs read them: each name with how many words it takes after it written
+// apart (0 for one that takes none, or takes one only after an =), and the names that give a pattern, a
+// program or a file of either.
+const longOptions = (spec) => new Map(Object.entries(spec).flatMap(([count, names]) => names.split(" ").map((name) => [name, Number(count)])));
+
+// The long name a word names, as getopt and git read it: the name itself where it is one, else the one
+// name it is a prefix of; null where it is none, or a prefix of more than one.
+function longName(name, names) {
+  if (names.has(name)) return name;
+  const matches = [...names.keys()].filter((known) => known.startsWith(name));
+  return matches.length === 1 ? matches[0] : null;
+}
+
+// git's options before its subcommand that take no argument (ADR-351 section 1); -C and -c take the
+// next word, and --name=value is one word. Any other means nothing is taken out.
+const GIT_GLOBALS = new Set([
+  "-p", "-P", "-v", "-h", "--paginate", "--no-pager", "--bare", "--no-replace-objects", "--no-lazy-fetch", "--no-optional-locks",
+  "--no-advice", "--literal-pathspecs", "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs", "--exec-path",
+  "--html-path", "--man-path", "--info-path", "--version", "--help",
+]);
+// The options of git's subcommands whose -m and --message give a message (ADR-351 section 1): the short
+// letters that take none (none), take the rest of the word or the next (args), and take only the rest of
+// the word (rest), and the long names. stash's are push's, read only after stash push or after stash with
+// no word of a subcommand (STASH_PUSH); show and list take -m as no text.
+const GIT_SUBCOMMANDS = new Map([
+  ["commit", {
+    none: "aeinopqsvz", args: "CcFmt", rest: "uS",
+    long: longOptions({
+      0: "all patch interactive signoff no-signoff no-verify verify edit no-edit include only verbose quiet dry-run short branch porcelain long null amend no-post-rewrite allow-empty allow-empty-message reset-author status no-status pathspec-file-nul ahead-behind no-ahead-behind untracked-files gpg-sign no-gpg-sign",
+      1: "message file author date cleanup fixup squash trailer pathspec-from-file reuse-message reedit-message template",
+    }),
+  }],
+  ["tag", {
+    none: "adefilsv", args: "Fmu", rest: "n",
+    long: longOptions({
+      0: "annotate sign no-sign force list delete verify edit no-edit ignore-case create-reflog omit-empty column no-column color",
+      1: "message file local-user cleanup contains no-contains merged no-merged points-at sort format trailer",
+    }),
+  }],
+  ["merge", {
+    none: "enqv", args: "FmsX", rest: "S",
+    long: longOptions({
+      0: "commit no-commit edit no-edit ff no-ff ff-only log no-log stat no-stat summary no-summary compact-summary squash no-squash verify no-verify verify-signatures no-verify-signatures quiet verbose progress no-progress allow-unrelated-histories rerere-autoupdate no-rerere-autoupdate signoff no-signoff autostash no-autostash overwrite-ignore no-overwrite-ignore abort continue quit gpg-sign no-gpg-sign",
+      1: "message file strategy strategy-option into-name cleanup",
+    }),
+  }],
+  ["stash", {
+    none: "akpquS", args: "m", rest: "",
+    long: longOptions({
+      0: "all keep-index no-keep-index patch include-untracked only-untracked quiet staged pathspec-file-nul index",
+      1: "message pathspec-from-file",
+    }),
+  }],
+]);
+const STASH_PUSH = "push";
+// gh's commands whose --jq, -q and --body take text (ADR-351 section 1), by their path after gh, each with
+// its options as pflag reads them: the short letters that take no argument (none) and that take the rest
+// of the word or the next (args), and the long names, each read only written whole (exact). Every option
+// that takes an argument takes the next word whatever it is, --jq and --body among them. After any other
+// path, an alias or an extension among them, nothing is taken out.
+const ghCommand = (none, args, zero, one) => ({
+  none, args, rest: "", exact: true,
+  long: longOptions({ 0: `${zero} help`.trim(), 1: one }),
+});
+// issue's and pr's commands all take -R and --repo.
+const ghRepoCommand = (none, args, zero, one) => ghCommand(none, `${args}R`, zero, `${one} repo`);
+const GH_VIEW = ghRepoCommand("cw", "qt", "comments web", "jq json template");
+const GH_STATUS = ghRepoCommand("", "qt", "", "jq json template");
+const GH_COMMENT = ghRepoCommand("ew", "bF", "create-if-none delete-last edit-last editor web yes", "body body-file");
+const GH_COMMANDS = new Map([
+  ["api", ghCommand("i", "FHqXpft", "allow-escape-sequences include paginate silent slurp verbose", "cache field header hostname input jq method preview raw-field template")],
+  ["pr create", ghRepoCommand("defw", "aBbFHlmprTt", "draft dry-run editor fill fill-first fill-verbose no-maintainer-edit web", "assignee base body body-file head label milestone project recover reviewer template title")],
+  ["pr comment", GH_COMMENT],
+  ["pr edit", ghRepoCommand("", "BbFmt", "remove-milestone", "add-assignee add-label add-project add-reviewer base body body-file milestone remove-assignee remove-label remove-project remove-reviewer title")],
+  ["pr view", GH_VIEW],
+  ["pr list", ghRepoCommand("dw", "aABHqlLSst", "draft web", "app assignee author base head jq json label limit search state template")],
+  ["pr checks", ghRepoCommand("w", "iqt", "fail-fast required watch web", "interval jq json template")],
+  ["pr merge", ghRepoCommand("dmrs", "AbFt", "admin auto delete-branch disable-auto merge rebase squash", "author-email body body-file match-head-commit subject")],
+  ["pr review", ghRepoCommand("acr", "bF", "approve comment request-changes", "body body-file")],
+  ["pr status", ghRepoCommand("c", "qt", "conflict-status", "jq json template")],
+  ["issue create", ghRepoCommand("ew", "abFlmpTt", "editor web", "assignee blocked-by blocking body body-file label milestone parent project recover template title type")],
+  ["issue comment", GH_COMMENT],
+  ["issue edit", ghRepoCommand("", "bFmt", "remove-milestone remove-parent remove-type", "add-assignee add-blocked-by add-blocking add-label add-project add-sub-issue body body-file milestone parent remove-assignee remove-blocked-by remove-blocking remove-label remove-project remove-sub-issue title type")],
+  ["issue view", GH_VIEW],
+  ["issue list", ghRepoCommand("w", "aAqlLmSst", "web", "app assignee author jq json label limit mention milestone search state template type")],
+  ["issue status", GH_STATUS],
+]);
+// The flags whose argument is text and no file: --jq, its letter -q, and --body.
+const GH_TEXT_FLAGS = new Set(["jq", "q", "body"]);
+
+// The programs whose pattern or program is the first operand where no option gives it (ADR-351 section 2),
+// as they read their options: the short letters that take no argument (none), that take the rest of the
+// word or the next (args), that give the pattern, the program or a file of them (given, among args), and
+// that take only the rest of the word (rest); the long names (long), and those that give (longGiven); the
+// letter and name that give a pattern, which is skipped too; and whether a single-quoted first operand
+// may be skipped. An option a program does not have means nothing is taken out.
+const GREP = {
+  none: "EFGPiywxzsvVbnHhoqaIrRLlcTZUu0123456789",
+  args: "ABCDdmef",
+  given: "ef",
+  rest: "",
+  long: longOptions({
+    0: "extended-regexp fixed-strings basic-regexp perl-regexp ignore-case no-ignore-case word-regexp line-regexp null-data no-messages invert-match version help byte-offset line-number line-buffered with-filename no-filename only-matching quiet silent text recursive dereference-recursive files-without-match files-with-matches count initial-tab null binary unix-byte-offsets no-group-separator color colour",
+    1: "after-context before-context context max-count devices directories label include exclude exclude-dir binary-files group-separator regexp file exclude-from",
+  }),
+  longGiven: new Set(["regexp", "file", "exclude-from"]),
+  pattern: "e",
+  longPattern: "regexp",
+  operand: () => true,
+};
+// awk's -W names a further option, mawk's -W exec a file of the program among them; -d, -D, -L, -o and -p
+// take a file or a word only joined to them.
+const AWK = {
+  none: "bcCghMnNOPrsStV",
+  args: "vFfiEelW",
+  given: "fiEelW",
+  rest: "dDLop",
+  long: longOptions({
+    0: "characters-as-bytes traditional copyright gen-pot help bignum use-lc-numeric non-decimal-data optimize posix re-interval no-optimize sandbox lint-old version csv debug dump-variables lint profile pretty-print persist",
+    1: "assign field-separator file source include exec load",
+  }),
+  longGiven: new Set(["file", "include", "source", "exec", "load"]),
+  // No string literal: an awk program names a file only in one, for getline, a redirect or @include.
+  operand: (text) => !text.includes('"'),
+};
+const JQ = {
+  none: "nRscCMarjeShV",
+  args: "fL",
+  given: "fL",
+  rest: "",
+  long: longOptions({
+    0: "null-input raw-input slurp compact-output tab color-output monochrome-output ascii-output unbuffered sort-keys raw-output raw-output0 join-output exit-status seq stream stream-errors help version build-configuration args jsonargs",
+    1: "indent from-file library-path run-tests",
+    2: "arg argjson slurpfile rawfile argfile",
+  }),
+  longGiven: new Set(["from-file", "slurpfile", "rawfile", "argfile", "library-path", "run-tests"]),
+  // A jq program names a file only by import or include, or loads one by modulemeta.
+  operand: (text) => !/\b(?:import|include|modulemeta)\b/.test(text),
+};
+const OPERAND_PROGRAMS = new Map([
+  ["grep", GREP],
+  ["egrep", GREP],
+  ["fgrep", GREP],
+  ["awk", AWK],
+  ["gawk", AWK],
+  ["mawk", AWK],
+  ["jq", JQ],
+]);
+
+// How a program reads one option word against its spec (ADR-351 sections 1 and 2): kind "unknown" where
+// the guard cannot tell what it is, an option the program does not have among them; else takes, how many
+// words after it the option takes, and the short letter or long name that takes them (flag), and eq, the
+// offset of the = after a long name, or -1.
+function readOption(text, complete, spec) {
+  if (text.startsWith("--")) {
+    const equals = text.indexOf("=");
+    if (!complete && equals < 0) return { kind: "unknown" };
+    const written = equals < 0 ? text.slice(2) : text.slice(2, equals);
+    const name = spec.exact ? (spec.long.has(written) ? written : null) : longName(written, spec.long);
+    if (name === null) return { kind: "unknown" };
+    return { kind: "long", flag: name, takes: equals < 0 ? spec.long.get(name) : 0, eq: equals };
+  }
+  const letters = [];
+  for (let x = 1; x < text.length; x++) {
+    const letter = text[x];
+    letters.push(letter);
+    if (spec.args.includes(letter)) return { kind: "short", flag: letter, letters, takes: x === text.length - 1 && complete ? 1 : 0 };
+    if (spec.rest.includes(letter)) return { kind: "short", flag: null, letters, takes: 0 };
+    if (!spec.none.includes(letter)) return { kind: "unknown" };
+  }
+  return complete ? { kind: "short", flag: null, letters, takes: 0 } : { kind: "unknown" };
+}
+
+// The words after a segment's program that Bash gives it, in order: a redirect operator, its target (but
+// for <<, whose delimiter is in its own text) and a word of digits alone that touches the operator after
+// it and that Bash reads as a descriptor, a number an int holds (no more than 2147483647), as 2 in 2>&1,
+// are taken out of them wherever they stand, as Bash takes them out; larger digits stay an argument. So
+// an option that takes a value takes the word after a redirect's target, and a target is never its value.
+const MOST_DESCRIPTOR = 2147483647;
+function argumentsOf(words, at) {
+  const given = [];
+  for (let k = at + 1; k < words.length; k++) {
+    const word = words[k];
+    if (word.op) {
+      if (word.op !== "<<") k++;
+      continue;
+    }
+    if (/^\d+$/.test(word.raw) && Number(word.raw) <= MOST_DESCRIPTOR && words[k + 1]?.op && words[k + 1].start === word.end) continue;
+    given.push(word);
+  }
+  return given;
+}
+
+// The spans of a segment's words that are text and no path (ADR-351 sections 1 and 2), each [start, end).
+// Each walk reads the words the program is given (argumentsOf), and no redirect.
+function textSpans(segmentWords) {
+  const spans = [];
+  const at = programIndex(segmentWords);
+  const program = plainValue(segmentWords[at]);
+  const words = argumentsOf(segmentWords, at);
+  const skip = (word, from = word.start) => {
+    if (word && LITERAL.test(word.raw.slice(from - word.start))) spans.push([from, word.end]);
+  };
+  if (program === "gh") {
+    // The command's path is the words right after gh, each written whole: api, or issue or pr and one of
+    // its subcommands.
+    const head = shellValue(words[0]);
+    const path = head === "api" ? head : `${head} ${shellValue(words[1])}`;
+    const spec = GH_COMMANDS.get(path);
+    if (!spec) return spans;
+    for (let k = head === "api" ? 1 : 2; k < words.length; k++) {
+      const { text, complete, splits } = wordText(words[k]);
+      if (complete && text === "--") break;
+      // A word that may become an option, or more words than one, ends the walk: a word whose head the
+      // guard does not know ($o, {-H,}), one with a $ outside quotes (x$o), and one headed by - that the
+      // guard does not know all of (-{H,}, -H*).
+      if ((!complete && !text) || splits || (!complete && text.startsWith("-"))) return spans;
+      if (!text.startsWith("-") || text === "-") continue;
+      const option = readOption(text, complete, spec);
+      if (option.kind === "unknown") return spans;
+      if (GH_TEXT_FLAGS.has(option.flag)) {
+        if (option.takes) skip(words[k + 1]);
+        else if (option.eq > 0 && words[k].raw.startsWith(text.slice(0, option.eq + 1))) skip(words[k], words[k].start + option.eq + 1);
+      }
+      k += option.takes;
+    }
+    return spans;
+  }
+  if (program === "git") {
+    let k = 0;
+    for (; k < words.length; k++) {
+      const value = shellValue(words[k]);
+      if (value === null) return spans;
+      if (value === "-C" || value === "-c") k++;
+      else if (!value.startsWith("-")) break;
+      else if (!GIT_GLOBALS.has(value) && !/^--[\w-]+=/.test(value)) return spans;
+    }
+    const subcommand = shellValue(words[k]);
+    const spec = GIT_SUBCOMMANDS.get(subcommand);
+    if (!spec) return spans;
+    // git stash's first word that is no option names its subcommand: only push's -m gives a message, so
+    // after any other word, or after a message given before push, nothing of the segment is taken out.
+    let stashed = subcommand !== "stash";
+    for (k++; k < words.length; k++) {
+      const { text, complete, splits } = wordText(words[k]);
+      if (complete && text === "--") break;
+      // A word that may become an option, or more words than one, or that is one git's subcommand does not
+      // have, ends the walk.
+      if ((!complete && !text) || splits) return spans;
+      if (!text.startsWith("-") || (complete && text === "-")) {
+        if (!stashed) {
+          if (!(complete && text === STASH_PUSH && spans.length === 0)) return [];
+          stashed = true;
+        }
+        continue;
+      }
+      const option = readOption(text, complete, spec);
+      if (option.kind === "unknown") return spans;
+      if (option.flag === "m" || option.flag === "message") {
+        if (option.takes) skip(words[k + 1]);
+        else if (option.eq > 0 && words[k].raw.startsWith(text.slice(0, option.eq + 1))) skip(words[k], words[k].start + option.eq + 1);
+      }
+      k += option.takes;
+    }
+    return spans;
+  }
+  const spec = OPERAND_PROGRAMS.get(program);
+  if (!spec) return spans;
+  // Every word is walked, since getopt reads an option after an operand too.
+  let given = false;
+  let first = null;
+  let operands = false;
+  for (let k = 0; k < words.length; k++) {
+    const word = words[k];
+    const { text, complete, splits } = wordText(word);
+    // An option is a word that begins with - and is not - alone. A word whose head the guard does not
+    // know may become one, or more than one word; so may a word headed by - that is not all known, as
+    // -{f,}, which Bash makes -f and -, and a word with a $ outside quotes, as x$o, which Bash may split
+    // into x and an option.
+    if (!operands && ((!complete && !text) || splits)) {
+      given = true;
+      continue;
+    }
+    if (operands || (complete && text === "-") || !text.startsWith("-")) {
+      first ??= word;
+      continue;
+    }
+    if (complete && text === "--") {
+      operands = true;
+      continue;
+    }
+    const option = readOption(text, complete, spec);
+    if (option.kind === "unknown") {
+      given = true;
+      continue;
+    }
+    if (option.kind === "long") {
+      if (spec.longGiven.has(option.flag)) given = true;
+      if (option.flag === spec.longPattern) {
+        if (option.eq < 0) skip(words[k + 1]);
+        else if (word.raw.startsWith(text.slice(0, option.eq + 1))) skip(word, word.start + option.eq + 1);
+      }
+    } else if (option.flag !== null) {
+      if (spec.given.includes(option.flag)) given = true;
+      if (option.takes && option.flag === spec.pattern) skip(words[k + 1]);
+    }
+    k += option.takes;
+  }
+  if (!given && first && /^'[^']*'$/.test(first.raw) && spec.operand(first.raw.slice(1, -1))) spans.push([first.start, first.end]);
+  return spans;
+}
+
+// The place a here-document is written to, when it is a file in the temp folder (ADR-351 section 3): one
+// word, bare or quoted, that is a path from a root, or a variable of the environment at its head and a
+// path after it, with no .., no . name, no other $, ~, wildcard or brace, and that lies beneath the folder
+// ${TEMP} names in the allow list. The variable is TEMP, TMP or TMPDIR, which Bash never assigns by itself,
+// spelt as an environment key spells it, case for case, as Bash reads it; a command section 4 trusts
+// assigns none of them.
+const TEMP_VARIABLES = new Set(["TEMP", "TMP", "TMPDIR"]);
+function inTempFolder(word) {
+  // In single quotes a $ is no variable, and the path is taken only where it holds none.
+  const given = /^'([^'$]*)'$|^"([^"\\`]*)"$|^([^'"\\`\s]*)$/.exec(word.raw);
+  if (!given) return false;
+  const value = given[1] ?? given[2] ?? given[3];
+  const m = /^(?:\$(\w+)|\$\{(\w+)\})?([^$~*?[\]{}]*)$/.exec(value);
+  if (!m) return false;
+  const name = m[1] ?? m[2];
+  if (name !== undefined && (!TEMP_VARIABLES.has(name) || !Object.keys(process.env).includes(name))) return false;
+  const head = name === undefined ? "" : valueOf(name);
+  if (name !== undefined && !head) return false;
+  const text = fromGitBash((head + m[3]).replace(/\\/g, "/"));
+  if (!isAbsolute(text) || text.split("/").some((part) => part === ".." || part === ".")) return false;
+  const temp = norm(tokens["${TEMP}"]);
+  return under(norm(text), temp) && norm(text) !== temp;
+}
+
+// The text of a Bash command with what is no path blanked, each character but a line break made a space,
+// so that every offset stays where it was: paths, the text the guard reads for paths, and tokens, the text
+// it reads for a closed .claude folder (ADR-215 section 3(c)). paths blanks the text a flag or an operand
+// gives a program (sections 1 and 2) and the body of a here-document that cat writes to a file in the temp
+// folder (section 3); tokens blanks that body alone. A command the cut above does not read, or that runs a
+// program section 4 does not trust, is its own two.
+function textsRead(command) {
+  const cut = bashSegments(command);
+  if (!cut || !trusted(cut.segments)) return { paths: command, tokens: command };
+  const flagged = cut.segments.flatMap(({ words }) => textSpans(words));
+  const bodies = cut.documents
+    .filter(({ segment, bodyStart }) => {
+      if (bodyStart === undefined || !segment.startsLine || !segment.endsLine) return false;
+      const words = segment.words.filter((word) => word.op !== "<<");
+      if (words.length !== 3 || segment.words.length !== 4) return false;
+      return plainValue(words[0]) === "cat" && [">", ">>"].includes(words[1].op) && inTempFolder(words[2]);
+    })
+    .map(({ bodyStart, bodyEnd }) => [bodyStart, bodyEnd]);
+  // Each UTF-16 unit is blanked, so that a character outside the basic plane keeps its two offsets.
+  const blank = (spans) => {
+    let text = command;
+    for (const [from, to] of spans) text = text.slice(0, from) + text.slice(from, to).replace(/[^\n]/g, " ") + text.slice(to);
+    return text;
+  };
+  return { paths: blank([...flagged, ...bodies]), tokens: blank(bodies) };
+}
+
 // What a command's text names: absolute paths, each as { label, text }, where text is read against the
 // current directory by the caller, and relative ones, each as rel -> { label, written }, where written
 // is how many times the command writes that token. A relative one is read against a directory by the
-// caller. bash says whether ${NAME-word} and its kin are parameter expansions.
-function pathsInCommand(command, bash) {
+// caller. bash says whether ${NAME-word} and its kin are parameter expansions. written is the command as
+// written, from which git's index form is found (ADR-347), where command may have text that is no path
+// blanked (ADR-351), offset for offset.
+function pathsInCommand(command, bash, written = command) {
   const absolute = [];
   const relative = new Map();
   // The Bash texts that hold a + or :+ and another variable with a word, which are refused (ADR-348).
@@ -966,7 +1589,7 @@ function pathsInCommand(command, bash) {
 
   // In a segment whose program is git, a word that begins with : or :N: is git's index form, and is read
   // by its rest as well as, off Windows, as written (ADR-347). indexForms holds where each such word starts.
-  const { forms: indexForms, joined } = gitIndexForms(command, bash);
+  const { forms: indexForms, joined } = gitIndexForms(written, bash);
   const readWord = (text, offset) => {
     const prefix = indexForms.get(offset);
     if (prefix === undefined || !text.startsWith(prefix)) return read(text, offset);
@@ -1219,11 +1842,14 @@ function refusalsOf(call) {
     }
     const currentChecked = checkReadings(currentLabel, currentDirectory, checkout);
     if (counted !== null && currentChecked.every(({ turnedDown }) => !turnedDown) && directlyHoldsDatabase(counted)) return refused;
+    // In a Bash command, the text that is no path blanked (ADR-351): for paths, a flag's or an operand's
+    // text and the body of a here-document cat writes into the temp folder; for tokens, that body alone.
+    const read = tool === "Bash" ? textsRead(command) : { paths: command, tokens: command };
     // Every token's text, whether or not it is read as a path (ADR-215 section 3(c)).
-    for (const [token] of command.matchAll(COMMAND_TOKENS)) {
+    for (const [token] of read.tokens.matchAll(COMMAND_TOKENS)) {
       if (closedInText(token)) refused.push(`${token} (its text names a path ${CLOSED})`);
     }
-    const { absolute, relative, mixed } = pathsInCommand(command, tool === "Bash");
+    const { absolute, relative, mixed } = pathsInCommand(read.paths, tool === "Bash", command);
     for (const text of mixed) {
       refused.push(`${text} (it holds a \${NAME+word} or \${NAME:+word} and another variable with a word, which has more forms than two readings give, so what it names cannot be ruled out)`);
     }

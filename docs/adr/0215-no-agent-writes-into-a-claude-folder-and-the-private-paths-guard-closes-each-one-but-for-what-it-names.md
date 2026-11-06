@@ -3,6 +3,8 @@
 > **Partly amended — see [ADR-217](0217-on-windows-the-private-paths-guard-reads-every-path-as-windows-opens-its-names-without-the-dots-spaces-and-stream-name-that-end-each.md).** §8's item "A `read` line beneath a plain line, where the folder is written with a dot after its name" is closed on Windows, the one platform where it arises, and the first item of "What this does not decide" is decided there. Everything else in this record stands.
 >
 > **Partly amended — see [ADR-233](0233-the-private-paths-guard-reads-what-stands-beside-the-name-claude-a-leading-tilde-in-a-field-and-a-link-out-of-its-own-folder.md).** §3(c)'s reading of a token's text gains a special parameter and the start of a variable with a word before the name, and an expansion after it, and reads a token headed by `/` as an option; §5's links gain the direction out of the guard's own `.claude` folder; and §7's draft check reads a `.claude` name as the guard does. Everything else in this record stands.
+>
+> **Partly amended — see [ADR-351](0351-the-private-paths-guard-reads-a-message-a-pattern-a-program-and-a-here-document-into-the-temp-folder-as-no-path.md).** §3(c)'s reading of every token's text does not read the lines of a here-document whose delimiter is quoted and which `cat` writes to a file in the temp folder. Everything else in this record stands.
 
 - **Date**: 2026-10-09
 - **Status**: accepted.

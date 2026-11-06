@@ -20,6 +20,11 @@
 // docs/adr/0348 corrects docs/adr/0201 section 5's and docs/adr/0233's reading of ${NAME+word} and
 // ${NAME:+word}: the word, or nothing, in the variable's place, and never its value; and a token that holds
 // one beside or around another variable with a word is refused. The G8 and G9 cases are held to it.
+// docs/adr/0351 amends docs/adr/0196 section 4 and docs/adr/0215 section 3(c): in a Bash command a
+// message, a filter, a body or a pattern given by a flag named by program, a single-quoted pattern or
+// program of grep, awk or jq, and the lines of a quoted here-document cat writes into the temp folder are
+// not read as paths, and those lines not for a .claude folder either; nothing is taken out of a command
+// that may change what a program's name runs. The C5, C6 and C7 cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -1840,6 +1845,178 @@ for (const [n, sign] of [["1", "+"], ["2", ":+"]]) {
   );
 }
 
+/* C5. docs/adr/0351: in a Bash command the guard reads as no path the argument of a flag that gives a
+   program text and never a file (git commit, tag, merge and stash push's -m and --message, gh's --jq, -q and
+   --body, grep's -e and --regexp), the first operand of grep, awk and jq when it is single-quoted and is
+   the program's pattern or program, and the body of a here-document whose delimiter is quoted and which
+   cat writes to a file in the temp folder. The text rule of docs/adr/0215 section 3(c) still reads a
+   flag's argument and an operand (Q108 stands), and is lifted from such a body alone. Each of C501 to
+   C505 is one of the five commands issue #697 names. Before this record C501 to C504 were refused on
+   Windows, each for a piece of its text read as a name made only of a stream name or of spaces
+   (docs/adr/0217 section 2), and C505 everywhere, for its lines' text (docs/adr/0215 section 3(c)). */
+const ISSUE_697 = [
+  ["C501", "gh with a --jq filter that interpolates with \\( and a colon between", "gh issue view 697 --repo algernon28/vespera --json title,state --jq '\"\\(.title):\\(.state)\"'"],
+  ["C502", "awk whose program counts lines of seven = and matches a line of seven > and a space", "awk '/^=======$/{n++} /^>>>>>>> /{print NR}' README.md"],
+  ["C503", "git commit -m whose message holds \\| and a word that begins with a slash", 'git commit -m "Split at \\| and keep /: as written"'],
+  ["C504", "grep whose pattern is an alternation of two one-letter keys written with \\|", "grep -n 'x: \\|y: ' README.md"],
+  ["C505", "cat of a here-document into the temp folder whose lines name files in the hooks and agents folders", "cat > \"$TEMP/issue-697-body.md\" <<'EOF'\nThe guard at .claude/hooks/private-paths-guard.mjs refused it.\nSo did a check named in .claude/agents/architect.md, and ../outside/doc.txt is named too.\nEOF"],
+];
+for (const [id, what, command] of ISSUE_697) cases.push([id, what, "Bash", { command }, ALLOWED]);
+cases.push(
+  /* C51. More of what the record lets through. */
+  ["C511", "grep -e whose pattern is an alternation written with \\|", "Bash", { command: "grep -n -e 'guard\\|fixture' README.md" }, ALLOWED],
+  ["C512", "git commit -m whose message names a climb out of the checkout", "Bash", { command: 'git commit -m "Compare it with ../outside/doc.txt."' }, ALLOWED],
+  ["C513", "git commit --message= whose message holds \\|", "Bash", { command: "git commit --message='split at \\| and /x/'" }, ALLOWED],
+  ["C514", "gh pr create whose --body names a climb out of the checkout", "Bash", { command: "gh pr create --title t --body 'Refs ../outside/doc.txt and /x\\|y/'" }, ALLOWED],
+  ["C515", "gh api whose -q filter interpolates with \\(", "Bash", { command: "gh api repos/o/r/issues --jq '.[] | \"\\(.number) \\(.title)\"' -q '.[0]'" }, ALLOWED],
+  ["C516", "git commit -m whose message names a drive no allowed root is on", "Bash", { command: `git commit -m "${NO_DRIVE} is text here."` }, ALLOWED, { windows: ONLY_WINDOWS.drive }],
+  ["C517", "jq whose program interpolates with \\(", "Bash", { command: "jq -r '.[] | \"\\(.a)/\\(.b)\"' README.md" }, ALLOWED],
+  ["C518", "a here-document appended to a file in the temp folder, the redirect after the delimiter", "Bash", { command: "cat <<'EOF' >> \"$TEMP/notes.md\"\n.claude/settings.json and ../outside/doc.txt\nEOF" }, ALLOWED],
+  ["C519", "a here-document into the temp folder, then a command that reads a file inside the checkout", "Bash", { command: "cat > \"$TEMP/b.md\" <<'EOF'\n.claude/hooks/x\nEOF\ncat README.md" }, ALLOWED],
+
+  /* C6. A real path beside a flag or operand that is no path is still read, and refused. */
+  ["C601", "git commit -m with a file outside the allow list after the message", "Bash", { command: 'git commit -m "fix" ../outside/doc.txt' }, REFUSED],
+  ["C602", "git commit -m, then -- and a file outside the allow list", "Bash", { command: "git commit -m fix -- ../outside/doc.txt" }, REFUSED],
+  ["C603", "git commit --message= with a file outside the allow list after it", "Bash", { command: "git commit --message=fix ../outside/doc.txt" }, REFUSED],
+  ["C604", "grep -e with a file outside the allow list after the pattern", "Bash", { command: "grep -e 'a\\|b' ../outside/doc.txt" }, REFUSED],
+  ["C605", "grep with a quoted pattern and a file outside the allow list", "Bash", { command: "grep 'a\\|b' ../outside/doc.txt" }, REFUSED],
+  ["C606", "grep --exclude-from a file outside the allow list, before a quoted pattern", "Bash", { command: "grep --exclude-from '../outside/doc.txt' 'x' README.md" }, REFUSED],
+  ["C607", "grep -f a file outside the allow list, quoted", "Bash", { command: "grep -f '../outside/doc.txt' README.md" }, REFUSED],
+  ["C608", "gh api whose --jq is skipped and whose --input names a file outside the allow list", "Bash", { command: "gh api repos/o/r --jq '.x' --input ../outside/doc.txt" }, REFUSED],
+  ["C609", "cat -e, whose -e takes no text, of a file outside the allow list", "Bash", { command: "cat -e ../outside/doc.txt" }, REFUSED],
+  ["C610", "head -q, whose -q takes no text, of a file outside the allow list", "Bash", { command: "head -q ../outside/doc.txt" }, REFUSED],
+  ["C611", "git am -m, which takes no text, of a mailbox outside the allow list", "Bash", { command: "git am -m ../outside/doc.txt" }, REFUSED],
+  ["C612", "git commit -m of a command substitution that reads a file outside the allow list", "Bash", { command: 'git commit -m "$(cat ../outside/doc.txt)"' }, REFUSED],
+  ["C613", "git commit -m of an unquoted word, then a second segment that reads a file outside the allow list", "Bash", { command: "git commit -m x && cat ../outside/doc.txt" }, REFUSED],
+  ["C614", "awk whose program is skipped, of a file outside the allow list", "Bash", { command: "awk '{ print }' ../outside/doc.txt" }, REFUSED],
+  ["C615", "awk whose program reads a file outside the allow list by getline", "Bash", { command: "awk 'BEGIN { while ((getline l < \"../outside/doc.txt\") > 0) print l }'" }, REFUSED],
+  ["C616", "awk -f of a program file outside the allow list, quoted", "Bash", { command: "awk -f '../outside/doc.txt' README.md" }, REFUSED],
+  ["C617", "jq whose program imports a module outside the allow list", "Bash", { command: "jq 'import \"../outside/doc\" as $d; .' README.md" }, REFUSED],
+  ["C618", "jq whose quoted filter is skipped, of a file outside the allow list", "Bash", { command: "jq '.x' ../outside/doc.txt" }, REFUSED],
+  ["C619", "sed, whose program is not skipped, of a quoted program that names a file outside the allow list", "Bash", { command: "sed 'r ../outside/doc.txt' README.md" }, REFUSED],
+  ["C620", "git commit -m of a message that names the allow list, which the text rule still reads", "Bash", { command: "git commit -m 'See .claude/allowed-paths.txt.'" }, REFUSED],
+  ["C621", "git commit -m of a message that climbs out of the checkout, in PowerShell, which skips nothing", "PowerShell", { command: 'git commit -m "Compare it with ../outside/doc.txt."' }, REFUSED],
+  ["C622", "a here-document whose delimiter is not quoted, into the temp folder, whose line names the hooks folder", "Bash", { command: "cat > \"$TEMP/x.md\" <<EOF\n.claude/hooks/private-paths-guard.mjs\nEOF" }, REFUSED],
+  ["C623", "a here-document whose delimiter is quoted, written to a file outside the allow list", "Bash", { command: "cat > ../outside/new.md <<'EOF'\nnote\nEOF" }, REFUSED],
+  ["C624", "a here-document whose delimiter is quoted, given to bash, whose line reads a file outside the allow list", "Bash", { command: "cat <<'EOF' | bash\ncat ../outside/doc.txt\nEOF" }, REFUSED],
+  ["C625", "a here-document into the temp folder, then a line that reads a file outside the allow list", "Bash", { command: "cat > \"$TEMP/x.md\" <<'EOF'\nnote\nEOF\ncat ../outside/doc.txt" }, REFUSED],
+  ["C626", "a here-document into a closed .claude folder under the temp folder", "Bash", { command: "cat > \"$TEMP/elsewhere/.claude/settings.json\" <<'EOF'\n{}\nEOF" }, REFUSED],
+  ["C627", "a here-document into the temp folder by a path that climbs out of it", "Bash", { command: "cat > \"$TEMP/../outside/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C628", "a here-document into the temp folder whose line after the delimiter runs a second command", "Bash", { command: "cat > \"$TEMP/x.md\" <<'EOF' && cat ../outside/doc.txt\nnote\nEOF" }, REFUSED],
+  ["C629", "a here-document into a file inside the checkout, not the temp folder, whose line names the hooks folder", "Bash", { command: "cat > notes.md <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C630", "a here-document into the temp folder by tee, not cat, whose line names the hooks folder", "Bash", { command: "tee \"$TEMP/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  // The pattern is skipped; the quoted file after it is read, and on Windows it is on drive X.
+  ["C631", "grep whose skipped pattern is followed by a quoted file headed by one letter and a colon", "Bash", { command: "grep -n 'x: \\|y: ' 'x: notes.txt'" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["C632", "git commit -m whose skipped message is followed by a token that begins with a colon", "Bash", { command: 'git commit -m "Split at \\| and keep /: as written" :notes.txt' }, REFUSED, { windows: NOT_A_STREAM_ELSEWHERE }],
+  ["C633", "mawk -W exec of a program file outside the allow list, quoted", "Bash", { command: "mawk -W exec '../outside/doc.txt'" }, REFUSED],
+  ["C634", "jq --run-tests of a file outside the allow list, quoted", "Bash", { command: "jq --run-tests '../outside/doc.txt'" }, REFUSED],
+
+  /* C70. A command that can change what a program's name runs: a function, an alias, the hash table, an
+     eval, a trap, a command word whose name is not written, or PATH assigned. Nothing is taken out. */
+  ["C701", "a function named grep that cats its argument, then grep of a quoted file outside the allow list", "Bash", { command: "function grep { cat $1; }; grep '../outside/doc.txt'" }, REFUSED],
+  ["C702", "a function named git that cats its third argument, then git commit -m of a file outside the allow list", "Bash", { command: "function git { cat \"$3\"; }; git commit -m '../outside/doc.txt'" }, REFUSED],
+  ["C703", "hash -p that makes grep cat, then grep of a quoted file outside the allow list", "Bash", { command: "hash -p /usr/bin/cat grep\ngrep '../outside/doc.txt'" }, REFUSED],
+  ["C704", "aliases expanded and grep aliased to cat, then grep of a quoted file outside the allow list", "Bash", { command: "shopt -s expand_aliases\nalias grep=cat\ngrep '../outside/doc.txt'" }, REFUSED],
+  ["C705", "eval of a function named grep, then grep of a quoted file outside the allow list", "Bash", { command: "eval 'function grep { cat $1; }'; grep '../outside/doc.txt'" }, REFUSED],
+  ["C706", "a function named cat that runs bash, then a here-document into the temp folder whose line reads a file outside the allow list", "Bash", { command: "function cat { bash; }\ncat > \"$TEMP/x.md\" <<'EOF'\ncat ../outside/doc.txt\nEOF" }, REFUSED],
+  ["C707", "a script named grep written into the temp folder, PATH exported with it first, then grep of a quoted file outside the allow list", "Bash", { command: "cat > \"$TEMP/bin/grep\" <<'EOF'\ncat \"$1\"\nEOF\nexport PATH=\"$TEMP/bin:$PATH\"\ngrep '../outside/doc.txt'" }, REFUSED],
+  ["C708", "BASH_CMDS assigned so that grep is cat, then grep of a quoted file outside the allow list", "Bash", { command: "BASH_CMDS[grep]=/usr/bin/cat; grep '../outside/doc.txt'" }, REFUSED],
+  ["C709", "eval by a variable's value, then grep of a quoted file outside the allow list", "Bash", { command: "e=eval; $e 'function grep { cat $1; }'; grep '../outside/doc.txt'" }, REFUSED],
+  ["C710", "eval named in quotes, then grep of a quoted file outside the allow list", "Bash", { command: "'eval' 'function grep { cat $1; }'; grep '../outside/doc.txt'" }, REFUSED],
+  ["C711", "a DEBUG trap that defines grep, then grep of a quoted file outside the allow list", "Bash", { command: "trap 'function grep { cat $1; }' DEBUG; grep '../outside/doc.txt'" }, REFUSED],
+
+  /* C72. A here-document's file named by a variable the command assigns, or by one no environment key spells. */
+  ["C721", "TEMP assigned on the line before a here-document into $TEMP, whose line names the hooks folder", "Bash", { command: "TEMP=src\ncat > \"$TEMP/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C722", "TEMP exported on the line before a here-document into $TEMP, whose line names the hooks folder", "Bash", { command: "export TEMP=src\ncat > \"$TEMP/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C723", "a here-document into $temp, which Bash reads as no variable of the environment, whose line names the hooks folder", "Bash", { command: "cat > \"$temp/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C724", "TEMP unset on the line before a here-document into $TEMP, whose line names the hooks folder", "Bash", { command: "unset TEMP\ncat > \"$TEMP/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+
+  /* C73. Options read as git, gh, grep and awk read them. */
+  ["C731", "git --namespace, which takes the next word, then am -m of a mailbox outside the allow list", "Bash", { command: "git --namespace commit am -m ../outside/doc.txt" }, REFUSED],
+  ["C732", "git --work-tree, which takes the next word, then am -m of a mailbox outside the allow list", "Bash", { command: "git --work-tree commit am -m ../outside/doc.txt" }, REFUSED],
+  ["C733", "git merge -sm, whose m is the strategy, of a revision outside the allow list", "Bash", { command: "git merge -sm ../outside/doc.txt" }, REFUSED],
+  ["C734", "git commit -C, which takes -m, of a pathspec outside the allow list", "Bash", { command: "git commit -C -m ../outside/doc.txt" }, REFUSED],
+  ["C735", "git commit --auth, a prefix of --author that takes -m, of a pathspec outside the allow list", "Bash", { command: "git commit --auth -m ../outside/doc.txt" }, REFUSED],
+  ["C736", "git commit of an unquoted variable before -m, which may be an option that takes it", "Bash", { command: "o=-C; git commit $o -m '../outside/doc.txt'" }, REFUSED],
+  ["C737", "gh alias set of a shell alias that cats, then the alias's --body of a file outside the allow list", "Bash", { command: "gh alias set --shell rd 'cat $2' && gh rd --body ../outside/doc.txt" }, REFUSED],
+  ["C738", "gh of an alias's --body, a file outside the allow list", "Bash", { command: "gh rd --body ../outside/doc.txt" }, REFUSED],
+  ["C739", "grep --binary, which takes no argument, then a pattern and a quoted file outside the allow list", "Bash", { command: "grep --binary x '../outside/doc.txt'" }, REFUSED],
+  ["C740", "grep of a quoted file outside the allow list, then an unquoted variable that may be -f", "Bash", { command: "o=-f; grep '../outside/doc.txt' $o README.md" }, REFUSED],
+  ["C741", "grep with a here-document first, then a pattern and a quoted file outside the allow list", "Bash", { command: "grep <<'EOF' 'pat' '../outside/doc.txt'\nx\nEOF" }, REFUSED],
+  ["C742", "awk -dF, whose F is -d's file, then a program and a quoted file outside the allow list", "Bash", { command: "awk -dF 'x' '../outside/doc.txt'" }, REFUSED],
+  ["C743", "grep of an option it does not have, then a quoted file outside the allow list", "Bash", { command: "grep --vespera-none x '../outside/doc.txt'" }, REFUSED],
+  ["C744", "jq whose program loads, by modulemeta, the module a string names outside the allow list", "Bash", { command: "jq -n '\"../outside/doc\" | modulemeta'" }, REFUSED],
+
+  /* C75. A command that assigns, or runs a program the record does not name, by a form the second gate of
+     PR #709 found: an expansion with a word or an arithmetic one in double quotes or in a here-document
+     whose delimiter is not quoted, $[ ], an array's subscript, a {NAME} redirect, wait -p, coproc, a for
+     loop over PATH and [[ ]]; and a here-document's file named by PWD, which Bash assigns by itself.
+     Nothing is taken out (section 4), and the body is read (section 3). */
+  ["C751", "BASH_CMDS assigned by ${NAME=word} in double quotes, then grep of a quoted file outside the allow list", "Bash", { command: "true \"${BASH_CMDS[grep]=/usr/bin/cat}\"; grep '../outside/doc.txt'" }, REFUSED],
+  ["C752", "BASH_CMDS assigned in a here-document whose delimiter is not quoted, then grep of a quoted file outside the allow list", "Bash", { command: "true <<EOF\n${BASH_CMDS[grep]=/usr/bin/cat}\nEOF\ngrep '../outside/doc.txt'" }, REFUSED],
+  ["C753", "PATH assigned by $(( )) in a here-document whose delimiter is not quoted, then grep of a quoted file outside the allow list", "Bash", { command: "true <<EOF\n$((PATH=1))\nEOF\ngrep '../outside/doc.txt'" }, REFUSED],
+  ["C754", "PATH assigned by an array's subscript, then grep of a quoted file outside the allow list", "Bash", { command: "a[PATH=1]=x; grep '../outside/doc.txt'" }, REFUSED],
+  ["C755", "PATH assigned by a {NAME} redirect, then grep of a quoted file outside the allow list", "Bash", { command: "true {PATH}>/dev/null; grep '../outside/doc.txt'" }, REFUSED],
+  ["C756", "PATH assigned by wait -p, then grep of a quoted file outside the allow list", "Bash", { command: "sleep 0 & wait -n -p PATH; grep '../outside/doc.txt'" }, REFUSED],
+  ["C757", "PATH assigned by coproc, then grep of a quoted file outside the allow list", "Bash", { command: "coproc PATH { true; }; grep '../outside/doc.txt'" }, REFUSED],
+  ["C758", "TEMP assigned by a {NAME} redirect before a here-document into $TEMP, whose line names the hooks folder", "Bash", { command: "true {TEMP}>/dev/null\ncat > \"$TEMP/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C759", "TEMP assigned by an array's subscript before a here-document into $TEMP, whose line names the hooks folder", "Bash", { command: "a[TEMP=1]=x\ncat > \"$TEMP/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED],
+  ["C760", "cd, then a here-document into $PWD, which Bash assigns, under the temp folder when the guard started, whose line names the hooks folder", "Bash", { command: "cd src\ncat > \"$PWD/x.md\" <<'EOF'\n.claude/hooks/x\nEOF" }, REFUSED, { startedIn: `${T}/scratch` }],
+  ["C761", "PATH assigned by $[ ], then grep of a quoted file outside the allow list", "Bash", { command: "true $[PATH=1]; grep '../outside/doc.txt'" }, REFUSED],
+  ["C762", "PATH assigned by $[ ] in double quotes, then grep of a quoted file outside the allow list", "Bash", { command: "true \"$[PATH=1]\"; grep '../outside/doc.txt'" }, REFUSED],
+  ["C763", "PATH assigned by $(( )) in double quotes, then grep of a quoted file outside the allow list", "Bash", { command: "true \"$((PATH=1))\"; grep '../outside/doc.txt'" }, REFUSED],
+  ["C764", "a for loop over PATH, then grep of a quoted file outside the allow list", "Bash", { command: "for PATH in 1; do grep '../outside/doc.txt'; done" }, REFUSED],
+  ["C765", "PATH assigned by [[ ]]'s arithmetic, then grep of a quoted file outside the allow list", "Bash", { command: "[[ 0 -eq PATH=1 ]]; grep '../outside/doc.txt'" }, REFUSED],
+
+  /* C77. Forms the third and fourth gates of PR #709 found: git stash's show and list, whose -m takes no
+     text, so the next word is an option that names a file; a word headed by - that Bash may expand into an
+     option; a word after time and its one -p and one --, which Bash runs as the program; and a word holding
+     a $ outside quotes, which Bash may split into more words than one, one of them an option. Nothing is
+     taken out. */
+  ["C771", "git stash show -m, which takes no text, then --output= of a file outside the allow list", "Bash", { command: "git stash show -m --output=../outside/doc.txt" }, REFUSED],
+  ["C772", "git stash list -m, which takes no text, then --output= of a file outside the allow list", "Bash", { command: "git stash list -m --output=../outside/doc.txt" }, REFUSED],
+  ["C773", "grep of a quoted file outside the allow list, then -{f,}, which Bash makes -f and -", "Bash", { command: "echo | grep '../outside/doc.txt' -{f,}" }, REFUSED],
+  ["C774", "git commit -{-,}, which Bash makes -- and -, so -m and a quoted file outside the allow list are pathspecs", "Bash", { command: "git commit -{-,} -m '../outside/doc.txt'" }, REFUSED],
+  ["C775", "time, then -x, which Bash runs as the program, then grep of a quoted file outside the allow list", "Bash", { command: "time -x grep '../outside/doc.txt'" }, REFUSED],
+  ["C776", "time -p, then a second -p, which Bash runs as the program, then grep of a quoted file outside the allow list", "Bash", { command: "time -p -p grep '../outside/doc.txt'" }, REFUSED],
+  ["C777", "grep of a quoted file outside the allow list, then x$o, which Bash may split into x and an option", "Bash", { command: "grep '../outside/doc.txt' x$o" }, REFUSED],
+  ["C778", "git commit x$o, which Bash may split into x and --, so -m and a quoted file outside the allow list are pathspecs", "Bash", { command: "git commit x$o -m '../outside/doc.txt'" }, REFUSED],
+
+  /* C77, continued. Forms the fifth gate of PR #709 found: a gh option that takes the next word, so the
+     --body or --jq after it is that option's value and the word after is one gh reads as an option of its
+     own, a file among them; and a word Bash may make such an option. Nothing more is taken out. */
+  ["C779", "gh pr create -t, which takes --body, then --body-file= of a file outside the allow list", "Bash", { command: "gh pr create -t --body --body-file=../outside/doc.txt" }, REFUSED],
+  ["C780", "gh api -t, which takes --jq, then --input= of a file outside the allow list", "Bash", { command: "gh api -t --jq --input=../outside/doc.txt repos/o/r" }, REFUSED],
+  ["C781", "gh api {-H,}, which Bash makes -H, which takes --jq, then --input= of a file outside the allow list", "Bash", { command: "gh api {-H,} --jq --input=../outside/doc.txt repos/o/r" }, REFUSED],
+  ["C782", "gh api x$o, which Bash may split into x and an option that takes --jq, then --input= of a file outside the allow list", "Bash", { command: "gh api x$o --jq --input=../outside/doc.txt repos/o/r" }, REFUSED],
+
+  /* C78, continued. Forms the sixth gate of PR #709 found: a redirect between an option that takes a
+     value and the word after, which Bash takes out of the words the program is given, so the option takes
+     the word after the redirect's target; and a redirect whose target stands where an option's value would. */
+  ["C783", "gh api -t >/dev/null, so -t takes --jq, then --input= of a file outside the allow list", "Bash", { command: "gh api -t >/dev/null --jq --input=../outside/doc.txt repos/o/r" }, REFUSED],
+  ["C784", "gh pr create -t 2>&1, so -t takes --body, then --body-file= of a file outside the allow list", "Bash", { command: "gh pr create -t 2>&1 --body --body-file=../outside/doc.txt" }, REFUSED],
+  ["C785", "git commit -C >/dev/null, so -C takes -m, and a quoted file outside the allow list is a pathspec", "Bash", { command: "git commit -C >/dev/null -m '../outside/doc.txt'" }, REFUSED],
+  ["C786", "grep pat --label >/dev/null, so --label takes -e, and a quoted file outside the allow list is read", "Bash", { command: "grep pat --label >/dev/null -e '../outside/doc.txt'" }, REFUSED],
+  ["C787", "grep --label written into a file outside the allow list, the redirect's target standing where --label's value would", "Bash", { command: "grep --label >'../outside/out.txt' 'pat' README.md" }, REFUSED],
+  ["C788", "jq --arg a written into a file outside the allow list, the redirect's target standing where --arg's value would", "Bash", { command: "jq --arg a >'../outside/out.txt' b '.'" }, REFUSED],
+
+  /* C78, continued. Forms the seventh gate of PR #709 found: digits against a redirect that Bash reads as
+     no descriptor, being more than an int holds, so they are the option's value and the word after the
+     redirect's target is read as the program's own. */
+  ["C789", "gh api --jq 2147483648>/dev/null, whose digits are --jq's value, then --input= of a file outside the allow list", "Bash", { command: "gh api --jq 2147483648>/dev/null --input=../outside/doc.txt repos/o/r" }, REFUSED],
+  ["C790", "git commit -m 2147483648>/dev/null, whose digits are the message, and a quoted file outside the allow list is a pathspec", "Bash", { command: "git commit -m 2147483648>/dev/null '../outside/doc.txt'" }, REFUSED],
+  ["C791", "grep -e 99999999999999999999>/dev/null, whose digits are the pattern, and a quoted file outside the allow list is read", "Bash", { command: "grep -e 99999999999999999999>/dev/null '../outside/doc.txt'" }, REFUSED],
+
+  /* C52. What the options read as their programs read them still let through. */
+  ["C521", "grep --binary -n whose pattern is an alternation of two one-letter keys", "Bash", { command: "grep --binary -n 'x: \\|y: ' README.md" }, ALLOWED],
+  ["C522", "git --no-pager commit --author and -sm, whose message holds \\| and a word that begins with a slash", "Bash", { command: 'git --no-pager commit --author "A <a@b.c>" -sm "Split at \\| and keep /: as written"' }, ALLOWED],
+  ["C523", "git merge --no-ff -m, whose message holds a word that begins with a slash", "Bash", { command: 'git merge --no-ff -m "keep /: as written" feature' }, ALLOWED],
+  ["C524", "a for loop over a name that is not TEMP, then grep of a quoted pattern of two one-letter keys", "Bash", { command: "for f in a b; do grep -n 'x: \\|y: ' README.md; done" }, ALLOWED],
+  ["C525", "cd to a folder of the checkout, then git commit -m whose message holds \\| and a word that begins with a slash", "Bash", { command: 'cd src && git commit -m "Split at \\| and keep /: as written"' }, ALLOWED],
+  ["C526", "git stash push -m, whose message holds a word that begins with a slash", "Bash", { command: 'git stash push -m "keep /: as written"' }, ALLOWED],
+  ["C527", "time -p and --, then grep whose pattern is an alternation of two one-letter keys", "Bash", { command: "time -p -- grep -n 'x: \\|y: ' README.md" }, ALLOWED],
+);
+
 for (const [id, what, tool, input, expected, options = {}] of cases) {
   const skip =
     options.windows && !windows
@@ -1857,7 +2034,7 @@ for (const [id, what, tool, input, expected, options = {}] of cases) {
             : false;
   test(`${id} ${expected === ALLOWED ? "allowed" : "refused"}: ${what}`, { skip }, () => {
     const cwd = options.noCwd ? undefined : (options.cwd ?? C);
-    const result = startGuard({ stdin: hookInput(tool, input, cwd), env: options.env });
+    const result = startGuard({ stdin: hookInput(tool, input, cwd), env: options.env, startedIn: options.startedIn });
     claim(result, expected, `${tool} ${JSON.stringify(input)} with ${cwd ? `the current directory ${cwd}` : "no current directory given"}`);
   });
 }

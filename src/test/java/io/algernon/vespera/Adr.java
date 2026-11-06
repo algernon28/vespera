@@ -2494,6 +2494,16 @@ public final class Adr {
             + "0350-the-claims-job-reads-the-tracker-off-a-pull-requests-ci-and-a-new-records-slug-keeps-to-120-characters.md";
 
     /**
+     * ADR-351 -- in a Bash command the private-paths guard reads as no path the argument of git's {@code -m} and
+     * {@code --message}, gh's {@code --jq}, {@code -q} and {@code --body} and grep's {@code -e} and {@code --regexp}; the
+     * single-quoted first operand of grep, awk and jq where no option gives the pattern or program; and the lines of a
+     * here-document whose delimiter is quoted and which cat writes into the temp folder, which ADR-215 §3(c) no longer
+     * reads either (amends ADR-196 §4 and ADR-215 §3(c)).
+     */
+    public static final String THE_GUARD_READS_A_MESSAGE_A_PATTERN_AND_A_HERE_DOCUMENT_INTO_THE_TEMP_FOLDER_AS_NO_PATH =
+            FILE + "0351-the-private-paths-guard-reads-a-message-a-pattern-a-program-and-a-here-document-into-the-temp-folder-as-no-path.md";
+
+    /**
      * ADR-352 -- a unit test's timing bound holds on a machine busy with other work: a bound on a cost is taken on the
      * processor time of the thread that pays it, a fixture's state changes on an event the code under test makes and
      * not after a time on the clock, and a limit a command must outlast to print is doubled until it does (decides
