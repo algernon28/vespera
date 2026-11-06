@@ -1,6 +1,8 @@
 # ADR-342 — The control panel is a JavaFX window inside the Vespera jar, opened by the jar started with no argument, and its loopback server and pages are gone
 
 > **Partly amended — see [ADR-353](0353-the-embedding-models-shipped-default-is-qwen3-embedding-8b-and-only-a-profile-naming-no-model-moves-its-scoring-run.md).** Of its Tests row for `TheLaunchFieldsSayWhatTheyHoldTest`: the answering model's example is held by its form, one name and not blank, and no test names the model.
+>
+> **Partly amended — see [ADR-360](0360-the-control-panel-drops-javafxs-class-path-line-from-the-javafx-logger-and-every-other-record-of-it-still-prints.md).** Of §2's paragraph on the manifest and of Consequences: the line `Unsupported JavaFX configuration` no longer stays on standard error, since the control panel's start drops it from the logger `javafx`, which JavaFX writes it on, before the toolkit starts; every other record of that logger still prints, and JavaFX stays on the class path. Of §3: one class of the control panel, `ClassPathLine`, names the JDK's `java.logging` too. Of its Tests row for `TheControlPanelLinksNoClassOfTheJarTest`'s first method: it holds every class of the control panel but `ClassPathLine`. The rest of this record stands.
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.

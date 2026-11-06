@@ -2573,6 +2573,16 @@ public final class Adr {
             FILE + "0358-a-bound-the-code-under-test-keeps-in-real-time-is-held-on-the-wall-clock-from-the-event-it-races.md";
 
     /**
+     * ADR-360 -- before {@code Application.launch}, the control panel's start installs {@code ClassPathLine}, a {@code
+     * java.util.logging} filter on the logger {@code javafx}, which drops the record whose message begins {@code
+     * Unsupported JavaFX configuration} and passes every other, at any level, the logger held in a static field;
+     * {@code ClassPathLine} alone of the control panel names {@code java.logging}; JavaFX stays on the class path
+     * (amends ADR-342 §2 and §3; keeps ADR-158).
+     */
+    public static final String THE_CONTROL_PANEL_DROPS_JAVAFXS_CLASS_PATH_LINE =
+            FILE + "0360-the-control-panel-drops-javafxs-class-path-line-from-the-javafx-logger-and-every-other-record-of-it-still-prints.md";
+
+    /**
      * ADR-361 -- the cockpit's steps fold into the progress page's four legs, each a leg of its rows that folds, with one
      * summary bar and its state, open where the job runs, failed or first stopped at a gate, a fold the operator makes lasting
      * while the window is open; the control panel's copy of the legs' table, {@code Legs.ALL}, and its rules are held to
