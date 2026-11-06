@@ -114,8 +114,8 @@ class ModelPullTest {
 
     /**
      * What a test allows past the bound, timed from when the stub read the request, for the code to see the bound has
-     * passed, close the connection and compose the reason: five seconds, where the most measured beside 128 busy
-     * threads was 30 ms.
+     * passed, close the connection and compose the reason: five seconds, five times the slowest overrun measured that
+     * way beside 128 busy threads once a Java had made its first pull, 825 ms, rounded up to whole seconds.
      */
     private static final Duration MARGIN = Duration.ofSeconds(MARGIN_SECONDS);
 
@@ -132,8 +132,9 @@ class ModelPullTest {
      * How long after it has read the request the stub sends the status of a late refusal: half the refusal bound, five
      * seconds. A fresh bound for the body would end no sooner than this and a whole bound after the stub read the
      * request, so the five seconds are the room the claim of one bound leaves past it, no less than {@link #MARGIN};
-     * and the bound leaves the client the other five to reach the stub, where it took at most 2.06 s beside 128 busy
-     * threads once its Java had made a pull.
+     * and the bound leaves the client the other five to reach the stub, where, beside 128 busy threads once its Java
+     * had made a pull, the stub read the request at most 2,209 ms after the pull was begun and 982 ms after the bound
+     * began.
      */
     private static final Duration LATE_STATUS = REFUSAL_BOUND.dividedBy(2);
 
@@ -600,14 +601,17 @@ class ModelPullTest {
         Optional<String> refusal = pullingWith(true, BOUND).refusalOf(STAGE, MODEL);
 
         claim("the pull was given up as stalled", () -> assertThat(refusal).contains(stalled()));
+        Optional<Long> readAt = ollama.firstRequestTo("/api/pull", MARGIN).map(StubOllama.Request::readAt);
         Optional<Long> wentAt = ollama.whenTheClientWent(MODEL, MARGIN);
         claim(
                 "Ollama, still sending, found the connection closed at the other end within the bound and a margin of "
                         + MARGIN_SECONDS + " seconds after it read the pull's request: a connection left open would"
-                        + " hold Ollama's answer for nothing",
-                () -> assertThat(wentAt).hasValueSatisfying(went -> assertThat(Duration.ofNanos(
-                                went - ollama.requestsTo("/api/pull").getFirst().readAt()))
-                        .isLessThan(BOUND.plus(MARGIN))));
+                        + " hold Ollama's answer for nothing"
+                        + (readAt.isEmpty() ? " (the stub had not read the request within the margin, so it had no"
+                                + " answer to find closed, and nothing is held)" : ""),
+                () -> readAt.ifPresent(read -> assertThat(wentAt).hasValueSatisfying(went -> assertThat(
+                                Duration.ofNanos(went - read))
+                        .isLessThan(BOUND.plus(MARGIN)))));
     }
 
     @Test
@@ -750,16 +754,30 @@ class ModelPullTest {
     /**
      * That the pull was given up no sooner than {@code bound} after {@code started}, before the pull was asked for, and
      * sooner than {@code bound} and {@code margin} after the stub read the pull's request: the time a loaded machine
-     * takes the client to reach the stub is in the first and not in the second (ADR-358).
+     * takes the client to reach the stub is in the first and not in the second (ADR-358 §1).
+     *
+     * <p>The bound counts from before the request is sent, so a loaded machine can have the pull given up before the
+     * stub has read its request, or before it ever does: a client gone before the stub reads the request leaves it
+     * nothing to read. The read is waited for, up to {@link #MARGIN}. Where it came after the pull was given up, or
+     * not at all, nothing of the give-up lies past the read for the second claim to bound: the step says which, the
+     * time from the read is not held against the bound, and the first claim is the one held (ADR-358 §1).
      */
     private void claimGivenUpAtTheBound(long started, long givenUp, Duration bound, Duration margin, String words) {
+        Optional<Long> readAt = ollama.firstRequestTo("/api/pull", MARGIN).map(StubOllama.Request::readAt);
         Duration sinceBegun = Duration.ofNanos(givenUp - started);
-        Duration sinceRead = Duration.ofNanos(givenUp - ollama.requestsTo("/api/pull").getFirst().readAt());
-        claim(words + " (" + sinceBegun.toMillis() + " ms after it was begun, " + sinceRead.toMillis()
-                        + " ms after the stub read it)",
+        Optional<Duration> sinceRead = readAt.map(read -> Duration.ofNanos(givenUp - read));
+        boolean readBeforeGivenUp = sinceRead.filter(since -> !since.isNegative()).isPresent();
+        String when = sinceRead.isEmpty()
+                ? "the stub not having read it within the margin, so only the first is held"
+                : readBeforeGivenUp
+                        ? sinceRead.get().toMillis() + " ms after the stub read it"
+                        : sinceRead.get().negated().toMillis() + " ms before the stub read it, so only the first is held";
+        claim(words + " (" + sinceBegun.toMillis() + " ms after it was begun, " + when + ")",
                 () -> {
                     assertThat(sinceBegun).isGreaterThanOrEqualTo(bound);
-                    assertThat(sinceRead).isLessThan(bound.plus(margin));
+                    if (readBeforeGivenUp) {
+                        assertThat(sinceRead.get()).isLessThan(bound.plus(margin));
+                    }
                 });
     }
 

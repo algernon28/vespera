@@ -58,8 +58,9 @@ class SystemProcessRunnerTest {
 
     /**
      * How long the command that leaves a child behind is given: sixty seconds, five times the 10.2 s the slowest of
-     * such commands took to start a Java and exit beside 128 busy threads, and far less than the child sleeps, which is
-     * until it is killed (ADR-358).
+     * such commands took to start a Java and exit beside 128 busy threads, rounded up to the next ten seconds, and far
+     * less than the child sleeps, which is until it is killed (ADR-358). The command that deletes its own output file
+     * is given the same, which a passing run, its command exiting at once, does not spend.
      */
     private static final Duration CHILD_LIMIT = Duration.ofSeconds(CHILD_LIMIT_SECONDS);
 
@@ -271,8 +272,8 @@ class SystemProcessRunnerTest {
      * Kills the child whose id the command wrote, and waits up to {@link #GONE_WITHIN} for it to be gone, so that no
      * test leaves a process behind, whatever it ended in, and the child no longer holds the output file in the test's
      * folder when that folder is deleted (ADR-352 §3). The test that calls it is given {@link
-     * #CHILD_TEST_TIMEOUT_SECONDS}, more than {@link #CHILD_LIMIT} and this wait together (ADR-358), and adds a failure of this wait to the run's own failure, where the run
-     * failed, so that neither hides the other.
+     * #CHILD_TEST_TIMEOUT_SECONDS}, more than {@link #CHILD_LIMIT} and this wait together (ADR-358), and adds a
+     * failure of this wait to the run's own failure, where the run failed, so that neither hides the other.
      */
     private static void killTheChildNamedIn(java.nio.file.Path childsId) throws Exception {
         if (java.nio.file.Files.exists(childsId)) {

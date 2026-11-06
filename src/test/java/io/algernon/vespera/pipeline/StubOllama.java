@@ -170,6 +170,19 @@ final class StubOllama implements AutoCloseable {
     }
 
     /**
+     * The first request to {@code path}, waited for up to {@code within}; empty where none had been read by then. The
+     * code under test may give a pull up before the stub has read its request, as a loaded machine delays the read and
+     * the bound counts from before the request was sent.
+     */
+    Optional<Request> firstRequestTo(String path, Duration within) {
+        long until = System.nanoTime() + within.toNanos();
+        while (requestsTo(path).isEmpty() && System.nanoTime() < until) {
+            pause(Duration.ofMillis(20));
+        }
+        return requestsTo(path).stream().findFirst();
+    }
+
+    /**
      * The {@link System#nanoTime} at which an answer to a pull of {@code name} found its client gone, a write failing
      * because the connection was closed at the other end, waited for up to {@code within}; empty where it had not by
      * then.
