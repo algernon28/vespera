@@ -20,6 +20,8 @@
 
 > **Partly amended — see [ADR-344](0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §1: each command line gains, after its arguments, the options ADR-344 §4 passes where they differ from what the child would read without them, and `label` its `<file>` where one is set. The rest of this record stands.
 
+> **Partly amended — see [ADR-358](0358-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §5: the line shown with how the child ended is the `closing` line of the report the child wrote, where it wrote one; a child refused before it held the working-directory lock is shown with its last line of output that is not blank. The rest of this record stands.
+
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.
 - **Keeps**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md), whose What this does not decide leaves a program that starts the jar for the operator to a decision of its own: this is that decision for the **control panel**, and this record changes nothing in the packaged jar, its commands or what it starts; ADR-279 adds the corpus-root lock to `run`.

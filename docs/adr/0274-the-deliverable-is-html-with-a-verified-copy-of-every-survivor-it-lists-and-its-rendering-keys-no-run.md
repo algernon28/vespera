@@ -18,6 +18,8 @@
 
 > **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** §1's tree gains `website/`, its "no `<script>`" holding of the HTML tree's pages; §1.1's page that stands alone and §2.6's "a link never leaves the tree" hold of the HTML tree's pages, a page of the website rendering landing inside the website; a copy on the website is compared by digest and not trusted at its own name as §2.4's is; and of §8, the website alone names a document outside the tree, and `DeliverableProgress` takes a plugin's name and an exception's type. The rest of this record stands.
 
+> **Partly amended — see [ADR-358](0358-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §7: the index is handed to no opener and nothing opens it; the closing line still names it. The tree is untouched. The rest of this record stands.
+
 - **Date**: 2026-10-17
 - **Status**: accepted on 2026-10-17.
 - **Amends**: [ADR-103](0103-the-deliverable-is-a-markdown-tree-in-the-working-directory-one-tree-per-run-id.md), in "Markdown, not HTML", the tree drawn under its Decision, `index.md`'s name, and "A re-run under a changed configuration writes a new tree beside the old one", which holds of a change to what the generation run is keyed by and not of a change to how the tree is drawn (§1, §6). One tree per generation run, in the working directory, with no new key, and "every link inside the deliverable resolves with no database, no ledger and no network" stand.

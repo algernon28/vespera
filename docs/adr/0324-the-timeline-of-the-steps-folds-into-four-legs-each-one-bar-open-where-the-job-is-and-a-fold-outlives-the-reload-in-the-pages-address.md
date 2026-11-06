@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-327](0327-an-ended-progress-page-keeps-reloading-so-a-tab-left-open-shows-the-next-invocation-and-vespera-open-browser-set-false-opens-nothing.md).** Of §5: the script schedules its reload where the liveness mark carries `data-interval`, which the last write's mark carries too, and the last write carries the `<noscript>` refresh as every write before it. A fold outlives the invocation as it outlives the reload. The rest of this record stands.
 
+> **Partly amended — see [ADR-358](0358-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §5: the script goes, so a fold is not kept in the address and does not outlive a reload of `report.html`. Of §6: the window draws the steps from `report.json`. §1 to §4 stand, the legs written into the report by the jar. The rest of this record stands.
+
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
 - **Decided**: by the operator, who asked that the bars of the timeline fold, on `progress.html` and in the control panel, into four named deduplication, translation, clustering and generation, each folding to one bar, and who approved a drawing of four rows, one open on its steps; which steps each holds, the bar's span and state, which is open, how a fold is kept across the page's reload and what the control panel shows are decided under delegation.
