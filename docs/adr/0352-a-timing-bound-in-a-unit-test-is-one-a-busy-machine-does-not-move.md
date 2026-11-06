@@ -1,5 +1,7 @@
 # ADR-352 — A timing bound in a unit test is one a busy machine does not move
 
+> **Partly amended — see [ADR-358](0358-a-bound-the-code-under-test-keeps-in-real-time-is-held-on-the-wall-clock-from-the-event-it-races.md).** Of *What this does not decide*: both items are decided there. Of Consequences: a bound the code under test keeps in real time is held on the clock on the wall, no sooner than the bound from before the code is called and within the bound and a margin from the event it races, a fourth way beside §1 to §3. Of §3 and Tests: the command that leaves a child is given 60 s and its test 100 s. §1 to §3 stand.
+
 - **Date**: 2026-11-05
 - **Status**: accepted on 2026-11-05.
 - **Decides**: [ADR-238](0238-a-bucket-row-already-in-the-component-of-the-pages-lesser-members-in-that-bucket-is-passed-over-with-one-question.md)'s *What this does not decide*, *"Whether a wall-clock bound is the right guard for a cost no statement shows"*: it is not; the bound is on the processor time of the thread that pays the cost (§1). ADR-238's Tests line, *"in less than 6 s … the bound is a wall clock"*, no longer holds: the bound is 3 s of that thread's processor time. ADR-238 carries a note at its head.

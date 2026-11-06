@@ -1,5 +1,7 @@
 # ADR-357 — The unit run's HTTP client selector managers run on platform threads
 
+> **Partly amended — see [ADR-358](0358-a-bound-the-code-under-test-keeps-in-real-time-is-held-on-the-wall-clock-from-the-event-it-races.md).** Of *What this does not decide*: whether `ModelPullTest`'s own bounds hold as ADR-352 has a timing bound hold is decided there: they are held on the clock on the wall, from the stub's read of the request. The decision stands.
+
 - **Date**: 2026-11-06
 - **Status**: accepted on 2026-11-06.
 - **Settles**: what the unit run does about the JDK HTTP client's selector managers holding the virtual-thread scheduler's carriers ([#718](https://github.com/algernon28/vespera/issues/718)).

@@ -90,7 +90,7 @@ class RelevanceReportIT {
     @DisplayName("A whole run against real sidecars stamps the label file with the composed embedder identity")
     void stampsTheLabelFileWithTheIdentityTheRuntimeReported(@TempDir Path root, @TempDir Path seeds)
             throws IOException, InterruptedException {
-        ollama.execInContainer("ollama", "pull", MODEL);
+        TestcontainersConfiguration.pull(ollama, MODEL);
         Files.writeString(root.resolve("corpus.txt"), "A short corpus document about quarterly reporting.");
         Files.writeString(seeds.resolve("seed.txt"), "An exemplar document about quarterly reporting.");
         profileNaming(seeds);
