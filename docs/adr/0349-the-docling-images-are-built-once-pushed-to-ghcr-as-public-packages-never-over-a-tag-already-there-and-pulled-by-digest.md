@@ -1,6 +1,6 @@
 # ADR-349 — The Docling images are built once, pushed to GHCR as public packages never over a tag already there, and pulled by digest
 
-> **Superseded — see ADR-354.** [ADR-354](0354-the-docling-images-are-built-where-they-run-from-the-one-containerfile-and-no-workflow-pushes-them-to-a-registry.md) **supersedes this record** whole: the Docling images are built where they run, by the compose files and `TestcontainersConfiguration` from the `Containerfile`, under the `-r2` tags; `.github/workflows/docling-image.yml` goes, nothing is pushed to a registry, and part 2 is not built. The five records this one amended stand as written.
+> **Superseded — see ADR-354.** [ADR-354](0354-the-docling-images-are-built-where-they-run-from-the-one-containerfile-and-no-workflow-pushes-them-to-a-registry.md) **supersedes this record** whole: the Docling images are built where they run, by the compose files and `TestcontainersConfiguration` from the `Containerfile`, under the `-r2` tags; `.github/workflows/docling-image.yml` goes, nothing is pushed to a registry, and part 2 is not built. The five records this one amended stand as they did before it.
 
 - **Date**: 2026-11-05
 - **Status**: accepted on 2026-11-05.
