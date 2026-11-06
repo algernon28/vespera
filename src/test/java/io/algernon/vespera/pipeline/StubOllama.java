@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -46,7 +47,8 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>Every request is recorded with its path and body, in the order they arrived. Requests are answered on threads of
  * their own, so an answer kept open holds no other question up; {@link #close} stops them. Where an answer that
- * writes finds the client gone, the name is recorded as one whose client went away.
+ * writes finds the client gone, the name is recorded as one whose client went away, with the time it found so, so
+ * that a test times the code's close from the request the stub read and not from its own start (ADR-358).
  */
 final class StubOllama implements AutoCloseable {
 
@@ -105,7 +107,7 @@ final class StubOllama implements AutoCloseable {
     private final Set<String> remote = ConcurrentHashMap.newKeySet();
     private final Map<String, Integer> showStatus = new ConcurrentHashMap<>();
     private final Map<String, PullAnswer> pulls = new ConcurrentHashMap<>();
-    private final Set<String> clientWentAway = ConcurrentHashMap.newKeySet();
+    private final Map<String, Long> clientWentAway = new ConcurrentHashMap<>();
     private volatile Consumer<String> onPulled = served::add;
 
     private StubOllama() throws IOException {
@@ -168,15 +170,29 @@ final class StubOllama implements AutoCloseable {
     }
 
     /**
-     * Whether, within {@code within}, an answer to a pull of {@code name} found its client gone: a write failed because
-     * the connection was closed at the other end.
+     * The first request to {@code path}, waited for up to {@code within}; empty where none had been read by then. The
+     * code under test may give a pull up before the stub has read its request, as a loaded machine delays the read and
+     * the bound counts from before the request was sent.
      */
-    boolean sawTheClientGo(String name, Duration within) {
+    Optional<Request> firstRequestTo(String path, Duration within) {
         long until = System.nanoTime() + within.toNanos();
-        while (!clientWentAway.contains(name) && System.nanoTime() < until) {
+        while (requestsTo(path).isEmpty() && System.nanoTime() < until) {
             pause(Duration.ofMillis(20));
         }
-        return clientWentAway.contains(name);
+        return requestsTo(path).stream().findFirst();
+    }
+
+    /**
+     * The {@link System#nanoTime} at which an answer to a pull of {@code name} found its client gone, a write failing
+     * because the connection was closed at the other end, waited for up to {@code within}; empty where it had not by
+     * then.
+     */
+    Optional<Long> whenTheClientWent(String name, Duration within) {
+        long until = System.nanoTime() + within.toNanos();
+        while (!clientWentAway.containsKey(name) && System.nanoTime() < until) {
+            pause(Duration.ofMillis(20));
+        }
+        return Optional.ofNullable(clientWentAway.get(name));
     }
 
     /** Drops every script and record: nothing is served and no pull is scripted. */
@@ -268,7 +284,7 @@ final class StubOllama implements AutoCloseable {
             }
         } catch (IOException closed) {
             // the client closed the connection, which is how a pull is given up
-            clientWentAway.add(name);
+            clientWentAway.putIfAbsent(name, System.nanoTime());
         }
     }
 

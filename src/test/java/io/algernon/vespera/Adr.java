@@ -2563,11 +2563,22 @@ public final class Adr {
             FILE + "0357-the-unit-runs-http-client-selector-managers-run-on-platform-threads.md";
 
     /**
+     * ADR-358 -- a bound the code under test keeps in real time is held on the clock on the wall, no sooner than the
+     * bound from the test's start and within the bound and a margin from the event the code races, the stub's read of
+     * the request; {@code ModelPullTest}'s refusal bound is ten seconds, its late status five and its margin five,
+     * after one pull before the first test, and the command that leaves a child is given sixty seconds (settles
+     * ADR-352's two open questions and amends its Consequences).
+     */
+    public static final String A_BOUND_THE_CODE_KEEPS_IN_REAL_TIME_IS_HELD_ON_THE_WALL_CLOCK =
+            FILE + "0358-a-bound-the-code-under-test-keeps-in-real-time-is-held-on-the-wall-clock-from-the-event-it-races.md";
+
+    /**
      * ADR-359 -- the publish reads the site, the space, the parent and the account's email from five text keys of the
-     * profile where the shell sets none, a value the shell sets coming first, and the token from the environment alone;
-     * the control panel asks for the token in a masked field as a publish to Confluence starts and passes it to that
-     * child's environment alone, a publish it starts writing no template and naming the Profile tab's keys when one is
-     * missing (supersedes part of ADR-308 §3; amends ADR-308 §6, ADR-318 §1 and ADR-345 §1, §4).
+     * profile where the shell sets none, a value the shell sets coming first on the command line, and the token from the
+     * environment alone; a publish the control panel starts inherits no {@code VESPERA_CONFLUENCE_*} variable, is given
+     * the token typed in a masked field, writes no template and names the Profile tab's keys when one is missing; the
+     * deliverable's index lists none of the five (supersedes part of ADR-308 §3; amends ADR-308 §6, ADR-318 §1,
+     * ADR-345 §1, §4 and ADR-186 §1).
      */
     public static final String THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN =
             FILE + "0359-the-publish-reads-its-confluence-values-from-the-profile-and-the-control-panel-passes-the-token-to-its-child-alone.md";

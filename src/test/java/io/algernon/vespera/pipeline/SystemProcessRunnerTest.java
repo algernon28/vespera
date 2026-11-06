@@ -47,14 +47,28 @@ class SystemProcessRunnerTest {
      */
     private static final Duration LONGEST_LIMIT = Duration.ofSeconds(32);
 
+    /** How long a command killed is waited for to be gone, in whole seconds. */
+    private static final long GONE_WITHIN_SECONDS = 30;
+
     /** How long a command killed is waited for to be gone, so that the output file it held can be deleted. */
-    private static final Duration GONE_WITHIN = Duration.ofSeconds(30);
+    private static final Duration GONE_WITHIN = Duration.ofSeconds(GONE_WITHIN_SECONDS);
+
+    /** How long the command that leaves a child behind is given, in whole seconds. */
+    private static final long CHILD_LIMIT_SECONDS = 60;
 
     /**
-     * How long the command that leaves a child behind is given: ten seconds, far more than it takes to start a JVM and
-     * exit, and far less than the child sleeps.
+     * How long the command that leaves a child behind is given: sixty seconds, five times the 10.2 s the slowest of
+     * such commands took to start a Java and exit beside 128 busy threads, rounded up to the next ten seconds, and far
+     * less than the child sleeps, which is until it is killed (ADR-358). The command that deletes its own output file
+     * is given the same, which a passing run, its command exiting at once, does not spend.
      */
-    private static final Duration CHILD_LIMIT = Duration.ofSeconds(10);
+    private static final Duration CHILD_LIMIT = Duration.ofSeconds(CHILD_LIMIT_SECONDS);
+
+    /**
+     * The timeout of the test of a command that leaves a child behind, in whole seconds: its limit, the wait for the
+     * child to be gone and ten seconds, so that a child slow to go fails as the wait's own timeout.
+     */
+    private static final long CHILD_TEST_TIMEOUT_SECONDS = CHILD_LIMIT_SECONDS + GONE_WITHIN_SECONDS + 10;
 
     /** The exit code a command killed at its limit counts as. */
     private static final int KILLED = -1;
@@ -147,12 +161,21 @@ class SystemProcessRunnerTest {
                 () -> assertThat(thrown).isInstanceOf(IOException.class));
     }
 
+    /**
+     * The command exits as soon as it has started its child, and the runner owes a return once it has, not at the
+     * limit. That is a promise kept in real time, so it is held on the clock on the wall, against a limit five times
+     * the slowest return measured beside load (ADR-358): the thread waiting spends no processor time to measure (ADR-352
+     * §1), the return is the event itself and no fixture changes on it (§2), and no limit needs doubling until an event
+     * comes (§3), as one limit of five times the slowest return costs a passing run nothing: the command returns as
+     * soon as it exits.
+     */
     @Test
     @Story("Vespera refuses, naming why, when it cannot start them")
     @Issue("698")
     @Link(name = "ADR-352", url = Adr.A_TIMING_BOUND_IN_A_UNIT_TEST_IS_ONE_A_BUSY_MACHINE_DOES_NOT_MOVE, type = "adr")
+    @Link(name = "ADR-358", url = Adr.A_BOUND_THE_CODE_KEEPS_IN_REAL_TIME_IS_HELD_ON_THE_WALL_CLOCK, type = "adr")
     @DisplayName("A command that exits while a process it started keeps its output open returns within its limit, with its own exit code")
-    @org.junit.jupiter.api.Timeout(value = 60)
+    @org.junit.jupiter.api.Timeout(value = CHILD_TEST_TIMEOUT_SECONDS)
     void aCommandWhoseChildKeepsItsOutputOpenStillReturns(@org.junit.jupiter.api.io.TempDir java.nio.file.Path folder)
             throws Exception {
         java.nio.file.Path childsId = folder.resolve("child.pid");
@@ -248,9 +271,9 @@ class SystemProcessRunnerTest {
     /**
      * Kills the child whose id the command wrote, and waits up to {@link #GONE_WITHIN} for it to be gone, so that no
      * test leaves a process behind, whatever it ended in, and the child no longer holds the output file in the test's
-     * folder when that folder is deleted (ADR-352 §3). The test that calls it is given 60 s, more than {@link
-     * #CHILD_LIMIT} and this wait together, and adds a failure of this wait to the run's own failure, where the run
-     * failed, so that neither hides the other.
+     * folder when that folder is deleted (ADR-352 §3). The test that calls it is given {@link
+     * #CHILD_TEST_TIMEOUT_SECONDS}, more than {@link #CHILD_LIMIT} and this wait together (ADR-358), and adds a
+     * failure of this wait to the run's own failure, where the run failed, so that neither hides the other.
      */
     private static void killTheChildNamedIn(java.nio.file.Path childsId) throws Exception {
         if (java.nio.file.Files.exists(childsId)) {
