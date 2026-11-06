@@ -2522,6 +2522,16 @@ public final class Adr {
     public static final String THE_DOCLING_IMAGES_ARE_BUILT_WHERE_THEY_RUN_AND_NO_WORKFLOW_PUSHES_THEM =
             FILE + "0354-the-docling-images-are-built-where-they-run-from-the-one-containerfile-and-no-workflow-pushes-them-to-a-registry.md";
 
+    /**
+     * ADR-355 -- the architect's gate gains a ninth item: the changed code is probed against each sentence of the
+     * record it implements in four states no test may set up, stale or concurrent input, a failure partway through a
+     * write of more than one step, a default a form posts back, and one name in another case or spelling on Windows;
+     * the report names the sentence each probe tested. Drafted in {@code docs/agents/agent-draft} for the operator to
+     * install (keeps ADR-215 §7).
+     */
+    public static final String THE_ARCHITECT_PROBES_HOW_THE_CHANGE_BEHAVES_AGAINST_EACH_SENTENCE_OF_ITS_RECORD =
+            FILE + "0355-the-architect-probes-how-a-change-behaves-against-each-sentence-of-the-record-it-implements.md";
+
     private Adr() {
     }
 }
