@@ -27,6 +27,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.ClientHttpRequestFactory;
@@ -104,16 +105,29 @@ public class Publisher {
     private final String spaceKey;
     private final String parentId;
     private final String parentTitle;
+    private final ConfluenceValues.InTheProfile profile;
 
-    /** The application's: the process's environment, the JDK's HTTP client, and waits that wait. */
+    /**
+     * The application's: the process's environment, the JDK's HTTP client, waits that wait, the four properties and
+     * the values the working directory's profile names (ADR-359 §5).
+     */
     @Autowired
     public Publisher(
             @Value("${" + ConfluenceSite.BASE_URL_PROPERTY + ":}") String baseUrl,
             @Value("${" + ConfluenceSite.SPACE_KEY_PROPERTY + ":}") String spaceKey,
             @Value("${" + ConfluenceSite.FOLDER_ID_PROPERTY + ":}") String parentId,
-            @Value("${" + ConfluenceSite.FOLDER_TITLE_PROPERTY + ":}") String parentTitle) {
+            @Value("${" + ConfluenceSite.FOLDER_TITLE_PROPERTY + ":}") String parentTitle,
+            ConfluenceValues.@Nullable InTheProfile profile) {
         this(System::getenv, new JdkClientHttpRequestFactory(), Thread::sleep, Clock.systemUTC(), baseUrl, spaceKey,
-                parentId, parentTitle);
+                parentId, parentTitle, profile);
+    }
+
+    /**
+     * The four properties alone, a profile naming none of the five values: for a publisher that is another's subclass,
+     * as a test's, which sends nothing.
+     */
+    protected Publisher(String baseUrl, String spaceKey, String parentId, String parentTitle) {
+        this(baseUrl, spaceKey, parentId, parentTitle, workingDirectory -> ConfluenceValues.NONE);
     }
 
     /** The seam the tests need: an environment, a request factory pointed at a stub, and a pause. */
@@ -126,6 +140,22 @@ public class Publisher {
             String spaceKey,
             String parentId,
             String parentTitle) {
+        this(environment, requests, pause, clock, baseUrl, spaceKey, parentId, parentTitle,
+                workingDirectory -> ConfluenceValues.NONE);
+    }
+
+    /** The seam the tests need, with the values the working directory's profile names. */
+    Publisher(
+            Function<String, String> environment,
+            ClientHttpRequestFactory requests,
+            ConfluenceApi.Pause pause,
+            Clock clock,
+            String baseUrl,
+            String spaceKey,
+            String parentId,
+            String parentTitle,
+            ConfluenceValues.InTheProfile profile) {
+        this.profile = profile == null ? workingDirectory -> ConfluenceValues.NONE : profile;
         this.environment = environment;
         this.requests = requests;
         this.pause = pause;
@@ -145,9 +175,12 @@ public class Publisher {
      * {@value #NOT_CARRIED_FILE_NAME} and any template are written in {@code workingDirectory}.
      */
     public Outcome publish(Path confluence, String generationRun, Path workingDirectory, Consumer<String> out) {
-        ConfluenceSite.Read read = ConfluenceSite.of(environment, baseUrl, spaceKey, parentId, parentTitle);
+        ConfluenceSite.Read read = ConfluenceSite.of(environment, baseUrl, spaceKey, parentId, parentTitle,
+                profile.of(workingDirectory));
         if (read instanceof ConfluenceSite.Read.Refused(String line)) {
-            return new Outcome(false, line + templatesWrittenIn(workingDirectory));
+            boolean fromTheControlPanel =
+                    ConfluenceSite.THE_CONTROL_PANEL.equals(environment.apply(ConfluenceSite.STARTED_BY_VARIABLE));
+            return new Outcome(false, fromTheControlPanel ? line : line + templatesWrittenIn(workingDirectory));
         }
         ConfluenceSite site = ((ConfluenceSite.Read.Given) read).site();
         PageList.Read listed = PageList.in(confluence, generationRun);

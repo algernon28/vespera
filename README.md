@@ -71,6 +71,11 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `translationSimilarityFloor` | how alike two documents in different languages must be to be taken for one | `translations.html` |
 | `codeSetFolders` | which folders outside the corpus root hold code that is read with the corpus | — |
 | `foldersNotWalked` | which folders of the corpus hold nothing you want read | — |
+| `confluenceBaseUrl` | the address of your Confluence Cloud site, where you publish to it | — |
+| `confluenceSpaceKey` | the key of the Confluence space the pages go in | — |
+| `confluenceFolderId` | the id of the page or folder the pages go under, the number in its address; name this or its title, not both | — |
+| `confluenceFolderTitle` | the title of the page or folder the pages go under; name this or its id, not both | — |
+| `confluenceEmail` | the email of your Confluence account | — |
 
 `document-frequency.html` shows `boilerplateDocumentFrequencyFloor`'s measurement. For each passage of five words found in two documents or more, stage 3 counts how many documents it is in, out of the documents it measured. The floor is a share between 0 and 1 of the documents measured: a passage is boilerplate, and is left out when documents are compared, when the documents it is found in number at least the floor times the documents measured. A passage is stored as a number, not as its words, so the page shows counts and shares and no text, and names no file.
 
@@ -215,7 +220,7 @@ vespera serve [--db-dir=<path>]          serve <working directory>/website/ at h
 
 `vespera publish --to confluence,website` delivers to each destination in the order written, a name written twice once; bare, it is `--to confluence`. One that stops does not stop the next: each says how it ended in one line of its own, the last line is the last destination's, and the command ends with exit code 1 if any stopped, so publishing again goes on from there. A name Vespera does not know is refused, exit code 2, before anything is delivered: *vespera publish has no destination <name>: it knows confluence, website.* A destination with no rendering drawn is refused alone, in one line naming it, and so is one whose last drawing did not finish. Where a destination fails in a way Vespera did not foresee, its line names the kind of error and never its message: *vespera publish stopped <name>: it threw <kind>, whose message is not written. Publish again once that is dealt with.*
 
-`--to website` copies the website rendering into the working directory's `website/` folder, below, and sends nothing anywhere. `vespera publish` to Confluence is the one command that sends anything off the machine, and only the Confluence rendering: it reads the site, the space, the parent, your account's email and an API token from `VESPERA_CONFLUENCE_*` environment variables, the last two from the environment alone, and refuses before sending anything when one is missing, writing `confluence-env.sh` and `confluence-env.ps1` into the working directory for you to fill in and run in your shell.
+`--to website` copies the website rendering into the working directory's `website/` folder, below, and sends nothing anywhere. `vespera publish` to Confluence is the one command that sends anything off the machine, and only the Confluence rendering: it reads the site, the space, the parent and your account's email from `VESPERA_CONFLUENCE_*` environment variables or, where the shell sets none, from the profile, and an API token from the environment alone, and refuses before sending anything when one is missing. Typed on the command line it writes `confluence-env.sh` and `confluence-env.ps1` into the working directory for you to fill in and run in your shell; started from the control panel it asks for the token in a box and takes the rest from the Profile tab.
 
 `vespera serve` serves the website a publish refreshed, as *Publishing the website* says, and is no part of a run: the control panel never starts it. It listens at the port `vespera.serve.port` names, 24332 where nothing names one. Set the port with `--vespera.serve.port=<port>` on the command line, `-Dvespera.serve.port=<port>` to Java, or the environment variable `VESPERA_SERVE_PORT`, the first of those three that is set winning, in that order; a blank one counts as not set. A value that is no port number from 1 to 65535, `0` among them, is refused in one line, exit code 1: *vespera serve could not listen on port <value>: it is no port number from 1 to 65535. Name another in vespera.serve.port.*
 
@@ -414,7 +419,7 @@ Those files are where the run stops. No stage sends them anywhere; the one thing
 
 **The token.** Make a classic API token for your Atlassian account at *id.atlassian.com → Security → API tokens*. A token lasts at most a year, and your organisation's admin may turn tokens off. Vespera reads it, with your account's email, from the environment and from nowhere else, and writes neither to any file or log.
 
-**The five values**, set in the shell you publish from, for each publish:
+**The five values**, set in the shell you publish from, for each publish, or, for the first four, in the profile (below):
 
 | Variable | What it holds |
 | --- | --- |
@@ -426,7 +431,11 @@ Those files are where the run stops. No stage sends them anywhere; the one thing
 
 `VESPERA_CONFLUENCE_USER`, `VESPERA_CONFLUENCE_PARENT_ID` and `VESPERA_CONFLUENCE_PARENT_TITLE` are no longer read: set the names above instead. A `confluence-env.sh` or `confluence-env.ps1` already in your working directory that sets the old names is not written over; edit it, or delete it and the next publish missing a value writes it afresh.
 
-A publish missing any of them sends nothing, names what is missing, and writes `confluence-env.sh` and `confluence-env.ps1` into the working directory where they are not there already. Fill in the site, the space and the parent in one, then run it in your shell, `. ./confluence-env.sh` or `. .\confluence-env.ps1`: it asks for the email and the token each time and writes neither down. Then:
+**In the profile.** The site, the space, the parent and the email are also keys of the profile, `confluenceBaseUrl`, `confluenceSpaceKey`, `confluenceFolderId` or `confluenceFolderTitle`, and `confluenceEmail`, which the Profile tab of the control panel edits like any other. A value the shell sets, not blank, comes before the profile's; the parent is taken whole from one side, so a shell naming it by title leaves the profile's id unread. The token is in no key: it is read from `VESPERA_CONFLUENCE_TOKEN` alone. A profile that is missing or does not load gives no value, and the shell alone is read.
+
+**From the control panel.** Publish to Confluence asks for the API token each time in a box that shows nothing of what is typed, and passes it to that publish alone: it is written to no file, the profile and the window's own state among them. Ticking only the website asks for none. A publish the control panel starts reads none of the `VESPERA_CONFLUENCE_*` variables of the window's environment, so the profile is its one source of the four values, and where one is missing it says which key to set in the Profile tab and writes no template.
+
+On the command line, a publish missing any of them sends nothing, names what is missing, and writes `confluence-env.sh` and `confluence-env.ps1` into the working directory where they are not there already. Fill in the site, the space and the parent in one, then run it in your shell, `. ./confluence-env.sh` or `. .\confluence-env.ps1`: it asks for the email and the token each time and writes neither down. Then:
 
 ```
 vespera publish --db-dir=<path>

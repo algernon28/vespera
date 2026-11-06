@@ -2,9 +2,11 @@ package io.algernon.controlpanel;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -12,8 +14,10 @@ import java.util.Map;
  * only the jar's {@code run}, {@code label} and {@code publish} commands (ADR-308 §6), after both encoding flags, with
  * absolute paths and {@code CI=1}, then the options of the command line the operator set in the window (ADR-344 §4). A
  * child inherits the operator's environment less the eight variables that name the working directory (ADR-340 §6, kept
- * by ADR-345 §1), so that the folder passed is the folder the jar opens; a publish's child still inherits the five
- * values it reads, and the control panel adds none of them.
+ * by ADR-345 §1), so that the folder passed is the folder the jar opens. A publish's child is also given {@code
+ * VESPERA_STARTED_BY=control-panel} and inherits no {@code VESPERA_CONFLUENCE_} variable of the window's: the token
+ * typed, where a publish to Confluence is given one by {@link #withConfluenceToken}, is the one it is given, in its
+ * environment alone (ADR-359 §3).
  */
 public final class ChildCommand {
 
@@ -62,6 +66,15 @@ public final class ChildCommand {
         return Collections.unmodifiableMap(lists);
     }
 
+    /** The variable by which a publish's child knows the control panel started it (ADR-359 §3); named as text (ADR-285 §3). */
+    private static final String STARTED_BY_VARIABLE = "VESPERA_STARTED_BY";
+
+    /** What every variable a publish's child does not inherit begins with, in any case (ADR-359 §3). */
+    private static final String CONFLUENCE_PREFIX = "VESPERA_CONFLUENCE_";
+
+    /** The one such variable the child is given, where a token is typed (ADR-359 §3). */
+    private static final String CONFLUENCE_TOKEN_VARIABLE = "VESPERA_CONFLUENCE_TOKEN";
+
     private static final List<String> NAMING_THE_WORKING_DIRECTORY = List.of("VESPERA_WORKINGDIR",
             "VESPERA_WORKING_DIR", "vespera_workingdir", "vespera_working_dir", "DBDIR", "DB_DIR", "dbdir", "db_dir");
 
@@ -109,15 +122,24 @@ public final class ChildCommand {
     private final Path directory;
     private final Map<String, String> environment;
 
+    /** The token typed for this publish, held for the one child's environment alone and never shown (ADR-359 §3). */
+    private final String confluenceToken;
+
     private ChildCommand(Path java, Path jar, LaunchValues values, Path workingDirectory, List<String> arguments,
             String commandName, Map<String, String> passed) {
+        this(java, jar, values, workingDirectory, arguments, commandName, passed, null);
+    }
+
+    private ChildCommand(Path java, Path jar, LaunchValues values, Path workingDirectory, List<String> arguments,
+            String commandName, Map<String, String> passed, String confluenceToken) {
         this.java = java;
         this.jar = jar;
         this.values = values;
         this.arguments = List.copyOf(arguments);
         this.commandName = commandName;
         this.passed = Map.copyOf(passed);
-        this.environment = childEnvironment(values);
+        this.confluenceToken = confluenceToken;
+        this.environment = childEnvironment(values, commandName, confluenceToken);
         this.directory = workingDirectory.toAbsolutePath();
         List<String> line = new ArrayList<>(List.of(
                 java.toString(), "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8", "-jar",
@@ -177,7 +199,21 @@ public final class ChildCommand {
      * or not listed for this command, is not passed (ADR-344 §4).
      */
     public ChildCommand withOptions(Map<String, String> presets) {
-        return new ChildCommand(java, jar, values, directory, arguments, commandName, presets);
+        return new ChildCommand(java, jar, values, directory, arguments, commandName, presets, confluenceToken);
+    }
+
+    /**
+     * The same publish given {@code token} as {@code VESPERA_CONFLUENCE_TOKEN} in its environment, where its
+     * destinations include {@code confluence} (ADR-359 §3); any other command is returned unchanged. The token is in no
+     * argument and not in {@link #shown()}.
+     */
+    public ChildCommand withConfluenceToken(String token) {
+        boolean toConfluence = commandName.equals("publish")
+                && Arrays.asList(arguments.getLast().split(",")).contains("confluence");
+        if (!toConfluence) {
+            return this;
+        }
+        return new ChildCommand(java, jar, values, directory, arguments, commandName, passed, token);
     }
 
     /** {@code label}'s {@code <file>}, absolute, before {@code --db-dir}; {@code label --auto}, {@code run} and {@code publish} are unchanged. */
@@ -186,7 +222,7 @@ public final class ChildCommand {
             return this;
         }
         return new ChildCommand(java, jar, values, directory, List.of("label", file.toAbsolutePath().toString()),
-                commandName, passed);
+                commandName, passed, confluenceToken);
     }
 
     /** {@code vespera} and the arguments after {@code -jar <jar>}, one holding a space in double quotes (ADR-344 §4). */
@@ -203,15 +239,24 @@ public final class ChildCommand {
         return command;
     }
 
-    /** What is added to the child's environment: {@code CI=1} and the launch values' five (ADR-292 §4). */
+    /**
+     * What is added to the child's environment: {@code CI=1} and the launch values' five (ADR-292 §4); for a publish,
+     * {@code VESPERA_STARTED_BY=control-panel}, and the token typed where one was given (ADR-359 §3).
+     */
     public Map<String, String> environment() {
         return environment;
     }
 
-    private static Map<String, String> childEnvironment(LaunchValues values) {
+    private static Map<String, String> childEnvironment(LaunchValues values, String commandName, String token) {
         Map<String, String> added = new LinkedHashMap<>();
         added.put("CI", "1");
         added.putAll(values.toChildEnvironment());
+        if (commandName.equals("publish")) {
+            added.put(STARTED_BY_VARIABLE, "control-panel");
+            if (token != null) {
+                added.put(CONFLUENCE_TOKEN_VARIABLE, token);
+            }
+        }
         return Collections.unmodifiableMap(added);
     }
 
@@ -219,10 +264,17 @@ public final class ChildCommand {
         return directory;
     }
 
-    /** The child's whole environment where the control panel's is {@code inherited}: it less the eight, {@link #environment()} over it (ADR-340 §6). */
+    /**
+     * The child's whole environment where the control panel's is {@code inherited}: it less the eight, {@link
+     * #environment()} over it (ADR-340 §6); for a publish, also less every variable whose name, in any case, begins with
+     * {@code VESPERA_CONFLUENCE_} (ADR-359 §3), the token typed being the one such variable it is given.
+     */
     public Map<String, String> environmentFrom(Map<String, String> inherited) {
         Map<String, String> whole = new LinkedHashMap<>(inherited);
         NAMING_THE_WORKING_DIRECTORY.forEach(whole::remove);
+        if (commandName.equals("publish")) {
+            whole.keySet().removeIf(name -> name.toUpperCase(Locale.ROOT).startsWith(CONFLUENCE_PREFIX));
+        }
         whole.putAll(environment());
         return whole;
     }

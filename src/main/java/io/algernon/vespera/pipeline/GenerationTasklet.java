@@ -1081,12 +1081,12 @@ class GenerationTasklet implements Tasklet {
     }
 
     /**
-     * Every {@link Profile} key, one {@link NamedValue} per entry of {@link Profile#keysAsWritten}, which owns the
-     * rule: declaration order, the key as {@code profile.yaml} names it, and nothing where it is unset (ADR-186,
-     * ADR-226).
+     * Every {@link Profile} key the index states, one {@link NamedValue} per entry of {@link
+     * Profile#keysTheIndexStates}, which owns the rule: declaration order, the key as {@code profile.yaml} names it,
+     * nothing where it is unset, and none of the five Confluence keys (ADR-186, ADR-226, ADR-359 §7).
      */
     private static List<NamedValue> profileValues(Profile profile) {
-        return profile.keysAsWritten().entrySet().stream()
+        return profile.keysTheIndexStates().entrySet().stream()
                 .map(key -> new NamedValue(key.getKey(), key.getValue()))
                 .toList();
     }

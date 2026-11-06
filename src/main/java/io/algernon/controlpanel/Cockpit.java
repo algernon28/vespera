@@ -483,7 +483,17 @@ final class Cockpit {
 
     private void begin(ControlPanelState.Start kind, String words) {
         List<String> stored = new ArrayList<>();
-        Optional<String> refusal = state.start(kind, plan(), stored);
+        ControlPanelState.Plan plan = plan();
+        Optional<String> token = Optional.empty();
+        if (kind == ControlPanelState.Start.PUBLISH && plan.destinations().contains("confluence")) {
+            token = dialogs.masked("Publish to Confluence", "The API token of the Confluence account, which is passed"
+                    + " to this publish alone and kept nowhere:").filter(typed -> !typed.isBlank());
+            if (token.isEmpty()) {
+                say(words + " is not started: no API token was typed");
+                return;
+            }
+        }
+        Optional<String> refusal = state.start(kind, plan, token, stored);
         say(refusal.orElse(words + " started" + (stored.isEmpty() ? "" : "; " + String.join("; ", stored))));
         sawChild = refusal.isEmpty() || sawChild;
         refresh();
