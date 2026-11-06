@@ -28,7 +28,7 @@
 // docs/adr/0356 holds that reading against Bash itself: each C case's command that the guard cuts and
 // trusts is run in Bash, every program the guard trusts replaced by a function that records the
 // arguments Bash gives it, and the guard's reading, which it exports as bashReading, is compared with
-// them. C792 to C801 are the forms it amends docs/adr/0351 sections 1 and 2 by.
+// them. C792 to C803 are the forms it amends docs/adr/0351 sections 1 and 2 by.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -2030,6 +2030,10 @@ cases.push(
   ["C799", "grep -e {,}, which Bash makes no word, so -e takes the next -e as its pattern and a quoted file outside the allow list is read", "Bash", { command: "grep -e {,} -e '../outside/doc.txt'" }, REFUSED],
   ["C800", "grep --regexp $o, which Bash makes no word where o is unset, so --regexp takes -e as its pattern and a quoted file outside the allow list is read", "Bash", { command: "grep --regexp $o -e '../outside/doc.txt'" }, REFUSED],
   ["C801", "git commit -m $o, which Bash makes no word where o is unset, so -m takes the next -m as its message and a quoted file outside the allow list is a pathspec", "Bash", { command: "git commit -m $o -m '../outside/doc.txt'" }, REFUSED],
+  /* An option that takes two value words, jq's --arg and --argjson: the second is read as the first is, and
+     a brace list there may give more words than one, so the word after it is no program but jq's input. */
+  ["C802", "jq --arg a {x,.}, which Bash makes x and ., so . is the program and a quoted file outside the allow list is jq's input", "Bash", { command: "jq --arg a {x,.} '../outside/doc.txt'" }, REFUSED],
+  ["C803", "jq --argjson a {1,2}, which Bash makes 1 and 2, so 2 is the program and a quoted file outside the allow list is jq's input", "Bash", { command: "jq --argjson a {1,2} '../outside/doc.txt' '.'" }, REFUSED],
 
   /* C52. What the options read as their programs read them still let through. */
   ["C521", "grep --binary -n whose pattern is an alternation of two one-letter keys", "Bash", { command: "grep --binary -n 'x: \\|y: ' README.md" }, ALLOWED],
