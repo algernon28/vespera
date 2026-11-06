@@ -2546,7 +2546,8 @@ public final class Adr {
      * ADR-356 -- the private-paths guard's reading of a Bash command, its programs, the arguments Bash gives each and
      * the spans it takes out as text, is held against Bash itself, each trusted program replaced by a function that
      * records its arguments; the guard exports {@code bashReading} and, imported with {@code ?reading}, decides no
-     * call. Amends ADR-351 §1 and §2: a word the guard does not read whole ends {@code grep}'s walk.
+     * call. Amends ADR-351 §1 and §2: a word the guard does not read whole that may become an option ends the walk of
+     * a program's options.
      */
     public static final String THE_GUARDS_READING_OF_A_BASH_COMMAND_IS_HELD_AGAINST_THE_ARGUMENTS_BASH_GIVES =
             FILE + "0356-the-private-paths-guards-reading-of-a-bash-command-is-held-against-the-arguments-bash-gives.md";
