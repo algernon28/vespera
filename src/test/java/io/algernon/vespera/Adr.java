@@ -2562,6 +2562,15 @@ public final class Adr {
     public static final String THE_UNIT_RUNS_HTTP_CLIENT_SELECTOR_MANAGERS_RUN_ON_PLATFORM_THREADS =
             FILE + "0357-the-unit-runs-http-client-selector-managers-run-on-platform-threads.md";
 
+    /**
+     * ADR-361 -- the cockpit's steps fold into the progress page's four legs, each a fold of its rows with one summary
+     * bar and its state, open where the job runs, failed or first stopped at a gate, a fold the operator makes lasting
+     * while the window is open; the control panel's copy of the legs' table, {@code Legs.ALL}, and its rules are held to
+     * what the progress page draws by a test (partly reopens ADR-324 §6, amends ADR-344 §1).
+     */
+    public static final String THE_COCKPITS_STEPS_FOLD_INTO_THE_PROGRESS_PAGES_FOUR_LEGS =
+            FILE + "0361-the-cockpits-steps-fold-into-the-progress-pages-four-legs-and-its-copy-of-their-table-is-held-to-the-pages-by-a-test.md";
+
     private Adr() {
     }
 }

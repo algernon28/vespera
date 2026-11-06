@@ -77,7 +77,11 @@ final class Cockpit {
     private final HBox actions = new HBox();
     private final VBox wanted = new VBox();
     private final Map<String, StepRow> stepRows = new LinkedHashMap<>();
-    private final VBox steps = new StepColumns(stepRows);
+    private final Map<String, LegView> legViews = new LinkedHashMap<>();
+    /** The legs the operator has opened or folded, which stay as they left them while the window is open (ADR-361 §6). */
+    private final java.util.Set<String> chosenByTheOperator = new java.util.HashSet<>();
+    private boolean foldingItself;
+    private final VBox steps = new StepColumns(stepRows, legViews);
     private final ListView<String> output = new ListView<>();
     private final Map<String, LineChart<Number, Number>> charts = new LinkedHashMap<>();
     private final TabPane tabs = new TabPane();
@@ -125,23 +129,30 @@ final class Cockpit {
             Button stopHere) {
     }
 
+    /** One leg of the steps chart: its pane, and the name, the one bar and the state its summary holds (ADR-361 §3). */
+    private record LegView(TitledPane pane, Label name, ProgressBar bar, Label state) {
+    }
+
     /**
-     * The steps chart: a row each, one under the other, each its own {@code step-<name>} (ADR-344 §1). Each row lays
+     * The steps chart: the four legs, each holding a row for each of its steps, each its own {@code step-<name>} (ADR-344 §1). Each row lays
      * its parts out on its own, so before the rows are laid out every stage and every step name is given at least the
      * width of the widest of its column, and the bars and the states after them begin at one place on every row. The
      * widths are read from the labels as the stylesheet draws them, so no width is named here.
      */
     private static final class StepColumns extends VBox {
         private final Map<String, StepRow> rows;
+        private final Map<String, LegView> legs;
 
-        StepColumns(Map<String, StepRow> rows) {
+        StepColumns(Map<String, StepRow> rows, Map<String, LegView> legs) {
             this.rows = rows;
+            this.legs = legs;
         }
 
         @Override
         protected void layoutChildren() {
             alignColumn(rows.values().stream().map(StepRow::stage).toList());
             alignColumn(rows.values().stream().map(StepRow::name).toList());
+            alignColumn(legs.values().stream().map(LegView::name).toList());
             super.layoutChildren();
         }
 
@@ -310,8 +321,8 @@ final class Cockpit {
 
         steps.setId("steps");
         steps.getStyleClass().add("steps");
-        for (StopCosts.StopCost cost : StopCosts.ROWS) {
-            steps.getChildren().add(stepRow(cost).row());
+        for (Legs.Leg leg : Legs.ALL) {
+            steps.getChildren().add(legView(leg).pane());
         }
         output.setId("output");
         output.getStyleClass().add("output");
@@ -346,6 +357,43 @@ final class Cockpit {
     private String autoSentence(String model) {
         return "The local model" + (model.isBlank() ? "" : ", " + model + ",")
                 + " reads the documents, answers for you and sets the cut-off, and your own answers are never replaced.";
+    }
+
+    /** A leg folded and waiting: its summary the pane's graphic, its rows the pane's content (ADR-361 §3). */
+    private LegView legView(Legs.Leg leg) {
+        VBox rows = new VBox();
+        rows.getStyleClass().add("leg-rows");
+        for (String step : leg.steps()) {
+            StopCosts.StopCost cost = StopCosts.ROWS.stream().filter(each -> each.step().equals(step)).findFirst()
+                    .orElseThrow();
+            rows.getChildren().add(stepRow(cost).row());
+        }
+        Label name = new Label(leg.name());
+        name.setId("leg-name-" + leg.name());
+        ProgressBar bar = new ProgressBar(0);
+        bar.setId("leg-bar-" + leg.name());
+        Label stateWords = new Label("waiting");
+        stateWords.setId("leg-state-" + leg.name());
+        HBox summary = new HBox(name, bar, stateWords);
+        summary.getStyleClass().add("leg-summary");
+        TitledPane pane = new TitledPane();
+        pane.setId("leg-" + leg.name());
+        pane.getStyleClass().add("leg");
+        pane.setText("");
+        pane.setGraphic(summary);
+        pane.setContent(rows);
+        pane.setAnimated(false);
+        pane.setExpanded(false);
+        bar.visibleProperty().bind(pane.expandedProperty().not());
+        stateWords.visibleProperty().bind(pane.expandedProperty().not());
+        pane.expandedProperty().addListener((observed, was, now) -> {
+            if (!foldingItself) {
+                chosenByTheOperator.add(leg.name());
+            }
+        });
+        LegView made = new LegView(pane, name, bar, stateWords);
+        legViews.put(leg.name(), made);
+        return made;
     }
 
     private StepRow stepRow(StopCosts.StopCost cost) {
@@ -1702,6 +1750,7 @@ final class Cockpit {
     private void show(ProgressFile.Progress progress) {
         Map<String, ProgressFile.Step> byName = new HashMap<>();
         progress.steps().forEach(step -> byName.put(step.name(), step));
+        Map<String, Double> fractions = new HashMap<>();
         stepRows.forEach((name, row) -> {
             ProgressFile.Step step = byName.get(name);
             String words = step == null ? "waiting" : step.state();
@@ -1713,14 +1762,33 @@ final class Cockpit {
             row.cost().setManaged(running);
             if (step != null && step.done() != null && step.total() != null && step.total() > 0) {
                 row.bar().setProgress(Math.min(1.0, (double) step.done() / step.total()));
+                fractions.put(name, row.bar().getProgress());
             } else if (words.equals("finished") || words.equals("stopped at a gate")) {
                 row.bar().setProgress(1.0);
+                fractions.put(name, 1.0);
             } else if (running) {
                 row.bar().setProgress(ProgressBar.INDETERMINATE_PROGRESS);
             } else {
                 row.bar().setProgress(0);
             }
         });
+        Map<String, String> legStates = Legs.statesOf(progress);
+        List<String> legsOpen = Legs.openOf(progress);
+        for (Legs.Leg leg : Legs.ALL) {
+            LegView view = legViews.get(leg.name());
+            view.state().setText(legStates.get(leg.name()));
+            // a bar moving without a fraction counts as nothing (ADR-361 §4)
+            view.bar().setProgress(leg.steps().stream().mapToDouble(step -> fractions.getOrDefault(step, 0.0)).sum()
+                    / leg.steps().size());
+            if (!chosenByTheOperator.contains(leg.name())) {
+                foldingItself = true;
+                try {
+                    view.pane().setExpanded(legsOpen.contains(leg.name()));
+                } finally {
+                    foldingItself = false;
+                }
+            }
+        }
         for (Map.Entry<String, LineChart<Number, Number>> entry : charts.entrySet()) {
             String id = entry.getKey().replace("-chart", "");
             LineChart<Number, Number> chart = entry.getValue();
