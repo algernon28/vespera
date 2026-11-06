@@ -1,11 +1,13 @@
 package io.algernon.vespera;
 
 import com.github.dockerjava.api.model.Capability;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.testcontainers.containers.Container;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.springframework.test.context.DynamicPropertyRegistrar;
@@ -45,8 +47,9 @@ import org.testcontainers.utility.DockerImageName;
  * Raising them is a deliberate act: bump here and in {@code compose.yaml} together, in one commit,
  * and expect any calibrated threshold or durable cache keyed on engine identity to need revisiting.
  * <p>
- * Public only so an integration test living in its own module's package can {@code @Import} it —
- * {@code extraction}'s {@code DoclingClientIT} is the first. The {@code @Bean} methods stay
+ * Public so an integration test living in its own module's package can {@code @Import} it —
+ * {@code extraction}'s {@code DoclingClientIT} is the first — and call {@link #pull}, which every
+ * integration test that needs a model in the Ollama sidecar goes through. The {@code @Bean} methods stay
  * package-private, since Spring invokes them reflectively rather than through a compiled call.
  */
 @TestConfiguration(proxyBeanMethods = false)
@@ -127,6 +130,45 @@ public class TestcontainersConfiguration {
     @Bean
     DynamicPropertyRegistrar ollamaProperties(OllamaContainer ollamaContainer) {
         return registry -> registry.add("spring.ai.ollama.base-url", ollamaContainer::getEndpoint);
+    }
+
+    /**
+     * Has the Ollama sidecar pull {@code model}, and fails right there, with Ollama's own words, unless the pull
+     * ended well and the sidecar then lists the model. A pull that failed was once passed over in silence, and the
+     * test failed later and elsewhere, as a model "not pulled on this machine", with nothing said of why (#718's
+     * sibling: two runs on CI's Linux runner, each green when run again). The message names the container and the
+     * endpoint it answers at, so a pull into one sidecar and a question to another can be told apart.
+     *
+     * <p>The pull is what a test needs before it runs, not what it claims, so a failure is thrown as an error and
+     * not asserted, as {@code DoclingClientIT} does for a command it runs in its sidecar (ADR-052 keeps every
+     * assertion inside a claim). Where Spring shares one sidecar across test classes, the list may name a model an
+     * earlier class pulled; the pull's own exit is still read fresh each time. There is no test of this method of
+     * its own: it needs a running sidecar, and every integration test that pulls goes through it.
+     */
+    public static void pull(OllamaContainer ollama, String model) throws IOException, InterruptedException {
+        Container.ExecResult pulled = ollama.execInContainer("ollama", "pull", model);
+        String where = " in the Ollama sidecar " + ollama.getContainerId() + " at " + ollama.getEndpoint();
+        if (pulled.getExitCode() != 0) {
+            throw new IllegalStateException(String.format(
+                    "Ollama could not pull %s%s: it ended with %d.%nWhat it printed:%n%s%nWhat it reported as errors:%n%s",
+                    model, where, pulled.getExitCode(), pulled.getStdout(), pulled.getStderr()));
+        }
+        Container.ExecResult listed = ollama.execInContainer("ollama", "list");
+        if (!listsModel(listed.getStdout(), model)) {
+            throw new IllegalStateException(String.format(
+                    "Ollama pulled %s%s without an error, and then did not list it.%nWhat the pull printed:%n%s%n"
+                            + "What the list printed:%n%s%nWhat the list reported as errors:%n%s",
+                    model, where, pulled.getStdout(), listed.getStdout(), listed.getStderr()));
+        }
+    }
+
+    /**
+     * Whether a line of {@code ollama list} names {@code model} as its first field, whole: a name with no tag is
+     * listed with {@code :latest}, and {@code qwen3:0.6b} is not {@code qwen3:0.6b-q8_0}.
+     */
+    private static boolean listsModel(String list, String model) {
+        String named = model.contains(":") ? model : model + ":latest";
+        return list.lines().map(String::strip).map(line -> line.split("\\s+", 2)[0]).anyMatch(named::equals);
     }
 
 }

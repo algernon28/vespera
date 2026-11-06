@@ -114,7 +114,7 @@ class ClusterSynthesisIT {
     @Story("What was written is checkable afterwards, because the request cannot be made safe")
     @DisplayName("A real engine is served under the window we sent, and reports back what the prompt cost")
     void carriesTheWindowAndReportsWhatThePromptCost() throws Exception {
-        ollama.execInContainer("ollama", "pull", MODEL);
+        TestcontainersConfiguration.pull(ollama, MODEL);
 
         ChatResponse response = chatModel.call(new Prompt(
                 A_TINY_PROMPT, ClusterSynthesis.optionsFor(MODEL, ClusterSynthesis.CONTEXT_WINDOW)));
@@ -143,7 +143,7 @@ class ClusterSynthesisIT {
     @Issue("332")
     @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
     void countsAQuestionTooLongForTheWindowAtItsLastToken() throws Exception {
-        ollama.execInContainer("ollama", "pull", MODEL);
+        TestcontainersConfiguration.pull(ollama, MODEL);
 
         ChatResponse ours = chatModel.call(new Prompt(
                 A_QUESTION_TOO_LONG_FOR_THE_WINDOW,
