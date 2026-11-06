@@ -134,7 +134,8 @@
 // the text after the =; and the single-quoted first operand of grep, egrep, fgrep, awk, gawk, mawk and
 // jq where no option gives the pattern, the program or a file of them, an awk program only with no " in
 // it and a jq program only with no import, include or modulemeta. In that walk a word the guard cannot
-// read whole or that splits, or an option the table lacks, ends it: the spans found before it stay, and a
+// read whole or that splits, or an option the table lacks, or a letter that takes a value and ends the
+// known text of a word not all known, as -e{x,} or -e"$o", ends it: the spans found before it stay, and a
 // single-quoted first operand after it is taken out no more. The text rule above still reads all of
 // these. And the lines of a here-document whose delimiter is quoted, on a line that is cat, > or >> and
 // one file beneath the folder ${TEMP} names and nothing else, are read for neither, the variable TEMP,
@@ -1204,7 +1205,12 @@ function readOption(text, complete, spec) {
   for (let x = 1; x < text.length; x++) {
     const letter = text[x];
     letters.push(letter);
-    if (spec.args.includes(letter)) return { kind: "short", flag: letter, letters, takes: x === text.length - 1 && complete ? 1 : 0 };
+    if (spec.args.includes(letter)) {
+      // A letter that takes a value and ends the known text of a word not all known may take the next word
+      // or the rest of this one, which the guard cannot tell.
+      if (x === text.length - 1 && !complete) return { kind: "unknown" };
+      return { kind: "short", flag: letter, letters, takes: x === text.length - 1 ? 1 : 0 };
+    }
     if (spec.rest.includes(letter)) return { kind: "short", flag: null, letters, takes: 0 };
     if (!spec.none.includes(letter)) return { kind: "unknown" };
   }
@@ -2030,5 +2036,15 @@ function main() {
 
 // Imported by its URL with ?reading, for bashReading alone, the file decides no call (ADR-356 section 2).
 // node gives the file it is started on a URL with no query, so as the wrapper starts it, it decides every
-// call, and nothing a call holds can make it do otherwise.
-if (new URL(import.meta.url).search !== "?reading") process.exitCode = main();
+// call. A file started by node may still carry a query in the URL it is given, as a loader or a link to it
+// may add one, so the guard decides when process.argv[1] is this file, whatever the URL says; only an import
+// by the ?reading URL, with another file started, decides nothing. Where the file cannot be told, it decides.
+const startedOnThisFile = (() => {
+  try {
+    const fold = (p) => (windows ? p.toLowerCase() : p);
+    return !!process.argv[1] && fold(realpathSync.native(resolve(process.argv[1]))) === fold(realpathSync.native(fileURLToPath(import.meta.url)));
+  } catch {
+    return true;
+  }
+})();
+if (startedOnThisFile || new URL(import.meta.url).search !== "?reading") process.exitCode = main();
