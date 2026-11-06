@@ -126,7 +126,9 @@
 // double quotes, no $' $" $( ${ or $[ outside quotes, no unpaired quote, no backslash before a line
 // break, no here-string, no here-document whose delimiter is not quoted), the guard does not read for paths:
 // the literal argument of git's -m and --message after commit, tag, merge, stash push or a bare stash (and -m ending a
-// cluster of letters that take nothing there), of gh's --jq, -q and --body after api, issue or pr, and
+// cluster of letters that take nothing there), of gh's --jq, -q and --body after api or a subcommand of
+// issue or pr that has them, where no option before it takes it as its value and no word before it is
+// an option the command's table does not have or one the shell may split or make an option, and
 // of grep's -e and --regexp, the next word or
 // the text after the =; and the single-quoted first operand of grep, egrep, fgrep, awk, gawk, mawk and
 // jq where no option gives the pattern, the program or a file of them, an awk program only with no " in
@@ -1083,10 +1085,40 @@ const GIT_SUBCOMMANDS = new Map([
   }],
 ]);
 const STASH_PUSH = "push";
-// gh's subcommands whose --jq, -q and --body take text (ADR-351 section 1); after any other word, an alias
-// or an extension among them, nothing is taken out.
-const GH_SUBCOMMANDS = new Set(["api", "issue", "pr"]);
-const GH_TEXT_FLAGS = new Set(["--jq", "-q", "--body"]);
+// gh's commands whose --jq, -q and --body take text (ADR-351 section 1), by their path after gh, each with
+// its options as pflag reads them: the short letters that take no argument (none) and that take the rest
+// of the word or the next (args), and the long names, each read only written whole (exact). Every option
+// that takes an argument takes the next word whatever it is, --jq and --body among them. After any other
+// path, an alias or an extension among them, nothing is taken out.
+const ghCommand = (none, args, zero, one) => ({
+  none, args, rest: "", exact: true,
+  long: longOptions({ 0: `${zero} help`, 1: one }),
+});
+// issue's and pr's commands all take -R and --repo.
+const ghRepoCommand = (none, args, zero, one) => ghCommand(none, `${args}R`, zero, `${one} repo`);
+const GH_VIEW = ghRepoCommand("cw", "qt", "comments web", "jq json template");
+const GH_STATUS = ghRepoCommand("c", "qt", "conflict-status", "jq json template");
+const GH_COMMENT = ghRepoCommand("ew", "bF", "create-if-none delete-last edit-last editor web yes", "body body-file");
+const GH_COMMANDS = new Map([
+  ["api", ghCommand("i", "FHqXpft", "allow-escape-sequences include paginate silent slurp verbose", "cache field header hostname input jq method preview raw-field template")],
+  ["pr create", ghRepoCommand("defw", "aBbFHlmprTt", "draft dry-run editor fill fill-first fill-verbose no-maintainer-edit web", "assignee base body body-file head label milestone project recover reviewer template title")],
+  ["pr comment", GH_COMMENT],
+  ["pr edit", ghRepoCommand("", "BbFmt", "remove-milestone", "add-assignee add-label add-project add-reviewer base body body-file milestone remove-assignee remove-label remove-project remove-reviewer title")],
+  ["pr view", GH_VIEW],
+  ["pr list", ghRepoCommand("dw", "aABHqlLSst", "draft web", "app assignee author base head jq json label limit search state template")],
+  ["pr checks", ghRepoCommand("w", "iqt", "fail-fast required watch web", "interval jq json template")],
+  ["pr merge", ghRepoCommand("dmrs", "AbFt", "admin auto delete-branch disable-auto merge rebase squash", "author-email body body-file match-head-commit subject")],
+  ["pr review", ghRepoCommand("acr", "bF", "approve comment request-changes", "body body-file")],
+  ["pr status", GH_STATUS],
+  ["issue create", ghRepoCommand("ew", "abFlmpTt", "editor web", "assignee blocked-by blocking body body-file label milestone parent project recover template title type")],
+  ["issue comment", GH_COMMENT],
+  ["issue edit", ghRepoCommand("", "bFmt", "remove-milestone remove-parent remove-type", "add-assignee add-blocked-by add-blocking add-label add-project add-sub-issue body body-file milestone parent remove-assignee remove-blocked-by remove-blocking remove-label remove-project remove-sub-issue title type")],
+  ["issue view", GH_VIEW],
+  ["issue list", ghRepoCommand("w", "aAqlLmSst", "web", "app assignee author jq json label limit mention milestone search state template type")],
+  ["issue status", GH_STATUS],
+]);
+// The flags whose argument is text and no file: --jq, its letter -q, and --body.
+const GH_TEXT_FLAGS = new Set(["jq", "q", "body"]);
 
 // The programs whose pattern or program is the first operand where no option gives it (ADR-351 section 2),
 // as they read their options: the short letters that take no argument (none), that take the rest of the
@@ -1155,7 +1187,8 @@ function readOption(text, complete, spec) {
   if (text.startsWith("--")) {
     const equals = text.indexOf("=");
     if (!complete && equals < 0) return { kind: "unknown" };
-    const name = longName(equals < 0 ? text.slice(2) : text.slice(2, equals), spec.long);
+    const written = equals < 0 ? text.slice(2) : text.slice(2, equals);
+    const name = spec.exact ? (spec.long.has(written) ? written : null) : longName(written, spec.long);
     if (name === null) return { kind: "unknown" };
     return { kind: "long", flag: name, takes: equals < 0 ? spec.long.get(name) : 0, eq: equals };
   }
@@ -1181,23 +1214,31 @@ function textSpans(words) {
   };
   const redirect = (k) => (words[k].op === "<<" ? k : k + 1);
   if (program === "gh") {
-    if (!GH_SUBCOMMANDS.has(shellValue(words[at + 1]))) return spans;
-    for (let k = at + 2; k < words.length; k++) {
+    // The command's path is the words right after gh, each written whole: api, or issue or pr and one of
+    // its subcommands.
+    const head = shellValue(words[at + 1]);
+    const path = head === "api" ? head : `${head} ${shellValue(words[at + 2])}`;
+    const spec = GH_COMMANDS.get(path);
+    if (!spec) return spans;
+    for (let k = at + (head === "api" ? 2 : 3); k < words.length; k++) {
       if (words[k].op) {
         k = redirect(k);
         continue;
       }
-      const { raw, start } = words[k];
-      const value = plainValue(words[k]);
-      if (value === "--") break;
-      if (value !== null && GH_TEXT_FLAGS.has(value)) {
-        skip(words[k + 1]);
-        k++;
-        continue;
+      const { text, complete, splits } = wordText(words[k]);
+      if (complete && text === "--") break;
+      // A word that may become an option, or more words than one, ends the walk: a word whose head the
+      // guard does not know ($o, {-H,}), one with a $ outside quotes (x$o), and one headed by - that the
+      // guard does not know all of (-{H,}, -H*).
+      if ((!complete && !text) || splits || (!complete && text.startsWith("-"))) return spans;
+      if (!text.startsWith("-") || text === "-") continue;
+      const option = readOption(text, complete, spec);
+      if (option.kind === "unknown") return spans;
+      if (GH_TEXT_FLAGS.has(option.flag)) {
+        if (option.takes) skip(words[k + 1]);
+        else if (option.eq > 0 && words[k].raw.startsWith(text.slice(0, option.eq + 1))) skip(words[k], words[k].start + option.eq + 1);
       }
-      // --jq=<text>, the flag bare and its text after the =.
-      const equals = raw.indexOf("=");
-      if (raw.startsWith("--") && equals > 0 && GH_TEXT_FLAGS.has(raw.slice(0, equals))) skip(words[k], start + equals + 1);
+      k += option.takes;
     }
     return spans;
   }

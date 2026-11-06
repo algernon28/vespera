@@ -1982,6 +1982,14 @@ cases.push(
   ["C777", "grep of a quoted file outside the allow list, then x$o, which Bash may split into x and an option", "Bash", { command: "grep '../outside/doc.txt' x$o" }, REFUSED],
   ["C778", "git commit x$o, which Bash may split into x and --, so -m and a quoted file outside the allow list are pathspecs", "Bash", { command: "git commit x$o -m '../outside/doc.txt'" }, REFUSED],
 
+  /* C77, continued. Forms the fifth gate of PR #709 found: a gh option that takes the next word, so the
+     --body or --jq after it is that option's value and the word after is one gh reads as an option of its
+     own, a file among them; and a word Bash may make such an option. Nothing more is taken out. */
+  ["C779", "gh pr create -t, which takes --body, then --body-file= of a file outside the allow list", "Bash", { command: "gh pr create -t --body --body-file=../outside/doc.txt" }, REFUSED],
+  ["C780", "gh api -t, which takes --jq, then --input= of a file outside the allow list", "Bash", { command: "gh api -t --jq --input=../outside/doc.txt repos/o/r" }, REFUSED],
+  ["C781", "gh api {-H,}, which Bash makes -H, which takes --jq, then --input= of a file outside the allow list", "Bash", { command: "gh api {-H,} --jq --input=../outside/doc.txt repos/o/r" }, REFUSED],
+  ["C782", "gh api x$o, which Bash may split into x and an option that takes --jq, then --input= of a file outside the allow list", "Bash", { command: "gh api x$o --jq --input=../outside/doc.txt repos/o/r" }, REFUSED],
+
   /* C52. What the options read as their programs read them still let through. */
   ["C521", "grep --binary -n whose pattern is an alternation of two one-letter keys", "Bash", { command: "grep --binary -n 'x: \\|y: ' README.md" }, ALLOWED],
   ["C522", "git --no-pager commit --author and -sm, whose message holds \\| and a word that begins with a slash", "Bash", { command: 'git --no-pager commit --author "A <a@b.c>" -sm "Split at \\| and keep /: as written"' }, ALLOWED],
