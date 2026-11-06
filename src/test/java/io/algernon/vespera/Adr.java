@@ -2572,6 +2572,16 @@ public final class Adr {
     public static final String A_BOUND_THE_CODE_KEEPS_IN_REAL_TIME_IS_HELD_ON_THE_WALL_CLOCK =
             FILE + "0358-a-bound-the-code-under-test-keeps-in-real-time-is-held-on-the-wall-clock-from-the-event-it-races.md";
 
+    /**
+     * ADR-360 -- before {@code Application.launch}, the control panel's start installs {@code ClassPathLine}, a {@code
+     * java.util.logging} filter on the logger {@code javafx}, which drops the record whose message begins {@code
+     * Unsupported JavaFX configuration} and passes every other, at any level, the logger held in a static field;
+     * {@code ClassPathLine} alone of the control panel names {@code java.logging}; JavaFX stays on the class path
+     * (amends ADR-342 §2 and §3; keeps ADR-158).
+     */
+    public static final String THE_CONTROL_PANEL_DROPS_JAVAFXS_CLASS_PATH_LINE =
+            FILE + "0360-the-control-panel-drops-javafxs-class-path-line-from-the-javafx-logger-and-every-other-record-of-it-still-prints.md";
+
     private Adr() {
     }
 }
