@@ -76,8 +76,8 @@ final class Cockpit {
     private final Button labelAuto = new Button("Let the local model answer");
     private final HBox actions = new HBox();
     private final VBox wanted = new VBox();
-    private final VBox steps = new VBox();
     private final Map<String, StepRow> stepRows = new LinkedHashMap<>();
+    private final VBox steps = new StepColumns(stepRows);
     private final ListView<String> output = new ListView<>();
     private final Map<String, LineChart<Number, Number>> charts = new LinkedHashMap<>();
     private final TabPane tabs = new TabPane();
@@ -121,7 +121,35 @@ final class Cockpit {
     private List<String> lastOutput = List.of();
 
     /** One row of the steps chart: its stage, its name, one bar, its state and, on the running step, its own Stop. */
-    private record StepRow(HBox row, ProgressBar bar, Label state, Label cost, Button stopHere) {
+    private record StepRow(HBox row, Label stage, Label name, ProgressBar bar, Label state, Label cost,
+            Button stopHere) {
+    }
+
+    /**
+     * The steps chart: a row each, one under the other, each its own {@code step-<name>} (ADR-344 §1). Each row lays
+     * its parts out on its own, so before the rows are laid out every stage and every step name is given at least the
+     * width of the widest of its column, and the bars and the states after them begin at one place on every row. The
+     * widths are read from the labels as the stylesheet draws them, so no width is named here.
+     */
+    private static final class StepColumns extends VBox {
+        private final Map<String, StepRow> rows;
+
+        StepColumns(Map<String, StepRow> rows) {
+            this.rows = rows;
+        }
+
+        @Override
+        protected void layoutChildren() {
+            alignColumn(rows.values().stream().map(StepRow::stage).toList());
+            alignColumn(rows.values().stream().map(StepRow::name).toList());
+            super.layoutChildren();
+        }
+
+        /** Gives every label of {@code column} at least the width the widest of them asks for. */
+        private static void alignColumn(List<Label> column) {
+            double widest = column.stream().mapToDouble(label -> label.prefWidth(-1)).max().orElse(0);
+            column.forEach(label -> label.setMinWidth(widest));
+        }
     }
 
     /** A launch value's field: its text, the line saying where it started, and, for a folder, its status. */
@@ -338,7 +366,7 @@ final class Cockpit {
         HBox row = new HBox(stage, name, bar, stateWords, stopHere, costWords);
         row.setId("step-" + cost.step());
         row.getStyleClass().add("step");
-        StepRow made = new StepRow(row, bar, stateWords, costWords, stopHere);
+        StepRow made = new StepRow(row, stage, name, bar, stateWords, costWords, stopHere);
         stepRows.put(cost.step(), made);
         return made;
     }
