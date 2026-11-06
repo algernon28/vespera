@@ -41,7 +41,7 @@ import org.springframework.ai.ollama.api.OllamaChatOptions;
 @Link(name = "ADR-162", url = Adr.WRITING_ENDING_WITH_THE_ANSWERS_CLOSING_BRACE_IS_TURNED_DOWN, type = "adr")
 class TheQuestionNamesTheAnswersFieldsAndLanguageTest {
 
-    private static final String MODEL_NAME = "qwen3:8b";
+    private static final String MODEL_NAME = "a-writing-model:8b";
 
     private static final String LABEL = "Verbali_di_collaudo_2019";
 

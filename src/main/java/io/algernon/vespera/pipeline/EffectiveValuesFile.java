@@ -59,7 +59,7 @@ final class EffectiveValuesFile {
     private static final String CHAT_MODEL = "spring.ai.ollama.chat.options.model";
 
     /** The label model the code holds where configuration names neither key. */
-    private static final String THE_CODES_LABEL_MODEL = "qwen3:8b";
+    static final String THE_CODES_LABEL_MODEL = "qwen3:8b";
 
     /** The keys of the application's own file the control panel shows, in the order of ADR-330 §1. */
     private static final String[] AS_THE_APPLICATION_RESOLVES_THEM = {

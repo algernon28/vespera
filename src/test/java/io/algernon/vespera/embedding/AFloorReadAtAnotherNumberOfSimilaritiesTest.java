@@ -42,7 +42,7 @@ class AFloorReadAtAnotherNumberOfSimilaritiesTest {
     private static final String SEED_SET = "C:/archive/seeds";
 
     /** The scale of the shipped three: the embedder identity, byte for byte. */
-    private static final String AT_THREE = "model=all-minilm;digest=abc;dtype=F16;dimension=384;instruction=none";
+    private static final String AT_THREE = "model=a-small-comparing-model;digest=abc;dtype=F16;dimension=384;instruction=none";
 
     /** The scale of a run that takes the top one. */
     private static final String AT_ONE = AT_THREE + ";top:1";

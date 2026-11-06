@@ -18,8 +18,10 @@ import org.junit.jupiter.api.Test;
 /**
  * Each launch value's field carries a real example and a one-line hint (ADR-331 §8, which ADR-342 keeps), from
  * {@code LaunchValues}, where the words the launch page held now live (ADR-344 §8). The examples and hints are ADR-331
- * §8's table's, written out here; the Docling image's example is the CPU image the table names by its section.
+ * §8's table's, written out here; the Docling image's example is the CPU image the table names by its section. The
+ * answering model's example names a model, so it is held by its form alone, as ADR-353 §7 has every model held.
  */
+@Link(name = "ADR-353", url = Adr.THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE, type = "adr")
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("700")
@@ -32,6 +34,9 @@ class TheLaunchFieldsSayWhatTheyHoldTest {
             "vespera.deliverable-root", "vespera.docling.image", "vespera.docling.base-url",
             "spring.ai.ollama.base-url", "vespera.label.model");
 
+    /** The answering model's launch value, whose example names a model, and so is held by its form (ADR-353 §7). */
+    private static final String LABEL_MODEL = "vespera.label.model";
+
     @Test
     @Story("The operator fills the launch values")
     @DisplayName("Each launch value's field has the example and the hint the record gives it")
@@ -43,15 +48,18 @@ class TheLaunchFieldsSayWhatTheyHoldTest {
             hints.put(property, LaunchValues.hintOf(property));
         }
 
-        claim("each field's example is the table's, the Docling image's the CPU image",
+        String labelModelsExample = examples.remove(LABEL_MODEL);
+        claim("each field's example but the answering model's is the table's, the Docling image's the CPU image",
                 () -> assertThat(examples).containsExactlyInAnyOrderEntriesOf(Map.of(
                         "vespera.corpus-root", "D:\\archive\\corpus",
                         "vespera.working-dir", "D:\\vespera\\work",
                         "vespera.deliverable-root", "D:\\vespera\\deliverable",
                         "vespera.docling.image", "vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2",
                         "vespera.docling.base-url", "http://localhost:5001",
-                        "spring.ai.ollama.base-url", "http://localhost:11434",
-                        "vespera.label.model", "qwen3:8b")));
+                        "spring.ai.ollama.base-url", "http://localhost:11434")));
+        claim("and the answering model's example is a model's name, one name with no space in it; which model it names"
+                        + " no test holds",
+                () -> assertThat(labelModelsExample).isNotBlank().doesNotContainAnyWhitespaces());
         claim("and each field's hint is the table's",
                 () -> assertThat(hints).containsExactlyInAnyOrderEntriesOf(Map.of(
                         "vespera.corpus-root", "The folder of documents Vespera reads. It is never changed.",

@@ -255,7 +255,7 @@ class EveryPluginDrawsOnTheRecordedPathInvocationTest {
                 .seedFolder(seeds.toString(), "set by this test")
                 .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
                 .boilerplateDocumentFrequencyFloor("1.0", "set by this test, so stage 4's gate is open")
-                .embeddingModel("qwen3-embedding:0.6b", "set by this test, so gate 3 is open")
+                .embeddingModel("a-comparing-model:0.6b", "set by this test, so gate 3 is open")
                 .relevanceScoreFloor("0.0", "set by this test, so nothing earlier is asked for")
                 .generationContextWindow("4096", "set by this test, so every test here reads alike")
                 .build());

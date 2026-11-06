@@ -37,8 +37,18 @@ class SystemProcessRunnerTest {
     @org.junit.jupiter.api.io.TempDir
     java.nio.file.Path outputFolder;
 
-    /** How long the sleeping command is given before it is killed: half a second. */
+    /** How long a command is given before it is killed: half a second, and the sleeping command's first limit. */
     private static final Duration LIMIT = Duration.ofMillis(500);
+
+    /**
+     * The longest limit the sleeping command is given, its limit doubled from {@link #LIMIT} until it prints in time:
+     * thirty-two seconds. A Java started on a machine busy with eight times as many threads as it has processors
+     * printed its first line within 6.4 s in 30 starts out of 30.
+     */
+    private static final Duration LONGEST_LIMIT = Duration.ofSeconds(32);
+
+    /** How long a command killed is waited for to be gone, so that the output file it held can be deleted. */
+    private static final Duration GONE_WITHIN = Duration.ofSeconds(30);
 
     /**
      * How long the command that leaves a child behind is given: ten seconds, far more than it takes to start a JVM and
@@ -52,8 +62,19 @@ class SystemProcessRunnerTest {
     /** A program no system has. */
     private static final String NO_SUCH_PROGRAM = "vespera-no-such-program-anywhere";
 
+    /**
+     * The command is a Java, which a machine busy with other builds can take seconds to start, so that a fixed limit
+     * of half a second killed it before it printed anything. The limit is doubled, from {@link #LIMIT} up to {@link
+     * #LONGEST_LIMIT}, until a run's command printed its line before it was killed, and every run is held to what the
+     * runner owes it (ADR-352): killed at its limit and not before, counted as exit -1, and with the command's line at
+     * most once in its output. What else the Java writes, such as a note or a warning of the options it inherited from
+     * the machine's environment, or a log of the classes it loads, can come before that line or after it and is not
+     * claimed on. On an idle machine the first run is the last.
+     */
     @Test
     @Story("Vespera refuses, naming why, when it cannot start them")
+    @Issue("698")
+    @Link(name = "ADR-352", url = Adr.A_TIMING_BOUND_IN_A_UNIT_TEST_IS_ONE_A_BUSY_MACHINE_DOES_NOT_MOVE, type = "adr")
     @DisplayName("A command still running at its limit is killed and counts as exit -1, with what it printed before")
     void aCommandPastItsLimitIsKilledAndCountsAsMinusOne() throws Exception {
         List<String> sleeper = List.of(
@@ -62,11 +83,58 @@ class SystemProcessRunnerTest {
                 System.getProperty("java.class.path"),
                 SleepsUntilKilled.class.getName());
 
-        ProcessOutcome outcome = new SystemProcessRunner(outputFolder).run(sleeper, LIMIT);
+        List<Duration> limits = new java.util.ArrayList<>();
+        List<Duration> tooks = new java.util.ArrayList<>();
+        List<ProcessOutcome> outcomes = new java.util.ArrayList<>();
+        for (Duration limit = LIMIT;
+                limit.compareTo(LONGEST_LIMIT) <= 0
+                        && (outcomes.isEmpty() || !outcomes.getLast().output().contains(SleepsUntilKilled.STARTED));
+                limit = limit.multipliedBy(2)) {
+            java.util.Set<ProcessHandle> before = descendants();
+            long began = System.nanoTime();
+            outcomes.add(new SystemProcessRunner(outputFolder).run(sleeper, limit));
+            tooks.add(Duration.ofNanos(System.nanoTime() - began));
+            limits.add(limit);
+            awaitTheEndOfEveryDescendantNotIn(before);
+        }
 
-        claim("it counts as exit " + KILLED, () -> assertThat(outcome.exitCode()).isEqualTo(KILLED));
-        claim("and what it printed before it was killed is its output", () -> assertThat(outcome.output())
-                .contains(SleepsUntilKilled.STARTED));
+        claim("the last run's command printed its line before it was killed, and its output holds that line",
+                () -> assertThat(outcomes.getLast().output()).contains(SleepsUntilKilled.STARTED));
+        claim("every run counts as exit " + KILLED + ", and its command's line is in its output at most once, whatever"
+                        + " else the Java wrote",
+                () -> assertThat(outcomes).allSatisfy(outcome -> {
+                    assertThat(outcome.exitCode()).isEqualTo(KILLED);
+                    List<String> lines = outcome.output().lines().toList();
+                    assertThat(lines)
+                            .as("the lines of a killed command's output, %s", lines)
+                            .filteredOn(SleepsUntilKilled.STARTED::equals)
+                            .hasSizeLessThanOrEqualTo(1);
+                }));
+        claim("and every run returned no sooner than its limit, the half second it was first given and each doubled"
+                        + " after (" + limits + ", taking " + tooks + ")",
+                () -> {
+                    for (int run = 0; run < limits.size(); run++) {
+                        assertThat(tooks.get(run)).isGreaterThanOrEqualTo(limits.get(run));
+                    }
+                });
+    }
+
+    /** The processes this Java started, and those they started, still running. */
+    private static java.util.Set<ProcessHandle> descendants() {
+        return ProcessHandle.current().descendants().collect(java.util.stream.Collectors.toSet());
+    }
+
+    /**
+     * Waits for the processes started since {@code before} to be gone: a command killed holds its output file open
+     * until it is, and on Windows the folder of a test's own cannot be deleted while it does.
+     */
+    private static void awaitTheEndOfEveryDescendantNotIn(java.util.Set<ProcessHandle> before) throws Exception {
+        for (ProcessHandle started : descendants()) {
+            if (!before.contains(started)) {
+                started.destroyForcibly();
+                started.onExit().get(GONE_WITHIN.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+            }
+        }
     }
 
     @Test
@@ -81,8 +149,10 @@ class SystemProcessRunnerTest {
 
     @Test
     @Story("Vespera refuses, naming why, when it cannot start them")
+    @Issue("698")
+    @Link(name = "ADR-352", url = Adr.A_TIMING_BOUND_IN_A_UNIT_TEST_IS_ONE_A_BUSY_MACHINE_DOES_NOT_MOVE, type = "adr")
     @DisplayName("A command that exits while a process it started keeps its output open returns within its limit, with its own exit code")
-    @org.junit.jupiter.api.Timeout(value = 30)
+    @org.junit.jupiter.api.Timeout(value = 60)
     void aCommandWhoseChildKeepsItsOutputOpenStillReturns(@org.junit.jupiter.api.io.TempDir java.nio.file.Path folder)
             throws Exception {
         java.nio.file.Path childsId = folder.resolve("child.pid");
@@ -94,17 +164,25 @@ class SystemProcessRunnerTest {
                 childsId.toString());
         long began = System.nanoTime();
         ProcessOutcome outcome;
+        Duration took;
         try {
             outcome = new SystemProcessRunner(outputFolder).run(leaver, CHILD_LIMIT);
-        } finally {
-            killTheChildNamedIn(childsId);
+            took = Duration.ofNanos(System.nanoTime() - began);
+        } catch (Throwable runFailed) {
+            try {
+                killTheChildNamedIn(childsId);
+            } catch (Exception killFailed) {
+                runFailed.addSuppressed(killFailed);
+            }
+            throw runFailed;
         }
-        Duration took = Duration.ofNanos(System.nanoTime() - began);
+        killTheChildNamedIn(childsId);
+        Duration returnedAfter = took;
         ProcessOutcome returned = outcome;
 
         claim("it returned within the " + CHILD_LIMIT.toSeconds() + " seconds it was given, although the process it"
                         + " started was still holding its output open",
-                () -> assertThat(took).isLessThan(CHILD_LIMIT));
+                () -> assertThat(returnedAfter).isLessThan(CHILD_LIMIT));
         claim("with the exit code the command itself exited with, 0, and not as a command killed at its limit",
                 () -> assertThat(returned.exitCode()).isZero());
     }
@@ -167,11 +245,21 @@ class SystemProcessRunnerTest {
                         }));
     }
 
-    /** Kills the child whose id the command wrote, so that no test leaves a process behind, whatever it ended in. */
-    private static void killTheChildNamedIn(java.nio.file.Path childsId) throws IOException {
+    /**
+     * Kills the child whose id the command wrote, and waits up to {@link #GONE_WITHIN} for it to be gone, so that no
+     * test leaves a process behind, whatever it ended in, and the child no longer holds the output file in the test's
+     * folder when that folder is deleted (ADR-352 §3). The test that calls it is given 60 s, more than {@link
+     * #CHILD_LIMIT} and this wait together, and adds a failure of this wait to the run's own failure, where the run
+     * failed, so that neither hides the other.
+     */
+    private static void killTheChildNamedIn(java.nio.file.Path childsId) throws Exception {
         if (java.nio.file.Files.exists(childsId)) {
             long pid = Long.parseLong(java.nio.file.Files.readString(childsId).strip());
-            ProcessHandle.of(pid).ifPresent(ProcessHandle::destroyForcibly);
+            java.util.Optional<ProcessHandle> child = ProcessHandle.of(pid);
+            if (child.isPresent()) {
+                child.get().destroyForcibly();
+                child.get().onExit().get(GONE_WITHIN.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+            }
         }
     }
 }

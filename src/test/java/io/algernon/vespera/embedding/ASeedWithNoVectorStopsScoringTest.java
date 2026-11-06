@@ -43,7 +43,7 @@ class ASeedWithNoVectorStopsScoringTest {
     /** The number of similarities the application ships (vespera.relevance.top-similarities). */
     private static final int TOP_SIMILARITIES = 3;
 
-    private static final String MODEL = "qwen3-embedding:0.6b";
+    private static final String MODEL = "a-comparing-model:0.6b";
     private static final String DTYPE = "F16";
     private static final String CHUNKER_IDENTITY = "docling-hybrid-chunker-v1";
     private static final String CHUNKING_RULE_IDENTITY = "words-512-v1";

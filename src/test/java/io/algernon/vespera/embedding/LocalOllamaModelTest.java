@@ -41,7 +41,7 @@ class LocalOllamaModelTest {
     private static final String OLLAMA = "http://ollama.example";
 
     /** A name of no particular shape, so nothing but Ollama's answer decides about it. */
-    private static final String A_PLAIN_NAME = "qwen3:8b";
+    private static final String A_PLAIN_NAME = "a-writing-model:8b";
 
     @Test
     @Story("Only a model served on this machine is sent anything")
@@ -98,15 +98,15 @@ class LocalOllamaModelTest {
         claim(
                 "a name ending in cloud is refused as a cloud model, and Ollama is asked nothing",
                 () -> {
-                    assertThat(LocalOllamaModel.refusalOf("gpt-oss:120b-cloud", new OllamaClient(unasked.build())))
-                            .hasValueSatisfying(reason -> assertThat(reason).contains("gpt-oss:120b-cloud is a cloud model"));
+                    assertThat(LocalOllamaModel.refusalOf("a-large-model:120b-cloud", new OllamaClient(unasked.build())))
+                            .hasValueSatisfying(reason -> assertThat(reason).contains("a-large-model:120b-cloud is a cloud model"));
                     silent.verify();
                 });
 
         claim(
                 "a model /api/show names by remote_host and remote_model is refused as remote",
                 () -> assertThat(LocalOllamaModel.refusalOf(A_PLAIN_NAME, showing(
-                                "{\"remote_host\": \"https://ollama.com:443\", \"remote_model\": \"qwen3:8b\"}")))
+                                "{\"remote_host\": \"https://ollama.com:443\", \"remote_model\": \"a-writing-model:8b\"}")))
                         .hasValueSatisfying(reason -> assertThat(reason).contains("as remote")));
         claim(
                 "a model /api/show answers without either field is served here, and is not refused",

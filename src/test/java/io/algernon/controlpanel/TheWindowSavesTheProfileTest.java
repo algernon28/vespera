@@ -51,8 +51,8 @@ class TheWindowSavesTheProfileTest {
     void theProfileTabsSaveWritesEachValueAndNoteAsTheTableSays(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
         Optional<String> text = Optional.empty();
-        text = Optional.of(ProfileEdit.rewrite(text, ProfileKey.EMBEDDING_MODEL, "bge-m3", MEASURED));
-        text = Optional.of(ProfileEdit.rewrite(text, ProfileKey.GENERATION_MODEL, "qwen3:8b", MEASURED));
+        text = Optional.of(ProfileEdit.rewrite(text, ProfileKey.EMBEDDING_MODEL, "another-comparing-model", MEASURED));
+        text = Optional.of(ProfileEdit.rewrite(text, ProfileKey.GENERATION_MODEL, "a-writing-model:8b", MEASURED));
         text = Optional.of(ProfileEdit.rewrite(text, ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR, "0.4",
                 THE_OPERATORS_WORDS));
         text = Optional.of(ProfileEdit.rewrite(text, ProfileKey.LOG_TIMESTAMP_SHARE_FLOOR, "0.3", MEASURED));
@@ -60,7 +60,7 @@ class TheWindowSavesTheProfileTest {
 
         try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory, ""))) {
             window.act(root -> {
-                WindowForTests.node(root, "profile-generationModel", ComboBox.class).getEditor().setText("qwen3:14b");
+                WindowForTests.node(root, "profile-generationModel", ComboBox.class).getEditor().setText("a-writing-model:14b");
                 WindowForTests.node(root, "profile-boilerplateDocumentFrequencyFloor.provenance", TextField.class)
                         .setText("");
                 WindowForTests.node(root, "profile-logTimestampShareFloor.provenance", TextField.class)
@@ -76,8 +76,8 @@ class TheWindowSavesTheProfileTest {
                         + " around them removed; and the translation floor, which the file never stated and the operator"
                         + " left alone, is not written",
                 () -> assertThat(saved).containsOnly(
-                        Map.entry(ProfileKey.EMBEDDING_MODEL, new Stated("bge-m3", MEASURED)),
-                        Map.entry(ProfileKey.GENERATION_MODEL, new Stated("qwen3:14b", FILLED_IN)),
+                        Map.entry(ProfileKey.EMBEDDING_MODEL, new Stated("another-comparing-model", MEASURED)),
+                        Map.entry(ProfileKey.GENERATION_MODEL, new Stated("a-writing-model:14b", FILLED_IN)),
                         Map.entry(ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR, new Stated("0.4", FILLED_IN)),
                         Map.entry(ProfileKey.LOG_TIMESTAMP_SHARE_FLOOR, new Stated("0.3", "read off the format mix"))));
     }

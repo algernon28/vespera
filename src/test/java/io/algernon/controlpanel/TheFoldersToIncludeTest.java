@@ -186,7 +186,7 @@ class TheFoldersToIncludeTest {
     void everyFolderTickedAgainTakesTheKeyOut(@TempDir Path folder) throws Exception {
         Path workingDirectory = aCorpusAndWorkingDirectory(folder, "A", "B");
         Optional<String> text = Optional.of(ProfileEdit.rewrite(Optional.empty(), ProfileKey.GENERATION_MODEL,
-                "qwen3:8b", THE_OPERATORS_NOTE));
+                "a-writing-model:8b", THE_OPERATORS_NOTE));
         text = Optional.of(ProfileEdit.rewrite(text, ProfileKey.FOLDERS_NOT_WALKED, "A", THE_OPERATORS_NOTE));
         Files.writeString(workingDirectory.resolve(ProfileEdit.FILE_NAME), text.orElseThrow(), StandardCharsets.UTF_8);
         boolean drawnUnticked;
@@ -203,7 +203,7 @@ class TheFoldersToIncludeTest {
                 () -> assertThat(stated).doesNotContainKey(ProfileKey.FOLDERS_NOT_WALKED));
         claim("and the value beside it stands as it was",
                 () -> assertThat(stated).containsEntry(ProfileKey.GENERATION_MODEL,
-                        new Stated("qwen3:8b", THE_OPERATORS_NOTE)));
+                        new Stated("a-writing-model:8b", THE_OPERATORS_NOTE)));
     }
 
     /**
@@ -289,7 +289,7 @@ class TheFoldersToIncludeTest {
             throws Exception {
         Path workingDirectory = aCorpusAndWorkingDirectory(folder, "A", "B");
         Optional<String> text = Optional.of(ProfileEdit.rewrite(Optional.empty(), ProfileKey.GENERATION_MODEL,
-                "qwen3:8b", THE_OPERATORS_NOTE));
+                "a-writing-model:8b", THE_OPERATORS_NOTE));
         // the control panel writes no value the walk cannot read, so the test spells one into the profile itself
         String placeholder = "a-folder-to-replace";
         text = Optional.of(ProfileEdit.rewrite(text, ProfileKey.FOLDERS_NOT_WALKED, placeholder, THE_OPERATORS_NOTE)
@@ -319,7 +319,7 @@ class TheFoldersToIncludeTest {
                 () -> assertThat(stated).doesNotContainKey(ProfileKey.FOLDERS_NOT_WALKED));
         claim("and the value beside it stands as it was",
                 () -> assertThat(stated).containsEntry(ProfileKey.GENERATION_MODEL,
-                        new Stated("qwen3:8b", THE_OPERATORS_NOTE)));
+                        new Stated("a-writing-model:8b", THE_OPERATORS_NOTE)));
     }
 
     /**

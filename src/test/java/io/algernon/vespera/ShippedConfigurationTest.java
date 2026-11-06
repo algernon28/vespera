@@ -3,6 +3,7 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.algernon.controlpanel.ProfileKey;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -74,12 +75,6 @@ class ShippedConfigurationTest {
 
     /** Where the embedding model's shipped default lives, and where Spring AI itself reads it (ADR-298). */
     private static final String EMBEDDING_MODEL = "spring.ai.ollama.embedding.options.model";
-
-    /**
-     * The embedding model the application ships with (ADR-298 §1). Held exactly, not merely as not blank: a changed
-     * default re-scores every corpus whose profile names no model, so it is changed only by a decision of its own.
-     */
-    private static final String THE_SHIPPED_EMBEDDING_MODEL = "bge-m3:latest";
 
     /** The datasource URL, and the only place the database lock wait is set (ADR-127). */
     private static final String DATASOURCE_URL = "spring.datasource.url";
@@ -153,21 +148,50 @@ class ShippedConfigurationTest {
                         .isNotBlank());
     }
 
+    /**
+     * ADR-298 §1 as ADR-353 §7 holds it: a name is shipped, one name with no space in it, and which one is the shipped
+     * file's alone. No test names the model, so a changed default changes this file and the record, and no test.
+     */
     @Test
     @Story("The embedding model ships with a default")
-    @DisplayName("The model documents are scored with is named, and it is " + THE_SHIPPED_EMBEDDING_MODEL)
+    @DisplayName("The model documents are scored with is named, as one name, and is not blank")
     @Link(name = "ADR-298", url = Adr.THE_EMBEDDING_MODEL_SHIPS_WITH_A_DEFAULT, type = "adr")
+    @Link(name = "ADR-353", url = Adr.THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE, type = "adr")
     void namesTheEmbeddingModel() throws IOException {
         Map<Object, Object> properties = shippedProperties();
 
         claim(
-                "the shipped configuration names " + THE_SHIPPED_EMBEDDING_MODEL + " as the model every document is"
-                        + " scored with unless the profile names another, and names exactly that one: every score,"
-                        + " every group and every relevance judgement of a corpus that names no model rests on it, so"
-                        + " a different name here is a different decision rather than an edit",
+                "a name is shipped, so a corpus whose profile names no model is scored rather than stopped at the"
+                        + " question of which model to score with, and it is one name with no space in it, as the"
+                        + " serving engine reads a model's name",
                 () -> assertThat(properties.get(EMBEDDING_MODEL))
                         .asString()
-                        .isEqualTo(THE_SHIPPED_EMBEDDING_MODEL));
+                        .isNotBlank()
+                        .doesNotContainAnyWhitespaces());
+    }
+
+    /**
+     * ADR-353 §5, after ADR-331 §8: the control panel's example for {@code embeddingModel} is whatever model the jar
+     * ships, as the writing model's example is its own, and its hint names that model as the one to replace. The control
+     * panel reads no configuration of the jar's (ADR-285 §3), so the two are held here to the value the shipped file
+     * names, read from it.
+     */
+    @Test
+    @Story("The embedding model ships with a default")
+    @DisplayName("The control panel's example and hint for the comparing model name the model the application ships, whichever it is")
+    @Link(name = "ADR-353", url = Adr.THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE, type = "adr")
+    void theControlPanelsExampleAndHintNameTheShippedEmbeddingModel() throws IOException {
+        String shipped = String.valueOf(shippedProperties().get(EMBEDDING_MODEL));
+
+        claim(
+                "the example the control panel shows for the comparing model is the one the shipped file names, "
+                        + shipped + ", the model the application scores with where the profile names none, so an"
+                        + " operator who types the example changes nothing",
+                () -> assertThat(ProfileKey.EMBEDDING_MODEL.example()).isEqualTo(shipped));
+        claim(
+                "and its hint names that same model as the one to name another in place of, so the hint, the example"
+                        + " and the shipped file cannot drift apart",
+                () -> assertThat(ProfileKey.EMBEDDING_MODEL.hint()).endsWith(" other than " + shipped));
     }
 
     /**

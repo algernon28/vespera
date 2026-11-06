@@ -167,7 +167,7 @@ class TheValuesTheNextInvocationWantsTest {
     private static Path aWorkingDirectoryStatingAModel(Path folder) throws IOException {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
         Files.writeString(workingDirectory.resolve(ProfileEdit.FILE_NAME), ProfileEdit.rewrite(Optional.empty(),
-                ProfileKey.GENERATION_MODEL, "qwen3:8b", "measured on the seed set"), StandardCharsets.UTF_8);
+                ProfileKey.GENERATION_MODEL, "a-writing-model:8b", "measured on the seed set"), StandardCharsets.UTF_8);
         return workingDirectory;
     }
 

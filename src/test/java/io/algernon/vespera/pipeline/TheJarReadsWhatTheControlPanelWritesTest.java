@@ -238,7 +238,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
                 new RelevanceLabelFile.Entry(second, sampled(2, 0.1, 0), "seed/one.docx"),
                 new RelevanceLabelFile.Entry(third, sampled(3, 0.5, 1), "seed/two.docx"));
         String asTheJarWroteIt = RelevanceLabelFile.render(scoringRun, "embedder@digest", seedSet, entries,
-                Map.of(new OccurrenceId(1), true, new OccurrenceId(3), false), Map.of(new OccurrenceId(3), "qwen3:8b"));
+                Map.of(new OccurrenceId(1), true, new OccurrenceId(3), false), Map.of(new OccurrenceId(3), "a-writing-model:8b"));
         Map<String, Optional<Boolean>> answers = new LinkedHashMap<>();
         answers.put(second, Optional.of(true));
         answers.put(third, Optional.empty());
@@ -268,7 +268,7 @@ class TheJarReadsWhatTheControlPanelWritesTest {
     void theJarReadsEachScalarTheControlPanelReadsToTheSameText(@TempDir Path workingDirectory) throws IOException {
         ProfileStore store = new ProfileStore(workingDirectory);
         List<String> profileScalars = List.of("'D:\\archive\\exemplars'", "'it''s'", "''", "0.35", "0.35   ", "-0.2",
-                "1.50", "~", "Null", "true", "null", "qwen3:14b", "a#b", ".P3A .DGN, .x", "it, en");
+                "1.50", "~", "Null", "true", "null", "a-writing-model:14b", "a#b", ".P3A .DGN, .x", "it, en");
         for (String scalar : profileScalars) {
             String text = "relevanceScoreFloor:\n  value: " + scalar + "\n  provenance: 'by hand'\n";
             Files.writeString(store.file(), text, UTF_8);
@@ -388,10 +388,10 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         samples.put(ProfileKey.DEGENERATE_OUTPUT_CONFIDENCE_FLOOR, List.of("0.4", "0"));
         samples.put(ProfileKey.DEGENERATE_OUTPUT_WORD_FLOOR, List.of("0", "30", "2.0", "2147483647"));
         samples.put(ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR, List.of("0.8", "1.5"));
-        samples.put(ProfileKey.EMBEDDING_MODEL, List.of("nomic-embed-text:v1.5"));
+        samples.put(ProfileKey.EMBEDDING_MODEL, List.of("acme-embed-text:v1.5"));
         samples.put(ProfileKey.RELEVANCE_SCORE_FLOOR, List.of("0.579", " 0.6 "));
         samples.put(ProfileKey.ARRANGEMENT_APPROVED, List.of("0123456789ab", "fedcba987654", "auto"));
-        samples.put(ProfileKey.GENERATION_MODEL, List.of("qwen3:14b"));
+        samples.put(ProfileKey.GENERATION_MODEL, List.of("a-writing-model:14b"));
         samples.put(ProfileKey.GENERATION_CONTEXT_WINDOW, List.of("1282", "8192", "16384.0", "2147483647"));
         samples.put(ProfileKey.CLUSTER_PAGE_BYTE_CEILING, List.of("1", "300000", "2.0", "9223372036854775807"));
         samples.put(ProfileKey.LOG_TIMESTAMP_SHARE_FLOOR, List.of("0.6"));

@@ -48,16 +48,19 @@ class OllamaClientTest {
     private static final String TAGS_ENDPOINT = BASE_URL + "/api/tags";
 
     /** The model this fixture asks about, tag included, as a profile would resolve it. */
-    private static final String MODEL = "qwen3-embedding:0.6b";
+    private static final String MODEL = "a-comparing-model:0.6b";
 
-    /** The manifest digest measured for that model against a real sidecar, used here as a fixture. */
+    /**
+     * A manifest digest measured against a real sidecar, for {@code qwen3-embedding:0.6b}, and used here as a fixture
+     * under this test's own name.
+     */
     private static final String DIGEST = "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d";
 
     /** A listing carrying the model this test asks about, plus one it does not. */
     private static final String TWO_MODELS =
             """
             {"models": [
-              {"name": "all-minilm:latest", "digest": "1b226e2802dbb772b5fc32a58f103ca1804ef7501331012de126ab22f67475ef",
+              {"name": "a-small-comparing-model:latest", "digest": "1b226e2802dbb772b5fc32a58f103ca1804ef7501331012de126ab22f67475ef",
                "details": {"quantization_level": "F16"}},
               {"name": "%s", "digest": "%s",
                "details": {"quantization_level": "Q4_K_M"}}
@@ -107,9 +110,9 @@ class OllamaClientTest {
         claim(
                 "a model name the runtime does not list is refused by name, since the alternative is"
                         + " an identity composed around a model nobody is serving",
-                () -> assertThatThrownBy(() -> client.artefactOf("nomic-embed-text:latest"))
+                () -> assertThatThrownBy(() -> client.artefactOf("acme-embed-text:latest"))
                         .isInstanceOf(IllegalStateException.class)
-                        .hasMessageContaining("nomic-embed-text:latest"));
+                        .hasMessageContaining("acme-embed-text:latest"));
     }
 
     @Test

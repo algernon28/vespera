@@ -74,7 +74,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-111", url = Adr.A_CLUSTER_FAULT_IS_A_ROW_IN_SYNTHESIS, type = "adr")
 class ClusterGenerationTest {
 
-    private static final String MODEL_NAME = "qwen3:8b";
+    private static final String MODEL_NAME = "a-writing-model:8b";
 
     /** The window every call here reads in, written out rather than read off the code under test. */
     private static final int THE_WINDOW = 8192;
@@ -670,7 +670,7 @@ class ClusterGenerationTest {
                     .findFirst()
                     .orElse(Script.BELIEVED);
             if (script == Script.REFUSED_AS_A_MODEL_NEVER_FETCHED) {
-                throw new NonTransientAiException("HTTP 404 - {\"error\":\"model 'qwen3:8b' not found\"}");
+                throw new NonTransientAiException("HTTP 404 - {\"error\":\"model 'a-writing-model:8b' not found\"}");
             }
             boolean counting = ((OllamaChatOptions) prompt.getOptions()).getNumPredict() == 1;
             if (counting) {

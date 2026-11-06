@@ -89,8 +89,12 @@ class RedundancyResolutionTest {
     /** Copies of one text, sharing every band: four pages of signed documents. */
     private static final int COPIES = 4_000;
 
-    /** Several times what resolving {@link #COPIES} copies takes with ADR-238, and well under what it took before. */
-    private static final Duration A_FEW_SECONDS = Duration.ofSeconds(6);
+    /**
+     * Three seconds of the processor time of the thread that resolves {@link #COPIES} copies: three times the most it
+     * took with ADR-238 on a machine busy with eight times as many threads as it has processors, 0.95 s, and under the
+     * least the pair loop took without ADR-238's question and with ADR-239's read, 4.5 s alone (ADR-352).
+     */
+    private static final Duration A_FEW_SECONDS = Duration.ofSeconds(3);
 
     /** How many documents sit wholly inside one container, each sharing nothing with the others. */
     private static final int CHAPTERS_INSIDE_ONE_VOLUME = 3;
@@ -616,13 +620,18 @@ class RedundancyResolutionTest {
      * bucket was already in the row's component, one pair at a time: for a family of near-copies that share a
      * bucket that is half the square of the family for each band, though after the first pairs every answer
      * is yes. Run alone, the 4,000 near-copies here took 17.3 s to resolve on the code before ADR-238 and 1.6 s
-     * with it (ADR-238). The bound is several times the second and well under the first; it is a time on the
-     * clock, as ADR-238 says, since nothing else tells the two apart.
+     * with it (ADR-238). The bound, {@link #A_FEW_SECONDS}, is well under the first; it is a time on a
+     * clock, as ADR-238 says, since nothing else tells the two apart, and the clock is the processor time of
+     * the thread that resolves, which the pass runs on alone (ADR-352): time the thread spends waiting for a
+     * processor other programs hold is not on it, so a machine busy with other builds does not fail the bound,
+     * and the quadratic loop, which waits for nothing, still spends its seconds on it.
      */
     @Test
     @Story("A redundancy set resolves as a whole, not pair by pair")
-    @DisplayName("Four thousand copies of one document are resolved to one in seconds, not in time that grows with the square of their number")
+    @DisplayName("Four thousand copies of one document are resolved to one in seconds of processor time, not in time that grows with the square of their number")
     @Link(name = "ADR-238", url = Adr.A_ROW_ALREADY_IN_THE_COMPONENT_OF_A_BUCKETS_LESSER_MEMBERS_IS_PASSED_OVER, type = "adr")
+    @Link(name = "ADR-352", url = Adr.A_TIMING_BOUND_IN_A_UNIT_TEST_IS_ONE_A_BUSY_MACHINE_DOES_NOT_MOVE, type = "adr")
+    @Issue("698")
     void aFamilyOfCopiesIsResolvedInTimeThatDoesNotGrowWithTheSquareOfItsSize() {
         Fixture fixture = fixture();
         Set<Long> theOneText = shingles(0, 100);
@@ -631,18 +640,24 @@ class RedundancyResolutionTest {
         }
         fixture.signAndMeasure();
         jdbcTemplate.execute(TheRunsHashIndex.statementFor(fixture.stage2RunId.value()));
+        java.lang.management.ThreadMXBean threads = java.lang.management.ManagementFactory.getThreadMXBean();
+        claim(
+                "this machine can tell how much processor time the thread that resolves spends",
+                () -> assertThat(threads.isCurrentThreadCpuTimeSupported() && threads.isThreadCpuTimeEnabled())
+                        .isTrue());
 
-        long started = System.nanoTime();
+        long started = threads.getCurrentThreadCpuTime();
         fixture.resolveSigned();
-        Duration took = Duration.ofNanos(System.nanoTime() - started);
+        Duration took = Duration.ofNanos(threads.getCurrentThreadCpuTime() - started);
 
         claim(
                 "every copy but one is removed, all " + (COPIES - 1) + " pointing at the one kept",
                 () -> assertThat(redundantWithVerdictCount()).isEqualTo(COPIES - 1));
         claim(
-                "and resolving them takes less than " + A_FEW_SECONDS.toSeconds() + " seconds: once the copies are one"
-                        + " redundancy set, a row of a bucket they share is passed over with one question, and not with one"
-                        + " for each of the page's copies in that bucket (it took " + took.toMillis() + " ms)",
+                "and resolving them takes less than " + A_FEW_SECONDS.toSeconds() + " seconds of the processor time of"
+                        + " the thread that resolves: once the copies are one redundancy set, a row of a bucket they share"
+                        + " is passed over with one question, and not with one for each of the page's copies in that"
+                        + " bucket (it took " + took.toMillis() + " ms)",
                 () -> assertThat(took).isLessThan(A_FEW_SECONDS));
     }
 

@@ -2503,6 +2503,26 @@ public final class Adr {
     public static final String THE_GUARD_READS_A_MESSAGE_A_PATTERN_AND_A_HERE_DOCUMENT_INTO_THE_TEMP_FOLDER_AS_NO_PATH =
             FILE + "0351-the-private-paths-guard-reads-a-message-a-pattern-a-program-and-a-here-document-into-the-temp-folder-as-no-path.md";
 
+    /**
+     * ADR-352 -- a unit test's timing bound holds on a machine busy with other work: a bound on a cost is taken on the
+     * processor time of the thread that pays it, a fixture's state changes on an event the code under test makes and
+     * not after a time on the clock, and a limit a command must outlast to print is doubled until it does (decides
+     * ADR-238's "whether a wall-clock bound is the right guard").
+     */
+    public static final String A_TIMING_BOUND_IN_A_UNIT_TEST_IS_ONE_A_BUSY_MACHINE_DOES_NOT_MOVE =
+            FILE + "0352-a-timing-bound-in-a-unit-test-is-one-a-busy-machine-does-not-move.md";
+
+    /**
+     * ADR-353 -- the embedding model's shipped default is Qwen3-Embedding-8B, named as its file on Hugging Face,
+     * {@code hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M}, in place of {@code bge-m3:latest}; Ollama's library tag of the
+     * same model layer is another name and manifest, so another scoring run; only a profile naming no model mints its
+     * embedding-scoring, arrangement and generation runs again; and no test names a model as expected or relies on how
+     * the shipped file is configured, each setting the values it needs itself (amends ADR-298 §1 and §7, ADR-329's
+     * Consequences, ADR-331 §8 and ADR-342's Tests row).
+     */
+    public static final String THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE = FILE
+            + "0353-the-embedding-models-shipped-default-is-qwen3-embedding-8b-and-only-a-profile-naming-no-model-moves-its-scoring-run.md";
+
     private Adr() {
     }
 }
