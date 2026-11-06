@@ -133,7 +133,9 @@
 // target or the descriptor number before it among them; the next word or
 // the text after the =; and the single-quoted first operand of grep, egrep, fgrep, awk, gawk, mawk and
 // jq where no option gives the pattern, the program or a file of them, an awk program only with no " in
-// it and a jq program only with no import, include or modulemeta. The text rule above still reads all of
+// it and a jq program only with no import, include or modulemeta. In that walk a word the guard cannot
+// read whole or that splits, or an option the table lacks, ends it: the spans found before it stay, and a
+// single-quoted first operand after it is taken out no more. The text rule above still reads all of
 // these. And the lines of a here-document whose delimiter is quoted, on a line that is cat, > or >> and
 // one file beneath the folder ${TEMP} names and nothing else, are read for neither, the variable TEMP,
 // TMP or TMPDIR spelled as an environment key, case for case. Each program's options are read from a
@@ -1315,10 +1317,7 @@ function textSpans(segmentWords) {
     // know may become one, or more than one word; so may a word headed by - that is not all known, as
     // -{f,}, which Bash makes -f and -, and a word with a $ outside quotes, as x$o, which Bash may split
     // into x and an option.
-    if (!operands && ((!complete && !text) || splits)) {
-      given = true;
-      continue;
-    }
+    if (!operands && ((!complete && !text) || splits)) return spans;
     if (operands || (complete && text === "-") || !text.startsWith("-")) {
       first ??= word;
       continue;
@@ -1328,10 +1327,7 @@ function textSpans(segmentWords) {
       continue;
     }
     const option = readOption(text, complete, spec);
-    if (option.kind === "unknown") {
-      given = true;
-      continue;
-    }
+    if (option.kind === "unknown") return spans;
     if (option.kind === "long") {
       if (spec.longGiven.has(option.flag)) given = true;
       if (option.flag === spec.longPattern) {
