@@ -274,7 +274,7 @@ _Not to be confused with_: an **analysis report**, a page a step writes to read 
 _Renders as_: **report**, in prose written for the operator.
 
 **Analysis report**:
-One of the twelve pages a step writes in the working directory for the operator to read a value off, `format-mix.html` to `cluster-page-sizes.html`, each through `ReportPage` (ADR-130), and, beside each, `<name>.json` holding its numbers and naming no document (ADR-358). The invocation report links each and copies its headline numbers.
+One of the twelve pages a step writes in the working directory for the operator to read a value off, `format-mix.html` to `cluster-page-sizes.html`, each through `ReportPage` (ADR-130), and, beside each, `<name>.json` holding everything its page shows, its numbers and its rows, from which the control panel draws it natively in a tab of its own, the page staying for opening outside Vespera (ADR-358). The invocation report links each and copies its headline numbers alone.
 _Avoid_: report alone (the invocation report's rendering for the operator), stage report, review page
 
 **Report template**:
