@@ -7,10 +7,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -79,7 +81,7 @@ final class Cockpit {
     private final Map<String, StepRow> stepRows = new LinkedHashMap<>();
     private final Map<String, LegView> legViews = new LinkedHashMap<>();
     /** The legs the operator has opened or folded, which stay as they left them while the window is open (ADR-361 §6). */
-    private final java.util.Set<String> chosenByTheOperator = new java.util.HashSet<>();
+    private final Set<String> chosenByTheOperator = new HashSet<>();
     private boolean foldingItself;
     private final VBox steps = new StepColumns(stepRows, legViews);
     private final ListView<String> output = new ListView<>();

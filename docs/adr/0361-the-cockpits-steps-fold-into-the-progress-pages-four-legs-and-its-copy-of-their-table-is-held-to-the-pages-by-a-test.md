@@ -4,7 +4,7 @@
 - **Status**: accepted on 2026-11-06.
 - **Decided**: by the operator, that the cockpit's steps fold into legs as `progress.html`'s timeline folds them ([#726](https://github.com/algernon28/vespera/issues/726)), and that the control panel holds its own copy of the legs' table, which a test holds equal to the progress page's; the ids, what a leg's bar shows, its state before any `progress.json` is read, which legs open, how long a fold the operator makes lasts, the columns and the tests are decided under delegation.
 - **Partly reopens**: [ADR-324](0324-the-timeline-of-the-steps-folds-into-four-legs-each-one-bar-open-where-the-job-is-and-a-fold-outlives-the-reload-in-the-pages-address.md) §6, *"Its own pages get no legs … the control panel links no class of the jar (ADR-285), so legs on its pages would be a second copy of §1's table, free to drift from the first"*: the cockpit's steps chart folds into §1's four legs, from a copy of §1's table the control panel holds as text, and the drift §6 names is closed by a test that fails the build where the copy and the page differ (§2), not by linking the jar. §6's first paragraph, the progress page shown as the file, stands, as ADR-344 §6 shows it in a report's tab. It carries a note at its head.
-- **Amends**: [ADR-344](0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md) §1, the run's `steps`, *"a chart of the job's steps in the order `StopCosts.ROWS` names them, a row each, `step-<name>`"*: the rows stand in four legs, `leg-<name>`, each row inside its leg as §1 has it, its stage, its name, one bar, its state and, on the running step's row, `stop-step` with what a stop there costs (§3). It carries a note at its head.
+- **Amends**: [ADR-344](0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md) §1, the run's `steps`, *"a chart of the job's steps in the order `StopCosts.ROWS` names them, a row each, `step-<name>`"*: the rows stand in four legs, `leg-<leg>`, each row inside its leg as §1 has it, its stage, its name, one bar, its state and, on the running step's row, `stop-step` with what a stop there costs (§3). It carries a note at its head.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3, the control panel links no class of the jar, which `TheControlPanelLinksNoClassOfTheJarTest` holds; ADR-324 §1's table, §3's rule for a leg's state and §4's rule for which legs open, the page's and now the window's, and ADR-324 §5, which keeps the page's folds in its address; ADR-344 §2, `progress.json` as the jar writes it, unchanged; ADR-344 §1's rows and the columns they line up in; [ADR-345](0345-the-cockpit-replaces-the-browser-control-panel-its-tree-writes-the-folders-not-walked-and-publish-offers-each-destination.md) §3, the stage each row shows; [ADR-302](0302-the-control-panel-is-a-launch-page-and-an-invocation-page-of-server-written-forms-each-report-re-served-read-only-in-a-sandbox-and-the-next-invocations-values-on-pages-of-their-own.md) §7's costs, `StopCosts.ROWS`, one a step; [ADR-222](0222-a-stages-version-names-pipeline-only-while-pipeline-holds-a-rule-that-shapes-its-output.md), no stage's version names `pipeline`.
 - **Settles**: [#726](https://github.com/algernon28/vespera/issues/726).
 
@@ -44,7 +44,7 @@ public final class Legs {
 
 ### 3. The legs in the window
 
-**`steps` holds four legs, its children in `Legs.ALL`'s order, each a `TitledPane`, the fold JavaFX gives a control**:
+**`steps` holds four legs, its children in `Legs.ALL`'s order, each a `TitledPane`, the pane JavaFX gives a control that folds**:
 
 | Part | Id | What it holds |
 | --- | --- | --- |
@@ -95,7 +95,7 @@ The README's paragraph on what the window shows, in the change that builds this,
 - **The window linking `ProgressPage`'s table.** ADR-285 §3 refuses it; `TheControlPanelLinksNoClassOfTheJarTest` fails on it.
 - **`ProgressPage.LEGS` made visible to the package for the test**, as `STEPS_OF_A_STAGE` is. The table alone would be held; the state and the folds are a rule, and only the page's drawing shows the rule the page applies.
 - **An `Accordion` of the legs.** It opens one pane at a time (§3).
-- **A fold for each stage.** Seven folds, four of one step, where the page has four legs.
+- **A pane that folds for each stage.** Seven panes, four of one step, where the page has four legs.
 - **A fold the operator makes kept until the next Run, or never kept.** Never kept, it would be undone at the next reading, every few seconds; kept until the next Run, the window would fold where the page, the same operator's view of the same job, does not.
 - **The summary's bar and state shown while its leg is open.** The drawing ADR-324 approved shows an open leg by its name, its rows saying where it is.
 
@@ -111,6 +111,7 @@ The README's paragraph on what the window shows, in the change that builds this,
 - **The look beyond §3 and §7**: the summary's spacing, the colour of a leg's bar, the rows' heights and the gap between legs, the stylesheet's (ADR-342 §3).
 - **A description on hover for a leg**, as ADR-324 leaves the page's.
 - **Report tabs of the progress page**: the page shown in a report's tab folds by its own script (ADR-344 §6), and nothing here joins its folds to the window's.
+- **What holds the copy once the page is gone.** The draft of [#721](https://github.com/algernon28/vespera/issues/721) and [#724](https://github.com/algernon28/vespera/issues/724), which retires `progress.html` and moves the legs into `report.json`, would take away the page `TheControlPanelsLegsAreTheProgressPagesTest` parses (§2). The record that decides it re-homes that test, or the copy itself, so that the copy stays held to the jar's legs.
 
 ## Tests
 

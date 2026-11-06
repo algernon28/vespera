@@ -2563,8 +2563,8 @@ public final class Adr {
             FILE + "0357-the-unit-runs-http-client-selector-managers-run-on-platform-threads.md";
 
     /**
-     * ADR-361 -- the cockpit's steps fold into the progress page's four legs, each a fold of its rows with one summary
-     * bar and its state, open where the job runs, failed or first stopped at a gate, a fold the operator makes lasting
+     * ADR-361 -- the cockpit's steps fold into the progress page's four legs, each a leg of its rows that folds, with one
+     * summary bar and its state, open where the job runs, failed or first stopped at a gate, a fold the operator makes lasting
      * while the window is open; the control panel's copy of the legs' table, {@code Legs.ALL}, and its rules are held to
      * what the progress page draws by a test (partly reopens ADR-324 §6, amends ADR-344 §1).
      */

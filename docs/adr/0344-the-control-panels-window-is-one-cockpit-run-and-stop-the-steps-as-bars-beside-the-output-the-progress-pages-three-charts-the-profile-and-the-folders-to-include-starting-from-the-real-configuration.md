@@ -2,7 +2,7 @@
 
 > **Partly amended — see [ADR-345](0345-the-cockpit-replaces-the-browser-control-panel-its-tree-writes-the-folders-not-walked-and-publish-offers-each-destination.md).** Of §1: `publish` stands where any destination's rendering is drawn, with `publish-to` beside it; a step's row shows `0`, `5e` and `5` for the census, the relevance floor and the relevance report; and the Inclusions tab's tree writes `foldersNotWalked`, the folders not relevant a list beneath it, which is how its Keeps of ADR-334 §6 reads. Of §3: the working directory no source names is ADR-340 §6's folder. Of §4: `ChildCommand` gains `DESTINATIONS`, the publish of named destinations and `environmentFrom`, and `ARGUMENTS` hold `publish to` and `serve db-dir`. The rest of this record stands.
 
-> **Partly amended — see [ADR-361](0361-the-cockpits-steps-fold-into-the-progress-pages-four-legs-and-its-copy-of-their-table-is-held-to-the-pages-by-a-test.md).** Of §1: the rows of `steps` stand in four legs, `leg-<leg>`, the progress page's, each a fold with one summary bar and its state, open where the job runs, failed or first stopped at a gate; each row `step-<name>` stands inside its leg as this record has it. The rest of this record stands.
+> **Partly amended — see [ADR-361](0361-the-cockpits-steps-fold-into-the-progress-pages-four-legs-and-its-copy-of-their-table-is-held-to-the-pages-by-a-test.md).** Of §1: the rows of `steps` stand in four legs, `leg-<leg>`, the progress page's, each a leg with one summary bar and its state that folds, open where the job runs, failed or first stopped at a gate; each row `step-<name>` stands inside its leg as this record has it. The rest of this record stands.
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.

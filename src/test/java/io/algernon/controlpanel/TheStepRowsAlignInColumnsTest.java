@@ -46,7 +46,7 @@ import org.junit.jupiter.api.io.TempDir;
  * asks for more width than any other row; in a steps pane narrower than that, it alone is laid out short of its width,
  * and its bar is the one part of it that could give way. The columns hold there too.
  *
- * <p>The rows stand in the four legs of {@code Legs.ALL}, each a fold of its own (ADR-361 §3), and keep their columns
+ * <p>The rows stand in the four legs of {@code Legs.ALL}, each a leg that folds on its own (ADR-361 §3), and keep their columns
  * across the legs (ADR-361 §7). Each test opens every leg first, as the operator can, so that the rows it reads are
  * the rows the operator sees, whichever leg holds them.
  */
