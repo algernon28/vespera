@@ -2562,6 +2562,16 @@ public final class Adr {
     public static final String THE_UNIT_RUNS_HTTP_CLIENT_SELECTOR_MANAGERS_RUN_ON_PLATFORM_THREADS =
             FILE + "0357-the-unit-runs-http-client-selector-managers-run-on-platform-threads.md";
 
+    /**
+     * ADR-359 -- the publish reads the site, the space, the parent and the account's email from five text keys of the
+     * profile where the shell sets none, a value the shell sets coming first, and the token from the environment alone;
+     * the control panel asks for the token in a masked field as a publish to Confluence starts and passes it to that
+     * child's environment alone, a publish it starts writing no template and naming the Profile tab's keys when one is
+     * missing (supersedes part of ADR-308 §3; amends ADR-308 §6, ADR-318 §1 and ADR-345 §1, §4).
+     */
+    public static final String THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN =
+            FILE + "0359-the-publish-reads-its-confluence-values-from-the-profile-and-the-control-panel-passes-the-token-to-its-child-alone.md";
+
     private Adr() {
     }
 }

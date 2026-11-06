@@ -26,6 +26,18 @@ final class AnsweringDialogs implements Dialogs {
     /** What the next question is answered: true for the answer that goes on. */
     volatile boolean answer;
 
+    /** Every masked field the window asked to be filled in, by the sentence it asked with, in order (ADR-359 §3). */
+    final List<String> maskedAsked = new CopyOnWriteArrayList<>();
+
+    /** What the next masked field is answered: what is typed, or empty where it is cancelled. */
+    volatile Optional<String> typed = Optional.empty();
+
+    @Override
+    public Optional<String> masked(String title, String sentence) {
+        maskedAsked.add(sentence);
+        return typed;
+    }
+
     @Override
     public Optional<Path> folder(String title, String initial) {
         return Optional.empty();

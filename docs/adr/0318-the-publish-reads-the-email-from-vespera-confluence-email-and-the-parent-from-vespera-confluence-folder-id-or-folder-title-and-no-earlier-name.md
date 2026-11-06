@@ -1,5 +1,7 @@
 # ADR-318 — The publish reads the account's email from `VESPERA_CONFLUENCE_EMAIL` and the parent from `VESPERA_CONFLUENCE_FOLDER_ID` or `VESPERA_CONFLUENCE_FOLDER_TITLE`, and the names ADR-308 gave them from nowhere
 
+> **Partly amended — see [ADR-359](0359-the-publish-reads-its-confluence-values-from-the-profile-and-the-control-panel-passes-the-token-to-its-child-alone.md).** §1's email is read from `VESPERA_CONFLUENCE_EMAIL` or, where it is not set, from the profile's `confluenceEmail`, and the parent from the profile's `confluenceFolderId` or `confluenceFolderTitle` where the shell names neither. The names, §2 and §3 stand.
+
 - **Date**: 2026-10-22
 - **Status**: accepted on 2026-10-22.
 - **Supersedes**: [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md) §3, in the names of three of its five values alone: the account's email is read from `VESPERA_CONFLUENCE_EMAIL`, not `VESPERA_CONFLUENCE_USER`; the parent by its id from the property `vespera.confluence.folder-id`, set by `VESPERA_CONFLUENCE_FOLDER_ID`, not `vespera.confluence.parent-id` and `VESPERA_CONFLUENCE_PARENT_ID`; and the parent by its title from the property `vespera.confluence.folder-title`, set by `VESPERA_CONFLUENCE_FOLDER_TITLE`, not `vespera.confluence.parent-title` and `VESPERA_CONFLUENCE_PARENT_TITLE` (§1, §2).
