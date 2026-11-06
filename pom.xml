@@ -319,7 +319,16 @@
                     </dependency>
                 </dependencies>
                 <configuration>
-                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar"</argLine>
+                    <!--
+                      The JDK's HTTP client runs its selector manager on a virtual thread from Java 26, and on Windows
+                      that thread holds a carrier while it waits. The unit run keeps hundreds of clients open (one per
+                      ModelPull, HttpSidecarHealth and DoclingClient of every cached context, and every instance not yet
+                      collected), and once all 256 carriers are held no virtual thread runs: ModelPullTest's pulls are
+                      never sent or read. Selector managers on platform threads hold no carrier (ADR-357; "never" is
+                      the one value that turns virtual threads off here: one the JDK does not know is read as its default).
+                      APullIsSentWhileManyHttpClientsAreOpenTest fails without this.
+                    -->
+                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar" -Djdk.internal.httpclient.tcp.selector.useVirtualThreads=never</argLine>
                     <excludes>
                         <exclude>**/*IT.java</exclude>
                     </excludes>

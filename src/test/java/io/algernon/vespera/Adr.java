@@ -2552,6 +2552,16 @@ public final class Adr {
     public static final String THE_GUARDS_READING_OF_A_BASH_COMMAND_IS_HELD_AGAINST_THE_ARGUMENTS_BASH_GIVES =
             FILE + "0356-the-private-paths-guards-reading-of-a-bash-command-is-held-against-the-arguments-bash-gives.md";
 
+    /**
+     * ADR-357 -- surefire starts the tests' Java with
+     * {@code -Djdk.internal.httpclient.tcp.selector.useVirtualThreads=never}, so that every JDK HTTP client of the unit
+     * run waits in its selector on a platform thread and holds no virtual-thread carrier, which on Windows it held,
+     * until every carrier was held and no pull was sent; failsafe and the shipped jar keep the JDK's default (keeps
+     * ADR-329 and ADR-352).
+     */
+    public static final String THE_UNIT_RUNS_HTTP_CLIENT_SELECTOR_MANAGERS_RUN_ON_PLATFORM_THREADS =
+            FILE + "0357-the-unit-runs-http-client-selector-managers-run-on-platform-threads.md";
+
     private Adr() {
     }
 }
