@@ -64,7 +64,7 @@ class OllamaClientIT {
     @Story("The runtime reports what it is serving")
     @DisplayName("A real sidecar reports a manifest digest and a weight dtype for a pulled model")
     void aRealSidecarReportsADigestAndADtype() throws Exception {
-        ollama.execInContainer("ollama", "pull", MODEL);
+        TestcontainersConfiguration.pull(ollama, MODEL);
 
         ModelArtefact artefact = client.artefactOf(MODEL);
 

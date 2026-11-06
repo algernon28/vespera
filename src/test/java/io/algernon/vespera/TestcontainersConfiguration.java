@@ -1,11 +1,15 @@
 package io.algernon.vespera;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.github.dockerjava.api.model.Capability;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.testcontainers.containers.Container;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.springframework.test.context.DynamicPropertyRegistrar;
@@ -127,6 +131,30 @@ public class TestcontainersConfiguration {
     @Bean
     DynamicPropertyRegistrar ollamaProperties(OllamaContainer ollamaContainer) {
         return registry -> registry.add("spring.ai.ollama.base-url", ollamaContainer::getEndpoint);
+    }
+
+    /**
+     * Has the Ollama sidecar pull {@code model}, and fails right there, with Ollama's own words, unless the pull
+     * ended well and the sidecar then lists the model. A pull that failed was once passed over in silence, and the
+     * test failed later and elsewhere, as a model "not pulled on this machine", with nothing said of why (#718's
+     * sibling: two runs on CI's Linux runner, each green when run again). The message names the container and the
+     * endpoint it answers at, so a pull into one sidecar and a question to another can be told apart.
+     */
+    public static void pull(OllamaContainer ollama, String model) throws IOException, InterruptedException {
+        Container.ExecResult pulled = ollama.execInContainer("ollama", "pull", model);
+        String where = " in the Ollama sidecar " + ollama.getContainerId() + " at " + ollama.getEndpoint();
+        assertThat(pulled.getExitCode())
+                .withFailMessage(
+                        "Ollama could not pull %s%s: it ended with %d.%nWhat it printed:%n%s%nWhat it reported as errors:%n%s",
+                        model, where, pulled.getExitCode(), pulled.getStdout(), pulled.getStderr())
+                .isZero();
+        Container.ExecResult listed = ollama.execInContainer("ollama", "list");
+        assertThat(listed.getStdout())
+                .withFailMessage(
+                        "Ollama pulled %s%s without an error, and then did not list it.%nWhat the pull printed:%n%s%n"
+                                + "What the list printed:%n%s%nWhat the list reported as errors:%n%s",
+                        model, where, pulled.getStdout(), listed.getStdout(), listed.getStderr())
+                .contains(model);
     }
 
 }
