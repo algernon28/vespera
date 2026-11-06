@@ -2513,6 +2513,16 @@ public final class Adr {
     public static final String THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE = FILE
             + "0353-the-embedding-models-shipped-default-is-qwen3-embedding-8b-and-only-a-profile-naming-no-model-moves-its-scoring-run.md";
 
+    /**
+     * ADR-355 -- the architect's gate gains a ninth item: the changed code is probed against each sentence of the
+     * record it implements in four states no test may set up, stale or concurrent input, a failure partway through a
+     * write of more than one step, a default a form posts back, and one name in another case or spelling on Windows;
+     * the report names the sentence each probe tested. Drafted in {@code docs/agents/agent-draft} for the operator to
+     * install (keeps ADR-215 §7).
+     */
+    public static final String THE_ARCHITECT_PROBES_HOW_THE_CHANGE_BEHAVES_AGAINST_EACH_SENTENCE_OF_ITS_RECORD =
+            FILE + "0355-the-architect-probes-how-a-change-behaves-against-each-sentence-of-the-record-it-implements.md";
+
     private Adr() {
     }
 }
