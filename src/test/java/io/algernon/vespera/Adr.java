@@ -2542,6 +2542,16 @@ public final class Adr {
     public static final String THE_ARCHITECT_PROBES_HOW_THE_CHANGE_BEHAVES_AGAINST_EACH_SENTENCE_OF_ITS_RECORD =
             FILE + "0355-the-architect-probes-how-a-change-behaves-against-each-sentence-of-the-record-it-implements.md";
 
+    /**
+     * ADR-357 -- surefire starts the tests' Java with
+     * {@code -Djdk.internal.httpclient.tcp.selector.useVirtualThreads=never}, so that every JDK HTTP client of the unit
+     * run waits in its selector on a platform thread and holds no virtual-thread carrier, which on Windows it held,
+     * until every carrier was held and no pull was sent; failsafe and the shipped jar keep the JDK's default (keeps
+     * ADR-329 and ADR-352).
+     */
+    public static final String THE_UNIT_RUNS_HTTP_CLIENT_SELECTOR_MANAGERS_RUN_ON_PLATFORM_THREADS =
+            FILE + "0357-the-unit-runs-http-client-selector-managers-run-on-platform-threads.md";
+
     private Adr() {
     }
 }
