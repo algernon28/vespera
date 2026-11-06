@@ -27,7 +27,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.ClientHttpRequestFactory;
@@ -117,7 +116,7 @@ public class Publisher {
             @Value("${" + ConfluenceSite.SPACE_KEY_PROPERTY + ":}") String spaceKey,
             @Value("${" + ConfluenceSite.FOLDER_ID_PROPERTY + ":}") String parentId,
             @Value("${" + ConfluenceSite.FOLDER_TITLE_PROPERTY + ":}") String parentTitle,
-            ConfluenceValues.@Nullable InTheProfile profile) {
+            ConfluenceValues.InTheProfile profile) {
         this(System::getenv, new JdkClientHttpRequestFactory(), Thread::sleep, Clock.systemUTC(), baseUrl, spaceKey,
                 parentId, parentTitle, profile);
     }
@@ -155,7 +154,7 @@ public class Publisher {
             String parentId,
             String parentTitle,
             ConfluenceValues.InTheProfile profile) {
-        this.profile = profile == null ? workingDirectory -> ConfluenceValues.NONE : profile;
+        this.profile = profile;
         this.environment = environment;
         this.requests = requests;
         this.pause = pause;
