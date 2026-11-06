@@ -2563,6 +2563,16 @@ public final class Adr {
             FILE + "0357-the-unit-runs-http-client-selector-managers-run-on-platform-threads.md";
 
     /**
+     * ADR-358 -- a bound the code under test keeps in real time is held on the clock on the wall, no sooner than the
+     * bound from the test's start and within the bound and a margin from the event the code races, the stub's read of
+     * the request; {@code ModelPullTest}'s refusal bound is ten seconds, its late status five and its margin five,
+     * after one pull before the first test, and the command that leaves a child is given sixty seconds (settles
+     * ADR-352's two open questions and amends its Consequences).
+     */
+    public static final String A_BOUND_THE_CODE_KEEPS_IN_REAL_TIME_IS_HELD_ON_THE_WALL_CLOCK =
+            FILE + "0358-a-bound-the-code-under-test-keeps-in-real-time-is-held-on-the-wall-clock-from-the-event-it-races.md";
+
+    /**
      * ADR-360 -- before {@code Application.launch}, the control panel's start installs {@code ClassPathLine}, a {@code
      * java.util.logging} filter on the logger {@code javafx}, which drops the record whose message begins {@code
      * Unsupported JavaFX configuration} and passes every other, at any level, the logger held in a static field;
