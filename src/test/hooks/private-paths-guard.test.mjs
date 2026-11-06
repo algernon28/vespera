@@ -1990,6 +1990,16 @@ cases.push(
   ["C781", "gh api {-H,}, which Bash makes -H, which takes --jq, then --input= of a file outside the allow list", "Bash", { command: "gh api {-H,} --jq --input=../outside/doc.txt repos/o/r" }, REFUSED],
   ["C782", "gh api x$o, which Bash may split into x and an option that takes --jq, then --input= of a file outside the allow list", "Bash", { command: "gh api x$o --jq --input=../outside/doc.txt repos/o/r" }, REFUSED],
 
+  /* C78, continued. Forms the sixth gate of PR #709 found: a redirect between an option that takes a
+     value and the word after, which Bash takes out of the words the program is given, so the option takes
+     the word after the redirect's target; and a redirect whose target stands where an option's value would. */
+  ["C783", "gh api -t >/dev/null, so -t takes --jq, then --input= of a file outside the allow list", "Bash", { command: "gh api -t >/dev/null --jq --input=../outside/doc.txt repos/o/r" }, REFUSED],
+  ["C784", "gh pr create -t 2>&1, so -t takes --body, then --body-file= of a file outside the allow list", "Bash", { command: "gh pr create -t 2>&1 --body --body-file=../outside/doc.txt" }, REFUSED],
+  ["C785", "git commit -C >/dev/null, so -C takes -m, and a quoted file outside the allow list is a pathspec", "Bash", { command: "git commit -C >/dev/null -m '../outside/doc.txt'" }, REFUSED],
+  ["C786", "grep pat --label >/dev/null, so --label takes -e, and a quoted file outside the allow list is read", "Bash", { command: "grep pat --label >/dev/null -e '../outside/doc.txt'" }, REFUSED],
+  ["C787", "grep --label written into a file outside the allow list, the redirect's target standing where --label's value would", "Bash", { command: "grep --label >'../outside/out.txt' 'pat' README.md" }, REFUSED],
+  ["C788", "jq --arg a written into a file outside the allow list, the redirect's target standing where --arg's value would", "Bash", { command: "jq --arg a >'../outside/out.txt' b '.'" }, REFUSED],
+
   /* C52. What the options read as their programs read them still let through. */
   ["C521", "grep --binary -n whose pattern is an alternation of two one-letter keys", "Bash", { command: "grep --binary -n 'x: \\|y: ' README.md" }, ALLOWED],
   ["C522", "git --no-pager commit --author and -sm, whose message holds \\| and a word that begins with a slash", "Bash", { command: 'git --no-pager commit --author "A <a@b.c>" -sm "Split at \\| and keep /: as written"' }, ALLOWED],

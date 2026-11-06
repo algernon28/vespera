@@ -129,7 +129,8 @@
 // cluster of letters that take nothing there), of gh's --jq, -q and --body after api or a subcommand of
 // issue or pr that has them, where no option before it takes it as its value and no word before it is
 // an option the command's table does not have or one the shell may split or make an option, and
-// of grep's -e and --regexp, the next word or
+// of grep's -e and --regexp, each read in the words Bash gives the program, with no redirect, its
+// target or the digits before it among them; the next word or
 // the text after the =; and the single-quoted first operand of grep, egrep, fgrep, awk, gawk, mawk and
 // jq where no option gives the pattern, the program or a file of them, an awk program only with no " in
 // it and a jq program only with no import, include or modulemeta. The text rule above still reads all of
@@ -1092,12 +1093,12 @@ const STASH_PUSH = "push";
 // path, an alias or an extension among them, nothing is taken out.
 const ghCommand = (none, args, zero, one) => ({
   none, args, rest: "", exact: true,
-  long: longOptions({ 0: `${zero} help`, 1: one }),
+  long: longOptions({ 0: `${zero} help`.trim(), 1: one }),
 });
 // issue's and pr's commands all take -R and --repo.
 const ghRepoCommand = (none, args, zero, one) => ghCommand(none, `${args}R`, zero, `${one} repo`);
 const GH_VIEW = ghRepoCommand("cw", "qt", "comments web", "jq json template");
-const GH_STATUS = ghRepoCommand("c", "qt", "conflict-status", "jq json template");
+const GH_STATUS = ghRepoCommand("", "qt", "", "jq json template");
 const GH_COMMENT = ghRepoCommand("ew", "bF", "create-if-none delete-last edit-last editor web yes", "body body-file");
 const GH_COMMANDS = new Map([
   ["api", ghCommand("i", "FHqXpft", "allow-escape-sequences include paginate silent slurp verbose", "cache field header hostname input jq method preview raw-field template")],
@@ -1109,7 +1110,7 @@ const GH_COMMANDS = new Map([
   ["pr checks", ghRepoCommand("w", "iqt", "fail-fast required watch web", "interval jq json template")],
   ["pr merge", ghRepoCommand("dmrs", "AbFt", "admin auto delete-branch disable-auto merge rebase squash", "author-email body body-file match-head-commit subject")],
   ["pr review", ghRepoCommand("acr", "bF", "approve comment request-changes", "body body-file")],
-  ["pr status", GH_STATUS],
+  ["pr status", ghRepoCommand("c", "qt", "conflict-status", "jq json template")],
   ["issue create", ghRepoCommand("ew", "abFlmpTt", "editor web", "assignee blocked-by blocking body body-file label milestone parent project recover template title type")],
   ["issue comment", GH_COMMENT],
   ["issue edit", ghRepoCommand("", "bFmt", "remove-milestone remove-parent remove-type", "add-assignee add-blocked-by add-blocking add-label add-project add-sub-issue body body-file milestone parent remove-assignee remove-blocked-by remove-blocking remove-label remove-project remove-sub-issue title type")],
@@ -1203,28 +1204,42 @@ function readOption(text, complete, spec) {
   return complete ? { kind: "short", flag: null, letters, takes: 0 } : { kind: "unknown" };
 }
 
+// The words after a segment's program that Bash gives it, in order: a redirect operator, its target (but
+// for <<, whose delimiter is in its own text) and a word of digits alone that touches the operator after
+// it, as 2 in 2>&1, are taken out of them wherever they stand, as Bash takes them out. So an option that
+// takes a value takes the word after a redirect's target, and a target is never an option's value.
+function argumentsOf(words, at) {
+  const given = [];
+  for (let k = at + 1; k < words.length; k++) {
+    const word = words[k];
+    if (word.op) {
+      if (word.op !== "<<") k++;
+      continue;
+    }
+    if (/^\d+$/.test(word.raw) && words[k + 1]?.op && words[k + 1].start === word.end) continue;
+    given.push(word);
+  }
+  return given;
+}
+
 // The spans of a segment's words that are text and no path (ADR-351 sections 1 and 2), each [start, end).
-// A redirect operator's word after it is its target, but for <<, whose delimiter is in its own text.
-function textSpans(words) {
+// Each walk reads the words the program is given (argumentsOf), and no redirect.
+function textSpans(segmentWords) {
   const spans = [];
-  const at = programIndex(words);
-  const program = plainValue(words[at]);
+  const at = programIndex(segmentWords);
+  const program = plainValue(segmentWords[at]);
+  const words = argumentsOf(segmentWords, at);
   const skip = (word, from = word.start) => {
-    if (word && !word.op && LITERAL.test(word.raw.slice(from - word.start))) spans.push([from, word.end]);
+    if (word && LITERAL.test(word.raw.slice(from - word.start))) spans.push([from, word.end]);
   };
-  const redirect = (k) => (words[k].op === "<<" ? k : k + 1);
   if (program === "gh") {
     // The command's path is the words right after gh, each written whole: api, or issue or pr and one of
     // its subcommands.
-    const head = shellValue(words[at + 1]);
-    const path = head === "api" ? head : `${head} ${shellValue(words[at + 2])}`;
+    const head = shellValue(words[0]);
+    const path = head === "api" ? head : `${head} ${shellValue(words[1])}`;
     const spec = GH_COMMANDS.get(path);
     if (!spec) return spans;
-    for (let k = at + (head === "api" ? 2 : 3); k < words.length; k++) {
-      if (words[k].op) {
-        k = redirect(k);
-        continue;
-      }
+    for (let k = head === "api" ? 1 : 2; k < words.length; k++) {
       const { text, complete, splits } = wordText(words[k]);
       if (complete && text === "--") break;
       // A word that may become an option, or more words than one, ends the walk: a word whose head the
@@ -1243,9 +1258,8 @@ function textSpans(words) {
     return spans;
   }
   if (program === "git") {
-    let k = at + 1;
+    let k = 0;
     for (; k < words.length; k++) {
-      if (words[k].op) return spans;
       const value = shellValue(words[k]);
       if (value === null) return spans;
       if (value === "-C" || value === "-c") k++;
@@ -1259,10 +1273,6 @@ function textSpans(words) {
     // after any other word, or after a message given before push, nothing of the segment is taken out.
     let stashed = subcommand !== "stash";
     for (k++; k < words.length; k++) {
-      if (words[k].op) {
-        k = redirect(k);
-        continue;
-      }
       const { text, complete, splits } = wordText(words[k]);
       if (complete && text === "--") break;
       // A word that may become an option, or more words than one, or that is one git's subcommand does not
@@ -1291,12 +1301,8 @@ function textSpans(words) {
   let given = false;
   let first = null;
   let operands = false;
-  for (let k = at + 1; k < words.length; k++) {
+  for (let k = 0; k < words.length; k++) {
     const word = words[k];
-    if (word.op) {
-      k = redirect(k);
-      continue;
-    }
     const { text, complete, splits } = wordText(word);
     // An option is a word that begins with - and is not - alone. A word whose head the guard does not
     // know may become one, or more than one word; so may a word headed by - that is not all known, as
