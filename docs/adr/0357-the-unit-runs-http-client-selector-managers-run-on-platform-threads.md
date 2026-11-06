@@ -2,7 +2,7 @@
 
 - **Date**: 2026-11-06
 - **Status**: accepted on 2026-11-06.
-- **Decided**: under delegation.
+- **Settles**: what the unit run does about the JDK HTTP client's selector managers holding the virtual-thread scheduler's carriers ([#718](https://github.com/algernon28/vespera/issues/718)).
 - **Keeps**: [ADR-329](0329-vespera-pulls-into-ollama-at-the-step-that-needs-it-a-model-ollama-does-not-serve-and-never-pulls-one-it-serves.md) whole: what a pull sends, reads and bounds is unchanged, and its tests claim what they claimed. [ADR-352](0352-a-timing-bound-in-a-unit-test-is-one-a-busy-machine-does-not-move.md) whole, and its *What this does not decide* on `ModelPullTest`'s bounds stays open (What this does not decide). Every line of `src/main`. No run id moves.
 - **Rests on**: the JDK 26 sources, read and not patched: `java.net.http`'s `HttpClientImpl` (the property `jdk.internal.httpclient.tcp.selector.useVirtualThreads`, read once, and the selector manager's thread chosen from it) and `jdk.internal.net.http.common.Utils.useVTForSelector`; `java.base`'s `VirtualThread.createDefaultScheduler`, `sun.nio.ch.WEPollSelectorImpl.doSelect`, `sun.nio.ch.EPollSelectorImpl` and `sun.nio.ch.Poller.pollSelector`; and thread dumps of the tests' Java on Windows 11. Refs [#718](https://github.com/algernon28/vespera/issues/718).
 
@@ -27,18 +27,18 @@ The virtual-thread scheduler's carriers are one resource of the whole JVM, and t
 On a machine of 16 logical processors, Windows 11, Java 26:
 
 - **Thread dumps of the tests' Java**, taken while `ModelPullTest` ran in a full unit run, showed 256 carriers, 145 to 164 of them mounted on `HttpClientImpl$SelectorManager.run` waiting in `WEPoll.wait`.
-- **`APullIsSentWhileManyHttpClientsAreOpenTest`** opens 16 more clients than the scheduler's ceiling, makes one pull of a model the stub serves after a `success` line, and closes the clients after. With `-Djdk.internal.httpclient.tcp.selector.useVirtualThreads=default` on surefire's `argLine`, as without the property, the pull is never read and the test fails after 31.5 s, the pull ending as stalled at its 30 s bound. With `never`, it passes in under 2 s.
+- **`APullIsSentWhileManyHttpClientsAreOpenTest`** opens 16 more clients than the scheduler's ceiling, makes one pull of a model the stub serves after a `success` line, and closes the clients after. With `-Djdk.internal.httpclient.tcp.selector.useVirtualThreads=default` given on the Maven command line, which overrides the `argLine`'s value in the forked tests' Java, as without the property, the pull is never read and the test fails after 31.5 s, the pull ending as stalled at its 30 s bound. With `never`, it passes in under 2 s.
 - **A full unit run with `never`** runs 3,287 tests, none failing, 7 skipped.
 
 ## Decision
 
 ### §1. Surefire starts the tests' Java with the selector managers on platform threads
 
-Surefire's `argLine` carries `-Djdk.internal.httpclient.tcp.selector.useVirtualThreads=never`, beside the AspectJ agent it already carries. Every `HttpClient` the unit run opens then waits in its selector on a platform thread of its own, as before Java 26, and holds no carrier. The value is `never`, and no other spelling: the JDK reads any value it does not know as `default` (Context), so another word would put the selector managers back on virtual threads without a sign.
+Surefire's `argLine` carries `-Djdk.internal.httpclient.tcp.selector.useVirtualThreads=never`, beside the AspectJ agent it already carries. Every `HttpClient` the unit run opens then waits in its selector on a platform thread of its own, as before Java 26, and holds no carrier. The value is `never`, and no other word: the JDK reads any value it does not know as `default` (Context), so another word would put the selector managers back on virtual threads without a sign.
 
 ### §2. Failsafe keeps the shipped default
 
-Failsafe's `argLine` does not carry the property. The integration tests' Java opens about ten clients, far under the scheduler's ceiling, and runs as the shipped jar runs.
+Failsafe's `argLine` does not carry the property. The integration tests' Java opens a few dozen clients at most, counted from its seven Spring contexts and not measured, far under the scheduler's ceiling, and runs as the shipped jar runs.
 
 ### §3. The shipped jar keeps the default
 
