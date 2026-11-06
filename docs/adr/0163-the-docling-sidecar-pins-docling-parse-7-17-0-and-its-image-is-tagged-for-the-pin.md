@@ -1,6 +1,6 @@
 # ADR-163 — The Docling sidecar pins docling-parse 7.17.0, and its image is tagged for the pin
 
-> **Read with [ADR-354](0354-the-docling-images-are-built-where-they-run-from-the-one-containerfile-and-no-workflow-pushes-them-to-a-registry.md)**, which supersedes [ADR-349](0349-the-docling-images-are-built-once-pushed-to-ghcr-as-public-packages-never-over-a-tag-already-there-and-pulled-by-digest.md) whole, so ADR-349's amendment of this record is withdrawn and nothing of it is built. §2's three places, `compose.yaml`, `vespera.docling.image` and `TestcontainersConfiguration`, are the places the image is named, and no workflow names it. This record stands as written.
+> **Read with [ADR-354](0354-the-docling-images-are-built-where-they-run-from-the-one-containerfile-and-no-workflow-pushes-them-to-a-registry.md)**, which supersedes [ADR-349](0349-the-docling-images-are-built-once-pushed-to-ghcr-as-public-packages-never-over-a-tag-already-there-and-pulled-by-digest.md) whole, so ADR-349's amendment of this record is withdrawn and nothing of it is built. §2's three places, `compose.yaml`, `vespera.docling.image` and `TestcontainersConfiguration`, are the places the image is named, and no workflow names it. ADR-349 changes nothing here; ADR-179's extension of §2, the `-rN` revision, stands.
 
 - **Date**: 2026-09-26
 - **Status**: accepted
