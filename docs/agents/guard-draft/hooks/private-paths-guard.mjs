@@ -135,8 +135,9 @@
 // jq where no option gives the pattern, the program or a file of them, an awk program only with no " in
 // it and a jq program only with no import, include or modulemeta. In that walk a word the guard cannot
 // read whole or that splits, or an option the table lacks, or a letter that takes a value and ends the
-// known text of a word not all known, as -e{x,} or -e"$o", or the word after an option that takes the
-// next word where the guard does not read that word whole or it splits, as -e $o, ends it: the spans found before it stay, and a
+// known text of a word not all known, as -e{x,} or -e"$o", or any of the words after an option that
+// takes the next word or two where the guard does not read that word whole or it splits, as -e $o or
+// --arg a {x,.}, ends it: the spans found before it stay, and a
 // single-quoted first operand after it is taken out no more. The text rule above still reads all of
 // these. And the lines of a here-document whose delimiter is quoted, on a line that is cat, > or >> and
 // one file beneath the folder ${TEMP} names and nothing else, are read for neither, the variable TEMP,
@@ -1265,11 +1266,11 @@ function textSpans(segmentWords) {
       if (!text.startsWith("-") || text === "-") continue;
       const option = readOption(text, complete, spec);
       if (option.kind === "unknown") return spans;
-      // An option's value word the guard does not read whole may be no word, so that the option takes the
+      // Every value word an option takes that the guard does not read whole may be no word, so that the option takes the
       // word after it, or several (ADR-356 section 3).
-      if (option.takes && words[k + 1]) {
-        const value = wordText(words[k + 1]);
-        if (!value.complete || value.splits) return spans;
+      for (let v = 1; v <= option.takes; v++) {
+        const w = words[k + v];
+        if (w) { const value = wordText(w); if (!value.complete || value.splits) return spans; }
       }
       if (GH_TEXT_FLAGS.has(option.flag)) {
         if (option.takes) skip(words[k + 1]);
@@ -1309,11 +1310,11 @@ function textSpans(segmentWords) {
       }
       const option = readOption(text, complete, spec);
       if (option.kind === "unknown") return spans;
-      // An option's value word the guard does not read whole may be no word, so that the option takes the
+      // Every value word an option takes that the guard does not read whole may be no word, so that the option takes the
       // word after it, or several (ADR-356 section 3).
-      if (option.takes && words[k + 1]) {
-        const value = wordText(words[k + 1]);
-        if (!value.complete || value.splits) return spans;
+      for (let v = 1; v <= option.takes; v++) {
+        const w = words[k + v];
+        if (w) { const value = wordText(w); if (!value.complete || value.splits) return spans; }
       }
       if (option.flag === "m" || option.flag === "message") {
         if (option.takes) skip(words[k + 1]);
@@ -1347,11 +1348,11 @@ function textSpans(segmentWords) {
     }
     const option = readOption(text, complete, spec);
     if (option.kind === "unknown") return spans;
-    // An option's value word the guard does not read whole may be no word, so that the option takes the
+    // Every value word an option takes that the guard does not read whole may be no word, so that the option takes the
     // word after it, or several (ADR-356 section 3).
-    if (option.takes && words[k + 1]) {
-      const value = wordText(words[k + 1]);
-      if (!value.complete || value.splits) return spans;
+    for (let v = 1; v <= option.takes; v++) {
+      const w = words[k + v];
+      if (w) { const value = wordText(w); if (!value.complete || value.splits) return spans; }
     }
     if (option.kind === "long") {
       if (spec.longGiven.has(option.flag)) given = true;
