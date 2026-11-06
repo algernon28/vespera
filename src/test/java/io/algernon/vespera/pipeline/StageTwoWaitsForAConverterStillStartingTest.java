@@ -55,12 +55,6 @@ class StageTwoWaitsForAConverterStillStartingTest {
     /** How many of the wait's questions a converter that is still starting says no to before it answers. */
     private static final int NOT_YET = 3;
 
-    /**
-     * How long the converter closes every connection without a status line before it answers: long enough that the
-     * JDK client's own retries of a request whose connection was closed all meet a closed one, as #651's did.
-     */
-    private static final Duration CLOSING_FOR = Duration.ofMillis(300);
-
     /** A converter that says no to every question of the wait. */
     private static final int NEVER = Integer.MAX_VALUE;
 
@@ -190,11 +184,20 @@ class StageTwoWaitsForAConverterStillStartingTest {
         }
     }
 
+    /**
+     * The converter closes every connection until the start check has written that it waits, and answers every one
+     * after: the first check, with each of the JDK client's own retries of a request whose connection was closed,
+     * meets only closed ones, as #651's did, however long a busy machine makes them take, and the wait is what hears
+     * it answer (ADR-352). A converter that stopped closing after a time on the clock answered the first check's late
+     * retries on a busy machine, and nothing was waited for.
+     */
     @Test
     @Story("A converter still starting is waited for")
-    @DisplayName("A converter that closes every connection without a status line for a while and then answers is waited for by the start check, through the production client")
+    @Issue("698")
+    @Link(name = "ADR-352", url = Adr.A_TIMING_BOUND_IN_A_UNIT_TEST_IS_ONE_A_BUSY_MACHINE_DOES_NOT_MOVE, type = "adr")
+    @DisplayName("A converter that closes every connection without a status line while it starts and then answers is waited for by the start check, through the production client")
     void aConverterClosingConnectionsWhileItStartsIsWaitedFor() throws Exception {
-        try (ClosesThenAnswers converter = ClosesThenAnswers.closingFor(CLOSING_FOR)) {
+        try (ClosesThenAnswers converter = ClosesThenAnswers.closingUntil(() -> !linesSoFar(Level.WARN).isEmpty())) {
             DoclingClient client = new DoclingClient(converter.baseUrl(), OCR_PRESET);
             ExtractionHealthCheckListener listener =
                     new ExtractionHealthCheckListener(client, new SidecarRecovery(client, WAIT_AT_MOST, CHECK_EVERY));
@@ -202,8 +205,11 @@ class StageTwoWaitsForAConverterStillStartingTest {
             claim("the start check returns without a failure once the converter answers",
                     () -> assertThatCode(() -> listener.beforeStep(null)).doesNotThrowAnyException());
             claim("one warning said it was waited for", () -> assertThat(lines(Level.WARN)).hasSize(1));
-            claim("and the converter had closed connections without a status line before it answered",
+            claim("the converter had closed connections without a status line before it answered",
                     () -> assertThat(converter.closed()).isPositive());
+            claim("and it answered a connection made once the warning was written, so the start went on because the"
+                            + " converter answered and not because the check let it through before",
+                    () -> assertThat(converter.answered()).isPositive());
         }
     }
 
@@ -216,6 +222,16 @@ class StageTwoWaitsForAConverterStillStartingTest {
                 .filter(event -> event.getLevel().equals(level))
                 .map(ILoggingEvent::getFormattedMessage)
                 .toList();
+    }
+
+    /**
+     * The lines of {@code level} written so far, read from another thread than the one writing them: the appender
+     * adds each line holding its own lock, so the list is copied holding it too.
+     */
+    private List<String> linesSoFar(Level level) {
+        synchronized (logged) {
+            return lines(level);
+        }
     }
 
     /**
@@ -267,33 +283,30 @@ class StageTwoWaitsForAConverterStillStartingTest {
 
     /**
      * A converter on a loopback port that reads each request and closes the connection without writing a byte, as
-     * docling-serve does while its port is open and its server is not up yet, until {@code closingUntil}, and answers
-     * {@code 200} to every connection after.
+     * docling-serve does while its port is open and its server is not up yet, until {@code answering} says yes when a
+     * request has been read, and answers {@code 200} to that connection and every one after.
      */
     private static final class ClosesThenAnswers implements AutoCloseable {
 
         private final java.net.ServerSocket server;
-        private final long closingUntil;
-        private final boolean closingForever;
+        private final java.util.function.BooleanSupplier answering;
+        private volatile boolean answeringNow;
         private final AtomicInteger closed = new AtomicInteger();
+        private final AtomicInteger answered = new AtomicInteger();
         private final Thread acceptor;
 
-        private ClosesThenAnswers(Duration closingFor) throws java.io.IOException {
+        private ClosesThenAnswers(java.util.function.BooleanSupplier answering) throws java.io.IOException {
             this.server = new java.net.ServerSocket(0, 50, java.net.InetAddress.getLoopbackAddress());
-            this.closingForever = closingFor.equals(FOREVER);
-            this.closingUntil = System.nanoTime() + (closingForever ? 0 : closingFor.toNanos());
+            this.answering = answering;
             this.acceptor = Thread.ofVirtual().start(this::serve);
         }
 
-        /** Closing for this long means closing every connection, however long the test runs. */
-        private static final Duration FOREVER = Duration.ofDays(1);
-
         static ClosesThenAnswers closingEvery() throws java.io.IOException {
-            return new ClosesThenAnswers(FOREVER);
+            return new ClosesThenAnswers(() -> false);
         }
 
-        static ClosesThenAnswers closingFor(Duration closingFor) throws java.io.IOException {
-            return new ClosesThenAnswers(closingFor);
+        static ClosesThenAnswers closingUntil(java.util.function.BooleanSupplier answering) throws java.io.IOException {
+            return new ClosesThenAnswers(answering);
         }
 
         String baseUrl() {
@@ -302,6 +315,10 @@ class StageTwoWaitsForAConverterStillStartingTest {
 
         int closed() {
             return closed.get();
+        }
+
+        int answered() {
+            return answered.get();
         }
 
         private void serve() {
@@ -313,9 +330,11 @@ class StageTwoWaitsForAConverterStillStartingTest {
                     while ((line = request.readLine()) != null && !line.isEmpty()) {
                         // The request line and headers; nothing in them changes the answer.
                     }
-                    if (closingForever || System.nanoTime() - closingUntil < 0) {
+                    answeringNow = answeringNow || answering.getAsBoolean();
+                    if (!answeringNow) {
                         closed.incrementAndGet();
                     } else {
+                        answered.incrementAndGet();
                         connection.getOutputStream().write(("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n"
                                         + "Connection: close\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.ISO_8859_1));
                         connection.getOutputStream().flush();

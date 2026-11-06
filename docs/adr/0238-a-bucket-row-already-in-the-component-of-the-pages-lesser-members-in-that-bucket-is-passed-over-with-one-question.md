@@ -1,5 +1,7 @@
 # ADR-238 — A bucket row already in the component of the page's lesser members in that bucket is passed over with one question
 
+> **Partly amended — see [ADR-352](0352-a-timing-bound-in-a-unit-test-is-one-a-busy-machine-does-not-move.md).** Of *What this does not decide*: whether a wall-clock bound is the right guard is decided there, and it is not. Of Tests: the copies resolve in less than 3 s of the processor time of the thread that resolves, and not in less than 6 s on the wall. The decision stands.
+
 - **Date**: 2026-10-11
 - **Status**: accepted on 2026-10-11.
 - **Amends**: [ADR-225](0225-stage-4b-reads-its-candidate-pairs-and-containment-candidates-a-thousand-at-a-time-and-shingle-by-hash-ends-in-the-occurrence.md) §1, in how a pair of one component is passed over: no longer one pair at a time where every lesser member of the page in a bucket is in the row's component (§2). What §1 decides stands, and ADR-225 carries a note at its head.

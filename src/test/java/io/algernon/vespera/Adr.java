@@ -2494,6 +2494,15 @@ public final class Adr {
             + "0350-the-claims-job-reads-the-tracker-off-a-pull-requests-ci-and-a-new-records-slug-keeps-to-120-characters.md";
 
     /**
+     * ADR-352 -- a unit test's timing bound holds on a machine busy with other work: a bound on a cost is taken on the
+     * processor time of the thread that pays it, a fixture's state changes on an event the code under test makes and
+     * not after a time on the clock, and a limit a command must outlast to print is doubled until it does (decides
+     * ADR-238's "whether a wall-clock bound is the right guard").
+     */
+    public static final String A_TIMING_BOUND_IN_A_UNIT_TEST_IS_ONE_A_BUSY_MACHINE_DOES_NOT_MOVE =
+            FILE + "0352-a-timing-bound-in-a-unit-test-is-one-a-busy-machine-does-not-move.md";
+
+    /**
      * ADR-353 -- the embedding model's shipped default is Qwen3-Embedding-8B, named as its file on Hugging Face,
      * {@code hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M}, in place of {@code bge-m3:latest}; Ollama's library tag of the
      * same model layer is another name and manifest, so another scoring run; only a profile naming no model mints its
