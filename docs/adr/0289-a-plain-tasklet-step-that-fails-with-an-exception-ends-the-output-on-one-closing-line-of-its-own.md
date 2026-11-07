@@ -1,5 +1,7 @@
 # ADR-289 — A plain tasklet step that fails with an exception ends the output on one closing line of its own
 
+> **Partly amended — see [ADR-364](0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md).** Of the second paragraph of the Decision: the lines embedding scoring, generation and stage 1's archive gone wrote from inside the tasklet are recorded in the step's `ExecutionContext` and logged by `RecordedClosingLines`, an `afterStep` listener every builder in `TaskletSteps` registers after `StepFailureClosingLine`, so that it runs before it; each so follows `AbstractStep`'s `executed in` line and, for stage 1, its ERROR and stack trace. Every closing line, `StepFailureClosingLine`'s among them, is logged on the operator logger, `io.algernon.vespera.operator`, as its words alone. `StepFailureClosingLine`, its words and its place, last, stand. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md)'s *The last line*, and [ADR-281](0281-the-closing-line-is-the-last-line-of-output-and-two-library-loggers-write-to-the-console-only-at-warn.md) §1 and §2.
