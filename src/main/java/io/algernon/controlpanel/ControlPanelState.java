@@ -382,6 +382,15 @@ final class ControlPanelState {
 
     /** As {@link #start(Start, List)}, with the values, presets and label file of {@code plan}. */
     synchronized Optional<String> start(Start kind, Plan plan, List<String> stored) {
+        return start(kind, plan, Optional.empty(), stored);
+    }
+
+    /**
+     * As {@link #start(Start, Plan, List)}, giving the child {@code confluenceToken} where one is typed, in its
+     * environment alone (ADR-359 §3). The token is held on this call's stack and nowhere else: not in {@code plan},
+     * not in the launch values, not in {@link #childCommand()}.
+     */
+    synchronized Optional<String> start(Start kind, Plan plan, Optional<String> confluenceToken, List<String> stored) {
         if (controlPanelEnds) {
             return Optional.of(kind.name + " is not started: the control panel is ending");
         }
@@ -417,6 +426,9 @@ final class ControlPanelState {
         ChildCommand command;
         try {
             command = commandOf(runtime, kind, plan);
+            if (confluenceToken.isPresent()) {
+                command = command.withConfluenceToken(confluenceToken.get());
+            }
         } catch (RuntimeException notBuilt) {
             return Optional.of(kind.name + " is not started: " + (notBuilt.getMessage() == null
                     ? notBuilt.getClass().getSimpleName() : notBuilt.getMessage()));

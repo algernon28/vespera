@@ -2573,6 +2573,17 @@ public final class Adr {
             FILE + "0358-a-bound-the-code-under-test-keeps-in-real-time-is-held-on-the-wall-clock-from-the-event-it-races.md";
 
     /**
+     * ADR-359 -- the publish reads the site, the space, the parent and the account's email from five text keys of the
+     * profile where the shell sets none, a value the shell sets coming first on the command line, and the token from the
+     * environment alone; a publish the control panel starts inherits no {@code VESPERA_CONFLUENCE_*} variable, is given
+     * the token typed in a masked field, writes no template and names the Profile tab's keys when one is missing; the
+     * deliverable's index lists none of the five (supersedes part of ADR-308 §3; amends ADR-308 §6, ADR-318 §1,
+     * ADR-345 §1, §4 and ADR-186 §1).
+     */
+    public static final String THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN =
+            FILE + "0359-the-publish-reads-its-confluence-values-from-the-profile-and-the-control-panel-passes-the-token-to-its-child-alone.md";
+
+    /**
      * ADR-360 -- before {@code Application.launch}, the control panel's start installs {@code ClassPathLine}, a {@code
      * java.util.logging} filter on the logger {@code javafx}, which drops the record whose message begins {@code
      * Unsupported JavaFX configuration} and passes every other, at any level, the logger held in a static field;

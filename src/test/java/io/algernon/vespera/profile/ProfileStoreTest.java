@@ -296,6 +296,21 @@ class ProfileStoreTest {
             foldersNotWalked:
               value: "archive/old-flows"
               provenance: "exports of the old flows, nothing to read"
+            confluenceBaseUrl:
+              value: "https://wiki.example.com"
+              provenance: "the team's site"
+            confluenceSpaceKey:
+              value: "DOCS"
+              provenance: "the space the team writes in"
+            confluenceFolderId:
+              value: "123456789"
+              provenance: "the folder the team keeps hand-overs in"
+            confluenceFolderTitle:
+              value: "Hand-overs"
+              provenance: "the same folder, by its title"
+            confluenceEmail:
+              value: "operator@example.org"
+              provenance: "the account the pages are published as"
             """;
 
     /** The value {@link #EVERY_KEY_ANSWERED} writes under each key, copied from it. */
@@ -319,7 +334,12 @@ class ProfileStoreTest {
             Map.entry("configurationSettingShareFloor", "0.56"),
             Map.entry("deliverableLanguage", "it"),
             Map.entry("clusterResolution", "2.5"),
-            Map.entry("foldersNotWalked", "archive/old-flows"));
+            Map.entry("foldersNotWalked", "archive/old-flows"),
+            Map.entry("confluenceBaseUrl", "https://wiki.example.com"),
+            Map.entry("confluenceSpaceKey", "DOCS"),
+            Map.entry("confluenceFolderId", "123456789"),
+            Map.entry("confluenceFolderTitle", "Hand-overs"),
+            Map.entry("confluenceEmail", "operator@example.org"));
 
     @Test
     @Story("What census writes to the profile")
@@ -329,6 +349,7 @@ class ProfileStoreTest {
     @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
     @Link(name = "ADR-287", url = Adr.LOGS_AND_CONFIGURATION_FILES_ARE_TOLD_BY_THEIR_BYTES, type = "adr")
     @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
+    @Link(name = "ADR-359", url = Adr.THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN, type = "adr")
     void everyAnswerLandsOnTheKeyThatCarriedIt(@TempDir Path workingDirectory) throws IOException {
         Files.writeString(workingDirectory.resolve("profile.yaml"), EVERY_KEY_ANSWERED);
 

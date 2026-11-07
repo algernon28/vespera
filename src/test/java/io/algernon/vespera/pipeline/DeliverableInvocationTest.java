@@ -176,11 +176,11 @@ class DeliverableInvocationTest {
     private static final String THE_COPY_OUTCOME_COLUMN = "copy_outcome";
 
     /**
-     * Every key the profile carries, each of which the index states beside the value it held — read
-     * off the profile record rather than spelled out here, because a list spelled out here is how two
-     * keys went missing from the index with this test passing (ADR-186, #398).
+     * Every key the index states beside the value it held: every key the profile carries but the five of a publish
+     * (ADR-359 §7) — read off the profile record rather than spelled out here, because a list spelled out here is how
+     * two keys went missing from the index with this test passing (ADR-186, #398).
      */
-    private static final List<String> EVERY_PROFILE_KEY = ProfileKeys.everyKey();
+    private static final List<String> EVERY_PROFILE_KEY = ProfileKeys.everyKeyTheIndexStates();
 
     /** The key naming which attempt at reading the archive this is. */
     private static final String THE_ATTEMPT_KEY = "extractionAttempt";
@@ -398,7 +398,9 @@ class DeliverableInvocationTest {
                 () -> assertThat(theIndexOf(root)).contains(Walk.canonicalRoot(root).toString()));
         claim(
                 "and it states every one of the " + EVERY_PROFILE_KEY.size() + " values the operator's"
-                        + " file can carry, each on a line of its own, no more and no fewer, in the order the"
+                        + " file can carry about how the tree was made, every value but the "
+                        + ProfileKeys.CONFLUENCE_KEYS.size() + " saying where it is published,"
+                        + " each on a line of its own, no more and no fewer, in the order the"
                         + " file is written in, each line carrying the value the file held for that key as"
                         + " written -- the seed folder, the embedding model and the reading window this test"
                         + " set among them -- with nothing after the name where the file holds nothing. What"
@@ -414,6 +416,41 @@ class DeliverableInvocationTest {
                         + " first attempt",
                 () -> assertThat(textOf(theIndexLineNaming(root, "<li>" + THE_ATTEMPT_KEY + ":")))
                         .isEqualTo(THE_ATTEMPT_KEY + ":"));
+    }
+
+    /**
+     * The five values of a publish say where the tree is sent, not how it was made, so the index states none of them,
+     * and none of their values, the account's email among them (ADR-359 §7, amending ADR-186 §1). The five are taken
+     * out of the profile again afterwards, since this class's working directory is shared by its tests.
+     */
+    @Test
+    @Story("The tree can be read years later with nothing beside it")
+    @DisplayName("The index names none of the five values saying where the tree is published, and holds none of what they hold")
+    @Link(name = "ADR-186", url = Adr.THE_INDEX_STATES_EVERY_PROFILE_KEY_READ_OFF_THE_RECORD, type = "adr")
+    @Link(name = "ADR-359", url = Adr.THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN, type = "adr")
+    void theIndexNamesNoneOfTheConfluenceValues(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        List<String> theirValues = List.of("https://wiki.example.com", "DOCSPACE", "123456789", "Hand-overs folder",
+                "operator@example.org");
+        anApprovedCorpus(root, seeds);
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                .confluenceValues(theirValues.get(0), theirValues.get(1), theirValues.get(2), theirValues.get(3),
+                        theirValues.get(4), "set by this test, where it would be published")
+                .build());
+        String index;
+        try {
+            cli.run("run", root.toString());
+            index = theIndexOf(root);
+        } finally {
+            profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                    .confluenceValues(null, null, null, null, null, null)
+                    .build());
+        }
+
+        claim("the invocation reached the tree", () -> assertThat(cli.getExitCode()).isZero());
+        claim("the index names none of the five keys saying where the tree is published",
+                () -> assertThat(index).doesNotContain(ProfileKeys.CONFLUENCE_KEYS.toArray(String[]::new)));
+        claim("and holds none of the values they held, the account's email among them",
+                () -> assertThat(index).doesNotContain(theirValues.toArray(String[]::new)));
     }
 
     @Test
@@ -1136,14 +1173,17 @@ class DeliverableInvocationTest {
     }
 
     /**
-     * The lines the profile on disk should make on the index, one per key in the record's order: the
-     * key, a colon, and the value as written where the key holds one (ADR-186 §2), stripped as the
-     * index's lines are read.
+     * The lines the profile on disk should make on the index, one per key the index states in the record's order: the
+     * key, a colon, and the value as written where the key holds one (ADR-186 §2), stripped as the index's lines are
+     * read; no line for the five values of a publish (ADR-359 §7).
      */
     private List<String> theLinesTheProfileMakes() {
         List<String> expected = new ArrayList<>();
-        ProfileKeys.valuesOf(profileStore.load()).forEach((key, value) -> expected.add(
-                (key + ":" + (value.value() == null ? "" : " " + value.value())).strip()));
+        ProfileKeys.valuesOf(profileStore.load()).forEach((key, value) -> {
+            if (EVERY_PROFILE_KEY.contains(key)) {
+                expected.add((key + ":" + (value.value() == null ? "" : " " + value.value())).strip());
+            }
+        });
         return expected;
     }
 
