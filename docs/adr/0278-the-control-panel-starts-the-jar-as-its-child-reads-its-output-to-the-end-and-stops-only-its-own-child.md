@@ -20,7 +20,7 @@
 
 > **Partly amended — see [ADR-344](0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md).** Of §1: each command line gains, after its arguments, the options ADR-344 §4 passes where they differ from what the child would read without them, and `label` its `<file>` where one is set. The rest of this record stands.
 
-> **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §5: the line shown with how the child ended is the `closing` line of the report the child wrote, where it wrote one; a child refused before it held the working-directory lock is shown with its last line of output that is not blank. The rest of this record stands.
+> **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §1: `CI=1` stops nothing from opening `progress.html` or the deliverable's `index.html`, since no command of the jar opens anything; the child still runs with `CI=1`, which nothing of the jar reads. Of §5: the line shown with how the child ended is the `closing` line of the report the child wrote, where it wrote one; a child refused before it held the working-directory lock is shown with its last line of output that is not blank. The rest of this record stands.
 
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.
