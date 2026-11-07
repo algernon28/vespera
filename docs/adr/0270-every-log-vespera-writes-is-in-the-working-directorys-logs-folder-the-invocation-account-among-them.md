@@ -1,5 +1,7 @@
 # ADR-270 — Every log Vespera writes is in the working directory's `logs` folder, the invocation account among them
 
+> **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §2: `invocation-account-<start>.txt` is no longer written; `logs/report-<invocation>.json`, the copy of the invocation report, is written in its place by every invocation that writes the report. The accounts already written stay. Of §3: the warning for a `vespera.account-dir` still set says `vespera.account-dir is no longer read, and the report's copy is written to <working directory, absolute>/logs`. Of §6: the README's and `CONTEXT.md`'s lines name the copy in place of the account. §1 stands.
+
 - **Date**: 2026-10-17
 - **Status**: accepted on 2026-10-17.
 - **Amends**: [ADR-093](0093-logging-is-explicit-and-process-scoped-console-plus-rolling-file-per-item-and-per-step-at-info.md), in this place and no other: "Two appenders"'s rolling file "writes into the same configured working directory ADR-054 already gives the SQLite database, so the log sits next to the data it describes". It is written in that working directory's `logs` folder (§1). One file, rotating, with no file per run, stands.
