@@ -3,7 +3,6 @@ package io.algernon.controlpanel;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.offset;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -15,7 +14,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +25,6 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
-import javafx.scene.control.Spinner;
 import javafx.scene.control.TitledPane;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,7 +36,8 @@ import org.junit.jupiter.api.io.TempDir;
  * and a summary of its name, one bar and its state (§3); the bar is the mean of its rows' bars and the state ADR-324
  * §3's, {@code waiting} before any file is read, an open leg showing its name alone (§4); a leg is open where it runs,
  * failed or holds the first step stopped at a gate (§5); a leg the operator opens or folds stays so (§6); and the four
- * summaries line up in columns (§7).
+ * summaries line up in columns (§7). A running leg's state reads with the whole percent of its bar, {@code running 37%},
+ * as ADR-365 §5 has it.
  *
  * <p>The window is shown as the control panel shows it, on the Headless platform (ADR-342 §6). Where a test reads
  * {@code progress.json}, the window runs {@link SleepingJar}'s child, as Run starts it, the file written by the test
@@ -50,15 +48,13 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("726")
 @Link(name = "ADR-361", url = Adr.THE_COCKPITS_STEPS_FOLD_INTO_THE_PROGRESS_PAGES_FOUR_LEGS, type = "adr")
+@Link(name = "ADR-365", url = Adr.THE_COCKPITS_CHARTS_CARRY_A_LEGEND_AND_A_RUNNING_STEP_SAYS_ITS_PERCENT, type = "adr")
 @Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 @Link(name = "ADR-324", url = Adr.THE_TIMELINE_FOLDS_INTO_FOUR_LEGS, type = "adr")
 class TheStepsFoldIntoLegsTest {
 
     /** The legs ADR-324 §1 folds the job into: deduplication, translation, clustering and generation. */
     private static final int FOUR_LEGS = 4;
-
-    /** The progress interval the tests that read {@code progress.json} set, in seconds: the shortest the window takes. */
-    private static final int ONE_SECOND = 1;
 
     /** How far apart two starts may be and still be one column: under a pixel, for rounding. */
     private static final double ONE_PIXEL = 0.5;
@@ -76,6 +72,18 @@ class TheStepsFoldIntoLegsTest {
      * mean of its six rows' bars, two full, one a quarter and three empty, (1 + 1 + 0.25) / 6.
      */
     private static final double DEDUPLICATION_AT_ONE_OF_FOUR = (1 + 1 + (double) DONE / TOTAL) / 6;
+
+    /**
+     * What deduplication's summary says while it runs at {@link #DEDUPLICATION_AT_ONE_OF_FOUR}: its state and its bar,
+     * 0.375, as a whole percent rounded down.
+     */
+    private static final String DEDUPLICATION_RUNNING = "running 37%";
+
+    /**
+     * What a part's summary says while one of its steps runs with no counter and none of its steps has finished: its
+     * state and its bar, empty, as a whole percent.
+     */
+    private static final String RUNNING_AT_NOTHING = "running 0%";
 
     /** What one leg of the window shows: its state's words, whether it is open, its bar, and which of its words show. */
     record LegSeen(String state, boolean open, double bar, boolean barShown, boolean stateShown) {
@@ -156,19 +164,19 @@ class TheStepsFoldIntoLegsTest {
         Map<String, LegSeen> gate;
         try (WindowForTests window = readingEverySecond(folder)) {
             written(working, extractionRunning());
-            running = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("deduplication", "running"));
+            running = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("deduplication", DEDUPLICATION_RUNNING));
             written(working, byteLevelReductionFailed());
             failed = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("deduplication", "failed"));
             written(working, firstStoppedAtAGateInTranslation());
             gate = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("translation", "stopped at a gate"));
         }
 
-        claim("while extraction runs, deduplication is open and says running, and every other part is folded and not"
-                        + " started",
+        claim("while extraction runs at 1 of 4, deduplication is open and says running 37%, its bar of 0.375 as a whole"
+                        + " percent rounded down, and every other part is folded and not started",
                 () -> {
                     assertThat(openOf(running)).containsExactly("deduplication");
                     assertThat(statesOf(running)).containsExactlyEntriesOf(inOrder(
-                            "running", "not started", "not started", "not started"));
+                            DEDUPLICATION_RUNNING, "not started", "not started", "not started"));
                 });
         claim("with byte-level reduction failed and the run ended, deduplication is open and says failed, and every other"
                         + " part is folded",
@@ -194,7 +202,7 @@ class TheStepsFoldIntoLegsTest {
         Map<String, LegSeen> seen;
         try (WindowForTests window = readingEverySecond(folder)) {
             written(working, extractionRunning());
-            seen = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("deduplication", "running"));
+            seen = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("deduplication", DEDUPLICATION_RUNNING));
         }
 
         claim("the window read the file: deduplication runs, and is open",
@@ -224,7 +232,7 @@ class TheStepsFoldIntoLegsTest {
         Map<String, LegSeen> clusteringRunning;
         try (WindowForTests window = readingEverySecond(folder)) {
             written(working, extractionRunning());
-            before = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("deduplication", "running"));
+            before = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("deduplication", DEDUPLICATION_RUNNING));
             window.act(root -> {
                 WindowForTests.node(root, "leg-deduplication", TitledPane.class).setExpanded(false);
                 WindowForTests.node(root, "leg-generation", TitledPane.class).setExpanded(true);
@@ -232,9 +240,11 @@ class TheStepsFoldIntoLegsTest {
             written(working, byteLevelReductionFailed());
             deduplicationFailed = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("deduplication", "failed"));
             written(working, translationRunning());
-            translationRunning = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("translation", "running"));
+            translationRunning = window.awaiting(TheStepsFoldIntoLegsTest::legsOf,
+                    stateIs("translation", RUNNING_AT_NOTHING));
             written(working, clusteringRunning());
-            clusteringRunning = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("clustering", "running"));
+            clusteringRunning = window.awaiting(TheStepsFoldIntoLegsTest::legsOf,
+                    stateIs("clustering", RUNNING_AT_NOTHING));
         }
 
         claim("while extraction runs, deduplication is open before the operator folds it",
@@ -283,29 +293,9 @@ class TheStepsFoldIntoLegsTest {
 
     // ---- the window, and the files it reads
 
-    /**
-     * The window over a corpus root and a working directory under {@code folder}, its progress interval set to one
-     * second in Command options, as the operator can, and {@link SleepingJar}'s child started as Run starts it.
-     */
+    /** The window over a corpus root and a working directory under {@code folder}, reading the progress every second. */
     private static WindowForTests readingEverySecond(Path folder) throws Exception {
-        ControlPanelState state = WindowForTests.aState(folder, SleepingJar.runtime());
-        state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
-                Files.createDirectories(folder.resolve("working")).toString(), "", "", "", "", "", ""));
-        WindowForTests window = WindowForTests.shown(state);
-        try {
-            window.act(root -> intervalOf(root).getValueFactory().setValue(ONE_SECOND));
-            Optional<String> refusal = state.start(ControlPanelState.Start.RUN, new ArrayList<>());
-            assumeThat(refusal).as("the sleeping child is started").isEmpty();
-            return window;
-        } catch (Exception | Error failed) {
-            window.close();
-            throw failed;
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Spinner<Integer> intervalOf(Parent root) {
-        return WindowForTests.node(root, "vespera.progress-interval", Spinner.class);
+        return WindowForTests.readingEverySecond(folder);
     }
 
     private static void written(Path working, String json) throws IOException {
