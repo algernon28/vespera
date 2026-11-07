@@ -2,10 +2,12 @@ package io.algernon.controlpanel;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
@@ -17,12 +19,14 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.CheckBoxTreeItem;
 import javafx.scene.control.Hyperlink;
+import javafx.scene.control.Spinner;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
 import javafx.stage.Stage;
+import org.assertj.core.api.Assumptions;
 
 /**
  * The control panel's window shown on a stage of the Headless platform (ADR-342 §6), as {@code ControlPanelWindow}
@@ -65,6 +69,38 @@ final class WindowForTests implements AutoCloseable {
             return made;
         });
         return new WindowForTests(state, dialogs, stage);
+    }
+
+    /**
+     * The window over a corpus root {@code corpus} and a working directory {@code working} under {@code folder}, its
+     * progress interval set to one second in Command options, as the operator can, the shortest it takes, and
+     * {@link SleepingJar}'s child started as Run starts it: so that a {@code progress.json} the test writes with
+     * {@link #progressWritten} is read within a second. The test is skipped where the child does not start.
+     */
+    static WindowForTests readingEverySecond(Path folder) throws Exception {
+        ControlPanelState state = aState(folder, SleepingJar.runtime());
+        state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
+                Files.createDirectories(folder.resolve("working")).toString(), "", "", "", "", "", ""));
+        WindowForTests window = shown(state);
+        try {
+            window.act(root -> intervalOf(root).getValueFactory().setValue(1));
+            Optional<String> refusal = state.start(ControlPanelState.Start.RUN, new ArrayList<>());
+            Assumptions.assumeThat(refusal).as("the sleeping child is started").isEmpty();
+            return window;
+        } catch (Exception | Error failed) {
+            window.close();
+            throw failed;
+        }
+    }
+
+    /** Writes {@code json} as the {@code progress.json} of the working directory {@link #readingEverySecond} reads under {@code folder}. */
+    static void progressWritten(Path folder, String json) throws IOException {
+        Files.writeString(folder.resolve("working").resolve(ProgressFile.FILE_NAME), json, StandardCharsets.UTF_8);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Spinner<Integer> intervalOf(Parent root) {
+        return node(root, "vespera.progress-interval", Spinner.class);
     }
 
     /** What {@code reading} reads of the window's root, laid out, on the toolkit's thread. */

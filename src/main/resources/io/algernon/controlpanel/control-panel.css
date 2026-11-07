@@ -115,8 +115,34 @@
 }
 
 .progress-chart {
-    -fx-pref-height: 240px;
+    -fx-pref-height: 340px;
 }
+
+/* a sample is a hit area 24 px across, unseen but for each line's latest, a marker in the line's colour (ADR-365 §3) */
+.progress-chart .chart-line-symbol.sample {
+    -fx-background-color: transparent;
+    -fx-background-radius: 12px;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-min-width: 24px;
+    -fx-min-height: 24px;
+    -fx-pref-width: 24px;
+    -fx-pref-height: 24px;
+}
+
+.progress-chart .chart-line-symbol.latest-sample {
+    -fx-background-radius: 4px;
+    -fx-background-insets: 8px;
+}
+
+.progress-chart .default-color0.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_1; }
+.progress-chart .default-color1.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_2; }
+.progress-chart .default-color2.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_3; }
+.progress-chart .default-color3.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_4; }
+.progress-chart .default-color4.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_5; }
+.progress-chart .default-color5.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_6; }
+.progress-chart .default-color6.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_7; }
+.progress-chart .default-color7.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_8; }
 
 .step {
     -fx-alignment: center-left;
