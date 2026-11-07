@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-270](0270-every-log-vespera-writes-is-in-the-working-directorys-logs-folder-the-invocation-account-among-them.md).** The rolling file of "Two appenders" is written in the working directory's `logs` folder, as `logs/vespera.log` and `logs/vespera.<yyyy-MM-dd>.<n>.log`, and not beside the database. One rotating file, the console and everything else in this record stand.
 
+> **Partly amended — see [ADR-364](0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md).** Of "Two appenders": a third place, `logs/output-<invocation>.log`, each invocation's output in the console's pattern and level, written by `InvocationOutputAppender` from the invocation's start and kept 14 days; the lines printed outside logback before it, on the logger `io.algernon.vespera.operator`, as their words alone, on the stream each was printed on, and in `vespera.log`; and the banner logged (`spring.main.banner-mode: log`). The console's pattern, the one rotating file and everything else in this record stand.
+
 - **Date**: 2026-09-08
 - **Status**: accepted
 - **Amends**: none (fills a gap no prior ADR closed — logging was never decided at all)
