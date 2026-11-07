@@ -1,5 +1,7 @@
 # ADR-296 — Each code set is copied whole under `code/`, its paths kept, and each file is checked against the size and time the walk recorded
 
+> **Partly amended — see [ADR-366](0366-the-window-shows-a-provenance-on-one-line-behind-edit-reason-a-list-as-tags-a-code-set-by-its-folder-and-no-label-file.md).** Of §3.1: a set's folder in `code/` starts from its default name alone, and two alike are told apart by the lowest member occurrence id alone. Of §6.2: no names file is read, so the closing line has no clause of dormant names and the generation step writes no warning of a refused file. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Decided**: under the operator's delegation, on the questions of [#573](https://github.com/algernon28/vespera/issues/573), with the layout the operator settled at charting map [#551](https://github.com/algernon28/vespera/issues/551): each set is copied to `code/<set>/` under the tree's root, its paths below the set's folder kept.
