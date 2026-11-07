@@ -18,9 +18,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ADR_JAVA, INDEX, adrJavaOf, constant, indexOf } from "./adr-index-fixtures.mjs";
 
@@ -72,6 +72,54 @@ test("git stores AGENTS.md as text, so its blob has LF endings and counting each
   // measure would count one byte short. HEAD's blob is what was committed, however it was written.
   const blob = execFileSync("git", ["cat-file", "blob", "HEAD:AGENTS.md"], { cwd: ROOT });
   assert.equal(blob.indexOf(0x0d), -1, `HEAD's blob of AGENTS.md holds a CR at byte ${blob.indexOf(0x0d)}: it was committed past git's text filter`);
+});
+
+/* ---------- line endings (ADR-366) ---------- */
+
+// The five kinds of file ADR-366 §1 names, each with a name no tracked file has, so that check-attr reads the rule alone.
+const LF_KINDS = ["src/main/java/New.java", "docs/New.md", "docs/new.mjs", ".github/workflows/new.yml", "docs/new.css"];
+
+test("git stores a new .java, .md, .mjs, .yml or .css file as text and writes it to the working copy with LF endings", () => {
+  const out = execFileSync("git", ["check-attr", "text", "eol", "--", ...LF_KINDS], { cwd: ROOT, encoding: "utf8" });
+  const expected = LF_KINDS.flatMap((p) => [`${p}: text: set`, `${p}: eol: lf`]);
+  assert.deepEqual(out.trim().split(/\r?\n/), expected, "each kind ADR-366 §1 names is `text eol=lf` in .gitattributes");
+});
+
+test("a new LF file of each of the five kinds is staged with no line-ending warning in a clone set to core.autocrlf=true", () => {
+  // A repository of its own, holding this tree's .gitattributes and set as git's Windows default sets a clone, so that
+  // the warning is what git would print on a Windows checkout of this repository on any machine the test runs on.
+  // core.safecrlf=warn is git's default and what prints the warning; set here, so that a machine's global config
+  // turning it off cannot make the test pass by silencing it.
+  const dir = mkdtempSync(join(tmpdir(), "vespera-eol-"));
+  try {
+    const git = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+    for (const args of [["init", "-q"], ["config", "core.autocrlf", "true"], ["config", "core.safecrlf", "warn"]]) {
+      const step = git(...args);
+      assert.equal(step.status, 0, `git ${args.join(" ")} failed: ${step.stderr}`);
+    }
+    copyFileSync(join(ROOT, ".gitattributes"), join(dir, ".gitattributes"));
+    for (const p of LF_KINDS) {
+      mkdirSync(join(dir, dirname(p)), { recursive: true });
+      writeFileSync(join(dir, p), "first line\nsecond line\n");
+    }
+    const add = git("add", "--", ...LF_KINDS);
+    assert.equal(add.status, 0, `git add failed: ${add.stderr}`);
+    assert.equal(add.stderr.split(/\r?\n/).filter((l) => l.includes("will be replaced by")).join("\n"), "",
+      "a new file written with LF endings is staged without git warning that it will rewrite them");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("every tracked file of the five kinds is stored with LF endings, so renormalising the tree changes no blob", () => {
+  const kinds = LF_KINDS.map((p) => extname(p));
+  const rows = execFileSync("git", ["ls-files", "--eol"], { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
+    .split(/\r?\n/).filter(Boolean)
+    .map((row) => ({ index: row.split(/\s+/)[0], path: row.split("\t").pop() }))
+    .filter((r) => kinds.some((k) => r.path.endsWith(k)));
+  assert.ok(rows.length > 1000, `the tree's files of the five kinds are read: ${rows.length}`);
+  assert.deepEqual(rows.filter((r) => r.index !== "i/lf" && r.index !== "i/none").map((r) => `${r.index} ${r.path}`), [],
+    "no stored file of the five kinds holds a CRLF or a lone CR, so `git add --renormalize .` would change none");
 });
 
 /* ---------- a record's number ---------- */
