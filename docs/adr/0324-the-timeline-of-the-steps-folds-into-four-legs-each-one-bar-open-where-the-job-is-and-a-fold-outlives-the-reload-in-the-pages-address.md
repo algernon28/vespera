@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-327](0327-an-ended-progress-page-keeps-reloading-so-a-tab-left-open-shows-the-next-invocation-and-vespera-open-browser-set-false-opens-nothing.md).** Of §5: the script schedules its reload where the liveness mark carries `data-interval`, which the last write's mark carries too, and the last write carries the `<noscript>` refresh as every write before it. A fold outlives the invocation as it outlives the reload. The rest of this record stands.
 
+> **Partly reopened — see [ADR-361](0361-the-cockpits-steps-fold-into-the-progress-pages-four-legs-and-its-copy-of-their-table-is-held-to-the-pages-by-a-test.md).** Of §6: the control panel's cockpit folds its steps into §1's four legs, from a copy of §1's table it holds as text, `Legs.ALL`, which a test holds, with the rules of §3 and §4, to what this page draws, so the copy cannot drift from the first unseen. §6's first paragraph, the progress page shown as the file, stands. The rest of this record stands.
+
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
 - **Decided**: by the operator, who asked that the bars of the timeline fold, on `progress.html` and in the control panel, into four named deduplication, translation, clustering and generation, each folding to one bar, and who approved a drawing of four rows, one open on its steps; which steps each holds, the bar's span and state, which is open, how a fold is kept across the page's reload and what the control panel shows are decided under delegation.

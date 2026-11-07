@@ -2582,6 +2582,15 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_DROPS_JAVAFXS_CLASS_PATH_LINE =
             FILE + "0360-the-control-panel-drops-javafxs-class-path-line-from-the-javafx-logger-and-every-other-record-of-it-still-prints.md";
 
+    /**
+     * ADR-361 -- the cockpit's steps fold into the progress page's four legs, each a leg of its rows that folds, with one
+     * summary bar and its state, open where the job runs, failed or first stopped at a gate, a fold the operator makes lasting
+     * while the window is open; the control panel's copy of the legs' table, {@code Legs.ALL}, and its rules are held to
+     * what the progress page draws by a test (partly reopens ADR-324 §6, amends ADR-344 §1).
+     */
+    public static final String THE_COCKPITS_STEPS_FOLD_INTO_THE_PROGRESS_PAGES_FOUR_LEGS =
+            FILE + "0361-the-cockpits-steps-fold-into-the-progress-pages-four-legs-and-its-copy-of-their-table-is-held-to-the-pages-by-a-test.md";
+
     private Adr() {
     }
 }

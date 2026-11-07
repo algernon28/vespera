@@ -26,6 +26,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.SplitPane;
+import javafx.scene.control.TitledPane;
 import javafx.scene.layout.Region;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,10 +45,15 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>The running step's row, as {@code progress.json} names it, also shows its Stop and what a stop there costs, so it
  * asks for more width than any other row; in a steps pane narrower than that, it alone is laid out short of its width,
  * and its bar is the one part of it that could give way. The columns hold there too.
+ *
+ * <p>The rows stand in the four legs of {@code Legs.ALL}, each a leg that folds on its own (ADR-361 §3), and keep their columns
+ * across the legs (ADR-361 §7). Each test opens every leg first, as the operator can, so that the rows it reads are
+ * the rows the operator sees, whichever leg holds them.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
+@Link(name = "ADR-361", url = Adr.THE_COCKPITS_STEPS_FOLD_INTO_THE_PROGRESS_PAGES_FOUR_LEGS, type = "adr")
 @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
 class TheStepRowsAlignInColumnsTest {
 
@@ -79,6 +85,7 @@ class TheStepRowsAlignInColumnsTest {
         Map<String, Row> rows;
         try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder, new ChildRuntime(
                 folder.resolve("java"), folder.resolve("vespera.jar"))))) {
+            window.act(TheStepRowsAlignInColumnsTest::openEveryLeg);
             rows = window.read(TheStepRowsAlignInColumnsTest::rowsOf);
         }
 
@@ -109,6 +116,7 @@ class TheStepRowsAlignInColumnsTest {
             assumeThat(refusal).as("the sleeping child is started").isEmpty();
             shownRunning = window.awaiting(TheStepRowsAlignInColumnsTest::theRunningRowShowsStopAndItsCost,
                     Boolean::booleanValue);
+            window.act(TheStepRowsAlignInColumnsTest::openEveryLeg);
             window.act(TheStepRowsAlignInColumnsTest::narrowTheStepsPane);
             widths = window.read(TheStepRowsAlignInColumnsTest::widthsOf);
             rows = window.read(TheStepRowsAlignInColumnsTest::rowsOf);
@@ -146,6 +154,13 @@ class TheStepRowsAlignInColumnsTest {
                     bar.getLayoutBounds().getWidth()));
         }
         return seen;
+    }
+
+    /** Opens each leg of the steps chart, as the operator opens one by its title; the test fails where one is missing. */
+    private static void openEveryLeg(Parent root) {
+        for (Legs.Leg leg : Legs.ALL) {
+            WindowForTests.node(root, "leg-" + leg.name(), TitledPane.class).setExpanded(true);
+        }
     }
 
     /** How wide each row is laid out and asks to be, by step. */
