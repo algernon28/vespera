@@ -1,5 +1,7 @@
 # ADR-333 — A plugin inside the jar draws one rendering and delivers it to one destination, a publish names its destinations, and the website is refreshed in one folder and served on loopback
 
+> **Partly amended — see [ADR-364](0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md).** Of §8: `io.algernon.EntryPoint.main`, and no longer `VesperaApplication.main`, reads the first argument it passes on and hands `serve` and the arguments after it to `ServeCommand`, giving it `System.out` and `System.err`, before `VesperaApplication.main` is called; `serve` still starts with no Spring context, writes no `vespera.log` and no output file, and prints its lines outside logback. A `serve` that reaches Spring anyway is answered by `VesperaCommand.Serve.call`'s line on the operator logger, exit 1. The rest of this record stands.
+
 - **Date**: 2026-11-02
 - **Status**: accepted on 2026-11-02.
 - **Decided**: by the operator on 2026-11-02: the ruling in bold at the head of each of §1 to §12, the order of §13 and the refusals under Alternatives refused marked as theirs. What a section adds beneath its ruling is what building it needs, and Decided here lists each such choice.

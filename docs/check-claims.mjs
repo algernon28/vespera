@@ -722,7 +722,7 @@ function markerPattern(source, whole = false) {
   const NAME = "the tests the decision records name";
   const FIRST = 50;
   // Accepted records whose code is not built yet. A number leaves this set in the change that builds its record.
-  const NOT_YET_BUILT = new Set([362]);
+  const NOT_YET_BUILT = new Set([362, 364]);
   const testFiles = new Map();
   (function walk(dir) {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
