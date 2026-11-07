@@ -25,6 +25,9 @@ public final class Adr {
     /** ADR-006 — census: measure before judging. */
     public static final String CENSUS_MEASURES_BEFORE_JUDGING = FILE + "0006-census-measure-before-judging.md";
 
+    /** ADR-010 — extraction via Docling, with scanned PDFs in scope. */
+    public static final String EXTRACTION_VIA_DOCLING = FILE + "0010-extraction-via-docling-scanned-pdfs-in-scope.md";
+
     /** ADR-011 — managed containers: the tool owns its sidecars. */
     public static final String THE_TOOL_OWNS_ITS_SIDECARS =
             FILE + "0011-managed-containers-the-tool-owns-its-sidecars.md";
@@ -36,6 +39,24 @@ public final class Adr {
     /** ADR-013 — Ollama is the default extraction engine, and serves locally. */
     public static final String OLLAMA_IS_THE_DEFAULT_ENGINE = FILE + "0013-ollama-is-the-default-engine.md";
 
+    /** ADR-015 — identity is a surrogate key per file occurrence. */
+    public static final String IDENTITY_IS_A_SURROGATE_KEY =
+            FILE + "0015-identity-is-a-surrogate-key-per-file-occurrence.md";
+
+    /** ADR-018 — stage 4 uses MinHash with LSH banding. */
+    public static final String STAGE_4_USES_MINHASH_WITH_LSH_BANDING =
+            FILE + "0018-stage-4-uses-minhash-with-lsh-banding.md";
+
+    /**
+     * ADR-020 — the relevance scoring function: score = max over seeds of (mean top-3 chunk
+     * similarity), storing which seed won.
+     */
+    public static final String RELEVANCE_SCORING_FUNCTION = FILE + "0020-relevance-scoring-function.md";
+
+    /** ADR-029 — chunking: structure-first, with a measured LLM fallback. */
+    public static final String CHUNKING_STRUCTURE_FIRST_WITH_A_MEASURED_LLM_FALLBACK =
+            FILE + "0029-chunking-structure-first-with-a-measured-llm-fallback.md";
+
     /**
      * ADR-037 — the Spring Modulith event publication registry is dropped, and {@code starter-core} is
      * retained for boundary checks. The decision that keeps Modulith on the classpath at all, and so the
@@ -44,6 +65,10 @@ public final class Adr {
     public static final String MODULITH_RETAINED_FOR_BOUNDARY_CHECKS =
             FILE + "0037-spring-modulith-event-publication-registry-dropped.md";
 
+    /** ADR-038 — shingling moves to stage 3; boilerplate is detected before it distorts anything. */
+    public static final String SHINGLING_MOVES_TO_STAGE_3 =
+            FILE + "0038-shingling-moves-to-stage-3-boilerplate-detected-before-it-distorts-anything.md";
+
     /** ADR-040 — modules are capability-shaped, not stage-shaped. */
     public static final String MODULES_ARE_CAPABILITY_SHAPED =
             FILE + "0040-modules-are-capability-shaped-not-stage-shaped.md";
@@ -51,6 +76,20 @@ public final class Adr {
     /** ADR-041 — the ledger owns identity and verdicts; capabilities own their own tables. */
     public static final String LEDGER_OWNS_IDENTITY_AND_VERDICTS =
             FILE + "0041-ledger-owns-identity-and-verdicts-capabilities-own-their-own-tables.md";
+
+    /** ADR-044 — the bake-off re-chunks per candidate model. */
+    public static final String THE_BAKE_OFF_RE_CHUNKS_PER_CANDIDATE_MODEL =
+            FILE + "0044-the-bake-off-re-chunks-per-candidate-model.md";
+
+    /** ADR-045 — clustering runs within each seed partition, never corpus-wide. */
+    public static final String CLUSTERING_RUNS_WITHIN_EACH_SEED_PARTITION =
+            FILE + "0045-clustering-runs-within-each-seed-partition.md";
+
+    /** ADR-047 — the pipeline never blocks. */
+    public static final String THE_PIPELINE_NEVER_BLOCKS = FILE + "0047-the-pipeline-never-blocks.md";
+
+    /** ADR-048 — walk and run identity: a walk owns occurrences, a run owns verdicts. */
+    public static final String WALK_AND_RUN_IDENTITY = FILE + "0048-walk-and-run-identity.md";
 
     /**
      * ADR-050 — the pipeline has exclusive access to the corpus. Also the record that scopes the
@@ -71,16 +110,6 @@ public final class Adr {
     /** ADR-053 — the walk anomaly vocabulary is three kinds. */
     public static final String WALK_ANOMALY_VOCABULARY_IS_THREE_KINDS =
             FILE + "0053-the-walk-anomaly-vocabulary-is-three-kinds.md";
-
-    /** ADR-015 — identity is a surrogate key per file occurrence. */
-    public static final String IDENTITY_IS_A_SURROGATE_KEY =
-            FILE + "0015-identity-is-a-surrogate-key-per-file-occurrence.md";
-
-    /** ADR-047 — the pipeline never blocks. */
-    public static final String THE_PIPELINE_NEVER_BLOCKS = FILE + "0047-the-pipeline-never-blocks.md";
-
-    /** ADR-048 — walk and run identity: a walk owns occurrences, a run owns verdicts. */
-    public static final String WALK_AND_RUN_IDENTITY = FILE + "0048-walk-and-run-identity.md";
 
     /** ADR-054 — a corpus is its root path; the database lives in a configured working directory. */
     public static final String CORPUS_IS_ITS_ROOT_PATH =
@@ -146,9 +175,6 @@ public final class Adr {
     public static final String DUPLICATE_SET_RESOLVES_BY_EARLIEST_CREATION_TIME =
             FILE + "0069-a-duplicate-set-resolves-by-earliest-creation-time-then-path.md";
 
-    /** ADR-010 — extraction via Docling, with scanned PDFs in scope. */
-    public static final String EXTRACTION_VIA_DOCLING = FILE + "0010-extraction-via-docling-scanned-pdfs-in-scope.md";
-
     /**
      * ADR-070 — extraction-failed splits on Docling's status, and degenerate output is a two-tier
      * floor. The record of which response fields carry the signal: {@code status}, {@code errors[]},
@@ -161,14 +187,6 @@ public final class Adr {
     public static final String DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL = FILE
             + "0071-doclings-invocation-contract-is-one-sync-call-a-local-timeout-and-two-consecutive-streak-breakers.md";
 
-    /** ADR-029 — chunking: structure-first, with a measured LLM fallback. */
-    public static final String CHUNKING_STRUCTURE_FIRST_WITH_A_MEASURED_LLM_FALLBACK =
-            FILE + "0029-chunking-structure-first-with-a-measured-llm-fallback.md";
-
-    /** ADR-044 — the bake-off re-chunks per candidate model. */
-    public static final String THE_BAKE_OFF_RE_CHUNKS_PER_CANDIDATE_MODEL =
-            FILE + "0044-the-bake-off-re-chunks-per-candidate-model.md";
-
     /**
      * ADR-073 — stage 2 writes the derived-metric columns; tokenizer- and shingle-dependent values
      * live under their own identity. Settles the shingle table's key, granularity as a code default,
@@ -176,14 +194,6 @@ public final class Adr {
      */
     public static final String STAGE_2_WRITES_DERIVED_METRICS = FILE
             + "0073-stage-2-writes-the-derived-metric-columns-tokenizer-and-shingle-dependent-values-live-under-their-own-identity.md";
-
-    /** ADR-038 — shingling moves to stage 3; boilerplate is detected before it distorts anything. */
-    public static final String SHINGLING_MOVES_TO_STAGE_3 =
-            FILE + "0038-shingling-moves-to-stage-3-boilerplate-detected-before-it-distorts-anything.md";
-
-    /** ADR-018 — stage 4 uses MinHash with LSH banding. */
-    public static final String STAGE_4_USES_MINHASH_WITH_LSH_BANDING =
-            FILE + "0018-stage-4-uses-minhash-with-lsh-banding.md";
 
     /**
      * ADR-074 — stage 3 measures shingle document frequency; a boilerplate floor ships unset. The
@@ -282,6 +292,17 @@ public final class Adr {
     public static final String SEED_CORPUS_MISMATCH_IS_MEASURED_AND_REPORTED = FILE
             + "0086-seed-corpus-mismatch-is-measured-before-the-model-gate-and-reported-never-enforced.md";
 
+    /** ADR-087 — clusters are modularity communities over a k-nearest-neighbour graph, built in blocks. */
+    public static final String CLUSTERS_ARE_MODULARITY_COMMUNITIES = FILE
+            + "0087-clusters-are-modularity-communities-over-a-k-nearest-neighbour-graph-built-in-blocks.md";
+
+    /**
+     * ADR-088 — the relevance threshold is read off a stratified sample of sixty labels, and an unset
+     * floor does not stop the run.
+     */
+    public static final String RELEVANCE_THRESHOLD_IS_SIXTY_LABELS = FILE
+            + "0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md";
+
     /**
      * ADR-089 — a stage's run names the immediately preceding stage's run upstream, because blocking
      * verdicts are cumulative across runs, so any pass over survivors is determined by every
@@ -322,12 +343,6 @@ public final class Adr {
             + "0093-logging-is-explicit-and-process-scoped-console-plus-rolling-file-per-item-and-per-step-at-info.md";
 
     /**
-     * ADR-020 — the relevance scoring function: score = max over seeds of (mean top-3 chunk
-     * similarity), storing which seed won.
-     */
-    public static final String RELEVANCE_SCORING_FUNCTION = FILE + "0020-relevance-scoring-function.md";
-
-    /**
      * ADR-094 — stage 1 decides what a file is from its bytes: one prefix read and signature tests in
      * a fixed order, with the filename admitted only to narrow within a class the bytes already
      * fixed, never to decide one and never to reach the {@code broken} verdict.
@@ -343,24 +358,9 @@ public final class Adr {
     public static final String DETECTED_FORMAT_IS_A_STAGE_1_OUTPUT = FILE
             + "0095-the-detected-format-is-a-stage-1-output-and-unrecognised-content-earns-no-verdict-until-the-mix-is-measured.md";
 
-    /**
-     * ADR-088 — the relevance threshold is read off a stratified sample of sixty labels, and an unset
-     * floor does not stop the run.
-     */
-    public static final String RELEVANCE_THRESHOLD_IS_SIXTY_LABELS = FILE
-            + "0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md";
-
     /** ADR-096 — k retains neighbours regardless of distance, so the retained-edge similarities are reported. */
     public static final String K_RETAINS_NEIGHBOURS_REGARDLESS_OF_DISTANCE = FILE
             + "0096-k-retains-neighbours-regardless-of-distance-so-the-retained-edge-similarities-are-reported.md";
-
-    /** ADR-045 — clustering runs within each seed partition, never corpus-wide. */
-    public static final String CLUSTERING_RUNS_WITHIN_EACH_SEED_PARTITION =
-            FILE + "0045-clustering-runs-within-each-seed-partition.md";
-
-    /** ADR-087 — clusters are modularity communities over a k-nearest-neighbour graph, built in blocks. */
-    public static final String CLUSTERS_ARE_MODULARITY_COMMUNITIES = FILE
-            + "0087-clusters-are-modularity-communities-over-a-k-nearest-neighbour-graph-built-in-blocks.md";
 
     /** ADR-097 — a relevance label is keyed by the document's path and the seed set, not by the occurrence. */
     public static final String A_LABEL_IS_KEYED_BY_PATH_AND_SEED_SET = FILE
@@ -372,6 +372,13 @@ public final class Adr {
      */
     public static final String FOUR_INVOCATIONS_AND_THE_NEXT_VALUE = FILE
             + "0098-getting-from-a-folder-to-a-curated-archive-is-four-invocations-and-the-operator-is-told-the-next-value-not-the-stage.md";
+
+    /**
+     * ADR-099 — a stage's upstream run is looked up by stage and walk, not recomputed, and two
+     * candidates stop the run.
+     */
+    public static final String AN_UPSTREAM_IS_LOOKED_UP_AND_TWO_CANDIDATES_STOP_THE_RUN = FILE
+            + "0099-a-stages-upstream-run-is-looked-up-by-stage-and-walk-not-recomputed-and-two-candidates-stop-the-run.md";
 
     /**
      * ADR-100 — Docling reads the bytes too, so stage 2 sends a canonical extension derived from the
@@ -387,17 +394,6 @@ public final class Adr {
     public static final String THE_RUN_ENDS_AT_THE_GENERATED_DOCUMENTS = FILE
             + "0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md";
 
-    /**
-     * ADR-108 — 6b sends one exemplar-first call per cluster, each document contributing its leading
-     * chunk, and verifies every response.
-     */
-    public static final String SIX_B_SENDS_ONE_EXEMPLAR_FIRST_CALL_PER_CLUSTER =
-            FILE + "0108-6b-sends-one-exemplar-first-call-per-cluster-and-verifies-every-response.md";
-
-    /** ADR-110 — pipeline hands synthesis its inputs, so the module rule gains no second exception. */
-    public static final String PIPELINE_HANDS_SYNTHESIS_ITS_INPUTS = FILE
-            + "0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md";
-
     /** ADR-103 — the deliverable is a Markdown tree in the working directory, one tree per run id. */
     public static final String THE_DELIVERABLE_IS_A_MARKDOWN_TREE_PER_RUN = FILE
             + "0103-the-deliverable-is-a-markdown-tree-in-the-working-directory-one-tree-per-run-id.md";
@@ -406,20 +402,13 @@ public final class Adr {
     public static final String THE_ORIGINALS_STAY_WHERE_THEY_ARE_AND_ARE_REFERENCED =
             FILE + "0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md";
 
-    /** ADR-106 — a cluster gets a derived label from 6a and a generated title from 6b. */
-    public static final String A_CLUSTER_GETS_A_DERIVED_LABEL_AND_A_GENERATED_TITLE =
-            FILE + "0106-a-cluster-gets-a-derived-label-from-6a-and-a-generated-title-from-6b.md";
-
-    /**
-     * ADR-112 — the arrangement is ordered by partition size and cluster mean score, and the path
-     * carries the order.
-     */
-    public static final String THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE = FILE
-            + "0112-the-arrangement-is-ordered-by-partition-size-and-cluster-mean-score-and-the-path-carries-the-order.md";
-
     /** ADR-105 — stage 6a names the arrangement stage 5 already built, and {@code unattributed} is struck. */
     public static final String STAGE_6A_NAMES_THE_ARRANGEMENT_STAGE_5_BUILT = FILE
             + "0105-stage-6a-names-the-arrangement-stage-5-already-built-and-unattributed-is-struck.md";
+
+    /** ADR-106 — a cluster gets a derived label from 6a and a generated title from 6b. */
+    public static final String A_CLUSTER_GETS_A_DERIVED_LABEL_AND_A_GENERATED_TITLE =
+            FILE + "0106-a-cluster-gets-a-derived-label-from-6a-and-a-generated-title-from-6b.md";
 
     /**
      * ADR-107 — the arrangement gate approves a named 6a run, and the operator's path becomes five
@@ -429,11 +418,36 @@ public final class Adr {
             + "0107-the-arrangement-gate-approves-a-named-6a-run-and-the-path-becomes-five-invocations.md";
 
     /**
-     * ADR-099 — a stage's upstream run is looked up by stage and walk, not recomputed, and two
-     * candidates stop the run.
+     * ADR-108 — 6b sends one exemplar-first call per cluster, each document contributing its leading
+     * chunk, and verifies every response.
      */
-    public static final String AN_UPSTREAM_IS_LOOKED_UP_AND_TWO_CANDIDATES_STOP_THE_RUN = FILE
-            + "0099-a-stages-upstream-run-is-looked-up-by-stage-and-walk-not-recomputed-and-two-candidates-stop-the-run.md";
+    public static final String SIX_B_SENDS_ONE_EXEMPLAR_FIRST_CALL_PER_CLUSTER =
+            FILE + "0108-6b-sends-one-exemplar-first-call-per-cluster-and-verifies-every-response.md";
+
+    /**
+     * ADR-109 — a citation is an exemplar ordinal minted for one call, and the check is that it is in
+     * range.
+     */
+    public static final String A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL = FILE
+            + "0109-a-citation-is-an-exemplar-ordinal-minted-for-one-call-and-the-check-is-that-it-is-in-range.md";
+
+    /** ADR-110 — pipeline hands synthesis its inputs, so the module rule gains no second exception. */
+    public static final String PIPELINE_HANDS_SYNTHESIS_ITS_INPUTS = FILE
+            + "0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md";
+
+    /**
+     * ADR-111 — a cluster fault is a row in synthesis, and a re-run under the same id repairs rather
+     * than regenerates.
+     */
+    public static final String A_CLUSTER_FAULT_IS_A_ROW_IN_SYNTHESIS = FILE
+            + "0111-a-cluster-fault-is-a-row-in-synthesis-and-a-re-run-under-the-same-id-repairs-rather-than-regenerates.md";
+
+    /**
+     * ADR-112 — the arrangement is ordered by partition size and cluster mean score, and the path
+     * carries the order.
+     */
+    public static final String THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE = FILE
+            + "0112-the-arrangement-is-ordered-by-partition-size-and-cluster-mean-score-and-the-path-carries-the-order.md";
 
     /**
      * ADR-114 — the generation model is named in application configuration with a code default,
@@ -482,20 +496,6 @@ public final class Adr {
      */
     public static final String A_PROFILE_VALUE_IS_TYPED_AND_UNREADABLE_IS_A_THIRD_STATE = FILE
             + "0120-a-profile-values-type-is-its-keys-and-an-unreadable-value-is-a-third-state-beside-unset.md";
-
-    /**
-     * ADR-109 — a citation is an exemplar ordinal minted for one call, and the check is that it is in
-     * range.
-     */
-    public static final String A_CITATION_IS_AN_ORDINAL_MINTED_FOR_ONE_CALL = FILE
-            + "0109-a-citation-is-an-exemplar-ordinal-minted-for-one-call-and-the-check-is-that-it-is-in-range.md";
-
-    /**
-     * ADR-111 — a cluster fault is a row in synthesis, and a re-run under the same id repairs rather
-     * than regenerates.
-     */
-    public static final String A_CLUSTER_FAULT_IS_A_ROW_IN_SYNTHESIS = FILE
-            + "0111-a-cluster-fault-is-a-row-in-synthesis-and-a-re-run-under-the-same-id-repairs-rather-than-regenerates.md";
 
     /**
      * ADR-121 — a window with no room for documents is refused, and no call is ever made with none.
@@ -690,14 +690,6 @@ public final class Adr {
             + "0149-a-survivors-pictures-reach-its-cluster-file-from-the-extraction-cache-and-a-picture-that-recurs-is-furniture.md";
 
     /**
-     * ADR-151 -- the manifest's content hash is every survivor's SHA-256, taken at 6b through
-     * extraction's own hash, because stage 1 hashes only within size-matched groups and left 47 of
-     * 65 measured rows blank.
-     */
-    public static final String THE_MANIFESTS_CONTENT_HASH_IS_EVERY_SURVIVORS_SHA_256 = FILE
-            + "0151-the-manifests-content-hash-is-every-survivors-sha-256-taken-at-6b-through-extractions-own-hash.md";
-
-    /**
      * ADR-150 -- every conversion asks Docling for each picture's pixels embedded in the answer, so a
      * PDF's pictures reach the cache; the extractor identity changes with it; a picture cropped from a
      * page recurs at the same place or as a near-copy rather than byte for byte, and either is furniture;
@@ -705,6 +697,14 @@ public final class Adr {
      */
     public static final String A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS = FILE
             + "0150-a-pdfs-pictures-are-asked-for-as-embedded-pixels-and-a-picture-repeated-at-one-place-or-as-a-near-copy-is-furniture.md";
+
+    /**
+     * ADR-151 -- the manifest's content hash is every survivor's SHA-256, taken at 6b through
+     * extraction's own hash, because stage 1 hashes only within size-matched groups and left 47 of
+     * 65 measured rows blank.
+     */
+    public static final String THE_MANIFESTS_CONTENT_HASH_IS_EVERY_SURVIVORS_SHA_256 = FILE
+            + "0151-the-manifests-content-hash-is-every-survivors-sha-256-taken-at-6b-through-extractions-own-hash.md";
 
     /**
      * ADR-152 -- a sampled survivor whose file will not open when stage 5's labelling page is written
@@ -880,6 +880,13 @@ public final class Adr {
             + "0171-a-log-is-out-of-scope-told-from-its-timestamps-and-so-is-text-too-large-for-docling-to-convert-in-time.md";
 
     /**
+     * ADR-172 -- docling-serve's max sync wait is pushed above Vespera's own call timeout, so a slow
+     * file occurrence is decided by stage 2 as a timeout (ADR-071) rather than failing stage 2 over a 504.
+     */
+    public static final String DOCLING_SERVES_SYNCHRONOUS_WAIT_OUTLASTS_VESPERAS_CALL_TIMEOUT = FILE
+            + "0172-docling-serves-synchronous-wait-outlasts-vesperas-call-timeout.md";
+
+    /**
      * ADR-173 -- every column that references file_occurrence, walk or run is the first column of an
      * index on its own table, named table_by_column and added in the same change as the column, because
      * under foreign_keys=on SQLite reads the whole child table for each parent row deleted where none
@@ -889,13 +896,6 @@ public final class Adr {
             + "0173-every-column-that-references-a-file-occurrence-a-walk-or-a-run-carries-an-index.md";
 
     /**
-     * ADR-172 -- docling-serve's max sync wait is pushed above Vespera's own call timeout, so a slow
-     * file occurrence is decided by stage 2 as a timeout (ADR-071) rather than failing stage 2 over a 504.
-     */
-    public static final String DOCLING_SERVES_SYNCHRONOUS_WAIT_OUTLASTS_VESPERAS_CALL_TIMEOUT = FILE
-            + "0172-docling-serves-synchronous-wait-outlasts-vesperas-call-timeout.md";
-
-    /**
      * ADR-174 -- the page of a group nothing was written over says why, in one fixed sentence per case,
      * in words for a reader of the tree (amends ADR-161).
      */
@@ -903,13 +903,33 @@ public final class Adr {
             + "0174-a-page-nothing-was-written-over-says-why-in-words-for-a-reader.md";
 
     /**
-     * ADR-180 -- the shipped datasource opens vespera.db in SQLite's write-ahead-log mode with
-     * synchronous=NORMAL, left to SQLite's automatic WAL checkpoint with the emptied write-ahead log cut
-     * back to 512 MiB, and the working directory stays on a local disk; measured, the journal is not what
-     * makes stage 2 slow (amends ADR-127, extends ADR-054, rests on ADR-008, ADR-009).
+     * ADR-175 -- a file whose call fails is marked extraction-failed and skipped, and only a sidecar that
+     * stays gone stops the step: an HTTP error status is a rejection of that file, a dropped connection
+     * waits for the health check and retries the file once, a sidecar not back within the bound or one
+     * that drops the connection twice on five files in a row fails the step, and stage 2 writes the
+     * review list of files it could not read (amends ADR-071, ADR-139, ADR-140; rests on ADR-155,
+     * ADR-164, ADR-172, ADR-181, ADR-183).
      */
-    public static final String THE_DATABASE_USES_SQLITES_WRITE_AHEAD_LOG = FILE
-            + "0180-the-database-file-uses-sqlites-write-ahead-log-synced-at-wal-checkpoints.md";
+    public static final String A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED = FILE
+            + "0175-a-file-that-fails-is-marked-and-skipped-and-only-a-sidecar-that-stays-gone-stops-stage-2.md";
+
+    /**
+     * ADR-176 -- stage 2's reader keeps a window of its own, sixteen occurrences beyond the one it hands
+     * over, read and dispatched across chunk boundaries, so the converter is fed while a chunk drains and
+     * commits; the order occurrences are handed over in is unchanged (amends ADR-140, ADR-181's Consequences;
+     * rests on ADR-181).
+     */
+    public static final String STAGE_2_READS_AHEAD_ACROSS_CHUNKS = FILE
+            + "0176-stage-2-reads-ahead-across-chunks-so-the-converter-is-never-left-idle-between-them.md";
+
+    /**
+     * ADR-177 -- an invocation holds an operating-system lock on vespera.lock in the working
+     * directory until its process ends, so a second one is refused before it opens the database file;
+     * a database file SQLite reports locked is named, and said to be held by another process (extends
+     * ADR-050, ADR-054; rests on ADR-127, ADR-180).
+     */
+    public static final String ONE_INVOCATION_PER_WORKING_DIRECTORY = FILE
+            + "0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md";
 
     /**
      * ADR-178 -- a text file over the Docling ceiling with no subtype or a Markdown one, up to
@@ -931,6 +951,15 @@ public final class Adr {
      */
     public static final String NO_ENTRY_POINT_STARTS_THE_SIDECARS = FILE
             + "0179-no-entry-point-starts-the-sidecars-the-docling-sidecar-reports-the-image-it-runs-and-ollamas-models-live-in-a-volume.md";
+
+    /**
+     * ADR-180 -- the shipped datasource opens vespera.db in SQLite's write-ahead-log mode with
+     * synchronous=NORMAL, left to SQLite's automatic WAL checkpoint with the emptied write-ahead log cut
+     * back to 512 MiB, and the working directory stays on a local disk; measured, the journal is not what
+     * makes stage 2 slow (amends ADR-127, extends ADR-054, rests on ADR-008, ADR-009).
+     */
+    public static final String THE_DATABASE_USES_SQLITES_WRITE_AHEAD_LOG = FILE
+            + "0180-the-database-file-uses-sqlites-write-ahead-log-synced-at-wal-checkpoints.md";
 
     /**
      * ADR-181 -- a stopped stage 2 keeps what its committed chunks recorded under its own run id and
@@ -959,33 +988,13 @@ public final class Adr {
             + "0183-the-extraction-cache-keeps-only-answers-about-the-document-and-a-refusal-the-converter-blamed-on-itself-is-asked-again.md";
 
     /**
-     * ADR-175 -- a file whose call fails is marked extraction-failed and skipped, and only a sidecar that
-     * stays gone stops the step: an HTTP error status is a rejection of that file, a dropped connection
-     * waits for the health check and retries the file once, a sidecar not back within the bound or one
-     * that drops the connection twice on five files in a row fails the step, and stage 2 writes the
-     * review list of files it could not read (amends ADR-071, ADR-139, ADR-140; rests on ADR-155,
-     * ADR-164, ADR-172, ADR-181, ADR-183).
+     * ADR-184 -- five service-scope failures, or five occurrences that each drop the connection twice,
+     * in a row on the drain stop stage 2 only when the converter, with nothing else in flight, then fails
+     * to convert the shipped control PDF; only an answer about a file given in this invocation ends a
+     * row (amends ADR-071, ADR-175 section 3a, ADR-181 section 4, ADR-140 section 2; settles #385, #393).
      */
-    public static final String A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED = FILE
-            + "0175-a-file-that-fails-is-marked-and-skipped-and-only-a-sidecar-that-stays-gone-stops-stage-2.md";
-
-    /**
-     * ADR-177 -- an invocation holds an operating-system lock on vespera.lock in the working
-     * directory until its process ends, so a second one is refused before it opens the database file;
-     * a database file SQLite reports locked is named, and said to be held by another process (extends
-     * ADR-050, ADR-054; rests on ADR-127, ADR-180).
-     */
-    public static final String ONE_INVOCATION_PER_WORKING_DIRECTORY = FILE
-            + "0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md";
-
-    /**
-     * ADR-176 -- stage 2's reader keeps a window of its own, sixteen occurrences beyond the one it hands
-     * over, read and dispatched across chunk boundaries, so the converter is fed while a chunk drains and
-     * commits; the order occurrences are handed over in is unchanged (amends ADR-140, ADR-181's Consequences;
-     * rests on ADR-181).
-     */
-    public static final String STAGE_2_READS_AHEAD_ACROSS_CHUNKS = FILE
-            + "0176-stage-2-reads-ahead-across-chunks-so-the-converter-is-never-left-idle-between-them.md";
+    public static final String FIVE_FAILURES_IN_A_ROW_STOP_STAGE_2_ONLY_AFTER_A_FAILED_CONTROL_CONVERSION = FILE
+            + "0184-five-failures-in-a-row-stop-stage-2-only-when-the-converter-then-fails-a-control-conversion.md";
 
     /**
      * ADR-185 -- the profile key extractionAttempt joins stage 2's run identity when it is a number other
@@ -998,6 +1007,15 @@ public final class Adr {
             + "0185-stage-2-asks-the-converter-again-under-a-run-of-its-own-when-extractionattempt-is-raised-and-nothing-is-discarded.md";
 
     /**
+     * ADR-186 -- the deliverable's index states every key the profile record declares, as the operator
+     * wrote it and in the record's order, read off the record's components rather than listed by hand;
+     * every test claim about every key reads the same components (answers ADR-103; rests on ADR-061,
+     * ADR-110, ADR-120, ADR-185).
+     */
+    public static final String THE_INDEX_STATES_EVERY_PROFILE_KEY_READ_OFF_THE_RECORD = FILE
+            + "0186-the-deliverables-index-states-every-profile-key-read-off-the-profile-record.md";
+
+    /**
      * ADR-187 -- a database statement that can take minutes is announced before it starts and when it
      * ends: stage 2 says so around its drop of shingle_by_hash, which it goes on making, and start-up
      * says so around each index schema.sql builds on a table that already holds rows, which stays in
@@ -1006,34 +1024,6 @@ public final class Adr {
      */
     public static final String A_DATABASE_STATEMENT_THAT_CAN_TAKE_MINUTES_IS_ANNOUNCED = FILE
             + "0187-a-database-statement-that-can-take-minutes-says-so-before-it-starts-and-when-it-ends.md";
-
-    /**
-     * ADR-191 -- stage 3 says how many shingle rows it is about to read, at most, before its one read of
-     * stage 2's run, and its measured line states how long the measurement took; the bound is the span of
-     * the run's own rowids, answered by similarity, the lines are written by pipeline, and nothing shortens
-     * the read (extends ADR-187 section 1 and ADR-093; rests on ADR-182 section 2.1 and ADR-188; keeps
-     * ADR-041; settles #410).
-     */
-    public static final String STAGE_3_SAYS_HOW_MANY_SHINGLE_ROWS_IT_IS_ABOUT_TO_READ = FILE
-            + "0191-stage-3-says-how-many-shingle-rows-it-is-about-to-read-and-how-long-measuring-them-took.md";
-
-    /**
-     * ADR-184 -- five service-scope failures, or five occurrences that each drop the connection twice,
-     * in a row on the drain stop stage 2 only when the converter, with nothing else in flight, then fails
-     * to convert the shipped control PDF; only an answer about a file given in this invocation ends a
-     * row (amends ADR-071, ADR-175 section 3a, ADR-181 section 4, ADR-140 section 2; settles #385, #393).
-     */
-    public static final String FIVE_FAILURES_IN_A_ROW_STOP_STAGE_2_ONLY_AFTER_A_FAILED_CONTROL_CONVERSION = FILE
-            + "0184-five-failures-in-a-row-stop-stage-2-only-when-the-converter-then-fails-a-control-conversion.md";
-
-    /**
-     * ADR-186 -- the deliverable's index states every key the profile record declares, as the operator
-     * wrote it and in the record's order, read off the record's components rather than listed by hand;
-     * every test claim about every key reads the same components (answers ADR-103; rests on ADR-061,
-     * ADR-110, ADR-120, ADR-185).
-     */
-    public static final String THE_INDEX_STATES_EVERY_PROFILE_KEY_READ_OFF_THE_RECORD = FILE
-            + "0186-the-deliverables-index-states-every-profile-key-read-off-the-profile-record.md";
 
     /**
      * ADR-188 -- stage 1's broken and out-of-scope rules and its content-identity pass live in
@@ -1073,6 +1063,16 @@ public final class Adr {
             + "0190-stage-6bs-loop-and-6as-lead-document-rule-live-in-synthesis-which-still-knows-no-stage.md";
 
     /**
+     * ADR-191 -- stage 3 says how many shingle rows it is about to read, at most, before its one read of
+     * stage 2's run, and its measured line states how long the measurement took; the bound is the span of
+     * the run's own rowids, answered by similarity, the lines are written by pipeline, and nothing shortens
+     * the read (extends ADR-187 section 1 and ADR-093; rests on ADR-182 section 2.1 and ADR-188; keeps
+     * ADR-041; settles #410).
+     */
+    public static final String STAGE_3_SAYS_HOW_MANY_SHINGLE_ROWS_IT_IS_ABOUT_TO_READ = FILE
+            + "0191-stage-3-says-how-many-shingle-rows-it-is-about-to-read-and-how-long-measuring-them-took.md";
+
+    /**
      * ADR-192 -- every loop in every stage that reads or writes the database or a file, or calls the
      * embedding model, the generation model or the converter, has a progress counter of its own on the one line ADR-093 fixed, an inner loop
      * having one only where the outer item's time goes; a loop with no total is a running count; no
@@ -1096,6 +1096,13 @@ public final class Adr {
             + "0193-a-statement-sqlite-counts-reports-how-far-it-has-gone-and-one-it-cannot-count-says-how-long-it-took.md";
 
     /**
+     * ADR-197 — a local model answers the relevance questions and the floor is a rule over the labels,
+     * so no document reaches a hosted model (settles #423).
+     */
+    public static final String A_LOCAL_MODEL_LABELS_AND_THE_FLOOR_IS_A_RULE = FILE
+            + "0197-a-local-model-answers-the-relevance-questions-and-the-floor-is-a-rule-over-the-labels-so-no-document-reaches-a-hosted-model.md";
+
+    /**
      * ADR-198: every invocation writes an account built from an allow-list that names no document: a file
      * in a folder outside every working directory, composed from typed values and never from a message, a path or a title; an exception
      * is kept as its type and never its message; the operator's own lines do not change (extends ADR-093;
@@ -1105,11 +1112,25 @@ public final class Adr {
             + "0198-every-invocation-writes-an-account-built-from-an-allow-list-that-names-no-document.md";
 
     /**
-     * ADR-197 — a local model answers the relevance questions and the floor is a rule over the labels,
-     * so no document reaches a hosted model (settles #423).
+     * ADR-199: the statements ADR-193 left unnamed take its rule: the survivor count that sizes a stage's
+     * counter is timed, stage 1's second one from outside {@code corpus}, and the reads of a stopped run's
+     * faults and of the occurrences it measured are counted (extends ADR-193; rests on ADR-200; settles #429).
      */
-    public static final String A_LOCAL_MODEL_LABELS_AND_THE_FLOOR_IS_A_RULE = FILE
-            + "0197-a-local-model-answers-the-relevance-questions-and-the-floor-is-a-rule-over-the-labels-so-no-document-reaches-a-hosted-model.md";
+    public static final String THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE = FILE
+            + "0199-the-statements-adr-193-left-unnamed-take-its-rule.md";
+
+    /**
+     * ADR-200 — stage 1 reads a run's survivors in ascending size, twice, and never holds more than one
+     * size of them: the read that sizes holds no survivor, only how many share the size in hand, and the
+     * read that hashes holds one size at a time; the first pass holds none; one index on the walk and the size is added,
+     * so no schema version moves; the rows of different sizes are now written in size order, where they
+     * were written in the order each size was first met, and no test pins that order; stage 1 has no
+     * drain left, so it has no timed statement (amends ADR-188 sections 1 and 2 in what they say of
+     * the drain, ADR-192 sections 4 and 7 in two phrases, and ADR-193 sections 6, 7 and 9 and its Tests
+     * for stage 1; rests on ADR-060 and ADR-156; settles #405).
+     */
+    public static final String STAGE_1_HOLDS_ONE_SIZE_AT_A_TIME = FILE
+            + "0200-stage-1-reads-survivors-by-size-and-holds-one-size-at-a-time.md";
 
     /**
      * ADR-202 — generation and embedding refuse an Ollama model that is not served on this machine,
@@ -1127,27 +1148,6 @@ public final class Adr {
      */
     public static final String THE_ACCOUNT_FOLDER_IS_JUDGED_BY_EVERY_READING_OF_ITS_NAME = FILE
             + "0203-the-invocation-accounts-folder-is-judged-by-every-reading-of-its-name-and-a-name-that-cannot-be-followed-is-refused.md";
-
-    /**
-     * ADR-200 — stage 1 reads a run's survivors in ascending size, twice, and never holds more than one
-     * size of them: the read that sizes holds no survivor, only how many share the size in hand, and the
-     * read that hashes holds one size at a time; the first pass holds none; one index on the walk and the size is added,
-     * so no schema version moves; the rows of different sizes are now written in size order, where they
-     * were written in the order each size was first met, and no test pins that order; stage 1 has no
-     * drain left, so it has no timed statement (amends ADR-188 sections 1 and 2 in what they say of
-     * the drain, ADR-192 sections 4 and 7 in two phrases, and ADR-193 sections 6, 7 and 9 and its Tests
-     * for stage 1; rests on ADR-060 and ADR-156; settles #405).
-     */
-    public static final String STAGE_1_HOLDS_ONE_SIZE_AT_A_TIME = FILE
-            + "0200-stage-1-reads-survivors-by-size-and-holds-one-size-at-a-time.md";
-
-    /**
-     * ADR-199: the statements ADR-193 left unnamed take its rule: the survivor count that sizes a stage's
-     * counter is timed, stage 1's second one from outside {@code corpus}, and the reads of a stopped run's
-     * faults and of the occurrences it measured are counted (extends ADR-193; rests on ADR-200; settles #429).
-     */
-    public static final String THE_STATEMENTS_ADR_193_LEFT_UNNAMED_TAKE_ITS_RULE = FILE
-            + "0199-the-statements-adr-193-left-unnamed-take-its-rule.md";
 
     /**
      * ADR-204 -- part (b) of ADR-193, written out as it is built: every line with its stage's own name,
@@ -1433,19 +1433,6 @@ public final class Adr {
             + "0224-the-invocation-accounts-counts-by-kind-and-the-two-reads-of-the-embedder-identities-sort-nothing-and-four-of-adr-218s-reads-stay-excepted.md";
 
     /**
-     * ADR-226 -- the eight rules ADR-222 found in {@code pipeline} move, all in one change, and no stage's
-     * version names {@code pipeline}: what a seed the floor stopped is sent as, and which detected formats
-     * list their pictures, to {@code extraction}; what the relevance floor lets stage 5e do, as the two
-     * actions and the reason, to {@code embedding}; how a cluster's exemplars are gathered, behind a callback,
-     * why a cluster is unwritten, and a survivor with no score listed with 0.0, to {@code synthesis}; every
-     * profile key as written, to {@code profile}, which generation's version now names. Persisted names,
-     * cache keys and operator text are unchanged; every stage from extraction to generation is minted once
-     * (amends ADR-222, ADR-058, ADR-157, ADR-190, ADR-186, ADR-100, ADR-150, ADR-133 and ADR-152; decides #479).
-     */
-    public static final String NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES = FILE
-            + "0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md";
-
-    /**
      * ADR-225 -- stage 4b sorts and holds nothing that grows with the signed occurrences sharing a band value
      * or with the occurrences sharing one occurrence's rarest hashes: a page's candidate pairs are found from
      * the page's band rows that share a value and each such value's rows read a thousand at a time, a pair
@@ -1458,6 +1445,19 @@ public final class Adr {
      */
     public static final String STAGE_4B_READS_ITS_CANDIDATES_A_THOUSAND_AT_A_TIME = FILE
             + "0225-stage-4b-reads-its-candidate-pairs-and-containment-candidates-a-thousand-at-a-time-and-shingle-by-hash-ends-in-the-occurrence.md";
+
+    /**
+     * ADR-226 -- the eight rules ADR-222 found in {@code pipeline} move, all in one change, and no stage's
+     * version names {@code pipeline}: what a seed the floor stopped is sent as, and which detected formats
+     * list their pictures, to {@code extraction}; what the relevance floor lets stage 5e do, as the two
+     * actions and the reason, to {@code embedding}; how a cluster's exemplars are gathered, behind a callback,
+     * why a cluster is unwritten, and a survivor with no score listed with 0.0, to {@code synthesis}; every
+     * profile key as written, to {@code profile}, which generation's version now names. Persisted names,
+     * cache keys and operator text are unchanged; every stage from extraction to generation is minted once
+     * (amends ADR-222, ADR-058, ADR-157, ADR-190, ADR-186, ADR-100, ADR-150, ADR-133 and ADR-152; decides #479).
+     */
+    public static final String NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES = FILE
+            + "0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md";
 
     /**
      * ADR-227 -- the relevance floor's step withdraws the below-threshold removals its scoring run has

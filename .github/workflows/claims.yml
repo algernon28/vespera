@@ -67,3 +67,6 @@ jobs:
 
       - name: The functions the claims check computes
         run: node --test src/test/docs/check-claims.test.mjs
+
+      - name: The script that resolves a merge's conflicts in the ADR index and Adr.java
+        run: node --test src/test/docs/merge-adr-index.test.mjs
