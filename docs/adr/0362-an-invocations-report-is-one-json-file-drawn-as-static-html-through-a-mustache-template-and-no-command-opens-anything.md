@@ -302,7 +302,7 @@ Each step leaves the build and every claim of the records it touches true on its
 - **A replaced template is held only to reading the model**: what it draws, whether it carries a script, and whether it escapes what it writes with `{{{ }}}` are the operator's.
 - **The report's staleness is shown by the window alone**; a browser shows the time written and the interval, and a reader judges.
 - **A report's native view and its page are two drawings of one file's values**: the numbers and rows agree, held by test, and how each looks does not. A page's prose a section's `text` does not carry is the page's alone.
-- **A class that builds a list headed `open` and hands it to another class to run**, as `HostSystem` does for `SidecarStarter`, is not seen by the test of §2; review catches it.
+- **A class that builds a list headed `open` and hands it to another class to run**, as `HostSystem` does for `SidecarStarter`, is not seen by the test of §2; only a reader of the code sees it.
 - **A wall clock stepped back between the window's instant and the child's `started`** leaves the child's report unshown, the status line saying *waiting for this invocation's report* while the child runs, since the guard compares two readings of one clock taken a moment apart.
 - **An analysis page carries no write time**, so outside Vespera a new JSON beside an earlier page, which §9's failure of a page's write can leave, cannot be told from a pair: only the window shows `writtenAt`.
 - **A long list is read whole into the window's memory as its tab opens**: the survivor list of a large corpus is its page's rows, in JSON.
