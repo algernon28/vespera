@@ -2602,6 +2602,15 @@ public final class Adr {
     public static final String THE_COCKPITS_STEPS_FOLD_INTO_THE_PROGRESS_PAGES_FOUR_LEGS =
             FILE + "0361-the-cockpits-steps-fold-into-the-progress-pages-four-legs-and-its-copy-of-their-table-is-held-to-the-pages-by-a-test.md";
 
+    /**
+     * ADR-365 -- the cockpit's charts carry JavaFX's legend above the plot where they draw two lines or more and none for
+     * one, each line's swatch its colour by one style class; each sample is a hit area holding a tooltip of its value
+     * alone, the latest marked; a step running with a counter of a total, and a running leg, read {@code running <N>%},
+     * rounded down and 99 at most while running (amends ADR-344 §1 and ADR-361 §3, §4).
+     */
+    public static final String THE_COCKPITS_CHARTS_CARRY_A_LEGEND_AND_A_RUNNING_STEP_SAYS_ITS_PERCENT =
+            FILE + "0365-the-cockpits-charts-carry-a-legend-and-a-value-on-each-sample-and-a-running-step-or-leg-says-its-whole-percent.md";
+
     private Adr() {
     }
 }
