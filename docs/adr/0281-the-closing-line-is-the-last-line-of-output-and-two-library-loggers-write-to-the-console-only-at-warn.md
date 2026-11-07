@@ -4,7 +4,7 @@
 
 > **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §2: the closing line is the last line but one, the report line, naming `report.json` and `report.html` and saying why nothing was opened, coming after it in every invocation that writes the report. §1 stands.
 
-> **Partly amended — see [ADR-364](0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md).** Of §1: the two loggers write to a third appender, `OUTPUT_WARN`, at WARN as on the console, so that each invocation's output file holds what the console shows; `logs/vespera.log` still takes every line of theirs. The rest of this record stands.
+> **Partly amended — see [ADR-364](0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md).** Of §1: the two loggers write to a third appender, `OUTPUT_WARN`, at WARN as on the console, so that each invocation's output file holds what the console shows; `logs/vespera.log` still takes every line of theirs. Of §2: every closing line is logged on the operator logger, `io.algernon.vespera.operator`, as its words alone, at the level it had, so one logged at ERROR is on standard error; its words and its place, last, stand. The rest of this record stands.
 
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.

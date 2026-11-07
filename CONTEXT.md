@@ -194,7 +194,7 @@ _Avoid_: fallback, oracle, champion, second opinion
 
 **Profile**:
 The per-corpus record of every judgement the engine cannot make for itself. Authored by a person, never guessed at; each value carries its provenance, the reason the operator wrote or, for a value set in the control panel and given none, the control panel's filled-in note, `set in the control panel` (ADR-343). It also holds where a publish sends the Confluence rendering, the site, the space, the parent and the account's email, which no stage reads, a value the shell sets comes before on the command line and the deliverable's index does not state; never the API token (ADR-359).
-_Avoid_: config, settings, parameters; "note" for a value's provenance
+_Avoid_: config, settings, parameters
 
 **Unreadable**:
 A profile value somebody answered in a way nothing can act on — a decimal comma, a stray letter, the word "null" in quotes. A third state beside unset and answered, and the distinction is the point: unset is nobody having decided yet, unreadable is a decision that did not arrive. Neither applies a threshold; only one is worth telling the operator about, and the closing line does (ADR-120).
