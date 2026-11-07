@@ -4,3 +4,9 @@
 /docker/**/Containerfile text eol=lf
 *.pdf binary
 /.claude/hooks/*.sh text eol=lf
+# ADR-366: stored with LF and written to every working copy with LF, whatever core.autocrlf says.
+*.java text eol=lf
+*.md text eol=lf
+*.mjs text eol=lf
+*.yml text eol=lf
+*.css text eol=lf
