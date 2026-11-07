@@ -4,7 +4,7 @@
 
 > **Partly amended — see [ADR-327](0327-an-ended-progress-page-keeps-reloading-so-a-tab-left-open-shows-the-next-invocation-and-vespera-open-browser-set-false-opens-nothing.md).** Of §2: `vespera.open-browser`, true unless set, opens nothing where it is false, the first line still naming the page; and the tab the last invocation opened goes on reloading, so its alternative refused "A setting to turn opening off" no longer holds. Of §3: the label command's last write reloads at the interval too. Of §5: the README also says that an ended page keeps reloading and names the setting. The rest of this record stands.
 
-> **Partly amended — see [ADR-358](0358-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §1: the first line is `Report: <path>`, naming `report.html`. Of §2: `PageOpener` and `SystemPageOpener` go, and nothing is opened. Of §3: `vespera label` writes the report, its answers in its `label` field, drawn in `report.html`. Of §5: the README says so. The rest of this record stands.
+> **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §1: the first line is `Report: <path>`, naming `report.html`. Of §2: `PageOpener` and `SystemPageOpener` go, and nothing is opened. Of §3: `vespera label` writes the report, its answers in its `label` field, drawn in `report.html`. Of §5: the README says so. The rest of this record stands.
 
 - **Date**: 2026-10-16
 - **Status**: accepted on 2026-10-16.

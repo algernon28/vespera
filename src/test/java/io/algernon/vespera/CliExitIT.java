@@ -60,6 +60,9 @@ class CliExitIT {
     private static final String NO_WINDOW =
             "the control panel cannot open a window here, so the jar answers as its command line: ";
 
+    /** The words JavaFX's line about its classes coming from the class path begins with (ADR-360). */
+    private static final String UNSUPPORTED_CONFIGURATION = "Unsupported JavaFX configuration";
+
     /** What a launch returned: whether it exited within the bound, and its code. */
     private record Launched(boolean finished, int exitCode) {
     }
@@ -115,6 +118,32 @@ class CliExitIT {
                 () -> assertThat(output).contains("Usage: vespera"));
         claim("and exits with picocli's usage code, as that start does",
                 () -> assertThat(launched.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
+    }
+
+    /**
+     * The jar's start of the window writes no line of JavaFX's about its class path (ADR-360 §1): the control panel's
+     * start drops the record from JavaFX's logger before the toolkit starts, and JavaFX writes it as its start begins,
+     * before a platform it does not have makes the toolkit throw, so a start where the window cannot open writes it
+     * as a start that opens the window does. Measured without the filter on JavaFX's jars on a plain class path, not in
+     * the packaged jar: the line is written, then the toolkit throws. The jar's logging configuration is the JDK's, as
+     * the operator's is.
+     */
+    @Test
+    @Issue("723")
+    @Link(name = "ADR-360", url = Adr.THE_CONTROL_PANEL_DROPS_JAVAFXS_CLASS_PATH_LINE, type = "adr")
+    @Story("A start with no window answers as the command line")
+    @DisplayName("Started with no argument, the jar writes no line of JavaFX's about its class path as the toolkit starts")
+    void aJarThatCannotOpenTheWindowWritesNoLineOfJavaFxsAboutItsClassPath() throws Exception {
+        Launched launched = launchWith(List.of(NO_SUCH_PLATFORM));
+        String output = Files.readString(workingDirectory.resolve(OUTPUT), StandardCharsets.UTF_8)
+                .replaceAll("\u001B\\[[0-9;]*m", "");
+
+        claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds, having tried the toolkit and said the window"
+                        + " cannot open",
+                () -> assertThat(List.<Object>of(launched.finished(), output.contains(NO_WINDOW)))
+                        .containsExactly(true, true));
+        claim("and nothing it wrote holds JavaFX's words about its classes coming from the class path",
+                () -> assertThat(output).doesNotContain(UNSUPPORTED_CONFIGURATION));
     }
 
     /** Launches the packaged jar with the given arguments and waits up to the bound for it to end. */

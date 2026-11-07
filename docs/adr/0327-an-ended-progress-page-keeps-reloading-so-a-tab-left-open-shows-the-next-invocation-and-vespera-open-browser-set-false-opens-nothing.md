@@ -1,6 +1,6 @@
 # ADR-327 — An ended progress page keeps reloading, so a tab left open shows the next invocation, and `vespera.open-browser` set false opens nothing
 
-> **Partly amended — see [ADR-358](0358-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §1: `report.html` reloads by a `<meta http-equiv="refresh">` outside any `<noscript>` at every write, the last included. Of §3: the script goes. Of §5: `vespera.open-browser` is read by nothing, since no command opens anything. §2's sentence after the end stands. The rest of this record stands.
+> **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §1: `report.html` reloads by a `<meta http-equiv="refresh">` outside any `<noscript>` at every write, the last included. Of §3: the script goes. Of §5: `vespera.open-browser` is read by nothing, since no command opens anything. §2's sentence after the end stands. The rest of this record stands.
 
 - **Date**: 2026-10-29
 - **Status**: accepted on 2026-10-29.

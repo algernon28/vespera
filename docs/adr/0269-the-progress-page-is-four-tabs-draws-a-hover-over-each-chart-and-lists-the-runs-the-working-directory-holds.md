@@ -4,7 +4,7 @@
 
 > **Partly amended — see [ADR-327](0327-an-ended-progress-page-keeps-reloading-so-a-tab-left-open-shows-the-next-invocation-and-vespera-open-browser-set-false-opens-nothing.md).** Of §1: each tab reloads after the last write too. Of §2: each line after the end gains the sentence `This page is reloaded every <S> s, so it shows the next invocation in this working directory once one starts.` Of §3: the last write's mark carries `data-interval` and no `data-written`, so the script reloads it and never calls it stale. The rest of this record stands.
 
-> **Partly amended — see [ADR-358](0358-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §1: the four tabs are one page, `report.html`. Of §3: the script goes. Of §4: a chart's hover is each point's `<title>`. Of §5: the runs are `report.json`'s `runs`, read at the same two moments, and drawn as a section of the page. The rest of this record stands.
+> **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §1: the four tabs are one page, `report.html`. Of §3: the script goes. Of §4: a chart's hover is each point's `<title>`. Of §5: the runs are `report.json`'s `runs`, read at the same two moments, and drawn as a section of the page. The rest of this record stands.
 
 - **Date**: 2026-10-17
 - **Status**: accepted on 2026-10-17.

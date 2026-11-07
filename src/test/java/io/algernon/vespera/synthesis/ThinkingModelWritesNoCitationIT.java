@@ -78,7 +78,7 @@ class ThinkingModelWritesNoCitationIT {
     @Story("A model that can reason before it answers is asked not to")
     @DisplayName("A real engine answers a model able to think without any reasoning, because the call said not to")
     void aRealEngineAnswersWithoutThinkingBecauseTheCallSaidNotTo() throws Exception {
-        ollama.execInContainer("ollama", "pull", MODEL);
+        TestcontainersConfiguration.pull(ollama, MODEL);
 
         claim(
                 "the model under test is one the engine says can think, and so one that would think"

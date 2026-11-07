@@ -1,4 +1,4 @@
-# ADR-358 — An invocation's report is one JSON file, drawn as static HTML through a Mustache template, and no command opens anything
+# ADR-362 — An invocation's report is one JSON file, drawn as static HTML through a Mustache template, and no command opens anything
 
 - **Date**: 2026-11-06
 - **Status**: accepted on 2026-11-06.

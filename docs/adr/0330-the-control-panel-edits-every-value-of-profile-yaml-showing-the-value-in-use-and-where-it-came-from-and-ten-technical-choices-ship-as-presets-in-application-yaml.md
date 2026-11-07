@@ -10,7 +10,7 @@
 
 > **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of §2: an empty key's `placeholder` is `in use: ` and the value `effective-values.properties` says, the example only where nothing is known. Of §4: each key's `about-<key>` is the plain words that record gives. Of §12: `machine-values` stands in a foldable box of the home page's right column. The rest of this record stands.
 
-> **Partly amended — see [ADR-358](0358-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §1 and §8: `vespera.open-browser` is read by nothing, since no command opens anything, so it leaves `effective-values.properties`' closed list and §8's table. The rest of this record stands.
+> **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §1 and §8: `vespera.open-browser` is read by nothing, since no command opens anything, so it leaves `effective-values.properties`' closed list and §8's table. The rest of this record stands.
 
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.

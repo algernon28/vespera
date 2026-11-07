@@ -123,7 +123,18 @@
     -fx-padding: 2px 0 2px 0;
 }
 
+.leg-summary {
+    -fx-alignment: center-left;
+    -fx-spacing: 8px;
+}
+
+.leg-rows {
+    -fx-padding: 0 0 0 8px;
+}
+
+.leg-summary .progress-bar,
 .step .progress-bar {
+    -fx-min-width: 160px;
     -fx-pref-width: 160px;
 }
 

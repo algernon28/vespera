@@ -4,7 +4,7 @@
 >
 > **Partly amended — see [ADR-322](0322-the-progress-pages-three-line-charts-stand-in-one-row-that-wraps-each-drawn-600-units-wide-and-legible-down-to-500-px.md).** Of §7: the three line charts are drawn in a viewBox 600 units wide, never under 500 px, where their text is 10 px high, and stand side by side after the timeline in one row that narrows them with the window down to that width and then wraps them onto more rows; each series has an end label of its own, never two joined in one, the labels at least 14 units apart within the plot's height. Their order, titles, captions, axes and the rest of their anatomy stand. The rest of this record stands.
 
-> **Partly amended — see [ADR-358](0358-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §7 and §8: the shipped template of `report.html` draws the charts and the timeline from the geometry the jar computes from `report.json`; the series each chart draws, the counts of §2, the tiles of §5 and the numbers of §6 stay the jar's, and §9's palette is the template's stylesheet. The rest of this record stands.
+> **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §7 and §8: the shipped template of `report.html` draws the charts and the timeline from the geometry the jar computes from `report.json`; the series each chart draws, the counts of §2, the tiles of §5 and the numbers of §6 stay the jar's, and §9's palette is the template's stylesheet. The rest of this record stands.
 
 - **Date**: 2026-10-16
 - **Status**: accepted on 2026-10-16.

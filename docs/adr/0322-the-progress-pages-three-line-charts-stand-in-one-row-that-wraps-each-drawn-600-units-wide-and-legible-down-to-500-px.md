@@ -1,6 +1,6 @@
 # ADR-322 — The progress page's three line charts stand in one row that wraps, each drawn 600 units wide and legible down to 500 px
 
-> **Partly amended — see [ADR-358](0358-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** §1 to §7 hold of the shipped template's drawing of `report.html`, by its stylesheet and the geometry the jar computes; a template the operator names draws as it draws. The rest of this record stands.
+> **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** §1 to §7 hold of the shipped template's drawing of `report.html`, by its stylesheet and the geometry the jar computes; a template the operator names draws as it draws. The rest of this record stands.
 
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.

@@ -2,7 +2,9 @@
 
 > **Partly amended — see [ADR-327](0327-an-ended-progress-page-keeps-reloading-so-a-tab-left-open-shows-the-next-invocation-and-vespera-open-browser-set-false-opens-nothing.md).** Of §5: the script schedules its reload where the liveness mark carries `data-interval`, which the last write's mark carries too, and the last write carries the `<noscript>` refresh as every write before it. A fold outlives the invocation as it outlives the reload. The rest of this record stands.
 
-> **Partly amended — see [ADR-358](0358-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §5: the script goes, so a fold is not kept in the address and does not outlive a reload of `report.html`. Of §6: the window draws the steps from `report.json`. §1 to §4 stand, the legs written into the report by the jar. The rest of this record stands.
+> **Partly reopened — see [ADR-361](0361-the-cockpits-steps-fold-into-the-progress-pages-four-legs-and-its-copy-of-their-table-is-held-to-the-pages-by-a-test.md).** Of §6: the control panel's cockpit folds its steps into §1's four legs, from a copy of §1's table it holds as text, `Legs.ALL`, which a test holds, with the rules of §3 and §4, to what this page draws, so the copy cannot drift from the first unseen. §6's first paragraph, the progress page shown as the file, stands. The rest of this record stands.
+
+> **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §5: the script goes, so a fold is not kept in the address and does not outlive a reload of `report.html`. Of §6: the progress page shown as the file in a report's tab, its first paragraph, is no longer written; the window draws the steps from `report.json`, in the four legs ADR-361 folds them into. §1 to §4 stand, the legs written into the report by the jar. The rest of this record stands.
 
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.

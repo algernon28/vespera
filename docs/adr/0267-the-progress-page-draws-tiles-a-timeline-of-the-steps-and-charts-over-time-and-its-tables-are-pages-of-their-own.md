@@ -6,7 +6,7 @@
 
 > **Partly amended — see [ADR-327](0327-an-ended-progress-page-keeps-reloading-so-a-tab-left-open-shows-the-next-invocation-and-vespera-open-browser-set-false-opens-nothing.md).** Of §3 and §4: the last write reloads at the interval too. Of §5: the last write's mark is `<span class="liveness" data-interval="<ms>">ended</span>`, with no `data-written`. The rest of this record stands.
 
-> **Partly amended — see [ADR-358](0358-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** `report.html` is drawn through a Mustache template from `report.json`, so §4's SVG written in Java with no template engine no longer holds of it; the tiles, timeline and charts of §1 and §2 are drawn there from the jar's numbers; §3's two pages go, each chart's values and the steps being tables beneath their drawings (§7); §5's script goes, the window marking a report stale; and §6's label page is the report's. The rest of this record stands.
+> **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** `report.html` is drawn through a Mustache template from `report.json`, so §4's SVG written in Java with no template engine no longer holds of it; the tiles, timeline and charts of §1 and §2 are drawn there from the jar's numbers; §3's two pages go, each chart's values and the steps being tables beneath their drawings (§7); §5's script goes, the window marking a report stale; and §6's label page is the report's. The rest of this record stands.
 
 - **Date**: 2026-10-16
 - **Status**: accepted on 2026-10-16.

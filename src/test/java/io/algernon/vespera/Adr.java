@@ -2562,6 +2562,35 @@ public final class Adr {
     public static final String THE_UNIT_RUNS_HTTP_CLIENT_SELECTOR_MANAGERS_RUN_ON_PLATFORM_THREADS =
             FILE + "0357-the-unit-runs-http-client-selector-managers-run-on-platform-threads.md";
 
+    /**
+     * ADR-358 -- a bound the code under test keeps in real time is held on the clock on the wall, no sooner than the
+     * bound from the test's start and within the bound and a margin from the event the code races, the stub's read of
+     * the request; {@code ModelPullTest}'s refusal bound is ten seconds, its late status five and its margin five,
+     * after one pull before the first test, and the command that leaves a child is given sixty seconds (settles
+     * ADR-352's two open questions and amends its Consequences).
+     */
+    public static final String A_BOUND_THE_CODE_KEEPS_IN_REAL_TIME_IS_HELD_ON_THE_WALL_CLOCK =
+            FILE + "0358-a-bound-the-code-under-test-keeps-in-real-time-is-held-on-the-wall-clock-from-the-event-it-races.md";
+
+    /**
+     * ADR-360 -- before {@code Application.launch}, the control panel's start installs {@code ClassPathLine}, a {@code
+     * java.util.logging} filter on the logger {@code javafx}, which drops the record whose message begins {@code
+     * Unsupported JavaFX configuration} and passes every other, at any level, the logger held in a static field;
+     * {@code ClassPathLine} alone of the control panel names {@code java.logging}; JavaFX stays on the class path
+     * (amends ADR-342 §2 and §3; keeps ADR-158).
+     */
+    public static final String THE_CONTROL_PANEL_DROPS_JAVAFXS_CLASS_PATH_LINE =
+            FILE + "0360-the-control-panel-drops-javafxs-class-path-line-from-the-javafx-logger-and-every-other-record-of-it-still-prints.md";
+
+    /**
+     * ADR-361 -- the cockpit's steps fold into the progress page's four legs, each a leg of its rows that folds, with one
+     * summary bar and its state, open where the job runs, failed or first stopped at a gate, a fold the operator makes lasting
+     * while the window is open; the control panel's copy of the legs' table, {@code Legs.ALL}, and its rules are held to
+     * what the progress page draws by a test (partly reopens ADR-324 §6, amends ADR-344 §1).
+     */
+    public static final String THE_COCKPITS_STEPS_FOLD_INTO_THE_PROGRESS_PAGES_FOUR_LEGS =
+            FILE + "0361-the-cockpits-steps-fold-into-the-progress-pages-four-legs-and-its-copy-of-their-table-is-held-to-the-pages-by-a-test.md";
+
     private Adr() {
     }
 }
