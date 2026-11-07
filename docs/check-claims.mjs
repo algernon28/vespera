@@ -36,7 +36,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { adrCollisionClaim, agentsMdSize, readsTrackerState, sharedNumbers, slugClaim, unreadPullRequests } from "./check-claims-lib.mjs";
+import { adrCollisionClaim, adrOrderClaim, agentsMdSize, readsTrackerState, sharedNumbers, slugClaim, unreadPullRequests } from "./check-claims-lib.mjs";
 
 const AGENTS = "AGENTS.md";
 const README = "README.md";
@@ -904,6 +904,16 @@ function markerPattern(source, whole = false) {
 }
 
 {
+  // ADR-363 §2: both files are read on every run, with or without the network.
+  const NAME = "the order of the decision records in the index and in Adr.java";
+  const { state, detail } = adrOrderClaim({
+    index: adrIndex,
+    adrJava: readFileSync("src/test/java/io/algernon/vespera/Adr.java", "utf8"),
+  });
+  results.push({ state, name: NAME, detail });
+}
+
+{
   const NAME = "the numbers of the records this branch adds";
   const LIMIT = 100;
   const REPO = "algernon28/vespera";
@@ -981,7 +991,7 @@ const UNCHECKED = [
   '"The cascade is built end to end", and what it says the two commands and the stages do',
   "the sixteen job steps and their order, and that a later stage is a step on that same job",
   "the ADR-052 test conventions, and whether the report a run produces actually reads that way",
-  "the ADR index table's rows — each ADR adds its own by hand, and only the range line above it and the boundary sentence are checked",
+  "the ADR index table's rows — a row's title and date, and whether every record has a row, are not checked; the range line above it, the boundary sentence and the order of the rows are",
   "docs/architecture.md, which this never opens — its own status line has rotted the same way",
   "whether five invocations is still the right number — four gates imply it, and nothing counts gates",
   "whether the reports README points at actually inform the value it points them at for",

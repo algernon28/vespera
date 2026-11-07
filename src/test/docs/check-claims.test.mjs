@@ -9,17 +9,20 @@
 // CHECKED, and the slug claim PASS, naming how many records from ADR-350 on it read. Four run a script in an
 // environment that asks no network, where the fetch of origin/main fails (see offline()): docs/check-claims.mjs
 // --with-network for the numbers this branch adds NOT CHECKED, for the map NOT CHECKED on a pull request, and for the
-// map reading the tracker on a push and with no event; and docs/next-adr-number.mjs for its exit.
+// map reading the tracker on a push and with no event; and docs/next-adr-number.mjs for its exit. The order of the
+// rows of docs/adr/README.md and of the constants of Adr.java (ADR-363 §2) is held on fixtures by adrOrderClaim, and on
+// this tree by the claim's line, against the rows and constants the test counts itself.
 //
 //   node --test src/test/docs/check-claims.test.mjs
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ADR_JAVA, INDEX, adrJavaOf, constant, indexOf } from "./adr-index-fixtures.mjs";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 // Imported in each test, so that each one reports its own failure while the module is missing.
@@ -451,4 +454,67 @@ test("where the fetch of origin/main fails, next-adr-number still prints a numbe
   assert.match(run.stderr, /origin\/main/);
   assert.match(run.stderr, /fetch/);
   assert.equal(run.status, 2, `stderr: ${run.stderr}`);
+});
+
+/* ---------- the order of the decision records in the index and in Adr.java (ADR-363 §2) ---------- */
+
+const ORDER = "the order of the decision records in the index and in Adr.java";
+
+test("rows and constants in order of number pass, the index's rows read across its two tables and two constants of one record side by side among them, naming how many of each were read", async () => {
+  const { adrOrderClaim } = await lib();
+  const { state, detail } = adrOrderClaim({
+    index: indexOf([50]), // ADR-001 and ADR-002 in the first table, ADR-050 in the second
+    adrJava: adrJavaOf([6, 11, constant(11, "THE_RECORD_NUMBERED_11_AGAIN"), 50]),
+  });
+  assert.equal(state, "PASS");
+  assert.equal(detail, `3 rows of ${INDEX} and 4 constants of ${ADR_JAVA}, each in ascending order of number`);
+});
+
+test("a row after the row of a higher number, and a record's row twice, fail the claim, naming the index and the records", async () => {
+  const { adrOrderClaim } = await lib();
+  const adrJava = adrJavaOf([6]);
+  assert.deepEqual(adrOrderClaim({ index: indexOf([361, 360]), adrJava }), { state: "FAIL", detail: `${INDEX}: ADR-360 after ADR-361` });
+  assert.deepEqual(adrOrderClaim({ index: indexOf([360, 360]), adrJava }), { state: "FAIL", detail: `${INDEX}: ADR-360 twice` });
+});
+
+test("a constant after the constant of a higher record fails the claim, and a fault in each file is named file by file, the index first", async () => {
+  const { adrOrderClaim } = await lib();
+  assert.deepEqual(adrOrderClaim({ index: indexOf([]), adrJava: adrJavaOf([53, 15]) }), {
+    state: "FAIL",
+    detail: `${ADR_JAVA}: ADR-015 after ADR-053`,
+  });
+  // ADR-001 in the second table, after the first table's ADR-002.
+  assert.deepEqual(adrOrderClaim({ index: indexOf([1]), adrJava: adrJavaOf([53, 15]) }), {
+    state: "FAIL",
+    detail: `${INDEX}: ADR-001 after ADR-002; ${ADR_JAVA}: ADR-015 after ADR-053`,
+  });
+});
+
+test("a conflict marker git writes, of any of its three kinds, fails the claim in either file, naming the file and the marker's line", async () => {
+  const { adrOrderClaim } = await lib();
+  // In the index, the line after the fifteen of its head, its first table and the second's head, and the rows of 356 and
+  // 357, is line 18.
+  for (const marker of ["<<<<<<< HEAD", "||||||| base", ">>>>>>> main"]) {
+    assert.deepEqual(
+      adrOrderClaim({ index: indexOf([356, 357, marker]), adrJava: adrJavaOf([6]) }),
+      { state: "FAIL", detail: `${INDEX}: a conflict marker on line 18` },
+      marker,
+    );
+  }
+  // In Adr.java, the line after the seven of its head, the six of the constant of ADR-006 and its blank line is line 15.
+  assert.deepEqual(adrOrderClaim({ index: indexOf([]), adrJava: adrJavaOf([6, [">>>>>>> main"]]) }), {
+    state: "FAIL",
+    detail: `${ADR_JAVA}: a conflict marker on line 15`,
+  });
+});
+
+test("check-claims holds the rows of this tree's index and the constants of its Adr.java in order of number, naming how many of each it read", () => {
+  // Counted here, so that a claim that read no row or no constant, or not these, goes red.
+  const rows = readFileSync(join(ROOT, INDEX), "utf8").split(/\r?\n/).filter((l) => /^\| \[ADR-\d+\]/.test(l)).length;
+  const constants = [...readFileSync(join(ROOT, ADR_JAVA), "utf8").matchAll(/public static final String \w+\s*=[^;]*"\d{4}-[^"]*\.md"/g)].length;
+  assert.ok(rows > 0 && constants > 0, `this tree has rows (${rows}) and constants (${constants})`);
+  assert.equal(
+    claimLine(ORDER).replace(/^PASS +/, "PASS  "),
+    `PASS  ${ORDER}: ${rows} rows of ${INDEX} and ${constants} constants of ${ADR_JAVA}, each in ascending order of number`,
+  );
 });
