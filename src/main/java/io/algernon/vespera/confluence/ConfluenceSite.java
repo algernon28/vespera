@@ -39,6 +39,12 @@ final class ConfluenceSite {
     /** The property naming the parent by its title, set by {@code VESPERA_CONFLUENCE_FOLDER_TITLE} (ADR-318). */
     static final String FOLDER_TITLE_PROPERTY = "vespera.confluence.folder-title";
 
+    /** The variable by which the control panel tells the child it started it (ADR-359 §3, §4). */
+    static final String STARTED_BY_VARIABLE = "VESPERA_STARTED_BY";
+
+    /** The value of {@link #STARTED_BY_VARIABLE} the control panel sets. */
+    static final String THE_CONTROL_PANEL = "control-panel";
+
     private final URI site;
     private final String spaceKey;
     private final String parentId;
@@ -71,25 +77,69 @@ final class ConfluenceSite {
             String spaceKey,
             String parentId,
             String parentTitle) {
+        return of(environment, baseUrl, spaceKey, parentId, parentTitle, ConfluenceValues.NONE);
+    }
+
+    /**
+     * As the five-argument form, each plain value being the shell's where it is set and not blank, else {@code
+     * profile}'s, else missing (ADR-359 §2). The parent is taken whole from one side: where the shell names it by id
+     * or by title, the profile's parent is not read. The token is read from {@code environment} alone. Where the
+     * control panel started the publish ({@link #STARTED_BY_VARIABLE}), a missing value is named by its profile key
+     * and the Profile tab, and a missing token as the API token Publish asks for (ADR-359 §4).
+     */
+    static Read of(
+            Function<String, String> environment,
+            String baseUrl,
+            String spaceKey,
+            String parentId,
+            String parentTitle,
+            ConfluenceValues profile) {
+        boolean fromTheControlPanel = THE_CONTROL_PANEL.equals(environment.apply(STARTED_BY_VARIABLE));
         String token = blankToNull(environment.apply(TOKEN_VARIABLE));
         String user = blankToNull(environment.apply(EMAIL_VARIABLE));
-        List<String> missing = new ArrayList<>();
+        if (user == null) {
+            user = blankToNull(profile.email());
+        }
         if (blankToNull(baseUrl) == null) {
-            missing.add("VESPERA_CONFLUENCE_BASE_URL");
+            baseUrl = profile.baseUrl();
         }
         if (blankToNull(spaceKey) == null) {
-            missing.add("VESPERA_CONFLUENCE_SPACE_KEY");
+            spaceKey = profile.spaceKey();
         }
         if (blankToNull(parentId) == null && blankToNull(parentTitle) == null) {
-            missing.add("VESPERA_CONFLUENCE_FOLDER_ID or VESPERA_CONFLUENCE_FOLDER_TITLE");
+            parentId = profile.folderId();
+            parentTitle = profile.folderTitle();
+        }
+        List<String> missing = new ArrayList<>();
+        if (blankToNull(baseUrl) == null) {
+            missing.add(fromTheControlPanel ? "confluenceBaseUrl" : "VESPERA_CONFLUENCE_BASE_URL");
+        }
+        if (blankToNull(spaceKey) == null) {
+            missing.add(fromTheControlPanel ? "confluenceSpaceKey" : "VESPERA_CONFLUENCE_SPACE_KEY");
+        }
+        if (blankToNull(parentId) == null && blankToNull(parentTitle) == null) {
+            missing.add(fromTheControlPanel
+                    ? "confluenceFolderId or confluenceFolderTitle"
+                    : "VESPERA_CONFLUENCE_FOLDER_ID or VESPERA_CONFLUENCE_FOLDER_TITLE");
         }
         if (user == null) {
-            missing.add(EMAIL_VARIABLE);
+            missing.add(fromTheControlPanel ? "confluenceEmail" : EMAIL_VARIABLE);
         }
-        if (token == null) {
-            missing.add(TOKEN_VARIABLE);
-        }
-        if (!missing.isEmpty()) {
+        if (fromTheControlPanel) {
+            if (!missing.isEmpty() || token == null) {
+                boolean keysMissing = !missing.isEmpty();
+                if (token == null) {
+                    missing.add("the API token Publish asks for");
+                }
+                return new Read.Refused("vespera publish sent nothing: " + String.join(", ", missing)
+                        + (missing.size() == 1 ? " is" : " are") + " not set."
+                        + (keysMissing ? " Set " + (missing.size() - (token == null ? 1 : 0) == 1 ? "it" : "each key")
+                                + " in the control panel's Profile tab, and publish again." : " Publish again."));
+            }
+        } else if (!missing.isEmpty() || token == null) {
+            if (token == null) {
+                missing.add(TOKEN_VARIABLE);
+            }
             return new Read.Refused("vespera publish sent nothing: " + String.join(", ", missing)
                     + (missing.size() == 1 ? " is" : " are") + " not set. Set the site, the space and the parent in"
                     + " confluence-env.sh or confluence-env.ps1 in the working directory, run it in this shell, and"

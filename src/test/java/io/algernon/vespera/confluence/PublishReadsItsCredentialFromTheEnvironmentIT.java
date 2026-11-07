@@ -35,6 +35,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Issue("633")
 @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
 @Link(name = "ADR-318", url = Adr.THE_PUBLISH_READS_THE_EMAIL_AND_THE_FOLDER_BY_THEIR_NEW_NAMES, type = "adr")
+@Link(name = "ADR-359", url = Adr.THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN, type = "adr")
 @Tag("confluence")
 class PublishReadsItsCredentialFromTheEnvironmentIT {
 
@@ -73,11 +74,13 @@ class PublishReadsItsCredentialFromTheEnvironmentIT {
                         "${" + StubConfluence.FOLDER_TITLE_PROPERTY + ":}"));
         claim("and none of them names a token, a user, an email or a parent",
                 () -> assertThat(properties).noneMatch(value -> value.matches("(?i).*(token|user|email|parent).*")));
-        claim("the constructor reading them is the one public constructor",
+        claim("the constructor reading them is the one public constructor, which takes beside them only what the"
+                        + " working directory's profile names (ADR-359 §5)",
                 () -> assertThat(Publisher.class.getConstructors()).hasSize(1)
                         .allSatisfy(constructor -> assertThat(Arrays.stream(constructor.getParameters())
                                 .map(parameter -> parameter.getType().getName()).distinct().toList())
-                                .containsExactly(String.class.getName())));
+                                .containsExactly(String.class.getName(),
+                                        ConfluenceValues.InTheProfile.class.getName())));
     }
 
     @Test

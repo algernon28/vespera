@@ -9,6 +9,10 @@ import java.util.function.Supplier;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
@@ -26,6 +30,12 @@ interface Dialogs {
     /** The file the operator chose, empty where they chose none. */
     Optional<Path> file(String title, String initial);
 
+    /**
+     * Asks {@code sentence} in a field that does not show what is typed (ADR-359 §3): what is typed, empty where the
+     * operator cancelled. Nothing is checked, kept or compared with it (ADR-359 §6).
+     */
+    Optional<String> masked(String title, String sentence);
+
     /** Hands {@code address}, a document that is no report of the window, to the operating system to open (ADR-344 §6). */
     void handToTheSystem(URI address);
 
@@ -34,6 +44,11 @@ interface Dialogs {
 
     /** Dialogs that open nothing and choose nothing: what a window drawn without a stage holds. */
     Dialogs NONE = new Dialogs() {
+        @Override
+        public Optional<String> masked(String title, String sentence) {
+            return Optional.empty();
+        }
+
         @Override
         public boolean confirm(String sentence, String yes, String no) {
             return false;
@@ -58,6 +73,26 @@ interface Dialogs {
     /** The system's dialogs over {@code owner}, a document handed over by {@code showDocument} with its address. */
     static Dialogs of(Supplier<Window> owner, Consumer<String> showDocument) {
         return new Dialogs() {
+            @Override
+            public Optional<String> masked(String title, String sentence) {
+                ButtonType goOn = new ButtonType("Publish", ButtonBar.ButtonData.OK_DONE);
+                ButtonType keep = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+                Dialog<String> ask = new Dialog<>();
+                ask.setTitle(title);
+                PasswordField field = new PasswordField();
+                field.setId("masked-field");
+                Label words = new Label(sentence);
+                words.setWrapText(true);
+                ask.getDialogPane().setContent(new VBox(8, words, field));
+                ask.getDialogPane().getButtonTypes().setAll(goOn, keep);
+                ask.setResultConverter(pressed -> pressed == goOn ? field.getText() : null);
+                Window over = owner.get();
+                if (over != null) {
+                    ask.initOwner(over);
+                }
+                return ask.showAndWait();
+            }
+
             @Override
             public boolean confirm(String sentence, String yes, String no) {
                 ButtonType goOn = new ButtonType(yes, ButtonBar.ButtonData.OK_DONE);

@@ -9,7 +9,8 @@ import java.util.Optional;
  * The control panel's table of profile keys (ADR-295 §5): one constant for each key {@code profile.yaml} holds, in the
  * order the jar's profile holds them, with its type and the earliest run it enters. A key is named as the file spells
  * it and a run as the jar's stage is named, as text, because the control panel links no class of the jar
- * (ADR-285 §3); a contract test holds both to the jar's. {@code clusterPageByteCeiling} alone enters no run (ADR-303 §9).
+ * (ADR-285 §3); a contract test holds both to the jar's. {@code clusterPageByteCeiling} and the five Confluence values
+ * a publish reads, {@code confluenceBaseUrl} to {@code confluenceEmail}, enter no run (ADR-303 §9, ADR-359 §1).
  * Each key also has its name in plain words and a line saying what it is, which the pages show beside the key itself
  * (ADR-340 §7).
  */
@@ -92,7 +93,28 @@ public enum ProfileKey {
             "Folders of code elsewhere on this machine, read with the documents and kept as code sets of their own."),
     FOLDERS_NOT_WALKED("foldersNotWalked", Kind.CORPUS_FOLDERS, Run.BYTE_LEVEL_REDUCTION,
             "which folders of the corpus hold nothing you want read", "archive/old-flows", "Folders not read",
-            "Folders of the documents folder that Vespera never reads. Untick them in the Inclusions tab.");
+            "Folders of the documents folder that Vespera never reads. Untick them in the Inclusions tab."),
+    CONFLUENCE_BASE_URL("confluenceBaseUrl", Kind.TEXT, null,
+            "the address of your Confluence Cloud site, where you publish to it", "https://wiki.example.com",
+            "Confluence site",
+            "The address of the Confluence Cloud site that Publish sends the pages to."),
+    CONFLUENCE_SPACE_KEY("confluenceSpaceKey", Kind.TEXT, null,
+            "the key of the Confluence space the pages go in", "DOCS", "Confluence space",
+            "The key of the space of that site the pages are published in."),
+    CONFLUENCE_FOLDER_ID("confluenceFolderId", Kind.TEXT, null,
+            "the id of the page or folder the pages go under, the number in its address; name this or its title, not both",
+            "123456789", "Confluence parent, by its id",
+            "The id of the page or folder the published pages go under. Leave it empty where you name the parent by its"
+                    + " title."),
+    CONFLUENCE_FOLDER_TITLE("confluenceFolderTitle", Kind.TEXT, null,
+            "the title of the page or folder the pages go under; name this or its id, not both", "Hand-overs",
+            "Confluence parent, by its title",
+            "The title of the page or folder the published pages go under. Leave it empty where you name the parent by"
+                    + " its id."),
+    CONFLUENCE_EMAIL("confluenceEmail", Kind.TEXT, null,
+            "the email of your Confluence account", "you@example.com", "Confluence account",
+            "The email of the Confluence account the pages are published as. The API token is asked for when you press"
+                    + " Publish, and is never saved.");
 
     /** The type of a key's value, which is how the jar reads it. */
     public enum Kind { TEXT, NUMBER, NAME_ENDINGS, LANGUAGES, FOLDERS, CORPUS_FOLDERS }

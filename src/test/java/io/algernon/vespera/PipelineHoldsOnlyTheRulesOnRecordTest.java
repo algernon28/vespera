@@ -102,6 +102,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "ClusterPageByteCeiling",
             "ClusteringTasklet",
             "ConfidenceDistributionReport",
+            // ADR-359 §5: reads the five Confluence values the profile holds and hands confluence plain values; the
+            // publish's order of reading and its refusals are confluence's.
+            "ConfluenceValuesOfTheProfile",
             "ContentCensusTasklet",
             "ConversionDispatch",
             "CorpusRootCheck",
