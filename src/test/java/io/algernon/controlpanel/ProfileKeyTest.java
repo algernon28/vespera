@@ -54,7 +54,7 @@ class ProfileKeyTest {
         }
     }
 
-    /** The twenty-one keys in the profile's order, with the type and run the records' tables give each. */
+    /** The twenty-six keys in the profile's order, with the type and run the records' tables give each. */
     private static final List<Row> TABLE = List.of(
             new Row("seedFolder", Kind.TEXT, Run.SEED_MEASUREMENT),
             new Row("degenerateOutputConfidenceFloor", Kind.NUMBER, Run.EXTRACTION),
@@ -81,7 +81,13 @@ class ProfileKeyTest {
             new Row("codeSetFolders", Kind.FOLDERS, Run.BYTE_LEVEL_REDUCTION),
             // ADR-340 §8.1: folders below the corpus root the walk never enters, entering byte-level reduction, the walk
             // that leaves them out being another.
-            new Row("foldersNotWalked", "CORPUS_FOLDERS", Run.BYTE_LEVEL_REDUCTION));
+            new Row("foldersNotWalked", "CORPUS_FOLDERS", Run.BYTE_LEVEL_REDUCTION),
+            // ADR-359 §1: where a publish sends, which no stage reads, so each enters no run.
+            new Row("confluenceBaseUrl", Kind.TEXT, Optional.empty()),
+            new Row("confluenceSpaceKey", Kind.TEXT, Optional.empty()),
+            new Row("confluenceFolderId", Kind.TEXT, Optional.empty()),
+            new Row("confluenceFolderTitle", Kind.TEXT, Optional.empty()),
+            new Row("confluenceEmail", Kind.TEXT, Optional.empty()));
 
     /** The runs from each run on, in the cascade's order, as ADR-295 §5's table spells them. */
     private static final List<Run> FROM_BYTE_LEVEL_REDUCTION = List.of(Run.BYTE_LEVEL_REDUCTION, Run.EXTRACTION,
@@ -118,11 +124,12 @@ class ProfileKeyTest {
 
     @Test
     @Story("The control panel says what a change costs before it is saved")
-    @DisplayName("Each of the twenty-one profile keys, in the profile's order, has its type and the earliest run it enters, the page ceiling entering none")
+    @DisplayName("Each of the twenty-six profile keys, in the profile's order, has its type and the earliest run it enters, the page ceiling and the five values of a publish entering none")
     @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
+    @Link(name = "ADR-359", url = Adr.THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN, type = "adr")
     void eachKeyHasItsTypeAndEarliestRun() {
-        claim("the table holds the twenty-one keys in the profile's order, each with its type and earliest run, and the"
-                        + " page ceiling with none",
+        claim("the table holds the twenty-six keys in the profile's order, each with its type and earliest run, and the"
+                        + " page ceiling and the five values of a publish, last, with none",
                 () -> assertThat(Arrays.stream(ProfileKey.values())
                                 .map(key -> new Row(key.key(), key.kind(), key.earliestRun()))
                                 .toList())
@@ -146,8 +153,8 @@ class ProfileKeyTest {
                         Run.ARRANGEMENT, Run.GENERATION));
         claim("a change of each key costs its earliest run and every later one; it closes the approval only where the"
                         + " arrangement is among them, refuses the labels only for the seed folder, and draws the"
-                        + " sample again for the sixteen whose runs include embedding scoring; the page ceiling costs"
-                        + " no run, closes no approval, refuses no labels and draws no sample",
+                        + " sample again for the sixteen whose runs include embedding scoring; the page ceiling and the"
+                        + " five values of a publish cost no run, close no approval, refuse no labels and draw no sample",
                 () -> assertThat(costs).containsExactlyEntriesOf(COST_OF_EACH_KEY));
     }
 
@@ -192,6 +199,10 @@ class ProfileKeyTest {
         costs.put("clusterResolution", scoringAgainFrom(FROM_EMBEDDING_SCORING));
         costs.put("codeSetFolders", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
         costs.put("foldersNotWalked", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
+        for (String publishes : List.of("confluenceBaseUrl", "confluenceSpaceKey", "confluenceFolderId",
+                "confluenceFolderTitle", "confluenceEmail")) {
+            costs.put(publishes, new Cost(List.of(), false, false, false));
+        }
         return costs;
     }
 }

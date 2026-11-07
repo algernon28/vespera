@@ -1,5 +1,7 @@
 # ADR-130 — One report-page module owns the document skeleton, styling, escaping and table assembly
 
+> **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Its refusal of a template file no longer holds of `report.html`, which `ReportHtml` draws from `report.json` through a Mustache template, the jar's or the one `vespera.report.template` names. `ReportPage` stays the one module of the eleven analysis reports of `pipeline`; the twelfth, `cluster-page-sizes.html`, is drawn by `ClusterPageSizes` of `deliverable` through that module's `Html`, as it is. The rest of this record stands.
+
 - **Date**: 2026-09-19
 - **Status**: accepted
 - **Rests on**: [ADR-046](0046-the-pom-carries-what-a-recorded-decision-requires.md) (the pages stay hand-assembled with no templating library and no new dependency — this record adds neither), [ADR-052](0052-the-test-report-is-written-for-a-reader-outside-the-project.md) and [ADR-122](0122-the-vocabulary-binds-our-names-not-the-prose-rendered-for-an-outside-reader.md) (the prose each report supplies is rendered for that outside reader and is untouched here).

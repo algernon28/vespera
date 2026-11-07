@@ -77,6 +77,17 @@ class ChildCommandTest {
 
     private static final String CONTROL_PANEL_FOLDER = "io/algernon/controlpanel";
 
+    /** The variable a publish's child reads the token from (ADR-308 §3), spelt as the jar spells it. */
+    private static final String TOKEN_VARIABLE = "VESPERA_CONFLUENCE_TOKEN";
+
+    /** The variable by which the control panel tells a publish's child it started it, and its one value (ADR-359 §3). */
+    private static final String STARTED_BY_VARIABLE = "VESPERA_STARTED_BY";
+
+    private static final String THE_CONTROL_PANEL = "control-panel";
+
+    /** A token as the operator types it, synthetic. */
+    private static final String TOKEN = "TOKEN-typed-5e4d3c2b-not-a-real-one";
+
     @Test
     @Story("The control panel starts the jar as shipped")
     @DisplayName("Run is the jar's run command, after both encoding flags, with the corpus root and the working directory absolute")
@@ -170,13 +181,18 @@ class ChildCommandTest {
         Map<String, String> expected = new HashMap<>(EVERY_VALUE.toChildEnvironment());
         expected.put("CI", "1");
         expected.put("PATH", "the-path");
+        Map<String, String> expectedOfAPublish = new HashMap<>(expected);
+        expectedOfAPublish.put(STARTED_BY_VARIABLE, THE_CONTROL_PANEL);
         for (ChildCommand command : List.of(ChildCommand.run(JAVA, JAR, EVERY_VALUE),
                 ChildCommand.label(JAVA, JAR, false, EVERY_VALUE),
                 ChildCommand.publish(JAVA, JAR, EVERY_VALUE, List.of(ChildCommand.DESTINATIONS.getFirst())))) {
             String which = command.command().get(BEFORE_THE_COMMAND.size());
+            boolean publish = which.equals("publish");
             claim(which + "'s environment, over a control panel's carrying all eight, is that environment less the eight,"
-                            + " with CI=1 and the launch values' five added",
-                    () -> assertThat(command.environmentFrom(theControlPanels)).isEqualTo(expected));
+                            + " with CI=1 and the launch values' five added"
+                            + (publish ? ", and the variable telling the child the control panel started it" : ""),
+                    () -> assertThat(command.environmentFrom(theControlPanels))
+                            .isEqualTo(publish ? expectedOfAPublish : expected));
             claim("what it adds names none of the eight",
                     () -> assertThat(command.environment()).doesNotContainKeys(theEight.toArray(String[]::new)));
             claim("and its process builder's environment is the one over the control panel's own, none of the eight in it",
@@ -219,8 +235,8 @@ class ChildCommandTest {
                     assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("website")).command())
                             .containsExactlyElementsOf(with("publish", "--to", "website", DB_DIR));
                 });
-        claim("and no variable the control panel adds names Confluence: the child inherits the five values from the"
-                        + " operator's environment, and the control panel holds none of them",
+        claim("and, given no token, no variable the control panel adds names Confluence: the four plain values are the"
+                        + " profile's, which the child reads itself, and the token is added only where it is typed",
                 () -> assertThat(publish.environment().keySet()).noneMatch(name -> name.contains("CONFLUENCE")));
         claim("a publish to no destination, or to a name outside the control panel's closed list, is not built",
                 () -> {
@@ -231,6 +247,108 @@ class ChildCommandTest {
                 });
         claim("the closed list is the two destinations, in the order the window offers them",
                 () -> assertThat(ChildCommand.DESTINATIONS).containsExactly("confluence", "website"));
+    }
+
+    /**
+     * The token typed as Publish starts a publish to Confluence goes to that child's environment and nowhere else of
+     * the command (ADR-359 §3): not an argument of its command line, which another process of the machine can read, and
+     * not the line the window shows.
+     */
+    @Test
+    @Story("The control panel passes the API token to its child alone")
+    @DisplayName("The token typed goes into a Confluence publish's environment, over one inherited, and into no argument of its command line and not the line shown; a run, a label and a publish to the website alone are unchanged by it")
+    @Link(name = "ADR-359", url = Adr.THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN, type = "adr")
+    void aPublishToConfluenceCarriesTheTokenTypedInItsEnvironmentAlone() {
+        ChildCommand publish = ChildCommand.publish(JAVA, JAR, EVERY_VALUE, List.of("confluence", "website"));
+        ChildCommand given = publish.withConfluenceToken(TOKEN);
+        Map<String, String> inheritingAnother = new HashMap<>(Map.of(TOKEN_VARIABLE, "a-token-the-shell-exported"));
+
+        claim("what the control panel adds to the publish's environment is what it added before, and the token",
+                () -> {
+                    Map<String, String> expected = new HashMap<>(publish.environment());
+                    expected.put(TOKEN_VARIABLE, TOKEN);
+                    assertThat(given.environment()).isEqualTo(expected);
+                });
+        claim("put over a token the window inherited, and carried by the process builder",
+                () -> {
+                    assertThat(given.environmentFrom(inheritingAnother)).containsEntry(TOKEN_VARIABLE, TOKEN);
+                    assertThat(given.processBuilder().environment()).containsEntry(TOKEN_VARIABLE, TOKEN);
+                });
+        claim("and no argument of its command line, and not the line the window shows, holds it, the command line being"
+                        + " the publish's as before",
+                () -> {
+                    assertThat(given.command()).isEqualTo(publish.command()).noneMatch(argument -> argument.contains(TOKEN));
+                    assertThat(given.shown()).doesNotContain(TOKEN);
+                    assertThat(String.valueOf(given)).doesNotContain(TOKEN);
+                });
+        claim("a publish given no token has none in what the control panel adds",
+                () -> assertThat(publish.environment()).doesNotContainKey(TOKEN_VARIABLE));
+        claim("and a run, a label and a publish to the website alone are given no token by it",
+                () -> assertThat(List.of(ChildCommand.run(JAVA, JAR, EVERY_VALUE),
+                                ChildCommand.label(JAVA, JAR, false, EVERY_VALUE),
+                                ChildCommand.publish(JAVA, JAR, EVERY_VALUE, List.of("website"))))
+                        .allSatisfy(command -> assertThat(command.withConfluenceToken(TOKEN).environment())
+                                .isEqualTo(command.environment())
+                                .doesNotContainKey(TOKEN_VARIABLE)));
+    }
+
+    /**
+     * In the window, the Profile tab is the one source of a publish's four plain values, and the token typed the one
+     * token (ADR-359 §3): a publish's child inherits no variable whose name, in any case, begins with {@code
+     * VESPERA_CONFLUENCE_}, as it inherits none of the eight naming the working directory (ADR-340 §6).
+     */
+    @Test
+    @Story("The control panel passes the API token to its child alone")
+    @DisplayName("A publish's child inherits none of the window's Confluence variables, in either case, and holds the token typed alone, every other variable inherited")
+    @Link(name = "ADR-359", url = Adr.THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN, type = "adr")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
+    void aPublishsChildInheritsNoConfluenceVariableButTheTokenTyped() {
+        Map<String, String> theWindows = new HashMap<>();
+        theWindows.put("VESPERA_CONFLUENCE_SPACE_KEY", "OLDSPACE");
+        theWindows.put(TOKEN_VARIABLE, "stale");
+        theWindows.put("VESPERA_CONFLUENCE_BASE_URL", "https://old-site.example");
+        theWindows.put("VESPERA_CONFLUENCE_EMAIL", "old@example.org");
+        theWindows.put("vespera_confluence_folder_id", "9009");
+        theWindows.put("PATH", "the-path");
+        ChildCommand publish = ChildCommand.publish(JAVA, JAR, EVERY_VALUE, List.of("confluence"));
+        ChildCommand typed = publish.withConfluenceToken(TOKEN);
+
+        claim("given no token, the publish's environment over the window's holds no variable beginning with"
+                        + " VESPERA_CONFLUENCE_, in any case",
+                () -> assertThat(publish.environmentFrom(theWindows).keySet())
+                        .noneMatch(name -> name.toUpperCase(java.util.Locale.ROOT).startsWith("VESPERA_CONFLUENCE_")));
+        claim("given the token typed, it holds that token alone of them: not OLDSPACE, not the stale token, not the"
+                        + " window's site, email or folder",
+                () -> assertThat(typed.environmentFrom(theWindows).entrySet().stream()
+                                .filter(entry -> entry.getKey().toUpperCase(java.util.Locale.ROOT)
+                                        .startsWith("VESPERA_CONFLUENCE_"))
+                                .toList())
+                        .containsExactly(Map.entry(TOKEN_VARIABLE, TOKEN)));
+        claim("every other variable the window holds is inherited as before",
+                () -> assertThat(typed.environmentFrom(theWindows)).containsEntry("PATH", "the-path")
+                        .containsAllEntriesOf(publish.environment()));
+        claim("and its process builder's environment is the one over the control panel's own",
+                () -> assertThat(typed.processBuilder().environment())
+                        .isEqualTo(typed.environmentFrom(System.getenv())));
+    }
+
+    /**
+     * A publish the control panel starts writes no template and names the Profile tab's keys when a value is missing
+     * (ADR-359 §4), so its child is told the control panel started it.
+     */
+    @Test
+    @Story("The control panel passes the API token to its child alone")
+    @DisplayName("A publish's child is told in its environment that the control panel started it, with a token or without one")
+    @Link(name = "ADR-359", url = Adr.THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN, type = "adr")
+    void aPublishsChildIsToldTheControlPanelStartedIt() {
+        ChildCommand publish = ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("confluence"));
+
+        claim("the publish's environment holds VESPERA_STARTED_BY set to control-panel, given a token or not",
+                () -> assertThat(List.of(publish, publish.withConfluenceToken(TOKEN))).allSatisfy(command ->
+                        assertThat(command.environment()).containsEntry(STARTED_BY_VARIABLE, THE_CONTROL_PANEL)));
+        claim("and so does a publish to the website alone",
+                () -> assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("website")).environment())
+                        .containsEntry(STARTED_BY_VARIABLE, THE_CONTROL_PANEL));
     }
 
     @Test

@@ -1,5 +1,7 @@
 # ADR-322 — The progress page's three line charts stand in one row that wraps, each drawn 600 units wide and legible down to 500 px
 
+> **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** §1 to §7 hold of the shipped template's drawing of `report.html`, by its stylesheet and the geometry the jar computes; a template the operator names draws as it draws. The rest of this record stands.
+
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
 - **Decided**: by the operator, who asked for the three charts at the foot of the `Overview` tab to be resized and set side by side on one row, and set the rule for any width of window: the charts shrink with the window while they stay readable, and wrap onto more rows where they would not (Context); the viewBox, the floor, the grid, the widths and the end labels are decided under delegation, on ADR-269 §7's principle that a chart's text is never drawn under 10 px high.

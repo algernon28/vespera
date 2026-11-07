@@ -141,7 +141,14 @@ package io.algernon.vespera.profile;
  * @param foldersNotWalked the folders of the corpus the walk counts and never enters (ADR-340 §8): pieces relative to the
  *     corpus root, separated by the system's path separator. Ships unset; unset or unreadable, every folder is read.
  *     It enters byte-level reduction's identity, a walk that leaves a folder out being another walk. No
- *     {@link Measurement} pointer. The last component.
+ *     {@link Measurement} pointer.
+ * @param confluenceBaseUrl the Confluence site's address a publish sends to (ADR-359 section 1), read where the
+ *     shell sets none. Ships unset, enters no run's identity and is no gate: no stage reads it.
+ * @param confluenceSpaceKey the space's key (ADR-359 section 1); as {@code confluenceBaseUrl}.
+ * @param confluenceFolderId the parent, by its id (ADR-359 section 1); as {@code confluenceBaseUrl}.
+ * @param confluenceFolderTitle the parent, by its title (ADR-359 section 1); as {@code confluenceBaseUrl}.
+ * @param confluenceEmail the account's email (ADR-359 section 1); as {@code confluenceBaseUrl}. No key holds
+ *     the token. The five are the last components.
  */
 public record Profile(
         TextValue seedFolder,
@@ -164,7 +171,12 @@ public record Profile(
         TextValue deliverableLanguage,
         NumericValue clusterResolution,
         FoldersValue codeSetFolders,
-        CorpusFoldersValue foldersNotWalked) {
+        CorpusFoldersValue foldersNotWalked,
+        TextValue confluenceBaseUrl,
+        TextValue confluenceSpaceKey,
+        TextValue confluenceFolderId,
+        TextValue confluenceFolderTitle,
+        TextValue confluenceEmail) {
 
     public Profile {
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
@@ -193,6 +205,11 @@ public record Profile(
         clusterResolution = clusterResolution == null ? NumericValue.unset() : clusterResolution;
         codeSetFolders = codeSetFolders == null ? FoldersValue.unset() : codeSetFolders;
         foldersNotWalked = foldersNotWalked == null ? CorpusFoldersValue.unset() : foldersNotWalked;
+        confluenceBaseUrl = confluenceBaseUrl == null ? TextValue.unset() : confluenceBaseUrl;
+        confluenceSpaceKey = confluenceSpaceKey == null ? TextValue.unset() : confluenceSpaceKey;
+        confluenceFolderId = confluenceFolderId == null ? TextValue.unset() : confluenceFolderId;
+        confluenceFolderTitle = confluenceFolderTitle == null ? TextValue.unset() : confluenceFolderTitle;
+        confluenceEmail = confluenceEmail == null ? TextValue.unset() : confluenceEmail;
     }
 
     /**
@@ -217,11 +234,27 @@ public record Profile(
         return java.util.Collections.unmodifiableSequencedMap(keys);
     }
 
+    /** The five keys a publish reads and the deliverable's index does not state (ADR-359 sections 1 and 7). */
+    private static final java.util.Set<String> CONFLUENCE_KEYS = java.util.Set.of(
+            "confluenceBaseUrl", "confluenceSpaceKey", "confluenceFolderId", "confluenceFolderTitle",
+            "confluenceEmail");
+
+    /**
+     * {@link #keysAsWritten()} less the five Confluence keys, in the record's order: the keys the deliverable's
+     * index states (ADR-359 section 7, amending ADR-186 section 1). Unmodifiable, and kept out of {@code profile.yaml}.
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public java.util.SequencedMap<String, String> keysTheIndexStates() {
+        var keys = new java.util.LinkedHashMap<>(keysAsWritten());
+        keys.keySet().removeAll(CONFLUENCE_KEYS);
+        return java.util.Collections.unmodifiableSequencedMap(keys);
+    }
+
     /** A profile with every key present and none of them answered — what census drafts. */
     static Profile skeleton() {
         return new Profile(
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -247,7 +280,12 @@ public record Profile(
                 deliverableLanguage,
                 clusterResolution,
                 codeSetFolders,
-                foldersNotWalked);
+                foldersNotWalked,
+                confluenceBaseUrl,
+                confluenceSpaceKey,
+                confluenceFolderId,
+                confluenceFolderTitle,
+                confluenceEmail);
     }
 
     /**
@@ -277,7 +315,12 @@ public record Profile(
                 deliverableLanguage,
                 clusterResolution,
                 codeSetFolders,
-                foldersNotWalked);
+                foldersNotWalked,
+                confluenceBaseUrl,
+                confluenceSpaceKey,
+                confluenceFolderId,
+                confluenceFolderTitle,
+                confluenceEmail);
     }
 
     /** The same profile, with stage 3's pointer to {@code word-count-distribution.html} brought up to date (ADR-282). */
@@ -303,7 +346,12 @@ public record Profile(
                 deliverableLanguage,
                 clusterResolution,
                 codeSetFolders,
-                foldersNotWalked);
+                foldersNotWalked,
+                confluenceBaseUrl,
+                confluenceSpaceKey,
+                confluenceFolderId,
+                confluenceFolderTitle,
+                confluenceEmail);
     }
 
     /**
@@ -332,7 +380,12 @@ public record Profile(
                 deliverableLanguage,
                 clusterResolution,
                 codeSetFolders,
-                foldersNotWalked);
+                foldersNotWalked,
+                confluenceBaseUrl,
+                confluenceSpaceKey,
+                confluenceFolderId,
+                confluenceFolderTitle,
+                confluenceEmail);
     }
 
     /**
@@ -366,7 +419,12 @@ public record Profile(
                 deliverableLanguage,
                 clusterResolution,
                 codeSetFolders,
-                foldersNotWalked);
+                foldersNotWalked,
+                confluenceBaseUrl,
+                confluenceSpaceKey,
+                confluenceFolderId,
+                confluenceFolderTitle,
+                confluenceEmail);
     }
 
     /**
@@ -395,7 +453,12 @@ public record Profile(
                 deliverableLanguage,
                 clusterResolution,
                 codeSetFolders,
-                foldersNotWalked);
+                foldersNotWalked,
+                confluenceBaseUrl,
+                confluenceSpaceKey,
+                confluenceFolderId,
+                confluenceFolderTitle,
+                confluenceEmail);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-171). */
@@ -421,7 +484,12 @@ public record Profile(
                 deliverableLanguage,
                 clusterResolution,
                 codeSetFolders,
-                foldersNotWalked);
+                foldersNotWalked,
+                confluenceBaseUrl,
+                confluenceSpaceKey,
+                confluenceFolderId,
+                confluenceFolderTitle,
+                confluenceEmail);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-256). */
@@ -447,7 +515,12 @@ public record Profile(
                 deliverableLanguage,
                 clusterResolution,
                 codeSetFolders,
-                foldersNotWalked);
+                foldersNotWalked,
+                confluenceBaseUrl,
+                confluenceSpaceKey,
+                confluenceFolderId,
+                confluenceFolderTitle,
+                confluenceEmail);
     }
 
     /** The same profile, with the pointer to {@code translations.html} brought up to date (ADR-271 §6). */
@@ -473,7 +546,12 @@ public record Profile(
                 deliverableLanguage,
                 clusterResolution,
                 codeSetFolders,
-                foldersNotWalked);
+                foldersNotWalked,
+                confluenceBaseUrl,
+                confluenceSpaceKey,
+                confluenceFolderId,
+                confluenceFolderTitle,
+                confluenceEmail);
     }
 
     /** The same profile, with the pointer to {@code translations.html} brought up to date (ADR-271 §6). */
@@ -499,7 +577,12 @@ public record Profile(
                 deliverableLanguage,
                 clusterResolution,
                 codeSetFolders,
-                foldersNotWalked);
+                foldersNotWalked,
+                confluenceBaseUrl,
+                confluenceSpaceKey,
+                confluenceFolderId,
+                confluenceFolderTitle,
+                confluenceEmail);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-277 §2). */
@@ -525,7 +608,12 @@ public record Profile(
                 deliverableLanguage,
                 clusterResolution,
                 codeSetFolders,
-                foldersNotWalked);
+                foldersNotWalked,
+                confluenceBaseUrl,
+                confluenceSpaceKey,
+                confluenceFolderId,
+                confluenceFolderTitle,
+                confluenceEmail);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-287 §7). */
@@ -551,6 +639,11 @@ public record Profile(
                 deliverableLanguage,
                 clusterResolution,
                 codeSetFolders,
-                foldersNotWalked);
+                foldersNotWalked,
+                confluenceBaseUrl,
+                confluenceSpaceKey,
+                confluenceFolderId,
+                confluenceFolderTitle,
+                confluenceEmail);
     }
 }
