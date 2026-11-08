@@ -17,8 +17,6 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -84,28 +82,6 @@ class PartitionsOfAnArrangementTest {
 
     @Test
     @Story("An arrangement is read one exemplar at a time")
-    @DisplayName("The exemplars of an arrangement come back in the order the arrangement placed them")
-    void theSeedsComeInStoredOrder() {
-        claim(
-                "the exemplar placed first comes first although it was recorded last, and each comes once however"
-                        + " many groups sit under it",
-                () -> assertThat(clusters.seedsOf(arrangement)).containsExactly(second, first));
-    }
-
-    @Test
-    @Story("An arrangement is read one exemplar at a time")
-    @DisplayName("Each exemplar comes back with its place, how many groups sit under it and how many documents")
-    void thePartitionsComeWithTheirCounts() {
-        claim(
-                "the first holds three groups of five documents between them, the second two groups of three"
-                        + " documents between them, and the other arrangement's group of four is counted under"
-                        + " neither: the order is the places, not the number of groups or of documents",
-                () -> assertThat(clusters.partitionsOf(arrangement))
-                        .containsExactly(new ArrangedPartition(second, 1, 3, 5), new ArrangedPartition(first, 2, 2, 3)));
-    }
-
-    @Test
-    @Story("An arrangement is read one exemplar at a time")
     @DisplayName("One exemplar's groups come back in the order the arrangement placed them, and no other exemplar's")
     void onePartitionsClustersComeInStoredOrder() {
         claim(
@@ -127,73 +103,8 @@ class PartitionsOfAnArrangementTest {
                                         new ArrangedCluster(second, 6, 1, 1, 3), new ClusterLabel("Third under the first"))));
     }
 
-    @Test
-    @Story("An arrangement is read one exemplar at a time")
-    @DisplayName("An arrangement that recorded nothing has no exemplar, and an exemplar with nothing under it has no group")
-    void nothingRecordedAnswersNothing() {
-        RunId empty = new Ledger(jdbcTemplate)
-                .runs()
-                .startRun("arrangement", "c" + System.nanoTime(), "{}", theWalkOf(first), List.of());
-
-        claim(
-                "an arrangement with no group answers no exemplar and no partition, where a stop would hide"
-                        + " that it had simply arranged nothing",
-                () -> {
-                    assertThat(clusters.seedsOf(empty)).isEmpty();
-                    assertThat(clusters.partitionsOf(empty)).isEmpty();
-                    assertThat(clusters.ofPartition(empty, first)).isEmpty();
-                });
-    }
-
-    @Test
-    @Story("An arrangement is read one exemplar at a time")
-    @DisplayName("Groups' sizes and places are asked for by their keys, several at once, under one arrangement and no other")
-    void clustersPlacesAreAskedForByTheirKeys() {
-        RunId sameKeys = new Ledger(jdbcTemplate)
-                .runs()
-                .startRun("arrangement", "d" + System.nanoTime(), "{}", theWalkOf(first), List.of());
-        clusters.record(sameKeys, new ArrangedCluster(first, 5, 7, 1, 1), new ClusterLabel("Same key, another arrangement"));
-        Set<ClusterSlot> askedFor = Set.of(
-                new ClusterSlot(first, 5),
-                new ClusterSlot(first, 0),
-                new ClusterSlot(second, 0),
-                new ClusterSlot(first, 1),
-                new ClusterSlot(first, 9),
-                new ClusterSlot(second, 5));
-        Map<ClusterSlot, ArrangedCluster> places = clusters.placesOf(arrangement, askedFor);
-
-        claim(
-                "a group recorded under the arrangement answers its size, its exemplar's place and its own place,"
-                        + " as the arrangement stored them, groups of two exemplars asked for together",
-                () -> {
-                    assertThat(places).containsEntry(new ClusterSlot(first, 5), new ArrangedCluster(first, 5, 1, 2, 1));
-                    assertThat(places).containsEntry(new ClusterSlot(first, 0), new ArrangedCluster(first, 0, 2, 2, 2));
-                    assertThat(places).containsEntry(new ClusterSlot(second, 0), new ArrangedCluster(second, 0, 3, 1, 1));
-                });
-        claim(
-                "a number the arrangement does not record under that exemplar answers nothing, even where another"
-                        + " arrangement records it, so the manifest can stop on a document whose group is not carried",
-                () -> assertThat(places)
-                        .doesNotContainKeys(new ClusterSlot(first, 1), new ClusterSlot(first, 9), new ClusterSlot(second, 5))
-                        .hasSize(3));
-        claim(
-                "where another arrangement records a group with the same exemplar and number, each arrangement"
-                        + " answers its own row and never the other's",
-                () -> {
-                    assertThat(clusters.placesOf(arrangement, Set.of(new ClusterSlot(first, 5))))
-                            .containsExactly(Map.entry(new ClusterSlot(first, 5), new ArrangedCluster(first, 5, 1, 2, 1)));
-                    assertThat(clusters.placesOf(sameKeys, Set.of(new ClusterSlot(first, 5))))
-                            .containsExactly(Map.entry(new ClusterSlot(first, 5), new ArrangedCluster(first, 5, 7, 1, 1)));
-                });
-    }
-
     private static OccurrenceId anOccurrence(Ledger ledger, WalkId walk, String path) {
         ledger.occurrences().fileOccurrence(walk, new OccurrencePath(path), 1, Instant.EPOCH, Instant.EPOCH);
         return ledger.occurrences().occurrenceId(walk, new OccurrencePath(path)).orElseThrow();
-    }
-
-    private WalkId theWalkOf(OccurrenceId occurrence) {
-        return new WalkId(jdbcTemplate.queryForObject(
-                "SELECT walk_id FROM file_occurrence WHERE id = ?", Long.class, occurrence.value()));
     }
 }

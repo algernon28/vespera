@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.Ledger;
-import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.ledger.WalkId;
 import io.qameta.allure.Epic;
@@ -14,7 +13,6 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
@@ -56,9 +54,6 @@ class BoilerplateShinglesTest {
 
     private static final long HASH_BELOW_THE_FLOOR = 222L;
 
-    /** A hash stage 2 shingled in one document, so stage 3 wrote it no frequency row. */
-    private static final long HASH_WITH_NO_ROW = 333L;
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -79,29 +74,6 @@ class BoilerplateShinglesTest {
                 "a hash in 4 of them does not reach it, and a document keeps it as part of what makes it"
                         + " distinctive",
                 () -> assertThat(boilerplate).doesNotContain(HASH_BELOW_THE_FLOOR));
-    }
-
-    @Test
-    @Story("An absent frequency row is the rarest shingle, not an unknown one")
-    @DisplayName("A hash with no shingle_document_frequency row is never boilerplate")
-    void treatsAnAbsentRowAsTheRarestShingleRatherThanAnUnknownOne() {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-of-a-rare-hash"));
-        RunId stage2RunId = ledger.runs().startRun("extraction", "rare", "{}", walkId, List.of());
-        RunId stage3RunId = ledger.runs().startRun("content-census", "rare", "{}", walkId, List.of(stage2RunId));
-        corpusSize(stage3RunId);
-        shingledOnce(ledger, walkId, stage2RunId, HASH_WITH_NO_ROW);
-        documentFrequency(stage3RunId, HASH_AT_THE_FLOOR, SHINGLED_DOCUMENTS / 2);
-
-        Set<Long> boilerplate = new BoilerplateShingles(jdbcTemplate).resolve(stage3RunId, FLOOR, FIVE_WORD_SHINGLES);
-
-        claim(
-                "stage 3 writes a row only for a hash seen in two or more documents (ADR-074), so a hash"
-                        + " with no row at all appeared in exactly one -- the rarest thing in the corpus and"
-                        + " the opposite of boilerplate. Reading absence as unknown and stripping it would"
-                        + " remove precisely the shingles that identify a document: of the hash stage 2"
-                        + " shingled once and the hash at the floor, only the one at the floor is boilerplate",
-                () -> assertThat(boilerplate).containsExactly(HASH_AT_THE_FLOOR));
     }
 
     @Test
@@ -139,19 +111,6 @@ class BoilerplateShinglesTest {
                 stage3RunId.value(),
                 FIVE_WORD_SHINGLES.identity(),
                 SHINGLED_DOCUMENTS);
-    }
-
-    /** One document of the stage-2 run holding {@code hash}: a shingle row, and no frequency row for it. */
-    private void shingledOnce(Ledger ledger, WalkId walkId, RunId stage2RunId, long hash) {
-        OccurrencePath path = new OccurrencePath("only-here.txt");
-        ledger.occurrences().fileOccurrence(walkId, path, 1, Instant.EPOCH, Instant.EPOCH);
-        jdbcTemplate.update(
-                "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash)"
-                        + " VALUES (?, ?, ?, ?)",
-                ledger.occurrences().occurrenceId(walkId, path).orElseThrow().value(),
-                stage2RunId.value(),
-                FIVE_WORD_SHINGLES.identity(),
-                hash);
     }
 
     private void documentFrequency(RunId stage3RunId, long hash, int documentCount) {

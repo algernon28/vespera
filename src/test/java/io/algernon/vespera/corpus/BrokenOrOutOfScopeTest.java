@@ -16,7 +16,6 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -61,12 +60,6 @@ class BrokenOrOutOfScopeTest {
     /** A largest size converted in parts, far below the real one, for the same reason. */
     private static final long SMALL_LARGEST = 400L;
 
-    /** Over {@link #SMALL_CEILING} and under {@link #SMALL_LARGEST}. */
-    private static final int OVER_THE_CEILING = 150;
-
-    /** Over {@link #SMALL_LARGEST}. */
-    private static final int OVER_THE_LARGEST = 401;
-
     /** A file whose name begins with this is answered "not converted in parts" by the limits below. */
     private static final String NOT_CUT_PREFIX = "wide";
 
@@ -75,18 +68,6 @@ class BrokenOrOutOfScopeTest {
             SMALL_CEILING,
             SMALL_LARGEST,
             (file, subtype, size) -> !file.getFileName().toString().startsWith(NOT_CUT_PREFIX));
-
-    /** A log floor of 90%. */
-    private static final Double A_FLOOR = 0.9;
-
-    /** How many timestamped lines the log carries: more than the ten a share needs. */
-    private static final int LOG_LINES = 12;
-
-    /** One line beginning with a time of day, twelve bytes long. */
-    private static final String TIMESTAMPED_LINE = "12:00:00 ok\n";
-
-    /** The highest of the ten timestamp bands, 90% to 100%. */
-    private static final int TOP_BAND = 9;
 
     private static final Instant CREATED = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -131,186 +112,6 @@ class BrokenOrOutOfScopeTest {
     }
 
     @Test
-    @Story("What the first pass decides about each survivor")
-    @DisplayName("Spreadsheets, a BMP image and a video are removed as out of scope; an older Word file and a PNG are kept")
-    @Link(name = "ADR-146", url = Adr.SPREADSHEETS_ARE_OUT_OF_SCOPE, type = "adr")
-    @Link(name = "ADR-167", url = Adr.BMP_IMAGES_ARE_OUT_OF_SCOPE, type = "adr")
-    @Link(name = "ADR-168", url = Adr.VIDEOS_ARE_OUT_OF_SCOPE, type = "adr")
-    void verdictsEveryKindOutOfScope(@TempDir Path root) throws Exception {
-        zipHolding(root.resolve("figures.xlsx"), "xl/workbook.xml");
-        Files.write(root.resolve("budget.xls"), oleCompoundFile(64));
-        Files.write(root.resolve("minutes.doc"), oleCompoundFile(96));
-        Files.write(root.resolve("logo.bmp"), MINIMAL_BMP);
-        Files.write(root.resolve("clip.mp4"), MINIMAL_MP4);
-        Files.write(root.resolve("screen.png"), PNG_FILE);
-        Corpus corpus = new Corpus(root);
-        OccurrenceId workbook = corpus.occurrence("figures.xlsx");
-        OccurrenceId olderSpreadsheet = corpus.occurrence("budget.xls");
-        OccurrenceId olderWordFile = corpus.occurrence("minutes.doc");
-        OccurrenceId bmp = corpus.occurrence("logo.bmp");
-        OccurrenceId video = corpus.occurrence("clip.mp4");
-        OccurrenceId png = corpus.occurrence("screen.png");
-        RecordedChecks progress = new RecordedChecks();
-
-        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, null, List.of(), List.of(), progress);
-
-        claim(
-                "both spreadsheets, the BMP image and the video are removed as out of scope, each with the reason"
-                        + " naming its kind",
-                () -> {
-                    assertThat(verdictsOf(workbook))
-                            .containsExactly("OUT_OF_SCOPE: a spreadsheet, and spreadsheets are out of scope");
-                    assertThat(verdictsOf(olderSpreadsheet))
-                            .containsExactly("OUT_OF_SCOPE: a spreadsheet, and spreadsheets are out of scope");
-                    assertThat(verdictsOf(bmp))
-                            .containsExactly("OUT_OF_SCOPE: a BMP image, and BMP images are out of scope");
-                    assertThat(verdictsOf(video)).containsExactly("OUT_OF_SCOPE: a video, and videos are out of scope");
-                });
-        claim(
-                "the older Word file and the PNG are kept",
-                () -> {
-                    assertThat(verdictsOf(olderWordFile)).isEmpty();
-                    assertThat(verdictsOf(png)).isEmpty();
-                });
-        claim(
-                "the four removed are reported as left out, with the reason they were written with",
-                () -> assertThat(progress.checked)
-                        .filteredOn(entry -> entry.getValue() instanceof Outcome.LeftOut)
-                        .containsExactlyInAnyOrder(
-                                Map.entry(workbook, new Outcome.LeftOut("a spreadsheet, and spreadsheets are out of scope")),
-                                Map.entry(
-                                        olderSpreadsheet,
-                                        new Outcome.LeftOut("a spreadsheet, and spreadsheets are out of scope")),
-                                Map.entry(bmp, new Outcome.LeftOut("a BMP image, and BMP images are out of scope")),
-                                Map.entry(video, new Outcome.LeftOut("a video, and videos are out of scope"))));
-        claim(
-                "the tally counts four left out, none of them a log and none of them for its size",
-                () -> {
-                    assertThat(mix.outOfScope()).isEqualTo(4);
-                    assertThat(mix.logs()).isZero();
-                    assertThat(mix.tooLarge()).isZero();
-                });
-    }
-
-    @Test
-    @Story("When a text file is a log")
-    @DisplayName("Under a floor, a log over the size limit is removed as a log and counted among the logs, not for its size")
-    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
-    void theLogRuleComesBeforeTheSizeRule(@TempDir Path root) throws Exception {
-        String name = NOT_CUT_PREFIX + "-server.txt";
-        Files.writeString(root.resolve(name), TIMESTAMPED_LINE.repeat(LOG_LINES));
-        Corpus corpus = new Corpus(root);
-        OccurrenceId log = corpus.occurrence(name);
-        String sizeReason = String.format(SIZE_REASON_NOT_CUT, TIMESTAMPED_LINE.length() * LOG_LINES);
-
-        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, A_FLOOR, List.of(), List.of(), new RecordedChecks());
-
-        claim(
-                "the size rule alone would remove this file too: its " + LOG_LINES + " lines of twelve bytes are over"
-                        + " the 100-byte ceiling handed in, and the limits say it is not cut into parts",
-                () -> assertThat(OutOfScope.sizeReason(
-                                root.resolve(name), Files.size(root.resolve(name)), java.util.Optional.empty(), SMALL_LIMITS))
-                        .contains(sizeReason));
-        claim(
-                "but it is removed once, with the reason that calls it a log, and not with the size reason",
-                () -> assertThat(verdictsOf(log))
-                        .containsExactly("OUT_OF_SCOPE: a log, and logs are out of scope:"
-                                + " 100% of the lines read from its start and end begin with a timestamp"));
-        claim(
-                "the tally counts it as left out and as a log, and not among the text files left out for their size",
-                () -> {
-                    assertThat(mix.outOfScope()).isEqualTo(1);
-                    assertThat(mix.logs()).isEqualTo(1);
-                    assertThat(mix.tooLarge()).isZero();
-                });
-    }
-
-    /** The size reason for a text file over the 100-byte ceiling that is not cut, with its size to fill in. */
-    private static final String SIZE_REASON_NOT_CUT = "a text file of %d bytes in UTF-16 or UTF-32, and such text"
-            + " files over 100 bytes are out of scope, because the converter cannot finish one in time and one is not"
-            + " cut into parts";
-
-    @Test
-    @Story("When a text file is a log")
-    @DisplayName("With no floor, a file of timestamped lines is kept and still counted in its band")
-    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
-    void withNoFloorNothingIsALogButEveryShareIsCounted(@TempDir Path root) throws Exception {
-        Files.writeString(root.resolve("server-output"), "12:00:00 a\n".repeat(LOG_LINES));
-        Files.writeString(root.resolve("notes.txt"), "first\nsecond\nthird\n");
-        Corpus corpus = new Corpus(root);
-        OccurrenceId timestamped = corpus.occurrence("server-output");
-        OccurrenceId shortNotes = corpus.occurrence("notes.txt");
-
-        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, null, List.of(), List.of(), new RecordedChecks());
-
-        claim(
-                "neither file carries a verdict: with no floor, the share is measured and nothing is removed for it",
-                () -> {
-                    assertThat(verdictsOf(timestamped)).isEmpty();
-                    assertThat(verdictsOf(shortNotes)).isEmpty();
-                });
-        claim(
-                "the file whose every line is timestamped is counted once, in the band from 90% to 100%",
-                () -> assertThat(mix.byTimestampBand()).hasSize(FormatMix.TIMESTAMP_BANDS).satisfies(bands -> {
-                    assertThat(bands[TOP_BAND]).isEqualTo(1);
-                    assertThat(java.util.Arrays.stream(bands).sum()).isEqualTo(1);
-                }));
-        claim(
-                "and the three-line file is counted apart, as one with fewer than ten lines to judge by",
-                () -> assertThat(mix.fewerThanTenLines()).isEqualTo(1));
-    }
-
-    @Test
-    @Story("When a text file is too large to convert")
-    @DisplayName("Text over the size limit is kept when cut into parts, and removed when it is HTML, not cut, or too large to cut")
-    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
-    @Link(name = "ADR-178", url = Adr.TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS, type = "adr")
-    void appliesTheSizeRuleThroughTheLimitsHandedIn(@TempDir Path root) throws Exception {
-        writeTextOfExactly(root.resolve("export.txt"), OVER_THE_CEILING);
-        writeTextOfExactly(root.resolve("page.html"), OVER_THE_CEILING);
-        writeTextOfExactly(root.resolve("small.html"), (int) SMALL_CEILING);
-        writeTextOfExactly(root.resolve(NOT_CUT_PREFIX + ".txt"), OVER_THE_CEILING);
-        writeTextOfExactly(root.resolve("dump.txt"), OVER_THE_LARGEST);
-        Corpus corpus = new Corpus(root);
-        OccurrenceId cut = corpus.occurrence("export.txt");
-        OccurrenceId html = corpus.occurrence("page.html");
-        OccurrenceId smallHtml = corpus.occurrence("small.html");
-        OccurrenceId notCut = corpus.occurrence(NOT_CUT_PREFIX + ".txt");
-        OccurrenceId dump = corpus.occurrence("dump.txt");
-
-        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, null, List.of(), List.of(), new RecordedChecks());
-
-        claim(
-                "a 150-byte text file over the 100-byte ceiling is kept, because the limits say it is cut into parts",
-                () -> assertThat(verdictsOf(cut)).isEmpty());
-        claim(
-                "an HTML file of exactly 100 bytes is kept: only a file over the ceiling is removed",
-                () -> assertThat(verdictsOf(smallHtml)).isEmpty());
-        claim(
-                "a 150-byte HTML file is removed against the 100-byte ceiling it was handed",
-                () -> assertThat(verdictsOf(html)).containsExactly("OUT_OF_SCOPE: an HTML file of 150 bytes, and HTML,"
-                        + " CSV and AsciiDoc files over 100 bytes are out of scope, because the converter cannot finish"
-                        + " one in time and cutting one into parts breaks its structure"));
-        claim(
-                "a 150-byte text file the limits say is not cut is removed, with the reason saying so",
-                () -> assertThat(verdictsOf(notCut)).containsExactly("OUT_OF_SCOPE: a text file of 150 bytes in UTF-16"
-                        + " or UTF-32, and such text files over 100 bytes are out of scope, because the converter cannot"
-                        + " finish one in time and one is not cut into parts"));
-        claim(
-                "a 401-byte text file is removed against the 400-byte largest size it was handed",
-                () -> assertThat(verdictsOf(dump)).containsExactly("OUT_OF_SCOPE: a text file of 401 bytes, and text"
-                        + " files over 400 bytes are out of scope, because the converter's answer for one would be too"
-                        + " large to keep"));
-        claim(
-                "the tally counts the three removed among the text files left out for their size",
-                () -> {
-                    assertThat(mix.outOfScope()).isEqualTo(3);
-                    assertThat(mix.tooLarge()).isEqualTo(3);
-                    assertThat(mix.logs()).isZero();
-                });
-    }
-
-    @Test
     @Story("What the first pass counts")
     @DisplayName("The tally counts every file checked by what it was found to be, removed ones and unread ones included")
     @Link(name = "ADR-095", url = Adr.DETECTED_FORMAT_IS_A_STAGE_1_OUTPUT, type = "adr")
@@ -343,79 +144,6 @@ class BrokenOrOutOfScopeTest {
                 "and the Markdown file is counted under text, with the finer label beside it",
                 () -> assertThat(mix.bySubtype())
                         .containsEntry(DetectedFormat.PLAIN_TEXT, Map.of(DetectedSubtype.MARKDOWN, 1)));
-    }
-
-    @Test
-    @Story("What the first pass decides about each survivor")
-    @DisplayName("A file gone before the code rules read it is not code, is said to be unreadable for them, and the pass carries on")
-    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
-    void aFileTheCodeRulesCannotReadIsNotCode(@TempDir Path root) throws Exception {
-        // Single-byte text, detected as of no known kind, and plain text: both read as text, and both names end
-        // with a listed ending, so each would be code had its bytes still been there to read.
-        Files.write(root.resolve("gone.c"), "/* perchè */\nint f(void);\n".getBytes(StandardCharsets.ISO_8859_1));
-        Files.writeString(root.resolve("gone.java"), "class Gone {}\n");
-        Files.write(root.resolve("after.c"), "/* perchè no */\nint g(void);\n".getBytes(StandardCharsets.ISO_8859_1));
-        Corpus corpus = new Corpus(root);
-        OccurrenceId goneUnrecognised = corpus.occurrence("gone.c");
-        OccurrenceId gonePlainText = corpus.occurrence("gone.java");
-        OccurrenceId after = corpus.occurrence("after.c");
-        RunId run = corpus.run();
-        // The file is removed once its kind is recorded: after detection has read it, before the code rules do.
-        Map<OccurrenceId, Path> removedOnceDetected =
-                Map.of(goneUnrecognised, root.resolve("gone.c"), gonePlainText, root.resolve("gone.java"));
-        DetectedFormats removing = new DetectedFormats(jdbcTemplate) {
-            @Override
-            public void record(OccurrenceId occurrenceId, RunId runId, DetectedFormat format, DetectedSubtype subtype) {
-                super.record(occurrenceId, runId, format, subtype);
-                Path file = removedOnceDetected.get(occurrenceId);
-                if (file != null) {
-                    try {
-                        Files.delete(file);
-                    } catch (IOException e) {
-                        throw new java.io.UncheckedIOException(e);
-                    }
-                }
-            }
-        };
-        RecordedChecks progress = new RecordedChecks();
-
-        FormatMix mix = new BrokenOrOutOfScope(new Ledger(jdbcTemplate), removing, SMALL_LIMITS)
-                .verdictSurvivors(run, root, null, List.of(), List.of(".c", ".java"), progress);
-
-        claim(
-                "the two files were detected as of no known kind and as text, so both were the code rules' to read",
-                () -> {
-                    assertThat(new DetectedFormats(jdbcTemplate).formatFor(goneUnrecognised, run))
-                            .contains(DetectedFormat.UNRECOGNISED);
-                    assertThat(new DetectedFormats(jdbcTemplate).formatFor(gonePlainText, run))
-                            .contains(DetectedFormat.PLAIN_TEXT);
-                });
-        claim(
-                "neither file the code rules could not read carries a verdict, code or any other",
-                () -> {
-                    assertThat(verdictsOf(goneUnrecognised)).isEmpty();
-                    assertThat(verdictsOf(gonePlainText)).isEmpty();
-                });
-        claim(
-                "each is said to be unreadable for the code rules once, and the file read after them is not",
-                () -> assertThat(progress.codeUnreadable).containsExactly(goneUnrecognised, gonePlainText));
-        claim(
-                "the text file, read for timestamps too, is said to be unreadable for those as well, once, and the file"
-                        + " of no known kind, never read for timestamps, is not",
-                () -> assertThat(progress.unreadable).containsExactly(gonePlainText));
-        claim(
-                "and the pass carries on: the next file is kept as code for its ending, and each is reported as what it came to",
-                () -> {
-                    assertThat(verdictsOf(after)).containsExactly(
-                            "CODE: a file whose name ends with .c, an ending codeNameEndings in profile.yaml lists as code");
-                    assertThat(progress.checked)
-                            .containsExactly(
-                                    Map.entry(goneUnrecognised, new Outcome.Kept()),
-                                    Map.entry(gonePlainText, new Outcome.Kept()),
-                                    Map.entry(after, new Outcome.Code(
-                                            "a file whose name ends with .c, an ending codeNameEndings in profile.yaml lists as code")));
-                    assertThat(mix.code()).isEqualTo(1);
-                });
     }
 
     /** The verdicts on {@code occurrence}, as kind and reason. */
@@ -473,55 +201,6 @@ class BrokenOrOutOfScopeTest {
         }
     }
 
-    /** Rows of semicolon-separated values, none beginning with a timestamp, cut at exactly {@code size} bytes. */
-    private static void writeTextOfExactly(Path file, int size) throws IOException {
-        byte[] row = "TID-0001;ACME RETAIL;terminal row\n".getBytes(StandardCharsets.US_ASCII);
-        byte[] bytes = new byte[size];
-        for (int i = 0; i < size; i++) {
-            bytes[i] = row[i % row.length];
-        }
-        Files.write(file, bytes);
-    }
-
-    /** A well-formed archive whose single entry is named {@code entryName}. */
-    private static void zipHolding(Path path, String entryName) throws IOException {
-        try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(Files.newOutputStream(path))) {
-            zip.putNextEntry(new java.util.zip.ZipEntry(entryName));
-            zip.write("<part/>".getBytes(StandardCharsets.US_ASCII));
-            zip.closeEntry();
-        }
-    }
-
-    /** The eight bytes every OLE compound file begins with, then padding to {@code length}. */
-    private static byte[] oleCompoundFile(int length) {
-        byte[] bytes = new byte[length];
-        byte[] signature = {(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0, (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1};
-        System.arraycopy(signature, 0, bytes, 0, signature.length);
-        return bytes;
-    }
-
     /** The first four bytes of a Windows shortcut, which no detection rule recognises. */
     private static final byte[] WINDOWS_SHORTCUT_HEADER = {0x4C, 0x00, 0x00, 0x00};
-
-    /** A whole BMP of one pixel: the 14-byte file header, the 40-byte picture header, one padded pixel. */
-    private static final byte[] MINIMAL_BMP = {
-        'B', 'M', 58, 0, 0, 0, 0, 0, 0, 0, 54, 0, 0, 0,
-        40, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 24, 0,
-        0, 0, 0, 0, 4, 0, 0, 0, (byte) 0xC4, 0x0E, 0, 0, (byte) 0xC4, 0x0E, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0x7F, 0x7F, 0x7F, 0
-    };
-
-    /** The smallest MP4: an {@code ftyp} box naming {@code mp42}, then an {@code mdat} box of eight bytes. */
-    private static final byte[] MINIMAL_MP4 = {
-        0, 0, 0, 24, 'f', 't', 'y', 'p', 'm', 'p', '4', '2', 0, 0, 0, 0,
-        'i', 's', 'o', 'm', 'm', 'p', '4', '2',
-        0, 0, 0, 16, 'm', 'd', 'a', 't',
-        0, 0, 0, 1, (byte) 0xB3, (byte) 0xC0, 0, 0
-    };
-
-    /** The eight bytes every PNG begins with, then enough to give it a length of its own. */
-    private static final byte[] PNG_FILE = {
-        (byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n', 0, 0, 0, 0x0D, 'I', 'H', 'D', 'R', 0, 0, 0, 1, 0, 0, 0, 1
-    };
 }

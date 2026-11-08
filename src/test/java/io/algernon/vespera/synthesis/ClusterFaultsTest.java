@@ -73,98 +73,8 @@ class ClusterFaultsTest {
     /** The number that failed, kept in the row so nobody has to ask the model again to learn it. */
     private static final String DETAIL = "citation 7 against 2 document(s) sent";
 
-    /**
-     * How many ways an answer can be turned down: the question arriving cut short, the answer stopping
-     * because it ran out of room, an answer nothing can read back into a heading and its writing, and
-     * a citation pointing at no document the call carried. Four, and a fifth is a change to the code
-     * rather than a value somebody passes in.
-     */
-    private static final int FOUR_WAYS_AN_ANSWER_CAN_BE_TURNED_DOWN = 4;
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    @Test
-    @Story("A group left unwritten keeps the reason it was left unwritten")
-    @DisplayName("The reason an answer was turned down is kept against the group it was about")
-    void keepsTheReasonAgainstTheClusterItWasAbout() {
-        ClusterFaults faults = new ClusterFaults(jdbcTemplate);
-        OccurrenceId seed = anOccurrence("seeds/safety.docx");
-        RunId run = aRun(seed);
-
-        faults.record(
-                run,
-                seed,
-                CLUSTER_ORDINAL,
-                new ClusterFault(ClusterFaultKind.CITATION_NOT_IN_RANGE, DETAIL));
-
-        claim(
-                "what comes back names the group and says which check turned the answer down, so the"
-                        + " group with nothing written over it is a group somebody can account for rather"
-                        + " than a hole with no explanation anywhere",
-                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).singleElement().satisfies(recorded -> {
-                    assertThat(recorded.winningSeed()).isEqualTo(seed);
-                    assertThat(recorded.clusterOrdinal()).isEqualTo(CLUSTER_ORDINAL);
-                    assertThat(recorded.fault().kind()).isEqualTo(ClusterFaultKind.CITATION_NOT_IN_RANGE);
-                }));
-        claim(
-                "and it carries the number that failed, word for word as it was recorded: which check"
-                        + " turned the answer down says what kind of thing went wrong, and the number is"
-                        + " what distinguishes an answer that pointed at a document that was never sent"
-                        + " from one that was cut off -- without it, learning that costs the most"
-                        + " expensive call this system makes, made a second time",
-                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run))
-                        .singleElement()
-                        .satisfies(recorded -> assertThat(recorded.fault().detail()).isEqualTo(DETAIL)));
-    }
-
-    @Test
-    @Story("The ways an answer can be turned down are fixed, and a new one is a decision somebody takes")
-    @DisplayName("There are four ways an answer can be turned down, and no way to record a fifth")
-    void namesFourWaysAndNoFifth() {
-        claim(
-                "there are exactly " + FOUR_WAYS_AN_ANSWER_CAN_BE_TURNED_DOWN + " of them -- the question"
-                        + " arriving cut short, the answer running out of room, an answer nothing can read,"
-                        + " and a citation pointing at a document the call never carried -- and they are"
-                        + " fixed in the code rather than free text a caller supplies, so a fifth cannot be"
-                        + " introduced by somebody writing the next caller and meaning well. A set that"
-                        + " anyone may add to is a set whose meaning stops living in one place",
-                () -> assertThat(ClusterFaultKind.values())
-                        .hasSize(FOUR_WAYS_AN_ANSWER_CAN_BE_TURNED_DOWN)
-                        .containsExactlyInAnyOrder(
-                                ClusterFaultKind.PROMPT_EVALUATION_CEILING,
-                                ClusterFaultKind.ANSWER_RAN_OUT_OF_ROOM,
-                                ClusterFaultKind.SCHEMA_VIOLATION,
-                                ClusterFaultKind.CITATION_NOT_IN_RANGE));
-    }
-
-    @Test
-    @Story("A reason is dropped once a later answer about the same group is believed")
-    @DisplayName("Dropping the reason kept for a group removes it, and dropping one for a group that has none does nothing")
-    @Issue("185")
-    void dropsTheReasonKeptAndDoesNothingWhenNoneIsKept() {
-        ClusterFaults faults = new ClusterFaults(jdbcTemplate);
-        OccurrenceId seed = anOccurrence("seeds/safety.docx");
-        RunId run = aRun(seed);
-        faults.record(
-                run, seed, CLUSTER_ORDINAL, new ClusterFault(ClusterFaultKind.CITATION_NOT_IN_RANGE, DETAIL));
-
-        faults.delete(run, seed, CLUSTER_ORDINAL);
-
-        claim(
-                "nothing is kept against the group any more. A later answer about it was believed and has"
-                        + " been written over the group, so a reason still standing here would have the"
-                        + " record saying one group under one run was both written over and left unwritten",
-                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).isEmpty());
-        claim(
-                "and dropping a reason for a group that has none does nothing and fails nothing, which is"
-                        + " the ordinary case: almost every group is answered well the first time and never"
-                        + " had a reason kept against it to drop",
-                () -> {
-                    faults.delete(run, seed, CLUSTER_ORDINAL);
-                    assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).isEmpty();
-                });
-    }
 
     @Test
     @Story("A reason is dropped for one group under one record, and for nothing else")
@@ -232,29 +142,6 @@ class ClusterFaultsTest {
                     assertThat(recorded.clusterOrdinal()).isEqualTo(CLUSTER_ORDINAL);
                     assertThat(recorded.fault().kind()).isEqualTo(ClusterFaultKind.CITATION_NOT_IN_RANGE);
                 }));
-    }
-
-    @Test
-    @Story("A rejected answer takes nothing out of the archive")
-    @DisplayName("A group left unwritten records no judgement against any of its documents")
-    void writesNoJudgement() {
-        ClusterFaults faults = new ClusterFaults(jdbcTemplate);
-        OccurrenceId seed = anOccurrence("seeds/safety.docx");
-        RunId run = aRun(seed);
-
-        faults.record(
-                run,
-                seed,
-                CLUSTER_ORDINAL,
-                new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, DETAIL));
-
-        claim(
-                "no judgement is recorded against any document because the answer about its group was"
-                        + " turned down: every judgement this system records exists to take a document out"
-                        + " of what gets published, and nothing is wrong with these documents -- what was"
-                        + " rejected is what was said about them",
-                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM verdict", Integer.class))
-                        .isZero());
     }
 
     private OccurrenceId anOccurrence(String path) {

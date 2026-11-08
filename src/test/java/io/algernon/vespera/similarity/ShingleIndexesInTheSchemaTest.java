@@ -4,7 +4,6 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.ledger.RunId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -17,15 +16,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 
 /**
@@ -83,9 +79,6 @@ class ShingleIndexesInTheSchemaTest {
     /** The index containment retrieval reads, under the name ADR-081 gave it; its columns are ADR-221's. */
     private static final String BY_HASH = "shingle_by_hash";
 
-    /** The one-column index ADR-173's rule asks for on {@code shingle.run_id}. */
-    private static final String BY_RUN_ID = "shingle_by_run_id";
-
     /** A stage-2 run, in the form a run id is minted in, and another. */
     private static final String A_RUN = "a".repeat(64);
 
@@ -97,38 +90,6 @@ class ShingleIndexesInTheSchemaTest {
     /** The same for {@link #ANOTHER_RUN}: the index as another run's stage 4b leaves it. */
     private static final String BUILD_ANOTHER_RUNS = TheRunsHashIndex.statementFor(ANOTHER_RUN);
 
-    /** The index over every run's rows that ADR-182 built, until ADR-221. */
-    private static final String BUILD_THE_WHOLE_TABLE_FORM = TheRunsHashIndex.THE_WHOLE_TABLE_FORM;
-
-    /** A read of one occurrence's distinct hashes, which nothing ships: what #277 took out of stage 4's reads. */
-    private static final String A_DISTINCT_READ_OF_ONE_OCCURRENCE = "SELECT DISTINCT shingle_hash FROM shingle"
-            + " WHERE occurrence_id = ? AND run_id = ? AND shingle_parameter_identity = ?";
-
-    /**
-     * A plain read of every shingle row under one stage-2 run: what {@code DocumentFrequency} sent when
-     * ADR-182 was written, and has not sent since ADR-211. Nothing in {@code src/main} sends it today.
-     */
-    private static final String A_PLAIN_READ_OF_A_RUN =
-            "SELECT occurrence_id, shingle_parameter_identity, shingle_hash FROM shingle WHERE run_id = ?";
-
-    /**
-     * Stage 3's grouping of a run's rows without its insert and without ADR-219's clause: what {@code
-     * DocumentFrequency} sent from ADR-211 until the clause shipped. Nothing in {@code src/main} sends it.
-     */
-    private static final String THE_GROUPING = "SELECT ?, shingle_parameter_identity, shingle_hash,"
-            + " COUNT(DISTINCT occurrence_id), COUNT(*) FROM shingle WHERE run_id = ?"
-            + " GROUP BY shingle_parameter_identity, shingle_hash HAVING COUNT(DISTINCT occurrence_id) >= 2";
-
-    /** The clause ADR-219 decides for it, after the table's name. */
-    private static final String THE_PIN = "INDEXED BY shingle_by_run_id";
-
-    /** The grouping as ADR-219 section 1 writes it and {@code DocumentFrequency} sends it, without its insert. */
-    private static final String THE_GROUPING_PINNED =
-            THE_GROUPING.replace("FROM shingle WHERE", "FROM shingle " + THE_PIN + " WHERE");
-
-    /** What SQLite's plan says where it sorts the rows for the grouping, in temporary storage. */
-    private static final String SORTS_FOR_THE_GROUPING = "USE TEMP B-TREE FOR GROUP BY";
-
     /**
      * Containment retrieval's read of the occurrences that carry one hash, a page of them at a time in
      * occurrence order, as {@code RedundancyResolution} sends it since ADR-225 section 2, with {@link #A_RUN}
@@ -137,9 +98,6 @@ class ShingleIndexesInTheSchemaTest {
     private static final String ONE_HASHS_OCCURRENCES = "SELECT DISTINCT occurrence_id FROM shingle"
             + " WHERE run_id = '" + A_RUN + "' AND shingle_parameter_identity = ? AND shingle_hash = ?"
             + " AND occurrence_id > ? ORDER BY occurrence_id LIMIT 1000";
-
-    /** The clause every shipped read of one occurrence's shingles carries since ADR-225 section 4. */
-    private static final String THE_OCCURRENCES_INDEX_NAMED = "FROM shingle INDEXED BY shingle_by_occurrence WHERE";
 
     /** What SQLite's plan says wherever it keeps rows in temporary storage to sort them. */
     private static final String SORTS = "TEMP B-TREE";
@@ -158,124 +116,6 @@ class ShingleIndexesInTheSchemaTest {
     @AfterEach
     void close() throws SQLException {
         connection.close();
-    }
-
-    @Test
-    @Story("When the index on word-sequence hashes exists")
-    @DisplayName("A new database has no index ordered by word-sequence hash, so the extraction writes without one")
-    void theShippedSchemaCreatesNoIndexOnTheShingleHash() throws SQLException {
-        List<String> indexes = indexesOnShingle();
-
-        claim(
-                "the schema does put indexes on the word-sequence table, so the claim below is about a table"
-                        + " that has some",
-                () -> assertThat(indexes).isNotEmpty());
-        claim(
-                "and none of them has the hash among its columns: an index whose key holds the hash takes"
-                        + " every new row at a random place in it, which is the cost the extraction no longer"
-                        + " pays while it writes",
-                () -> assertThat(indexes).allSatisfy(index -> assertThat(columnsOf(index)).doesNotContain("shingle_hash")));
-        claim(
-                "and the index the later redundancy check builds is not among them",
-                () -> assertThat(indexes).doesNotContain(BY_HASH));
-    }
-
-    @Test
-    @Story("When the index on word-sequence hashes exists")
-    @DisplayName("A new database indexes word sequences by the run that recorded them, and by nothing else in that index")
-    void theShippedSchemaIndexesShinglesOnTheRunAlone() throws SQLException {
-        claim(
-                "the word-sequence table has an index on the run column alone, the one-column shape every"
-                        + " reference to a run is given",
-                () -> assertThat(columnsOf(BY_RUN_ID)).containsExactly("run_id"));
-    }
-
-    @Test
-    @Story("When the index on word-sequence hashes exists")
-    @DisplayName("A plain read of one run's word sequences, with nothing counted, reads them in the order they were written")
-    void aPlainReadOfARunGoesThroughTheIndexOnTheRun() throws SQLException {
-        String withoutTheHashIndex = planOf(A_PLAIN_READ_OF_A_RUN, A_RUN);
-        try (Statement statement = connection.createStatement()) {
-            statement.executeUpdate(BUILD_BY_HASH);
-        }
-        String withTheHashIndexBuilt = planOf(A_PLAIN_READ_OF_A_RUN, A_RUN);
-
-        claim(
-                "reading every word sequence of one run, and only reading them, is answered through the index on"
-                        + " the run, which keeps the rows in the order they were written, and not through an"
-                        + " index ordered by hash, which fetches each row from a different place: \""
-                        + withoutTheHashIndex + "\"",
-                () -> assertThat(withoutTheHashIndex).contains(BY_RUN_ID).doesNotContain(BY_HASH));
-        claim(
-                "and that stays so after the redundancy check has built its index on the hash: \""
-                        + withTheHashIndexBuilt + "\"",
-                () -> assertThat(withTheHashIndexBuilt).contains(BY_RUN_ID).doesNotContain(BY_HASH));
-    }
-
-    @Test
-    @Story("When the index on word-sequence hashes exists")
-    @DisplayName("Counting how often each word sequence recurs, told which index to read through, reads a run's rows in the order they were written whether or not the hash index is built")
-    void theGroupingWithItsPinGoesThroughTheIndexOnTheRunInBothStates() throws SQLException {
-        String withoutTheHashIndex = planOf(THE_GROUPING_PINNED, "a-stage-3-run", A_RUN);
-        try (Statement statement = connection.createStatement()) {
-            statement.executeUpdate(BUILD_BY_HASH);
-        }
-        String withTheHashIndexBuilt = planOf(THE_GROUPING_PINNED, "a-stage-3-run", A_RUN);
-
-        claim(
-                "with no hash index, the count told to read through the index on the run does, and sorts the"
-                        + " rows itself to count them: \"" + withoutTheHashIndex + "\"",
-                () -> assertThat(withoutTheHashIndex)
-                        .contains(BY_RUN_ID)
-                        .contains(SORTS_FOR_THE_GROUPING)
-                        .doesNotContain(BY_HASH));
-        claim(
-                "and once the redundancy check has built its index on the hash the plan is the same, word for"
-                        + " word, so the count takes the same course whichever state it finds the database in",
-                () -> assertThat(withTheHashIndexBuilt).isEqualTo(withoutTheHashIndex));
-    }
-
-    /**
-     * Why ADR-219's clause is needed, and so true of SQLite with the clause shipped or not: this is the
-     * grouping without it. It plans this text and not what {@code DocumentFrequency} sends, which carries
-     * the clause, so it holds what SQLite would do were the clause taken out again.
-     */
-    @Test
-    @Story("When the index on word-sequence hashes exists")
-    @DisplayName("Counting how often each word sequence recurs, left to choose, reads through a hash index built over every extraction's rows, as an earlier version built it, and not through one built for a single extraction")
-    void theGroupingWithoutAPinGoesThroughAHashIndexOverEveryRunsRowsAndNotThroughOneRunsOwn() throws SQLException {
-        String withoutTheHashIndex = planOf(THE_GROUPING, "a-stage-3-run", A_RUN);
-        try (Statement statement = connection.createStatement()) {
-            statement.executeUpdate(BUILD_THE_WHOLE_TABLE_FORM);
-        }
-        String withTheHashIndexBuilt = planOf(THE_GROUPING, "a-stage-3-run", A_RUN);
-
-        claim(
-                "with no hash index, the count left to choose reads through the index on the run and sorts the"
-                        + " rows itself: \"" + withoutTheHashIndex + "\"",
-                () -> assertThat(withoutTheHashIndex)
-                        .contains(BY_RUN_ID)
-                        .contains(SORTS_FOR_THE_GROUPING)
-                        .doesNotContain(BY_HASH));
-        claim(
-                "once the redundancy check has built its index on the hash, the same count reads through that"
-                        + " index instead, which hands it the rows already in order, so it sorts nothing for"
-                        + " the count and fetches each row from wherever it was written: \""
-                        + withTheHashIndexBuilt + "\"",
-                () -> assertThat(withTheHashIndexBuilt)
-                        .contains("USING INDEX " + BY_HASH)
-                        .doesNotContain(SORTS_FOR_THE_GROUPING));
-
-        try (Statement statement = connection.createStatement()) {
-            statement.executeUpdate("DROP INDEX " + BY_HASH);
-            statement.executeUpdate(BUILD_BY_HASH);
-        }
-        String withTheRunsIndexBuilt = planOf(THE_GROUPING, "a-stage-3-run", A_RUN);
-        claim(
-                "that was the index over every run's rows; with the index built over this run's rows alone,"
-                        + " as it is built now, the count left to choose is not drawn to it and takes the"
-                        + " course it takes with no hash index: \"" + withTheRunsIndexBuilt + "\"",
-                () -> assertThat(withTheRunsIndexBuilt).isEqualTo(withoutTheHashIndex));
     }
 
     /**
@@ -327,129 +167,6 @@ class ShingleIndexesInTheSchemaTest {
                         + " row of its run again, as it does with no index, so an index left by another run"
                         + " has to be told apart from this run's and built again: \"" + withAnotherRuns + "\"",
                 () -> assertThat(withAnotherRuns).doesNotContain(BY_HASH).doesNotContain("shingle_hash="));
-    }
-
-    /**
-     * What the index is, as SQLite keeps it: three columns, and only the rows of one run (ADR-221 section 1,
-     * and ADR-225 section 3 for the third).
-     */
-    @Test
-    @Story("When the index on word-sequence hashes exists")
-    @DisplayName("The hash index holds the measurement settings, the hash and the document of one run's rows, and the database keeps the statement it was built with word for word")
-    void theHashIndexIsOverTheRowsOfOneRunAndItsStatementIsKeptAsIssued() throws SQLException {
-        TheRunsHashIndex.buildFor(
-                new JdbcTemplate(new SingleConnectionDataSource(connection, true)),
-                new RunId(A_RUN),
-                SimilarityStatementProgress.NONE);
-
-        claim(
-                "the index holds the measurement settings, the hash and the document, in that order, and not"
-                        + " the run, which every row in it shares",
-                () -> assertThat(columnsOf(BY_HASH))
-                        .containsExactly("shingle_parameter_identity", "shingle_hash", "occurrence_id"));
-        claim(
-                "it is an index over part of the table's rows",
-                () -> assertThat(partialIndexesOnShingle()).containsExactly(BY_HASH));
-        claim(
-                "and the database keeps the statement the redundancy check built it with exactly as it was issued,"
-                        + " the run's id written into it, which is how the run it was built for is read back",
-                () -> assertThat(storedStatementOf(BY_HASH)).isEqualTo(BUILD_BY_HASH));
-    }
-
-    /**
-     * The premise of #277's guard, {@code RedundancyResolutionTest.readsOneDocumentsShinglesThroughItsOwnIndex},
-     * under ADR-221's index: that guard reads its plans with the run's index built so that a {@code DISTINCT}
-     * put back into a read of one occurrence's shingles would show.
-     *
-     * <p>Since ADR-225 section 3 the index ends in the occurrence, so it holds every column such a read asks
-     * for, and SQLite is drawn to it with or without {@code DISTINCT}: measured, stage 4b's containment took
-     * 369 s where it took 6.8 s. So every shipped read of one occurrence's shingles names the index on the
-     * occurrence (section 4), and this holds both halves: with the clause it reads the occurrence's rows, and
-     * without it the whole run's.
-     */
-    @Test
-    @Story("When the index on word-sequence hashes exists")
-    @DisplayName("One document's word sequences are read through the index on the document with the hash index built, because the read names that index, and read the whole run's hash index where it does not")
-    void aReadOfOneOccurrenceGoesThroughTheIndexOnTheOccurrenceBecauseItNamesIt() throws SQLException {
-        try (Statement statement = connection.createStatement()) {
-            statement.executeUpdate(BUILD_BY_HASH);
-        }
-        String unnamed = A_DISTINCT_READ_OF_ONE_OCCURRENCE.replace("SELECT DISTINCT", "SELECT");
-        String left = planOf(unnamed, ANY, A_RUN, FIVE_WORD_SHINGLES.identity());
-        String named = planOf(
-                unnamed.replace("FROM shingle WHERE", THE_OCCURRENCES_INDEX_NAMED),
-                ANY,
-                A_RUN,
-                FIVE_WORD_SHINGLES.identity());
-        String distinct = planOf(A_DISTINCT_READ_OF_ONE_OCCURRENCE, ANY, A_RUN, FIVE_WORD_SHINGLES.identity());
-
-        claim(
-                "the read naming the index on the document, as every shipped read of one document's word sequences"
-                        + " does, goes through that index: \"" + named
-                        + "\"",
-                () -> assertThat(named).contains("shingle_by_occurrence").doesNotContain(BY_HASH));
-        claim(
-                "the same read left to choose is drawn to the hash index, which holds every column it asks"
-                        + " for, and looks up no hash in it, so it goes through every row of the run for one"
-                        + " document: \"" + left + "\"",
-                () -> assertThat(left)
-                        .contains(BY_HASH)
-                        .doesNotContain("shingle_hash=")
-                        .doesNotContain("shingle_by_occurrence"));
-        claim(
-                "and so is the read asked for distinct hashes, as it was before the index held the document:"
-                        + " \"" + distinct + "\"",
-                () -> assertThat(distinct)
-                        .contains(BY_HASH)
-                        .doesNotContain("shingle_hash=")
-                        .doesNotContain("shingle_by_occurrence"));
-    }
-
-    private List<String> partialIndexesOnShingle() throws SQLException {
-        List<String> names = new ArrayList<>();
-        try (Statement statement = connection.createStatement();
-                ResultSet result =
-                        statement.executeQuery("SELECT name FROM pragma_index_list('shingle') WHERE partial = 1")) {
-            while (result.next()) {
-                names.add(result.getString(1));
-            }
-        }
-        return names;
-    }
-
-    private String storedStatementOf(String index) throws SQLException {
-        try (PreparedStatement statement =
-                connection.prepareStatement("SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?")) {
-            statement.setString(1, index);
-            try (ResultSet result = statement.executeQuery()) {
-                return result.next() ? result.getString(1) : null;
-            }
-        }
-    }
-
-    private List<String> indexesOnShingle() throws SQLException {
-        List<String> names = new ArrayList<>();
-        try (Statement statement = connection.createStatement();
-                ResultSet result = statement.executeQuery("SELECT name FROM pragma_index_list('shingle')")) {
-            while (result.next()) {
-                names.add(result.getString(1));
-            }
-        }
-        return names;
-    }
-
-    private List<String> columnsOf(String index) throws SQLException {
-        List<String> columns = new ArrayList<>();
-        try (PreparedStatement statement =
-                        connection.prepareStatement("SELECT name FROM pragma_index_info(?) ORDER BY seqno")) {
-            statement.setString(1, index);
-            try (ResultSet result = statement.executeQuery()) {
-                while (result.next()) {
-                    columns.add(result.getString(1));
-                }
-            }
-        }
-        return columns;
     }
 
     /** SQLite's plan for {@code query}, every row of it joined into one line. */

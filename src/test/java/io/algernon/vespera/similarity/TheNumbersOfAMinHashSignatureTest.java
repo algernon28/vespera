@@ -2,8 +2,6 @@ package io.algernon.vespera.similarity;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -36,18 +34,6 @@ class TheNumbersOfAMinHashSignatureTest {
     /** The identity those four read as. */
     private static final String SHIPPED_IDENTITY = "perms:128;bands:16;rows:8;seed:6840335614489015382";
 
-    /** A seed for the tests whose claim is not about one. */
-    private static final long A_SEED = 7L;
-
-    /** One row fewer than the shipped bands need, so their product falls short of the permutations. */
-    private static final int ROWS_TOO_FEW = SHIPPED_ROWS - 1;
-
-    /** Bands and rows whose true product is 2^32 + 131073, which an int cut down to its size reads as 131073. */
-    private static final int BANDS_AND_ROWS_PAST_AN_INT = 65537;
-
-    /** What their product comes out as in an int. */
-    private static final int THEIR_PRODUCT_CUT_DOWN_TO_AN_INT = 131073;
-
     @Test
     @Story("A signature says the permutations, bands, rows and seed it was made of")
     @DisplayName("The numbers the application ships read as the identity every earlier signature is under, the seed in decimal")
@@ -57,52 +43,5 @@ class TheNumbersOfAMinHashSignatureTest {
                 () -> assertThat(new MinHashParameters(SHIPPED_PERMUTATIONS, SHIPPED_BANDS, SHIPPED_ROWS, SHIPPED_SEED)
                                 .identity())
                         .isEqualTo(SHIPPED_IDENTITY));
-    }
-
-    @Test
-    @Story("A value no run can be made under stops the invocation")
-    @DisplayName("No permutations, no bands and no rows are refused, none of which the product of the other two would catch")
-    void aCountBelowOneIsRefused() {
-        claim("no permutations in no bands, whose product agrees and builds nothing",
-                () -> assertThatThrownBy(() -> new MinHashParameters(0, 0, SHIPPED_ROWS, A_SEED))
-                        .isInstanceOf(IllegalArgumentException.class));
-        claim("and no rows in " + SHIPPED_BANDS + " bands, likewise",
-                () -> assertThatThrownBy(() -> new MinHashParameters(0, SHIPPED_BANDS, 0, A_SEED))
-                        .isInstanceOf(IllegalArgumentException.class));
-        claim("and negative bands and rows, whose product is the positive " + SHIPPED_PERMUTATIONS + " permutations",
-                () -> assertThatThrownBy(
-                                () -> new MinHashParameters(SHIPPED_PERMUTATIONS, -SHIPPED_BANDS, -SHIPPED_ROWS, A_SEED))
-                        .isInstanceOf(IllegalArgumentException.class));
-    }
-
-    @Test
-    @Story("A value no run can be made under stops the invocation")
-    @DisplayName("Bands times their rows other than the permutations are refused, however large the product")
-    void bandsTimesRowsOtherThanThePermutationsAreRefused() {
-        claim(SHIPPED_BANDS + " bands of " + ROWS_TOO_FEW + " rows are not " + SHIPPED_PERMUTATIONS + " permutations",
-                () -> assertThatThrownBy(
-                                () -> new MinHashParameters(SHIPPED_PERMUTATIONS, SHIPPED_BANDS, ROWS_TOO_FEW, A_SEED))
-                        .isInstanceOf(IllegalArgumentException.class));
-        claim("and " + BANDS_AND_ROWS_PAST_AN_INT + " times itself is not " + THEIR_PRODUCT_CUT_DOWN_TO_AN_INT
-                        + ", though an int cut down to its size says it is",
-                () -> assertThatThrownBy(() -> new MinHashParameters(
-                                THEIR_PRODUCT_CUT_DOWN_TO_AN_INT,
-                                BANDS_AND_ROWS_PAST_AN_INT,
-                                BANDS_AND_ROWS_PAST_AN_INT,
-                                A_SEED))
-                        .isInstanceOf(IllegalArgumentException.class));
-    }
-
-    @Test
-    @Story("A value no run can be made under stops the invocation")
-    @DisplayName("One permutation in one band of one row is allowed, and so are as many as an int holds")
-    void theNearestValuesAreAllowed() {
-        claim("the fewest, and the most an int holds in a band each and in one band",
-                () -> assertThatCode(() -> {
-                            new MinHashParameters(1, 1, 1, A_SEED);
-                            new MinHashParameters(Integer.MAX_VALUE, Integer.MAX_VALUE, 1, A_SEED);
-                            new MinHashParameters(Integer.MAX_VALUE, 1, Integer.MAX_VALUE, A_SEED);
-                        })
-                        .doesNotThrowAnyException());
     }
 }

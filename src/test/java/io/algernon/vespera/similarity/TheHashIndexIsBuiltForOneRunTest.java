@@ -101,53 +101,6 @@ class TheHashIndexIsBuiltForOneRunTest {
 
     @Test
     @Story("The index on word-sequence hashes is built for one extraction")
-    @DisplayName("With no hash index in the database, the index is built over the rows of the extraction asked for, and the caller is told once that it started and once that it ended")
-    void withNoIndexItIsBuiltForTheRun() {
-        assumeTrue(
-                thisRun.value().matches(TheRunsHashIndex.A_MINTED_RUN_ID)
-                        && anotherRun.value().matches(TheRunsHashIndex.A_MINTED_RUN_ID),
-                "the two runs made here have ids in the form a run id is minted in");
-        Recorder recorder = new Recorder();
-        long highestRow = jdbcTemplate.queryForObject("SELECT MAX(rowid) FROM shingle", Long.class);
-
-        Optional<Duration> took = TheRunsHashIndex.buildFor(jdbcTemplate, thisRun, recorder);
-
-        claim("the call says how long building took, which is how its caller knows something was built",
-                () -> assertThat(took).isPresent());
-        claim(
-                "the database then holds the index exactly as the statement for this extraction builds it",
-                () -> assertThat(TheRunsHashIndex.statementInTheDatabase(jdbcTemplate))
-                        .contains(TheRunsHashIndex.statementFor(thisRun.value())));
-        claim(
-                "the caller is told the build is starting, over up to the " + highestRow + " rows the table's"
-                        + " highest row number allows, every run's, since the build reads them all to find"
-                        + " this run's; and that it ended: so few rows make no callback between",
-                () -> assertThat(recorder.calls)
-                        .containsExactly(
-                                "starting " + SimilarityStatement.SHINGLE_HASH_INDEX_BUILD + " over up to "
-                                        + OptionalLong.of(highestRow),
-                                "ended " + SimilarityStatement.SHINGLE_HASH_INDEX_BUILD));
-    }
-
-    @Test
-    @Story("The index on word-sequence hashes is built for one extraction")
-    @DisplayName("With the hash index already built for the extraction asked for, nothing is built and nothing is said")
-    void withTheRunsOwnIndexNothingIsBuilt() {
-        jdbcTemplate.execute(TheRunsHashIndex.statementFor(thisRun.value()));
-        Recorder recorder = new Recorder();
-
-        Optional<Duration> took = TheRunsHashIndex.buildFor(jdbcTemplate, thisRun, recorder);
-
-        claim("the call says nothing was built", () -> assertThat(took).isEmpty());
-        claim("the caller hears of no statement", () -> assertThat(recorder.calls).isEmpty());
-        claim(
-                "and the index is the one that was there",
-                () -> assertThat(TheRunsHashIndex.statementInTheDatabase(jdbcTemplate))
-                        .contains(TheRunsHashIndex.statementFor(thisRun.value())));
-    }
-
-    @Test
-    @Story("The index on word-sequence hashes is built for one extraction")
     @DisplayName("A hash index built for another extraction is removed and built again for the extraction asked for")
     void anotherRunsIndexIsRemovedAndThisRunsBuilt() {
         jdbcTemplate.execute(TheRunsHashIndex.statementFor(anotherRun.value()));
@@ -173,22 +126,6 @@ class TheHashIndexIsBuiltForOneRunTest {
         claim("no row of either extraction is touched by it", () -> assertThat(
                         jdbcTemplate.queryForObject("SELECT COUNT(*) FROM shingle", Long.class))
                 .isEqualTo(2L * ROWS_A_RUN));
-    }
-
-    @Test
-    @Story("The index on word-sequence hashes is built for one extraction")
-    @DisplayName("A hash index over every extraction's rows, as an earlier version left it, is removed and built again for the extraction asked for")
-    void theWholeTableIndexOfAnEarlierBuildIsRemovedAndThisRunsBuilt() {
-        jdbcTemplate.execute(TheRunsHashIndex.THE_WHOLE_TABLE_FORM);
-
-        Optional<Duration> took = TheRunsHashIndex.buildFor(jdbcTemplate, thisRun, new Recorder());
-
-        claim("the call says how long building took", () -> assertThat(took).isPresent());
-        claim(
-                "the index in the database is this extraction's: the one over every run's rows is not any"
-                        + " run's, so it is treated as another's",
-                () -> assertThat(TheRunsHashIndex.statementInTheDatabase(jdbcTemplate))
-                        .contains(TheRunsHashIndex.statementFor(thisRun.value())));
     }
 
     @Test

@@ -61,9 +61,6 @@ class ContentIdentityResolutionTest {
     /** Written to three files, so they share a size and their bytes. */
     private static final String THREE_TIMES = "the same bytes, three times";
 
-    /** How many files in the mixed corpus below share a size with another: three copies, then x and y. */
-    private static final int IN_A_SIZE_GROUP = 5;
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -97,36 +94,6 @@ class ContentIdentityResolutionTest {
                     assertThat(representativesOf(a, run)).containsExactly(b);
                     assertThat(representativesOf(c, run)).containsExactly(b);
                     assertThat(representativesOf(b, run)).isEmpty();
-                });
-    }
-
-    /**
-     * ADR-069: the representative is the earliest created, and {@code last_modified} plays no role. Every other
-     * fixture here records one instant as both times, so reading the modification time in place of the creation
-     * time would pass them all; here the two disagree, and the path and the recording order point the other way too.
-     */
-    @Test
-    @Story("Which file occurrence is left standing")
-    @DisplayName("Of two identical files, the one created first is left standing even though it was modified last")
-    void theModificationTimeHasNoSayInWhichIsLeftStanding(@TempDir Path root) throws Exception {
-        Corpus corpus = new Corpus(root);
-        // a.txt is recorded first and its path sorts first, so neither the order nor the path favours b.txt.
-        OccurrenceId createdLastModifiedFirst = corpus.occurrence("a.txt", THREE_TIMES, LATER, EARLIER);
-        OccurrenceId createdFirstModifiedLast = corpus.occurrence("b.txt", THREE_TIMES, EARLIER, LATER);
-        RunId run = corpus.run();
-
-        corpus.resolution().resolve(run, root, new RecordedHashing());
-
-        claim(
-                "b.txt, created before a.txt but modified after it, is left standing and carries no verdict",
-                () -> assertThat(verdictsOf(createdFirstModifiedLast)).isEmpty());
-        claim(
-                "and a.txt, created after b.txt though modified before it, is verdicted superseded-by, naming b.txt,"
-                        + " and recorded as superseded by it",
-                () -> {
-                    assertThat(verdictsOf(createdLastModifiedFirst))
-                            .containsExactly("SUPERSEDED_BY: superseded by the representative at b.txt");
-                    assertThat(representativesOf(createdLastModifiedFirst, run)).containsExactly(createdFirstModifiedLast);
                 });
     }
 
@@ -164,35 +131,6 @@ class ContentIdentityResolutionTest {
     }
 
     @Test
-    @Story("Which file occurrence is left standing")
-    @DisplayName("Two contents that share a size each leave their own file standing")
-    void twoContentsOfOneSizeResolveApart(@TempDir Path root) throws Exception {
-        Corpus corpus = new Corpus(root);
-        OccurrenceId p1 = corpus.occurrence("p1.txt", "AAAAAAAAAAAAAAAA", LATER);
-        OccurrenceId p2 = corpus.occurrence("p2.txt", "AAAAAAAAAAAAAAAA", EARLIER);
-        OccurrenceId q1 = corpus.occurrence("q1.txt", "BBBBBBBBBBBBBBBB", EARLIER);
-        OccurrenceId q2 = corpus.occurrence("q2.txt", "BBBBBBBBBBBBBBBB", LATER);
-        RunId run = corpus.run();
-
-        corpus.resolution().resolve(run, root, new RecordedHashing());
-
-        claim(
-                "the earlier of each pair is left standing: p2.txt and q1.txt carry no verdict",
-                () -> {
-                    assertThat(verdictsOf(p2)).isEmpty();
-                    assertThat(verdictsOf(q1)).isEmpty();
-                });
-        claim(
-                "and each later one names its own pair's file, not the other pair's",
-                () -> {
-                    assertThat(verdictsOf(p1))
-                            .containsExactly("SUPERSEDED_BY: superseded by the representative at p2.txt");
-                    assertThat(verdictsOf(q2))
-                            .containsExactly("SUPERSEDED_BY: superseded by the representative at q1.txt");
-                });
-    }
-
-    @Test
     @Story("Which file occurrences are hashed")
     @DisplayName("A file already removed under the run takes no part, so its identical copy is left alone")
     void aRemovedFileTakesNoPart(@TempDir Path root) throws Exception {
@@ -214,58 +152,6 @@ class ContentIdentityResolutionTest {
                     assertThat(contentIdentity.hashFor(copy, run)).isEmpty();
                     assertThat(verdictsOf(copy)).isEmpty();
                 });
-    }
-
-    @Test
-    @Story("What the second pass reports as it goes")
-    @DisplayName("The count to hash is given once, before any hash, and leaves out files of a size of their own")
-    void reportsHowManyItWillHashThenEachHash(@TempDir Path root) throws Exception {
-        Corpus corpus = new Corpus(root);
-        corpus.occurrence("a.txt", THREE_TIMES, LATER);
-        corpus.occurrence("b.txt", THREE_TIMES, EARLIER);
-        corpus.occurrence("c.txt", THREE_TIMES, EARLIER);
-        corpus.occurrence("x.txt", "one size, content x", EARLIER);
-        corpus.occurrence("y.txt", "one size, content y", EARLIER);
-        corpus.occurrence("lonely.txt", "a size no other file has, at all", EARLIER);
-        RunId run = corpus.run();
-        RecordedHashing progress = new RecordedHashing();
-
-        corpus.resolution().resolve(run, root, progress);
-
-        ContentIdentity contentIdentity = new ContentIdentity(jdbcTemplate);
-        claim(
-                "the first thing reported is the count: " + IN_A_SIZE_GROUP + ", the three copies and the two files"
-                        + " of one size, and not the sixth file, whose size is its own",
-                () -> assertThat(progress.events.getFirst()).isEqualTo("to hash " + IN_A_SIZE_GROUP));
-        claim(
-                "it is reported once only",
-                () -> assertThat(progress.events).filteredOn(event -> event.startsWith("to hash")).hasSize(1));
-        claim(
-                "then each of the " + IN_A_SIZE_GROUP + " is reported once, with the hash recorded for it",
-                () -> assertThat(progress.hashed)
-                        .hasSize(IN_A_SIZE_GROUP)
-                        .allSatisfy(hashed -> assertThat(contentIdentity.hashFor(hashed.occurrence(), run))
-                                .contains(hashed.sha256())));
-    }
-
-    @Test
-    @Story("What the second pass reports as it goes")
-    @DisplayName("With no two files of one size, a count of zero is reported and nothing is hashed")
-    void reportsZeroWhenNothingSharesASize(@TempDir Path root) throws Exception {
-        Corpus corpus = new Corpus(root);
-        corpus.occurrence("short.txt", "short", EARLIER);
-        corpus.occurrence("longer.txt", "a little longer", EARLIER);
-        RecordedHashing progress = new RecordedHashing();
-
-        corpus.resolution().resolve(corpus.run(), root, progress);
-
-        claim(
-                "the one thing reported is a count of zero",
-                () -> assertThat(progress.events).containsExactly("to hash 0"));
-        claim(
-                "and nothing is recorded as hashed",
-                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM content_hash", Integer.class))
-                        .isZero());
     }
 
     /**

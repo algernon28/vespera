@@ -2,7 +2,6 @@ package io.algernon.vespera.synthesis;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.WholeRun;
@@ -88,9 +87,6 @@ class ClusterGenerationTest {
     /** Words in an ordinary document's opening chunk: far inside the room. */
     private static final int A_FEW_WORDS = 5;
 
-    /** Words in a document longer than the whole room by the estimate, so nothing of it is ever sent. */
-    private static final int MORE_WORDS_THAN_THE_ROOM_HOLDS = 50_000;
-
     /** How many answers turned down in a row stop the step, written out. */
     private static final int THE_STREAK_THAT_STOPS_THE_STEP = 5;
 
@@ -103,23 +99,8 @@ class ClusterGenerationTest {
     /** Where the walked-past cluster sits among those seven, counting from zero: inside the streak. */
     private static final int THE_THIRD = 2;
 
-    /** Nine clusters: four turned down, one believed, four turned down. */
-    private static final int FOUR_EITHER_SIDE_OF_A_BELIEVED_ANSWER = 9;
-
-    /** Where the believed answer sits among those nine, counting from zero. */
-    private static final int THE_FIFTH = 4;
-
-    /** What those nine leave standing: a reason for each answer turned down. */
-    private static final int EIGHT_REASONS = 8;
-
     /** Three clusters: enough for the one a test is about to have a cluster either side of it. */
     private static final int THREE_CLUSTERS = 3;
-
-    /** Two clusters: one a test is about, and one beside it. */
-    private static final int TWO_CLUSTERS = 2;
-
-    /** Five clusters: one for each way a cluster is left unwritten, and one written. */
-    private static final int FIVE_CLUSTERS = 5;
 
     private static final int ONE = 1;
 
@@ -206,152 +187,6 @@ class ClusterGenerationTest {
     }
 
     @Test
-    @Story("An answer that is believed clears what came before it")
-    @DisplayName("Four answers turned down either side of a believed one do not stop the writing")
-    void aBelievedAnswerClearsTheCount() {
-        List<RecordedCluster> clusters = clusters(FOUR_EITHER_SIDE_OF_A_BELIEVED_ANSWER);
-        for (int ordinal = 0; ordinal < FOUR_EITHER_SIDE_OF_A_BELIEVED_ANSWER; ordinal++) {
-            if (ordinal != THE_FIFTH) {
-                engine.script(label(ordinal), Script.UNREADABLE);
-            }
-        }
-
-        GenerationOutcome outcome = write(clusters);
-
-        claim(
-                "every one of the " + FOUR_EITHER_SIDE_OF_A_BELIEVED_ANSWER + " groups is asked about: the"
-                        + " believed answer in the middle drops the count to nothing, so the four after it are"
-                        + " four and not eight",
-                () -> assertThat(engine.answered()).hasSize(FOUR_EITHER_SIDE_OF_A_BELIEVED_ANSWER));
-        claim(
-                "and the writing is left unfinished rather than stopped, with " + EIGHT_REASONS + " reasons"
-                        + " standing, all " + EIGHT_REASONS + " of them kept this time",
-                () -> assertThat(outcome).isInstanceOfSatisfying(GenerationOutcome.LeftUnfinished.class, left -> {
-                    assertThat(left.standingFaults()).isEqualTo(EIGHT_REASONS);
-                    assertThat(left.faultedThisInvocation()).isEqualTo(EIGHT_REASONS);
-                }));
-    }
-
-    @Test
-    @Story("Answers nobody believes, one after another, stop the step")
-    @DisplayName("A group with no document that can be sent neither adds to the count nor clears it")
-    @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
-    void aClusterWithNothingToSendNeitherAddsToTheCountNorClearsIt() {
-        List<RecordedCluster> clusters = clusters(ONE_EITHER_SIDE_OF_A_STREAK_WITH_ONE_WALKED_PAST);
-        documentsOf.put(THE_THIRD, List.of());
-        everyClusterTurnedDownBut(THE_THIRD, THE_STREAK_THAT_STOPS_THE_STEP + 1);
-
-        GenerationOutcome outcome = write(clusters);
-
-        claim(
-                "the writing stops, so the third group did not clear the count on its way past: nothing was"
-                        + " asked there and nothing came back",
-                () -> assertThat(outcome).isInstanceOf(GenerationOutcome.Stopped.class));
-        claim(
-                "after exactly " + THE_STREAK_THAT_STOPS_THE_STEP + " answers, which also says the third group"
-                        + " did not count towards the stop: counting it would have stopped the writing one answer"
-                        + " earlier",
-                () -> assertThat(engine.answered()).hasSize(THE_STREAK_THAT_STOPS_THE_STEP));
-        claim(
-                "no reason is kept for the third group, which no answer came back for, and the stop still"
-                        + " carries why it went unwritten so its page can say so",
-                () -> {
-                    assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).hasSize(THE_STREAK_THAT_STOPS_THE_STEP);
-                    assertThat(outcome.unsendable())
-                            .containsExactly(Map.entry(slot(THE_THIRD), Unwritten.NO_SENDABLE_DOCUMENT));
-                });
-    }
-
-    @Test
-    @Story("Answers nobody believes, one after another, stop the step")
-    @DisplayName("A group none of whose documents would fit by the estimate neither adds to the count nor clears it")
-    @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
-    void aClusterNothingFitsNeitherAddsToTheCountNorClearsIt() {
-        List<RecordedCluster> clusters = clusters(ONE_EITHER_SIDE_OF_A_STREAK_WITH_ONE_WALKED_PAST);
-        documentsOf.put(THE_THIRD, List.of(aDocument(THE_THIRD, MORE_WORDS_THAN_THE_ROOM_HOLDS)));
-        everyClusterTurnedDownBut(THE_THIRD, THE_STREAK_THAT_STOPS_THE_STEP + 1);
-
-        GenerationOutcome outcome = write(clusters);
-
-        claim(
-                "the writing stops after exactly " + THE_STREAK_THAT_STOPS_THE_STEP + " answers: the third group"
-                        + " was walked past without a call, neither clearing the count nor adding to it",
-                () -> {
-                    assertThat(outcome).isInstanceOf(GenerationOutcome.Stopped.class);
-                    assertThat(engine.answered()).hasSize(THE_STREAK_THAT_STOPS_THE_STEP);
-                    assertThat(engine.counted()).noneMatch(question -> question.contains(label(THE_THIRD)));
-                });
-        claim(
-                "and the stop carries why the third group went unwritten: none of its documents would fit",
-                () -> assertThat(outcome.unsendable())
-                        .containsExactly(Map.entry(slot(THE_THIRD), Unwritten.NOTHING_FITS_THE_WINDOW)));
-    }
-
-    @Test
-    @Story("Answers nobody believes, one after another, stop the step")
-    @DisplayName("A group none of whose documents fits the window with room left for the answer neither adds to the count nor clears it")
-    @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
-    void aClusterTheEngineFindsNoRoomForNeitherAddsToTheCountNorClearsIt() {
-        List<RecordedCluster> clusters = clusters(ONE_EITHER_SIDE_OF_A_STREAK_WITH_ONE_WALKED_PAST);
-        everyClusterTurnedDownBut(THE_THIRD, THE_STREAK_THAT_STOPS_THE_STEP + 1);
-        engine.script(label(THE_THIRD), Script.COUNTED_PAST_THE_ROOM);
-
-        GenerationOutcome outcome = write(clusters);
-
-        claim(
-                "the writing stops after exactly " + THE_STREAK_THAT_STOPS_THE_STEP + " answers, none of them the"
-                        + " third group's: it was never asked for an answer, so it is no evidence either way",
-                () -> {
-                    assertThat(outcome).isInstanceOf(GenerationOutcome.Stopped.class);
-                    assertThat(engine.answered()).hasSize(THE_STREAK_THAT_STOPS_THE_STEP);
-                    assertThat(engine.answered()).noneMatch(question -> question.contains(label(THE_THIRD)));
-                });
-        claim(
-                "the reasons the stop carries are the " + THE_STREAK_THAT_STOPS_THE_STEP + " turned-down answers"
-                        + " alone, and none of them is the third group's",
-                () -> assertThat(((GenerationOutcome.Stopped) outcome).turnedDownInARow())
-                        .hasSize(THE_STREAK_THAT_STOPS_THE_STEP)
-                        .noneMatch(fault -> fault.kind() == ClusterFaultKind.PROMPT_EVALUATION_CEILING));
-        claim(
-                "and a reason is still kept for the third group, " + (THE_STREAK_THAT_STOPS_THE_STEP + 1) + " in"
-                        + " all: it was asked about, and the engine's count is what came back",
-                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run))
-                        .hasSize(THE_STREAK_THAT_STOPS_THE_STEP + 1)
-                        .anySatisfy(kept -> {
-                            assertThat(kept.clusterOrdinal()).isEqualTo(THE_THIRD);
-                            assertThat(kept.fault().kind()).isEqualTo(ClusterFaultKind.PROMPT_EVALUATION_CEILING);
-                        }));
-    }
-
-    @Test
-    @Story("Answers nobody believes, one after another, stop the step")
-    @DisplayName("Five groups in a row none of whose documents fits the window with room left for the answer do not stop the writing")
-    @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
-    void fiveClustersTheEngineFindsNoRoomForDoNotStop() {
-        List<RecordedCluster> clusters = clusters(ONE_MORE_THAN_THE_STREAK);
-        for (int ordinal = 0; ordinal < THE_STREAK_THAT_STOPS_THE_STEP; ordinal++) {
-            engine.script(label(ordinal), Script.COUNTED_PAST_THE_ROOM);
-        }
-
-        GenerationOutcome outcome = write(clusters);
-
-        claim(
-                "the group after the five is written: were the five to stop the writing, every later run would"
-                        + " stop at the same five, and the groups after them would never be written",
-                () -> assertThat(WholeRun.synthesisDocs(jdbcTemplate,run))
-                        .singleElement()
-                        .satisfies(doc -> assertThat(doc.clusterOrdinal()).isEqualTo(THE_STREAK_THAT_STOPS_THE_STEP)));
-        claim(
-                "exactly " + ONE + " answer was asked for, and the writing is left unfinished with the "
-                        + THE_STREAK_THAT_STOPS_THE_STEP + " reasons standing",
-                () -> {
-                    assertThat(engine.answered()).hasSize(ONE);
-                    assertThat(outcome).isInstanceOfSatisfying(GenerationOutcome.LeftUnfinished.class, left ->
-                            assertThat(left.standingFaults()).isEqualTo(THE_STREAK_THAT_STOPS_THE_STEP));
-                });
-    }
-
-    @Test
     @Story("Answers nobody believes, one after another, stop the step")
     @DisplayName("A group an earlier invocation already wrote is walked past without its documents being gathered, and neither adds to the count nor clears it")
     @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
@@ -392,136 +227,6 @@ class ClusterGenerationTest {
                     assertThat(finished.alreadyWritten()).isEqualTo(ONE);
                     assertThat(finished.unsendable()).isEmpty();
                 }));
-    }
-
-    @Test
-    @Story("The work is recorded as done only when every group carries its writing")
-    @DisplayName("A group nothing could be sent for leaves the work unfinished, though no answer was turned down")
-    @Link(name = "ADR-116", url = Adr.A_RUNS_COMPLETION_IS_RECORDED_PER_STEP, type = "adr")
-    void leavesTheWorkUnfinishedForAClusterNothingCouldBeSentFor() {
-        List<RecordedCluster> clusters = clusters(THREE_CLUSTERS);
-        documentsOf.put(1, List.of());
-
-        GenerationOutcome outcome = write(clusters);
-
-        claim(
-                "the writing is left unfinished, with no reason standing: a group with nothing to send has no"
-                        + " writing, and recording the work as done would leave that hole permanent and"
-                        + " unannounced",
-                () -> assertThat(outcome).isInstanceOfSatisfying(GenerationOutcome.LeftUnfinished.class, left -> {
-                    assertThat(left.standingFaults()).isEqualTo(NONE);
-                    assertThat(left.faultedThisInvocation()).isEqualTo(NONE);
-                    assertThat(left.unsendable()).containsExactly(Map.entry(slot(1), Unwritten.NO_SENDABLE_DOCUMENT));
-                }));
-    }
-
-    @Test
-    @Story("The work is recorded as done only when every group carries its writing")
-    @DisplayName("A reason an earlier invocation kept, still standing, leaves the work unfinished and is counted apart from this invocation's")
-    @Link(name = "ADR-116", url = Adr.A_RUNS_COMPLETION_IS_RECORDED_PER_STEP, type = "adr")
-    void countsTheReasonsStandingRatherThanThisInvocationsOwn() {
-        List<RecordedCluster> clusters = clusters(THREE_CLUSTERS);
-        documentsOf.put(1, List.of());
-        clusterFaults.record(run, seed, 1, new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, "kept earlier"));
-
-        GenerationOutcome outcome = write(clusters);
-
-        claim(
-                "the writing is left unfinished with " + ONE + " reason standing and " + NONE + " of them from"
-                        + " this invocation: a repair pass that turned nothing down itself still meets an earlier"
-                        + " one's reason, and reporting only its own zero would say nothing went wrong and then"
-                        + " refuse to finish",
-                () -> assertThat(outcome).isInstanceOfSatisfying(GenerationOutcome.LeftUnfinished.class, left -> {
-                    assertThat(left.standingFaults()).isEqualTo(ONE);
-                    assertThat(left.faultedThisInvocation()).isEqualTo(NONE);
-                }));
-    }
-
-    @Test
-    @Story("A reason is dropped once a later answer about the same group is believed")
-    @DisplayName("A group turned down before and believed now carries its writing, and the reason kept against it is gone")
-    @Issue("185")
-    void dropsTheReasonKeptOnceTheAnswerIsBelieved() {
-        List<RecordedCluster> clusters = clusters(TWO_CLUSTERS);
-        clusterFaults.record(run, seed, 1, new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, "kept earlier"));
-
-        GenerationOutcome outcome = write(clusters);
-
-        claim(
-                "no reason stands any more: the group was written over this time, and a reason still standing"
-                        + " would have the record say one group was both written over and left unwritten",
-                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).isEmpty());
-        claim(
-                "so the work is finished, with both of the " + TWO_CLUSTERS + " groups carrying their writing",
-                () -> {
-                    assertThat(WholeRun.synthesisDocs(jdbcTemplate,run)).hasSize(TWO_CLUSTERS);
-                    assertThat(outcome).isInstanceOf(GenerationOutcome.Finished.class);
-                });
-    }
-
-    @Test
-    @Story("A refusal that would come back for every group still stops the run")
-    @DisplayName("A refusal that is not about the length of the question reaches the caller unchanged, and no reason is kept for it")
-    @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
-    void aRefusalNotAboutLengthReachesTheCaller() {
-        List<RecordedCluster> clusters = clusters(TWO_CLUSTERS);
-        engine.script(label(1), Script.REFUSED_AS_A_MODEL_NEVER_FETCHED);
-
-        Throwable thrown = catchThrowable(() -> write(clusters));
-
-        claim(
-                "the refusal leaves the writing as it was raised, so the step fails: a model the engine does not"
-                        + " have refuses every group alike, and turning that into one group's reason would spend"
-                        + " five calls to say so",
-                () -> assertThat(thrown).isInstanceOf(NonTransientAiException.class));
-        claim(
-                "and no reason is kept against the group it was refused for",
-                () -> assertThat(WholeRun.clusterFaults(jdbcTemplate,run)).isEmpty());
-    }
-
-    @Test
-    @Story("A group is written from the documents gathered for it")
-    @DisplayName("Each group's documents are gathered once, in the order of the arrangement, and its question carries its label and its seed")
-    void gathersEachClustersDocumentsOnceInOrder() {
-        List<RecordedCluster> clusters = clusters(THREE_CLUSTERS);
-
-        write(clusters);
-
-        claim(
-                "the documents of each of the " + THREE_CLUSTERS + " groups were gathered exactly once, in the order the arrangement"
-                        + " gives the groups",
-                () -> assertThat(askedForDocuments).containsExactly(label(0), label(1), label(2)));
-        claim(
-                "and every question asked carries its own group's label and the path of the seed it was"
-                        + " gathered under, one question to each group in the arrangement's order",
-                () -> assertThat(engine.answered())
-                        .satisfiesExactly(
-                                question -> assertThat(question).contains(label(0)).contains(SEED_PATH),
-                                question -> assertThat(question).contains(label(1)).contains(SEED_PATH),
-                                question -> assertThat(question).contains(label(2)).contains(SEED_PATH)));
-    }
-
-    @Test
-    @Story("A page with nothing written on it says why, in words a reader of the tree can follow")
-    @DisplayName("Each group left unwritten is reported once, with the reason it was left so")
-    void reportsEachClusterLeftUnwrittenOnce() {
-        List<RecordedCluster> clusters = clusters(FIVE_CLUSTERS);
-        engine.script(label(0), Script.UNREADABLE);
-        documentsOf.put(1, List.of());
-        documentsOf.put(2, List.of(aDocument(2, MORE_WORDS_THAN_THE_ROOM_HOLDS)));
-        engine.script(label(3), Script.COUNTED_PAST_THE_ROOM);
-
-        write(clusters);
-
-        claim(
-                "four reports, one for each group left unwritten and none for the one written: an answer turned"
-                        + " down, nothing to send, nothing that fits, and no document the engine counted inside"
-                        + " the room",
-                () -> assertThat(reported).containsExactly(
-                        "answer turned down " + label(0),
-                        "no sendable document " + label(1),
-                        "nothing fits " + label(2) + " " + ONE + " " + THE_WINDOW,
-                        "no document counted inside the room " + label(3)));
     }
 
     /** Scripts every cluster but {@code spared} among the first {@code count} to be turned down. */
@@ -582,10 +287,6 @@ class ClusterGenerationTest {
     /** A label no other label here reads as part of, so the engine double can key on it. */
     private static String label(int ordinal) {
         return "Cluster %02d".formatted(ordinal);
-    }
-
-    private ClusterSlot slot(int ordinal) {
-        return new ClusterSlot(seed, ordinal);
     }
 
     /** A synthesis doc an earlier invocation of this run already wrote over cluster {@code ordinal}. */

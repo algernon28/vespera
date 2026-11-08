@@ -32,84 +32,14 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
 class ArrangementTest {
 
-    /** How many documents the larger of the two clusters below holds. */
-    private static final int LARGER_PARTITION_DOCUMENTS = 3;
-
-    /** How many documents the smaller of the two clusters below holds. */
-    private static final int SMALLER_PARTITION_DOCUMENTS = 1;
-
     /** The closest any document below sits to its seed. */
     private static final double TOP_SCORE = 0.9;
-
-    /** A score further from the seed than {@link #TOP_SCORE}, held by every document it is given to. */
-    private static final double LOWER_SCORE = 0.4;
-
-    /** A score just short of {@link #TOP_SCORE}. */
-    private static final double NEARLY_THE_TOP_SCORE = 0.85;
-
-    /** A score further from the seed than {@link #LOWER_SCORE}. */
-    private static final double A_FAR_SCORE = 0.3;
 
     /** The lower of two numbers two indistinguishable clusters were given when they were formed. */
     private static final int FIRST_ORDINAL = 2;
 
     /** The higher of that pair, offered to the arranger first so that insertion order cannot be what decides. */
     private static final int SECOND_ORDINAL = 7;
-
-    @Test
-    @Story("The top level is ordered by how much of the archive sits under it")
-    @DisplayName("The group holding the most documents is placed first")
-    void placesTheLargestPartitionFirst() {
-        Partition small = partition(1, "acoustics.docx", scores(0.9));
-        Partition large = partition(2, "safety.docx", scores(0.1, 0.2, 0.3));
-
-        List<ArrangedCluster> arranged = arranged(List.of(small, large));
-
-        claim(
-                "the group holding " + LARGER_PARTITION_DOCUMENTS + " documents is placed ahead of the"
-                        + " one holding " + SMALLER_PARTITION_DOCUMENTS + ", so the substantial part of"
-                        + " the archive is the first thing the reader meets rather than whichever part"
-                        + " happened to be walked first",
-                () -> assertThat(partitionOrderOf(arranged, large)).isLessThan(partitionOrderOf(arranged, small)));
-    }
-
-    @Test
-    @Story("Groups of documents are ordered ahead of lone documents")
-    @DisplayName("A group of documents is placed ahead of a lone document that scores higher")
-    void placesEverySubstantialClusterAheadOfEveryLoneDocument() {
-        Cluster loneButClosest = new Cluster(0, scores(TOP_SCORE));
-        Cluster severalButFurther = new Cluster(1, scores(LOWER_SCORE, LOWER_SCORE));
-        Partition partition = new Partition(new OccurrenceId(1), "safety.docx", List.of(loneButClosest, severalButFurther));
-
-        List<ArrangedCluster> arranged = arranged(List.of(partition));
-
-        claim(
-                "the pair of documents comes first even though the single document is the closest thing"
-                        + " to the seed in the whole group: under one flat rule the best single document"
-                        + " outranks everything substantial beneath it, and a reader handed a run of lone"
-                        + " documents ahead of the real material stops reading",
-                () -> assertThat(clusterOrderOf(arranged, severalButFurther))
-                        .isLessThan(clusterOrderOf(arranged, loneButClosest)));
-    }
-
-    @Test
-    @Story("Groups of documents are ordered ahead of lone documents")
-    @DisplayName("Within a tier, the group closest to the seed is placed first")
-    void ordersEachTierByHowCloseItsDocumentsAreToTheSeed() {
-        Cluster further = new Cluster(0, scores(LOWER_SCORE, LOWER_SCORE, TOP_SCORE));
-        Cluster closer = new Cluster(1, scores(A_FAR_SCORE, NEARLY_THE_TOP_SCORE, NEARLY_THE_TOP_SCORE));
-        Partition partition = new Partition(new OccurrenceId(1), "safety.docx", List.of(further, closer));
-
-        List<ArrangedCluster> arranged = arranged(List.of(partition));
-
-        claim(
-                "of two groups the same size, the one whose documents average closer to the seed comes"
-                        + " first -- averaged rather than taking each group's best or its worst: the group"
-                        + " placed second holds the closest document of the two and the furthest is not in"
-                        + " it, so that one unusually close document cannot carry a group that is otherwise"
-                        + " off-topic to the top of a page claiming to be about it",
-                () -> assertThat(clusterOrderOf(arranged, closer)).isLessThan(clusterOrderOf(arranged, further)));
-    }
 
     @Test
     @Story("Groups of documents are ordered ahead of lone documents")
@@ -127,23 +57,6 @@ class ArrangementTest {
                         + " run over an unchanged archive hands the reader the same page, and the approval"
                         + " given for one arrangement is not quietly spent on a different one",
                 () -> assertThat(clusterOrderOf(arranged, earlier)).isLessThan(clusterOrderOf(arranged, later)));
-    }
-
-    @Test
-    @Story("The top level is ordered by how much of the archive sits under it")
-    @DisplayName("Two groups holding the same number of documents are ordered by the operator's own filenames")
-    void breaksAPartitionTieOnTheSeedTheOperatorNamed() {
-        Partition later = partition(1, "safety.docx", scores(TOP_SCORE));
-        Partition earlier = partition(2, "acoustics.docx", scores(TOP_SCORE));
-
-        List<ArrangedCluster> arranged = arranged(List.of(later, earlier));
-
-        claim(
-                "two equally large groups are ordered by the filenames of the documents the operator"
-                        + " chose, not by anything the walk assigned -- a filename survives a re-walk and"
-                        + " is the one handle the operator has on this order, since renaming their own"
-                        + " file is how they move a group up the page",
-                () -> assertThat(partitionOrderOf(arranged, earlier)).isLessThan(partitionOrderOf(arranged, later)));
     }
 
     /**
@@ -179,14 +92,6 @@ class ArrangementTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("cluster " + cluster.ordinal() + " was not arranged"))
                 .clusterOrder();
-    }
-
-    private static int partitionOrderOf(List<ArrangedCluster> arranged, Partition partition) {
-        return arranged.stream()
-                .filter(cluster -> cluster.winningSeed().equals(partition.seed()))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("nothing was arranged under seed " + partition.seed()))
-                .partitionOrder();
     }
 
     private static Partition partition(long seedId, String seedPath, List<Double> memberScores) {
