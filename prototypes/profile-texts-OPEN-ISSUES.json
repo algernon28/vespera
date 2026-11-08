@@ -1,0 +1,318 @@
+[
+ {
+  "key": "seedFolder",
+  "issues": [
+   "Description, sentence 3, is too long: it makes four claims joined by commas and a semicolon, so the reader has to go over it twice. Split it into short sentences.",
+   "'scores' and 'never scored' (description and cost line) are not explained. The operator does not know what a score is. Say it plainly, for example 'measures how close each document is to your seed documents'.",
+   "'leaves out the ones too unlike them' does not say who decides 'too unlike'. Name the setting that sets the cut-off, or say 'below the cut-off set by …'.",
+   "'the pages it writes follow that order' is vague. Which pages, and what order? Say 'the documentation pages are grouped by seed document'.",
+   "Cost line: 'as long as the conversion and comparison tools stay the same' is internal jargon (it means the extractor and embedder identity). The operator cannot check it. Drop it, or say 'unless you also changed the document-reading or comparison settings'.",
+   "Cost line: 'You also get a new set of documents to judge' does not say why or how many. Say 'Vespera picks a new sample of documents (about sixty) for you to answer questions on; your earlier answers are replaced'.",
+   "Cost line: the time cost is not stated plainly. 'The slow part of a first run is skipped' says nothing about how long the rest takes. Say what remains, for example 'expect roughly the scoring-and-writing part of a run'.",
+   "Cost line: the 'Record my answers' warning comes last but is the action the operator must take before changing the value. Put it first."
+  ]
+ },
+ {
+  "key": "degenerateOutputConfidenceFloor",
+  "issues": [
+   "Description: 'Vespera does not compare it, score it or include it in what it hands over' is vague. Compare with what? 'Score' is jargon. 'What it hands over' does not name the output. Say plainly what the operator loses, for example: the file is left out of the review list and the final pages.",
+   "Description: 'the kept files' in the report sentence is unclear. Kept by what, and before or after this setting? The reader cannot tell whether the report already leaves out the files this number would set aside.",
+   "Description: 'set aside' never says where the file goes or whether the operator can see it. Nothing points to a list of the files left out.",
+   "Description is too long and packs two ideas (the scale and its bands, plus Word and text files) into long sentences that need rereading. Split it, or move the band list into a short table or list.",
+   "Description: it does not say which way to move the number. Raising it leaves out more files and lowering it brings files back. The reader has to work that out.",
+   "Cost line: 'measuring repeated text', 'comparing with your example documents', 'scoring relevance' and 'grouping' read like stage names the operator does not know. Either explain them in a few words or just say 'every later step'.",
+   "Cost line: 'you must approve it again' does not say what 'it' is (the grouping of near-duplicate files?), where to approve it, or what happens if the operator does not.",
+   "Cost line: 'The relevance sample is drawn again and its file is written over' is jargon. 'Relevance sample' and 'its file' are not explained. 'Answers you typed but did not record' does not say how to record them or how to avoid the loss.",
+   "Cost line: 'quicker than a fresh run, but still long' gives no scale. Say that the conversion, usually the slowest part, is skipped, so the reader knows where the time goes."
+  ]
+ },
+ {
+  "key": "degenerateOutputWordFloor",
+  "issues": [
+   "Description names 'word-count-distribution.html' and never says where it is (which folder, or which tab or link in the panel). The operator cannot find it.",
+   "The cost line says 'If you approved a grouping by name'. It needs rereading, and the operator does not know what approving by name means or where it is done. Say it plainly, e.g. 'If you approved the current groups yourself, Vespera waits for you to approve the new ones before writing pages.' Also say that with the automatic setting nothing waits.",
+   "'sorts them into groups again' and 'every group's page' are not explained. The reader does not know that the groups are the topics and the pages are the result documents. Use the CONTEXT.md Renders-as wording for these.",
+   "'a new set of relevance questions', 'label file' and 'answers you ... did not record yet' are unexplained jargon. The operator does not know what the label file is, or what recording an answer means compared with typing it. Name the actual action, e.g. 'answers saved with the Record button'.",
+   "'Files already converted are mostly not converted again' is vague and uses 'converted' with no explanation. 'mostly' leaves the reader unsure what is redone. Say instead that text already read from your files is reused, so this part is quick.",
+   "'Writing every page again is the slow part' gives no idea of scale. Say what it compares with, e.g. 'about as long as the writing step of a full run', so the operator can weigh the cost.",
+   "The description does not say that the value must be a whole number, or that fractions, negative numbers or text are ignored. It only says 'To choose a whole number'.",
+   "The title 'Fewest words a file must hold' will not show until ProfileRow.nameOf is changed to use it. Note this, or the operator still sees the split key name 'degenerate output word floor'.",
+   "The description is long, with 5 sentences mixing what the value does, the counting rule, the default and how to choose one. Put the effect on the result first and shorten the rest so it reads in one pass."
+  ]
+ },
+ {
+  "key": "boilerplateDocumentFrequencyFloor",
+  "issues": [
+   "Sentence 1 is too long and needs rereading. It packs repeated text, documents that say the same thing, containment and 'keeps only one of them' into one sentence, and 'them' could mean the documents or the passages. Split it: 'Text found in many documents, such as letterheads, footers and standard disclaimers, is repeated text. Vespera ignores it when it compares documents. When documents say the same thing, or one sits almost whole inside a longer one, Vespera keeps only one.'",
+   "'the documents Vespera measured' is unexplained. Which documents, and why aren't they all of them? Say 'of your documents', or say plainly which ones are counted.",
+   "'five-word passage' is fine, but 'in that share' in the document-frequency.html sentence is hard to follow. 'Setting the value to a row's share makes that row and every row after it repeated text' needs rereading. Try: 'Pick a row: passages found in that share of documents or more will count as repeated text.'",
+   "The description never says where document-frequency.html is or when it appears. Say it is a report in the working folder, written on the first start, or say whatever is true.",
+   "'set a value and start it again': 'it' is ambiguous. Say 'then start Vespera again'.",
+   "'Answers Vespera has already taken in' and 'answers typed into the old file and not yet taken in' are vague. The operator doesn't know when an answer counts as taken in. Name the file, say the answers are 'read back' or 'recorded', and say when that happens.",
+   "'The documents you are asked to judge are picked again and their file is written again' needs a name for the file, so the operator can recognise it.",
+   "The cost line says what is redone but not what that costs the operator. It needs at least a plain cue, for example 'this can take a while on a large corpus; reading your files, the slowest part, is not repeated', if the code or ADRs support it. Otherwise say plainly that no time estimate can be given.",
+   "The description is long overall: 7 sentences. The operator has to read too much before reaching the actionable part: what to set and how to choose."
+  ]
+ },
+ {
+  "key": "embeddingModel",
+  "issues": [
+   "Cost line: 'the files left out by name ending or as logs and settings' is hard to parse. Readers stumble on 'name ending' (it means file extension) and on 'as logs and settings'. Suggest: 'the files Vespera skipped because of their type (for example .log or .ini)'.",
+   "Cost line: 'Expect it to take about as long as comparing and writing took the first time' assumes the operator knows how long each phase took. Nothing in the panel shows the operator a 'comparing' phase. Tie it to something they saw, or say 'most of a full run'.",
+   "Cost line: 'Relevance cut-off and Translation match are numbers on the comparing model's scale of likeness' is abstract. Say the consequence plainly: 'Each model scores likeness differently, so the same cut-off can keep more or fewer documents with the new model.'",
+   "Cost line: 'unless Approved grouping is auto' uses a setting value as jargon. Say: 'unless Approved grouping is set to approve automatically'.",
+   "Cost line is too long: 12 sentences, mixing the cost, what is kept, what is redone, the labels, the approval, the download and the follow-up checks. Lead with the cost in time and work, then a short 'you will need to: answer the new list, approve the grouping, re-check the two cut-offs'. Cut the 'Kept:' inventory down to one short clause.",
+   "Cost line: 'Until you answer the new list, no document is dropped for low relevance' should say what the reader sees as a result: 'the next pages may include off-topic documents until you answer it'.",
+   "Description: 'Its measure decides which documents are kept (with Relevance cut-off)…' is a long three-part sentence that needs rereading. Split it into short sentences, one per effect.",
+   "Description: 'may judge your documents' language and subject better or worse' is vague. It does not say what the operator gains or when to change it, for example 'try another if relevant documents are being left out or unrelated ones grouped together'.",
+   "The cost line leaves out a consequence the current text states. ProfileRow.costOf (origin/main) says, when sampleDrawnAgain is true: 'The sample being answered is drawn again and the label file is written over.' The rewrite covers the new list but does not say that the earlier answers are overwritten. It says only that 'Your earlier answers were for the old comparing model', which leaves the operator thinking they are kept. Add a plain sentence such as: 'Your earlier answers are replaced by the new list, so answer it again.'",
+   "The other claims check out on origin/main. The approval closes: approvalCloses is true, because ARRANGEMENT is among the runs from EMBEDDING_SCORING. Labels are not refused: labelsRefused is true only for SEED_FOLDER. The earlier runs (byte-level reduction, extraction, content census, content redundancy, seed measurement) come before EMBEDDING_SCORING in the Run enum, so 'Kept' is right."
+  ]
+ },
+ {
+  "key": "relevanceScoreFloor",
+  "issues": [
+   "Description: 'comparing model' is unexplained jargon. The operator does not know what it is or when it changes. Say it plainly, e.g. 'If you later switch the model Vespera uses to compare documents, this number stops working until you pick it again.'",
+   "Description: 'for how close it is to the documents in your seed folder. Those are the ones you know are relevant.' The second sentence hangs off the first ('Those' is ambiguous). Merge them: '...how close it is to the documents you put in your seed folder as examples of relevant ones.' (Do not use the word 'examples' in an identifier; prose here is the description.)",
+   "Description: 'left out of the pages Vespera writes' does not say what the pages are. The operator cannot tell whether the document is deleted, hidden, or just not used in the output.",
+   "Cost line: 'scores and groups your documents again' uses 'groups' without explaining it. The operator does not know what a grouping is.",
+   "Cost line: 'If you approved a grouping by name ... This does not apply when Approved grouping is set to auto.' needs rereading. It refers to a setting name with no context, and the conditional is split across two sentences. Rewrite it as one sentence: 'If you approved a grouping yourself, approve it again before pages are written (not needed if Approved grouping is auto).'",
+   "Cost line: 'Then the pages are written again' comes straight after the auto exception, so it reads as if rewriting happens only under auto. Say clearly that the pages are always written again, and that this step can take hours.",
+   "Cost line: 'Little time' and 'can take hours' sit next to each other without a clear total. Lead with the bottom line, e.g. 'A change does not reread your files, but rewriting the pages can take hours.'",
+   "Cost line: 'replaces the answer file' and 'use Record my answers on anything you have written in that file' are vague and clumsy. Name the file. Say 'press Record my answers first, or the answers you typed in that file are lost.'",
+   "Cost line is too long: eight sentences. The operator cannot scan it. Cut it to the time cost, the approval step and the save-your-answers warning."
+  ]
+ },
+ {
+  "key": "arrangementApproved",
+  "issues": [
+   "Cost line contradicts itself. It says 'approving lets it write' pages, then 'Changing this value never ... writes again'. Setting the value is how writing starts, so the reader has to reread. Reword the last sentence as: 'Changing it later does not regroup your documents or remove pages already written.'",
+   "'a local model' is jargon to this reader. Say 'the AI model running on your computer' or leave it out: 'Vespera reads each group in full and writes a page about it.'",
+   "'Write auto' is unclear. It could mean an action or a step. Say: 'Type the word auto here to approve every grouping without reviewing it.'",
+   "'This is the slowest step Vespera takes. Expect it to take far longer than the earlier steps.' says the same thing twice. Keep one sentence and give a rough scale if one exists (for example, hours rather than minutes).",
+   "'If the documents are grouped again' is passive and does not say who regroups them. Say: 'If Vespera groups your documents again (for example after you change which documents count as relevant, or add documents), it shows a new name and asks you again.'"
+  ]
+ },
+ {
+  "key": "generationModel",
+  "issues": [
+   "Description: 'installed in Ollama on this computer' assumes the operator knows what Ollama is. Add a few words, e.g. 'Ollama, the program that runs AI models on this computer'.",
+   "Description: 'One that is not installed yet is normally downloaded first' is passive and vague. Who downloads it, and when? Say: 'If it is not installed, Vespera downloads it when it starts writing. This happens once and takes several gigabytes.'",
+   "Description: 'an online-only model (a name ending in \"cloud\") is refused' does not say what the operator sees. Say plainly: 'Vespera will not use it.'",
+   "Cost line: 'Only the writing is redone, and it is the last thing Vespera does' makes the reader reread it, because 'it' could mean the writing or the change. Split it: 'Only the writing is redone. Writing is Vespera's last task, so nothing before it is repeated.'",
+   "Cost line: 'The new text goes into a new folder' does not say where that folder is. Name it, e.g. 'a new folder inside the working folder', so the operator can find the result. The ADR's path is <working directory>/deliverable/<generation run>/.",
+   "Cost line: the time cost gives the reader nothing to go on. Say whether it takes minutes or hours relative to a full run, e.g. 'much quicker than a full run, but it still rewrites every group', or say plainly that it depends on how many groups there are.",
+   "Description: 'group' is used without ever saying what a group is. Add one short gloss on first use, e.g. 'each group of related documents'."
+  ]
+ },
+ {
+  "key": "generationContextWindow",
+  "issues": [
+   "Arithmetic does not add up for the reader: 'two tokens per word, so the built-in 8192 holds roughly 3,450 words'. 8192/2 = 4096, so the reader stops and rereads. Say that part of the space is kept back for the instructions and the reply, e.g. 'after the room kept for Vespera's instructions and the page itself, the built-in 8192 leaves about 3,450 words of document text'.",
+   "'highest-scoring documents' is an unexplained score. The reader does not know what is scored or by what. Lead with the plain meaning ('the documents most typical of the group') and drop 'scoring', or keep it but match the page's disclosure wording ('Written from the N highest-scoring of M documents') so the reader can link the two.",
+   "The 1282 sentences say the same thing twice ('smallest number accepted is 1282' and 'a number below 1282 stops the run'). Merge them: 'Below 1282 the run stops before any page is written. At 1282 there is room for about one word, so useful values are far higher.'",
+   "It does not say what the operator should actually pick. Add a pointer, e.g. 'raise it only if pages say they were written from few of a group's documents and the machine has memory to spare', so the value ties to something they can see in the result.",
+   "Cost line: 'about 13 seconds per group' gives no total. The operator thinks in whole runs. Add 'so a corpus with 100 groups takes about 20 minutes with a graphics card, or about 2.5 hours without', or say 'times the number of groups'. Also say the time grows with a larger number, because the 13 s / 94 s figures hold only at 8192.",
+   "'the machine that runs the writing model' is vague when it is the operator's own PC. Say 'your computer (or the one running the writing model)', so the memory cost is concrete."
+  ]
+ },
+ {
+  "key": "clusterPageByteCeiling",
+  "issues": [
+   "\"Choose a size just under the pages you want split\" is ambiguous and needs a second read. It should say what to compare: e.g. \"Pick a number a little smaller than the smallest page you want split.\"",
+   "\"Vespera's last line says so\" is unclear: last line of what? Say where to look, e.g. \"the last line Vespera prints when it finishes says so.\"",
+   "Cost line: \"its pictures are fetched again\" is opaque. Fetched from where? The operator does not know the pictures are fetched at all. Say it plainly: \"that group's pages and pictures are written twice\", or drop the mechanism and keep \"takes a little longer for each group over the limit.\"",
+   "Cost line: \"no step is redone and no approval is lost\" assumes the reader knows what the steps and approvals are. Better: \"Your documents are not processed again and labels or approvals you gave are kept.\"",
+   "The description is too long and packs implementation detail into one block: file names index-2.html and index-3.html, and the first/previous/next/last links. Cut it to what the value does, how to choose it, and what empty means.",
+   "\"bytes\" with no anchor: a non-technical operator may not relate bytes to page size. Add \"about 10 MB\" next to 10000000.",
+   "\"the group's summary stays on the first page\": the code and README call this the connecting text. \"Summary\" may promise content that isn't there. Check that the wording matches what the page shows.",
+   "Overstates the split: 'splits any group page larger than the number of bytes'. ADR-303 §3: a group with no listed document or only one document is never split, however large. Also, a page can still be larger than the limit when one document's entry alone is larger (README:102, ADR-303 §3). Add both exceptions, e.g. 'A group with only one document is never split, and a page can be larger than the limit when one document alone is.'",
+   "The example 10000000 is not the code's example. ProfileKey.java:51 ships '10485760', and ADR-331 §8 allows that number only as an example. ADR-303's header records the operator's ruling that no byte count is offered as a default, example or suggestion. A new decimal example either needs the ProfileKey example changed to match, with the ADR-331 basis checked, or the text should keep 10485760. As written, the description and the row's own example would disagree.",
+   "Minor: 'the group's summary stays on the first page'. The code and ADRs say the writing, its disclosure and the 'nothing was written' sentence stay on the first page (ADR-303 §5). 'Summary' is acceptable operator wording, but it should also cover the 'nothing was written' notice, or say 'the text written about the group'.",
+   "Verified true: earliestRun is null, so there is no rerun, no approval closes and no label file is refused (the cost line correctly says nothing is redone or lost). Also true: pictures are asked for again for each split group (ADR-303 §3), cluster-page-sizes.html exists, the index-2/index-3 pages link first/previous/next/last, an ignored value is reported on the last line, and 'group'/'page' match CONTEXT.md."
+  ]
+ },
+ {
+  "key": "logTimestampShareFloor",
+  "issues": [
+   "Cost line: 'from sorting them by what they contain to the written pages' is vague. The reader cannot tell what 'sorting by what they contain' is, or that it is the first step. Say plainly: 'every step runs again, from the first one to the written pages.'",
+   "Cost line: 'The work of reading each document's meaning is reused too' is opaque. It is a stand-in for embeddings, and the operator will not know which work is meant or why it matters. Say what is saved, for example 'documents already compared are not compared again', or cut it.",
+   "Cost line: 'only files never converted before go to the converter' assumes the reader knows there is a converter. Say instead: 'only files that were never turned into text before are turned into text now'.",
+   "Cost line: 'If you approved a grouping by name, that approval no longer applies ... (not needed when approval is set to auto)' needs rereading. 'grouping', 'by name' and 'approval is set to auto' are profile mechanics the operator was never told about. Name the key or setting, or say: 'If you approved how documents were grouped, you must approve again, unless you let Vespera approve automatically.'",
+   "Cost line: 'The sample of documents to label is drawn afresh and your label file is written over. Answers you already recorded are kept.' The reader cannot tell 'written over' and 'kept' apart. Do they lose work or not? Say: 'You get a new set of documents to label. Labels you already saved are kept. Only labels typed into the file and not yet saved are lost.'",
+   "Cost line is too long: eight sentences. It never says how much time or work changing the key costs in plain terms. Lead with that, for example 'Changing it means a full re-run, shorter than the first because converted text is reused.'",
+   "Description: 'format-mix report' is a report name, not plain wording. Say where to find it (the file or tab name) and what to look at: the section on how much of each text file starts with a date or time.",
+   "Description: 'ten or more lines of text' does not say that blank lines and continuation lines are not counted (ADR-287). A reader counting lines by eye will be misled. Add 'not counting blank lines'.",
+   "Title 'Leave out logs' is fine, but the description never says that a file it catches by mistake (minutes, changelogs) disappears from the result without warning. Say what the operator loses when the value is set too low."
+  ]
+ },
+ {
+  "key": "extractionAttempt",
+  "issues": [
+   "Description: 'also the files the converter said it cannot convert; only the first kind is tried again' makes the reader go back to work out which 'kind' is meant. Name it directly, e.g. 'only the skipped files are tried again'.",
+   "Description: the meaning of the number comes late. Say up front what the value is: the try number, where empty or 1 means the first try. 'Add one to this number (if the box is empty, write 2)' only makes sense once that is known.",
+   "Description repeats itself: 'Files already read are not read again, and neither are files the converter said it cannot convert' says again what the earlier sentence said.",
+   "Cost line: 'texts seen before are not measured again' is embedding/vector reuse put in vague words. 'Measured' is unexplained, and the reader can't tell what it saves. Say 'work already done on the files read last time is reused, so it is quicker' or drop it.",
+   "Cost line: 'A new relevance sample is drawn and relevance-labels.yaml is written over' is jargon. Say what it is to the operator: the list of documents Vespera asks you to mark as relevant or not is picked again, and that file is rewritten; answers you already gave are kept.",
+   "Cost line: 'write the earlier grouping's name back into arrangementApproved' shows a raw key name and an unexplained 'grouping's name'. Point to the Profile row by the title it has in the panel, and say plainly where the name is found (the last line of the output).",
+   "Cost line: 'the connecting text' and 'the pages' are never explained. Say what they are in the result (e.g. the written documentation pages and the text that links each group).",
+   "Cost line: 'matching translations' and 'removing repeats' are steps the operator never sees named. Fine if kept short, but 'finding the same document in another language' is clearer than 'matching translations'.",
+   "Cost line: 'Expect most of a full run's time, minus reading the files already read' is vague and needs a second read. Give it plainly: 'nearly as long as a full run, but files already read are skipped'.",
+   "Cost line: 'You must approve the grouping again before the pages are written again, even if it looks the same' is fine, but the later sentence 'Until you do, the connecting text is not written again' talks about undoing and is attached to the wrong clause. Split the 'to go back' instructions into their own short sentences.",
+   "The title 'Try unread files again' does not match the code's plainName 'Ask again about failed files'. It also says nothing about the number. Make the two agree."
+  ]
+ },
+ {
+  "key": "codeNameEndings",
+  "issues": [
+   "Description: 'copied, together with the code it belongs with, into the code/ folder' needs a second read. 'the code it belongs with' is vague: the reader doesn't know what a code set is or how files get matched. Say it plainly, e.g. 'copied into the code/ folder of the output folder, with related code files kept together.'",
+   "Description: 'Code is not grouped or written about' leaves 'grouped' unexplained. Say 'not grouped into pages or described', so it matches the cost line's 'grouped into pages'.",
+   "Description: the 'pages' versus 'the website' distinction is unclear to the operator. Use one plain phrase, e.g. 'it does not appear in the written pages or on the website'.",
+   "Description: one sentence packs three ideas: not grouped, missing from the output, copied to code/. Split it into short sentences.",
+   "Description: 'whose content is plain text' gives no hint at how Vespera decides. Add a short gloss such as 'readable as text, not a binary file', or drop the clause.",
+   "Cost line: 'expect about as long as a first run without the conversion' needs rereading. 'the conversion' assumes the reader knows that converting is one separate part of the time. Rephrase, e.g. 'nearly as long as a first run; only the converting of documents into text is skipped.'",
+   "Cost line: 'This is the longest kind of rerun' and 'redoes the whole run' use 'run' and 'rerun' with no anchor. Say 'Vespera redoes almost everything' so the reader doesn't need to know what a run is."
+  ]
+ },
+ {
+  "key": "outOfScopeNameEndings",
+  "issues": [
+   "Cost line: 'A new set of documents is picked for you to judge in the label file; answers Vespera already recorded for documents picked again are filled in, and any others are new questions.' This needs rereading. 'Label file' is never explained: name it (relevance-labels.yaml) and say what judging means, e.g. 'mark each one relevant or not'. Split it into short sentences, e.g. 'Vespera picks a new set of documents for you to mark as relevant or not in relevance-labels.yaml. Documents you already marked keep your answer. The rest you mark again.'",
+   "Cost line: 'unless arrangementApproved is auto' uses a raw key name plus a value with no explanation. The reader has to cross-reference another row. Say it plainly, e.g. '(skip this if you set approval of the grouping to automatic)', or name the key and its effect together.",
+   "Cost line: 'from sorting the files to writing the pages' says the first step is 'sorting', which is not what it does. The first step is the byte-level reduction (setting aside copies and files that are not documents). Use the operator's wording for that step, or just say 'every step again, up to writing the pages'.",
+   "Description: 'Vespera checks these endings only on files whose kind it cannot tell and on plain text files; a PDF or Word file is kept whatever its name.' The semicolon packs two ideas into one sentence. Split it, e.g. 'Vespera only checks the ending when it cannot tell what kind of file it is, or when the file is plain text. A PDF or Word file is always kept, whatever its name ends with.'",
+   "Description: 'it tells you so' is vague. Say where the message appears, e.g. 'the last line of the output names this setting'.",
+   "Description: 'format-mix.html' appears twice as a bare file name. Say once that it is a page in your result folder, e.g. 'the format-mix.html page in your result', so the reader knows where to look.",
+   "Cost line: 'so this takes about as long as a full pass without the conversion' is only true when endings are added. If an ending is removed from the list, files it used to leave out come back and have never been converted, so they are converted now (ADR-256 s6/s10 reuse covers only conversions already done). Suggested wording: 'Files already converted to text are not converted again; only files the new list lets back in are converted.'",
+   "Description: 'A file left out is not read' overstates it. Vespera still reads a file's opening bytes to tell its kind before it checks the ending (OutOfScope.nameReason runs after the format is detected). Suggested wording: 'is not converted or used'.",
+   "Checked against origin/main and found accurate: the endings are checked only on UNRECOGNISED and PLAIN_TEXT files, case is ignored, Run is BYTE_LEVEL_REDUCTION so every later step runs again, there is no in-use line, and all three consequences in costOf() are kept: the approval closes, the sample is drawn again and the label file is written over (labelsRefused is false). The wording also respects CONTEXT.md: 'leave out' (not excluded/filtered) and 'steps' (not runs)."
+  ]
+ },
+ {
+  "key": "translationSimilarityFloor",
+  "issues": [
+   "Title is misleading. 'When two languages count as one document' suggests a language merge. The setting decides when two documents count as translations of each other. Suggested title: 'When two documents are translations'.",
+   "'the one with the lowest path' is jargon an operator will not follow. Say 'the one whose file path comes first alphabetically'.",
+   "'goes into the pages' leaves 'the pages' unexplained. Say 'into the documentation Vespera writes'.",
+   "The Preferred-languages sentence packs a condition, a choice rule, a parenthetical and two outcomes into one sentence, so it has to be read twice. Split it into 2-3 short sentences.",
+   "'Left empty' is ambiguous: it could mean the field or Preferred languages. Say 'If you leave this setting empty'.",
+   "The how-to-choose sentence is hard to follow. 'the lowest value from which no row below shows a pair marked wrong' reverses direction ('lowest', then 'below'), and 'marked wrong' does not say who marks it or how (by paths). It does not say where translations.html is either (the run's output/working folder). Rewrite, e.g.: 'translations.html lists each value with the pairs it would find. Pick the smallest value at which no pair is marked wrong, at that value or any higher one.'",
+   "The cost line does not say plainly what changing it costs in time. Say something like 'This is quick: Vespera does not read or convert your files again.' The list 'finding translations, deciding which documents are relevant, grouping and writing the pages' still reads like a list of stage names.",
+   "'A new sample of documents is drawn for you to answer' is awkward: you answer questions, not documents. Say 'Vespera picks a new set of documents for you to label as relevant or not'. Also name the answers file (relevance-labels.yaml) or describe it.",
+   "'You will have to approve the grouping again' does not say what grouping means. Say 'approve again how documents are grouped into pages'."
+  ]
+ },
+ {
+  "key": "preferredLanguages",
+  "issues": [
+   "'the copy with the lowest path' is jargon an operator cannot picture; say 'the copy whose folder path comes first alphabetically' (and check that this matches the code's ordering).",
+   "'once Translation match is set' names another setting without saying what it is or where to find it. Say something like 'once the Translation match setting (on this tab) has a value'.",
+   "'relevance check', 'the groups' and 'the generated pages' are used with no explanation. Say once what each is, for example 'the step where Vespera decides which documents are documentation' and 'the topic groups the pages are built from'.",
+   "'makes the whole value unreadable' is vague. Say 'Vespera ignores the whole list and keeps every copy'.",
+   "Cost line: 'the slow analysis of their text' is an unexplained placeholder for the embedding stage. Either name what the operator sees (the longest step on the progress page) or leave it out.",
+   "Cost line: 'An approval of the earlier grouping no longer applies (unless approval is set to auto, you approve again)' has to be read twice. The parenthesis inverts the logic, and 'approval is set to auto' names a setting without saying which. Rewrite as two plain sentences, for example: 'If you approved the groups, you must approve them again. If the Approve groups setting is auto, this happens by itself.'",
+   "Cost line: 'answers Vespera has already read in are kept, answers you typed into the file since the last run are lost' depends on a hidden concept ('read in' = recorded at the start of a run). Say instead: 'Answers you saved before the last run are kept. Answers you typed in since then are lost.'",
+   "Cost line: 'Run once before changing this value to save them' is ambiguous: run what, and how does running save them? Say 'Start a run before changing this value: Vespera picks up your answers at the start of each run.'",
+   "Description is too long for a row: 8 sentences. The edge cases (two copies share a language, a bad code) bury the main point. Lead with what the value does and its default, then the format, then the edge cases.",
+   "'translations.html' is given without saying where it is (the reports folder or tab)."
+  ]
+ },
+ {
+  "key": "configurationSettingShareFloor",
+  "issues": [
+   "Factual: '1 or more catches none this way' is wrong. ADR-287 s.7 says only values ABOVE 1 find none by share. At exactly 1, a file made entirely of settings lines still counts. Say 'above 1 (100%)'. The description also leaves out that 0 or below catches every file with ten or more counted lines.",
+   "'Off unless you set a value (it ships unset)': 'ships' and 'unset' are developer words. Say 'Empty by default: Vespera then spots no configuration files.'",
+   "'Setting a value also turns on a second rule: Maven project files and logback, log4j 2, .NET or Spring configuration count whatever their share': the operator does not know Maven, logback, log4j 2 or Spring, and 'count whatever their share' needs rereading. Say something like 'build and logging set-up files of common programming tools always count as configuration, however few settings lines they have'. Then give the names in brackets as examples.",
+   "'Schema and API descriptions (XML Schema, WSDL, OpenAPI, JSON Schema)' is jargon a QA reader may not know. Explain it: 'files that describe a data format or a service interface are always kept as documents'.",
+   "'only the start and end of a big file are read': how big is 'big'? The 64 KB limit (s.3.4) is not stated.",
+   "'it gets no page and is not read as a document': 'page' is not explained. Does it mean an output page, or a mention in the result? Say plainly what the operator will not see in the output.",
+   "'One inside a folder listed as code': where is it listed? Name the profile key or setting that lists code folders.",
+   "The description is one long block of about nine sentences, and the reader has to work hard to find what the value does. Lead with the effect: 'Files Vespera judges to be configuration are left out of your result.' Then give the threshold.",
+   "Cost line: 'files that are now kept are converted' leaves 'converted' unexplained (text extraction). Say 'Vespera reads the text of any file it now keeps, which takes time'.",
+   "Cost line: 'from deciding which files to keep to writing the pages' is fine. But 'except that text already taken from a document is reused' needs rereading. Say 'it is quicker than a fresh run only because text already read from your documents is not read again'.",
+   "Cost line: 'The documents picked for you to label are picked again' is passive and vague. Say 'Vespera picks a new set of documents for you to label, and overwrites the label file, so you lose the labels you have given so far.'",
+   "'1 or more catches none this way' is false at exactly 1. ADR-287 s.7 (line 163) says only a value above 1 finds nothing by its share. At 1, the rule is share >= floor (s.3.4, line 110), so a file whose counted lines are all settings still counts. Reword to 'above 1 catches none this way'.",
+   "Checked and true: ships unset; at least ten counted lines; first and last 64 KB read; blank and comment lines not counted; interface definitions always kept; the second rule (files that count whatever their share) applies once a value is set; a file inside a code set is kept with that code set; the section name in format-mix.html; the cost (all 8 runs, approval closes, sample drawn again, label file written over)."
+  ]
+ },
+ {
+  "key": "deliverableLanguage",
+  "issues": [
+   "Cost line: 'under a marker of their own' is jargon. The operator does not know what a Confluence marker is. Say where the new pages show up, e.g. 'they appear beside the old ones, in a section of their own'.",
+   "Cost line: 'the run stops before drawing the pages' uses 'drawing' in Vespera's internal sense. Say 'before it writes the pages'.",
+   "Description and cost line: 'the model' is never explained. Say 'the AI model' or 'the AI'.",
+   "Description: 'the website' is unclear: which website? Name it as the operator sees it, e.g. 'the browsable copy of the pages'.",
+   "Cost line: 'This is the slow part of the run. It takes about as long as the writing took the first time' leans on 'the run' and 'the writing' with no lead-in, so it needs rereading. Say 'Rewriting the text takes about as long as it did the first time, which is usually most of a run's time.'",
+   "Cost line is too long: eight sentences about Output folder and Confluence handling bury the main cost. Put the time cost first. Shorten the folder and Confluence part to one or two sentences.",
+   "Description: 'A page titled after a file keeps the file's name as it is' is hard to follow. Say 'If a page is named after one of your files, that name is not translated.'",
+   "Description: 'nothing is translated afterwards' says how the model works, not what the operator gets. Either drop it or say what it means for them.",
+   "The Confluence sentences are false. ADR-321's header says ADR-328 amends it, and ADR-328's title says the Confluence pages are one tree that each publish updates in place. Pages are keyed and titled by their place, with no run id, and a page the tree no longer has goes to the trash. So after Publish, the new-language pages replace the old ones in place, and old pages with no counterpart go to the trash. They do not go 'beside the old ones under a marker of their own'. Rewrite to say that the next Publish replaces the Confluence pages with the new language.",
+   "The Output folder claim is partly confirmed. ADR-334 §1 and ADR-276 §3 refuse a named folder that is not empty and holds no marker of this working directory. Whether a named folder that already holds the old generation run's tree is refused 'before drawing the pages' was not confirmed against DeliverableRoot.refusalAtTheStart. The refusal may come at the start of the invocation, not at the drawing. Check this before stating when the run stops.",
+   "Timing is unsupported. Neither the code nor the ADRs back 'about as long as the writing took the first time' or 'this is the slow part'. Soften it, for example: 'every group is written again, which takes a while for many groups'.",
+   "Consequence flags are confirmed. GENERATION is the last Run, so cost() gives approvalCloses=false, labelsRefused=false and sampleDrawnAgain=false, and dropping those sentences is correct. These also check out: blank or unset means English, en/it in any case, nothing translated, a title taken from a file name stays as it is, the reports and progress page stay in English, and the website follows the language (ADR-333).",
+   "Possibly missing: README.md:100 says any value other than en or it stops the run when it reaches the writing. The ComboBox limits the choices, so this may not matter."
+  ]
+ },
+ {
+  "key": "clusterResolution",
+  "issues": [
+   "Cost line: 'writing the pages is the slow part, as long as the writing took on the last run' is hard to follow. Say: 'Writing the pages takes about as long as it did last time.'",
+   "Cost line: 'the run stops until you approve the new one' does not say where or how the operator approves. Name the place, for example the grouping approval in the control panel.",
+   "Cost line: 'Answers Vespera has already taken in are kept' is vague, because the operator cannot tell which answers those are. Say: 'Answers you saved before Vespera last read the file are kept; anything you typed after that is lost.'",
+   "Description: 'the seed document it most resembles' assumes the operator knows what a seed document is. Add a short gloss, such as 'one of the sample documents you supplied (the seed set)'.",
+   "Description: the effect on the operator's output is only implied. Say plainly that more groups means more, shorter pages, and fewer groups means fewer, longer pages.",
+   "Cost line is too long: five sentences that pack together the grouping, the pages, the approval, the new sample and the file warning. Split it or cut it down; the warning about relevance-labels.yaml should come first, because it is the step where the operator loses work."
+  ]
+ },
+ {
+  "key": "codeSetFolders",
+  "issues": [
+   "Cost line: 'The documents are grouped again, so a grouping you approved no longer applies' does not say what the grouping is. The operator does not know that Vespera groups near-duplicate or similar documents. Say it once, for example 'Vespera sorts your documents into groups of similar ones again'.",
+   "Cost line: 'A new set of documents to mark relevant or not is drawn' is passive and 'drawn' is jargon, so it needs rereading. Say who does it and what it is for, for example 'Vespera picks a new sample of documents for you to mark relevant or not, and writes a new answers file over the old one.'",
+   "Cost line: 'Answers already recorded are kept, so press Record my answers before changing this' has a broken 'so'. That answers are kept is not the reason to press the button. Split it: 'Answers you recorded are kept. Answers you typed but did not record are lost, so press Record my answers first.'",
+   "Cost line: 'unless Approved grouping is set to auto' names another setting without saying where it is or what auto does. Add 'on this tab' and 'auto approves every grouping for you'.",
+   "Description: 'working ... folder' is not explained. A QA operator may not know Vespera's working folder. Name it the way the tab names it, or say 'the folder where Vespera keeps its own files'.",
+   "Description: the long middle sentence joins two ideas with a semicolon and needs rereading. Split it into 'The code is copied whole into code/ in the output folder.' and 'Any documents in these folders are checked like your other documents. Vespera never writes into these folders.'",
+   "Description: the refusal clause in 'Leave it empty…; a run is refused if…' is a separate rule from 'leave it empty'. Make it its own sentence, and say 'Vespera will not start' instead of 'a run is refused'.",
+   "Cost line: 'apart from converting files Vespera already converted' reads awkwardly. Use 'Files Vespera already converted are not converted again.'"
+  ]
+ },
+ {
+  "key": "foldersNotWalked",
+  "issues": [
+   "Cost line is too long: six sentences, and the reader has to reread it to find the cost. Put the cost first in one short sentence (e.g. 'Changing this redoes almost a whole run; only file conversion is saved.'), then the side effects.",
+   "'converted' / 'conversion' is never explained. The reader does not know Vespera turns each file into text first. Say 'files already turned into text are reused' or explain it once.",
+   "'compared' in the description is vague: compared with what? Say what it means for the result, e.g. 'not checked for duplicate content'.",
+   "'The label file is written over: answers you already recorded are kept' sounds like a contradiction. Say instead: 'Vespera picks new documents for you to label. Answers you saved stay; answers you typed but did not save are lost, so run vespera label first.'",
+   "'run vespera label first' assumes the reader knows the command and what it does. Add a few words, e.g. 'run vespera label to save your answers first'.",
+   "'recorded' and 'typed and did not record' are not distinguished in the operator's terms. Use one plain verb, saved/not saved.",
+   "'Arrangement approved is set to auto' names another setting without saying where it is. Say 'unless the Arrangement approved setting (Profile tab) is auto'.",
+   "The resume sentence ('its list of files keeps the old folders') needs rereading. Plainer: 'A stopped run you resume still uses the old folder list; the change applies from your next new run.'",
+   "Description: 'the pages Vespera makes' is fine, but the not-relevant sentence ('records them as not relevant') does not say what that does to the pages. Add: 'they are read but left out of the pages', if that is true."
+  ]
+ },
+ {
+  "key": "confluenceFolderId",
+  "issues": [
+   "Cost line: 'Its message gives the number of the place where the pages are now.' 'Its' is ambiguous (the field's? the publish's?), and 'the number of the place' takes a second read. Suggest: 'Vespera then shows a message with the number of the page or folder where your pages are now.'",
+   "Cost line: 'if you name a different page or folder' should name the action the operator takes. Suggest: 'if you change this number to a different page or folder'.",
+   "Cost line: 'move the page titled Vespera under the new place in Confluence yourself' should say the pages under it come along. Suggest: 'in Confluence, move the page titled Vespera (and the pages under it) to the new page or folder yourself'.",
+   "Description: 'the publish to Confluence will not start' is fine, but say the operator gets a message, so they know what will happen: 'Publish stops and tells you to fix it.'",
+   "Title is long (12 words) but readable. Only acceptable if the matching '... by title' title is parallel, which the description depends on."
+  ]
+ },
+ {
+  "key": "confluenceEmail",
+  "issues": [
+   "\"Vespera publishes the pages\": the text never says which pages. A first-time reader has to guess. Say \"the pages of your documentation\" (or whatever CONTEXT.md calls what gets published).",
+   "\"so Confluence shows it as their author\" is wrong for pages that get updated: Confluence keeps the original creator as author and shows this account as the last editor. Say \"Confluence shows this account as the one who created or last changed them.\"",
+   "\"(creating new ones or updating earlier ones)\": the bracket breaks up the sentence and makes it harder to read. Move it into a sentence of its own.",
+   "\"API token\" is not explained. Add a short gloss, e.g. \"the API token (a password-like key you create in your Atlassian account settings)\".",
+   "\"Leave it empty and a publish to Confluence stops and asks you to fill it in\": \"a publish\" used as a noun is awkward. Say \"If it is empty, publishing to Confluence is refused until you fill it in.\" That also matches the code: the publish is refused, not paused.",
+   "The cost line is clear and true. No change needed.",
+   "'Confluence shows it as their author' is not quite true for updated pages. ConfluenceApi signs every call as email+token (Basic). On a page it creates, that account is the creator. On a page that already exists (PUT, version+1), Confluence keeps the original creator as author and shows this account only as the last editor. Suggested wording: 'Vespera creates and updates the pages as this account, so Confluence shows it as the one who made each change.'",
+   "'Leave it empty and a publish to Confluence stops' only holds for a publish started from the control panel. ConfluenceSite.java:99-101 reads VESPERA_CONFLUENCE_EMAIL from the shell before the profile, so a command-line publish can work with the key empty. The panel is the operator's context, so this is minor, but the sentence could be scoped ('a publish from the control panel').",
+   "Verified as true: no rerun, approval or labels unaffected, no new sample (ADR-359 §1); token asked in a masked field on every Publish with Confluence ticked and never saved, nothing asked for website alone (§3); no in-use line (§1, no value beneath). The cost line drops no consequence: the current text claims none. No CONTEXT.md _Avoid_ term is used."
+  ]
+ }
+]
