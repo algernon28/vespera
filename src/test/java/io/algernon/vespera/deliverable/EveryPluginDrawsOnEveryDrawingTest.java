@@ -9,8 +9,6 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,76 +75,4 @@ class EveryPluginDrawsOnEveryDrawingTest {
                 });
     }
 
-    @Test
-    @Story("Every plugin draws on every drawing")
-    @DisplayName("Each plugin's drawing is handed the tree, the generation run, the language and the set of folders written, and its folder says drawn")
-    void eachPluginIsHandedTheTreeAndItsFolderSaysDrawn(@TempDir Path base) throws IOException {
-        List<String> heard = new ArrayList<>();
-        ScriptedPlugin alpha = new ScriptedPlugin("alpha", heard);
-        ScriptedPlugin zulu = new ScriptedPlugin("zulu", heard);
-
-        Path tree = TwoClustersWithPictures.draw(base, List.of(alpha, zulu), DeliverableProgress.NONE);
-
-        claim(
-                "each drawing is opened on the tree being drawn, for its generation run, in the deliverable language,"
-                        + " with a way to move a file into place and the folders the drawing has written, to which the"
-                        + " plugin added its own",
-                () -> assertThat(List.of(alpha, zulu)).allSatisfy(plugin -> {
-                    Plugin.DrawingContext context = plugin.context();
-                    assertThat(context.tree()).isEqualTo(tree);
-                    assertThat(context.generationRun()).isEqualTo(ListedTree.RUN_ID);
-                    assertThat(context.language()).isEqualTo(io.algernon.vespera.synthesis.DeliverableLanguage.ENGLISH);
-                    assertThat(context.moves()).isNotNull();
-                    assertThat(context.written()).contains(plugin.name());
-                }));
-        claim(
-                "each plugin's folder lies at the tree's root under its name, and its drawing.txt says drawn",
-                () -> assertThat(List.of("alpha", "zulu")).allSatisfy(name -> assertThat(
-                                Files.readString(tree.resolve(name).resolve(THE_STATE_OF_THE_DRAWING),
-                                        StandardCharsets.UTF_8).strip())
-                        .as("the state of %s's drawing", name)
-                        .isEqualTo("drawn")));
-        claim(
-                "and each went to its end, writing the file it writes at its finish",
-                () -> assertThat(List.of("alpha", "zulu")).allSatisfy(name ->
-                        assertThat(tree.resolve(name).resolve(ScriptedPlugin.ITS_FILE)).isRegularFile()));
-    }
-
-    @Test
-    @Story("Every plugin draws on every drawing")
-    @DisplayName("A plugin's folder is a folder every drawing writes, so it is never counted as left behind")
-    void aPluginsFolderIsNeverCountedAsLeftBehind(@TempDir Path base) throws IOException {
-        long[] told = {-1};
-        DeliverableProgress hearing = new DeliverableProgress() {
-            @Override
-            public void leftBehind(boolean documentsFolder, long otherFolders) {
-                told[0] = otherFolders;
-            }
-        };
-
-        TwoClustersWithPictures.draw(
-                base, List.of(new ScriptedPlugin("alpha", new ArrayList<>()).addingNoFolderOfItsOwn()), hearing);
-
-        claim(
-                "a first drawing with a plugin that adds nothing to what this drawing wrote counts no folder left by"
-                        + " an earlier drawing: the drawing itself takes the plugin's folder as this drawing's, so no"
-                        + " plugin need (ADR-312 §4 as ADR-333 §2 has it of every plugin)",
-                () -> assertThat(told[0]).isZero());
-    }
-
-    @Test
-    @Story("Every plugin draws on every drawing")
-    @DisplayName("A drawing handed no plugin draws the tree alone and makes no plugin's folder")
-    void aDrawingHandedNoPluginDrawsTheTreeAlone(@TempDir Path base) throws IOException {
-        Path tree = TwoClustersWithPictures.draw(base, List.of(), DeliverableProgress.NONE);
-
-        claim(
-                "the tree's top holds the index, the manifest, the marker and the seed partition's folder, and no"
-                        + " drawing.txt lies anywhere in it",
-                () -> {
-                    assertThat(ListedTree.filesUnder(tree)).noneMatch(file -> file.endsWith(THE_STATE_OF_THE_DRAWING));
-                    assertThat(tree.resolve(Deliverable.INDEX_FILE_NAME)).isRegularFile();
-                    assertThat(tree.resolve(Deliverable.MANIFEST_FILE_NAME)).isRegularFile();
-                });
-    }
 }

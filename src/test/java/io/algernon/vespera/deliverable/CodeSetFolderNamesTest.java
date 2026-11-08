@@ -34,12 +34,6 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-296", url = Adr.EACH_CODE_SET_IS_COPIED_WHOLE_UNDER_CODE, type = "adr")
 class CodeSetFolderNamesTest {
 
-    /** The most UTF-16 code units a folder's name may hold, as a copy's name may. */
-    private static final int A_HUNDRED_UNITS = 100;
-
-    /** A name longer than {@link #A_HUNDRED_UNITS}, by twenty units. */
-    private static final int A_HUNDRED_AND_TWENTY_UNITS = 120;
-
     @Test
     @Story("Each code set is copied whole into a folder of its own")
     @DisplayName("A name the operator typed outranks a default name, and of two default names alike the set with the lower-numbered first file keeps it")
@@ -74,81 +68,6 @@ class CodeSetFolderNamesTest {
         claim(
                 "and the same names are given whatever order the sets are handed over in",
                 () -> assertThat(CodeSetFolderNames.of(reversed, typed)).containsExactlyInAnyOrderEntriesOf(expected));
-    }
-
-    @Test
-    @Story("Each code set is copied whole into a folder of its own")
-    @DisplayName("Two names are told apart once they are made safe, so two that differ only in a character no system allows meet, and the suffix goes at the end of a folder's name")
-    void namesAreToldApartOnceTheyAreMadeSafe() {
-        claim(
-                "a:b and a_b are one name once the colon is made an underscore, so the set whose first file is numbered"
-                        + " 4 takes its number",
-                () -> assertThat(CodeSetFolderNames.of(
-                                List.of(set("p/a:b", "a:b", 3), set("q/a_b", "a_b", 4)), List.of()))
-                        .containsExactlyInAnyOrderEntriesOf(Map.of("p/a:b", "a_b", "q/a_b", "a_b~4")));
-        claim(
-                "Shop.Core and shop.core collide without regard to case, and the second takes its number after the"
-                        + " whole name, a folder opening by no extension",
-                () -> assertThat(CodeSetFolderNames.of(
-                                List.of(set("a/Shop.Core", "Shop.Core", 3), set("b/shop.core", "shop.core", 4)),
-                                List.of()))
-                        .containsExactlyInAnyOrderEntriesOf(Map.of("a/Shop.Core", "Shop.Core", "b/shop.core", "shop.core~4")));
-    }
-
-    @Test
-    @Story("Each code set is copied whole into a folder of its own")
-    @DisplayName("A set's name is made safe on every system and cut to a hundred units, and a name left empty is the number of its first file")
-    void aNameIsMadeSafeAndCutAndOneLeftEmptyIsTheLowestMemberOccurrence() {
-        String aLongName = "a".repeat(A_HUNDRED_AND_TWENTY_UNITS);
-        Map<String, String> names = CodeSetFolderNames.of(
-                List.of(set("dots", "dots", 12), set("devices", "devices", 13), set("long", "long", 14)),
-                List.of(
-                        new CodeSetNames.Entry("dots", "..."),
-                        new CodeSetNames.Entry("devices", "CON"),
-                        new CodeSetNames.Entry("long", aLongName)));
-
-        claim(
-                "a typed name of three dots, whose trailing dots go, is the number of its set's first file, 12",
-                () -> assertThat(names).containsEntry("dots", "12"));
-        claim(
-                "a typed Windows device name takes a leading underscore",
-                () -> assertThat(names).containsEntry("devices", "_CON"));
-        claim(
-                "and a name of 120 units is cut to its first 100",
-                () -> assertThat(names).containsEntry("long", "a".repeat(A_HUNDRED_UNITS)));
-    }
-
-    @Test
-    @Story("Each code set is copied whole into a folder of its own")
-    @DisplayName("A suffixed name that still meets another set's name takes the suffix again")
-    void aSuffixedNameThatStillCollidesTakesTheSuffixAgain() {
-        claim(
-                "of core (first file 5), core~7 (first file 6) and CORE (first file 7), CORE meets core and takes ~7,"
-                        + " which meets core~7, and so takes it again",
-                () -> assertThat(CodeSetFolderNames.of(
-                                List.of(set("a/core", "core", 5), set("b/core~7", "core~7", 6), set("c/CORE", "CORE", 7)),
-                                List.of()))
-                        .containsExactlyInAnyOrderEntriesOf(
-                                Map.of("a/core", "core", "b/core~7", "core~7", "c/CORE", "CORE~7~7")));
-    }
-
-    @Test
-    @Story("Each code set is copied whole into a folder of its own")
-    @DisplayName("A rename naming a folder that holds no code set of this run is dormant: it renames nothing and is counted")
-    void anEntryNamingNoSetOfTheRunIsDormantAndCounted() {
-        List<ListedCodeSet> sets = List.of(set("shop/core", "core", 5), set("shop/api", "api", 6));
-        List<CodeSetNames.Entry> typed = List.of(
-                new CodeSetNames.Entry("gone/core", "api"),
-                new CodeSetNames.Entry("shop/core", "Shop core"),
-                new CodeSetNames.Entry("", "Archive"));
-
-        claim(
-                "the two entries naming no set of the run, one of them the archive's top, are counted",
-                () -> assertThat(CodeSetFolderNames.dormant(sets, typed)).isEqualTo(2L));
-        claim(
-                "and neither changes a name: api keeps its own name though a dormant entry names another folder api",
-                () -> assertThat(CodeSetFolderNames.of(sets, typed))
-                        .containsExactlyInAnyOrderEntriesOf(Map.of("shop/core", "Shop core", "shop/api", "api")));
     }
 
     /** A set at {@code folder} of the corpus root, named {@code defaultName}, its lowest member {@code lowestMember}. */

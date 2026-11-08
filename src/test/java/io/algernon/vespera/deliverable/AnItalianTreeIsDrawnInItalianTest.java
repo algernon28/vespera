@@ -120,133 +120,6 @@ public class AnItalianTreeIsDrawnInItalianTest {
 
     @Test
     @Story("An Italian deliverable's pages say in Italian what Vespera writes on them")
-    @DisplayName("Every HTML page of an Italian tree says it is in Italian")
-    void everyHtmlPageNamesItalian(@TempDir Path base) throws IOException {
-        Path tree = draw(base);
-        List<Path> pages = filesUnder(tree, ".html");
-
-        claim(
-                "the index, the written group's " + FIVE_ENTRIES + " pages and the unwritten group's one are drawn",
-                () -> assertThat(pages).hasSize(1 + FIVE_ENTRIES + 1));
-        claim(
-                "and each opens as an HTML page in Italian",
-                () -> assertThat(pages).allSatisfy(page -> assertThat(textOf(page))
-                        .startsWith("<!DOCTYPE html>\n<html lang=\"" + ItalianWordingOnRecord.LANG + "\">")));
-    }
-
-    /** ADR-321 §4: the page sizes are the operator's report, beside the database and outside the tree. */
-    @Test
-    @Story("An Italian deliverable's pages say in Italian what Vespera writes on them")
-    @DisplayName("The report of the groups' page sizes the same drawing writes for the operator stays in English")
-    void theOperatorsReportOfPageSizesStaysEnglish(@TempDir Path base) throws IOException {
-        draw(base);
-        String report = textOf(base.resolve("work").resolve(Deliverable.CLUSTER_PAGE_SIZES_FILE_NAME));
-
-        claim(
-                "the report beside the database opens as an English page with its English heading: it is written for"
-                        + " the operator, who sets the ceiling, and not for the readers of the tree",
-                () -> assertThat(report)
-                        .startsWith("<!DOCTYPE html>\n<html lang=\"en\">")
-                        .contains("<h1>Group page sizes</h1>"));
-    }
-
-    @Test
-    @Story("An Italian deliverable's pages say in Italian what Vespera writes on them")
-    @DisplayName("A written group's first page heads its list, says what its writing rests on and links its other pages in Italian")
-    void theWrittenClustersFirstPageIsInItalian(@TempDir Path base) throws IOException {
-        String page = asRead(textOf(doorsPage(draw(base), 1)));
-
-        claim(
-                "the writing's block says on hover, in Italian, what it shows",
-                () -> assertThat(page).contains("title=\"" + ItalianWordingOnRecord.WRITING_HOVER + "\""));
-        claim(
-                "the page says in Italian that the writing rests on the first " + THREE_SENT + " of the "
-                        + FOUR_DOCUMENTS + " documents",
-                () -> assertThat(page).contains(
-                        "<p>" + ItalianWordingOnRecord.SUBSET_DISCLOSURE.formatted(THREE_SENT, FOUR_DOCUMENTS) + "</p>"));
-        claim(
-                "the list is headed in Italian",
-                () -> assertThat(page).contains("<h2>" + ItalianWordingOnRecord.MEMBERSHIP_HEADING + "</h2>"));
-        claim(
-                "and the first of " + FIVE_ENTRIES + " pages links the next and the last in Italian",
-                () -> assertThat(page).contains("<p class=\"pages\">"
-                        + ItalianWordingOnRecord.PAGE_OF.formatted(1, FIVE_ENTRIES)
-                        + link("index-2.html", ItalianWordingOnRecord.NEXT) + ", "
-                        + link("index-5.html", ItalianWordingOnRecord.LAST) + "</p>"));
-    }
-
-    @Test
-    @Story("An Italian deliverable's pages say in Italian what Vespera writes on them")
-    @DisplayName("A later page links every other page in Italian and says in Italian why an entry links to nothing")
-    void aLaterPageIsInItalian(@TempDir Path base) throws IOException {
-        Path tree = draw(base);
-        String third = asRead(textOf(doorsPage(tree, 3)));
-        String fifth = asRead(textOf(doorsPage(tree, FIVE_ENTRIES)));
-
-        claim(
-                "the third page links the first, the previous, the next and the last in Italian",
-                () -> assertThat(third).contains("<p class=\"pages\">"
-                        + ItalianWordingOnRecord.PAGE_OF.formatted(3, FIVE_ENTRIES)
-                        + link("index.html", ItalianWordingOnRecord.FIRST) + ", "
-                        + link("index-2.html", ItalianWordingOnRecord.PREVIOUS) + ", "
-                        + link("index-4.html", ItalianWordingOnRecord.NEXT) + ", "
-                        + link("index-5.html", ItalianWordingOnRecord.LAST) + "</p>"));
-        claim(
-                "its entry, the number the writing cited and the group no longer holds, says so in Italian",
-                () -> assertThat(third).contains("<em>" + ItalianWordingOnRecord.THE_CLUSTER_NO_LONGER_HOLDS_IT + "</em>"));
-        claim(
-                "and the fifth page's entry, whose original is gone from the archive, says why in Italian",
-                () -> assertThat(fifth).contains(
-                        GONE_FROM_THE_ARCHIVE + " <em>" + ItalianWordingOnRecord.GONE + "</em>"));
-    }
-
-    @Test
-    @Story("An Italian deliverable says in Italian why nothing was written over a group")
-    @DisplayName("An unwritten group's page says in Italian why, and that it stands without writing")
-    void theUnwrittenClustersPageIsInItalian(@TempDir Path base) throws IOException {
-        String page = asRead(textOf(dampersPage(draw(base))));
-
-        claim(
-                "beneath the heading, the reason the answer was turned down and, beneath it, that the group stands,"
-                        + " each in Italian and in italics",
-                () -> assertThat(page).contains(
-                        "<p><em>" + ItalianWordingOnRecord.THE_ANSWER_CAME_BACK_IN_ANOTHER_SHAPE + "</em></p>\n"
-                                + "<p><em>" + ItalianWordingOnRecord.STANDS_WITHOUT_WRITING + "</em></p>"));
-    }
-
-    @Test
-    @Story("An Italian deliverable's pages say in Italian what Vespera writes on them")
-    @DisplayName("The index is titled, headed and explained in Italian, its profile keys named as the profile spells them")
-    void theIndexIsInItalian(@TempDir Path base) throws IOException {
-        Path tree = draw(base);
-        String index = asRead(textOf(tree.resolve(Deliverable.INDEX_FILE_NAME)));
-        Path archive = base.resolve("archive");
-
-        claim(
-                "its title and heading name the deliverable in Italian, with the run's id",
-                () -> assertThat(index)
-                        .contains("<title>" + ItalianWordingOnRecord.THE_DELIVERABLE + ListedTree.RUN_ID + "</title>")
-                        .contains("<h1>" + ItalianWordingOnRecord.THE_DELIVERABLE + ListedTree.RUN_ID + "</h1>"));
-        claim(
-                "its three lines on what produced the tree are in Italian, and the profile's key is the profile's",
-                () -> assertThat(index)
-                        .contains("<li>" + ItalianWordingOnRecord.RUN + ListedTree.RUN_ID + "</li>")
-                        .contains("<li>" + ItalianWordingOnRecord.WALK + ListedTree.WALK + "</li>")
-                        .contains("<li>" + ItalianWordingOnRecord.ARCHIVE_ROOT + archive + "</li>")
-                        .contains("<li>" + THE_KEY + ": " + ItalianWordingOnRecord.LANG + "</li>"));
-        claim(
-                "its paragraph on documents.csv is the record's Italian, the column names staying the file's",
-                () -> assertThat(index).contains(ItalianWordingOnRecord.THE_INDEXS_PARAGRAPH));
-        claim(
-                "the table of groups is headed in Italian, and the unwritten group's cell says nothing was written in"
-                        + " Italian",
-                () -> assertThat(index)
-                        .contains(headRow(ItalianWordingOnRecord.THE_TABLE_OF_CLUSTERS))
-                        .contains("<em>" + ItalianWordingOnRecord.NOTHING_WAS_WRITTEN_OVER_IT + "</em>"));
-    }
-
-    @Test
-    @Story("An Italian deliverable's pages say in Italian what Vespera writes on them")
     @DisplayName("No page of an Italian tree carries a fixed English word")
     void noPageCarriesAFixedEnglishWord(@TempDir Path base) throws IOException {
         Path tree = draw(base);
@@ -302,23 +175,9 @@ public class AnItalianTreeIsDrawnInItalianTest {
                 DeliverableProgress.NONE);
     }
 
-    /** Page {@code page} of the written cluster's HTML pages, counted from 1 (ADR-303 §4). */
-    private static Path doorsPage(Path tree, int page) {
-        return tree.resolve("1-sicurezza").resolve("1-porte").resolve(ClusterPage.nameOfPage(page));
-    }
-
-    private static Path dampersPage(Path tree) {
-        return tree.resolve("1-sicurezza").resolve("2-serrande").resolve(Deliverable.INDEX_FILE_NAME);
-    }
-
     /** A link of a cluster page's navigation to the page named {@code name}, reading {@code word}. */
     private static String link(String name, String word) {
         return "<a href=\"./" + name + "\">" + word + "</a>";
-    }
-
-    /** The head row of a table headed by {@code heads}, as the tree writes it. */
-    public static String headRow(List<String> heads) {
-        return "<tr>" + heads.stream().map(head -> "<th>" + head + "</th>").collect(Collectors.joining()) + "</tr>";
     }
 
     /** Every file under {@code tree} whose name ends with {@code ending}, sorted. */

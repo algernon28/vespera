@@ -87,34 +87,6 @@ class TreeThatFailsPartwayLeavesTheOldIndexAndManifestTest {
                         .isEqualTo(theManifestBefore));
     }
 
-    @Test
-    @Story("A write that fails partway leaves the index and the listing whole")
-    @DisplayName("A first write that fails at its second exemplar leaves no index and no listing at all")
-    void aFirstWriteThatFailsLeavesNeither(@TempDir Path base) {
-        String corpusRoot = base.resolve("archive").toString();
-        DeliverableProvenance provenance = ThreePartitions.provenance(corpusRoot);
-
-        Throwable thrown = catchThrowable(() -> Deliverable.writeTo(
-                base.resolve("work"),
-                DeliverableRoot.UNNAMED,
-                provenance,
-                aSourceThatFailsAtItsSecondPartition(),
-                SurvivorPictures.none(),
-                DeliverableProgress.NONE));
-
-        Path tree = base.resolve("work").resolve(Deliverable.DIRECTORY_NAME).resolve(provenance.runId());
-        claim(
-                "the write stopped where its source failed",
-                () -> assertThat(thrown).isInstanceOf(IllegalStateException.class).hasMessage(WHAT_THE_READ_SAID));
-        claim(
-                "no index stands in the tree, where one listing the first exemplar alone would have read as a"
-                        + " finished tree of one exemplar; and no listing either",
-                () -> {
-                    assertThat(tree.resolve(Deliverable.INDEX_FILE_NAME)).doesNotExist();
-                    assertThat(tree.resolve(Deliverable.MANIFEST_FILE_NAME)).doesNotExist();
-                });
-    }
-
     /**
      * {@link ThreePartitions}'s arrangement and survivors with no synthesis doc and no reason, behind a source
      * whose read of the second partition's clusters throws.

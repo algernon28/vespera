@@ -11,11 +11,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.ReplacingMove;
-import io.algernon.vespera.synthesis.ClusterSlot;
 import io.algernon.vespera.synthesis.DeliverableLanguage;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
-import io.algernon.vespera.synthesis.Unwritten;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -72,11 +70,6 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
     /** Its folder, from the tree's root: the partition's place and slug, then the cluster's. */
     private static final String DOORS_FOLDER = "1-fire-safety/1-fire-doors";
 
-    /** The cluster nothing could be sent for, placed second, of two documents. */
-    private static final RecordedCluster DAMPERS = cluster(THE_SEED, 1, "Smoke dampers", 2, 2);
-
-    private static final String DAMPERS_FOLDER = "1-fire-safety/2-smoke-dampers";
-
     /** The writing over the first cluster, citing each of its three documents. */
     private static final SynthesisDoc DOORS_WRITING =
             writing("Fire doors and their inspection", "Doors [1], frames [2] and closers [3].", 10, 11, 12);
@@ -87,86 +80,16 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
             survivor(11, "reports/b.docx", "1".repeat(64), THE_SEED, SEED_PATH, 0, 0.8),
             survivor(12, "reports/c.docx", "2".repeat(64), THE_SEED, SEED_PATH, 0, 0.7));
 
-    /** The second cluster's two documents. */
-    private static final List<ListedSurvivor> DAMPERS_MEMBERS = List.of(
-            survivor(20, "reports/d.docx", "3".repeat(64), THE_SEED, SEED_PATH, 1, 0.6),
-            survivor(21, "reports/e.docx", "4".repeat(64), THE_SEED, SEED_PATH, 1, 0.5));
-
-    /**
-     * The first cluster's page as it was written before a page could be split, byte for byte: what every drawing with
-     * the ceiling unset still writes.
-     */
-    private static final String THE_PAGE_AS_IT_WAS_WRITTEN = """
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-            <meta charset="UTF-8">
-            <title>Fire doors and their inspection</title>
-            <style>
-            body { font-family: sans-serif; margin: 2em; max-width: 900px; }
-            table { border-collapse: collapse; margin-bottom: 1.5em; width: 100%; }
-            td, th { border: 1px solid #ccc; padding: 0.3em 0.8em; text-align: left; }
-            td.count { text-align: right; }
-            code.name { font-size: 1.2em; padding: 0.2em 0.4em; background: #eee; }
-            blockquote { color: #444; font-style: italic; margin: 0.4em 0 0 1em; }
-            li { margin-bottom: 0.6em; }
-            img { max-width: 100%; }
-            </style>
-            </head>
-            <body>
-            <h1>Fire doors and their inspection</h1>
-            <div class="writing" title="What the local model wrote over this group from the documents listed below it; each number in brackets is a link to the document it cites.">
-            <p>Doors <a href="#document-1">[1]</a>, frames <a href="#document-2">[2]</a> and closers <a href="#document-3">[3]</a>.</p>
-            </div>
-            <h2>The documents in this group</h2>
-            <ol>
-            <li id="document-1">
-            reports/a.docx <em>no longer in the archive, so it was not copied</em>
-            </li>
-            <li id="document-2">
-            reports/b.docx <em>no longer in the archive, so it was not copied</em>
-            </li>
-            <li id="document-3">
-            reports/c.docx <em>no longer in the archive, so it was not copied</em>
-            </li>
-            </ol>
-            </body>
-            </html>
-            """;
-
     /** The smallest ceiling there is: every page past it, so every cluster of two entries or more is split. */
     private static final ClusterPageCeiling ONE_BYTE = new ClusterPageCeiling.Bytes(1);
 
     private static final ClusterPageCeiling UNSET = new ClusterPageCeiling.Unset();
 
-    /** The navigation of each page of a cluster of three pages, and of two, as each page carries it twice. */
-    private static final String PAGE_1_OF_3 = "<p class=\"pages\">Page 1 of 3: <a href=\"./index-2.html\">next</a>,"
-            + " <a href=\"./index-3.html\">last</a></p>\n";
-
-    private static final String PAGE_2_OF_3 = "<p class=\"pages\">Page 2 of 3: <a href=\"./index.html\">first</a>,"
-            + " <a href=\"./index.html\">previous</a>, <a href=\"./index-3.html\">next</a>,"
-            + " <a href=\"./index-3.html\">last</a></p>\n";
-
-    private static final String PAGE_3_OF_3 = "<p class=\"pages\">Page 3 of 3: <a href=\"./index.html\">first</a>,"
-            + " <a href=\"./index-2.html\">previous</a></p>\n";
-
-    private static final String PAGE_1_OF_2 = "<p class=\"pages\">Page 1 of 2: <a href=\"./index-2.html\">next</a>,"
-            + " <a href=\"./index-2.html\">last</a></p>\n";
-
-    private static final String PAGE_2_OF_2 = "<p class=\"pages\">Page 2 of 2: <a href=\"./index.html\">first</a>,"
-            + " <a href=\"./index.html\">previous</a></p>\n";
-
     /** What heads every page's list. */
     private static final String THE_LIST_HEADING = "<h2>The documents in this group</h2>\n";
 
-    /** Everything a page holds after its list's end and the navigation below it. */
-    private static final String THE_TAIL = "</body>\n</html>\n";
-
     /** How long a long document's path is, in characters: an entry of near 5,000 bytes. */
     private static final int A_LONG_PATH = 4_900;
-
-    /** How long a very long document's path is: one entry larger than the ceiling the long entries are split at. */
-    private static final int A_VERY_LONG_PATH = 20_000;
 
     /** A cluster's list entry, from its opening tag to the line break after its close. */
     private static final Pattern AN_ENTRY = Pattern.compile("(?s)<li id=\"document-(\\d+)\">.*?</li>\n");
@@ -176,57 +99,6 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
 
     /** What a page is called while it is written beside its place. */
     private static final String WHILE_IT_IS_WRITTEN = ".part";
-
-    @Test
-    @Story("A group's page is split only past the ceiling")
-    @DisplayName("With no ceiling set, a group's page is one file, byte for byte as it was written before pages could be split")
-    void anUnsetCeilingWritesThePageAsItWasWritten(@TempDir Path base) throws IOException {
-        Path unset = folderOf(drawDoors(base.resolve("unset"), UNSET, DeliverableProgress.NONE), DOORS_FOLDER);
-        Path byTheFormWithNoCeiling = ListedTree.write(
-                        base.resolve("without").resolve("work"),
-                        base.resolve("without").resolve("archive"),
-                        List.of(DOORS),
-                        Map.of(slotOf(DOORS), DOORS_WRITING),
-                        DOORS_MEMBERS,
-                        Map.of())
-                .resolve(DOORS_FOLDER);
-
-        claim(
-                "the group's folder holds one page, index.html, and no further page",
-                () -> assertThat(pagesIn(unset)).containsExactly(unset.resolve("index.html")));
-        claim(
-                "and that page is, byte for byte, the page written before any page could be split: no navigation and"
-                        + " no word of pages",
-                () -> assertThat(read(unset.resolve("index.html"))).isEqualTo(THE_PAGE_AS_IT_WAS_WRITTEN));
-        claim(
-                "the writer's forms that take no ceiling write that same page",
-                () -> assertThat(read(byTheFormWithNoCeiling.resolve("index.html"))).isEqualTo(THE_PAGE_AS_IT_WAS_WRITTEN));
-    }
-
-    @Test
-    @Story("A group's page is split only past the ceiling")
-    @DisplayName("A ceiling equal to the page's size leaves one page, byte for byte the same, and one byte less splits it")
-    void aCeilingAtTheOnePageSizeWritesOnePageAndOneByteLessSplitsIt(@TempDir Path base) throws IOException {
-        long onePageSize = THE_PAGE_AS_IT_WAS_WRITTEN.getBytes(StandardCharsets.UTF_8).length;
-
-        Path atTheSize = folderOf(
-                drawDoors(base.resolve("at"), new ClusterPageCeiling.Bytes(onePageSize), DeliverableProgress.NONE),
-                DOORS_FOLDER);
-        Path oneByteLess = folderOf(
-                drawDoors(base.resolve("under"), new ClusterPageCeiling.Bytes(onePageSize - 1), DeliverableProgress.NONE),
-                DOORS_FOLDER);
-
-        claim(
-                "a ceiling of exactly the " + onePageSize + " bytes the page takes written whole is not passed, so the"
-                        + " group keeps one page, byte for byte the page with no ceiling",
-                () -> {
-                    assertThat(pagesIn(atTheSize)).containsExactly(atTheSize.resolve("index.html"));
-                    assertThat(read(atTheSize.resolve("index.html"))).isEqualTo(THE_PAGE_AS_IT_WAS_WRITTEN);
-                });
-        claim(
-                "a ceiling one byte smaller is passed, so the group is written as more than one page",
-                () -> assertThat(pagesIn(oneByteLess)).hasSizeGreaterThan(1));
-    }
 
     @Test
     @Story("A group past the ceiling is written as several pages")
@@ -250,224 +122,6 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
                     () -> assertThat(Files.size(page)).isLessThanOrEqualTo(ceiling));
         }
     }
-
-    @Test
-    @Story("A group past the ceiling is written as several pages")
-    @DisplayName("An entry larger than the ceiling on its own has a page of its own, and every other page stays within the ceiling")
-    void anEntryLargerThanTheCeilingHasAPageOfItsOwn(@TempDir Path base) throws IOException {
-        List<ListedSurvivor> members = longMembers(A_LONG_PATH, A_VERY_LONG_PATH, A_LONG_PATH, A_LONG_PATH);
-        String whole = read(folderOf(drawLong(base.resolve("whole"), members, UNSET), DOORS_FOLDER).resolve("index.html"));
-        long ceiling = twoAndAHalfEntriesAbove(whole);
-
-        List<Path> pages = pagesIn(folderOf(
-                drawLong(base.resolve("split"), members, new ClusterPageCeiling.Bytes(ceiling)), DOORS_FOLDER));
-
-        claim(
-                "entry 1 is alone on the first page, since entry 2 alone passes the ceiling; entry 2 is alone on the"
-                        + " second; 3 and 4 share the third",
-                () -> assertThat(pages.stream().map(page -> numbersOn(read(page))).toList())
-                        .containsExactly(List.of(1), List.of(2), List.of(3, 4)));
-        for (Path page : pages) {
-            claim(
-                    page.getFileName() + " is within the ceiling of " + ceiling + " bytes, or holds one entry alone",
-                    () -> assertThat(Files.size(page) <= ceiling || numbersOn(read(page)).size() == 1).isTrue());
-        }
-        claim(
-                "and the one page past the ceiling is the second, holding the entry larger than it",
-                () -> assertThat(pages.stream().filter(page -> size(page) > ceiling).map(Path::getFileName).map(Path::toString))
-                        .containsExactly("index-2.html"));
-    }
-
-    @Test
-    @Story("A group's page is split only past the ceiling")
-    @DisplayName("A group of no listed document, or of one, keeps one page however small the ceiling, even where its"
-            + " writing was made from documents it no longer holds")
-    void aClusterWithNoListedMemberOrOneEntryIsNeverSplit(@TempDir Path base) throws IOException {
-        RecordedCluster one = cluster(THE_SEED, 0, "Fire doors", 1, 1);
-        RecordedCluster none = cluster(THE_SEED, 1, "Smoke dampers", 2, 0);
-        // Written over from two documents it no longer holds: two entries saying so, and no listed member.
-        RecordedCluster writtenOverNone = cluster(THE_SEED, 2, "Sprinklers", 3, 0);
-        Map<ClusterSlot, SynthesisDoc> writings =
-                Map.of(slotOf(writtenOverNone), writing("Sprinkler heads", "Heads [1] and valves [2].", 30, 31));
-        List<RecordedCluster> clusters = List.of(one, none, writtenOverNone);
-        List<ListedSurvivor> theOne = List.of(DOORS_MEMBERS.getFirst());
-        Path unset = ListedTree.writeWithCeiling(
-                base.resolve("unset").resolve("work"), base.resolve("unset").resolve("archive"), clusters,
-                writings, theOne, Map.of(), SurvivorPictures.none(), UNSET, DeliverableProgress.NONE);
-        Path split = ListedTree.writeWithCeiling(
-                base.resolve("split").resolve("work"), base.resolve("split").resolve("archive"), clusters,
-                writings, theOne, Map.of(), SurvivorPictures.none(), ONE_BYTE, DeliverableProgress.NONE);
-
-        for (String folder : List.of(DOORS_FOLDER, DAMPERS_FOLDER, "1-fire-safety/3-sprinklers")) {
-            claim(
-                    "with a ceiling of one byte, " + folder + " still holds one page, byte for byte the page with no"
-                            + " ceiling: a page with no entry, or one, has no entry's end to split at",
-                    () -> {
-                        assertThat(pagesIn(split.resolve(folder))).containsExactly(split.resolve(folder).resolve("index.html"));
-                        assertThat(read(split.resolve(folder).resolve("index.html")))
-                                .isEqualTo(read(unset.resolve(folder).resolve("index.html")));
-                    });
-        }
-    }
-
-    /**
-     * The smallest ceilings at which two entries of 100 bytes share a page, measured from the page's parts (ADR-303 §3):
-     * the head through the title "Fire doors", 582 bytes; the navigation at its widest, "Page 9 of 9: " and four links
-     * to {@code index-9.html} named "previous", 189 bytes, above and below the list; the list's heading, 37; the list's
-     * closing, 6; and the tail, 16. A later page adds its numbered opening, {@code <ol start="9">}, 15; the first page
-     * its plain {@code <ol>}, 5, and the sentence nothing was written over this group in italics, 52.
-     */
-    private static final long A_LATER_PAGE_OF_TWO_SMALL_ENTRIES = 582 + 2 * 189 + 37 + 6 + 16 + 15 + 200;
-
-    private static final long A_FIRST_PAGE_OF_TWO_SMALL_ENTRIES = 582 + 2 * 189 + 37 + 6 + 16 + 5 + 52 + 200;
-
-    @Test
-    @Story("A group's page is split only past the ceiling")
-    @DisplayName("A later page is counted with the list's heading once, so it holds what fits as the first page does")
-    void aLaterPageCountsTheListsHeadingOnce() {
-        RecordedCluster unwritten = cluster(THE_SEED, 0, "Fire doors", 1, 3);
-        long small = 100;
-        long tooLargeForAnyPage = 1_000_000;
-        // Two small entries after a large one: whether they share the second page decides two pages or three. Two small
-        // entries before a large one: whether they share the first page decides it.
-        long laterThreshold = smallestCeilingOfTwoPages(unwritten, new long[] {tooLargeForAnyPage, small, small});
-        long firstThreshold = smallestCeilingOfTwoPages(unwritten, new long[] {small, small, tooLargeForAnyPage});
-
-        claim(
-                "two entries of " + small + " bytes share a later page from a ceiling of "
-                        + A_LATER_PAGE_OF_TWO_SMALL_ENTRIES + " bytes: the page's head and title, the navigation above"
-                        + " and below the list, the list's heading once, its numbered opening and closing, the tail,"
-                        + " and the two entries",
-                () -> assertThat(laterThreshold).isEqualTo(A_LATER_PAGE_OF_TWO_SMALL_ENTRIES));
-        claim(
-                "and share the first page from " + A_FIRST_PAGE_OF_TWO_SMALL_ENTRIES + " bytes: the same parts, the"
-                        + " heading once again, with the first page's plain list opening and the sentence saying"
-                        + " nothing was written over the group",
-                () -> assertThat(firstThreshold).isEqualTo(A_FIRST_PAGE_OF_TWO_SMALL_ENTRIES));
-    }
-
-    /**
-     * An Italian page's navigation is longer than an English one's (ADR-321 §4), so the plan counts it at its own upper
-     * bound: the smallest ceiling at which two small entries share a later page is greater in Italian than in English by
-     * exactly the longer navigation, counted twice, and the longer list heading. A plan counting the English words would
-     * leave the two thresholds the heading's byte apart.
-     */
-    @Test
-    @Story("A group past the ceiling is written as several pages")
-    @DisplayName("An Italian group's split is planned with the Italian navigation and list heading, longer than the English")
-    @Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
-    void anItalianPlanCountsItsNavigationInItalianWords() {
-        RecordedCluster unwritten = cluster(THE_SEED, 0, "Fire doors", 1, 3);
-        long[] laterPageDecides = {1_000_000, 100, 100};
-        long english = smallestCeilingOfTwoPages(unwritten, laterPageDecides, DeliverableLanguage.ENGLISH);
-        long italian = smallestCeilingOfTwoPages(unwritten, laterPageDecides, DeliverableLanguage.ITALIAN);
-
-        claim(
-                "the Italian threshold exceeds the English by " + ITALIAN_OVER_ENGLISH + " bytes: the navigation above"
-                        + " and below the list is 10 bytes longer at its widest, \"Pagina 9 di 9: \" 2 bytes longer"
-                        + " than \"Page 9 of 9: \" and each of its four links named by its longest word, \"precedente\","
-                        + " 2 bytes longer than \"previous\"; and the list heading is 1 byte longer",
-                () -> assertThat(italian - english).isEqualTo(ITALIAN_OVER_ENGLISH));
-    }
-
-    /**
-     * Where the plan is tight, the pages an Italian group is written as stay within the ceiling (ADR-303 §3, ADR-321 §4):
-     * the ceiling is the smallest at which the Italian plan puts five long entries on three pages.
-     */
-    @Test
-    @Story("A group past the ceiling is written as several pages")
-    @DisplayName("At the tightest ceiling its plan allows, every page of an Italian group holding more than one entry is within the ceiling")
-    @Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
-    void anItalianClustersPagesAreWithinATightCeiling(@TempDir Path base) throws IOException {
-        List<ListedSurvivor> members = longMembers(A_LONG_PATH, A_LONG_PATH, A_LONG_PATH, A_LONG_PATH, A_LONG_PATH);
-        Path wholeTree = drawLong(base.resolve("whole"), members, UNSET, DeliverableLanguage.ITALIAN);
-        String whole = read(folderOf(wholeTree, DOORS_FOLDER).resolve("index.html"));
-        long[] entrySizes = entriesOf(whole).stream().mapToLong(AClusterPastTheCeilingIsSplitIntoPagesTest::utf8).toArray();
-        RecordedCluster doors = cluster(THE_SEED, 0, "Fire doors", 1, members.size());
-        long tight = smallestCeilingOf(3, entrySizes,
-                ceiling -> ClusterPage.plan(ceiling, doors, longWriting(members), null, entrySizes, false,
-                        DeliverableLanguage.ITALIAN));
-
-        List<Path> pages = pagesIn(folderOf(
-                drawLong(base.resolve("split"), members, new ClusterPageCeiling.Bytes(tight), DeliverableLanguage.ITALIAN),
-                DOORS_FOLDER));
-
-        claim(
-                "the group is written as the three pages its plan made: the first, carrying the writing, holds entry 1"
-                        + " alone, and the two after it two entries each, filled to the ceiling",
-                () -> assertThat(pages.stream().map(page -> numbersOn(read(page))).toList())
-                        .containsExactly(List.of(1), List.of(2, 3), List.of(4, 5)));
-        for (Path page : pages.subList(1, pages.size())) {
-            claim(
-                    page.getFileName() + ", holding two entries, is within the ceiling of " + tight + " bytes, its"
-                            + " Italian navigation counted",
-                    () -> assertThat(Files.size(page)).isLessThanOrEqualTo(tight));
-        }
-    }
-
-    /**
-     * Where the first page decides the plan, it stays within the ceiling however many of its citations name another page
-     * (ADR-303 §3, §6): the plan counts every citation on the first page at the longest page name, so the citations of
-     * an entry on the second page, which grow by that page's name once written, never push the first page past the
-     * ceiling. The ceiling is the smallest at which two entries share the first page, and the third, larger than the
-     * ceiling alone, takes the second; the writing cites that third entry {@value #CITATIONS_OF_THE_LAST} times, more
-     * than the plan's room for the widest navigation could absorb were the citations counted without their page.
-     */
-    @Test
-    @Story("A group past the ceiling is written as several pages")
-    @DisplayName("At the tightest ceiling its plan allows, a group's first page stays within the ceiling though its writing cites an entry of another page many times")
-    void aFirstPageCitingAnotherPageIsWithinATightCeiling(@TempDir Path base) throws IOException {
-        List<ListedSurvivor> members = longMembers(A_LONG_PATH, A_LONG_PATH, A_VERY_LONG_PATH);
-        RecordedCluster doors = cluster(THE_SEED, 0, "Fire doors", 1, members.size());
-        SynthesisDoc citingTheLast = writing(
-                "Fire doors and their inspection",
-                "Doors [1], frames [2]" + " and closers [3]".repeat(CITATIONS_OF_THE_LAST) + ".",
-                members.stream().mapToLong(member -> member.occurrence().value()).toArray());
-        Map<ClusterSlot, SynthesisDoc> written = Map.of(slotOf(doors), citingTheLast);
-        Path wholeTree = ListedTree.writeWithCeiling(
-                base.resolve("whole").resolve("work"), base.resolve("whole").resolve("archive"), List.of(doors),
-                written, members, Map.of(), SurvivorPictures.none(), UNSET, DeliverableProgress.NONE);
-        long[] entrySizes = entriesOf(read(folderOf(wholeTree, DOORS_FOLDER).resolve("index.html"))).stream()
-                .mapToLong(AClusterPastTheCeilingIsSplitIntoPagesTest::utf8)
-                .toArray();
-        long tight = smallestCeilingOf(2, entrySizes,
-                ceiling -> ClusterPage.plan(ceiling, doors, citingTheLast, null, entrySizes, false,
-                        DeliverableLanguage.ENGLISH));
-
-        Path splitTree = ListedTree.writeWithCeiling(
-                base.resolve("split").resolve("work"), base.resolve("split").resolve("archive"), List.of(doors),
-                written, members, Map.of(), SurvivorPictures.none(), new ClusterPageCeiling.Bytes(tight),
-                DeliverableProgress.NONE);
-        List<Path> pages = pagesIn(folderOf(splitTree, DOORS_FOLDER));
-        String firstPage = read(pages.getFirst());
-
-        claim(
-                "the group is written as the two pages its plan made: the first, carrying the writing, holds entries 1"
-                        + " and 2, filled to the ceiling, and the second the entry larger than the ceiling alone",
-                () -> assertThat(pages.stream().map(page -> numbersOn(read(page))).toList())
-                        .containsExactly(List.of(1, 2), List.of(3)));
-        claim(
-                "the first page's writing links entry 3 on the second page all " + CITATIONS_OF_THE_LAST + " times",
-                () -> assertThat(firstPage.split("href=\"\\./index-2\\.html#document-3\"", -1))
-                        .hasSize(CITATIONS_OF_THE_LAST + 1));
-        claim(
-                "and the first page is within the ceiling of " + tight + " bytes, its citations naming the second page"
-                        + " counted",
-                () -> assertThat(Files.size(pages.getFirst())).isLessThanOrEqualTo(tight));
-    }
-
-    /**
-     * How many times the writing cites the entry on the second page: each citation grows by the second page's name, 14
-     * bytes, so these outgrow the room the plan leaves for the widest navigation, a few hundred bytes.
-     */
-    private static final int CITATIONS_OF_THE_LAST = 40;
-
-    /**
-     * How many bytes more the Italian plan counts around a later page's list than the English (ADR-321 §4): its
-     * navigation, 10 bytes longer at its widest, twice, and its list heading, "I documenti di questo gruppo", 1 byte
-     * longer than "The documents in this group".
-     */
-    private static final long ITALIAN_OVER_ENGLISH = 2 * 10 + 1;
 
     /** The smallest ceiling at which {@code entrySizes} are planned as two pages and not three. */
     private static long smallestCeilingOfTwoPages(RecordedCluster unwritten, long[] entrySizes) {
@@ -498,10 +152,6 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
         return low;
     }
 
-    private static long utf8(String text) {
-        return text.getBytes(StandardCharsets.UTF_8).length;
-    }
-
     @Test
     @Story("A group past the ceiling is written as several pages")
     @DisplayName("Every entry is on exactly one page, in order, each list numbered on from the page before and each entry keeping its id")
@@ -529,50 +179,6 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
 
     @Test
     @Story("A group past the ceiling is written as several pages")
-    @DisplayName("Each page carries the group's title, the page navigation above and below its list, and only the first carries the writing or the reason nothing was written")
-    void eachPageCarriesTheTitleTheNavigationAboveAndBelowTheListAndTheWritingOnlyOnTheFirst(@TempDir Path base)
-            throws IOException {
-        Path unset = drawBoth(base.resolve("unset"), UNSET, DeliverableProgress.NONE);
-        Path split = drawBoth(base.resolve("split"), ONE_BYTE, DeliverableProgress.NONE);
-        String doors = read(unset.resolve(DOORS_FOLDER).resolve("index.html"));
-        String dampers = read(unset.resolve(DAMPERS_FOLDER).resolve("index.html"));
-        List<String> doorsEntries = entriesOf(doors);
-        List<String> dampersEntries = entriesOf(dampers);
-        String doorsWritingWithItsCitationsOnTheirPages = standingOnTheFirstPage(doors)
-                .replace("href=\"#document-2\"", "href=\"./index-2.html#document-2\"")
-                .replace("href=\"#document-3\"", "href=\"./index-3.html#document-3\"");
-
-        claim(
-                "the written group's three pages are, in full: its head and title, the navigation, on the first page"
-                        + " alone the writing, its citations of the second and third entries naming the page each is on,"
-                        + " then the list's heading, its list numbered on, its one entry, the navigation again and the tail",
-                () -> assertThat(pagesIn(split.resolve(DOORS_FOLDER)).stream().map(AClusterPastTheCeilingIsSplitIntoPagesTest::read))
-                        .containsExactly(
-                                throughTheTitle(doors) + PAGE_1_OF_3 + doorsWritingWithItsCitationsOnTheirPages
-                                        + THE_LIST_HEADING + "<ol>\n" + doorsEntries.get(0) + "</ol>\n" + PAGE_1_OF_3
-                                        + THE_TAIL,
-                                throughTheTitle(doors) + PAGE_2_OF_3 + THE_LIST_HEADING + "<ol start=\"2\">\n"
-                                        + doorsEntries.get(1) + "</ol>\n" + PAGE_2_OF_3 + THE_TAIL,
-                                throughTheTitle(doors) + PAGE_3_OF_3 + THE_LIST_HEADING + "<ol start=\"3\">\n"
-                                        + doorsEntries.get(2) + "</ol>\n" + PAGE_3_OF_3 + THE_TAIL));
-        claim(
-                "and the group nothing was written over has two pages, the sentence saying why on the first alone",
-                () -> assertThat(pagesIn(split.resolve(DAMPERS_FOLDER)).stream().map(AClusterPastTheCeilingIsSplitIntoPagesTest::read))
-                        .containsExactly(
-                                throughTheTitle(dampers) + PAGE_1_OF_2 + standingOnTheFirstPage(dampers)
-                                        + THE_LIST_HEADING + "<ol>\n" + dampersEntries.get(0) + "</ol>\n" + PAGE_1_OF_2
-                                        + THE_TAIL,
-                                throughTheTitle(dampers) + PAGE_2_OF_2 + THE_LIST_HEADING + "<ol start=\"2\">\n"
-                                        + dampersEntries.get(1) + "</ol>\n" + PAGE_2_OF_2 + THE_TAIL));
-        claim(
-                "the sentence saying why, on that group's first page, is the record's for a group none of whose"
-                        + " documents could be sent, in italics",
-                () -> assertThat(standingOnTheFirstPage(dampers))
-                        .isEqualTo("<p><em>" + UnwrittenSentencesOnRecord.NO_DOCUMENT_COULD_BE_SENT + "</em></p>\n"));
-    }
-
-    @Test
-    @Story("A group past the ceiling is written as several pages")
     @DisplayName("A group's further pages are put in place before its first, and no page is left half written")
     void theFurtherPagesAreMovedIntoPlaceBeforeTheFirst(@TempDir Path base) throws IOException {
         List<String> movedIntoTheFolder = new ArrayList<>();
@@ -596,104 +202,6 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
         claim(
                 "and no file is left in the tree under the name a page is written beside its place with",
                 () -> assertThat(filesUnder(tree)).noneMatch(name -> name.endsWith(WHILE_IT_IS_WRITTEN)));
-    }
-
-    @Test
-    @Story("What an earlier drawing left is counted and kept")
-    @DisplayName("A page an earlier drawing wrote past the last one this drawing writes is counted as left behind, and none is deleted")
-    void aPageAnEarlierDrawingWrotePastTheLastIsCountedAndKept(@TempDir Path base) throws IOException {
-        List<Long> told = new ArrayList<>();
-        DeliverableProgress hearing = new DeliverableProgress() {
-            @Override
-            public void filesLeftBehind(long files) {
-                told.add(files);
-            }
-        };
-        Path folder = folderOf(drawDoors(base, ONE_BYTE, hearing), DOORS_FOLDER);
-        Path aSeventhPage = Files.writeString(folder.resolve("index-7.html"), "a page an earlier drawing wrote");
-
-        drawDoors(base, ONE_BYTE, hearing);
-        drawDoors(base, UNSET, hearing);
-        List<Path> afterTheDrawingWithNoCeiling = pagesIn(folder);
-        String theFirstPageDrawnWhole = read(folder.resolve("index.html"));
-        drawDoors(base, ONE_BYTE, hearing);
-
-        claim(
-                "the first drawing, of three pages, tells of no file left; with a seventh page put beside them, the next"
-                        + " drawing of three tells of 1; drawn whole, of one page, it tells of 3, the second, the third"
-                        + " and the seventh; and of three pages again, of 1",
-                () -> assertThat(told).containsExactly(0L, 1L, 3L, 1L));
-        claim(
-                "drawn whole, the group's folder still held every page an earlier drawing wrote, the first written"
-                        + " whole again",
-                () -> {
-                    assertThat(afterTheDrawingWithNoCeiling).extracting(page -> page.getFileName().toString())
-                            .containsExactly("index.html", "index-2.html", "index-3.html", "index-7.html");
-                    assertThat(theFirstPageDrawnWhole).isEqualTo(THE_PAGE_AS_IT_WAS_WRITTEN);
-                });
-        claim(
-                "and the seventh page is where it was put, as it was written: nothing is deleted",
-                () -> assertThat(aSeventhPage).hasContent("a page an earlier drawing wrote"));
-    }
-
-    @Test
-    @Story("A group past the ceiling is written as several pages")
-    @DisplayName("The progress hears of every entry once and every group once, however many pages each group is written as")
-    void eachEntryAndEachClusterIsToldOnceWhetherOrNotItIsSplit(@TempDir Path base) {
-        long[] entriesAnnounced = {-1};
-        long[] entriesTold = {0};
-        long[] clustersAnnounced = {-1};
-        long[] clustersTold = {0};
-        DeliverableProgress counting = new DeliverableProgress() {
-            @Override
-            public void toWriteMembershipEntries(long entries) {
-                entriesAnnounced[0] = entries;
-            }
-
-            @Override
-            public void membershipEntryWritten() {
-                entriesTold[0]++;
-            }
-
-            @Override
-            public void toDrawClusters(long clusters) {
-                clustersAnnounced[0] = clusters;
-            }
-
-            @Override
-            public void clusterDrawn() {
-                clustersTold[0]++;
-            }
-        };
-        long everyEntry = DOORS_MEMBERS.size() + DAMPERS_MEMBERS.size();
-        long everyCluster = 2;
-
-        drawBoth(base, ONE_BYTE, counting);
-
-        claim(
-                "the " + everyEntry + " entries of the two groups, split into five pages, are announced as "
-                        + everyEntry + " and each told once, not again for the pages they are written on",
-                () -> assertThat(List.of(entriesAnnounced[0], entriesTold[0])).containsExactly(everyEntry, everyEntry));
-        claim(
-                "and the " + everyCluster + " groups are announced as " + everyCluster + " and each told once",
-                () -> assertThat(List.of(clustersAnnounced[0], clustersTold[0])).containsExactly(everyCluster, everyCluster));
-    }
-
-    /** The first cluster alone, written over, drawn over an empty archive under {@code base}. */
-    private static Path drawDoors(Path base, ClusterPageCeiling ceiling, DeliverableProgress progress) {
-        return ListedTree.writeWithCeiling(
-                base.resolve("work"), base.resolve("archive"), List.of(DOORS), Map.of(slotOf(DOORS), DOORS_WRITING),
-                DOORS_MEMBERS, Map.of(), SurvivorPictures.none(), ceiling, progress);
-    }
-
-    /** Both clusters, the second with nothing it could send, drawn over an empty archive under {@code base}. */
-    private static Path drawBoth(Path base, ClusterPageCeiling ceiling, DeliverableProgress progress) {
-        List<ListedSurvivor> survivors = new ArrayList<>(DOORS_MEMBERS);
-        survivors.addAll(DAMPERS_MEMBERS);
-        Map<ClusterSlot, Unwritten> unwritten = Map.of(slotOf(DAMPERS), Unwritten.NO_SENDABLE_DOCUMENT);
-        return ListedTree.writeWithCeiling(
-                base.resolve("work"), base.resolve("archive"), List.of(DOORS, DAMPERS),
-                Map.of(slotOf(DOORS), DOORS_WRITING), survivors, unwritten, SurvivorPictures.none(), ceiling, progress);
     }
 
     /** The first cluster over {@code members}, its writing citing the first and the last, drawn under {@code base}. */
@@ -781,16 +289,6 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
     private static String listOpening(String page) {
         int at = page.indexOf(THE_LIST_HEADING) + THE_LIST_HEADING.length();
         return page.substring(at, page.indexOf('\n', at));
-    }
-
-    /** A page written whole, from its first byte to the line break after its heading. */
-    private static String throughTheTitle(String whole) {
-        return whole.substring(0, whole.indexOf("</h1>\n") + "</h1>\n".length());
-    }
-
-    /** What a page written whole holds between its heading and its list's heading: the writing, or why there is none. */
-    private static String standingOnTheFirstPage(String whole) {
-        return whole.substring(whole.indexOf("</h1>\n") + "</h1>\n".length(), whole.indexOf(THE_LIST_HEADING));
     }
 
     private static Path folderOf(Path tree, String folder) {

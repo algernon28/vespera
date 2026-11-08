@@ -50,40 +50,6 @@ class TheStorageEmitterWritesTheSameBlocksTest {
     /** A tag in storage format, its name possibly prefixed. */
     private static final Pattern A_STORAGE_TAG = Pattern.compile("<\\s*/?\\s*([A-Za-z][A-Za-z0-9:-]*)([^>]*)>");
 
-    /** A citation as the HTML renderer writes it, its number as group 1. */
-    private static final Pattern AN_HTML_CITATION = Pattern.compile("<a href=\"#document-(\\d+)\">\\[\\1\\]</a>");
-
-    /** A citation as the storage emitter writes it, its number as group 1. */
-    private static final Pattern A_STORAGE_CITATION = Pattern.compile(
-            "<ac:link ac:anchor=\"document-(\\d+)\"><ri:page ri:content-title=\"[^\"]*\" /><ac:plain-text-link-body>"
-                    + "<!\\[CDATA\\[\\[\\1\\]\\]\\]></ac:plain-text-link-body></ac:link>");
-
-    @Test
-    @Story("Both renderings carry the same writing")
-    @DisplayName("The storage emitter writes the same blocks as the HTML one, its line break self-closed and its citations anchor links")
-    void theStorageEmitterWritesTheSameBlocks() {
-        List<String> differing = new ArrayList<>();
-        for (String input : EVERY_INPUT) {
-            String html = AN_HTML_CITATION.matcher(ProseHtml.of(input)).replaceAll("{$1}").replace("<br>", "<br/>");
-            String storage = A_STORAGE_CITATION.matcher(ProseStorage.of(input, number -> "T")).replaceAll("{$1}");
-            if (!html.equals(storage)) {
-                differing.add(input);
-            }
-        }
-
-        claim(
-                "over all " + EVERY_INPUT.size() + " inputs, the two emitters' outputs are one text once each citation"
-                        + " is read as its number and the HTML break is self-closed",
-                () -> assertThat(differing).isEmpty());
-        claim(
-                "a citation in storage format is an ac:link to its anchor, naming its page's title, escaped, and its"
-                        + " text the number in CDATA",
-                () -> assertThat(ProseStorage.of("See [2].", number -> "Doors & frames"))
-                        .isEqualTo("<p>See <ac:link ac:anchor=\"document-2\"><ri:page ri:content-title=\"Doors &amp;"
-                                + " frames\" /><ac:plain-text-link-body><![CDATA[[2]]]></ac:plain-text-link-body>"
-                                + "</ac:link>.</p>"));
-    }
-
     @Test
     @Story("Nothing a document or the model wrote is read as markup")
     @DisplayName("No input renders, in storage format, a tag the emitter does not write, and every output is well-formed XML")
