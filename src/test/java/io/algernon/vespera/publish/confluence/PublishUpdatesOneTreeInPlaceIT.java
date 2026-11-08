@@ -10,11 +10,14 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -28,6 +31,11 @@ import org.junit.jupiter.api.io.TempDir;
  * half way ending on the next publish; and a title a page outside the tree holds, for a page created, retitled or
  * taken, a parent the site will not say is a folder or a page or will not list, a tree under another parent and a page
  * list of the earlier format stop the publish before anything is written. Against a stub; every text is synthetic.
+ *
+ * <p>It also holds, since this is the one class publishing to the stub, what ADR-308 §2 and §3 decide of every publish:
+ * each request goes to the configured {@code https} host alone, an {@code http} address is refused and a link to
+ * another host is not followed, before anything is sent there; and the environment's email and token go as Basic
+ * authentication on every request and in no line or file the publish writes.
  */
 @Epic("Operation")
 @Feature("The publish")
@@ -50,11 +58,32 @@ class PublishUpdatesOneTreeInPlaceIT {
 
     private static final String ANOTHER_EARLIER_MARKER = "0f1e2d3c4b5a";
 
+    /** What a removal's line says of a page left because something stands under it (ADR-328 §5). */
+    private static final String LEFT_HOLDING =
+            ", left as it stands: something stands under it, which its removal could take with it";
+
     /** What a removal's line says of a page the site no longer holds (ADR-328 §5). */
     private static final String ALREADY_GONE = ", already gone";
 
     /** The status a site answers a page, a label or a listing it does not hold with, and a failure of its own. */
     private static final int NOT_FOUND = 404;
+
+    /** Pages of the tree an earlier publish of a larger rendering left, which this rendering no longer has. */
+    private static final String FORMER_PARTITION_TITLE = "Former seeds (2)";
+
+    private static final String FORMER_CLUSTER_TITLE = "Former payroll (2.1)";
+
+    /** A page someone put in the space, which no publish made. */
+    private static final String A_PERSONS_PAGE = "Notes on overtime";
+
+    /** The line a publish stopped by a title a page outside the tree holds begins with (ADR-320 §3). */
+    private static final String STOPPED_BY_TITLE = "vespera publish stopped: a page titled ";
+
+    /** An address of the site that is http, not https, which no request may be sent to. */
+    private static final String AN_HTTP_ADDRESS = "http://" + StubConfluence.SITE_HOST;
+
+    /** A host other than the site's, which a link the site answers with may name. */
+    private static final String ANOTHER_HOST = "elsewhere.example";
 
     @TempDir
     Path folder;
@@ -199,6 +228,199 @@ class PublishUpdatesOneTreeInPlaceIT {
         }
     }
 
+    @Test
+    @Story("A publish removes what the rendering no longer has")
+    @DisplayName("A seed partition's page and its group's page the rendering no longer has, someone's page under the group's, are neither deleted, and each line says why")
+    void aSeedPartitionWhoseClusterHoldsAPersonsPageIsLeftWithIt() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            publish(site, rendering, Rendering.RUN, new ArrayList<>());
+            StubConfluence.Page partition = site.aPageOfTheTree(page(site, Rendering.ROOT_TITLE).id,
+                    FORMER_PARTITION_TITLE, "2");
+            StubConfluence.Page cluster = site.aPageOfTheTree(partition.id, FORMER_CLUSTER_TITLE, "2.1");
+            site.aPageNoPublishMadeUnder(cluster.id, A_PERSONS_PAGE);
+            site.forgetTheRequests();
+            List<String> lines = new ArrayList<>();
+            Publisher.Outcome again = publish(site, rendering, Rendering.RUN, lines);
+
+            claim("no DELETE was sent, of the group's page, of the seed partition's page or of any",
+                    () -> assertThat(site.sent()).filteredOn(request -> request.method().equals("DELETE"))
+                            .extracting(StubConfluence.Request::path).isEmpty());
+            claim("the seed partition's page, the group's page and the page under it stand, and nothing is in the trash",
+                    () -> assertThat(List.of(site.pages().stream().map(page -> page.title).toList()
+                            .containsAll(List.of(FORMER_PARTITION_TITLE, FORMER_CLUSTER_TITLE, A_PERSONS_PAGE)),
+                            site.trash().isEmpty())).containsExactly(true, true));
+            claim("the lines count two removals, the group's page first, and say each was left because something"
+                            + " stands under it",
+                    () -> assertThat(lines.subList(lines.size() - 3, lines.size())).containsExactly(
+                            "2 pages of the tree the rendering no longer has are moved to the trash",
+                            "removal 1 of 2: " + FORMER_CLUSTER_TITLE + LEFT_HOLDING,
+                            "removal 2 of 2: " + FORMER_PARTITION_TITLE + LEFT_HOLDING));
+            claim("and the publish went to its end, counting both left and none removed",
+                    () -> assertThat(List.of(again.published(),
+                            again.closingLine().contains("; 2 pages the rendering no longer has were left as they stand"),
+                            again.closingLine().contains("removed"))).containsExactly(true, true, false));
+        }
+    }
+
+    @Test
+    @Story("A title a page outside the tree holds is refused")
+    @DisplayName("A later run retitling a page of the tree to a title a page outside it holds stops the publish in one line before anything is written")
+    void aRetitleToATitleAPageOutsideTheTreeHoldsStopsThePublishBeforeAnyWrite() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            publish(site, rendering, Rendering.RUN, new ArrayList<>());
+            site.aPageNoPublishMadeUnder(StubConfluence.OTHER_PARENT_ID, THE_LATER_GROUPS_TITLE);
+            rendering.asTheLaterRunWithTheClusterTitled(THE_LATER_GROUPS_TITLE);
+            site.forgetTheRequests();
+            Publisher.Outcome later = publish(site, rendering, Rendering.LATER_RUN, new ArrayList<>());
+
+            claim("the publish stopped in one line naming the title",
+                    () -> assertThat(List.of(later.published(),
+                            later.closingLine().startsWith(STOPPED_BY_TITLE + THE_LATER_GROUPS_TITLE
+                                    + " stands in the space"),
+                            later.closingLine().contains("\n"))).containsExactly(false, true, false));
+            claim("it sent nothing but reads", () -> assertThat(site.sent()).isNotEmpty()
+                    .allSatisfy(request -> assertThat(request.method()).isEqualTo("GET")));
+            claim("and the tree's page of that place still holds its title, the other page its own",
+                    () -> assertThat(site.pages()).extracting(page -> page.title)
+                            .contains(Rendering.CLUSTER_TITLE, THE_LATER_GROUPS_TITLE));
+        }
+    }
+
+    @Test
+    @Story("A publish sends each page whole")
+    @DisplayName("A page no publish made, titled as a later page of the rendering, stops the publish before anything is written")
+    void aPageOfALaterTitleNoPublishMadeStopsThePublishBeforeAnyWrite() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            site.aPageNoPublishMade(Rendering.CLUSTER_TITLE);
+            Publisher.Outcome outcome = publish(site, rendering, Rendering.RUN, new ArrayList<>());
+
+            claim("the publish stopped, naming the title, and at no page",
+                    () -> assertThat(List.of(outcome.published(), outcome.closingLine().contains(Rendering.CLUSTER_TITLE),
+                                    outcome.closingLine().contains("It stopped at page")))
+                            .containsExactly(false, true, false));
+            claim("every request it sent was a read, and the site holds only the page no publish made",
+                    () -> assertThat(List.of(site.sent().stream().allMatch(request -> request.method().equals("GET")),
+                                    site.pages().size())).containsExactly(true, 1));
+            claim("and that page was left as it stood: its first version, no body and no label",
+                    () -> assertThat(page(site, Rendering.CLUSTER_TITLE)).satisfies(page -> assertThat(
+                            List.of(page.version, page.body, page.labels.size())).containsExactly(1, "", 0)));
+        }
+    }
+
+    @Test
+    @Story("A publish sends to the operator's site alone")
+    @DisplayName("Every request a publish sends is addressed to the configured https host")
+    @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
+    void everyRequestIsAddressedToTheConfiguredHttpsHost() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            Publisher.Outcome outcome = publish(site, rendering, Rendering.RUN, new ArrayList<>());
+
+            claim("the publish went to its end, so the requests below are the whole of what it sent",
+                    () -> assertThat(outcome.published()).as(outcome.closingLine()).isTrue());
+            claim("each of them was addressed to https and the configured host, and to no other",
+                    () -> assertThat(site.sent()).isNotEmpty().allSatisfy(request -> {
+                        assertThat(request.addressed().getScheme()).isEqualTo("https");
+                        assertThat(request.addressed().getHost()).isEqualTo(StubConfluence.SITE_HOST);
+                    }));
+        }
+    }
+
+    @Test
+    @Story("A publish sends to the operator's site alone")
+    @DisplayName("An address that is http and not https is refused before anything is sent")
+    @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
+    void anAddressThatIsNotTheSitesHttpsOriginIsRefusedBeforeSending() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            Publisher.Outcome outcome = site.publisher(StubConfluence.theAccount(), AN_HTTP_ADDRESS,
+                            StubConfluence.PARENT_ID, "", new ArrayList<>())
+                    .publish(rendering.confluence(), Rendering.RUN, folder, line -> {});
+
+            claim("the publish is refused with the line naming the variable",
+                    () -> assertThat(List.of(outcome.published(),
+                                    outcome.closingLine().contains("VESPERA_CONFLUENCE_BASE_URL")))
+                            .containsExactly(false, true));
+            claim("and nothing was sent", () -> assertThat(site.sent()).isEmpty());
+        }
+    }
+
+    @Test
+    @Story("A publish sends to the operator's site alone")
+    @DisplayName("A link the site answers with to another host is not followed, and the publish stops")
+    @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
+    void aLinkToAnotherHostIsNotFollowed() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            site.nextLinkOfTheLabelSearch("https://" + ANOTHER_HOST + "/wiki/rest/api/content/search?cursor=2");
+            Publisher.Outcome outcome = publish(site, rendering, Rendering.RUN, new ArrayList<>());
+
+            claim("the publish stopped, saying the link names another host",
+                    () -> assertThat(List.of(outcome.published(), outcome.closingLine()
+                                    .contains("a link to another host"))).containsExactly(false, true));
+            claim("and no request was addressed to it",
+                    () -> assertThat(site.sent()).isNotEmpty().noneMatch(request ->
+                            ANOTHER_HOST.equals(request.addressed().getHost())));
+        }
+    }
+
+    @Test
+    @Story("The token is the operator's environment's alone")
+    @DisplayName("Every request carries the email and token from the environment as Basic authentication")
+    @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
+    void everyRequestCarriesTheEnvironmentsEmailAndTokenAsBasic() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        String basic = "Basic " + basicOfTheAccount();
+        try (StubConfluence site = StubConfluence.start()) {
+            Publisher.Outcome outcome = publish(site, rendering, Rendering.RUN, new ArrayList<>());
+
+            claim("the publish went to its end", () -> assertThat(outcome.published()).as(outcome.closingLine()).isTrue());
+            claim("and each request it sent carried the two as Basic authentication",
+                    () -> assertThat(site.sent()).isNotEmpty()
+                            .allSatisfy(request -> assertThat(request.header("Authorization")).isEqualTo(basic)));
+        }
+    }
+
+    @Test
+    @Story("The token is the operator's environment's alone")
+    @DisplayName("No line a publish prints and no file it writes holds the token, as it goes to its end or stops")
+    @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
+    void noLineOrFileThePublishWritesHoldsTheToken() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
+        List<String> lines = new ArrayList<>();
+        List<String> secrets = List.of(StubConfluence.TOKEN, StubConfluence.USER, basicOfTheAccount());
+        try (StubConfluence site = StubConfluence.start()) {
+            site.refuseAsTooLarge(Rendering.COPY);
+            Publisher.Outcome published = site.publisher(new ArrayList<>())
+                    .publish(rendering.confluence(), Rendering.RUN, workingDirectory, lines::add);
+            lines.add(published.closingLine());
+            site.conflictOn(Rendering.CLUSTER_TITLE, 2);
+            rendering.withBody(Rendering.CLUSTER, "<p>Written again.</p>");
+            Publisher.Outcome stopped = site.publisher(new ArrayList<>())
+                    .publish(rendering.confluence(), Rendering.RUN, workingDirectory, lines::add);
+            lines.add(stopped.closingLine());
+
+            claim("the first publish went to its end and the second stopped, so both kinds of line were printed",
+                    () -> assertThat(List.of(published.published(), stopped.published())).containsExactly(true, false));
+            claim("no line holds the token, the email or the Basic value encoding the two",
+                    () -> assertThat(lines).isNotEmpty()
+                            .noneMatch(line -> secrets.stream().anyMatch(line::contains)));
+            claim("and no file in the working directory holds any of them, the list of what was not carried among them",
+                    () -> {
+                        assertThat(workingDirectory.resolve(Publisher.NOT_CARRIED_FILE_NAME)).exists();
+                        try (Stream<Path> files = Files.walk(folder)) {
+                            assertThat(files.filter(Files::isRegularFile).toList()).allSatisfy(file -> assertThat(
+                                    new String(Files.readAllBytes(file), StandardCharsets.ISO_8859_1))
+                                    .doesNotContain(secrets.toArray(String[]::new)));
+                        }
+                    });
+        }
+    }
+
     private Publisher.Outcome publish(StubConfluence site, Rendering rendering, String run, List<String> lines) {
         return site.publisher(new ArrayList<>()).publish(rendering.confluence(), run, folder, lines::add);
     }
@@ -226,6 +448,12 @@ class PublishUpdatesOneTreeInPlaceIT {
                         Rendering.COPY, Files.readAllBytes(tree.resolve("001/001/" + Rendering.COPY)),
                         Rendering.PICTURE, Files.readAllBytes(tree.resolve("confluence/001/001/" + Rendering.PICTURE))));
         return List.of(root.id, partition.id, cluster.id);
+    }
+
+    /** The account's email and token as Basic authentication encodes them, with no {@code Basic} before them. */
+    private static String basicOfTheAccount() {
+        return Base64.getEncoder().encodeToString(
+                (StubConfluence.USER + ":" + StubConfluence.TOKEN).getBytes(StandardCharsets.UTF_8));
     }
 
     private static int indexOf(List<StubConfluence.Request> sent, String method, String path) {

@@ -10,6 +10,7 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,6 +65,29 @@ class ThePublishReadsItsPlainValuesFromTheProfileTest {
                     assertThat(line).doesNotContain("VESPERA_CONFLUENCE_BASE_URL", "VESPERA_CONFLUENCE_SPACE_KEY",
                             "VESPERA_CONFLUENCE_FOLDER_ID", ConfluenceSite.EMAIL_VARIABLE);
                 });
+    }
+
+    @Test
+    @Story("The token is the environment's alone")
+    @DisplayName("No Spring property names the token or the email: the publisher's configured values are the site, the space and the parent")
+    void noPropertyNamesTheTokenOrTheEmail() {
+        List<String> properties = StubConfluence.thePublishersPlaceholders();
+
+        claim("the application's publisher reads four properties, the site's address, the space's key and the parent"
+                        + " by its folder id or its folder title, and no other",
+                () -> assertThat(properties).containsExactly(
+                        "${" + ConfluenceSite.BASE_URL_PROPERTY + ":}", "${" + ConfluenceSite.SPACE_KEY_PROPERTY + ":}",
+                        "${" + StubConfluence.FOLDER_ID_PROPERTY + ":}",
+                        "${" + StubConfluence.FOLDER_TITLE_PROPERTY + ":}"));
+        claim("and none of them names a token, a user, an email or a parent",
+                () -> assertThat(properties).noneMatch(value -> value.matches("(?i).*(token|user|email|parent).*")));
+        claim("the constructor reading them is the one public constructor, which takes beside them only what the"
+                        + " working directory's profile names",
+                () -> assertThat(Publisher.class.getConstructors()).hasSize(1)
+                        .allSatisfy(constructor -> assertThat(Arrays.stream(constructor.getParameters())
+                                .map(parameter -> parameter.getType().getName()).distinct().toList())
+                                .containsExactly(String.class.getName(),
+                                        ConfluenceValues.InTheProfile.class.getName())));
     }
 
 }

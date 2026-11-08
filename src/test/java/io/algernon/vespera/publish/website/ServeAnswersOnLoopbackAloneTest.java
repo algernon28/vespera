@@ -2,10 +2,13 @@ package io.algernon.vespera.publish.website;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static io.algernon.vespera.publish.website.WebsiteFixture.DOORS_FOLDER;
+import static io.algernon.vespera.publish.website.WebsiteFixture.VESPERA_WEBSITE_JSON;
 import static io.algernon.vespera.publish.website.WebsiteFixture.WEBSITE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.engine.deliverable.DeliverableRoot;
 import io.algernon.vespera.engine.deliverable.Plugin;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -68,6 +71,8 @@ class ServeAnswersOnLoopbackAloneTest {
     private static final int OK = 200;
     private static final int REFUSED = 403;
     private static final int NOT_FOUND = 404;
+    private static final int NO_SUCH_METHOD = 405;
+
     /** A page of the operator's own, beside the website's, holding a script. */
     private static final String THE_OPERATORS_PAGE = "notes-of-mine.html";
 
@@ -80,6 +85,9 @@ class ServeAnswersOnLoopbackAloneTest {
     private static final String OUTSIDE = "outside-the-website.txt";
 
     private static final String OUTSIDES_TEXT = "OUTSIDE-6d2f nothing of the website";
+
+    /** A name no file of the website has. */
+    private static final String A_MARKED_PATH = "MARKED-4b7e-asked-for-and-not-there.html";
 
     @TempDir
     static Path base;
@@ -186,6 +194,158 @@ class ServeAnswersOnLoopbackAloneTest {
                 }));
     }
 
+    @Test
+    @Story("The website is served on loopback alone")
+    @DisplayName("A request another website's page sends is refused, and one the website's own page or the reader sends is answered")
+    void anotherSitesRequestIsRefused() {
+        claim("Sec-Fetch-Site: cross-site is refused with 403, to GET and to HEAD",
+                () -> {
+                    assertThat(get("/", "Sec-Fetch-Site: cross-site").status()).isEqualTo(REFUSED);
+                    assertThat(ask("HEAD", "/", ownHost(), "Sec-Fetch-Site: cross-site").status()).isEqualTo(REFUSED);
+                });
+        claim("so is same-site, another website of the same registrable domain",
+                () -> assertThat(get("/", "Sec-Fetch-Site: same-site").status()).isEqualTo(REFUSED));
+        claim("and same-origin, the website's own page, and none, the reader typing the address, are answered",
+                () -> {
+                    assertThat(get("/", "Sec-Fetch-Site: same-origin").status()).isEqualTo(OK);
+                    assertThat(get("/", "Sec-Fetch-Site: none").status()).isEqualTo(OK);
+                });
+    }
+
+    @Test
+    @Story("The website is served on loopback alone")
+    @DisplayName("A link inside the website whose real path lies outside it is 404")
+    void aLinkLeadingOutIsNotFound() throws IOException {
+        Path link = website.resolve("leads-out.txt");
+        try {
+            Files.createSymbolicLink(link, workingDirectory.resolve(OUTSIDE));
+        } catch (IOException | UnsupportedOperationException notHere) {
+            assumeTrue(false, "this machine cannot make a symbolic link: " + notHere.getClass().getSimpleName());
+        }
+        try {
+            Answer answer = get("/leads-out.txt");
+
+            claim("the link is answered 404, and nothing of the file it leads to",
+                    () -> {
+                        assertThat(answer.status()).isEqualTo(NOT_FOUND);
+                        assertThat(answer.text()).doesNotContain(OUTSIDES_TEXT);
+                    });
+        } finally {
+            Files.deleteIfExists(link);
+        }
+    }
+
+    @Test
+    @Story("The website is served on loopback alone")
+    @DisplayName("The website's marker, its own list and a file being written are 404, though each is there")
+    void theWebsitesOwnFilesAreNotFound() {
+        List<String> ownFiles = List.of(
+                DeliverableRoot.MARKER_FILE_NAME,
+                VESPERA_WEBSITE_JSON,
+                "index.html.part",
+                DOORS_FOLDER + "/index.html.part");
+        Map<String, Integer> answers = new LinkedHashMap<>();
+        ownFiles.forEach(file -> answers.put(file, get("/" + encoded(file)).status()));
+
+        claim("each is there in the website, so a 404 below is not a file missing",
+                () -> assertThat(ownFiles).allSatisfy(file -> assertThat(website.resolve(file)).isRegularFile()));
+        claim("and each is answered 404",
+                () -> assertThat(answers).allSatisfy((file, status) ->
+                        assertThat(status).as("the answer to %s", file).isEqualTo(NOT_FOUND)));
+    }
+
+    @Test
+    @Story("The website is served on loopback alone")
+    @DisplayName("A file listed in vespera-website.json while the website is served leaves the sandbox, and one delisted is sandboxed again")
+    void aFileListedOrDelistedWhileServedGainsOrLosesTheSandbox() throws IOException {
+        Path folder = Files.createDirectories(base.resolve("listed-while-served"));
+        Files.writeString(folder.resolve("index.html"), "<p>a page</p>");
+        writeList(folder);
+        try (WebsiteServer served = WebsiteServer.start(folder, 0)) {
+            int at = served.address().getPort();
+            Answer unlisted = getAt(at, "/index.html");
+            writeList(folder, "index.html");
+            Answer listedNow = getAt(at, "/index.html");
+            writeList(folder);
+            Answer delisted = getAt(at, "/index.html");
+
+            claim("index.html, which vespera-website.json does not list, is answered with the sandbox",
+                    () -> {
+                        assertThat(unlisted.status()).isEqualTo(OK);
+                        assertThat(unlisted.header("Content-Security-Policy")).isEqualTo("sandbox");
+                    });
+            claim("once the list names it, with the server still running, it is answered with no sandbox",
+                    () -> {
+                        assertThat(listedNow.status()).isEqualTo(OK);
+                        assertThat(String.valueOf(listedNow.header("Content-Security-Policy")))
+                                .doesNotContain("sandbox");
+                    });
+            claim("and once the list drops it again, it is answered with the sandbox again",
+                    () -> {
+                        assertThat(delisted.status()).isEqualTo(OK);
+                        assertThat(delisted.header("Content-Security-Policy")).isEqualTo("sandbox");
+                    });
+        }
+    }
+
+    @Test
+    @Story("The website is served on loopback alone")
+    @DisplayName("A copy and the operator's files carry the sandbox, and the website's pages, assets and listing do not")
+    void aCopyAndTheOperatorsFilesRunNoScript() {
+        String page = firstOfKind("page");
+        String asset = firstOfKind("asset");
+        String listing = firstOfKind("listing");
+        String copy = firstOfKind("copy");
+        Map<String, Answer> theWebsites = new LinkedHashMap<>();
+        for (String file : List.of(page, asset, listing)) {
+            theWebsites.put(file, get("/" + encoded(file)));
+        }
+        Map<String, Answer> sandboxed = new LinkedHashMap<>();
+        for (String file : List.of(copy, THE_OPERATORS_PAGE, THE_OPERATORS_FOLDER + "/" + THE_OPERATORS_FILE)) {
+            sandboxed.put(file, get("/" + encoded(file)));
+        }
+
+        claim("the website holds a page, an asset, a listing and a copy, so each kind below is asked",
+                () -> assertThat(List.of(page, asset, listing, copy)).doesNotContainNull());
+        claim("a copy, the operator's own page and the operator's own file are each answered with"
+                        + " Content-Security-Policy: sandbox",
+                () -> assertThat(sandboxed).allSatisfy((file, answer) -> {
+                    assertThat(answer.status()).as("the answer to %s", file).isEqualTo(OK);
+                    assertThat(answer.header("Content-Security-Policy")).as("the policy of %s", file)
+                            .isEqualTo("sandbox");
+                }));
+        claim("and a page, an asset and the listing of the website are answered with no sandbox, so their script runs",
+                () -> assertThat(theWebsites).allSatisfy((file, answer) -> {
+                    assertThat(answer.status()).as("the answer to %s", file).isEqualTo(OK);
+                    assertThat(String.valueOf(answer.header("Content-Security-Policy")))
+                            .as("the policy of %s", file)
+                            .doesNotContain("sandbox");
+                }));
+    }
+
+    @Test
+    @Story("The website is served on loopback alone")
+    @DisplayName("Every answer carries X-Content-Type-Options: nosniff, an answered file, a refusal and a 404 alike")
+    void everyAnswerCarriesNosniff() {
+        Map<String, Answer> answers = new LinkedHashMap<>();
+        answers.put("a page", get("/"));
+        answers.put("a copy", get("/" + encoded(firstOfKind("copy"))));
+        answers.put("HEAD of a page", ask("HEAD", "/", ownHost()));
+        answers.put("a foreign host", ask("GET", "/", "example.com:" + port));
+        answers.put("another site", get("/", "Sec-Fetch-Site: cross-site"));
+        answers.put("a POST", ask("POST", "/", ownHost(), "Content-Length: 0"));
+        answers.put("a path not there", get("/" + A_MARKED_PATH));
+        answers.put("the marker", get("/" + DeliverableRoot.MARKER_FILE_NAME));
+
+        claim("the answers asked are an answered file, a refusal of each kind and a 404, by their status codes",
+                () -> assertThat(answers.values().stream().map(Answer::status).distinct().sorted().toList())
+                        .containsExactly(OK, REFUSED, NOT_FOUND, NO_SUCH_METHOD));
+        claim("and each carries X-Content-Type-Options: nosniff",
+                () -> assertThat(answers).allSatisfy((what, answer) ->
+                        assertThat(answer.header("X-Content-Type-Options")).as("the answer to %s", what)
+                                .isEqualTo("nosniff")));
+    }
+
     // ---------- helpers ----------
 
     /** One answer: its status, its headers by their lower-case names, and its body. */
@@ -214,6 +374,24 @@ class ServeAnswersOnLoopbackAloneTest {
     /** {@code GET target} addressed to the server's own host, with {@code headers}. */
     private static Answer get(String target, String... headers) {
         return ask("GET", target, ownHost(), headers);
+    }
+
+    /** {@code GET target} sent to a server of the test's own at {@code 127.0.0.1:<at>}, addressed to that host. */
+    private static Answer getAt(int at, String target) {
+        return askAt(at, "GET", target, "127.0.0.1:" + at);
+    }
+
+    /**
+     * {@code vespera-website.json} in {@code folder}, written whole, listing {@code paths} at a digest no check reads:
+     * the server reads the paths alone.
+     */
+    private static void writeList(Path folder, String... paths) throws IOException {
+        StringBuilder list = new StringBuilder("{\"format\":1,\"files\":[");
+        for (int i = 0; i < paths.length; i++) {
+            list.append(i == 0 ? "" : ",").append("{\"path\":\"").append(paths[i]).append("\",\"sha256\":\"")
+                    .append("0".repeat(64)).append("\"}");
+        }
+        Files.writeString(folder.resolve(VESPERA_WEBSITE_JSON), list.append("]}\n"), StandardCharsets.UTF_8);
     }
 
     /**
@@ -312,4 +490,12 @@ class ServeAnswersOnLoopbackAloneTest {
         return encoded.toString();
     }
 
+    /** The path in the website of the first file the rendering's list names of {@code kind}, or {@code null}. */
+    private static String firstOfKind(String kind) {
+        return listed.values().stream()
+                .filter(file -> file.kind().equals(kind))
+                .map(WebsiteFixture.Listed::path)
+                .findFirst()
+                .orElse(null);
+    }
 }
