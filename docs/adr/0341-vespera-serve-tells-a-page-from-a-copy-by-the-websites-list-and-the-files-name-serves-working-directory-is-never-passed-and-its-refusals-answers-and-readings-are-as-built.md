@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-345](0345-the-cockpit-replaces-the-browser-control-panel-its-tree-writes-the-folders-not-walked-and-publish-offers-each-destination.md).** Of §2: `serve db-dir` has no control, the table having no form, and the entries never passed are three, `vespera help`, `vespera version` and `serve db-dir`. The rest of this record stands.
 
+> **Partly amended — see [ADR-368](0368-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §2, as ADR-345 amends it: the entries never passed are four, `vespera help`, `vespera version`, `serve db-dir` and `label <file>`, Command options offering no label file. The rest of this record stands.
+
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.
 - **Decided**: here. Each choice is one that building ADR-333's third step needed, which ADR-333's Decided line leaves to its building; none is a ruling of the operator's. §1 settles a gap between ADR-333 §8 and ADR-339 §3 by the reading that keeps ADR-339's list at its format and fields.

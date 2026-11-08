@@ -1,6 +1,6 @@
 # ADR-296 — Each code set is copied whole under `code/`, its paths kept, and each file is checked against the size and time the walk recorded
 
-> **Partly amended — see [ADR-368](0368-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §3.1: a set's folder in `code/` starts from its default name alone, and two alike are told apart by the lowest member occurrence id alone. Of §6.2: no names file is read, so the closing line has no clause of dormant names and the generation step writes no warning of a refused file; a set whose folder in `code/` is not the one the tree's earlier `code.csv` gives it is told in one line at INFO. The rest of this record stands.
+> **Partly amended — see [ADR-368](0368-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §3.1: a set's folder in `code/` starts from its default name alone, and two alike are told apart by the lowest member occurrence id alone. Of §6.2: no names file is read, so the closing line has no clause of dormant names and the generation step writes no warning of a refused file; a set whose folder in `code/` shares no key of `CopyNames.keysOf` with the one the tree's earlier `code.csv` gives it is told, once `code.csv` is in place, in one line at INFO naming the two folders of `code/` alone, a change of case alone told nothing. The rest of this record stands.
 
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
