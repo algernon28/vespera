@@ -2603,6 +2603,14 @@ public final class Adr {
             FILE + "0361-the-cockpits-steps-fold-into-the-progress-pages-four-legs-and-its-copy-of-their-table-is-held-to-the-pages-by-a-test.md";
 
     /**
+     * ADR-364 -- the output panel is copyable text of the whole output, from a file of its own, and every text of the
+     * window is copyable; the banner is logged and every line the jar writes goes through logback (amends ADR-093,
+     * ADR-344 §1, ADR-362, ADR-278, ADR-281, ADR-270, ADR-333 §8, ADR-342 §2, ADR-320, ADR-289 and ADR-285 §3).
+     */
+    public static final String THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK =
+            FILE + "0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md";
+
+    /**
      * ADR-365 -- the cockpit's charts carry JavaFX's legend above the plot where they draw two lines or more and none for
      * one, each line's swatch its colour by one style class; each sample is a hit area holding a tooltip of its value
      * alone, the latest marked; a step running with a counter of a total, and a running leg, read {@code running <N>%},

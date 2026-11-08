@@ -9,7 +9,9 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,6 +30,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("Logging")
 @Link(name = "ADR-270", url = Adr.EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER, type = "adr")
 @Link(name = "ADR-093", url = Adr.LOGGING_IS_EXPLICIT_AND_PROCESS_SCOPED, type = "adr")
+@Link(name = "ADR-364", url = Adr.THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK, type = "adr")
 class LogsFolderIT {
 
     /** Generous over a start-up of a few seconds; the point is only that the process does end. */
@@ -62,6 +65,49 @@ class LogsFolderIT {
         boolean finished = launch(current, "run", "--db-dir=" + workingDirectory, noRoot.toString());
 
         theLogIsInTheLogsFolder(finished, workingDirectory, current);
+    }
+
+    /** The line of Spring Boot's banner that names it, which a banner printed or logged always carries. */
+    private static final String BANNER_LINE = ":: Spring Boot ::";
+
+    /**
+     * The start of a line {@code vespera.log}'s pattern writes, {@code yyyy-MM-dd HH:mm:ss.SSS LEVEL [thread] logger -};
+     * a line not starting so is the continuation of the event above it, as the banner's lines after its first are.
+     */
+    private static final Pattern A_LOGGED_LINE = Pattern.compile("^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3} ");
+
+    /** The first line of a banner logged at INFO: Spring Boot logs it on its own {@code SpringApplication} logger. */
+    private static final Pattern THE_BANNERS_FIRST_LINE =
+            Pattern.compile("^\\S+ \\S+ INFO +\\[[^\\]]*\\] \\S*SpringApplication - .*");
+
+    /**
+     * The banner is logged, not printed, so {@code vespera.log} holds it, as one event at INFO (ADR-364 §5).
+     */
+    @Test
+    @Story("Every log is in the working directory's logs folder")
+    @DisplayName("vespera.log holds Spring Boot's banner, logged at INFO")
+    void theBannerIsLoggedIntoVesperaLog(@TempDir Path workingDirectory, @TempDir Path current) throws Exception {
+        boolean finished = launch(current, "label", "--db-dir=" + workingDirectory);
+
+        claim("the invocation ended within " + EXIT_BOUND_SECONDS + " seconds", () -> assertThat(finished).isTrue());
+        List<String> lines = Files.readAllLines(workingDirectory.resolve(LOGS).resolve(LOG));
+        claim(
+                "vespera.log holds the banner's line naming Spring Boot, within one event logged at INFO",
+                () -> assertThat(bannerEvent(lines)).anyMatch(line -> line.contains(BANNER_LINE)));
+    }
+
+    /** The lines of the first event Spring Boot's logger logged at INFO: its line and those after it. */
+    private static List<String> bannerEvent(List<String> lines) {
+        for (int first = 0; first < lines.size(); first++) {
+            if (THE_BANNERS_FIRST_LINE.matcher(lines.get(first)).matches()) {
+                int end = first + 1;
+                while (end < lines.size() && !A_LOGGED_LINE.matcher(lines.get(end)).find()) {
+                    end++;
+                }
+                return lines.subList(first, end);
+            }
+        }
+        return List.of();
     }
 
     private static void theLogIsInTheLogsFolder(boolean finished, Path workingDirectory, Path current) throws Exception {
