@@ -272,6 +272,9 @@ final class Cockpit {
         this.state = state;
         this.dialogs = dialogs;
         root.getStyleClass().add("cockpit");
+        if (state.darkChosen()) {
+            root.getStyleClass().add("dark");
+        }
         root.setLeft(sidebarPane());
         root.setCenter(mainPane());
         loadFiles();
@@ -290,7 +293,17 @@ final class Cockpit {
     // ---- the main pane
 
     private Node mainPane() {
-        VBox header = new VBox(where, child);
+        CheckBox dark = new CheckBox("Dark mode");
+        dark.setId("theme-toggle");
+        dark.setSelected(root.getStyleClass().contains("dark"));
+        dark.selectedProperty().addListener((observed, was, now) -> {
+            root.getStyleClass().remove("dark");
+            if (now) {
+                root.getStyleClass().add("dark");
+            }
+            state.keepDark(now);
+        });
+        VBox header = new VBox(where, child, dark);
         header.getStyleClass().add("header");
         where.setId("where");
         child.setId("child");
