@@ -64,7 +64,7 @@
 
 
     <!--
-      ADR-364 section 4. The jar's own lines -- its refusals, its closing lines, the lines of label and publish --
+      ADR-364 section 4. The jar's own lines, its refusals, its closing lines and the lines of label and publish,
       are logged on a logger of their own and read, on the stream, as their words alone: a line printed on standard
       output is logged at INFO and one printed on standard error at WARN, and a closing line logged at ERROR is on
       standard error. The charsets are the streams' own, so the bytes of a line on a console that is not UTF-8 are
