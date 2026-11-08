@@ -206,7 +206,7 @@ class NothingShippedReachesConfluenceTest {
 
     /**
      * The command tree (ADR-308 §5, ADR-333 §6, §8): {@code serve} is an entry of it, so that help lists it, though
-     * {@code VesperaApplication.main} hands {@code serve} on before any context exists; it replaces
+     * {@code EntryPoint.main} hands {@code serve} on before any context exists; it replaces
      * {@code theCommandHasRunLabelAndPublish}.
      */
     @Test

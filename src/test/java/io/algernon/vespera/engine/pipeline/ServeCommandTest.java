@@ -4,7 +4,6 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.VesperaApplication;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
@@ -51,7 +50,7 @@ import picocli.CommandLine.IFactory;
 
 /**
  * {@code vespera serve} starts with no Spring context, through {@code pipeline.ServeCommand} (ADR-333 §8):
- * {@code VesperaApplication.main} hands {@code serve} and the arguments after it to {@code ServeCommand} before
+ * {@code EntryPoint.main} hands {@code serve} and the arguments after it to {@code ServeCommand} before
  * {@code SpringApplication} is built, and every other first argument to Spring; {@code ServeCommand} resolves the
  * working directory as {@code application.yaml}'s {@code vespera.working-dir: ${db-dir:${user.dir}/.vespera}} does,
  * and the port {@code vespera.serve.port} names, 24332 where nothing names one, each from the command's arguments,
@@ -152,7 +151,7 @@ class ServeCommandTest {
                         "-D" + WORKING_DIR + "=" + workingDirectory,
                         "-cp",
                         System.getProperty("java.class.path"),
-                        VesperaApplication.class.getName(),
+                        io.algernon.vespera.EntryPoint.class.getName(),
                         "serve")
                 .redirectErrorStream(true)
                 .redirectOutput(printed.toFile());

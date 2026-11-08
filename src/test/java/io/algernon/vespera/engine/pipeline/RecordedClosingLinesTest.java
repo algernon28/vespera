@@ -19,11 +19,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
-import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.JobInstance;
 import org.springframework.batch.core.job.parameters.JobParameters;
 import org.springframework.batch.core.listener.StepExecutionListener;
+import org.springframework.batch.core.repository.support.ResourcelessJobRepository;
+import org.springframework.batch.core.step.AbstractStep;
+import org.springframework.batch.core.step.Step;
+import org.springframework.batch.core.step.tasklet.Tasklet;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
+import org.springframework.batch.infrastructure.repeat.RepeatStatus;
+import org.springframework.batch.infrastructure.support.transaction.ResourcelessTransactionManager;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.batch.core.step.StepExecution;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -53,62 +61,118 @@ class RecordedClosingLinesTest {
         operator.detachAppender(logged);
     }
 
-    private static StepExecution step(long id, ExitStatus exit, Throwable failure) {
-        StepExecution execution =
-                new StepExecution(id, "a step", new JobExecution(1L, new JobInstance(1L, "job"), new JobParameters()));
-        execution.setExitStatus(exit);
-        if (failure != null) {
-            execution.addFailureException(failure);
+    /** The name of the step the tests run, as Spring Batch names it in its own {@code executed in} line. */
+    private static final String THE_STEP = "a recording step";
+
+    /** Spring Batch's logger of a step's own lines, whose {@code executed in} line precedes any {@code afterStep}. */
+    private final Logger stepLogger = (Logger) LoggerFactory.getLogger(AbstractStep.class);
+
+    /**
+     * Runs a step as {@link TaskletSteps} builds it, over a resourceless job repository, as the job runs one, with the
+     * transaction manager given; the lines the operator logger and Spring Batch's step logger wrote come back in the
+     * order logged.
+     */
+    private List<String> run(
+            RecordedClosingLines holder, Tasklet tasklet, PlatformTransactionManager transactionManager) throws Exception {
+        stepLogger.addAppender(logged);
+        try {
+            ResourcelessJobRepository jobRepository = new ResourcelessJobRepository();
+            Step step = TaskletSteps.taskletStep(THE_STEP, jobRepository, transactionManager, holder, tasklet);
+            JobParameters parameters = new JobParameters();
+            JobInstance instance = jobRepository.createJobInstance("a job", parameters);
+            JobExecution jobExecution = jobRepository.createJobExecution(instance, parameters, new ExecutionContext());
+            step.execute(jobRepository.createStepExecution(THE_STEP, jobExecution));
+        } finally {
+            stepLogger.detachAppender(logged);
         }
-        return execution;
+        return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+    }
+
+    private static Tasklet recordingThenReturning(RecordedClosingLines holder, String... lines) {
+        return (contribution, chunkContext) -> {
+            for (String line : lines) {
+                holder.record(chunkContext.getStepContext().getStepExecution(), line);
+            }
+            return RepeatStatus.FINISHED;
+        };
     }
 
     @Test
     @Story("A closing line stays the last line")
-    @DisplayName("Each line recorded is logged in order at ERROR after the step, and a step that recorded none logs none")
-    void eachLineRecordedIsLoggedInOrderOnTheOperatorLoggerAfterTheStep() {
+    @DisplayName("Each line recorded is logged in order at ERROR after the step's own line, and a step that recorded none logs none")
+    void eachLineRecordedIsLoggedInOrderOnTheOperatorLoggerAfterTheStep() throws Exception {
         RecordedClosingLines holder = new RecordedClosingLines();
-        StepExecution recording = step(1L, ExitStatus.FAILED, null);
-        StepExecution silent = step(2L, ExitStatus.COMPLETED, null);
-        holder.record(recording, "the first stop {}");
-        holder.record(recording, "the second stop");
 
-        holder.afterStep(silent);
-        claim("a step that recorded nothing logs nothing", () -> assertThat(logged.list).isEmpty());
-        holder.afterStep(recording);
+        List<String> recording = run(
+                holder, recordingThenReturning(holder, "the first stop {}", "the second stop"), new ResourcelessTransactionManager());
+        logged.list.clear();
+        List<String> silent = run(holder, recordingThenReturning(holder), new ResourcelessTransactionManager());
 
         claim(
-                "the two lines recorded are logged on the operator logger at ERROR in the order recorded, their words"
-                        + " whole even where they hold braces",
+                "the two lines recorded stand at ERROR on the operator logger, in the order recorded, their words whole"
+                        + " although one holds braces, and after Spring Batch's own line for the step",
                 () -> {
-                    assertThat(logged.list).extracting(ILoggingEvent::getFormattedMessage)
+                    assertThat(recording).hasSizeGreaterThanOrEqualTo(3);
+                    assertThat(recording.subList(recording.size() - 2, recording.size()))
                             .containsExactly("the first stop {}", "the second stop");
-                    assertThat(logged.list).extracting(ILoggingEvent::getLevel)
-                            .containsOnly(Level.ERROR);
+                    assertThat(recording.get(recording.size() - 3)).contains("executed in");
                 });
+        claim("a step that recorded nothing logs only Spring Batch's own two lines", () -> assertThat(silent)
+                .hasSize(2)
+                .allSatisfy(line -> assertThat(line).containsAnyOf("Executing step", "executed in")));
     }
 
     @Test
     @Story("A closing line stays the last line")
-    @DisplayName("A line recorded before a commit that fails is still logged, and the failed step's own line follows it")
-    void aLineRecordedBeforeACommitThatFailsIsStillLogged() {
+    @DisplayName("A line recorded before a commit that fails is still logged, and the failed step's own line follows it last")
+    void aLineRecordedBeforeACommitThatFailsIsStillLogged() throws Exception {
         RecordedClosingLines holder = new RecordedClosingLines();
-        StepExecution failed = step(3L, ExitStatus.FAILED, new IllegalStateException("the commit failed"));
-        holder.record(failed, "the stop the tasklet recorded");
+        ResourcelessTransactionManager commitFails = new ResourcelessTransactionManager() {
+            @Override
+            protected void doCommit(DefaultTransactionStatus status) {
+                throw new IllegalStateException("the commit failed");
+            }
+        };
 
-        // Spring Batch runs afterStep in reverse order of registration, TaskletSteps registering the holder last.
-        holder.afterStep(failed);
-        new StepFailureClosingLine().afterStep(failed);
+        List<String> lines = run(holder, recordingThenReturning(holder, "the stop the tasklet recorded"), commitFails);
 
         claim(
-                "the recorded stop is logged first and the line for the commit's failure last",
+                "the recorded stop is logged after Spring Batch's own lines for the step and before StepFailureClosingLine's"
+                        + " line for the commit's failure, which is last",
                 () -> {
-                    assertThat(logged.list).hasSize(2);
-                    assertThat(logged.list.get(0).getFormattedMessage()).isEqualTo("the stop the tasklet recorded");
-                    assertThat(logged.list.get(1).getFormattedMessage())
-                            .startsWith("Step a step failed and is not recorded as finished: the commit failed");
+                    int stop = lines.indexOf("the stop the tasklet recorded");
+                    assertThat(stop).isPositive();
+                    assertThat(lines.get(stop - 1)).doesNotContain("the stop the tasklet recorded");
+                    assertThat(lines.getLast()).startsWith("Step " + THE_STEP + " failed and is not recorded as finished");
+                    assertThat(lines.indexOf(lines.getLast())).isGreaterThan(stop);
+                    assertThat(lines.indexOf(lines.stream().filter(line -> line.contains("executed in")).findFirst().orElseThrow()))
+                            .isLessThan(stop);
                 });
-        claim("nothing is left held once afterStep has run", () -> assertThat(holder.recordedFor(failed)).isEmpty());
+        claim("no entry is left held once the step has ended", () -> {
+            StepExecution anyStep = new StepExecution(
+                    1L, THE_STEP, new JobExecution(1L, new JobInstance(1L, "a job"), new JobParameters()));
+            assertThat(holder.recordedFor(anyStep)).isEmpty();
+        });
+    }
+
+    @Test
+    @Story("A closing line stays the last line")
+    @DisplayName("A line recorded by a tasklet that then throws stands before the failed step's own line")
+    void aLineRecordedByATaskletThatThrowsStandsBeforeTheFailedStepsLine() throws Exception {
+        RecordedClosingLines holder = new RecordedClosingLines();
+        Tasklet recordsAndThrows = (contribution, chunkContext) -> {
+            holder.record(chunkContext.getStepContext().getStepExecution(), "the stop the tasklet recorded");
+            throw new IllegalStateException("the tasklet threw");
+        };
+
+        List<String> lines = run(holder, recordsAndThrows, new ResourcelessTransactionManager());
+
+        claim(
+                "the recorded line is before StepFailureClosingLine's line for the exception, which is last",
+                () -> {
+                    assertThat(lines.indexOf("the stop the tasklet recorded")).isPositive();
+                    assertThat(lines.getLast()).startsWith("Step " + THE_STEP + " failed and is not recorded as finished");
+                });
     }
 
     @Test

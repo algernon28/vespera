@@ -147,11 +147,14 @@ class ClosingLineOverALockedDatabaseFileTest {
         Logger logger = (Logger) LoggerFactory.getLogger(source);
         ListAppender<ILoggingEvent> logged = new ListAppender<>();
         logged.start();
+        Logger operator = (Logger) LoggerFactory.getLogger(OperatorLines.LOGGER_NAME);
         logger.addAppender(logged);
+        operator.addAppender(logged);
         try {
             run.run();
         } finally {
             logger.detachAppender(logged);
+            operator.detachAppender(logged);
         }
         List<String> errors = logged.list.stream()
                 .filter(event -> event.getLevel() == Level.ERROR)

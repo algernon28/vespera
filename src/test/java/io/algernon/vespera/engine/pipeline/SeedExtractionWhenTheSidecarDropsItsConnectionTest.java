@@ -122,11 +122,13 @@ class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
         logged.start();
         applicationLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(APPLICATION_LOGGER);
         applicationLogger.addAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).addAppender(logged);
     }
 
     @AfterEach
     void stopTheSidecarAndReleaseOperatorLines() {
         applicationLogger.detachAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
         logged.stop();
         sidecar.close();
     }

@@ -75,11 +75,13 @@ class StageTwoWaitsForAConverterStillStartingTest {
         logged.start();
         listenerLog = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(ExtractionHealthCheckListener.class);
         listenerLog.addAppender(logged);
+        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).addAppender(logged);
     }
 
     @AfterEach
     void release() {
         listenerLog.detachAppender(logged);
+        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
         logged.stop();
     }
 

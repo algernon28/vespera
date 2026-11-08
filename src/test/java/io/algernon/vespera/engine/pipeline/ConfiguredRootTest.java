@@ -198,10 +198,12 @@ class ConfiguredRootTest {
         ch.qos.logback.classic.Logger commandLogger =
                 (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(VesperaCommand.Run.class);
         commandLogger.addAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).addAppender(logged);
         try {
             cli.run(arguments);
         } finally {
             commandLogger.detachAppender(logged);
+            ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
             logged.stop();
         }
         return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();

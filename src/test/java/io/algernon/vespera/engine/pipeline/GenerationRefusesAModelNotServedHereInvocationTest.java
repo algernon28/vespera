@@ -68,6 +68,10 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-114", url = Adr.THE_GENERATION_MODEL_IS_CONFIGURATION_WITH_A_DEFAULT, type = "adr")
 class GenerationRefusesAModelNotServedHereInvocationTest {
 
+    /** A line in the console's pattern, {@code HH:mm:ss.SSS LEVEL ...}, which a closing line is no longer (ADR-364 section 4). */
+    private static final java.util.regex.Pattern IN_THE_CONSOLES_PATTERN =
+            java.util.regex.Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3} .*");
+
     /** What the refusal line calls this stage, so an operator reading the log knows which one stopped. */
     private static final String THE_STAGE = "the generation step";
 
@@ -124,9 +128,11 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
             @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
         anApprovedArrangementToWriteUnder(root, seeds, A_CLOUD_TAGGED_GENERATION_MODEL);
         int before = output.getAll().length();
+        int beforeErr = output.getErr().length();
 
         cli.run("run", root.toString());
         String said = output.getAll().substring(before);
+        String saidOnError = output.getErr().substring(beforeErr);
 
         claim("the invocation ends non-zero, because it was stopped", () -> assertThat(cli.getExitCode())
                 .isNotZero());
@@ -142,7 +148,7 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
                 "exactly one line, at error level, names " + THE_STAGE + " and says the generation model "
                         + A_CLOUD_TAGGED_GENERATION_MODEL + " is a cloud model, and no stack trace stands in"
                         + " its place",
-                () -> oneErrorLineSays(said, A_CLOUD_TAGGED_GENERATION_MODEL, " is a cloud model"));
+                () -> oneErrorLineSays(said, saidOnError, A_CLOUD_TAGGED_GENERATION_MODEL, " is a cloud model"));
         claim(
                 "Ollama was not asked about it: the tag alone settles it, so the refusal needs no answer"
                         + " from anything",
@@ -198,9 +204,11 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
         anApprovedArrangementToWriteUnder(root, seeds, model);
         scripted.accept(model);
         int before = output.getAll().length();
+        int beforeErr = output.getErr().length();
 
         cli.run("run", root.toString());
         String said = output.getAll().substring(before);
+        String saidOnError = output.getErr().substring(beforeErr);
 
         claim("the invocation ends non-zero, because it was stopped", () -> assertThat(cli.getExitCode())
                 .isNotZero());
@@ -214,7 +222,7 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
                 "exactly one line, at error level, names " + THE_STAGE + " and the generation model and says"
                         + " why in the words for Ollama's answer, and in no other case's words, with no stack trace",
                 () -> {
-                    oneErrorLineSays(said, model, reason);
+                    oneErrorLineSays(said, saidOnError, model, reason);
                     assertThat(linesSaying(said, model)).allSatisfy(line -> {
                         for (String another : List.of(REPORTED_AS_REMOTE, COULD_NOT_BE_ESTABLISHED, SERVES_NO_MODEL_NAMED)) {
                             if (!reason.startsWith(another)) {
@@ -280,7 +288,7 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
      * Exactly one line names {@code model} and says {@code reason}, it is at error level, it names the
      * stage, and nothing printed a stack trace.
      */
-    private static void oneErrorLineSays(String said, String model, String reason) {
+    private static void oneErrorLineSays(String said, String saidOnError, String model, String reason) {
         List<String> lines = said.lines()
                 .filter(line -> line.contains(model) && line.contains(reason))
                 .toList();
@@ -288,8 +296,9 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
                 .as("the lines naming %s and saying \"%s\"", model, reason)
                 .hasSize(1);
         assertThat(lines.getFirst())
-                .as("the one line naming %s", model)
-                .matches("^\\S+ ERROR .*")
+                .as("the one line naming %s, on standard error as its words alone", model)
+                .doesNotMatch(IN_THE_CONSOLES_PATTERN)
+                .isIn(saidOnError.lines().toList())
                 .contains(THE_STAGE);
         assertThat(said).as("what the invocation printed").doesNotContain(A_STACK_FRAME);
     }

@@ -126,11 +126,13 @@ class DoclingImageCheckInvocationTest {
         logged.start();
         rootLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         rootLogger.addAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).addAppender(logged);
     }
 
     @AfterEach
     void releaseEveryLine() {
         rootLogger.detachAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
         logged.stop();
         REPORTED.set(null);
     }

@@ -57,6 +57,10 @@ import tools.jackson.databind.json.JsonMapper;
 @Link(name = "ADR-202", url = Adr.GENERATION_AND_EMBEDDING_REFUSE_A_MODEL_NOT_SERVED_HERE, type = "adr")
 class AModelOllamaDoesNotServeIsPulledInvocationTest {
 
+    /** A line in the console's pattern, {@code HH:mm:ss.SSS LEVEL ...}, which a closing line is no longer (ADR-364 section 4). */
+    private static final java.util.regex.Pattern IN_THE_CONSOLES_PATTERN =
+            java.util.regex.Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3} .*");
+
     /** An embedding model Ollama is scripted as not serving until it is pulled. */
     private static final String AN_EMBEDDING_MODEL_NOT_SERVED = "hf.co/An-Owner/A-Comparing-Model-GGUF:Q8_0";
 
@@ -136,9 +140,11 @@ class AModelOllamaDoesNotServeIsPulledInvocationTest {
             EmbeddingScriptedBeans.hasPulledAgainAs(THE_PULLED_DIGEST);
         });
         int before = output.getAll().length();
+        int beforeErr = output.getErr().length();
 
         cli.run("run", root.toString());
         String said = output.getAll().substring(before);
+        String saidOnError = output.getErr().substring(beforeErr);
 
         claim(
                 "the model was pulled once, asked for by its name exactly",
@@ -192,9 +198,11 @@ class AModelOllamaDoesNotServeIsPulledInvocationTest {
         OLLAMA.pulls(AN_EMBEDDING_MODEL_NOT_SERVED, new StubOllama.Streamed(
                 StubOllama.lines("{\"status\":\"pulling manifest\"}", "{\"error\":\"" + NO_SUCH_MODEL + "\"}"), false));
         int before = output.getAll().length();
+        int beforeErr = output.getErr().length();
 
         cli.run("run", root.toString());
         String said = output.getAll().substring(before);
+        String saidOnError = output.getErr().substring(beforeErr);
 
         claim("the invocation ends non-zero, because it was stopped", () -> assertThat(cli.getExitCode())
                 .isNotZero());
@@ -206,7 +214,8 @@ class AModelOllamaDoesNotServeIsPulledInvocationTest {
                             .filter(line -> line.contains(AN_EMBEDDING_MODEL_NOT_SERVED) && line.contains(NO_SUCH_MODEL))
                             .toList();
                     assertThat(lines).singleElement().satisfies(line -> assertThat(line)
-                            .matches("^\\S+ ERROR .*")
+                            .doesNotMatch(IN_THE_CONSOLES_PATTERN)
+                            .isIn(saidOnError.lines().toList())
                             .contains(THE_SCORING_STEP)
                             .contains("Ollama could not pull " + AN_EMBEDDING_MODEL_NOT_SERVED + " (" + NO_SUCH_MODEL
                                     + ")"));
@@ -227,9 +236,11 @@ class AModelOllamaDoesNotServeIsPulledInvocationTest {
         OLLAMA.pulls(A_GENERATION_MODEL_NOT_SERVED, aWholePull());
         OLLAMA.onPulled(EmbeddingScriptedBeans::hasNowPulled);
         int before = output.getAll().length();
+        int beforeErr = output.getErr().length();
 
         cli.run("run", root.toString());
         String said = output.getAll().substring(before);
+        String saidOnError = output.getErr().substring(beforeErr);
 
         claim(
                 "the generation model was pulled once, by its name",

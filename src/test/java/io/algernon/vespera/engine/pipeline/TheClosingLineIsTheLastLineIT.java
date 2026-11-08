@@ -93,6 +93,8 @@ class TheClosingLineIsTheLastLineIT {
     private static Printed runWhoseStageTwoFails;
     private static Printed runWhoseEmbeddingFails;
     private static HttpServer brokenOllama;
+    private static HttpServer ollamaServingNoModel;
+    private static Printed runWhoseEmbeddingModelIsNotServed;
     private static Path missingLabelFile;
 
     /** What a launch printed, standard error merged into standard output, and how it ended. */
@@ -159,6 +161,13 @@ class TheClosingLineIsTheLastLineIT {
         Files.copy(workingDirectory.resolve("profile.yaml"), embeddingWorkingDirectory.resolve("profile.yaml"));
         runWhoseEmbeddingFails = launch(converterUrl, "http://127.0.0.1:" + brokenOllama.getAddress().getPort(),
                 "run", "--db-dir=" + embeddingWorkingDirectory, corpusRoot.toString());
+
+        ollamaServingNoModel = ollamaServingNoEmbeddingModel();
+        Path notServedWorkingDirectory = Files.createDirectories(temporary.resolve("not-served-working-directory"));
+        Files.copy(workingDirectory.resolve("profile.yaml"), notServedWorkingDirectory.resolve("profile.yaml"));
+        runWhoseEmbeddingModelIsNotServed = launch(converterUrl,
+                "http://127.0.0.1:" + ollamaServingNoModel.getAddress().getPort(),
+                "run", "--db-dir=" + notServedWorkingDirectory, corpusRoot.toString());
     }
 
     @AfterAll
@@ -172,6 +181,9 @@ class TheClosingLineIsTheLastLineIT {
         if (brokenOllama != null) {
             brokenOllama.stop(0);
         }
+        if (ollamaServingNoModel != null) {
+            ollamaServingNoModel.stop(0);
+        }
     }
 
     @Test
@@ -179,13 +191,12 @@ class TheClosingLineIsTheLastLineIT {
     @DisplayName("vespera run that ends on a value to set prints its line naming that value last")
     void aRunEndingOnAValueToSetPrintsItsClosingLineLast() {
         Printed printed = runEndingOnAValueToSet;
-        String closingLine = "VesperaCommand$Run - ";
-        String naming = " Next: answer the questions in relevance-labels.yaml";
+        String naming = "Next: answer the questions in relevance-labels.yaml";
 
         endedWith(printed, CommandLine.ExitCode.OK, "success");
         claim("the run's closing line, naming the label file as what to answer next, is the last line that is not"
                         + " blank, standard output and standard error together",
-                () -> assertThat(printed.lastLine()).contains(closingLine).contains(naming));
+                () -> assertThat(printed.lastLine()).contains(naming).doesNotContain("VesperaCommand"));
     }
 
     @Test
@@ -193,13 +204,13 @@ class TheClosingLineIsTheLastLineIT {
     @DisplayName("vespera run whose stage 2 fails prints the line saying so last")
     void aRunWhoseStageTwoFailsPrintsItsClosingLineLast() {
         Printed printed = runWhoseStageTwoFails;
-        String closingLine = "ExtractionHealthCheckListener - Stage 2 (extraction) failed and is not recorded as finished";
+        String closingLine = "Stage 2 (extraction) failed and is not recorded as finished";
         String advice = "and run the same command again.";
 
         endedWith(printed, CommandLine.ExitCode.SOFTWARE, "a failure");
-        claim("the line saying stage 2 failed and what to do about it is the last line that is not blank,"
-                        + " standard output and standard error together",
-                () -> assertThat(printed.lastLine()).contains(closingLine).endsWith(advice));
+        claim("the line saying stage 2 failed and what to do about it, its words alone with nothing before them, is the"
+                        + " last line that is not blank, standard output and standard error together",
+                () -> assertThat(printed.lastLine()).startsWith(closingLine).endsWith(advice));
     }
 
     @Test
@@ -209,13 +220,39 @@ class TheClosingLineIsTheLastLineIT {
     @DisplayName("vespera run whose embedding-scoring step fails prints the line saying so last")
     void aRunWhoseEmbeddingStepFailsPrintsItsClosingLineLast() {
         Printed printed = runWhoseEmbeddingFails;
-        String closingLine = "embedding-scoring failed and is not recorded as finished";
+        String closingLine = "Step embedding-scoring failed and is not recorded as finished";
         String advice = "and run the same command again.";
 
         endedWith(printed, CommandLine.ExitCode.SOFTWARE, "a failure");
-        claim("the line saying the embedding-scoring step failed and what to do about it is the last line that is"
-                        + " not blank, standard output and standard error together",
-                () -> assertThat(printed.lastLine()).contains(closingLine).endsWith(advice));
+        claim("the line saying the embedding-scoring step failed and what to do about it, its words alone, is the last"
+                        + " line that is not blank, standard output and standard error together",
+                () -> assertThat(printed.lastLine()).startsWith(closingLine).endsWith(advice));
+    }
+
+    @Test
+    @Story("The closing line is the last line")
+    @Link(name = "ADR-364", url = Adr.THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK, type = "adr")
+    @DisplayName("vespera run whose embedding model is not served prints the stop saying so last, after the step's own line")
+    void aRunWhoseEmbeddingModelIsNotServedPrintsItsStopLast() {
+        Printed printed = runWhoseEmbeddingModelIsNotServed;
+        String stop = "stage 5's scoring step stopped: the embedding model " + EMBEDDING_MODEL + " was refused";
+
+        endedWith(printed, CommandLine.ExitCode.SOFTWARE, "a failure");
+        claim("the stop, its words alone, is the last line that is not blank, standard output and standard error"
+                        + " together",
+                () -> assertThat(printed.lastLine()).startsWith(stop));
+        claim("and Spring Batch's own line for the step stands before it, since the tasklet records the stop and the"
+                        + " step logs it once it has ended",
+                () -> {
+                    int stopped = printed.lines().lastIndexOf(printed.lastLine());
+                    int executed = -1;
+                    for (int at = 0; at < printed.lines().size(); at++) {
+                        if (printed.lines().get(at).contains("Step: [embedding-scoring] executed in")) {
+                            executed = at;
+                        }
+                    }
+                    assertThat(executed).isGreaterThanOrEqualTo(0).isLessThan(stopped);
+                });
     }
 
     @Test
@@ -311,6 +348,14 @@ class TheClosingLineIsTheLastLineIT {
             exchange.sendResponseHeaders(500, -1);
             exchange.close();
         });
+        return server;
+    }
+
+    /** As {@link #ollamaStandIn()}, except that it serves no model at all, so the embedding model asked for is not there. */
+    private static HttpServer ollamaServingNoEmbeddingModel() throws IOException {
+        HttpServer server = ollamaStandIn();
+        server.removeContext("/api/tags");
+        server.createContext("/api/tags", exchange -> answer(exchange, "{\"models\":[]}"));
         return server;
     }
 
