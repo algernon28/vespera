@@ -41,10 +41,12 @@ final class TaskletSteps {
             String name,
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
+            RecordedClosingLines recordedClosingLines,
             Tasklet tasklet) {
         return new StepBuilder(name, jobRepository)
                 .tasklet(tasklet, transactionManager)
                 .listener(new StepFailureClosingLine())
+                .listener(recordedClosingLines)
                 .build();
     }
 
@@ -58,11 +60,13 @@ final class TaskletSteps {
             String name,
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
+            RecordedClosingLines recordedClosingLines,
             Tasklet tasklet,
             StepExecutionListener listener) {
         return new StepBuilder(name, jobRepository)
                 .tasklet(tasklet, transactionManager)
                 .listener(new StepFailureClosingLine())
+                .listener(recordedClosingLines)
                 .listener(listener)
                 .build();
     }
@@ -77,6 +81,7 @@ final class TaskletSteps {
             String name,
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
+            RecordedClosingLines recordedClosingLines,
             Tasklet tasklet) {
         DefaultTransactionAttribute outsideAnyTransaction =
                 new DefaultTransactionAttribute(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
@@ -84,6 +89,7 @@ final class TaskletSteps {
                 .tasklet(tasklet, transactionManager)
                 .transactionAttribute(outsideAnyTransaction)
                 .listener(new StepFailureClosingLine())
+                .listener(recordedClosingLines)
                 .build();
     }
 

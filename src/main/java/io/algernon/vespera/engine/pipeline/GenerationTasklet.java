@@ -169,6 +169,7 @@ class GenerationTasklet implements Tasklet {
     private final Path root;
     private final Path workingDirectory;
     private final DeliverableRoot deliverableRoot;
+    private final RecordedClosingLines recordedClosingLines;
 
     GenerationTasklet(
             ArrangementGate arrangementGate,
@@ -193,7 +194,9 @@ class GenerationTasklet implements Tasklet {
             @Value("${vespera.open-browser:true}") boolean openBrowser,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
-            @Value("${" + VesperaCommand.Run.DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot) {
+            @Value("${" + VesperaCommand.Run.DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot,
+            RecordedClosingLines recordedClosingLines) {
+        this.recordedClosingLines = recordedClosingLines;
         this.deliverableRoot = DeliverableRoot.of(deliverableRoot);
         this.arrangementGate = arrangementGate;
         this.stageRuns = stageRuns;
@@ -562,7 +565,7 @@ class GenerationTasklet implements Tasklet {
             boolean writingFinished) {
         Optional<String> refusal = deliverableRoot.refusalAtTheDrawing(workingDirectory, generation.value());
         if (refusal.isPresent()) {
-            LOG.error("{}", refusal.get());
+            recordedClosingLines.record(chunkContext.getStepContext().getStepExecution(), refusal.get());
             chunkContext.getStepContext().getStepExecution().setStatus(BatchStatus.FAILED);
             return Optional.empty();
         }
@@ -1163,12 +1166,14 @@ class GenerationTasklet implements Tasklet {
                 + turnedDownInARow.stream()
                         .map(fault -> fault.kind() + ": " + fault.detail())
                         .collect(Collectors.joining("; "));
-        LOG.error(
-                "the generation step stopped under run {}: {}. No cluster after them was asked about, and"
-                        + " the reason kept for each is recorded against its cluster under that run",
-                generation.value(),
-                why);
         StepExecution stepExecution = chunkContext.getStepContext().getStepExecution();
+        recordedClosingLines.record(
+                stepExecution,
+                OperatorLines.format(
+                        "the generation step stopped under run {}: {}. No cluster after them was asked about, and"
+                                + " the reason kept for each is recorded against its cluster under that run",
+                        generation.value(),
+                        why));
         // This line alone is what carries the non-zero exit, and it is the one the tests pin.
         stepExecution.setStatus(BatchStatus.FAILED);
         // The line below changes no outcome and no test would notice its removal: the status above
@@ -1186,13 +1191,15 @@ class GenerationTasklet implements Tasklet {
      * stands where the one line belongs. It is called before the run is resolved, so nothing is written
      * and the step's status is all that carries the non-zero exit.
      */
-    private static void stopOnAGenerationModelNotServedHere(
+    private void stopOnAGenerationModelNotServedHere(
             StepContribution contribution, ChunkContext chunkContext, String modelName, String refusal) {
-        LOG.error(
-                "the generation step stopped: the generation model {} was refused, so no question was put and"
-                        + " no run was minted -- {}",
-                modelName,
-                refusal);
+        recordedClosingLines.record(
+                chunkContext.getStepContext().getStepExecution(),
+                OperatorLines.format(
+                        "the generation step stopped: the generation model {} was refused, so no question was put and"
+                                + " no run was minted -- {}",
+                        modelName,
+                        refusal));
         chunkContext.getStepContext().getStepExecution().setStatus(BatchStatus.FAILED);
         contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(refusal));
     }

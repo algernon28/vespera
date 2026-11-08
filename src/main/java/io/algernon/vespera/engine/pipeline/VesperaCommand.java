@@ -12,6 +12,7 @@ import io.algernon.vespera.engine.profile.Profile;
 import io.algernon.vespera.engine.profile.ProfileStore;
 import io.algernon.vespera.engine.profile.TextValue;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -95,7 +96,9 @@ public class VesperaCommand implements Callable<Integer> {
      */
     @Override
     public Integer call() {
-        spec.commandLine().usage(System.out);
+        PrintWriter usage = OperatorLines.out();
+        spec.commandLine().usage(usage);
+        usage.flush();
         return CommandLine.ExitCode.USAGE;
     }
 
@@ -118,7 +121,7 @@ public class VesperaCommand implements Callable<Integer> {
         run.forgetPreviousInvocation();
         label.forgetPreviousInvocation();
         publish.forgetPreviousInvocation();
-        return new CommandLine(this, new CommandLine.IFactory() {
+        CommandLine commandLine = new CommandLine(this, new CommandLine.IFactory() {
             @Override
             public <K> K create(Class<K> type) throws Exception {
                 if (type.isInstance(run)) {
@@ -133,6 +136,10 @@ public class VesperaCommand implements Callable<Integer> {
                 return CommandLine.defaultFactory().create(type);
             }
         });
+        // Picocli's own refusals and usage are logged through the operator logger (ADR-364 §4), a line at a time.
+        commandLine.setOut(OperatorLines.out());
+        commandLine.setErr(OperatorLines.err());
+        return commandLine;
     }
 
     /**
@@ -155,7 +162,7 @@ public class VesperaCommand implements Callable<Integer> {
 
         @Override
         public Integer call() {
-            System.err.println("vespera serve is started by the jar's main before Spring, and is not run through it.");
+            OperatorLines.warn("vespera serve is started by the jar's main before Spring, and is not run through it.");
             return CommandLine.ExitCode.SOFTWARE;
         }
     }
@@ -280,12 +287,12 @@ public class VesperaCommand implements Callable<Integer> {
         public Integer call() throws Exception {
             String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
             if (misnamedDatabaseDirectory != null) {
-                System.err.println(misnamedDatabaseDirectory);
+                OperatorLines.warn(misnamedDatabaseDirectory);
                 return CommandLine.ExitCode.SOFTWARE;
             }
             Path corpusRoot = rootToWalk();
             if (corpusRoot == null) {
-                System.err.println("vespera run named no root and " + ROOT_PROPERTY + " is not set: give the root"
+                OperatorLines.warn("vespera run named no root and " + ROOT_PROPERTY + " is not set: give the root"
                         + " as the argument -- vespera run <root> -- or set " + ROOT_PROPERTY + " in"
                         + " application-local.yaml, as VESPERA_CORPUS_ROOT, or with --" + ROOT_PROPERTY
                         + "=<path>. A root is never guessed, because a census of the wrong tree reports"
@@ -301,13 +308,13 @@ public class VesperaCommand implements Callable<Integer> {
                     seedFolder(),
                     DeliverableRoot.of(deliverableRoot).folderOf(workingDirectoryInUse));
             if (misplacedCodeSetFolder.isPresent()) {
-                System.err.println(misplacedCodeSetFolder.get());
+                OperatorLines.warn(misplacedCodeSetFolder.get());
                 return CommandLine.ExitCode.SOFTWARE;
             }
             Optional<String> misplacedDeliverableRoot = DeliverableRoot.of(deliverableRoot)
                     .refusalAtTheStart(workingDirectoryInUse, corpusRoot, seedFolder());
             if (misplacedDeliverableRoot.isPresent()) {
-                System.err.println(misplacedDeliverableRoot.get());
+                OperatorLines.warn(misplacedDeliverableRoot.get());
                 return CommandLine.ExitCode.SOFTWARE;
             }
             // A preset no run can be made under, named by configuration, in one line and no stack trace: before the
@@ -317,7 +324,7 @@ public class VesperaCommand implements Callable<Integer> {
             if (presets != null) {
                 Optional<String> unmakeableRun = presets.refusal(profileToReadThePresetsOver());
                 if (unmakeableRun.isPresent()) {
-                    System.err.println(unmakeableRun.get());
+                    OperatorLines.warn(unmakeableRun.get());
                     return CommandLine.ExitCode.SOFTWARE;
                 }
             }
@@ -325,7 +332,7 @@ public class VesperaCommand implements Callable<Integer> {
                 try {
                     corpusRootLock.take(corpusRoot, workingDirectoryInUse, arguments);
                 } catch (CorpusRootInUseException | CorpusRootLockUnavailableException refused) {
-                    System.err.println(refused.getMessage());
+                    OperatorLines.warn(refused.getMessage());
                     return CommandLine.ExitCode.SOFTWARE;
                 }
             }
@@ -334,7 +341,7 @@ public class VesperaCommand implements Callable<Integer> {
                 try {
                     sidecarStarter.ensureRunning();
                 } catch (SidecarStartRefusedException refused) {
-                    System.err.println(refused.getMessage());
+                    OperatorLines.warn(refused.getMessage());
                     return CommandLine.ExitCode.SOFTWARE;
                 }
             }
@@ -356,7 +363,7 @@ public class VesperaCommand implements Callable<Integer> {
             if (execution.getStatus().isUnsuccessful()) {
                 return CommandLine.ExitCode.SOFTWARE;
             }
-            log.info("{}", nextAction.line(corpusRoot, new InvocationRuns(execution.getExecutionContext())));
+            OperatorLines.info(nextAction.line(corpusRoot, new InvocationRuns(execution.getExecutionContext())));
             return CommandLine.ExitCode.OK;
         }
 
@@ -527,11 +534,11 @@ public class VesperaCommand implements Callable<Integer> {
         public Integer call() {
             String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
             if (misnamedDatabaseDirectory != null) {
-                System.err.println(misnamedDatabaseDirectory);
+                OperatorLines.warn(misnamedDatabaseDirectory);
                 return CommandLine.ExitCode.SOFTWARE;
             }
             if (auto && file != null) {
-                System.err.println("vespera label --auto takes no file: it works on the label file the last run"
+                OperatorLines.warn("vespera label --auto takes no file: it works on the label file the last run"
                         + " wrote in the working directory. Give either --auto or a file, not both.");
                 return CommandLine.ExitCode.USAGE;
             }
@@ -550,7 +557,7 @@ public class VesperaCommand implements Callable<Integer> {
                             sidecarStarter.ensureRunning();
                         } catch (SidecarStartRefusedException refused) {
                             ended = "refused";
-                            System.err.println(refused.getMessage());
+                            OperatorLines.warn(refused.getMessage());
                             return CommandLine.ExitCode.SOFTWARE;
                         }
                     }
@@ -568,13 +575,13 @@ public class VesperaCommand implements Callable<Integer> {
                 ended = outcome.refused() ? "refused" : "recorded";
                 counts = outcome.counts();
                 if (outcome.refused()) {
-                    System.err.println("vespera label recorded nothing: " + outcome.message());
+                    OperatorLines.warn("vespera label recorded nothing: " + outcome.message());
                     return outcome.message().startsWith(LabelIngestion.NO_FILE)
                             ? CommandLine.ExitCode.USAGE
                             : CommandLine.ExitCode.SOFTWARE;
                 }
-                System.out.println(outcome.message());
-                System.out.println(nextAction.line());
+                OperatorLines.info(outcome.message());
+                OperatorLines.info(nextAction.line());
                 return CommandLine.ExitCode.OK;
             } finally {
                 progressPage.commandEnds(ended, counts);
@@ -587,16 +594,16 @@ public class VesperaCommand implements Callable<Integer> {
          */
         private Integer callAuto(AutoLabelling.Outcome outcome) {
             if (outcome == null) {
-                System.err.println("vespera label --auto recorded nothing: no local labeller is wired into"
+                OperatorLines.warn("vespera label --auto recorded nothing: no local labeller is wired into"
                         + " this build.");
                 return CommandLine.ExitCode.SOFTWARE;
             }
             if (outcome.refused()) {
-                System.err.println("vespera label --auto recorded nothing: " + outcome.message());
+                OperatorLines.warn("vespera label --auto recorded nothing: " + outcome.message());
                 return CommandLine.ExitCode.SOFTWARE;
             }
-            System.out.println(outcome.message());
-            System.out.println(nextAction.line());
+            OperatorLines.info(outcome.message());
+            OperatorLines.info(nextAction.line());
             return CommandLine.ExitCode.OK;
         }
     }
@@ -672,7 +679,7 @@ public class VesperaCommand implements Callable<Integer> {
         public Integer call() {
             String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
             if (misnamedDatabaseDirectory != null) {
-                System.err.println(misnamedDatabaseDirectory);
+                OperatorLines.warn(misnamedDatabaseDirectory);
                 return CommandLine.ExitCode.SOFTWARE;
             }
             boolean bare = destinations == null || destinations.isEmpty();
@@ -680,7 +687,7 @@ public class VesperaCommand implements Callable<Integer> {
             for (String name : bare ? List.of(DESTINATION) : destinations) {
                 Optional<Plugin> named = plugins.stream().filter(candidate -> candidate.name().equals(name.strip())).findFirst();
                 if (named.isEmpty()) {
-                    System.err.println("vespera publish has no destination " + name.strip() + ": it knows "
+                    OperatorLines.warn("vespera publish has no destination " + name.strip() + ": it knows "
                             + plugins.stream().map(Plugin::name).collect(java.util.stream.Collectors.joining(", "))
                             + ".");
                     return CommandLine.ExitCode.USAGE;
@@ -711,7 +718,7 @@ public class VesperaCommand implements Callable<Integer> {
         private boolean deliverTo(Plugin plugin, boolean bare, Map<String, Set<String>> finished, List<Runs.Listed> runs) {
             Optional<String> generation = lastDrawn(plugin, finished, runs);
             if (generation.isEmpty()) {
-                System.err.println(bare
+                OperatorLines.warn(bare
                         ? "vespera publish sent nothing: no Confluence rendering is drawn in this working directory."
                                 + " Run vespera run to the deliverable, and publish again."
                         : "vespera publish sent nothing to " + plugin.name() + ": no " + plugin.name()
@@ -721,24 +728,24 @@ public class VesperaCommand implements Callable<Integer> {
             }
             Path rendering = renderingOf(plugin, generation.get());
             if (!drawingFinished(rendering)) {
-                System.err.println("vespera publish sent nothing to " + plugin.name() + ": the last drawing"
+                OperatorLines.warn("vespera publish sent nothing to " + plugin.name() + ": the last drawing"
                         + " of its rendering did not finish. Run vespera run to draw it again, and publish again.");
                 return false;
             }
             Plugin.Delivery outcome;
             try {
-                outcome = plugin.deliver(rendering, generation.get(), workingDirectoryInUse, System.out::println);
+                outcome = plugin.deliver(rendering, generation.get(), workingDirectoryInUse, OperatorLines::info);
             } catch (RuntimeException thrown) {
-                System.err.println("vespera publish stopped " + plugin.name() + ": it threw "
+                OperatorLines.warn("vespera publish stopped " + plugin.name() + ": it threw "
                         + thrown.getClass().getSimpleName() + ", whose message is not written. Publish again once"
                         + " that is dealt with.");
                 return false;
             }
             if (!outcome.delivered()) {
-                System.err.println(outcome.closingLine());
+                OperatorLines.warn(outcome.closingLine());
                 return false;
             }
-            System.out.println(outcome.closingLine());
+            OperatorLines.info(outcome.closingLine());
             return true;
         }
 

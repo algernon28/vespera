@@ -1,7 +1,5 @@
 package io.algernon.vespera.engine.pipeline;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.step.StepExecution;
@@ -19,14 +17,12 @@ import org.springframework.batch.core.step.StepExecution;
  */
 final class StepFailureClosingLine implements StepExecutionListener {
 
-    private static final Logger LOG = LoggerFactory.getLogger(StepFailureClosingLine.class);
-
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
         if (!ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode())
                 && !stepExecution.getFailureExceptions().isEmpty()
                 && !StepFailure.archiveGone(stepExecution)) {
-            LOG.error(
+            OperatorLines.error(
                     "Step {} failed and is not recorded as finished: {}. Fix what that names and run the same"
                             + " command again.",
                     stepExecution.getStepName(),

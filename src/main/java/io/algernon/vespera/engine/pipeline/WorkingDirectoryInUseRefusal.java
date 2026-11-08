@@ -26,7 +26,7 @@ public class WorkingDirectoryInUseRefusal implements SpringBootExceptionReporter
         if (inUse == null) {
             return false;
         }
-        System.err.println(inUse.getMessage());
+        OperatorLines.warn(inUse.getMessage());
         return true;
     }
 

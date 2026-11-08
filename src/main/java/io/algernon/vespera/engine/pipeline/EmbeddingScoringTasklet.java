@@ -81,6 +81,7 @@ class EmbeddingScoringTasklet implements Tasklet {
     private final UnusableSeeds unusableSeeds;
     private final ModelPull modelPull;
     private final ExtractionCacheKeys cacheKeys;
+    private final RecordedClosingLines recordedClosingLines;
 
     EmbeddingScoringTasklet(
             SeedGate seedGate,
@@ -93,7 +94,9 @@ class EmbeddingScoringTasklet implements Tasklet {
             ChunkEmbedder chunkEmbedder,
             UnusableSeeds unusableSeeds,
             ModelPull modelPull,
-            JdbcTemplate jdbcTemplate) {
+            JdbcTemplate jdbcTemplate,
+            RecordedClosingLines recordedClosingLines) {
+        this.recordedClosingLines = recordedClosingLines;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
         this.stageRuns = stageRuns;
@@ -178,14 +181,16 @@ class EmbeddingScoringTasklet implements Tasklet {
                         // ADR-231 section 1: stop as ADR-202's refusal stops, recording no completion.
                         String reason = "the embedding model " + modelName
                                 + " was pulled again while its chunks were being embedded";
-                        LOG.error(
-                                "stage 5's scoring step stopped: the embedding model {} was pulled again while its"
-                                        + " chunks were being embedded, so Ollama no longer reports the digest and"
-                                        + " weight dtype scoring run {} names. The step is not recorded as finished"
-                                        + " and nothing was scored -- run again to embed and score under the model"
-                                        + " as it is now.",
-                                modelName,
-                                scoring.value());
+                        recordedClosingLines.record(
+                                chunkContext.getStepContext().getStepExecution(),
+                                OperatorLines.format(
+                                        "stage 5's scoring step stopped: the embedding model {} was pulled again while"
+                                                + " its chunks were being embedded, so Ollama no longer reports the"
+                                                + " digest and weight dtype scoring run {} names. The step is not"
+                                                + " recorded as finished and nothing was scored -- run again to embed"
+                                                + " and score under the model as it is now.",
+                                        modelName,
+                                        scoring.value()));
                         chunkContext.getStepContext().getStepExecution().setStatus(BatchStatus.FAILED);
                         contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(reason));
                         return false;
@@ -204,14 +209,16 @@ class EmbeddingScoringTasklet implements Tasklet {
      * resourceless (ADR-036), and is kept so that a failed step does not leave its own record silent about
      * why.
      */
-    private static void stopTheStep(
+    private void stopTheStep(
             StepContribution contribution, ChunkContext chunkContext, String modelName, String refusal) {
-        LOG.error(
-                "stage 5's scoring step stopped: the embedding model {} was refused, so nothing was embedded"
-                        + " and no run was minted -- {}",
-                modelName,
-                refusal);
         StepExecution stepExecution = chunkContext.getStepContext().getStepExecution();
+        recordedClosingLines.record(
+                stepExecution,
+                OperatorLines.format(
+                        "stage 5's scoring step stopped: the embedding model {} was refused, so nothing was embedded"
+                                + " and no run was minted -- {}",
+                        modelName,
+                        refusal));
         stepExecution.setStatus(BatchStatus.FAILED);
         contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(refusal));
     }

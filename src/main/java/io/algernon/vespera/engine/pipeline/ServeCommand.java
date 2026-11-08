@@ -62,9 +62,13 @@ public final class ServeCommand {
     private final PrintStream out;
     private final PrintStream err;
 
-    /** As the process has it: its system properties, its environment, and the console. */
-    public ServeCommand() {
-        this(System.getProperties(), System.getenv(), System.out, System.err);
+    /**
+     * As the process has it, its system properties and its environment, writing to the two streams it is given:
+     * {@code vespera serve} starts before Spring and so stays outside logback, and {@code EntryPoint} hands it the
+     * console (ADR-364 §4).
+     */
+    public ServeCommand(PrintStream out, PrintStream err) {
+        this(System.getProperties(), System.getenv(), out, err);
     }
 
     ServeCommand(Properties systemProperties, Map<String, String> environment, PrintStream out, PrintStream err) {

@@ -39,6 +39,7 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
@@ -114,6 +115,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
     private final ImplementationVersions implementationVersions;
     private final ProfileStore profileStore;
     private final Path root;
+    private final RecordedClosingLines recordedClosingLines;
 
     public ByteLevelReductionTasklet(
             Ledger ledger,
@@ -123,6 +125,29 @@ public class ByteLevelReductionTasklet implements Tasklet {
             ProfileStore profileStore,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${vespera.working-dir}") Path workingDirectory) {
+        this(
+                ledger,
+                contentIdentity,
+                detectedFormats,
+                implementationVersions,
+                profileStore,
+                root,
+                workingDirectory,
+                new RecordedClosingLines());
+    }
+
+    /** The constructor Spring uses: it is given the holder {@code TaskletSteps} registers (ADR-364 §4). */
+    @Autowired
+    public ByteLevelReductionTasklet(
+            Ledger ledger,
+            ContentIdentity contentIdentity,
+            DetectedFormats detectedFormats,
+            ImplementationVersions implementationVersions,
+            ProfileStore profileStore,
+            Path root,
+            Path workingDirectory,
+            RecordedClosingLines recordedClosingLines) {
+        this.recordedClosingLines = recordedClosingLines;
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
         this.detectedFormats = detectedFormats;
@@ -190,10 +215,12 @@ public class ByteLevelReductionTasklet implements Tasklet {
         } catch (ArchiveGoneException archiveGone) {
             // Stage 1 has no closing line of its own, so the one an operator needs is written here, before
             // the exception leaves the step and its transaction rolls everything back (ADR-210 section 2).
-            log.error(
-                    "Stage 1 (byte-level reduction) failed and is not recorded as finished: {}. Reconnect the"
-                            + " archive and run the same command again.",
-                    archiveGone.getMessage());
+            recordedClosingLines.record(
+                    chunkContext.getStepContext().getStepExecution(),
+                    OperatorLines.format(
+                            "Stage 1 (byte-level reduction) failed and is not recorded as finished: {}. Reconnect the"
+                                    + " archive and run the same command again.",
+                            archiveGone.getMessage()));
             throw archiveGone;
         }
     }

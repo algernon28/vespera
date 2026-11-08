@@ -81,6 +81,7 @@ public class RedundancyJobConfiguration {
     Step redundancyResolutionStep(
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
+            RecordedClosingLines recordedClosingLines,
             RedundancyResolutionTasklet redundancyResolutionTasklet,
             RedundancyGate redundancyGate,
             StageRuns stageRuns,
@@ -90,6 +91,7 @@ public class RedundancyJobConfiguration {
                 StepNames.CONTENT_REDUNDANCY,
                 jobRepository,
                 transactionManager,
+                recordedClosingLines,
                 redundancyResolutionTasklet,
                 new ShingleHashIndexBuild(redundancyGate, stageRuns, ledger, new ShingleHashIndex(jdbcTemplate)));
     }
@@ -266,7 +268,7 @@ public class RedundancyJobConfiguration {
                 // only when the step did not complete, and a step that did not complete records no
                 // completion; the next invocation discards what this one signed and signs every survivor
                 // again under the same run (ADR-115, ADR-116).
-                log.error(
+                OperatorLines.error(
                         "Stage 4a (redundancy signatures) failed and is not recorded as finished (read={},"
                                 + " written={}): {}. Fix what that names and run the same command again.",
                         stepExecution.getReadCount(),

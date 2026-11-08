@@ -1,7 +1,10 @@
 package io.algernon.vespera;
 
 import io.algernon.vespera.ui.ControlPanel;
+import io.algernon.vespera.engine.pipeline.ServeCommand;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * The jar's {@code Start-Class} (ADR-342 §2), in the root package beside {@link VesperaApplication}, outside the
@@ -36,6 +39,13 @@ public final class EntryPoint {
     }
 
     public static void main(String[] arguments) {
+        // `vespera serve` is handed on before SpringApplication is built (ADR-333 section 8, ADR-364 section 4): no
+        // context, none of the listeners, no datasource, no lock and no log file, and so outside logback.
+        Optional<List<String>> served = ServeCommand.handedOn(passedOn(arguments));
+        if (served.isPresent()) {
+            System.exit(new ServeCommand(System.out, System.err).call(served.get().toArray(String[]::new)));
+            return;
+        }
         if (chosen(arguments) == Started.COMMAND_LINE) {
             VesperaApplication.main(passedOn(arguments));
             return;
