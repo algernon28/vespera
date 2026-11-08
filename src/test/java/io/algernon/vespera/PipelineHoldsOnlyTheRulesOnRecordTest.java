@@ -120,6 +120,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "DoclingKeepsDroppingConnectionsException",
             "DoclingRunsAnotherImageException",
             // ADR-262: renders similarity's shares of the documents; the rounding and the grouping are similarity's.
+            // ADR-362 §1: asks the system whether a window can open; decides no verdict and shapes no stage's output.
+            "DisplayPresence",
             "DocumentFrequencyReport",
             "DocumentOpening",
             // ADR-330 §1: writes effective-values.properties, what lies beneath the profile; it decides no verdict.

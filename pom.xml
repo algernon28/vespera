@@ -328,7 +328,7 @@
                       the one value that turns virtual threads off here: one the JDK does not know is read as its default).
                       APullIsSentWhileManyHttpClientsAreOpenTest fails without this.
                     -->
-                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar" -Djdk.internal.httpclient.tcp.selector.useVirtualThreads=never</argLine>
+                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar" -Djdk.internal.httpclient.tcp.selector.useVirtualThreads=never --enable-native-access=ALL-UNNAMED</argLine>
                     <excludes>
                         <exclude>**/*IT.java</exclude>
                     </excludes>
@@ -352,7 +352,7 @@
                     </dependency>
                 </dependencies>
                 <configuration>
-                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar"</argLine>
+                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar" --enable-native-access=ALL-UNNAMED</argLine>
                 </configuration>
                 <executions>
                     <execution>

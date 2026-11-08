@@ -1,7 +1,11 @@
 package io.algernon.vespera;
 
+import io.algernon.vespera.engine.pipeline.DisplayPresence;
 import io.algernon.vespera.ui.ControlPanel;
+import java.io.PrintStream;
 import java.util.Arrays;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * The jar's {@code Start-Class} (ADR-342 §2), in the root package beside {@link VesperaApplication}, outside the
@@ -21,6 +25,10 @@ public final class EntryPoint {
     /** The flag that, as the first argument, keeps the jar from opening the window. */
     private static final String HEADLESS = "--headless";
 
+    /** What both lines about a window that cannot open begin with (ADR-342 §2). */
+    private static final String NO_WINDOW =
+            "the control panel cannot open a window here, so the jar answers as its command line: ";
+
     private EntryPoint() {
     }
 
@@ -36,20 +44,38 @@ public final class EntryPoint {
     }
 
     public static void main(String[] arguments) {
+        start(arguments, DisplayPresence::ofThisProcess, ControlPanel::open, VesperaApplication::main, System.err);
+    }
+
+    /**
+     * What {@link #main} does, with its four seams given: the display (ADR-362 §1), asked only once {@link #chosen}
+     * says the control panel and before the toolkit; the window; the command line; and standard error. {@code
+     * --headless} first is handed to the command line as the JVM's property {@code vespera.headless}.
+     */
+    static void start(String[] arguments, Supplier<DisplayPresence.Answer> display, Supplier<ControlPanel.Opening> window,
+                      Consumer<String[]> commandLine, PrintStream err) {
         if (chosen(arguments) == Started.COMMAND_LINE) {
-            VesperaApplication.main(passedOn(arguments));
+            if (arguments.length > 0 && arguments[0].equals(HEADLESS)) {
+                System.setProperty(DisplayPresence.HEADLESS_PROPERTY, "true");
+            }
+            commandLine.accept(passedOn(arguments));
             return;
         }
-        ControlPanel.Opening opening = ControlPanel.open();
+        DisplayPresence.Answer answer = display.get();
+        if (!answer.present()) {
+            err.println(NO_WINDOW + "no display (" + answer.inWords() + ")");
+            commandLine.accept(new String[0]);
+            return;
+        }
+        ControlPanel.Opening opening = window.get();
         switch (opening.result()) {
             case NO_JAR -> {
-                System.err.println(opening.line());
+                err.println(opening.line());
                 System.exit(1);
             }
             case NO_WINDOW -> {
-                System.err.println("the control panel cannot open a window here, so the jar answers as its command line: "
-                        + opening.line());
-                VesperaApplication.main(new String[0]);
+                err.println(NO_WINDOW + opening.line());
+                commandLine.accept(new String[0]);
             }
             case CLOSED -> System.exit(0);
         }
