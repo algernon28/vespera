@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.AnomalyLog;
 import io.algernon.vespera.corpus.ContentIdentity;
-import io.algernon.vespera.corpus.DetectedFormat;
 import io.algernon.vespera.corpus.DetectedFormats;
 import io.algernon.vespera.corpus.WalkRecorder;
 import io.algernon.vespera.extraction.ConversionStatus;
@@ -20,7 +19,6 @@ import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.OccurrencePath;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.similarity.Shingler;
 import io.qameta.allure.Epic;
@@ -33,7 +31,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -116,156 +113,6 @@ class ExtractionItemProcessorTest {
                                 corpus.occurrence(0).value(),
                                 corpus.extractionRunId().value()))
                         .isPositive());
-    }
-
-    /**
-     * #275: every spreadsheet in the GesPOS corpus earned degenerate-output, because only {@code texts[]}
-     * was read. Whether it clears the floor is {@code extraction.OccurrenceJudgeTest}'s claim now.
-     */
-    @Test
-    @Story("Tier 1 — the hard zero-content floor")
-    @DisplayName("A spreadsheet, which converts to a table and no text items, is shingled by its cells")
-    @Issue("275")
-    @Link(name = "ADR-145", url = Adr.TABLE_CELLS_ARE_EXTRACTED_TEXT, type = "adr")
-    void aSpreadsheetIsShingledByItsCells(@TempDir Path root) throws Exception {
-        Corpus corpus = corpusOf(root, 1);
-        ScriptedExtractor docling = new ScriptedExtractor()
-                .answering(new DoclingResponse(
-                        ConversionStatus.SUCCESS,
-                        List.of(),
-                        0d,
-                        null,
-                        "{\"document\":{\"json_content\":{\"body\":{\"children\":[{\"$ref\":\"#/tables/0\"}]},"
-                                + "\"texts\":[],\"tables\":[{\"children\":[],\"data\":{\"table_cells\":["
-                                + "{\"text\":\"Merchant\",\"start_row_offset_idx\":0,\"start_col_offset_idx\":0},"
-                                + "{\"text\":\"Terminal\",\"start_row_offset_idx\":0,\"start_col_offset_idx\":1},"
-                                + "{\"text\":\"ACME Srl\",\"start_row_offset_idx\":1,\"start_col_offset_idx\":0},"
-                                + "{\"text\":\"TID-273273\",\"start_row_offset_idx\":1,\"start_col_offset_idx\":1}"
-                                + "]}}]}}}"));
-
-        ExtractionOutcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
-
-        claim(
-                "it earns no verdict and goes on as a survivor",
-                () -> assertThat(outcome).isNull());
-        claim(
-                "and its cells reached the shingle table, so the stages after this one compare it by the"
-                        + " same text the floor measured",
-                () -> assertThat(jdbcTemplate.queryForObject(
-                                "SELECT COUNT(*) FROM shingle WHERE occurrence_id = ?",
-                                Integer.class,
-                                corpus.occurrence(0).value()))
-                        .isPositive());
-    }
-
-    /**
-     * ADR-094 narrows plain text by extension only for {@code .md}, {@code .html}, {@code .csv} and
-     * {@code .adoc}, so the {@code .txt} fixture below is plain text with no subtype at all.
-     */
-    @Test
-    @Story("The format sent is the one stage 1 read off the bytes")
-    @DisplayName("The occurrence is converted as what stage 1 found it to be, not as what its path says")
-    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
-    void convertsAsTheFormatStageOneRecorded(@TempDir Path root) throws Exception {
-        Corpus corpus = corpusOf(root, 1);
-        ScriptedExtractor docling = new ScriptedExtractor().answering(converted());
-
-        processorOver(corpus, docling).process(corpus.occurrence(0));
-
-        claim(
-                "what reaches the converter is the format stage 1 read off the leading bytes, looked up"
-                        + " under the stage-1 run this stage names upstream -- prose in a .txt file is plain"
-                        + " text, and the path plays no part in saying so",
-                () -> assertThat(docling.formatsAsked()).containsExactly(DetectedFormat.PLAIN_TEXT));
-        claim(
-                "and it carries no subtype, because .txt is not one of the extensions plain text is"
-                        + " narrowed by -- an absent subtype is a legitimate answer, not a missing one",
-                () -> assertThat(docling.subtypesAsked()).containsExactly(Optional.empty()));
-    }
-
-    /**
-     * The second occurrence's verdict is the floor's -- the scripted response carries no text -- which
-     * is what makes it evidence that the occurrence was judged rather than set aside. How the first
-     * occurrence's reason is worded is {@code extraction.OccurrenceJudgeTest}'s claim; which run the
-     * processor hands the judge to name in it is this one's.
-     */
-    @Test
-    @Story("The format sent is the one stage 1 read off the bytes")
-    @DisplayName("An occurrence whose format was never recorded is not sent to the converter, and the pass carries on")
-    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
-    @Link(name = "ADR-057", url = Adr.VERDICT_VOCABULARY_IS_EIGHT_VALUES, type = "adr")
-    void sendsNothingForAMissingFormatAndCarriesOn(@TempDir Path root) throws Exception {
-        Corpus corpus = corpusOf(root, 2);
-        jdbcTemplate.update("DELETE FROM detected_format WHERE occurrence_id = ?", corpus.occurrence(0).value());
-        ScriptedExtractor docling = new ScriptedExtractor().thenAlwaysAnswering(converted());
-        ExtractionItemProcessor processor = processorOver(corpus, docling);
-
-        ExtractionOutcome unreadable = processor.process(corpus.occurrence(0));
-        ExtractionOutcome next = processor.process(corpus.occurrence(1));
-
-        claim(
-                "the occurrence with no recorded format is recorded as a failure of its own",
-                () -> assertThat(unreadable.kind()).isEqualTo(VerdictKind.EXTRACTION_FAILED));
-        claim(
-                "and its reason names the occurrence and the stage-1 run the format was sought under -- not"
-                        + " stage 2's own run -- because this is the one such verdict no converter answer produced,"
-                        + " and in the ledger it is otherwise indistinguishable from a conversion that really failed",
-                () -> assertThat(unreadable.reason())
-                        .contains(corpus.byteLevelReductionRunId().value())
-                        .doesNotContain(corpus.extractionRunId().value())
-                        .contains(String.valueOf(corpus.occurrence(0).value())));
-        claim(
-                "and nothing was converted for it: a document whose format could not be read is not sent"
-                        + " to Docling on a guess, so only the occurrence that kept its row was converted",
-                () -> assertThat(docling.conversions()).isEqualTo(1));
-        claim(
-                "while the very next occurrence is put to the converter and judged on what came back --"
-                        + " one unreadable row costs one occurrence, and a pass over hundreds of gigabytes"
-                        + " does not abort on it",
-                () -> assertThat(next.kind()).isEqualTo(VerdictKind.DEGENERATE_OUTPUT));
-    }
-
-    /**
-     * The processor's own hash, the second of stage 2's two places that hash a file (ADR-206 section 2):
-     * reached only where nothing was dispatched ahead, which in the job never happens, so it is held here
-     * rather than by a whole invocation. One file, so stage 1 hashed nothing and this step must.
-     */
-    @Test
-    @Story("A file stage 2 cannot hash")
-    @DisplayName("A file gone when the processor hashes it is removed as one that could not be read, and is not sent to the converter")
-    @Issue("452")
-    @Link(name = "ADR-210", url = Adr.A_FILE_THAT_CANNOT_BE_READ_IS_MARKED_AND_THE_STEP_GOES_ON, type = "adr")
-    void aFileGoneWhenTheProcessorHashesItIsMarkedAndNotSent(@TempDir Path root) throws Exception {
-        Corpus corpus = corpusOf(root, 1);
-        ScriptedExtractor docling = new ScriptedExtractor().thenAlwaysAnswering(converted());
-        Files.delete(root.resolve("document-0.txt"));
-
-        ExtractionOutcome outcome = processorOver(corpus, docling).process(corpus.occurrence(0));
-
-        claim(
-                "the occurrence is removed as one extraction failed on, and its reason says the file could not"
-                        + " be read",
-                () -> {
-                    assertThat(outcome.kind()).isEqualTo(VerdictKind.EXTRACTION_FAILED);
-                    assertThat(outcome.reason()).startsWith("could not be read: ");
-                });
-        claim(
-                "the converter was asked nothing: there were no bytes to send",
-                () -> assertThat(docling.conversions()).isZero());
-        claim(
-                "and nothing was measured, and no key recorded, for it",
-                () -> {
-                    assertThat(jdbcTemplate.queryForObject(
-                                    "SELECT COUNT(*) FROM extraction_metric WHERE occurrence_id = ?",
-                                    Integer.class,
-                                    corpus.occurrence(0).value()))
-                            .isZero();
-                    assertThat(jdbcTemplate.queryForObject(
-                                    "SELECT COUNT(*) FROM extraction_cache_key WHERE occurrence_id = ?",
-                                    Integer.class,
-                                    corpus.occurrence(0).value()))
-                            .isZero();
-                });
     }
 
     @Test

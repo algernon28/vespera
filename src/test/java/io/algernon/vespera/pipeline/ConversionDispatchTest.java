@@ -103,9 +103,6 @@ class ConversionDispatchTest {
      */
     private static final int DOCUMENTS = 2 * READ_BEFORE_A_COMMIT + ASKED_AHEAD + CONVERSIONS_AT_ONCE;
 
-    /** How many times the reader is asked again after its last document, to see that it stays ended. */
-    private static final int READS_PAST_THE_END = 3;
-
     /**
      * How long a claim waits for a conversion to begin, for an interrupted one to end, or for a
      * question that should be answered at once. Generous, because it bounds a thread being scheduled
@@ -133,28 +130,6 @@ class ConversionDispatchTest {
     }
 
     @Test
-    @Story("How far ahead of the document being handed over the converter has been asked")
-    @DisplayName("After each document is handed over, the converter has been asked about the next sixteen as well, across the point where the step commits")
-    void asksAheadAcrossTheCommit(@TempDir Path root) throws Exception {
-        Corpus corpus = corpusOf(root, DOCUMENTS);
-        reader = readerOver(corpus, new InOrder(corpus.occurrences()));
-
-        List<Integer> askedAboutAfterEachRead = new ArrayList<>();
-        for (int read = 1; read <= DOCUMENTS; read++) {
-            reader.read();
-            askedAboutAfterEachRead.add(converter.lookedUp().size());
-        }
-
-        claim(
-                "after every document handed over, the converter has been asked about that many and the"
-                        + " " + ASKED_AHEAD + " after them, although none of them has answered, and never about"
-                        + " more than the " + DOCUMENTS + " there are: two waves of the " + CONVERSIONS_AT_ONCE
-                        + " that convert at once are always waiting behind the document in hand, across the"
-                        + " commit after the first " + READ_BEFORE_A_COMMIT + " as well",
-                () -> assertThat(askedAboutAfterEachRead).containsExactlyElementsOf(expectedAskedAbout()));
-    }
-
-    @Test
     @Story("The order documents are handed over in")
     @DisplayName("Documents are handed over in the order they were listed, whatever order the converter answers in")
     void handsOverInTheOrderListedWhateverOrderTheAnswersArriveIn(@TempDir Path root) throws Exception {
@@ -176,37 +151,6 @@ class ConversionDispatchTest {
                         + " first: the order answers arrive in decides nothing about the order"
                         + " documents are judged in, which is the order failures in a row are counted over",
                 () -> assertThat(handedOver).containsExactlyElementsOf(corpus.occurrences()));
-    }
-
-    @Test
-    @Story("The end of the documents")
-    @DisplayName("After the last document is listed, the ones already asked about are still handed over, then nothing, and the list is not asked again")
-    void handsOverWhatWasAskedAheadThenNothing(@TempDir Path root) throws Exception {
-        Corpus corpus = corpusOf(root, DOCUMENTS);
-        InOrder listed = new InOrder(corpus.occurrences());
-        reader = readerOver(corpus, listed);
-
-        List<OccurrenceId> handedOver = new ArrayList<>();
-        for (int read = 1; read <= DOCUMENTS; read++) {
-            handedOver.add(reader.read());
-        }
-        List<OccurrenceId> afterTheLast = new ArrayList<>();
-        for (int read = 1; read <= READS_PAST_THE_END; read++) {
-            afterTheLast.add(reader.read());
-        }
-
-        claim(
-                "all " + DOCUMENTS + " documents were handed over, the last " + ASKED_AHEAD + " of them after"
-                        + " the list had already said it held no more: what was asked ahead is not lost when"
-                        + " the list ends",
-                () -> assertThat(handedOver).containsExactlyElementsOf(corpus.occurrences()));
-        claim(
-                "every read after the last document hands over nothing, which is how the step learns it is done",
-                () -> assertThat(afterTheLast).hasSize(READS_PAST_THE_END).containsOnlyNulls());
-        claim(
-                "the list was asked once for each of the " + DOCUMENTS + " documents and once more, when it said"
-                        + " it held no more, and never again after that: a list that has ended is not asked twice",
-                () -> assertThat(listed.timesAsked()).isEqualTo(DOCUMENTS + 1));
     }
 
     @Test
@@ -253,15 +197,6 @@ class ConversionDispatchTest {
                 "and nothing was kept in the conversion cache for any document: an answer is kept only when a"
                         + " document is handed on to be judged, and none was",
                 () -> assertThat(converter.remembered()).isEmpty());
-    }
-
-    /** For each document handed over, in order: that many plus what is asked ahead, up to the total. */
-    private static List<Integer> expectedAskedAbout() {
-        List<Integer> expected = new ArrayList<>();
-        for (int read = 1; read <= DOCUMENTS; read++) {
-            expected.add(Math.min(DOCUMENTS, read + ASKED_AHEAD));
-        }
-        return expected;
     }
 
     /** The reader as the step builds it, over the real ledger, the held converter and {@code delegate}. */

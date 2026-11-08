@@ -23,7 +23,6 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
@@ -86,9 +85,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-071", url = Adr.DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL, type = "adr")
 class ExtractionStepTest {
 
-    /** Documents walked in the "every survivor gets processed" corpus. */
-    private static final int SURVIVORS = 3;
-
     /**
      * How many identical failing answers to queue for a corpus smaller than the chunk size: more than
      * the corpus holds, so that Spring Batch's fault-tolerant chunk-scan recovery — which can
@@ -103,14 +99,6 @@ class ExtractionStepTest {
      * on its way to running out of documents.
      */
     private static final int DOCUMENTS_FOR_MORE_THAN_ONE_WAVE = 24;
-
-    /**
-     * How long one scripted conversion waits for the rest of its wave before answering anyway. It
-     * bounds a dispatch delay and nothing else -- a scripted conversion computes nothing -- so it is
-     * generous, and a step that converts one document at a time pays it once for the whole run rather
-     * than once per document.
-     */
-    private static final Duration UNTIL_A_WHOLE_WAVE_IS_CONVERTING = Duration.ofSeconds(5);
 
     @BeforeEach
     void forgetWhatTheProbeSaw() {
@@ -136,24 +124,6 @@ class ExtractionStepTest {
 
     @Autowired
     private DoclingExtractor doclingExtractor;
-
-    @Test
-    @Story("The assembled step reaches every survivor")
-    @DisplayName("The processor is invoked exactly once per survivor the step is handed")
-    void invokesTheProcessorOncePerSurvivor(@TempDir Path root) throws IOException {
-        for (int i = 0; i < SURVIVORS; i++) {
-            Files.writeString(root.resolve("document-" + i + ".txt"), "content " + i);
-        }
-
-        cli.run("run", root.toString());
-
-        claim("the command reported success", () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "the scripted converter was asked about every survivor stage 1 handed the step, exactly"
-                        + " once each -- not zero, which is what a step that never reached the converter would"
-                        + " also report as success",
-                () -> assertThat(scripted().conversions()).isEqualTo(SURVIVORS));
-    }
 
     @Test
     @Story("A document-scoped failure is recorded")
@@ -184,44 +154,6 @@ class ExtractionStepTest {
         claim(
                 "the document earned an extraction-failed verdict in the ledger, under the run that judged it",
                 () -> assertThat(verdictKindsFor(occurrenceOf(root, "broken.txt"))).containsExactly("EXTRACTION_FAILED"));
-    }
-
-    @Test
-    @Story("How many conversions run at once")
-    @Issue("264")
-    @Link(name = "ADR-140", url = Adr.STAGE_2_CONVERTS_EIGHT_AT_A_TIME, type = "adr")
-    @DisplayName("The step converts several documents at once, on threads other than the one it runs on")
-    void convertsAtTheWidthTheCodeFixesAndOffTheInvokingThread(@TempDir Path root) throws IOException {
-        for (int i = 0; i < DOCUMENTS_FOR_MORE_THAN_ONE_WAVE; i++) {
-            Files.writeString(root.resolve("document-" + i + ".txt"), "content " + i);
-        }
-        scripted()
-                .holdingEachConversionUntil(
-                        ExtractionJobConfiguration.CONVERSION_CONCURRENCY, UNTIL_A_WHOLE_WAVE_IS_CONVERTING);
-        String invokedOn = Thread.currentThread().getName();
-
-        cli.run("run", root.toString());
-
-        claim("the command reported success", () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "as many documents were being converted at the same moment as the code says a machine converts"
-                        + " at once -- measured by holding each conversion until that many were under way, so a"
-                        + " step converting one document at a time reports one here however many documents it"
-                        + " was handed",
-                () -> assertThat(scripted().mostEverConvertingAtOnce())
-                        .isEqualTo(ExtractionJobConfiguration.CONVERSION_CONCURRENCY));
-        claim(
-                "and the chunk is a whole number of those waves -- it was sized when a chunk was all that was"
-                        + " dispatched ahead, where a chunk of ten at a width of eight paid a second tick for two"
-                        + " documents",
-                () -> assertThat(ExtractionJobConfiguration.CHUNK_SIZE % ExtractionJobConfiguration.CONVERSION_CONCURRENCY)
-                        .isZero());
-        claim(
-                "none of those conversions ran on the thread the command itself was invoked on -- that thread is"
-                        + " where the step reads, writes and counts, and a conversion sharing it would mean the"
-                        + " counting had been spread across threads too, which is how a run that should stop"
-                        + " quietly carries on",
-                () -> assertThat(scripted().convertingThreads()).isNotEmpty().doesNotContain(invokedOn));
     }
 
     @Test

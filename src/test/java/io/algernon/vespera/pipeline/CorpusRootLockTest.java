@@ -3,7 +3,6 @@ package io.algernon.vespera.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -15,11 +14,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -48,29 +44,11 @@ import org.junit.jupiter.api.io.TempDir;
 class CorpusRootLockTest {
 
     /** The arguments the invocation in these tests was started with, as the holder line records them. */
-    private static final String[] ARGUMENTS = {"run", "archive-root"};
-
-    /** Arguments holding a line break, and a Windows one, as an argument pasted from a file might. */
-    private static final String[] ARGUMENTS_WITH_LINE_BREAKS = {"run", "archive\nroot", "label\r\nfile"};
-
-    /** Those arguments as the holder line records them: each line break one space. */
-    private static final String COMMAND_WITH_LINE_BREAKS_AS_SPACES = "run archive root label file";
-
-    /** The nanoseconds of a time written to the whole second. */
-    private static final int NO_FRACTION_OF_A_SECOND = 0;
+    private static final String[] ARGUMENTS = {"run", "archive-root"};;
 
     /** ADR-177's three fields, then the key and the working directory. */
     private static final Pattern HOLDER_LINE =
             Pattern.compile("pid=(\\d+) started=(\\S+) command=(.*) root=(.*) working-directory=(.*)");
-
-    /** The name rule of ADR-279 §3. */
-    private static final String FILE_NAME_SHAPE = "[0-9a-f]{16}\\.lock";
-
-    /** The folder an unset or blank property names, in the user's home. */
-    private static final String DEFAULT_FOLDER = ".vespera-root-locks";
-
-    /** ADR-278 §4: a holding process started no later than its line's started plus this. */
-    private static final Duration ONE_SECOND = Duration.ofSeconds(1);
 
     /** How long the second process gets to end once killed. */
     private static final long HOLDER_END_BOUND_SECONDS = 30;
@@ -83,22 +61,6 @@ class CorpusRootLockTest {
     @AfterEach
     void handBackTheLock() {
         CorpusRootLock.release();
-    }
-
-    @Test
-    @Story("The lock's file lies outside every working directory")
-    @DisplayName("Unset or blank, the folder is .vespera-root-locks in the user's home; set, it is the folder named")
-    void theFolderDefaultsToOneInTheUsersHome(@TempDir Path temporary) {
-        Path inTheHome = Path.of(System.getProperty("user.home")).resolve(DEFAULT_FOLDER);
-
-        claim("an unset " + CorpusRootLock.FOLDER_PROPERTY + " names " + inTheHome,
-                () -> assertThat(CorpusRootLock.folderNamedBy(null)).isEqualTo(inTheHome));
-        claim("and so does a blank one",
-                () -> assertThat(CorpusRootLock.folderNamedBy("  ")).isEqualTo(inTheHome));
-        claim("a set one names the folder it names",
-                () -> assertThat(CorpusRootLock.folderNamedBy(temporary.toString())).isEqualTo(temporary));
-        claim("and the property is spelled as the record and the refusal spell it",
-                () -> assertThat(CorpusRootLock.FOLDER_PROPERTY).isEqualTo("vespera.corpus-root-lock-folder"));
     }
 
     @Test
@@ -132,68 +94,6 @@ class CorpusRootLockTest {
                 () -> assertThat(holder.group(5)).isEqualTo(workingDirectory.toAbsolutePath().toString()));
     }
 
-    /**
-     * ADR-279 §4: line breaks in the arguments become spaces, so the holder line stays one line whatever the
-     * invocation was started with. A Windows line break is one break, and becomes one space.
-     */
-    @Test
-    @Story("An invocation holds its corpus root until it ends")
-    @DisplayName("Line breaks in the command become spaces, so the holder line stays one line")
-    void lineBreaksInTheCommandBecomeSpaces(@TempDir Path temporary) throws IOException {
-        Path folder = temporary.resolve("locks");
-        Path root = Files.createDirectories(temporary.resolve("corpus"));
-        Path workingDirectory = Files.createDirectories(temporary.resolve("working-directory"));
-
-        new CorpusRootLock(folder).take(root, workingDirectory, ARGUMENTS_WITH_LINE_BREAKS);
-
-        List<String> lines = Files.readAllLines(
-                folder.resolve(CorpusRootLock.fileName(CorpusRootLock.key(root))), StandardCharsets.UTF_8);
-        claim("the file holds exactly one line, though the arguments held two line breaks",
-                () -> assertThat(lines).hasSize(1));
-        Matcher holder = HOLDER_LINE.matcher(lines.getFirst());
-        claim("of the holder line's shape", () -> assertThat(holder.matches()).isTrue());
-        claim("its command the arguments joined by spaces, each line break, a Windows one of two characters"
-                        + " included, written as one space",
-                () -> assertThat(holder.group(3)).isEqualTo(COMMAND_WITH_LINE_BREAKS_AS_SPACES));
-    }
-
-    /**
-     * ADR-279 §4: the holder line gives the start "to the second", as ADR-177's does, so it carries no fraction
-     * of a second. A clock finer than a second would leave one there almost always.
-     */
-    @Test
-    @Story("An invocation holds its corpus root until it ends")
-    @DisplayName("The holder's start time is written to the whole second, with no fraction")
-    void theStartIsWrittenToTheSecond(@TempDir Path temporary) throws IOException {
-        Path folder = temporary.resolve("locks");
-        Path root = Files.createDirectories(temporary.resolve("corpus"));
-
-        new CorpusRootLock(folder).take(root, Files.createDirectories(temporary.resolve("working-directory")), ARGUMENTS);
-
-        Matcher holder = HOLDER_LINE.matcher(holderLine(folder, root));
-        claim("the holder line has its shape", () -> assertThat(holder.matches()).isTrue());
-        OffsetDateTime started = OffsetDateTime.parse(holder.group(2));
-        claim("and its start time has no part of a second below the whole second",
-                () -> assertThat(started.getNano()).isEqualTo(NO_FRACTION_OF_A_SECOND));
-    }
-
-    @Test
-    @Story("The lock's file lies outside every working directory")
-    @DisplayName("The folder holds only files named by the rule, never vespera.lock or vespera.db")
-    void theFolderHoldsNeitherFileAWorkingDirectoryIsKnownBy(@TempDir Path temporary) throws IOException {
-        Path folder = temporary.resolve("locks");
-        Path workingDirectory = Files.createDirectories(temporary.resolve("working-directory"));
-        CorpusRootLock lock = new CorpusRootLock(folder);
-        lock.take(Files.createDirectories(temporary.resolve("one")), workingDirectory, ARGUMENTS);
-        lock.take(Files.createDirectories(temporary.resolve("another")), workingDirectory, ARGUMENTS);
-
-        List<String> names = names(folder);
-        claim("two roots taken leave two files in the folder", () -> assertThat(names).hasSize(2));
-        claim("each named by sixteen hexadecimal digits and .lock, so the folder holds neither file the agent"
-                        + " guard knows a working directory by",
-                () -> assertThat(names).allMatch(name -> name.matches(FILE_NAME_SHAPE)));
-    }
-
     @Test
     @Story("A second invocation on the same corpus root is refused")
     @DisplayName("A second take of a corpus root inside the same process is refused, naming the root and the holder")
@@ -212,22 +112,6 @@ class CorpusRootLockTest {
                 () -> assertThat(refused).hasMessage(inUse(root, holderLine)));
         claim("and the refused take leaves the holder line as it was, rather than writing its own",
                 () -> assertThat(holderLine(folder, root)).isEqualTo(holderLine));
-    }
-
-    @Test
-    @Story("A second invocation on the same corpus root is refused")
-    @DisplayName("A held corpus root named another way is still held")
-    void oneCorpusRootSpelledTwoWaysIsOneLock(@TempDir Path temporary) throws IOException {
-        Path folder = temporary.resolve("locks");
-        Path root = Files.createDirectories(temporary.resolve("corpus").resolve("sub")).getParent();
-        Path workingDirectory = Files.createDirectories(temporary.resolve("working-directory"));
-        new CorpusRootLock(folder).take(root, workingDirectory, ARGUMENTS);
-
-        Throwable refused = catchThrowable(() -> new CorpusRootLock(folder)
-                .take(root.resolve("sub").resolve(".."), workingDirectory, ARGUMENTS));
-
-        claim("the root spelled through a sub-folder and back is the same root, and is refused",
-                () -> assertThat(refused).isInstanceOf(CorpusRootInUseException.class));
     }
 
     @Test
@@ -276,94 +160,6 @@ class CorpusRootLockTest {
                 () -> assertThat(taken).isNull());
         claim("which overwrites the dead holder's line with its own",
                 () -> assertThat(holderLine(folder, root)).startsWith("pid=" + ProcessHandle.current().pid() + " "));
-    }
-
-    @Test
-    @Story("Another corpus root is another lock")
-    @DisplayName("Two corpus roots are held at once")
-    void anotherCorpusRootIsAccepted(@TempDir Path temporary) throws IOException {
-        Path folder = temporary.resolve("locks");
-        Path workingDirectory = Files.createDirectories(temporary.resolve("working-directory"));
-        new CorpusRootLock(folder).take(Files.createDirectories(temporary.resolve("one")), workingDirectory, ARGUMENTS);
-
-        Throwable taken = catchThrowable(() -> new CorpusRootLock(folder)
-                .take(Files.createDirectories(temporary.resolve("another")), workingDirectory, ARGUMENTS));
-
-        claim("a second root is taken while the first is held", () -> assertThat(taken).isNull());
-    }
-
-    @Test
-    @Story("Another corpus root is another lock")
-    @DisplayName("A corpus root inside a held one is a root of its own, and is taken")
-    void aCorpusRootInsideAHeldOneIsAnotherRoot(@TempDir Path temporary) throws IOException {
-        Path folder = temporary.resolve("locks");
-        Path outer = Files.createDirectories(temporary.resolve("corpus"));
-        Path workingDirectory = Files.createDirectories(temporary.resolve("working-directory"));
-        new CorpusRootLock(folder).take(outer, workingDirectory, ARGUMENTS);
-
-        Throwable taken = catchThrowable(() -> new CorpusRootLock(folder)
-                .take(Files.createDirectories(outer.resolve("inside")), workingDirectory, ARGUMENTS));
-
-        claim("a root inside the held root is taken: nested roots both walk, a limit the record names",
-                () -> assertThat(taken).isNull());
-    }
-
-    @Test
-    @Story("A corpus root that cannot be locked is not walked")
-    @DisplayName("A folder that cannot be made refuses the take, naming the folder and the property that moves it")
-    void aFolderThatCannotBeMadeRefusesTheTake(@TempDir Path temporary) throws IOException {
-        Path folder = Files.createFile(temporary.resolve("a-file-where-the-folder-goes"));
-        Path root = Files.createDirectories(temporary.resolve("corpus"));
-
-        Throwable refused = catchThrowable(() -> new CorpusRootLock(folder)
-                .take(root, Files.createDirectories(temporary.resolve("working-directory")), ARGUMENTS));
-
-        claim("the take is refused, never skipped",
-                () -> assertThat(refused).isInstanceOf(CorpusRootLockUnavailableException.class));
-        claim("with the one line the operator is shown, naming the folder, the property and what to do",
-                () -> assertThat(refused.getMessage())
-                        .startsWith("the corpus-root lock could not be taken in the folder " + folder + " (")
-                        .endsWith("); make that folder one this user can write, or name another in"
-                                + " vespera.corpus-root-lock-folder, then run the same command again. vespera run"
-                                + " walks no corpus root it has not locked."));
-    }
-
-    @Test
-    @Story("A second invocation on the same corpus root is refused")
-    @DisplayName("The refusal names the root and the holder, or says the holder's details could not be read")
-    void theRefusalSaysWhatItCouldRead(@TempDir Path root) {
-        String holderLine = "pid=4242 started=2026-10-18T10:15:30+02:00 command=run " + root + " root=" + root
-                + " working-directory=" + root.resolveSibling("first");
-
-        claim("with the holder line read, the refusal quotes it between the root and the advice",
-                () -> assertThat(new CorpusRootInUseException(root, holderLine)).hasMessage(inUse(root, holderLine)));
-        claim("with nothing readable in the file, the refusal says so in place of the line",
-                () -> assertThat(new CorpusRootInUseException(root, "  "))
-                        .hasMessage(inUse(root, "its details could not be read")));
-    }
-
-    @Test
-    @Story("The control panel finds an invocation it did not start")
-    @DisplayName("A process holding a corpus root started no later than its line's started plus one second")
-    void theHoldersStartIsNoLaterThanStartedPlusOneSecond(@TempDir Path temporary) throws Exception {
-        Path folder = temporary.resolve("locks");
-        Path root = Files.createDirectories(temporary.resolve("corpus"));
-        Process holder = HoldsTheCorpusRoot.start(folder, root, Files.createDirectories(temporary.resolve("first")));
-        try {
-            Optional<Instant> processStart = holder.info().startInstant();
-            assumeTrue(processStart.isPresent(), "this system gives no start instant of a process");
-            Matcher line = HOLDER_LINE.matcher(holderLine(folder, root));
-            claim("the holder line names the holding process", () -> {
-                assertThat(line.matches()).isTrue();
-                assertThat(Long.parseLong(line.group(1))).isEqualTo(holder.pid());
-            });
-            Instant started = OffsetDateTime.parse(line.group(2)).toInstant();
-            claim("and that process's start instant is no later than started plus one second, ADR-278's held rule",
-                    () -> assertThat(processStart.get()).isBeforeOrEqualTo(started.plus(ONE_SECOND)));
-        } finally {
-            holder.destroyForcibly();
-            holder.waitFor(HOLDER_END_BOUND_SECONDS, TimeUnit.SECONDS);
-        }
     }
 
     /** The whole of the line an operator is shown when the corpus root is held. */

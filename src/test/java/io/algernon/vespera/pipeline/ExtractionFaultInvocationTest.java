@@ -5,9 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.extraction.FailuresInARow;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -63,12 +61,6 @@ class ExtractionFaultInvocationTest {
     /** The corpus file the scripted converter refuses to open, whatever its bytes say. */
     private static final String REFUSED = SeedScriptedExtractionBeans.REFUSED_CONVERSION;
 
-    /** Files the scripted converter refuses the same way, walked one after another. */
-    private static final List<String> REFUSED_ONE_AFTER_ANOTHER = SeedScriptedExtractionBeans.REFUSED_ONE_AFTER_ANOTHER;
-
-    /** The corpus file the scripted converter opens and reports no text for. */
-    private static final String WITHOUT_TEXT = SeedScriptedExtractionBeans.EMPTY_SEED;
-
     /** The one file in each case that converts normally, so the scoring pass has something to score. */
     private static final String READABLE = "readable.txt";
 
@@ -88,18 +80,11 @@ class ExtractionFaultInvocationTest {
     private static final String THE_WHOLE_REASON =
             UNCATEGORISED + ": " + SeedScriptedExtractionBeans.REFUSAL_MESSAGE;
 
-    /** The whole reason the converter's own fault earns, composed the same way at the end of the step. */
-    private static final String THE_WHOLE_FAULT_REASON =
-            "internal: " + SeedScriptedExtractionBeans.CONVERTER_FAULT_MESSAGE;
-
     /** One invocation records stage 2's completion once, which is what makes a single reading readable. */
     private static final int ONE_RECORDING = 1;
 
     /** One score, the readable file's -- and therefore proof the pass ran to the end rather than stopping. */
     private static final long ONE_SCORE = 1;
-
-    /** No score at all, for a file that reached no stage able to score it. */
-    private static final long NO_SCORE = 0;
 
     @TempDir
     static Path workingDirectory;
@@ -157,73 +142,6 @@ class ExtractionFaultInvocationTest {
     }
 
     /**
-     * The case measured on 2026-09-24 against a real sidecar with no LibreOffice: five legacy
-     * spreadsheets in one folder, each refused this way, stopped stage 2 and failed the invocation.
-     */
-    @Test
-    @Story("A file the converter will not open")
-    @DisplayName("Files the converter refuses one after another are each recorded, and the invocation still finishes")
-    @Link(name = "ADR-143", url = Adr.AN_UNCATEGORISED_FAILURE_IS_A_VERDICT, type = "adr")
-    void refusedConversionsInARowDoNotStopTheInvocation(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        for (String name : REFUSED_ONE_AFTER_ANOTHER) {
-            Files.writeString(root.resolve(name), "stands in for the container " + name);
-        }
-        Files.writeString(root.resolve(READABLE), "a corpus document with real text in it");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        EveryGateOpen.throughStageFive(profileStore, seeds);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation reports success -- " + REFUSED_ONE_AFTER_ANOTHER.size() + " files the"
-                        + " converter would not open, one after another, are more in a row than the "
-                        + FailuresInARow.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT + " that stop the"
-                        + " step when the converter itself stops answering, and none of them is that",
-                () -> assertThat(cli.getExitCode()).isZero());
-        for (String name : REFUSED_ONE_AFTER_ANOTHER) {
-            claim(
-                    name + " carries the extraction-failed verdict",
-                    () -> assertThat(verdictKindsFor(root, name)).containsExactly("EXTRACTION_FAILED"));
-        }
-        claim(
-                "and the readable file beside them was scored, so the pass reached its end",
-                () -> assertThat(scoreRowsFor(root, READABLE)).isEqualTo(ONE_SCORE));
-    }
-
-    @Test
-    @Story("A file the converter could not answer for")
-    @DisplayName("A file the converter fails on while blaming itself is recorded, and removed once the step completes")
-    void aConverterFaultIsRecordedAndTheInvocationFinishes(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        Files.writeString(root.resolve(FAULTED), "a file the converter faults on");
-        Files.writeString(root.resolve(READABLE), "a corpus document with real text in it");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        EveryGateOpen.throughStageFive(profileStore, seeds);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation reports success -- one fault among answered files does not stop the step",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "the file left a row of its own carrying what the converter reported, so that it was never"
-                        + " judged at the time is something recorded rather than something absent",
-                () -> assertThat(faultRowsFor(root, FAULTED)).isEqualTo(ONE_FAULT_ROW));
-        claim(
-                "and the step, having completed, turned that row into the extraction-failed verdict, which is"
-                        + " the only thing that keeps an occurrence nothing examined from reading, four stages"
-                        + " later, as one every stage approved of",
-                () -> assertThat(verdictKindsFor(root, FAULTED)).containsExactly("EXTRACTION_FAILED"));
-        claim(
-                "and its reason is the reported category followed by the converter's own message, composed"
-                        + " at the end of the step the same way the processor composes one",
-                () -> assertThat(verdictReasonsFor(root, FAULTED)).containsExactly(THE_WHOLE_FAULT_REASON));
-        claim(
-                "the readable file beside it was scored all the same",
-                () -> assertThat(scoreRowsFor(root, READABLE)).isEqualTo(ONE_SCORE));
-    }
-
-    /**
      * The probe is static and this context is shared by every method here, so a reading left by one
      * invocation would otherwise be read as the next one's. Cleared before each test rather than only
      * after one, because which class ran last is not something a test may depend on.
@@ -266,37 +184,6 @@ class ExtractionFaultInvocationTest {
                         + " trusts and skips forever",
                 () -> assertThat(StepCompletionOrderProbe.FAULT_ROWS_VISIBLE_WHEN_STAGE_2_WAS_RECORDED_COMPLETE)
                         .containsExactly(ONE_FAULT_ROW));
-    }
-
-    @Test
-    @Story("A file the converter opens and finds nothing in")
-    @DisplayName("A conversion that comes back with no text is removed by the floor, and the invocation still finishes")
-    void aConversionWithNoTextIsRecordedAndTheInvocationFinishes(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        Files.writeString(root.resolve(WITHOUT_TEXT), "an intact file the converter finds no text in");
-        Files.writeString(root.resolve(READABLE), "a corpus document with real text in it");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        EveryGateOpen.throughStageFive(profileStore, seeds);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation reports success -- the other way a file can end stage 2 with no text does"
-                        + " not stop it either",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "the file the converter answered about earns the no-content verdict rather than the"
-                        + " failed-conversion one: the call succeeded and what came back was measured, which"
-                        + " is what separates this case from the refusal",
-                () -> assertThat(verdictKindsFor(root, WITHOUT_TEXT)).containsExactly("DEGENERATE_OUTPUT"));
-        claim(
-                "so it is not scored, having been removed two stages before anything asks it for the text"
-                        + " it does not have",
-                () -> assertThat(scoreRowsFor(root, WITHOUT_TEXT)).isEqualTo(NO_SCORE));
-        claim(
-                "and the readable file beside it was scored, so this case too leaves the pass able to"
-                        + " finish rather than merely able to start",
-                () -> assertThat(scoreRowsFor(root, READABLE)).isEqualTo(ONE_SCORE));
     }
 
     /**

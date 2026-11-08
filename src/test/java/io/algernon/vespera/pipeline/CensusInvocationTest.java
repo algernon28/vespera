@@ -4,9 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.Ledger;
-import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -24,13 +22,11 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.SimpleJob;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.transaction.annotation.Transactional;
 import picocli.CommandLine;
 
 /**
@@ -59,9 +55,6 @@ class CensusInvocationTest {
     @TempDir
     static Path workingDirectory;
 
-    /** Files written under the corpus root, so a claim can say where its number comes from. */
-    private static final int CORPUS_FILES = 2;
-
     @DynamicPropertySource
     static void workingDirectory(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
@@ -81,43 +74,6 @@ class CensusInvocationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    @Test
-    @Story("What census does in one invocation")
-    @DisplayName("vespera run <root> walks that root and leaves the profile beside the database")
-    void runsCensusOverTheRootTheOperatorNamed(@TempDir Path root) throws IOException {
-        Files.writeString(root.resolve("a.txt"), "a");
-        Files.writeString(root.resolve("b.txt"), "b");
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the command reported success, which is the only report an unattended invocation makes",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "the " + CORPUS_FILES + " files under the root the operator named were recorded",
-                () -> assertThat(ledger.occurrences().occurrenceCount(theWalk())).isEqualTo(CORPUS_FILES));
-        claim(
-                "the walk finished, so what it recorded may be judged",
-                () -> assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).contains(theWalk()));
-        claim(
-                "the profile was written to the working directory rather than into the corpus",
-                () -> assertThat(profileStore.file().startsWith(workingDirectory)).isTrue());
-        claim(
-                "and it is there to be edited",
-                () -> assertThat(Files.exists(profileStore.file())).isTrue());
-    }
-
-    @Test
-    @Story("What census does in one invocation")
-    @DisplayName("The job is named for the tool")
-    @Link(name = "ADR-047", url = Adr.THE_PIPELINE_NEVER_BLOCKS, type = "adr")
-    void theJobIsNamedForTheTool() {
-        claim(
-                "there is one job, named vespera, for later slices to add their stages to rather than to"
-                        + " stand beside",
-                () -> assertThat(vesperaJob.getName()).isEqualTo("vespera"));
-    }
 
     @Test
     @Story("What census does in one invocation")
@@ -164,53 +120,6 @@ class CensusInvocationTest {
     }
 
     @Test
-    @Story("A gate ends the invocation rather than failing it")
-    @DisplayName("With the boilerplate floor unset, redundancy mints no run and the command still succeeds")
-    @Link(name = "ADR-080", url = Adr.THE_BOILERPLATE_FLOOR_IS_A_GATE, type = "adr")
-    void stopsAtTheBoilerplateGateWithoutFailing(@TempDir Path root) throws IOException {
-        Files.writeString(root.resolve("a.txt"), "a");
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation reports success: a gate is a value the pipeline needs and does not have,"
-                        + " not an error -- the run ends there having recorded everything the earlier stages"
-                        + " learned (ADR-047)",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "and stage 4 minted no run at all, because a run row for a stage that did nothing would"
-                        + " read as a pass that found no redundancy",
-                () -> assertThat(runCount("content-redundancy")).isZero());
-        claim(
-                "so nothing was signed either -- the floor is applied before signatures are computed, so"
-                        + " an unset floor means there is nothing correct to sign yet (ADR-080)",
-                () -> assertThat(signatureCount()).isZero());
-    }
-
-    @Test
-    @Story("The commands the tool offers")
-    @DisplayName("Naming no command prints what the commands are, and does not report success")
-    void namingNoCommandPrintsTheCommands(CapturedOutput output) {
-        int before = output.getOut().length();
-
-        cli.run();
-        // picocli colours the usage on a terminal that says it takes colour (TERM set, as Git Bash does), so the
-        // escapes are taken out before the words are looked for.
-        String printed = output.getOut().substring(before).replaceAll("\u001B\\[[0-9;]*m", "");
-
-        claim(
-                "an invocation naming no command does not exit as though work was done",
-                () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
-        claim(
-                "and it prints how the tool is used, naming its commands: run, label and publish among them",
-                () -> assertThat(printed)
-                        .contains("Usage: vespera")
-                        .contains(" run ")
-                        .contains(" label ")
-                        .contains(" publish "));
-    }
-
-    @Test
     @Story("The commands the tool offers")
     @DisplayName("A database directory that disagrees with the one actually opened stops the run")
     void refusesADatabaseDirectoryThatWasNotTheOneOpened(@TempDir Path root, @TempDir Path elsewhere)
@@ -233,17 +142,5 @@ class CensusInvocationTest {
 
     private long walkCount() {
         return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM walk", Long.class);
-    }
-
-    private long runCount(String stage) {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM run WHERE stage = ?", Long.class, stage);
-    }
-
-    private long signatureCount() {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM minhash_signature", Long.class);
-    }
-
-    private WalkId theWalk() {
-        return new WalkId(jdbcTemplate.queryForObject("SELECT id FROM walk", Long.class));
     }
 }

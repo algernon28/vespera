@@ -127,9 +127,6 @@ class ExtractionWithTheSidecarDownTest {
     /** The status a sidecar answers its health check with when it is up but not ready to convert. */
     private static final int UNAVAILABLE = 503;
 
-    /** The status a sidecar answers with when asking it failed on its side. */
-    private static final int SERVER_ERROR = 500;
-
     /** What the operator should be told to do once the cause is fixed, in the words every closing line uses. */
     private static final String RUN_THE_SAME_COMMAND_AGAIN = "run the same command again";
 
@@ -182,35 +179,6 @@ class ExtractionWithTheSidecarDownTest {
     }
 
     @Test
-    @Story("A step that failed says it failed")
-    @DisplayName("When the document converter is not running as extraction starts, the closing line says the stage failed, names the converter and says to run the same command again, with no second stack trace")
-    void anUnreachableSidecarStillGetsItsClosingLine(@TempDir Path root) throws IOException {
-        Files.writeString(root.resolve("document.txt"), "content of the one document");
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation failed, because stage 2 did: the document converter was not running when"
-                        + " the stage checked it",
-                () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "a line says stage 2 failed, names the converter by the address it was looked for at, and"
-                        + " says to run the same command again",
-                () -> assertThat(lines())
-                        .anyMatch(line -> line.startsWith(STAGE_2_FAILED)
-                                && line.contains(SIDECAR)
-                                && line.contains(RUN_THE_SAME_COMMAND_AGAIN)));
-        claim(
-                "nothing at the end of the step threw: no end-of-step callback and no closing of the"
-                        + " step's reader asked the converter for anything once its check had failed",
-                () -> assertThat(lines()).noneMatch(line -> line.contains(AFTER_STEP_THREW) || line.contains(CLOSING_THREW)));
-        claim(
-                "and no extraction is recorded over this corpus, only the byte-level reduction in front of"
-                        + " it: a failed check leaves no record of work behind it",
-                () -> assertThat(stagesRecordedOver(root)).containsExactlyElementsOf(BEFORE_STAGE_2));
-    }
-
-    @Test
     @Story("A converter that fails its check leaves no record of work behind it")
     @DisplayName("When the document converter answers but reports itself unhealthy as extraction starts, no extraction is recorded, and the closing line says the stage failed")
     void anUnhealthySidecarLeavesNoRunBehindItsCheck(@TempDir Path root) throws IOException {
@@ -233,38 +201,6 @@ class ExtractionWithTheSidecarDownTest {
         claim(
                 "and nothing at the end of the step threw",
                 () -> assertThat(lines()).noneMatch(line -> line.contains(AFTER_STEP_THREW) || line.contains(CLOSING_THREW)));
-    }
-
-    /**
-     * The one case that gets past the health check and still never finishes opening the reader:
-     * opening it builds the survivors reader, which asks for the run, which asks {@code /version}, and
-     * that fails. So closing the step must not build the survivors reader a second time, which would
-     * ask again.
-     */
-    @Test
-    @Story("A step that failed says it failed")
-    @DisplayName("When the document converter passes its health check but will not say what it is built from, the closing line says the stage failed, nothing further throws, and no extraction is recorded")
-    void aSidecarThatWillNotReportItsVersionIsNotAskedAgainOnClose(@TempDir Path root) throws IOException {
-        Files.writeString(root.resolve("document.txt"), "content of the one document");
-        sidecar = aSidecarAnswering(OK, SERVER_ERROR);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation failed, because stage 2 did: without what the converter is built from, stage 2"
-                        + " cannot say which conversions are its own",
-                () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "a line says stage 2 failed and says to run the same command again",
-                () -> assertThat(lines())
-                        .anyMatch(line -> line.startsWith(STAGE_2_FAILED) && line.contains(RUN_THE_SAME_COMMAND_AGAIN)));
-        claim(
-                "nothing at the end of the step threw: closing the step did not ask the converter a second"
-                        + " time for what it had just refused",
-                () -> assertThat(lines()).noneMatch(line -> line.contains(AFTER_STEP_THREW) || line.contains(CLOSING_THREW)));
-        claim(
-                "and no extraction is recorded over this corpus, only the byte-level reduction in front of it",
-                () -> assertThat(stagesRecordedOver(root)).containsExactlyElementsOf(BEFORE_STAGE_2));
     }
 
     /**

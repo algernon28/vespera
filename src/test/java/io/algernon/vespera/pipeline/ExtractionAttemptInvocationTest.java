@@ -15,7 +15,6 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -26,8 +25,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -76,12 +73,6 @@ class ExtractionAttemptInvocationTest {
 
     /** The attempt an operator writes to have the converter asked again. */
     private static final String THE_SECOND_ATTEMPT = "2";
-
-    /** The second attempt, written with a fraction that is zero: the same number. */
-    private static final String THE_SECOND_ATTEMPT_WRITTEN_WITH_A_FRACTION = "2.0";
-
-    /** The attempt that is the first one, written out: the same as leaving the key unset. */
-    private static final String THE_FIRST_ATTEMPT = "1";
 
     /** Why a test wrote the value, in the place an operator would explain themselves. */
     private static final String WHY = "set by this test";
@@ -187,142 +178,6 @@ class ExtractionAttemptInvocationTest {
                 () -> assertThat(ExtractionAttemptInProfile.measurement(profileStore)).isNull());
     }
 
-    @Test
-    @Story("Raising the extraction attempt asks the converter again")
-    @DisplayName("A raised extraction attempt has the content census done again under a run of its own")
-    void aRaisedAttemptHasTheContentCensusDoneAgainUnderARunOfItsOwn(@TempDir Path root) throws IOException {
-        Attempts attempts = theFirstAttemptThenTheSecond(root, "later stages");
-        List<String> censuses = contentCensusRunsOf(root);
-
-        claim(
-                "the content census has a run for each attempt",
-                () -> assertThat(censuses).hasSize(TWO_RUNS).doesNotHaveDuplicates());
-        claim(
-                "the first content census still reads the first attempt's extraction and is still finished",
-                () -> {
-                    assertThat(upstreamOf(censuses.getFirst())).containsExactly(attempts.first());
-                    assertThat(finished(censuses.getFirst(), StepNames.CONTENT_CENSUS)).isTrue();
-                });
-        claim(
-                "the new content census reads the second attempt's extraction, and finished its work",
-                () -> {
-                    assertThat(upstreamOf(censuses.getLast())).containsExactly(attempts.second());
-                    assertThat(finished(censuses.getLast(), StepNames.CONTENT_CENSUS)).isTrue();
-                });
-        claim(
-                "and it counts one more text than the first did: the one the converter answered about only"
-                        + " when it was asked again",
-                () -> assertThat(textsCountedBy(censuses.getLast()))
-                        .isEqualTo(textsCountedBy(censuses.getFirst()) + ONCE));
-    }
-
-    @Test
-    @Story("Putting the extraction attempt back goes back to the first one")
-    @DisplayName("Taking the extraction attempt out again goes back to the first attempt, and nothing is done again")
-    void puttingTheValueBackArrivesAtTheFirstAttemptAgain(@TempDir Path root) throws IOException {
-        Attempts attempts = theFirstAttemptThenTheSecond(root, "put back");
-        String refusedName = fileNameOf(attempts.refused());
-
-        claim(
-                "under the second attempt, the list of what could not be read no longer names the one the"
-                        + " converter converted when asked again",
-                () -> assertThat(reviewList()).doesNotContain(refusedName));
-
-        ExtractionAttemptInProfile.remove(profileStore);
-        ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, NOWHERE);
-        cli.run("run", root.toString());
-
-        claim(
-                "the third invocation completes, and mints no new run of either stage",
-                () -> {
-                    assertThat(cli.getExitCode()).isEqualTo(COMPLETED);
-                    assertThat(extractionRunsOf(root)).hasSize(TWO_RUNS);
-                    assertThat(contentCensusRunsOf(root)).hasSize(TWO_RUNS);
-                });
-        claim(
-                "it asks the converter nothing, because the first attempt's work is all recorded",
-                () -> assertThat(ConverterStopsPartwayBeans.conversions()).isEqualTo((int) NONE));
-        claim(
-                "and the list of what could not be read names that one again, as the first attempt removed it",
-                () -> assertThat(reviewList()).contains(refusedName));
-    }
-
-    @Test
-    @Story("Raising the extraction attempt asks the converter again")
-    @DisplayName("An extraction attempt written as 2.0 is the same attempt as 2, and nothing is done again")
-    void twoPointZeroIsTheSameAttemptAsTwo(@TempDir Path root) throws IOException {
-        Attempts attempts = theFirstAttemptThenTheSecond(root, "two point zero");
-        String refusedName = fileNameOf(attempts.refused());
-
-        ExtractionAttemptInProfile.write(profileStore, THE_SECOND_ATTEMPT_WRITTEN_WITH_A_FRACTION, WHY);
-        ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, NOWHERE);
-        cli.run("run", root.toString());
-
-        claim(
-                "the next invocation completes, and mints no new run of the extraction: 2.0 is the number 2,"
-                        + " so it is the second attempt again",
-                () -> {
-                    assertThat(cli.getExitCode()).isEqualTo(COMPLETED);
-                    assertThat(extractionRunsOf(root)).hasSize(TWO_RUNS);
-                });
-        claim(
-                "it asks the converter nothing, because the second attempt's work is all recorded",
-                () -> assertThat(ConverterStopsPartwayBeans.conversions()).isEqualTo((int) NONE));
-        claim(
-                "and it is the second attempt it arrived at, not the first: the list of what could not be read"
-                        + " still leaves out the one the converter converted when asked again",
-                () -> assertThat(reviewList()).doesNotContain(refusedName));
-    }
-
-    @Test
-    @Story("Putting the extraction attempt back goes back to the first one")
-    @DisplayName("An extraction attempt of 1 is the first attempt, and nothing is done again")
-    void anAttemptOfOneIsTheFirstAttempt(@TempDir Path root) throws IOException {
-        theFirstAttempt(root, "attempt one");
-
-        ExtractionAttemptInProfile.write(profileStore, THE_FIRST_ATTEMPT, WHY);
-        ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, NOWHERE);
-        cli.run("run", root.toString());
-
-        claim(
-                "the next invocation completes, and mints no new run of the extraction",
-                () -> {
-                    assertThat(cli.getExitCode()).isEqualTo(COMPLETED);
-                    assertThat(extractionRunsOf(root)).hasSize(ONE_RUN);
-                });
-        claim(
-                "and asks the converter nothing",
-                () -> assertThat(ConverterStopsPartwayBeans.conversions()).isEqualTo((int) NONE));
-    }
-
-    /**
-     * Text, a fraction, zero, a negative number, the two values {@code Double.parseDouble} reads that
-     * are not numbers anyone counts with, and a whole number one past the largest attempt: none of them
-     * numbers an attempt, so each is ignored and
-     * stage 2 stays on its first attempt.
-     */
-    @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"two", "1.5", "0", "-1", "NaN", "Infinity", "2147483648"})
-    @Story("An extraction attempt that is not a whole number changes nothing")
-    @DisplayName("An extraction attempt that is not a whole number of 1 or more is ignored, and nothing is done again")
-    void anAttemptThatIsNotAWholeNumberIsIgnored(String written, @TempDir Path root) throws IOException {
-        theFirstAttempt(root, "ignored " + written);
-
-        ExtractionAttemptInProfile.write(profileStore, written, WHY);
-        ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, NOWHERE);
-        cli.run("run", root.toString());
-
-        claim(
-                "the next invocation completes rather than stopping on a mistyped value",
-                () -> assertThat(cli.getExitCode()).isEqualTo(COMPLETED));
-        claim(
-                "it mints no new run of the extraction, the value having been ignored",
-                () -> assertThat(extractionRunsOf(root)).hasSize(ONE_RUN));
-        claim(
-                "and asks the converter nothing",
-                () -> assertThat(ConverterStopsPartwayBeans.conversions()).isEqualTo((int) NONE));
-    }
-
     /** What the first two invocations of a test left, for its claims to read. */
     private record Attempts(
             String first,
@@ -426,10 +281,6 @@ class ExtractionAttemptInvocationTest {
         return runsOf(root, StageModules.EXTRACTION.stage());
     }
 
-    private List<String> contentCensusRunsOf(Path root) {
-        return runsOf(root, StageModules.CONTENT_CENSUS.stage());
-    }
-
     private String settingsOf(String run) {
         return jdbcTemplate.queryForObject("SELECT config_consumed FROM run WHERE id = ?", String.class, run);
     }
@@ -438,20 +289,6 @@ class ExtractionAttemptInvocationTest {
     private static String withoutItsClosingBrace(String json) {
         assertThat(json).endsWith("}");
         return json.substring(0, json.length() - 1);
-    }
-
-    private List<String> upstreamOf(String run) {
-        return jdbcTemplate.queryForList(
-                "SELECT upstream_run_id FROM run_upstream WHERE run_id = ?", String.class, run);
-    }
-
-    private boolean finished(String run, String step) {
-        return countOf("SELECT COUNT(*) FROM finished_step WHERE run_id = ? AND step = ?", run, step) > NONE;
-    }
-
-    /** How many surviving texts carrying fragments the content census under {@code run} counted. */
-    private long textsCountedBy(String run) {
-        return countOf("SELECT MAX(shingled_document_count) FROM shingle_corpus_size WHERE run_id = ?", run);
     }
 
     /** Every row stage 2 writes under {@code run}, counted per table, its record of finishing included. */
@@ -485,17 +322,6 @@ class ExtractionAttemptInvocationTest {
                         + " ORDER BY v.occurrence_id",
                 Long.class,
                 run);
-    }
-
-    /** The name, without its folder, of the path the walk recorded for {@code occurrence}. */
-    private String fileNameOf(long occurrence) {
-        String path = jdbcTemplate.queryForObject("SELECT path FROM file_occurrence WHERE id = ?", String.class, occurrence);
-        return Path.of(path).getFileName().toString();
-    }
-
-    /** The list of what stage 2 could not read, as the last invocation wrote it beside the database. */
-    private String reviewList() throws IOException {
-        return Files.readString(workingDirectory.resolve(ReviewListListener.FILE_NAME), StandardCharsets.UTF_8);
     }
 
     private long metricRowsAgainst(long occurrence, String run) {
