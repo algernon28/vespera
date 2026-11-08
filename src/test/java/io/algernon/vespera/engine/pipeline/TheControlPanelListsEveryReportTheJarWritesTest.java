@@ -30,7 +30,8 @@ import org.junit.jupiter.api.Test;
  * <p>The jar's report file names are read from its compiled classes rather than written out here: every constant
  * {@code String} of a shipped class of {@code pipeline} or {@code deliverable} whose value is a file name ending in
  * {@code .html}, but the tree's own page name, {@link Deliverable#INDEX_FILE_NAME}, which is never written in the
- * working directory. A report a later stage adds under a constant of its own fails this until the list has it.
+ * working directory, and {@link ReportHtml#FILE_NAME}, the drawing of the invocation report, which is no analysis
+ * report and which {@link Reports#ALL} never lists (ADR-362 section 13, step 3). A report a later stage adds under a constant of its own fails this until the list has it.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -75,7 +76,7 @@ class TheControlPanelListsEveryReportTheJarWritesTest {
                 }
                 try {
                     if (field.get(null) instanceof String name && name.matches(REPORT_FILE_NAME)
-                            && !name.equals(Deliverable.INDEX_FILE_NAME)) {
+                            && !name.equals(Deliverable.INDEX_FILE_NAME) && !name.equals(ReportHtml.FILE_NAME)) {
                         names.add(name);
                     }
                 } catch (IllegalAccessException e) {

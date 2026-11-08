@@ -193,6 +193,7 @@ final class InvocationReport {
     private final Display display;
     private final String deliverableRoot;
     private final Object writing = new Object();
+    private final String reportTemplate;
 
     // Guarded by writing: what one invocation holds, forgotten at the next start.
     private boolean begun;
@@ -214,8 +215,19 @@ final class InvocationReport {
     private List<Map<String, Object>> answers;
     private Reading reading;
     private boolean warned;
+    private boolean htmlWarned;
+    private ReportHtml html;
 
     InvocationReport(Path workingDirectory, Duration interval, Clock clock, Display display, String deliverableRoot) {
+        this(workingDirectory, interval, clock, display, deliverableRoot, "");
+    }
+
+    /** {@code reportTemplate} is {@code vespera.report.template}: the absolute path of the operator's template, blank where unset. */
+    InvocationReport(
+            Path workingDirectory, Duration interval, Clock clock, Display display, String deliverableRoot,
+            String reportTemplate) {
+        this.reportTemplate = reportTemplate;
+        this.html = new ReportHtml(reportTemplate);
         this.workingDirectory = workingDirectory.toAbsolutePath().normalize();
         this.interval = interval;
         this.clock = clock;
@@ -252,6 +264,8 @@ final class InvocationReport {
             answers = null;
             reading = null;
             warned = false;
+            htmlWarned = false;
+            html = new ReportHtml(reportTemplate);
             displayAnswer = askTheDisplay();
             mintTheId();
         }
@@ -433,11 +447,45 @@ final class InvocationReport {
         try {
             Instant writtenAt = truncated(clock.instant());
             String text = Json.render(tree(writtenAt)) + "\n";
+            if (!html.tried()) {
+                html.trial(text);
+                text = Json.render(tree(writtenAt)) + "\n";
+            }
+            String page = null;
+            try {
+                try {
+                    page = html.draw(text);
+                } catch (RuntimeException thrown) {
+                    if (!html.namedDraws()) {
+                        throw thrown;
+                    }
+                    html.fallBack(thrown);
+                    text = Json.render(tree(writtenAt)) + "\n";
+                    page = html.draw(text);
+                }
+            } catch (RuntimeException | StackOverflowError unDrawn) {
+                if (!htmlWarned) {
+                    htmlWarned = true;
+                    log.warn("the report could not be written: {}", unDrawn.getClass().getName());
+                }
+            }
             put(workingDirectory.resolve(FILE_NAME), text);
             if (copy != null) {
                 put(copy, text);
             }
             warned = false;
+            if (page != null) {
+                try {
+                    put(ReportHtml.pathIn(workingDirectory), page);
+                    htmlWarned = false;
+                } catch (IOException | RuntimeException unwritable) {
+                    deleteTheParts(ReportHtml.pathIn(workingDirectory));
+                    if (!htmlWarned) {
+                        htmlWarned = true;
+                        log.warn("the report could not be written: {}", unwritable.getClass().getName());
+                    }
+                }
+            }
         } catch (IOException | RuntimeException e) {
             for (Path part : List.of(
                     workingDirectory.resolve(FILE_NAME + ".part"),
@@ -452,6 +500,14 @@ final class InvocationReport {
                 warned = true;
                 log.warn("the report could not be written: {}", e.getClass().getName());
             }
+        }
+    }
+
+    private static void deleteTheParts(Path place) {
+        try {
+            Files.deleteIfExists(place.resolveSibling(place.getFileName() + ".part"));
+        } catch (IOException | RuntimeException ignored) {
+            // the next write overwrites it
         }
     }
 
@@ -507,7 +563,7 @@ final class InvocationReport {
         report.put("next", next);
         report.put("analysisReports", analysisReportsTree());
         report.put("files", filesTree());
-        report.put("template", null);
+        report.put("template", object("named", html.named(), "used", html.used()));
         return report;
     }
 
@@ -750,7 +806,7 @@ final class InvocationReport {
     }
 
     private static String roleOf(String name, boolean top) {
-        if (top && name.equals(FILE_NAME)) {
+        if (top && (name.equals(FILE_NAME) || name.equals(ReportHtml.FILE_NAME))) {
             return "report";
         }
         if (!top && name.startsWith(COPY_PREFIX)) {

@@ -58,6 +58,7 @@ public class VesperaJobConfiguration {
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
             @Value("${vespera.progress-interval:5s}") Duration progressInterval,
             @Value("${" + VesperaCommand.Run.DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot,
+            @Value("${vespera.report.template:}") String reportTemplate,
             ObjectProvider<InvocationReport.Display> display,
             Clock clock) {
         return new InvocationReport(
@@ -65,7 +66,8 @@ public class VesperaJobConfiguration {
                 progressInterval,
                 clock,
                 display.getIfAvailable(() -> DisplayPresence::ofThisProcess),
-                deliverableRoot);
+                deliverableRoot,
+                reportTemplate);
     }
 
     /** The progress page, shared by the job and by {@code vespera label} (ADR-266 section 3). */

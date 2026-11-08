@@ -109,6 +109,12 @@
             <artifactId>spring-boot-starter-batch</artifactId>
         </dependency>
         <dependency>
+            <!-- ADR-362 section 5: report.html is drawn from report.json through a Mustache template. The engine
+                 alone, at the version Spring Boot's dependency management gives; no spring-boot-starter-mustache. -->
+            <groupId>com.samskivert</groupId>
+            <artifactId>jmustache</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>

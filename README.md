@@ -155,6 +155,7 @@ logs/vespera.log                 what the console shows, with dates; older days 
 logs/invocation-account-*.txt    one per vespera run: its steps and counts, and no document's name
 report.json                      how the command running now, or the last to end, stands, as numbers and words: its steps and legs, charts, runs, counts, gates and refusals, and no document's text; written beside the progress page by vespera run and vespera label, and rewritten every vespera.progress-interval while a run goes
 logs/report-*.json               the copy of report.json each command keeps, named by the command's start in UTC; nothing removes it
+report.html                      the page drawn from report.json after each write, through the jar's Mustache template or the one vespera.report.template names by an absolute path: one self-contained page with no script, which reloads at vespera.progress-interval, and which no command opens (ADR-362)
 progress.html                    what the command running now has done, opened as it starts
 progress.json                    the progress page's steps and charts as numbers, written with it, which the control panel draws
 progress-steps.html              the same progress page's steps, as a table

@@ -182,6 +182,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // §5); this decides only the step's finished_step row, and the standing line it lets a page carry is
             // drawing, which keys no run. A change to it moves no run id and reopens no run already finished.
             "RepeatedFaults",
+            // ADR-362 section 5: draws report.html from report.json through a template; it decides no verdict, cache
+            // key, cluster or text of the deliverable.
+            "ReportHtml",
             "ReportPage",
             "ReportedStatements",
             "ReviewListListener",
