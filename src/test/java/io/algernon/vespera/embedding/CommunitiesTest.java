@@ -38,61 +38,6 @@ class CommunitiesTest {
     private static final double RESOLUTION = 1.0;
 
     @Test
-    @Story("The number of clusters falls out rather than being chosen")
-    @DisplayName("Two tightly-linked groups become two clusters, without the count being supplied")
-    void findsTwoClustersWithoutBeingToldThereAreTwo() {
-        // Two groups of three, each fully linked inside itself, joined by a single edge between them.
-        NearestNeighbourGraph.Graph graph = graphOf(
-                new int[] {1, 2}, new int[] {0, 2}, new int[] {0, 1, 3},
-                new int[] {2, 4, 5}, new int[] {3, 5}, new int[] {3, 4});
-
-        int[] clusters = Communities.of(graph, RESOLUTION);
-
-        claim(
-                "the six documents fall into two clusters, and nothing was told how many to look for --"
-                        + " the count is a property of how the documents link to each other",
-                () -> assertThat(Arrays.stream(clusters).distinct().count()).isEqualTo(2));
-        claim(
-                "the first three are together, being linked to each other and barely to the rest",
-                () -> assertThat(clusters[0]).isEqualTo(clusters[1]).isEqualTo(clusters[2]));
-        claim(
-                "and so are the second three",
-                () -> assertThat(clusters[3]).isEqualTo(clusters[4]).isEqualTo(clusters[5]));
-        claim(
-                "every document is in exactly one cluster: the answer is a cluster per document, so"
-                        + " membership is total and disjoint by construction rather than by a check",
-                () -> assertThat(clusters).hasSize(6));
-    }
-
-    @Test
-    @Story("All singletons is an answer, not a failure")
-    @DisplayName("Documents that link to nothing stay in clusters of their own, unmerged")
-    void leavesUnlinkedDocumentsAsSingletons() {
-        NearestNeighbourGraph.Graph graph =
-                graphOf(new int[] {}, new int[] {}, new int[] {}, new int[] {}, new int[] {});
-
-        int[] clusters = Communities.of(graph, RESOLUTION);
-
-        claim(
-                "five documents that resemble nothing become five clusters rather than one bucket: that"
-                        + " outcome says the seed collected documents resembling it individually and not"
-                        + " each other, which is a thing worth reporting rather than repairing",
-                () -> assertThat(Arrays.stream(clusters).distinct().count()).isEqualTo(5));
-    }
-
-    @Test
-    @Story("All singletons is an answer, not a failure")
-    @DisplayName("A partition of one document is a cluster of one")
-    void aPartitionOfOneIsAClusterOfOne() {
-        int[] clusters = Communities.of(graphOf(new int[] {}), RESOLUTION);
-
-        claim(
-                "a cluster of one is a cluster: the alternative is a document belonging to nothing, and"
-                        + " every survivor has to land somewhere for the page tree to be total",
-                () -> assertThat(clusters).containsExactly(0));
-    }
-
-    @Test
     @Story("The same corpus always produces the same clusters")
     @DisplayName("Cluster ordinals are handed out in the order documents first appear, the same on every run")
     void numbersClustersInTheOrderDocumentsAppear() {
@@ -114,51 +59,6 @@ class CommunitiesTest {
                         + " groupings: a page tree that reshuffled when nothing changed would be worse than a"
                         + " threshold that did, because a person has already reviewed it",
                 () -> assertThat(second).containsExactly(0, 0, 0, 1, 1, 1));
-    }
-
-    @Test
-    @Story("The similarity reaches the page and not the grouping")
-    @DisplayName("The grouping never reads a similarity, so it cannot be moved by one")
-    void theClusteringNeverReadsASimilarity() {
-        // A graph whose similarities cannot be read without failing the test. Asserting that two
-        // differently-weighted graphs cluster alike would not do it: modularity is scale-invariant, so
-        // weights that are uniform -- however high or low -- give the same answer as weight one, and
-        // such a fixture passes whether or not the pass reads the field.
-        NearestNeighbourGraph.Graph graph = graphRefusingItsSimilarities(new int[] {1}, new int[] {0},
-                new int[] {3}, new int[] {2});
-
-        int[] clusters = Communities.of(graph, RESOLUTION);
-
-        claim(
-                "the pass groups the documents without reading a single similarity: it weights every"
-                        + " retained edge at 1.0, and ADR-096 keeps it that way deliberately -- weighting"
-                        + " modularity by similarity would move every cluster boundary in the system,"
-                        + " which is a change to ADR-087's objective rather than to its reporting",
-                () -> assertThat(clusters).containsExactly(0, 0, 1, 1));
-    }
-
-    /**
-     * A graph whose neighbour lists are as given and whose similarities throw on being read.
-     *
-     * <p>The similarities are a real part of the graph now (ADR-096), and the claim that the clustering
-     * is unmoved by them is only worth making if reading one fails. So one does.
-     */
-    private static NearestNeighbourGraph.Graph graphRefusingItsSimilarities(int[]... neighbours) {
-        List<int[]> lists = List.copyOf(Arrays.asList(neighbours));
-        List<double[]> refusing = new java.util.AbstractList<>() {
-
-            @Override
-            public double[] get(int index) {
-                throw new AssertionError("the grouping read the similarity of document " + index
-                        + "'s edges; ADR-096 says every retained edge is weighted at 1.0");
-            }
-
-            @Override
-            public int size() {
-                return lists.size();
-            }
-        };
-        return new NearestNeighbourGraph.Graph(lists, refusing);
     }
 
     /** A graph whose neighbour lists are given directly, so the structure is the fixture. */

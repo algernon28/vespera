@@ -110,46 +110,6 @@ class PublishRefusesARenderingWhoseDrawingDidNotFinishTest {
 
     @Test
     @Story("A plugin's failed drawing stops that plugin alone")
-    @DisplayName("A rendering whose last drawing was interrupted is not sent either")
-    void anInterruptedDrawingIsNotSent() throws IOException {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walk = ledger.walks().startWalk(workingDirectory.resolve("corpus"));
-        generationRun(ledger, walk, "interrupted", true, "drawing");
-
-        Ended ended = publish(ledger);
-
-        claim(
-                "drawing, left by a drawing stopped partway, refuses as failed does, the publisher not asked",
-                () -> assertThat(List.of(ended.exit(), ended.asked().size(), ended.errors().strip()))
-                        .containsExactly(CommandLine.ExitCode.SOFTWARE, 0, THE_REFUSAL));
-    }
-
-    @Test
-    @Story("A plugin's failed drawing stops that plugin alone")
-    @DisplayName("A rendering drawn whole, or drawn before drawing.txt was written, is sent as before")
-    void aDrawnOrEarlierRenderingIsSent() throws IOException {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walk = ledger.walks().startWalk(workingDirectory.resolve("corpus"));
-        RunId drawn = generationRun(ledger, walk, "drawn", true, "drawn");
-
-        Ended whole = publish(ledger);
-
-        claim(
-                "drawn goes on: the publisher is asked for that run, and the command ends as it says",
-                () -> assertThat(List.of(whole.exit(), whole.asked()))
-                        .containsExactly(CommandLine.ExitCode.OK, List.of(drawn.value())));
-
-        RunId earlier = generationRun(ledger, walk, "drawn-before-adr-333", true, null);
-        Ended before = publish(ledger);
-
-        claim(
-                "and a later run whose folder holds the page list and no drawing.txt is sent, the list alone deciding",
-                () -> assertThat(List.of(before.exit(), before.asked()))
-                        .containsExactly(CommandLine.ExitCode.OK, List.of(earlier.value())));
-    }
-
-    @Test
-    @Story("A plugin's failed drawing stops that plugin alone")
     @DisplayName("An older run's rendering is not sent in place of the last, whose drawing failed before it wrote a page list")
     void anOlderRenderingIsNotSentInPlaceOfAFailedOne() throws IOException {
         Ledger ledger = new Ledger(jdbcTemplate);

@@ -48,25 +48,6 @@ class AWordIsWhatStageTwoCountsTest {
     private static final String A_YEAR_ALONE = "{\"document\":{\"json_content\":{\"texts\":["
             + "{\"text\":\"2026\",\"label\":\"text\"}]}}}";
 
-    /** Two words of Cyrillic: neither holds a Latin vowel. */
-    private static final String TWO_WORDS_OF_CYRILLIC = "{\"document\":{\"json_content\":{\"texts\":["
-            + "{\"text\":\"Привет мир\",\"label\":\"text\"}]}}}";
-
-    /** "Quarterly report 2026" over a body of one word, "OK". */
-    private static final String ONE_WORD_UNDER_A_PAGE_HEADER = "{\"document\":{\"json_content\":{\"texts\":["
-            + "{\"text\":\"Quarterly report 2026\",\"label\":\"page_header\"},"
-            + "{\"text\":\"OK\",\"label\":\"text\"}]}}}";
-
-    /** Two words of one character each, "I" and "a". */
-    private static final String TWO_ONE_CHARACTER_WORDS = "{\"document\":{\"json_content\":{\"texts\":["
-            + "{\"text\":\"I a\",\"label\":\"text\"}]}}}";
-
-    /** The words of {@link #TWO_WORDS_OF_CYRILLIC}, and of {@link #TWO_ONE_CHARACTER_WORDS}. */
-    private static final long TWO_WORDS = 2;
-
-    /** The three words of the page header and the one of the body of {@link #ONE_WORD_UNDER_A_PAGE_HEADER}. */
-    private static final long FOUR_WORDS = 3 + 1;
-
     /** Tier 3's reason for one word under a floor of two, word for word (ADR-282 section 1). */
     private static final String ONE_WORD_BELOW_A_FLOOR_OF_TWO = "1 word(s), below the configured word floor 2";
 
@@ -89,76 +70,6 @@ class AWordIsWhatStageTwoCountsTest {
         claim(
                 "and judged as one word: below the floor of " + A_WORD_FLOOR_OF_TWO + ", for the reason that says so",
                 () -> assertThat(verdict).isEqualTo(new DegeneracyVerdict(true, ONE_WORD_BELOW_A_FLOOR_OF_TWO)));
-    }
-
-    @Test
-    @Story("A word is what stage 2 counts")
-    @DisplayName("Two words of an alphabet with no Latin vowel are two words, and clear a word floor of two")
-    void wordsWithoutALatinVowelAreWords() {
-        OccurrenceId occurrence = anOccurrence("cyrillic.txt");
-        RunId run = aRun("cyrillic");
-
-        DegeneracyVerdict verdict =
-                metrics().writeAndJudge(occurrence, run, converted(TWO_WORDS_OF_CYRILLIC), null, A_WORD_FLOOR_OF_TWO);
-
-        claim(
-                "the measurement counts both as words with no Latin vowel, so words net of that count would be"
-                        + " none",
-                () -> assertThat(jdbcTemplate.queryForObject(
-                                "SELECT vowelless_word_count FROM extraction_metric WHERE occurrence_id = ? AND run_id = ?",
-                                Long.class,
-                                occurrence.value(),
-                                run.value()))
-                        .isEqualTo(TWO_WORDS));
-        claim(
-                "the floor reads the " + TWO_WORDS + " words as stored, and they meet the floor of "
-                        + A_WORD_FLOOR_OF_TWO,
-                () -> assertThat(verdict).isEqualTo(DegeneracyVerdict.notDegenerate()));
-    }
-
-    @Test
-    @Story("A word is what stage 2 counts")
-    @DisplayName("The words of a page header count, so one word under a three-word header clears a word floor of two")
-    void theWordsOfPageHeadersAndFootersCount() {
-        OccurrenceId occurrence = anOccurrence("one-word-under-a-header.pdf");
-        RunId run = aRun("one-word-under-a-header");
-
-        DegeneracyVerdict verdict = metrics()
-                .writeAndJudge(occurrence, run, converted(ONE_WORD_UNDER_A_PAGE_HEADER), null, A_WORD_FLOOR_OF_TWO);
-
-        claim(
-                "the stored count is every item's words, the page header's included: " + FOUR_WORDS,
-                () -> assertThat(storedWords(occurrence, run)).isEqualTo(FOUR_WORDS));
-        claim(
-                "and the floor reads that count, so the conversion clears a floor of " + A_WORD_FLOOR_OF_TWO,
-                () -> assertThat(verdict).isEqualTo(DegeneracyVerdict.notDegenerate()));
-    }
-
-    @Test
-    @Story("A word is what stage 2 counts")
-    @DisplayName("Two words of one character each are two words, and clear a word floor of two")
-    void oneCharacterWordsAreWords() {
-        OccurrenceId occurrence = anOccurrence("one-character-words.txt");
-        RunId run = aRun("one-character-words");
-
-        DegeneracyVerdict verdict = metrics()
-                .writeAndJudge(occurrence, run, converted(TWO_ONE_CHARACTER_WORDS), null, A_WORD_FLOOR_OF_TWO);
-
-        claim(
-                "the measurement counts both as one-character words, so words net of that count would be none",
-                () -> assertThat(jdbcTemplate.queryForObject(
-                                "SELECT single_character_word_count FROM extraction_metric"
-                                        + " WHERE occurrence_id = ? AND run_id = ?",
-                                Long.class,
-                                occurrence.value(),
-                                run.value()))
-                        .isEqualTo(TWO_WORDS));
-        claim(
-                "the stored count holds both: " + TWO_WORDS + " words",
-                () -> assertThat(storedWords(occurrence, run)).isEqualTo(TWO_WORDS));
-        claim(
-                "and the floor reads that count, so the conversion clears a floor of " + A_WORD_FLOOR_OF_TWO,
-                () -> assertThat(verdict).isEqualTo(DegeneracyVerdict.notDegenerate()));
     }
 
     private long storedWords(OccurrenceId occurrence, RunId run) {

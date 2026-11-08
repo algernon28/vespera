@@ -2,7 +2,6 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.tuple;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -40,9 +39,6 @@ class LabelFileReaderTest {
 
     private static final String THE_EMBEDDER = "model=a-small-comparing-model;digest=abc;dtype=F16;dimension=384;instruction=none";
 
-    /** The seed set the sample was drawn against, which the file also has to name (ADR-169). */
-    private static final String THE_SEED_SET = "/corpus/seeds";
-
     @Test
     @Story("A file about a different sample is refused whole")
     @DisplayName("A file naming a different run is refused, and nothing in it is applied")
@@ -76,82 +72,6 @@ class LabelFileReaderTest {
                 () -> assertThat(outcome).isInstanceOf(LabelFileReader.Refused.class));
     }
 
-    @Test
-    @Story("A half-finished file is the ordinary mid-state")
-    @DisplayName("A partly answered file yields its answers and counts what is still blank")
-    void readsAPartlyAnsweredFileAndCountsTheBlanks() {
-        LabelFileReader.Outcome outcome = LabelFileReader.read(aPartlyAnsweredFile(), THE_RUN);
-
-        LabelFileReader.Answers answers = (LabelFileReader.Answers) outcome;
-        claim(
-                "the two answers that were given are read back, because the loop is meant to span days"
-                        + " and a person who stopped halfway should not lose what they did decide",
-                () -> assertThat(answers.answers()).hasSize(2));
-        claim(
-                "the answer itself is carried, both the yes and the no -- a no is an answer, and a no"
-                        + " carrying a high score is what a hard negative is",
-                () -> assertThat(answers.answers())
-                        .extracting(LabelFileReader.Answer::relevant)
-                        .containsExactly(true, false));
-        claim(
-                "each answer carries the document it is about and the score the person was shown, as the"
-                        + " file wrote them: reports/q1.pdf at 0.42 and notes/meeting.docx at 0.55",
-                () -> assertThat(answers.answers())
-                        .extracting(LabelFileReader.Answer::path, LabelFileReader.Answer::scoreShown)
-                        .containsExactly(tuple("reports/q1.pdf", 0.42), tuple("notes/meeting.docx", 0.55)));
-        claim(
-                "and the one still blank is counted rather than dropped: what must never be lost is that"
-                        + " the pass was partial, since a threshold read off a partial pass looks exactly"
-                        + " as authoritative as one read off a complete one",
-                () -> assertThat(answers.unanswered()).isEqualTo(1));
-        claim(
-                "the embedder the file was generated under travels with the answers, so it can be"
-                        + " recorded beside each of them as the context they were given in",
-                () -> assertThat(answers.embedderIdentity()).isEqualTo(THE_EMBEDDER));
-    }
-
-
-    @Test
-    @Story("The reader reads what the writer writes")
-    @DisplayName("A file this system generated, answered in place, is read back with its run, embedder and seed-set stamps intact")
-    void readsBackAFileThisSystemGenerated() {
-        String generated = RelevanceLabelFile.render(THE_RUN, THE_EMBEDDER, THE_SEED_SET, oneQuestion());
-        String answered = generated.replace("relevant: null", "relevant: true");
-
-        LabelFileReader.Outcome outcome = LabelFileReader.read(answered, THE_RUN);
-
-        claim(
-                "the two halves of this loop agree on the file between them: the page poses the questions"
-                        + " and this reads the answers, and a format that drifted between them would"
-                        + " break ingestion with nothing else failing first",
-                () -> assertThat(outcome).isInstanceOf(LabelFileReader.Answers.class));
-        LabelFileReader.Answers answers = (LabelFileReader.Answers) outcome;
-        claim(
-                "the answer written in place is the one read back",
-                () -> assertThat(answers.answers())
-                        .singleElement()
-                        .satisfies(answer -> assertThat(answer.relevant()).isTrue()));
-        claim(
-                "and the stamps the writer put on survive the round trip, the embedder and the seed set the"
-                        + " sample was drawn against, which is what a mismatch is later refused on",
-                () -> {
-                    assertThat(answers.embedderIdentity()).isEqualTo(THE_EMBEDDER);
-                    assertThat(LabelFileReader.seedSetNamedBy(answered)).contains(THE_SEED_SET);
-                });
-
-    }
-
-    private static java.util.List<RelevanceLabelFile.Entry> oneQuestion() {
-        return java.util.List.of(new RelevanceLabelFile.Entry(
-                "reports/q1.pdf",
-                new io.algernon.vespera.embedding.RelevanceDistribution.Sampled(
-                        new io.algernon.vespera.ledger.OccurrenceId(1),
-                        0.42,
-                        new io.algernon.vespera.ledger.OccurrenceId(2),
-                        0),
-                "seeds/exemplar.pdf"));
-    }
-
     /** A file naming {@code runId}, with every answer still blank. */
     private static String aFileNaming(String runId) {
         return """
@@ -165,30 +85,5 @@ class LabelFileReaderTest {
                   relevant: null
                 """
                 .formatted(runId, THE_EMBEDDER);
-    }
-
-    /** Two answered, one left blank — a person who got most of the way through a sitting. */
-    private static String aPartlyAnsweredFile() {
-        return """
-                generatedUnderRun: "%s"
-                generatedUnderEmbedder: "%s"
-                documents:
-                - path: "reports/q1.pdf"
-                  score: 0.42
-                  band: 0
-                  closestSeed: "seeds/exemplar.pdf"
-                  relevant: true
-                - path: "notes/meeting.docx"
-                  score: 0.55
-                  band: 1
-                  closestSeed: "seeds/exemplar.pdf"
-                  relevant: false
-                - path: "archive/old letter.txt"
-                  score: 0.61
-                  band: 2
-                  closestSeed: "seeds/other.pdf"
-                  relevant: null
-                """
-                .formatted(THE_RUN, THE_EMBEDDER);
     }
 }

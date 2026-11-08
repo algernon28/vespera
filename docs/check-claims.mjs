@@ -723,6 +723,12 @@ function markerPattern(source, whole = false) {
   const FIRST = 50;
   // Accepted records whose code is not built yet. A number leaves this set in the change that builds its record.
   const NOT_YET_BUILT = new Set([362, 364]);
+  // ADR-367: the names the cut of the suite deleted, one `ADR-NNN Name` a line as this check prints it. A record keeps
+  // naming them as the tests that held it; this list says they are gone, and a line naming a test that exists is stale.
+  const RETIRED_FILE = "docs/retired-tests.txt";
+  const retired = new Set(existsSync(RETIRED_FILE)
+    ? readFileSync(RETIRED_FILE, "utf8").split(/\r?\n/).filter((l) => l.trim() && !l.startsWith("#")) : []);
+  const retiredSeen = new Set();
   const testFiles = new Map();
   (function walk(dir) {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -771,7 +777,10 @@ function markerPattern(source, whole = false) {
     const section = end < 0 ? rest : rest.slice(0, end);
     const adr = `ADR-${String(number).padStart(3, "0")}`;
     const built = !NOT_YET_BUILT.has(number);
-    const said = (what) => (built ? missing : unbuilt).push(`${adr} names ${what}, which does not exist`);
+    const said = (what) => {
+      if (retired.has(`${adr} ${what}`)) retiredSeen.add(`${adr} ${what}`);
+      else (built ? missing : unbuilt).push(`${adr} names ${what}, which does not exist`);
+    };
     let last = null; // the class the last qualified name of the section named, for `…method`
     let bullet = null; // the class a top-level bullet names first, for the bare methods nested under it
     /** One method, of the class whose files are given or, with none, of any test class. */
@@ -813,8 +822,10 @@ function markerPattern(source, whole = false) {
     const records = [...new Set(unbuilt.map((u) => u.slice(0, 7)))];
     skip(`${NAME}, by records not yet built`, `${unbuilt.length} not under ${TEST}, of ${records.join(", ")}: ${unbuilt.slice(0, 2).join("; ")}; …`);
   }
+  const stale = [...retired].filter((r) => !retiredSeen.has(r));
+  if (stale.length) missing.push(`${RETIRED_FILE} lists ${stale.length} names no record names or that exist: ${stale.join("; ")}`);
   if (missing.length) fail(NAME, `${missing.length} of ${checked}: ${missing.join("; ")}`);
-  else pass(NAME, `${checked} names of test classes and methods, in the Tests sections from ADR-0${FIRST} on, every one under ${TEST}`);
+  else pass(NAME, `${checked} names of test classes and methods, in the Tests sections from ADR-0${FIRST} on, every one under ${TEST} but the ${retiredSeen.size} ${RETIRED_FILE} lists as retired by ADR-367`);
 }
 
 /* ---------- how an agent works under the guard ---------- */

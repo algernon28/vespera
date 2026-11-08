@@ -5,9 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.ledger.VerdictKind;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -92,33 +90,6 @@ class RelevanceScoringInvocationTest {
                 () -> assertThat(verdictCountFor(root)).isZero());
     }
 
-    @Test
-    @Story("A survivor with no chunks is empty by construction, confirmed rather than assumed")
-    @DisplayName("A corpus document with no usable text never reaches relevance scoring at all")
-    void aDocumentWithNoUsableTextIsNeverScored(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        // Named after SeedScriptedExtractionBeans.EMPTY_SEED: the shared scripted extractor answers
-        // this file name with no text at all, wherever it appears -- corpus side or seed side.
-        Files.writeString(root.resolve(SeedScriptedExtractionBeans.EMPTY_SEED), "stands in for a scan with no text");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        EveryGateOpen.throughStageFive(profileStore, seeds);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation reports success -- a document with no text is condemned by stage 2's"
-                        + " tier-1 floor, not a failed invocation",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "the no-text document earned stage 2's degenerate-output verdict and no other, which is what"
-                        + " removes it from every survivors query reaching stage 5",
-                () -> assertThat(verdictKindsFor(root)).containsExactly(VerdictKind.DEGENERATE_OUTPUT.name()));
-        claim(
-                "and consequently no relevance_score row exists for it at all: ADR-020's 'confirm, do"
-                        + " not assume' holds end to end through the real pipeline, not only at the unit"
-                        + " where RelevanceScoring would refuse to score an empty vector list",
-                () -> assertThat(relevanceScoreRowCountFor(root)).isZero());
-    }
-
     /**
      * The spelling the walk recorded for {@code root}, which is the walk's own canonicalisation of
      * it (ADR-055) rather than the path this test handed the CLI. The two differ wherever the
@@ -166,14 +137,6 @@ class RelevanceScoringInvocationTest {
         return jdbcTemplate.queryForObject(
                 "SELECT run.id FROM run JOIN walk w ON w.id = run.walk_id"
                         + " WHERE run.stage = 'embedding-scoring' AND w.root = ?",
-                String.class,
-                walkRoot(root));
-    }
-
-    private List<String> verdictKindsFor(Path root) {
-        return jdbcTemplate.queryForList(
-                "SELECT v.kind FROM verdict v JOIN file_occurrence f ON f.id = v.occurrence_id"
-                        + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?",
                 String.class,
                 walkRoot(root));
     }

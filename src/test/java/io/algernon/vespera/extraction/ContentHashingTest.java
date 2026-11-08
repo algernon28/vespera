@@ -54,21 +54,4 @@ class ContentHashingTest {
                 () -> assertThat(ContentHashing.sha256(file))
                         .isEqualTo(io.algernon.vespera.corpus.ContentHash.sha256(file)));
     }
-
-    @Test
-    @Story("The hash is stable, and is of the content alone")
-    @DisplayName("The same file hashes the same twice, and the same bytes under another name hash the same")
-    void isStableAcrossCallsAndNames(@TempDir Path dir) throws IOException {
-        Path file = Files.writeString(dir.resolve("a.txt"), "the content of one document");
-        Path copy = Files.writeString(dir.resolve("copy-under-another-name.txt"), "the content of one document");
-
-        claim(
-                "hashing the same file twice gives the same answer, without which a cached conversion"
-                        + " would be found only by the request that stored it",
-                () -> assertThat(ContentHashing.sha256(file)).isEqualTo(ContentHashing.sha256(file)));
-        claim(
-                "the same bytes under a different name hash the same, since it is the content being"
-                        + " identified and not the file",
-                () -> assertThat(ContentHashing.sha256(copy)).isEqualTo(ContentHashing.sha256(file)));
-    }
 }

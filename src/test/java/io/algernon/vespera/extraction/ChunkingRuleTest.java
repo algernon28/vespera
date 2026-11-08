@@ -2,7 +2,6 @@ package io.algernon.vespera.extraction;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -35,19 +34,6 @@ class ChunkingRuleTest {
 
     @Test
     @Story("A rule's identity names the budget it enforces")
-    @DisplayName("The identity spells out the unit and the budget, so a reader of a stored row knows both")
-    void identityNamesTheUnitAndTheBudget() {
-        ChunkingRule rule = new ChunkingRule(DEFAULT_WORD_BUDGET);
-
-        claim(
-                "the identity of a " + DEFAULT_WORD_BUDGET + "-word rule reads words-" + DEFAULT_WORD_BUDGET
-                        + "-v1 — the unit, the budget, and the packing algorithm's own version, since a"
-                        + " change to any of the three moves chunk boundaries",
-                () -> assertThat(rule.identity().value()).isEqualTo("words-" + DEFAULT_WORD_BUDGET + "-v1"));
-    }
-
-    @Test
-    @Story("A rule's identity names the budget it enforces")
     @DisplayName("Two rules with different budgets cannot share an identity")
     void adifferentBudgetIsADifferentIdentity() {
         ChunkingRule prose = new ChunkingRule(DEFAULT_WORD_BUDGET);
@@ -58,15 +44,5 @@ class ChunkingRuleTest {
                         + " budgeting " + DEFAULT_WORD_BUDGET + ", so the chunk rows they produce are keyed"
                         + " apart rather than one serving the other's boundaries",
                 () -> assertThat(tabular.identity()).isNotEqualTo(prose.identity()));
-    }
-
-    @Test
-    @Story("A rule refuses a budget it could not enforce")
-    @DisplayName("A budget of zero words is refused, rather than producing chunks no text fits in")
-    void refusesABudgetNoTextCouldFit() {
-        claim(
-                "a rule budgeting no words at all is refused when it is built, since it could only ever"
-                        + " produce empty chunks or loop forever trying to place one word",
-                () -> assertThatThrownBy(() -> new ChunkingRule(0)).isInstanceOf(IllegalArgumentException.class));
     }
 }

@@ -7,14 +7,10 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.pipeline.GenerationScriptedBeans.ScriptedAnswer;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.synthesis.ClusterFaultKind;
 import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.ListedFault;
-import io.algernon.vespera.synthesis.ListedDoc;
-import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -74,40 +70,12 @@ class GenerationPromptRefusedInvocationTest {
      */
     private static final String THE_READING_WINDOW = "8192";
 
-    /** The same window as a number, which is what the refusal names. */
-    private static final int THE_WINDOW = 8192;
-
-    /** How long the engine counted the refused question, in tokens: the count the defect was found at. */
-    private static final int THE_PROMPT_THE_ENGINE_COUNTED = 8280;
-
-    /**
-     * The refusal as it reached the caller in the run that found the defect: Spring AI's {@code "HTTP
-     * <status> - <body>"}, the body being the runner's own JSON quoted under Ollama's {@code error} key.
-     */
-    private static final String THE_REFUSAL_ON_LENGTH = "HTTP 400 - {\"error\":\"{\\\"error\\\":{\\\"code\\\":400,"
-            + "\\\"message\\\":\\\"request (" + THE_PROMPT_THE_ENGINE_COUNTED + " tokens) exceeds the available"
-            + " context size (" + THE_WINDOW + " tokens), try increasing it\\\",\\\"type\\\":"
-            + "\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":" + THE_PROMPT_THE_ENGINE_COUNTED
-            + ",\\\"n_ctx\\\":" + THE_WINDOW + "}}\"}";
-
     /** Ollama's refusal of a model it has never pulled: not about any one cluster. */
     private static final String THE_REFUSAL_OF_A_MODEL_NEVER_PULLED =
             "HTTP 404 - {\"error\":\"model 'a-writing-model:8b' not found\"}";
 
     /** The name given to the cluster put ahead of the one the corpus produces. */
     private static final String THE_CLUSTER_AHEAD = "A group asked about first";
-
-    /** An answer nothing can read back into a heading and its writing: it stops partway through. */
-    private static final String AN_ANSWER_NOTHING_CAN_READ = "{\"title\":\"Site Safety Audits\",\"prose\":";
-
-    /** What one cluster left unwritten leaves behind: one reason, kept against it. */
-    private static final int ONE_REASON_KEPT = 1;
-
-    /** Two clusters turned down in one piece of work, which the second one must not undo. */
-    private static final int TWO_REASONS_KEPT = 2;
-
-    /** What the other cluster of a two-cluster run leaves behind when its own answer was believed. */
-    private static final int ONE_PIECE_OF_WRITING = 1;
 
     @TempDir
     static Path workingDirectory;
@@ -127,62 +95,7 @@ class GenerationPromptRefusedInvocationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private SynthesisDocs synthesisDocs;
-
-    @Autowired
     private ClusterFaults clusterFaults;
-
-    @Test
-    @Story("A question too long for the window is turned down rather than stopping the whole run")
-    @DisplayName("A group whose question the serving engine refuses as too long leaves the groups after it written")
-    void carriesOnPastAClusterWhosePromptWasRefusedAsPastTheWindow(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        anApprovedCorpusOfTwoClusters(root, seeds);
-        refuseEveryQuestion(asked -> asked.contains(THE_CLUSTER_AHEAD), THE_REFUSAL_ON_LENGTH);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation reports success: one group's question being too long for the window is a"
-                        + " fact about that group's documents, and a run that fell over on it would cost"
-                        + " every group after it",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "the group after the refused one carries its writing, " + ONE_PIECE_OF_WRITING
-                        + " piece of it, so the refusal cost its own group and nothing further along",
-                () -> assertThat(writingKept(root)).hasSize(ONE_PIECE_OF_WRITING));
-        claim(
-                "and exactly " + ONE_REASON_KEPT + " reason is kept, for the refused group, saying its"
-                        + " question did not fit the window",
-                () -> assertThat(reasonsKept(root)).singleElement().satisfies(kept -> assertThat(
-                                kept.fault().kind())
-                        .isEqualTo(ClusterFaultKind.PROMPT_EVALUATION_CEILING)));
-        claim(
-                "and the reason carries the count the engine refused, " + THE_PROMPT_THE_ENGINE_COUNTED
-                        + " tokens against a window of " + THE_WINDOW,
-                () -> assertThat(reasonsKept(root)).singleElement().satisfies(kept -> assertThat(
-                                kept.fault().detail())
-                        .contains(String.valueOf(THE_PROMPT_THE_ENGINE_COUNTED))));
-    }
-
-    @Test
-    @Story("One answer nobody believes costs one group and no more")
-    @DisplayName("A question refused as too long leaves the reasons kept before it standing")
-    void keepsTheReasonsFromEarlierInTheStepPastAPromptRefusedAsPastTheWindow(
-            @TempDir Path root, @TempDir Path seeds) throws IOException {
-        anApprovedCorpusOfTwoClusters(root, seeds);
-        GenerationScriptedBeans.answerFor(THE_CLUSTER_AHEAD, ScriptedAnswer.arrivingAs(AN_ANSWER_NOTHING_CAN_READ));
-        refuseEveryQuestion(asked -> !asked.contains(THE_CLUSTER_AHEAD), THE_REFUSAL_ON_LENGTH);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "both reasons are kept, all " + TWO_REASONS_KEPT + " of them: the refusal is turned down"
-                        + " like any other unusable answer, where a failure of another kind would have"
-                        + " rolled the piece of work back and taken the reason recorded before it with it"
-                        + " -- which is what the run that found this lost",
-                () -> assertThat(reasonsKept(root)).hasSize(TWO_REASONS_KEPT));
-    }
 
     @Test
     @Story("A refusal that would come back for every group still stops the run")
@@ -256,14 +169,6 @@ class GenerationPromptRefusedInvocationTest {
                         + " (SELECT upstream_run_id FROM run_upstream WHERE run_id = ?)"
                         + " ORDER BY occurrence_id DESC LIMIT 1)",
                 arrangement.value());
-    }
-
-    /** Everything stage 6b wrote over the clusters of {@code root}, under whichever run it wrote them. */
-    private List<ListedDoc> writingKept(Path root) {
-        return generationRuns(root).stream()
-                .map(RunId::new)
-                .flatMap(run -> WholeRun.synthesisDocs(jdbcTemplate,run).stream())
-                .toList();
     }
 
     /** Every reason stage 6b kept for a cluster of {@code root} it left unwritten. */

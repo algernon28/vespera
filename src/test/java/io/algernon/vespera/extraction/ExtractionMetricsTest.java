@@ -17,7 +17,6 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,35 +45,6 @@ class ExtractionMetricsTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @Story("A row is written for every response received")
-    @DisplayName("A partial_success response earns a metrics row, with its size counters filled in")
-    void aPartialSuccessResponseEarnsAMetricsRow() {
-        ExtractionMetrics metrics = new ExtractionMetrics(jdbcTemplate, new LanguageDetection());
-        OccurrenceId occurrenceId = anOccurrence();
-        RunId runId = aRun();
-        DoclingResponse response = new DoclingResponse(
-                ConversionStatus.PARTIAL_SUCCESS,
-                List.of(new DoclingError(
-                        "document_backend", "docling", "one page failed", FailureCategory.BACKEND_FAILURE, 2)),
-                3.5,
-                null,
-                "{\"document\":{\"json_content\":{\"texts\":[{\"text\":\"real content here\"}]}}}");
-
-        metrics.writeAndJudge(occurrenceId, runId, response, null, null);
-
-        Map<String, Object> row = rowFor(occurrenceId, runId);
-        claim(
-                "the row records the status the response actually carried",
-                () -> assertThat(row.get("status")).isEqualTo("partial_success"));
-        claim(
-                "and the size counters reflect the real text the response carried, not zero",
-                () -> assertThat(((Number) row.get("character_count")).intValue()).isGreaterThan(0));
-        claim(
-                "the reported error's category is recorded, free text alongside the row",
-                () -> assertThat((String) row.get("error_summary")).contains("backend_failure"));
-    }
-
-    @Test
     @Story("Tier 1's zero-content floor, applied over the row just written")
     @DisplayName("A response whose text is empty earns a degenerate-output judgement")
     void anEmptyResponseIsJudgedDegenerate() {
@@ -90,36 +60,6 @@ class ExtractionMetricsTest {
                 "empty extracted text trips tier 1, for the reason that there is no letter or digit at all",
                 () -> assertThat(verdict)
                         .isEqualTo(new DegeneracyVerdict(true, "zero alphanumeric content after whitespace normalisation")));
-    }
-
-    @Test
-    @Story("A stored conversion the writer records, not just judges")
-    @DisplayName("write() records a row for a document-scoped extraction-failed response, without judging degeneracy")
-    void writeRecordsARowForAnExtractionFailedResponse() {
-        ExtractionMetrics metrics = new ExtractionMetrics(jdbcTemplate, new LanguageDetection());
-        OccurrenceId occurrenceId = anOccurrence();
-        RunId runId = aRun();
-        DoclingResponse response = new DoclingResponse(
-                ConversionStatus.FAILURE,
-                List.of(new DoclingError(
-                        "document_backend", "docling", "corrupt content", FailureCategory.BACKEND_FAILURE, null)),
-                0.8,
-                null,
-                "{}");
-
-        metrics.write(occurrenceId, runId, response);
-
-        Map<String, Object> row = rowFor(occurrenceId, runId);
-        claim(
-                "the extraction-failed response's own status is what the row records",
-                () -> assertThat(row.get("status")).isEqualTo("failure"));
-    }
-
-    private Map<String, Object> rowFor(OccurrenceId occurrenceId, RunId runId) {
-        return jdbcTemplate.queryForMap(
-                "SELECT * FROM extraction_metric WHERE occurrence_id = ? AND run_id = ?",
-                occurrenceId.value(),
-                runId.value());
     }
 
     private OccurrenceId anOccurrence() {

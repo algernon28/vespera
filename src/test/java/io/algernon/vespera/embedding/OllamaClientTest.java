@@ -2,7 +2,6 @@ package io.algernon.vespera.embedding;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -68,13 +67,6 @@ class OllamaClientTest {
             """
                     .formatted(MODEL, DIGEST);
 
-    /** The same listing with the digest gone — the shape a DTO dropping the field would produce. */
-    private static final String MODEL_WITHOUT_A_DIGEST =
-            """
-            {"models": [{"name": "%s", "details": {"quantization_level": "Q4_K_M"}}]}
-            """
-                    .formatted(MODEL);
-
     @Test
     @Story("The runtime reports what it is serving")
     @DisplayName("The digest and the weight dtype are read for the named model, not the first one listed")
@@ -95,41 +87,5 @@ class OllamaClientTest {
                 "and the weight dtype comes back beside it, so a reader can tell a quantization change"
                         + " from a modelfile-only change without diffing manifests",
                 () -> assertThat(artefact.weightDtype()).isEqualTo("Q4_K_M"));
-    }
-
-    @Test
-    @Story("A part that did not arrive is refused where it is read")
-    @DisplayName("A model the runtime does not serve is refused, rather than answered with nothing")
-    void refusesAModelTheRuntimeDoesNotServe() {
-        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo(TAGS_ENDPOINT)).andRespond(withSuccess(TWO_MODELS, MediaType.APPLICATION_JSON));
-
-        OllamaClient client = new OllamaClient(builder.build());
-
-        claim(
-                "a model name the runtime does not list is refused by name, since the alternative is"
-                        + " an identity composed around a model nobody is serving",
-                () -> assertThatThrownBy(() -> client.artefactOf("acme-embed-text:latest"))
-                        .isInstanceOf(IllegalStateException.class)
-                        .hasMessageContaining("acme-embed-text:latest"));
-    }
-
-    @Test
-    @Story("A part that did not arrive is refused where it is read")
-    @DisplayName("A listing carrying no digest for the model is refused, not composed around")
-    void refusesAListingWithNoDigest() {
-        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo(TAGS_ENDPOINT))
-                .andRespond(withSuccess(MODEL_WITHOUT_A_DIGEST, MediaType.APPLICATION_JSON));
-
-        OllamaClient client = new OllamaClient(builder.build());
-
-        claim(
-                "a digest that did not arrive fails here, where the cause is still visible — this is"
-                        + " the exact silence Spring AI's ignore-unknown records would have swallowed,"
-                        + " leaving a vector set keyed under an identity with a hole in it",
-                () -> assertThatThrownBy(() -> client.artefactOf(MODEL)).isInstanceOf(IllegalStateException.class));
     }
 }

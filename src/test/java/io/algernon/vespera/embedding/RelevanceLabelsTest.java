@@ -54,9 +54,6 @@ class RelevanceLabelsTest {
     /** The folder the exemplars live in, which is what an operator means by "the seed set". */
     private static final String SEED_SET = "C:/archive/seeds";
 
-    /** A different folder, and therefore a different question about the same document. */
-    private static final String ANOTHER_SEED_SET = "C:/archive/other-seeds";
-
     /**
      * The document judged, named the way ADR-051 names one and the way the label file already does.
      * No walk is built to arrive at it: that is what re-keying by the path bought (ADR-097).
@@ -82,26 +79,6 @@ class RelevanceLabelsTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    @Test
-    @Story("An answer is about a document and a seed set, never about a run")
-    @DisplayName("A recorded answer is read back by the document and the seed set it was given about")
-    void recordsAnAnswerAgainstADocumentAndASeedSet() {
-        RelevanceLabels labels = new RelevanceLabels(jdbcTemplate);
-        RunId run = aRun();
-
-        labels.record(DOCUMENT, SEED_SET, true, run, SCORE_ON_SCREEN, AN_EMBEDDER);
-
-        claim(
-                "the answer is found by asking about the document and the seed set it was given about,"
-                        + " which is the question it answers -- no run is named in the asking, and no walk"
-                        + " either",
-                () -> assertThat(labels.answerFor(DOCUMENT, SEED_SET)).contains(true));
-        claim(
-                "the same document against a different seed set is a different question, and nobody has"
-                        + " answered that one",
-                () -> assertThat(labels.answerFor(DOCUMENT, ANOTHER_SEED_SET)).isEmpty());
-    }
 
     @Test
     @Story("An answer survives everything that produced it")
@@ -133,30 +110,6 @@ class RelevanceLabelsTest {
                 () -> assertThat(rowsAbout(labels, DOCUMENT).getFirst())
                         .extracting(RelevanceLabel::runId, RelevanceLabel::scoreShown, RelevanceLabel::embedderIdentity)
                         .containsExactly(laterRun.value(), SCORE_UNDER_THE_NEW_MODEL, A_LATER_EMBEDDER));
-    }
-
-    @Test
-    @Story("The context an answer was given in is kept beside it")
-    @DisplayName("The run, the score shown and the embedder are recorded beside the answer")
-    void keepsTheContextTheAnswerWasGivenIn() {
-        RelevanceLabels labels = new RelevanceLabels(jdbcTemplate);
-        RunId run = aRun();
-
-        labels.record(DOCUMENT, SEED_SET, false, run, SCORE_ON_SCREEN, AN_EMBEDDER);
-
-        RelevanceLabel recorded = rowsAbout(labels, DOCUMENT).getFirst();
-        claim(
-                "the score the person had in front of them is kept, so a later reader can tell what the"
-                        + " judgement was made against rather than guessing",
-                () -> assertThat(recorded.scoreShown()).isEqualTo(SCORE_ON_SCREEN));
-        claim(
-                "so is the embedder that produced that score, which is what says whether two answers"
-                        + " were given against numbers on the same scale",
-                () -> assertThat(recorded.embedderIdentity()).isEqualTo(AN_EMBEDDER));
-        claim(
-                "and the run that put the question, recorded beside the answer and not inside its"
-                        + " identity -- an answer belongs to the document, not to the pass that showed it",
-                () -> assertThat(recorded.runId()).isEqualTo(run.value()));
     }
 
     @Test

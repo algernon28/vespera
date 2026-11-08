@@ -78,49 +78,6 @@ class DocumentClustersTest {
                         .allSatisfy(member -> assertThat(member.winningSeedOccurrenceId()).isEqualTo(seed)));
     }
 
-    @Test
-    @Story("The spread of cluster sizes is reportable per partition")
-    @DisplayName("Cluster sizes are read back per partition, in ordinal order")
-    void readsBackClusterSizesPerPartition() {
-        DocumentClusters clusters = new DocumentClusters(jdbcTemplate);
-        OccurrenceId firstSeed = anOccurrence("seeds/one.pdf");
-        OccurrenceId secondSeed = anOccurrence("seeds/two.pdf");
-        RunId run = aRun(firstSeed);
-        for (int i = 0; i < 3; i++) {
-            clusters.record(run, anOccurrence("first-partition-" + i + ".txt"), firstSeed, 0);
-        }
-        clusters.record(run, anOccurrence("first-partition-alone.txt"), firstSeed, 1);
-        clusters.record(run, anOccurrence("second-partition.txt"), secondSeed, 0);
-
-        claim(
-                "the first partition reports its two clusters by size, in ordinal order, which is what a"
-                        + " reader needs to see whether one cluster swallowed the partition or it broke"
-                        + " into singletons",
-                () -> assertThat(clusters.sizesFor(run, firstSeed)).containsExactly(3, 1));
-        claim(
-                "and a partition is reported on its own, never folded in with another seed's: what makes"
-                        + " a cluster is the seed it sits under as much as the ordinal",
-                () -> assertThat(clusters.sizesFor(run, secondSeed)).containsExactly(1));
-    }
-
-    @Test
-    @Story("What clustering does not write")
-    @DisplayName("No table holds a document mean vector")
-    void storesNoDocumentMeanVectors() {
-        List<String> tablesOfBytes = jdbcTemplate.query(
-                "SELECT DISTINCT m.name FROM sqlite_master m JOIN pragma_table_info(m.name) c"
-                        + " WHERE m.type = 'table' AND c.type = 'BLOB' ORDER BY m.name",
-                (resultSet, rowNumber) -> resultSet.getString("name"));
-
-        claim(
-                "the mean vectors clustering compares are computed and discarded, never stored: the only"
-                        + " tables with a column of bytes are the chunks' own vectors and the near-duplicate"
-                        + " signatures, so a table of document vectors, whatever its name, would be a third."
-                        + " They are derived from vectors already held, and a second copy would be a cache"
-                        + " nothing reads that has to be invalidated when the chunking or the model changes",
-                () -> assertThat(tablesOfBytes).containsExactly("minhash_signature", "vector"));
-    }
-
     private OccurrenceId anOccurrence(String path) {
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));

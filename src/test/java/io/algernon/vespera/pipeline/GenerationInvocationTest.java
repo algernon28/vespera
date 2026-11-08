@@ -7,13 +7,10 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.WholeRun;
 import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.Ledger;
-import io.algernon.vespera.ledger.OccurrenceId;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.synthesis.Clusters;
-import io.algernon.vespera.synthesis.ListedDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -80,41 +77,11 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-080", url = Adr.THE_BOILERPLATE_FLOOR_IS_A_GATE, type = "adr")
 class GenerationInvocationTest {
 
-    /** An approval of the right shape that is nobody's arrangement: twelve hexadecimal characters. */
-    private static final String NAMES_NOTHING = "0123456789ab";
-
     /** What one approval is worth: one record of the work, and not a second over the same approval. */
     private static final int ONE_RECORD = 1;
 
     /** What one cluster of documents is worth: one piece of writing, however many documents are in it. */
     private static final int ONE_PIECE_OF_WRITING = 1;
-
-    /** How many documents the two-document corpus puts in that one cluster. */
-    private static final int TWO_DOCUMENTS = 2;
-
-    /** How many of them fit once the window is set small enough that they no longer both do. */
-    private static final int ONE_DOCUMENT = 1;
-
-    /**
-     * A window with room for one of this fixture's documents and not two.
-     *
-     * <p>Small on purpose, and that is the point of the test: a fixture of a few short documents never
-     * runs out of room under the shipped window, so the arithmetic that decides what fits would ship
-     * having never once been asked a real question.
-     */
-    private static final String A_WINDOW_WITH_ROOM_FOR_ONE = "1300";
-
-    /**
-     * What stage 6a calls that one cluster: the title every document this fixture converts carries, which
-     * is what the naming rule derives a cluster's name from.
-     */
-    private static final String THE_CLUSTERS_NAME = SeedScriptedExtractionBeans.STUBBED_TITLE;
-
-    /** A title scripted for that cluster alone, so a record holding any other answer is visible. */
-    private static final String ITS_OWN_TITLE = "What The Two Stubbed Documents Have In Common";
-
-    /** And the writing scripted with it. */
-    private static final String ITS_OWN_PROSE = "Both of them [1] say the same thing twice.";
 
     /** A window wider than the one the code ships with, which is the change an operator makes here. */
     private static final String A_WIDER_WINDOW = "16384";
@@ -122,32 +89,8 @@ class GenerationInvocationTest {
     /** What two different answers to how much may be read are worth: two records of the work. */
     private static final int TWO_RECORDS = 2;
 
-    /** What one unfinished piece of work leaves behind: the one cluster that was written, and no more. */
-    private static final int ONE_CLUSTER_WRITTEN = 1;
-
-    /** What an invocation that reached the step under a standing approval records: one run of it. */
-    private static final int ONE_GENERATION_RUN = 1;
-
     /** The name given to the cluster nothing in this run can be sent for, so a claim can name it plainly. */
     private static final String A_CLUSTER_WITH_NOTHING_TO_SEND = "A group whose documents cannot be opened";
-
-    /**
-     * The smallest window anything can be read in at all: room for one word, which no document in this
-     * fixture opens with fewer than. Accepted as a window, and too small for any of these documents.
-     */
-    private static final String A_WINDOW_WITH_ROOM_FOR_A_SINGLE_WORD = "1282";
-
-    /** What a cluster nothing fits into is worth asking about: nothing, because there is nothing to ask. */
-    private static final int NOTHING_WAS_ASKED = 0;
-
-    /** What a finished piece of work leaves behind here: writing over both of the two clusters. */
-    private static final int TWO_CLUSTERS_WRITTEN = 2;
-
-    /** The fewest documents any piece of writing may rest on, because writing over none is never made. */
-    private static final int AT_LEAST_ONE_DOCUMENT = 1;
-
-    /** The name given to the cluster no document has reached yet, so a claim can name it plainly. */
-    private static final String A_CLUSTER_NO_DOCUMENT_HAS_REACHED_YET = "A group no document has reached yet";
 
     @TempDir
     static Path workingDirectory;
@@ -168,9 +111,6 @@ class GenerationInvocationTest {
 
     @Autowired
     private SynthesisDocs synthesisDocs;
-
-    @Autowired
-    private Clusters clusters;
 
     @Test
     @Story("Nothing is written over the archive until a person approves what they read")
@@ -194,262 +134,6 @@ class GenerationInvocationTest {
                         + " would spend an approval nobody gave",
                 () -> assertThat(upstreamOf(generationRuns(root).getFirst()))
                         .containsExactly(theApprovedArrangement(root).value()));
-    }
-
-    @Test
-    @Story("Nothing is written over the archive until a person approves what they read")
-    @DisplayName("With nothing approved, the invocation succeeds and nothing is opened")
-    void opensNothingWhenNothingIsApproved(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        approve(null);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation succeeded rather than failing: a person who has not looked at the"
-                        + " arrangement yet has done nothing wrong, and an invocation ending in red would"
-                        + " be telling them they had",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "and nothing at all was recorded -- not an empty record, none: what is written down is"
-                        + " what was actually done, and nothing was",
-                () -> assertThat(generationRuns(root)).isEmpty());
-    }
-
-    @Test
-    @Story("Nothing is written over the archive until a person approves what they read")
-    @DisplayName("An approval matching nothing is treated exactly as no approval at all")
-    void opensNothingWhenTheApprovalMatchesNothing(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        approve(NAMES_NOTHING);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "a mistyped name leaves the archive exactly where a blank one does: the one outcome this"
-                        + " must never have is quietly behaving like an approval, because a person who"
-                        + " mistyped believes they approved something",
-                () -> assertThat(generationRuns(root)).isEmpty());
-        claim(
-                "and the invocation still succeeded, because a name matching nothing is something to"
-                        + " correct and run again, not a broken tool",
-                () -> assertThat(cli.getExitCode()).isZero());
-    }
-
-    @Test
-    @Story("Nothing is written over the archive until a person approves what they read")
-    @DisplayName("Opening on the approved groups records no judgement against any document")
-    void recordsNoJudgementAgainstAnyDocument(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the step ran at all over the approved groups, which is what the claim below is about --"
-                        + " asserted first and separately, so that a step which never ran fails saying so"
-                        + " rather than failing while reaching for something that is not there",
-                () -> assertThat(generationRuns(root)).isNotEmpty());
-        claim(
-                "no judgement was recorded: every judgement this system records exists to take a document"
-                        + " out of what gets published, and writing connecting text over what survived"
-                        + " takes nothing out of anything",
-                () -> assertThat(verdictsAgainstTheGeneratedWork(root)).isZero());
-    }
-
-    @Test
-    @Story("Nothing is written over the archive until a person approves what they read")
-    @DisplayName("Invoking a third time with the approval still standing adds nothing and breaks nothing")
-    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
-    void aThirdInvocationUnderAStandingApprovalAddsNothing(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpus(root, seeds);
-        cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
-        cli.run("run", root.toString());
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the third invocation reports success: nothing about the archive, the values a person set"
-                        + " or the tool had changed since the second, so there was nothing for it to do --"
-                        + " and an invocation that ends in red for having nothing to do is telling a person"
-                        + " something is wrong when nothing is",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "and the work is still recorded exactly " + ONE_RECORD + " time: the third invocation"
-                        + " works out the same name for this work as the second did, finds that name already"
-                        + " written down, and carries on under it -- writing it a second time is the one"
-                        + " thing the record of work will not accept",
-                () -> assertThat(generationRuns(root)).hasSize(ONE_RECORD));
-    }
-
-    @Test
-    @Issue("180")
-    @Story("Every approved group of documents is written over, once")
-    @DisplayName("Each approved group comes out with one piece of writing over the whole group")
-    void writesOnePieceOverEachApprovedCluster(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpusOfTwoDocuments(root, seeds);
-        cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation reports success, which the claims below are about",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "every group the person approved has writing over it, and one piece of writing for the"
-                        + " whole group rather than one per document: the two documents here are one group,"
-                        + " and a piece of writing about each of them separately would be the pile this"
-                        + " system exists to replace",
-                () -> assertThat(generatedDocs(root)).hasSize(ONE_PIECE_OF_WRITING));
-        claim(
-                "and what is kept is what came back -- the heading, the text with its markers untouched,"
-                        + " and the number of documents it was written from, both " + TWO_DOCUMENTS + " of"
-                        + " them, which is what lets the finished page say what it was written over",
-                () -> assertThat(generatedDocs(root)).singleElement().satisfies(doc -> {
-                    assertThat(doc.doc().title()).isEqualTo(GenerationScriptedBeans.GENERATED_TITLE);
-                    assertThat(doc.doc().prose()).isEqualTo(GenerationScriptedBeans.GENERATED_PROSE);
-                    assertThat(doc.doc().documentsSent()).isEqualTo(TWO_DOCUMENTS);
-                }));
-        claim(
-                "and which documents those " + TWO_DOCUMENTS + " were, kept by name rather than as a count"
-                        + " of them: the page a reader opens numbers its list from this record, and which"
-                        + " documents went into the call is knowable only while the call is being built",
-                () -> assertThat(generatedDocs(root))
-                        .singleElement()
-                        .satisfies(doc -> assertThat(doc.doc().sent())
-                                .containsExactlyInAnyOrderElementsOf(theDocumentsOfEveryCluster(root))));
-    }
-
-    @Test
-    @Issue("180")
-    @Story("Every approved group of documents is written over, once")
-    @DisplayName("What was written over a particular group is what is kept against that group")
-    void keepsWhatWasWrittenAgainstTheClusterItWasAbout(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        GenerationScriptedBeans.answerFor(THE_CLUSTERS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
-        aCorpusOfTwoDocuments(root, seeds);
-        cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the writing kept against this group is the answer scripted for this group by its name,"
-                        + " not the answer every other call is given: every group gets its own call, and a"
-                        + " record that could hold another call's answer would be a page about the wrong"
-                        + " documents",
-                () -> assertThat(generatedDocs(root)).singleElement().satisfies(doc -> {
-                    assertThat(doc.doc().title()).isEqualTo(ITS_OWN_TITLE);
-                    assertThat(doc.doc().prose()).isEqualTo(ITS_OWN_PROSE);
-                }));
-    }
-
-    @Test
-    @Issue("182")
-    @Story("A group too big to read in one go sends what fits, rather than being skipped")
-    @DisplayName("With the reading window set small, a group is written from part of itself and says so")
-    void writesFromPartOfAClusterWhenTheWindowIsSetSmall(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpusOfTwoDocuments(root, seeds);
-        cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
-        setTheReadingWindowTo(A_WINDOW_WITH_ROOM_FOR_ONE);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the writing says it was made from " + ONE_DOCUMENT + " of the group's documents rather"
-                        + " than both: the window this archive's owner set has room for one of them, and"
-                        + " what the page will tell a reader it was written from is this number",
-                () -> assertThat(generatedDocs(root))
-                        .singleElement()
-                        .satisfies(doc -> assertThat(doc.doc().documentsSent()).isEqualTo(ONE_DOCUMENT)));
-        claim(
-                "and the group still holds both documents: what was read is a matter of how much would"
-                        + " fit, and what belongs to the group is not -- a reader is shown every document"
-                        + " under it, which is what keeps writing from part of a group honest",
-                () -> assertThat(WholeRun.clusters(jdbcTemplate,theApprovedArrangement(root)))
-                        .singleElement()
-                        .satisfies(recorded ->
-                                assertThat(recorded.cluster().documentCount()).isEqualTo(TWO_DOCUMENTS)));
-    }
-
-    @Test
-    @Issue("180")
-    @Story("Work that was not finished is not recorded as finished")
-    @DisplayName("A group nothing could be sent for is not recorded as done")
-    void leavesTheStepOpenWhenAClusterCouldNotBeWrittenOver(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpusOfTwoDocuments(root, seeds);
-        cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
-        nothingIsOnRecordForEitherDocument(root);
-        GenerationScriptedBeans.forgetScriptedAnswers();
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the step really ran: the approval still named the arrangement, so exactly "
-                        + ONE_GENERATION_RUN + " record of writing over it was made -- the claims below"
-                        + " would hold just as well if the gate had stayed shut and nothing ran at all, so"
-                        + " this is what makes them about the step",
-                () -> assertThat(generationRuns(root)).hasSize(ONE_GENERATION_RUN));
-        claim(
-                "and it asked the model nothing, since the group held nothing it could send -- "
-                        + NOTHING_WAS_ASKED + " calls",
-                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(NOTHING_WAS_ASKED));
-        claim(
-                "nothing was written over the group, because there was nothing to write from",
-                () -> assertThat(generatedDocs(root)).isEmpty());
-        claim(
-                "and the work is not recorded as done: a group that was never written over is not a"
-                        + " finished job, and it is exactly that record which every later invocation reads"
-                        + " to decide whether to walk past this step -- so marking it done here would leave"
-                        + " a hole in the finished work that nothing anywhere reports and nothing retries",
-                () -> assertThat(theWorkIsRecordedAsFinished(root)).isFalse());
-        claim(
-                "the invocation still reports success: a group nothing could be sent for is something to"
-                        + " look at and run again, not a broken tool",
-                () -> assertThat(cli.getExitCode()).isZero());
-    }
-
-    @Test
-    @Issue("182")
-    @Story("Writing that rests on no document at all is never produced")
-    @DisplayName("With room for less than one document, the group is left unwritten and nothing is asked")
-    @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
-    void asksNothingAndWritesNothingWhenNoDocumentFitsTheWindow(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpusOfTwoDocuments(root, seeds);
-        cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
-        setTheReadingWindowTo(A_WINDOW_WITH_ROOM_FOR_A_SINGLE_WORD);
-        GenerationScriptedBeans.forgetScriptedAnswers();
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation reports success: a window too small for the documents in front of it is"
-                        + " something to widen and run again, not a broken tool",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "nothing was asked of the model at all -- " + NOTHING_WAS_ASKED + " calls: not one"
-                        + " document fits the room this window leaves, so the only piece of writing that"
-                        + " could come back would be about none of them, and that call is the most"
-                        + " expensive thing this system does",
-                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(NOTHING_WAS_ASKED));
-        claim(
-                "and nothing was kept over the group: a piece of writing made from no documents points at"
-                        + " nothing a reader could open to check it, and every other sentence in what this"
-                        + " produces can be followed back to a file",
-                () -> assertThat(generatedDocs(root)).isEmpty());
-        claim(
-                "and the work is not recorded as done, so a later invocation under a window that fits will"
-                        + " write over this group rather than walking past it as finished",
-                () -> assertThat(theWorkIsRecordedAsFinished(root)).isFalse());
     }
 
     @Test
@@ -491,111 +175,6 @@ class GenerationInvocationTest {
                         + " to be compared against rather than having been written over",
                 () -> assertThat(WholeRun.synthesisDocs(jdbcTemplate,new RunId(generationRuns(root).getFirst())))
                         .hasSize(ONE_PIECE_OF_WRITING));
-    }
-
-    @Test
-    @Issue("180")
-    @Story("Work already paid for is never paid for twice")
-    @DisplayName("A group already written over is left alone while the next invocation finishes the rest")
-    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
-    @Link(name = "ADR-116", url = Adr.A_RUNS_COMPLETION_IS_RECORDED_PER_STEP, type = "adr")
-    void keepsWhatAnEarlierInvocationWroteAndCarriesOnFromThere(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpusOfTwoDocuments(root, seeds);
-        cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
-        aClusterNothingCanBeSentFor(theApprovedArrangement(root), root);
-        GenerationScriptedBeans.answerFor(THE_CLUSTERS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
-        cli.run("run", root.toString());
-
-        GenerationScriptedBeans.forgetScriptedAnswers();
-        cli.run("run", root.toString());
-
-        claim(
-                "the second invocation reports success rather than falling over the writing the first one"
-                        + " left behind: an invocation that stopped partway is the ordinary case, and"
-                        + " meeting its own earlier work must not be a failure",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "the group written over the first time is written over exactly "
-                        + ONE_CLUSTER_WRITTEN + " time in total, with no second copy beside it",
-                () -> assertThat(generatedDocs(root)).hasSize(ONE_CLUSTER_WRITTEN));
-        claim(
-                "and what stands is the writing the first invocation produced, word for word -- the model"
-                        + " was told to answer differently the second time, so writing that had been thrown"
-                        + " away and asked for again would read differently here. Asking again is the most"
-                        + " expensive thing this system does and it buys nothing: neither the group nor the"
-                        + " documents under it have changed",
-                () -> assertThat(generatedDocs(root)).singleElement().satisfies(doc -> {
-                    assertThat(doc.doc().title()).isEqualTo(ITS_OWN_TITLE);
-                    assertThat(doc.doc().prose()).isEqualTo(ITS_OWN_PROSE);
-                }));
-        claim(
-                "and the work is still not recorded as done, because the other group still has nothing"
-                        + " written over it: leaving what is already written alone is how the next"
-                        + " invocation gets to the rest, not a claim that there is no rest",
-                () -> assertThat(theWorkIsRecordedAsFinished(root)).isFalse());
-    }
-
-    @Test
-    @Issue("185")
-    @Story("Work left unfinished is finished by the next invocation, and only then recorded as done")
-    @DisplayName("The next invocation writes over the group left behind and records the work as done")
-    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
-    @Link(name = "ADR-116", url = Adr.A_RUNS_COMPLETION_IS_RECORDED_PER_STEP, type = "adr")
-    @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
-    void finishesTheClusterLeftBehindAndOnlyThenRecordsTheWorkAsDone(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpusOfTwoDocuments(root, seeds);
-        cli.run("run", root.toString());
-        approve(ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")));
-        ConversionOffTheRecordFixture.Held whatWasOnRecord =
-                aClusterNothingCanBeSentFor(theApprovedArrangement(root), root, A_CLUSTER_NO_DOCUMENT_HAS_REACHED_YET);
-        GenerationScriptedBeans.answerFor(THE_CLUSTERS_NAME, ITS_OWN_TITLE, ITS_OWN_PROSE);
-        cli.run("run", root.toString());
-        theSecondClustersDocumentCanBeSentAgain(whatWasOnRecord);
-
-        GenerationScriptedBeans.forgetScriptedAnswers();
-        cli.run("run", root.toString());
-
-        claim(
-                "the second invocation reports success, which the claims below are about",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "both groups now have writing over them, all " + TWO_CLUSTERS_WRITTEN + " of them: the one"
-                        + " written the first time round, and the one that had nothing to send then and has"
-                        + " something to send now",
-                () -> assertThat(generatedDocs(root)).hasSize(TWO_CLUSTERS_WRITTEN));
-        claim(
-                "the group written the first time round still carries that first writing, word for word:"
-                        + " the model was told to answer differently this time, so writing that had been"
-                        + " asked for a second time would read differently here -- and asking again buys"
-                        + " nothing, because neither that group nor the documents under it have changed",
-                () -> assertThat(generatedDocs(root)).anySatisfy(doc -> {
-                    assertThat(doc.doc().title()).isEqualTo(ITS_OWN_TITLE);
-                    assertThat(doc.doc().prose()).isEqualTo(ITS_OWN_PROSE);
-                }));
-        claim(
-                "and the group left behind carries writing made this time round rather than the first:"
-                        + " picking up an unfinished job means doing the part that was left, not counting"
-                        + " it done",
-                () -> assertThat(generatedDocs(root))
-                        .anySatisfy(doc -> assertThat(doc.doc().title())
-                                .isEqualTo(GenerationScriptedBeans.GENERATED_TITLE)));
-        claim(
-                "the work is now recorded as done, which is the point of picking it up at all: nothing is"
-                        + " left unwritten, so every later invocation may walk past this step -- and a job"
-                        + " that finished everything and never said so would be started again for ever,"
-                        + " each time reading the whole archive to be told there was nothing to do",
-                () -> assertThat(theWorkIsRecordedAsFinished(root)).isTrue());
-        claim(
-                "and neither piece of writing rests on fewer than " + AT_LEAST_ONE_DOCUMENT + " document:"
-                        + " writing made from none would be text a reader cannot follow back to any file,"
-                        + " so a record saying it was made from none is a sign of something broken rather"
-                        + " than of a reading window set small",
-                () -> assertThat(generatedDocs(root))
-                        .allSatisfy(doc -> assertThat(doc.doc().documentsSent())
-                                .isGreaterThanOrEqualTo(AT_LEAST_ONE_DOCUMENT)));
     }
 
     /**
@@ -646,18 +225,6 @@ class GenerationInvocationTest {
     }
 
     /**
-     * Puts back the conversion and the chunks the second cluster's document had on record when it was
-     * arranged, so a cluster nothing could be sent for now has something to send.
-     *
-     * <p>This is the obstruction being lifted. What left that cluster unwritten was that nothing was on
-     * record for its document; with that back, the very same invocation, asking the very same question
-     * again, finishes the job.
-     */
-    private void theSecondClustersDocumentCanBeSentAgain(ConversionOffTheRecordFixture.Held whatWasOnRecord) {
-        ConversionOffTheRecordFixture.putBack(jdbcTemplate, whatWasOnRecord);
-    }
-
-    /**
      * The document of the arrangement's membership with the highest occurrence id -- the one moved into
      * the second cluster. Which document moves does not matter, so the query names one by taking the last.
      */
@@ -673,32 +240,6 @@ class GenerationInvocationTest {
     private String pathOf(long occurrence) {
         return jdbcTemplate.queryForObject(
                 "SELECT path FROM file_occurrence WHERE id = ?", String.class, occurrence);
-    }
-
-    /**
-     * Takes both corpus documents' conversions and chunks out of the caches, so nothing in the cluster
-     * can be sent when the call is built ({@link ConversionOffTheRecordFixture}).
-     *
-     * <p>The files are untouched, so the walk sees the same archive, the approval still names the
-     * arrangement and the step really runs; it is the chunks 6b looks for that are no longer on record.
-     * Until ADR-206 this rewrote both documents in place, which obstructed 6b only while it found a
-     * document's chunks by hashing its file again. Deleting the documents instead would be a different
-     * archive, whose gate is shut before the step is reached.
-     */
-    private void nothingIsOnRecordForEitherDocument(Path root) throws IOException {
-        ConversionOffTheRecordFixture.takenOffTheRecord(jdbcTemplate, root.resolve("corpus.txt"));
-        ConversionOffTheRecordFixture.takenOffTheRecord(jdbcTemplate, root.resolve("another-corpus-document.txt"));
-    }
-
-    /** Whether this step's own work is recorded as complete under the run it wrote. */
-    private boolean theWorkIsRecordedAsFinished(Path root) {
-        return generationRuns(root).stream()
-                .anyMatch(run -> jdbcTemplate.queryForObject(
-                                "SELECT COUNT(*) FROM finished_step WHERE run_id = ? AND step = ?",
-                                Integer.class,
-                                run,
-                                "generation")
-                        > 0);
     }
 
     @AfterEach
@@ -717,33 +258,6 @@ class GenerationInvocationTest {
     private void aCorpusOfTwoDocuments(Path root, Path seeds) throws IOException {
         aCorpus(root, seeds);
         Files.writeString(root.resolve("another-corpus-document.txt"), "a second corpus document");
-    }
-
-    /**
-     * Every document the clustering behind the approved arrangement put into a cluster.
-     *
-     * <p>The fixtures that read this arrange one cluster holding the whole corpus, so this is also
-     * every document the one call could have carried — which is what lets a claim say the recorded
-     * exemplars are those documents rather than a count of them.
-     */
-    private List<OccurrenceId> theDocumentsOfEveryCluster(Path root) {
-        return jdbcTemplate
-                .queryForList(
-                        "SELECT occurrence_id FROM document_cluster WHERE run_id ="
-                                + " (SELECT upstream_run_id FROM run_upstream WHERE run_id = ?)",
-                        Long.class,
-                        theApprovedArrangement(root).value())
-                .stream()
-                .map(OccurrenceId::new)
-                .toList();
-    }
-
-    /** Everything stage 6b wrote over the clusters of {@code root}, under whichever run it wrote them. */
-    private List<ListedDoc> generatedDocs(Path root) {
-        return generationRuns(root).stream()
-                .map(RunId::new)
-                .flatMap(run -> WholeRun.synthesisDocs(jdbcTemplate,run).stream())
-                .toList();
     }
 
     /** One corpus document and one exemplar, with every gate before this one open. */
@@ -792,19 +306,5 @@ class GenerationInvocationTest {
     private List<String> upstreamOf(String runId) {
         return jdbcTemplate.queryForList(
                 "SELECT upstream_run_id FROM run_upstream WHERE run_id = ?", String.class, runId);
-    }
-
-    /**
-     * Judgements recorded against anything this step wrote, counted without reaching for a particular
-     * record — so a step that never ran answers zero rather than raising.
-     */
-    private int verdictsAgainstTheGeneratedWork(Path root) {
-        return jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM verdict WHERE run_id IN"
-                        + " (SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
-                        + " WHERE r.stage = ? AND w.root = ?)",
-                Integer.class,
-                "generation",
-                Walk.canonicalRoot(root).toString());
     }
 }

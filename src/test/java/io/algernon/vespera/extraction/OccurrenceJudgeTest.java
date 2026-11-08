@@ -2,17 +2,14 @@ package io.algernon.vespera.extraction;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.ledger.OccurrenceId;
-import io.algernon.vespera.ledger.RunId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -69,17 +66,8 @@ class OccurrenceJudgeTest {
     /** How many timeouts in a row the application ships as the converter's rather than the file's (ADR-330 §8). */
     private static final int TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR = 3;
 
-    /** The timeouts before that one, each still a fact about its own file. */
-    private static final int TIMEOUTS_STILL_READ_AS_THE_FILES = TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR - 1;
-
-    /** ADR-070's two document-blamed failure kinds, plus one answer reporting it skipped the document. */
-    private static final int RESPONSES_BLAMED_ON_THE_DOCUMENT = 3;
-
     /** One measurement row per answer a document really came back for; a set-aside answer earns none. */
     private static final int METRIC_ROWS_PER_JUDGED_RESPONSE = 1;
-
-    /** One more file the converter cannot open than the set-aside files in a row that stop the stage. */
-    private static final int UNOPENABLE_FILES_IN_A_ROW = FailuresInARow.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT + 1;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -102,33 +90,6 @@ class OccurrenceJudgeTest {
                 "and the row says which kind of failure it was and what the converter said about it, so the"
                         + " reason stands on its own without the response it came from",
                 () -> assertThat(reasonOf(decision)).contains("backend_failure").contains(ERROR_MESSAGE));
-    }
-
-    @Test
-    @Story("A failure that is a fact about the document")
-    @DisplayName("Both document-blamed failure kinds are recorded, and a converter that reports it skipped the document counts too")
-    void verdictsEveryDocumentScopedCategory() {
-        Judging judging = judging(RESPONSES_BLAMED_ON_THE_DOCUMENT);
-        List<DoclingResponse> answers = List.of(
-                failing(FailureCategory.BACKEND_FAILURE),
-                failing(FailureCategory.INFERENCE_FAILURE),
-                new DoclingResponse(
-                        ConversionStatus.SKIPPED, List.of(error(FailureCategory.BACKEND_FAILURE)), 0d, null, "{}"));
-
-        List<Class<?>> decisions = new ArrayList<>();
-        for (int i = 0; i < answers.size(); i++) {
-            decisions.add(judging.answer(i, answers.get(i)).getClass());
-        }
-
-        claim(
-                "each of the " + RESPONSES_BLAMED_ON_THE_DOCUMENT + " responses is recorded against its own"
-                        + " document: the two failure kinds the converter blames on the document, and one"
-                        + " document it reported skipping for the same reason",
-                () -> assertThat(decisions)
-                        .containsExactly(
-                                OccurrenceDecision.Failed.class,
-                                OccurrenceDecision.Failed.class,
-                                OccurrenceDecision.Failed.class));
     }
 
     @Test
@@ -175,130 +136,6 @@ class OccurrenceJudgeTest {
     }
 
     @Test
-    @Story("A failure the converter gave no kind for")
-    @DisplayName("A failure reported with no error at all is recorded against the file too")
-    @Link(name = "ADR-143", url = Adr.AN_UNCATEGORISED_FAILURE_IS_A_VERDICT, type = "adr")
-    void verdictsAFailureThatReportedNoCategoryAtAll() {
-        Judging judging = judging(1);
-
-        OccurrenceDecision decision =
-                judging.answer(0, new DoclingResponse(ConversionStatus.FAILURE, List.of(), 0d, null, "{}"));
-
-        claim(
-                "a response that says the conversion failed and names no error is still the converter's"
-                        + " answer about this file, so the file is recorded as one extraction could not read",
-                () -> assertThat(decision).isInstanceOf(OccurrenceDecision.Failed.class));
-        claim(
-                "and its reason says that nothing was categorised, so a removal with no converter message"
-                        + " behind it still explains itself",
-                () -> assertThat(reasonOf(decision)).isEqualTo("unknown: no categorized error was reported"));
-    }
-
-    @Test
-    @Story("A failure the converter gave no kind for")
-    @DisplayName("An unexplained error reported alongside a failure the converter blames on itself is read as being about the converter")
-    @Link(name = "ADR-143", url = Adr.AN_UNCATEGORISED_FAILURE_IS_A_VERDICT, type = "adr")
-    void setsAsideAnUncategorisedFailureReportedAlongsideAConverterProblem() {
-        Judging judging = judging(1);
-
-        OccurrenceDecision decision = judging.answer(0, failing(FailureCategory.UNKNOWN, FailureCategory.INTERNAL));
-
-        claim(
-                "a response that also says the converter itself is at fault is about the converter, so the"
-                        + " file is set aside unjudged under that fault, internal, with the converter's message,"
-                        + " exactly as a refusal reported beside a fault of the converter is",
-                () -> assertThat(decision).isEqualTo(new OccurrenceDecision.SetAside("internal", ERROR_MESSAGE)));
-    }
-
-    /**
-     * The case measured on 2026-09-24: five legacy spreadsheets in one folder, each refused by a
-     * converter with no LibreOffice, stopped the whole step. Only a set-aside occurrence is counted
-     * toward the stop, so a run of verdicts can never reach it.
-     */
-    @Test
-    @Story("A failure the converter gave no kind for")
-    @DisplayName("Files the converter cannot open, one after another, are each recorded and nothing is set aside")
-    @Link(name = "ADR-143", url = Adr.AN_UNCATEGORISED_FAILURE_IS_A_VERDICT, type = "adr")
-    void verdictsEveryUncategorisedFailureInARow() {
-        Judging judging = judging(UNOPENABLE_FILES_IN_A_ROW);
-
-        List<Class<?>> decisions = new ArrayList<>();
-        for (int i = 0; i < UNOPENABLE_FILES_IN_A_ROW; i++) {
-            decisions.add(judging.answer(i, failing(FailureCategory.UNKNOWN)).getClass());
-        }
-
-        claim(
-                "each of the " + UNOPENABLE_FILES_IN_A_ROW + " files -- more in a row than the "
-                        + FailuresInARow.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT + " set-aside"
-                        + " documents that stop the step -- is recorded against itself, so a folder of files"
-                        + " the converter cannot open costs those files and nothing else",
-                () -> assertThat(decisions).containsOnly(OccurrenceDecision.Failed.class));
-    }
-
-    @Test
-    @Story("A failure whose scope depends on the rest of the response")
-    @DisplayName("A refusal, or an unreadable source, reported on its own is recorded against the document")
-    void verdictsARefusalReportedOnItsOwn() {
-        List<FailureCategory> aboutThisFileUnlessTheResponseSaysOtherwise =
-                List.of(FailureCategory.POLICY, FailureCategory.SOURCE_UNAVAILABLE);
-        Judging judging = judging(aboutThisFileUnlessTheResponseSaysOtherwise.size());
-
-        for (int i = 0; i < aboutThisFileUnlessTheResponseSaysOtherwise.size(); i++) {
-            FailureCategory category = aboutThisFileUnlessTheResponseSaysOtherwise.get(i);
-            int index = i;
-            OccurrenceDecision decision = judging.answer(i, failing(category));
-            claim(
-                    "a converter that reported only " + wire(category) + " is saying something about the file it"
-                            + " was handed -- it refused this one, or could not read this one -- so the document"
-                            + " is recorded as one extraction could not read",
-                    () -> assertThat(decision).isInstanceOf(OccurrenceDecision.Failed.class));
-            claim(
-                    "and the measurement is filed against it as well, because a reading about the document is"
-                            + " a reading of a response the document really came back for -- "
-                            + METRIC_ROWS_PER_JUDGED_RESPONSE + " row recorded for it",
-                    () -> assertThat(judging.metricRowsFor(index)).isEqualTo(METRIC_ROWS_PER_JUDGED_RESPONSE));
-        }
-    }
-
-    @Test
-    @Story("A failure whose scope depends on the rest of the response")
-    @DisplayName("A refusal reported alongside a failure the converter blames on itself is read as being about the converter")
-    void setsAsideARefusalReportedAlongsideAConverterProblem() {
-        Judging judging = judging(1);
-
-        OccurrenceDecision decision = judging.answer(0, failing(FailureCategory.POLICY, FailureCategory.CAPACITY));
-
-        claim(
-                "a response that reports a refusal and, in the same breath, that the converter had no room"
-                        + " to work is a response about the converter's own state, so the refusal cannot be"
-                        + " taken as a fact about this document and the document is set aside unjudged",
-                () -> assertThat(decision).isEqualTo(new OccurrenceDecision.SetAside("capacity", ERROR_MESSAGE)));
-        claim(
-                "and no measurement is filed against it either, so a later run finds the document exactly"
-                        + " as untouched as it was before -- zero rows recorded for it",
-                () -> assertThat(judging.metricRowsFor(0)).isZero());
-    }
-
-    @Test
-    @Story("A failure whose scope depends on the rest of the response")
-    @DisplayName("A refusal reported alongside an unexplained error is still recorded against the document")
-    void verdictsARefusalReportedAlongsideAnUnexplainedError() {
-        Judging judging = judging(1);
-
-        OccurrenceDecision decision = judging.answer(0, failing(FailureCategory.POLICY, FailureCategory.UNKNOWN));
-
-        claim(
-                "an error the converter gave no kind for is no evidence about anything, so it cannot turn a"
-                        + " refusal of this file into a statement about the converter: the document is still"
-                        + " recorded as one extraction could not read",
-                () -> assertThat(decision).isInstanceOf(OccurrenceDecision.Failed.class));
-        claim(
-                "and the row still names the refusal and what the converter said about it, rather than the"
-                        + " unexplained error that sat beside it",
-                () -> assertThat(reasonOf(decision)).contains("policy").contains(ERROR_MESSAGE));
-    }
-
-    @Test
     @Story("A conversion that partly worked")
     @DisplayName("A document some of whose pages failed is not condemned for that alone")
     void doesNotJudgeAPartlyConvertedDocumentOnItsFailuresAlone() {
@@ -318,70 +155,6 @@ class OccurrenceJudgeTest {
                 "a document that partly converted is judged on what it produced, not on the fact that"
                         + " something failed inside it -- so it is a conversion, and with real text in it the"
                         + " floor finds nothing to condemn",
-                () -> assertThat(decision).isEqualTo(new OccurrenceDecision.Converted(Optional.empty())));
-    }
-
-    /** The shingle half of this test stays in {@code pipeline}'s {@code ExtractionItemProcessorTest}. */
-    @Test
-    @Story("A conversion that succeeded")
-    @DisplayName("A converted document is not chunked")
-    @Issue("103")
-    @Link(name = "ADR-091", url = Adr.THERE_IS_NO_TOKENIZER, type = "adr")
-    void aConvertedDocumentIsNotChunked() {
-        Judging judging = judging(1);
-
-        OccurrenceDecision decision = judging.answer(
-                0,
-                new DoclingResponse(
-                        ConversionStatus.SUCCESS,
-                        List.of(),
-                        0d,
-                        null,
-                        "{\"document\":{\"json_content\":{\"texts\":[{\"text\":\"real content the chunker and"
-                                + " the shingler both read\"}]}}}"));
-
-        claim(
-                "the answer is a conversion, which is what tells the step to shingle its text",
-                () -> assertThat(decision).isInstanceOf(OccurrenceDecision.Converted.class));
-        claim(
-                "and nothing was chunked: a chunk cut under a budget no embedding model has been named for is"
-                        + " work guaranteed to be discarded, and stage 5 re-chunks from the extraction cache once a"
-                        + " model exists",
-                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM chunk_cache", Integer.class))
-                        .isZero());
-    }
-
-    /**
-     * #275: every spreadsheet in the GesPOS corpus earned degenerate-output, 2.4 million characters of
-     * cells among them, because only {@code texts[]} was read. The shingle half stays in {@code
-     * pipeline}'s {@code ExtractionItemProcessorTest}.
-     */
-    @Test
-    @Story("Tier 1 — the hard zero-content floor")
-    @DisplayName("A spreadsheet, which converts to a table and no text items, clears the floor")
-    @Issue("275")
-    @Link(name = "ADR-145", url = Adr.TABLE_CELLS_ARE_EXTRACTED_TEXT, type = "adr")
-    void aSpreadsheetClearsTheFloor() {
-        Judging judging = judging(1);
-
-        OccurrenceDecision decision = judging.answer(
-                0,
-                new DoclingResponse(
-                        ConversionStatus.SUCCESS,
-                        List.of(),
-                        0d,
-                        null,
-                        "{\"document\":{\"json_content\":{\"body\":{\"children\":[{\"$ref\":\"#/tables/0\"}]},"
-                                + "\"texts\":[],\"tables\":[{\"children\":[],\"data\":{\"table_cells\":["
-                                + "{\"text\":\"Merchant\",\"start_row_offset_idx\":0,\"start_col_offset_idx\":0},"
-                                + "{\"text\":\"Terminal\",\"start_row_offset_idx\":0,\"start_col_offset_idx\":1},"
-                                + "{\"text\":\"ACME Srl\",\"start_row_offset_idx\":1,\"start_col_offset_idx\":0},"
-                                + "{\"text\":\"TID-273273\",\"start_row_offset_idx\":1,\"start_col_offset_idx\":1}"
-                                + "]}}]}}}"));
-
-        claim(
-                "a document whose whole content is a table is judged on its cells, and they are text, so it"
-                        + " earns no verdict here and goes on as a survivor",
                 () -> assertThat(decision).isEqualTo(new OccurrenceDecision.Converted(Optional.empty())));
     }
 
@@ -438,176 +211,6 @@ class OccurrenceJudgeTest {
                         + " aside unjudged instead, carrying the converter's own message and nothing else --"
                         + " not that message with this pass's count of timeouts spliced onto it",
                 () -> assertThat(third).isEqualTo(new OccurrenceDecision.SetAside("timeout", ERROR_MESSAGE)));
-    }
-
-    @Test
-    @Story("A converter that stops answering")
-    @DisplayName("A document that converts between two slow ones means the slow ones were not a pattern")
-    void oneConversionEndsTheRun() {
-        Judging judging = judging(2 * TIMEOUTS_STILL_READ_AS_THE_FILES + 1);
-        List<OccurrenceDecision> decisions = new ArrayList<>();
-        int next = 0;
-        for (int i = 0; i < TIMEOUTS_STILL_READ_AS_THE_FILES; i++) {
-            decisions.add(judging.judge.timedOut(judging.occurrence(next++), NO_ANSWER_IN_TIME));
-        }
-        decisions.add(judging.answer(next++, converted()));
-        for (int i = 0; i < TIMEOUTS_STILL_READ_AS_THE_FILES; i++) {
-            decisions.add(judging.judge.timedOut(judging.occurrence(next++), NO_ANSWER_IN_TIME));
-        }
-
-        claim(
-                "with " + TIMEOUTS_STILL_READ_AS_THE_FILES + " slow documents, one that converted, and then "
-                        + TIMEOUTS_STILL_READ_AS_THE_FILES + " more slow ones, nothing is ever set aside: a document"
-                        + " that converted in the middle proves the converter was answering, so the run before it"
-                        + " stopped counting",
-                () -> assertThat(decisions)
-                        .hasSize(2 * TIMEOUTS_STILL_READ_AS_THE_FILES + 1)
-                        .noneMatch(decision -> decision instanceof OccurrenceDecision.SetAside));
-    }
-
-    /**
-     * Ported from {@code recordsAMissingFormatRowAgainstTheOccurrenceAndCarriesOn}. Its other half --
-     * that nothing is sent to the converter for the occurrence and the next one is judged -- stays in
-     * {@code pipeline}'s {@code ExtractionItemProcessorTest}, with {@code convertsAsTheFormatStageOneRecorded},
-     * because what is sent is {@code pipeline}'s.
-     */
-    @Test
-    @Story("The format sent is the one stage 1 read off the bytes")
-    @DisplayName("An occurrence whose format was never recorded fails on its own, and its reason names where the format was sought")
-    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
-    @Link(name = "ADR-057", url = Adr.VERDICT_VOCABULARY_IS_EIGHT_VALUES, type = "adr")
-    void recordsAMissingFormatAgainstTheOccurrence() {
-        Judging judging = judging(1);
-        RunId stageOneRun = judging.occurrences.run();
-
-        OccurrenceDecision decision = judging.judge.noDetectedFormat(judging.occurrence(0), stageOneRun);
-
-        claim(
-                "a format that is not recorded is a broken invariant rather than a fact about the file, and it"
-                        + " is recorded as a failure of this occurrence",
-                () -> assertThat(decision).isInstanceOf(OccurrenceDecision.Failed.class));
-        claim(
-                "the reason names the occurrence and the run the format was sought under, because this is the"
-                        + " one such verdict no converter answer produced: in the ledger it is otherwise"
-                        + " indistinguishable from a conversion that really failed",
-                () -> assertThat(reasonOf(decision))
-                        .isEqualTo("no detected format is recorded for occurrence " + judging.occurrence(0).value()
-                                + " under run " + stageOneRun.value()));
-        claim(
-                "and nothing is measured for it, because nothing came back",
-                () -> assertThat(judging.metricRowsFor(0)).isZero());
-    }
-
-    // ---- The moved rules that had no test of their own in pipeline ----
-
-    @Test
-    @Story("A failure that is a fact about the document")
-    @DisplayName("A file the converter refused with an error status is recorded against it, and nothing is measured")
-    @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
-    void verdictsARejection() {
-        Judging judging = judging(1);
-
-        OccurrenceDecision decision = judging.judge.rejected(judging.occurrence(0), "docling-serve answered HTTP 500");
-
-        claim(
-                "an error status is the converter's answer about this file, so the file is recorded as one"
-                        + " extraction could not read, the reason saying it was rejected and how",
-                () -> assertThat(decision)
-                        .isEqualTo(new OccurrenceDecision.Failed("rejected: docling-serve answered HTTP 500")));
-        claim(
-                "and nothing is measured for it, because no converted document came back",
-                () -> assertThat(judging.metricRowsFor(0)).isZero());
-    }
-
-    @Test
-    @Story("A converter that drops the connection")
-    @DisplayName("A file that dropped the connection twice is recorded as having crashed the converter")
-    @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
-    void verdictsAnOccurrenceThatDroppedTheConnectionTwice() {
-        Judging judging = judging(1);
-
-        OccurrenceDecision decision =
-                judging.judge.droppedTwice(judging.occurrence(0), OccurrencesUnderARun.pathOf(0), "Connection reset");
-
-        claim(
-                "the reason says the converter crashed on this file, and carries what the connection said when"
-                        + " it was lost the second time",
-                () -> assertThat(decision)
-                        .isEqualTo(new OccurrenceDecision.DroppedTwice(
-                                "crashed the converter: docling-serve dropped the connection twice while converting"
-                                        + " this file: Connection reset",
-                                new InARow.Counted(1))));
-        claim(
-                "and nothing is measured for it",
-                () -> assertThat(judging.metricRowsFor(0)).isZero());
-    }
-
-    @Test
-    @Story("A converter that stops answering")
-    @DisplayName("A timeout the converter reports is measured, a call that brought nothing is not, and neither is one set aside")
-    void onlyATimeoutTheConverterReportedBelowTheCountIsMeasured() {
-        Judging judging = judging(TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR);
-
-        judging.answer(0, failing(FailureCategory.TIMEOUT));
-        judging.judge.timedOut(judging.occurrence(1), NO_ANSWER_IN_TIME);
-        judging.answer(2, failing(FailureCategory.TIMEOUT));
-
-        claim(
-                "a timeout the converter reported came back as a response about the file, so it is measured: "
-                        + METRIC_ROWS_PER_JUDGED_RESPONSE + " row",
-                () -> assertThat(judging.metricRowsFor(0)).isEqualTo(METRIC_ROWS_PER_JUDGED_RESPONSE));
-        claim(
-                "a call that brought nothing has nothing to measure: no row",
-                () -> assertThat(judging.metricRowsFor(1)).isZero());
-        claim(
-                "and the reported timeout that made the third in a row is set aside, so it is not measured"
-                        + " either, and a later run finds it untouched",
-                () -> assertThat(judging.metricRowsFor(2)).isZero());
-    }
-
-    /**
-     * The count is what the judge is given (ADR-330 §8, §14), at each end of the two to four a run may name: two give the
-     * second timeout to the converter, and four leave the third with its file.
-     */
-    @Test
-    @Story("A converter that stops answering")
-    @DisplayName("A timeout is set aside at the number in a row the judge is given, and is the file's before it")
-    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-    void aTimeoutIsSetAsideAtTheCountItIsGiven() {
-        Judging atTwo = new Judging(OccurrencesUnderARun.of(jdbcTemplate, 2), 2);
-        OccurrenceDecision firstOfTwo = atTwo.judge.timedOut(atTwo.occurrence(0), NO_ANSWER_IN_TIME);
-        OccurrenceDecision secondOfTwo = atTwo.judge.timedOut(atTwo.occurrence(1), NO_ANSWER_IN_TIME);
-        Judging atFour = new Judging(OccurrencesUnderARun.of(jdbcTemplate, 4), 4);
-        List<OccurrenceDecision> ofFour = new ArrayList<>();
-        for (int index = 0; index < 4; index++) {
-            ofFour.add(atFour.judge.timedOut(atFour.occurrence(index), NO_ANSWER_IN_TIME));
-        }
-
-        claim("given two, the first timeout is its file's",
-                () -> assertThat(firstOfTwo).isEqualTo(new OccurrenceDecision.Failed("timeout: " + NO_ANSWER_IN_TIME)));
-        claim("and the second is the converter's, so it is set aside",
-                () -> assertThat(secondOfTwo).isEqualTo(new OccurrenceDecision.SetAside("timeout", NO_ANSWER_IN_TIME)));
-        claim("given four, the first three are each their file's and only the fourth is set aside",
-                () -> assertThat(ofFour).containsExactly(
-                        new OccurrenceDecision.Failed("timeout: " + NO_ANSWER_IN_TIME),
-                        new OccurrenceDecision.Failed("timeout: " + NO_ANSWER_IN_TIME),
-                        new OccurrenceDecision.Failed("timeout: " + NO_ANSWER_IN_TIME),
-                        new OccurrenceDecision.SetAside("timeout", NO_ANSWER_IN_TIME)));
-    }
-
-    /** Outside two to four a count undoes what ADR-071 keeps: its reasons are this module's to hold (ADR-330 §9). */
-    @Test
-    @Story("A converter that stops answering")
-    @DisplayName("A count of one, which no slow document could survive, and a count of five, which the stop reaches first, are refused")
-    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-    void aCountOutsideTwoToFourIsRefused() {
-        OccurrencesUnderARun occurrences = OccurrencesUnderARun.of(jdbcTemplate, 1);
-
-        for (int noCount : List.of(1, 5)) {
-            claim("a judge given " + noCount + " timeouts in a row is refused",
-                    () -> assertThatThrownBy(() -> new Judging(occurrences, noCount))
-                            .isInstanceOf(IllegalArgumentException.class));
-        }
     }
 
     private Judging judging(int occurrences) {

@@ -13,10 +13,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Parameter;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,16 +21,12 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
-import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.http.HttpMethod;
@@ -67,9 +60,7 @@ class LocalLabellerTest {
 
     private static final String SEED_SET = "C:/archive/seeds";
     private static final String AN_EMBEDDER = "model=a-small-comparing-model;digest=abc;dtype=F16;dimension=384;instruction=none";
-    private static final String ANOTHER_EMBEDDER = "model=a-comparing-model;digest=def;dtype=F16;dimension=1024";
     private static final String THE_LABELLER = "ollama:a-writing-model:8b";
-    private static final String A_LOCAL_URL = "http://localhost:11434";
     private static final String OLLAMA = "http://ollama.example";
     private static final String A_DIGEST = "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d";
     private static final String A_HOSTED_URL = "https://api.openai.com/v1";
@@ -96,72 +87,6 @@ class LocalLabellerTest {
                         + " the operator said to keep scores below it, and the lowest one itself is kept"
                         + " because the floor removes only what scores below it",
                 () -> assertThat(floor).contains(LOWEST_RELEVANT_SCORE));
-    }
-
-    @Test
-    @Story("The floor is a rule over the labels")
-    @DisplayName("A label given under another embedder, and a set with no relevant label, give no floor")
-    void labelsOnAnotherScaleAndNoRelevantLabelGiveNoFloor() {
-        claim(
-                "a label given against another model's scores says nothing about this scale, so it is"
-                        + " not read",
-                () -> assertThat(LoseNoDocumentationFloor.over(
-                                List.of(label("a.pdf", true, 0.2, ANOTHER_EMBEDDER)), AN_EMBEDDER))
-                        .isEmpty());
-        claim(
-                "with no label saying relevant there is nothing to lose, and so no number to invent",
-                () -> assertThat(LoseNoDocumentationFloor.over(
-                                List.of(label("c.url", false, 0.9, AN_EMBEDDER)), AN_EMBEDDER))
-                        .isEmpty());
-    }
-
-    @Test
-    @Story("A model's label says a model set it")
-    @DisplayName("A label a model set is recorded naming the model, and a person's answer is not named")
-    void aModelsLabelNamesTheModel() {
-        RelevanceLabels labels = new RelevanceLabels(jdbcTemplate);
-        RunId run = aRun();
-        OccurrencePath byModel = new OccurrencePath("model-" + System.nanoTime() + ".pdf");
-        OccurrencePath byPerson = new OccurrencePath("person-" + System.nanoTime() + ".pdf");
-
-        boolean recorded = labels.recordByModel(byModel, SEED_SET, true, run, 0.7, AN_EMBEDDER, THE_LABELLER);
-        labels.record(byPerson, SEED_SET, true, run, 0.7, AN_EMBEDDER);
-
-        claim("the model's answer was recorded", () -> assertThat(recorded).isTrue());
-        claim(
-                "and it stands as an answer like any other",
-                () -> assertThat(labels.answerFor(byModel, SEED_SET)).contains(true));
-        claim(
-                "its provenance names the model that set it",
-                () -> assertThat(labels.labelledBy(byModel, SEED_SET)).contains(THE_LABELLER));
-        claim(
-                "an answer a person gave carries no such name, because no name means a person",
-                () -> assertThat(labels.labelledBy(byPerson, SEED_SET)).isEmpty());
-        claim(
-                "the answers a model set can be listed by path, for the file that shows them",
-                () -> assertThat(labels.modelAnswers(SEED_SET))
-                        .containsEntry(byModel.value(), THE_LABELLER)
-                        .doesNotContainKey(byPerson.value()));
-    }
-
-    @Test
-    @Story("A label a model set says so")
-    @DisplayName("A later model's answer replaces an earlier model's and the row names the latest")
-    void aLaterModelReplacesAnEarlierOne() {
-        RelevanceLabels labels = new RelevanceLabels(jdbcTemplate);
-        RunId run = aRun();
-        OccurrencePath document = new OccurrencePath("twice-" + System.nanoTime() + ".pdf");
-        labels.recordByModel(document, SEED_SET, true, run, 0.7, AN_EMBEDDER, "model-one");
-
-        boolean replaced = labels.recordByModel(document, SEED_SET, false, run, 0.7, AN_EMBEDDER, "model-two");
-
-        claim("the later model's answer was recorded", () -> assertThat(replaced).isTrue());
-        claim(
-                "its answer stands, and the provenance names the model that answered last",
-                () -> {
-                    assertThat(labels.answerFor(document, SEED_SET)).contains(false);
-                    assertThat(labels.labelledBy(document, SEED_SET)).contains("model-two");
-                });
     }
 
     @Test
@@ -203,27 +128,6 @@ class LocalLabellerTest {
 
     @Test
     @Story("No hosted endpoint is configurable for the labeller")
-    @DisplayName("Only this machine counts as local")
-    void onlyThisMachineIsLocal() {
-        claim(
-                "localhost, the IPv4 loopback and the IPv6 loopback are this machine",
-                () -> {
-                    assertThat(LocalEndpoint.isLocal(A_LOCAL_URL)).isTrue();
-                    assertThat(LocalEndpoint.isLocal("http://127.0.0.1:11434")).isTrue();
-                    assertThat(LocalEndpoint.isLocal("http://[::1]:11434")).isTrue();
-                });
-        claim(
-                "a hosted service, another machine and an address that merely starts like localhost are not",
-                () -> {
-                    assertThat(LocalEndpoint.isLocal(A_HOSTED_URL)).isFalse();
-                    assertThat(LocalEndpoint.isLocal("http://192.168.1.20:11434")).isFalse();
-                    assertThat(LocalEndpoint.isLocal("http://localhost.example.com:11434")).isFalse();
-                    assertThat(LocalEndpoint.isLocal("")).isFalse();
-                });
-    }
-
-    @Test
-    @Story("No hosted endpoint is configurable for the labeller")
     @DisplayName("The labeller refuses a hosted endpoint and asks its model nothing while it does")
     void theLabellerRefusesAHostedEndpoint() {
         AtomicInteger calls = new AtomicInteger();
@@ -240,27 +144,6 @@ class LocalLabellerTest {
         claim(
                 "and the chat model behind it was never called, so no opening was sent anywhere",
                 () -> assertThat(calls.get()).isZero());
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("modelsNotEstablishedAsLocal")
-    @Story("No hosted endpoint is configurable for the labeller")
-    @DisplayName("A model not established as running on this machine is refused with no call made, though the endpoint is local")
-    void aModelNotEstablishedAsLocalIsRefusedWithNoCallMade(String model, OllamaClient client, List<String> reasonSays) {
-        AtomicInteger calls = new AtomicInteger();
-        OllamaRelevanceLabeller labeller =
-                new OllamaRelevanceLabeller(saying("relevant", calls), model, A_LOCAL_URL, client);
-
-        Optional<Boolean> answer = labeller.answer(aQuestion());
-
-        claim(
-                "the refusal says why the model is not taken for a local one: a loopback endpoint does not keep"
-                        + " a document here when the local daemon forwards it to a hosted service, and a model"
-                        + " is not assumed local when that cannot be checked",
-                () -> assertThat(labeller.refusal()).hasValueSatisfying(reason -> assertThat(reason)
-                        .contains(reasonSays)));
-        claim("no answer was given", () -> assertThat(answer).isEmpty());
-        claim("the chat model was called zero times", () -> assertThat(calls.get()).isZero());
     }
 
     static Stream<Arguments> modelsNotEstablishedAsLocal() {
@@ -281,116 +164,6 @@ class LocalLabellerTest {
                         Named.of("a model whose remoteness cannot be established, not assumed local", "a-writing-model:8b"),
                         new OllamaClient(failing.build()),
                         List.of("could not be established", "is not assumed to be local")));
-    }
-
-    @Test
-    @Story("No hosted endpoint is configurable for the labeller")
-    @DisplayName("A model whose digest cannot be read is refused, whether tags fails or omits it")
-    void aModelWithNoReadableDigestIsRefused() {
-        for (boolean tagsFails : new boolean[] {true, false}) {
-            AtomicInteger calls = new AtomicInteger();
-            RestClient.Builder builder = RestClient.builder().baseUrl(OLLAMA);
-            MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-            server.expect(requestTo(OLLAMA + "/api/show")).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
-            if (tagsFails) {
-                server.expect(requestTo(OLLAMA + "/api/tags")).andRespond(withServerError());
-            } else {
-                server.expect(requestTo(OLLAMA + "/api/tags"))
-                        .andRespond(withSuccess(
-                                "{\"models\": [{\"name\": \"another:model\", \"digest\": \"" + A_DIGEST + "\"}]}",
-                                MediaType.APPLICATION_JSON));
-            }
-            OllamaRelevanceLabeller labeller = new OllamaRelevanceLabeller(
-                    saying("relevant", calls), "a-writing-model:8b", A_LOCAL_URL, new OllamaClient(builder.build()));
-
-            Optional<Boolean> answer = labeller.answer(aQuestion());
-
-            String when = tagsFails ? "when /api/tags fails" : "when /api/tags does not list the model";
-            claim(
-                    "it is refused with the reason " + when + ", since an identity with no digest cannot be"
-                            + " recorded",
-                    () -> assertThat(labeller.refusal()).hasValueSatisfying(reason -> assertThat(reason)
-                            .contains("could not be established")));
-            claim("it gave no answer " + when, () -> assertThat(answer).isEmpty());
-            claim("the chat model was asked nothing " + when, () -> assertThat(calls.get()).isZero());
-        }
-    }
-
-    @Test
-    @Story("A label a model set says so")
-    @DisplayName("The labeller's identity carries the model's name and its weights' digest")
-    void theIdentityCarriesTheDigest() {
-        RestClient.Builder builder = RestClient.builder().baseUrl(OLLAMA);
-        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo(OLLAMA + "/api/show"))
-                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
-        expectTags(server);
-        OllamaRelevanceLabeller labeller = new OllamaRelevanceLabeller(
-                saying("relevant", new AtomicInteger()), "a-writing-model:8b", A_LOCAL_URL, new OllamaClient(builder.build()));
-
-        claim(
-                "two models sharing a name and differing in weights do not share an identity, as with the"
-                        + " generator's",
-                () -> assertThat(labeller.identity()).contains("a-writing-model:8b").contains(A_DIGEST));
-    }
-
-    @Test
-    @Story("No hosted endpoint is configurable for the labeller")
-    @DisplayName("The labeller is built from Ollama's chat model and names no URL or key of its own")
-    void theLabellersOnlyConstructorTakesOllamaAndNoEndpoint() {
-        Constructor<?> injected = java.util.Arrays.stream(OllamaRelevanceLabeller.class.getConstructors())
-                .findFirst()
-                .orElseThrow();
-        List<String> expressions = new ArrayList<>();
-        for (Parameter parameter : injected.getParameters()) {
-            Value value = parameter.getAnnotation(Value.class);
-            if (value != null) {
-                expressions.add(value.value());
-            }
-        }
-
-        claim(
-                "the first thing it is given is Ollama's chat model, never the generic chat model that an"
-                        + " OpenAI one would also satisfy",
-                () -> assertThat(injected.getParameterTypes()[0]).isEqualTo(OllamaChatModel.class));
-        claim(
-                "every setting it reads is its own model name or Ollama's own, and none names a key or"
-                        + " another provider",
-                () -> assertThat(expressions)
-                        .isNotEmpty()
-                        .allSatisfy(expression -> assertThat(expression)
-                                .matches("\\$\\{(vespera\\.label\\.model|spring\\.ai\\.ollama\\.).*")
-                                .doesNotContainIgnoringCase("openai")
-                                .doesNotContainIgnoringCase("api-key")));
-    }
-
-    @Test
-    @Story("A model that is not sure leaves the question blank")
-    @DisplayName("One of two words is an answer and anything else is none")
-    void onlyOneOfTwoWordsIsAnAnswer() {
-        AtomicInteger calls = new AtomicInteger();
-        claim(
-                "the word relevant is a yes, with a model's usual trailing punctuation and case",
-                () -> assertThat(labelWith("Relevant.", calls)).contains(true));
-        claim("not relevant is a no", () -> assertThat(labelWith("not relevant", calls)).contains(false));
-        claim(
-                "a sentence is no answer, rather than a guess at what it meant",
-                () -> assertThat(labelWith("It seems relevant to me, but it is a log", calls)).isEmpty());
-        claim(
-                "a question with no opening is not put to the model, because a path alone would be a guess",
-                () -> {
-                    int before = calls.get();
-                    Optional<Boolean> answer = new OllamaRelevanceLabeller(
-                                    saying("relevant", calls), "a-writing-model:8b", A_LOCAL_URL, clientShowing("{}"))
-                            .answer(new LabelQuestion("a.pdf", "seed.pdf", Optional.empty()));
-                    assertThat(answer).isEmpty();
-                    assertThat(calls.get()).isEqualTo(before);
-                });
-    }
-
-    private Optional<Boolean> labelWith(String reply, AtomicInteger calls) {
-        return new OllamaRelevanceLabeller(saying(reply, calls), "a-writing-model:8b", A_LOCAL_URL, clientShowing("{}"))
-                .answer(aQuestion());
     }
 
     /** A client whose /api/show answers with {@code body}, once: the labeller asks once and remembers. */

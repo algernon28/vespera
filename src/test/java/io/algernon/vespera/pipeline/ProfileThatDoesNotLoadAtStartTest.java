@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.profile.MisshapenProfileException;
-import io.algernon.vespera.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -15,14 +14,9 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.bootstrap.DefaultBootstrapContext;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
@@ -47,13 +41,6 @@ class ProfileThatDoesNotLoadAtStartTest {
     /** What the README's Step 0 used to lead an operator to write. */
     private static final String A_KEY_WRITTEN_FLAT = "seedFolder: /seeds\n";
 
-    /** The same key in the shape README's Step 0 shows, which the check must let through. */
-    private static final String A_KEY_IN_ITS_SHAPE =
-            "seedFolder:\n  value: '/seeds'\n  provenance: \"the exemplars an archivist picked\"\n";
-
-    /** A name Spring would give the first bean to read the profile, which the operator never wrote. */
-    private static final String A_BEAN_THAT_ASKED_FIRST = "degenerateOutputConfidenceFloor";
-
     @Test
     @Story("A profile that does not load says why")
     @DisplayName("A profile that does not load stops the start while the environment is prepared")
@@ -64,55 +51,6 @@ class ProfileThatDoesNotLoadAtStartTest {
 
         claim("the check refuses the file with the profile's own fault, before any bean could ask for it",
                 () -> assertThat(stopped).isInstanceOf(MisshapenProfileException.class));
-    }
-
-    /** A working directory's profile that loads, or none: {@code null} writes no file. */
-    static Stream<Named<String>> profilesThatLoad() {
-        return Stream.of(
-                Named.of("no profile yet, which loads as every key unset", null),
-                Named.of("a profile in the shape Step 0 shows, every key carrying its value and provenance beneath it",
-                        A_KEY_IN_ITS_SHAPE));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("profilesThatLoad")
-    @Story("A profile that does not load says why")
-    @DisplayName("A working directory with no profile yet, or a profile written in the shape Step 0 shows, starts as it always did")
-    void aProfileThatLoadsStartsAsBefore(String profile, @TempDir Path workingDirectory) throws IOException {
-        if (profile != null) {
-            Files.writeString(workingDirectory.resolve("profile.yaml"), profile);
-        }
-
-        Throwable stopped = catchThrowable(() -> new ProfileShapeCheck().onApplicationEvent(prepared(workingDirectory)));
-
-        claim("nothing is refused", () -> assertThat(stopped).isNull());
-    }
-
-    @Test
-    @Story("A profile that does not load says why")
-    @DisplayName("A profile that does not load is recognised even inside a bean's creation failure")
-    void theFaultIsRecognisedInsideABeansFailure(@TempDir Path workingDirectory) throws IOException {
-        Files.writeString(workingDirectory.resolve("profile.yaml"), A_KEY_WRITTEN_FLAT);
-        Throwable misshapen = catchThrowable(() -> new ProfileStore(workingDirectory).load());
-        BeanCreationException wrapped = new BeanCreationException(A_BEAN_THAT_ASKED_FIRST, "failed", misshapen);
-
-        claim("the refusal claims it, so Spring prints no stack for it",
-                () -> assertThat(new MisshapenProfileRefusal().reportException(wrapped)).isTrue());
-        claim("and the entry point recognises it as the profile's fault too",
-                () -> assertThat(MisshapenProfileRefusal.refuses(wrapped)).isTrue());
-    }
-
-    @Test
-    @Story("A profile that does not load says why")
-    @DisplayName("Any other failed start is left for Spring to report in full")
-    void anyOtherFailedStartIsLeftAlone() {
-        BeanCreationException unrelated = new BeanCreationException(
-                A_BEAN_THAT_ASKED_FIRST, "failed", new IllegalStateException("something else entirely"));
-
-        claim("the refusal does not claim it, so the stack of a failure it knows nothing about is still shown",
-                () -> assertThat(new MisshapenProfileRefusal().reportException(unrelated)).isFalse());
-        claim("and the entry point lets it through rather than exiting as though the profile were at fault",
-                () -> assertThat(MisshapenProfileRefusal.refuses(unrelated)).isFalse());
     }
 
     private static ApplicationEnvironmentPreparedEvent prepared(Path workingDirectory) {

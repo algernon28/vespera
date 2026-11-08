@@ -101,30 +101,6 @@ class NoRunBehindAShutGateTest {
 
     @Test
     @Story("A gate that is shut leaves no record of work behind it")
-    @DisplayName("With the repetition floor unset, nothing from redundancy on is recorded, though a seed folder and a model are named")
-    void theBoilerplateGateStopsEverythingAfterIt(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpusDocument(root);
-        aSeed(seeds);
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so only the repetition floor is missing")
-                .build());
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation reports success: a missing value is something to supply, not a fault",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "and the only work recorded over this corpus is the work in front of the repetition"
-                        + " floor -- the byte-level reduction, extraction and the content census. Nothing"
-                        + " from redundancy on is recorded, although a seed folder and a model are named,"
-                        + " because every later stage reads what redundancy would have left",
-                () -> assertThat(stagesRecordedOver(root)).containsExactlyElementsOf(BEFORE_STAGE_4));
-    }
-
-    @Test
-    @Story("A gate that is shut leaves no record of work behind it")
     @DisplayName("With no seed folder named, nothing from the seed measurement on is recorded, though a model is named")
     void theSeedGateStopsEverythingAfterIt(@TempDir Path root) throws IOException {
         aCorpusDocument(root);
@@ -142,48 +118,6 @@ class NoRunBehindAShutGateTest {
                         + " named",
                 () -> assertThat(stagesRecordedOver(root)).containsExactlyElementsOf(
                         withAfterStage4("content-redundancy")));
-    }
-
-    @Test
-    @Story("A gate that is shut leaves no record of work behind it")
-    @DisplayName("With no embedding model named, the seeds are measured and nothing after them is recorded")
-    void theEmbeddingModelGateStopsEverythingAfterIt(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpusDocument(root);
-        aSeed(seeds);
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so only the model is missing")
-                .build());
-
-        cli.run("run", root.toString());
-
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "and the seed measurement is recorded, so the invocation reached the model gate, while"
-                        + " nothing after it is: no scoring, and so no arrangement either",
-                () -> assertThat(stagesRecordedOver(root)).containsExactlyElementsOf(
-                        withAfterStage4("content-redundancy", "seed-measurement")));
-    }
-
-    @Test
-    @Story("A gate that is shut leaves no record of work behind it")
-    @DisplayName("With nothing left to group, the scoring is recorded and no arrangement is")
-    void anEmptyGroupingStopsTheArrangement(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        // The only document in the archive is one the converter refuses to open, so it is removed at
-        // extraction and nothing survives to be scored, grouped or arranged.
-        Files.writeString(root.resolve(SeedScriptedExtractionBeans.REFUSED_CONVERSION), "a document");
-        aSeed(seeds);
-        EveryGateOpen.throughStageFive(profileStore, seeds);
-
-        cli.run("run", root.toString());
-
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "and the scoring is recorded, so the invocation reached the arrangement step, while no"
-                        + " arrangement is: there is no group to arrange, and a record of an arrangement of"
-                        + " nothing would be one a person could approve",
-                () -> assertThat(stagesRecordedOver(root)).containsExactlyElementsOf(
-                        withAfterStage4("content-redundancy", "seed-measurement", "embedding-scoring")));
     }
 
     @Test

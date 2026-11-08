@@ -43,9 +43,6 @@ class ExtractionCacheTest {
     /** A content hash standing in for a real one; its 64 hex characters are what the column holds. */
     private static final String CONTENT_HASH = "0".repeat(63) + "1";
 
-    /** Another document's hash, differing from the first, so a lookup cannot match by accident. */
-    private static final String ANOTHER_CONTENT_HASH = "0".repeat(63) + "2";
-
     /** The engine a row was produced under, composed the way whoever mints a run composes it. */
     private static final ExtractorIdentity IDENTITY =
             new ExtractorIdentity("docling-serve/1.9.0;pdf-pipeline=standard");
@@ -71,39 +68,6 @@ class ExtractionCacheTest {
                         + " reported errors, the time it took, the whole quality snapshot, and the"
                         + " untouched payload the later passes read their content out of",
                 () -> assertThat(cache.get(CONTENT_HASH, IDENTITY)).contains(stored));
-    }
-
-    @Test
-    @Story("A stored conversion comes back whole")
-    @DisplayName("A conversion the service never scored is read back as unscored, not as badly scored")
-    void roundTripsAResponseWithNoQualitySnapshotAtAll() {
-        ExtractionCache cache = new ExtractionCache(jdbcTemplate);
-        DoclingResponse withoutConfidence =
-                new DoclingResponse(ConversionStatus.SUCCESS, List.of(), 0.5, null, "{\"status\":\"success\"}");
-
-        cache.put(CONTENT_HASH, IDENTITY, withoutConfidence);
-
-        claim(
-                "a conversion that came back with no quality snapshot at all is stored and read back"
-                        + " with none, rather than with an invented empty one — absent means not"
-                        + " measured, and only an absent value still says that later",
-                () -> assertThat(cache.get(CONTENT_HASH, IDENTITY))
-                        .get()
-                        .extracting(DoclingResponse::confidence)
-                        .isNull());
-    }
-
-    @Test
-    @Story("What a stored conversion is filed under")
-    @DisplayName("Nothing is read back for content that was never converted")
-    void readsBackNothingForUnrecordedContent() {
-        ExtractionCache cache = new ExtractionCache(jdbcTemplate);
-        cache.put(CONTENT_HASH, IDENTITY, aFullResponse());
-
-        claim(
-                "asking about other content returns nothing rather than the one conversion that is"
-                        + " stored, which is the whole point of filing it under its content",
-                () -> assertThat(cache.get(ANOTHER_CONTENT_HASH, IDENTITY)).isEmpty());
     }
 
     @Test

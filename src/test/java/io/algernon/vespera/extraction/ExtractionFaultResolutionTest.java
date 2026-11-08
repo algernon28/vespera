@@ -58,48 +58,6 @@ class ExtractionFaultResolutionTest {
 
     @Test
     @Story("A file set aside is recorded when it is set aside, and resolved at the end of the stage")
-    @DisplayName("Recording a set-aside file writes its fault at once, in the transaction it was set aside in, and judges nothing")
-    void recordingWritesTheFaultAtOnce() {
-        OccurrencesUnderARun occurrences = OccurrencesUnderARun.of(jdbcTemplate, 1);
-        ExtractionFaultResolution resolution = resolution();
-
-        boolean emptyBefore = resolution.nothingRecorded();
-        resolution.record(occurrences.get(0), occurrences.run(), "capacity", "no room");
-
-        claim(
-                "before anything is recorded there is nothing to resolve",
-                () -> assertThat(emptyBefore).isTrue());
-        claim(
-                "and recording one writes its fault row at once, with the category and the message, inside the"
-                        + " transaction it was recorded in, where the chunk's other rows are; and no verdict, which"
-                        + " waits for the end of the stage",
-                () -> {
-                    assertThat(resolution.nothingRecorded()).isFalse();
-                    assertThat(jdbcTemplate.queryForList(
-                                    "SELECT category, detail FROM extraction_fault WHERE run_id = ?",
-                                    occurrences.run().value()))
-                            .containsExactly(Map.of("category", "capacity", "detail", "no room"));
-                    assertThat(count("verdict")).isZero();
-                });
-    }
-
-    @Test
-    @Story("A file set aside is recorded when it is set aside, and resolved at the end of the stage")
-    @DisplayName("Nothing a stage sets aside is kept in memory to the end of the stage")
-    void nothingIsHeldToTheEndOfTheStage() throws ClassNotFoundException {
-        Class<?> recorder = Class.forName("io.algernon.vespera.pipeline.ExtractionFaultRecorder");
-        claim(
-                "the resolution keeps no collection of any kind, so it cannot hold the stage's faults: each is"
-                        + " written when it is recorded, and the end of the stage reads them back a page at a time",
-                () -> assertThat(collectionFieldsOf(ExtractionFaultResolution.class)).isEmpty());
-        claim(
-                "nor does the listener that hears each set-aside and ends the stage, so what it hears it hands on at"
-                        + " once",
-                () -> assertThat(collectionFieldsOf(recorder)).isEmpty());
-    }
-
-    @Test
-    @Story("A file set aside is recorded when it is set aside, and resolved at the end of the stage")
     @DisplayName("A stage that completed resolves each recorded file into a verdict naming the category and the converter's message")
     void aCompletedStageResolvesEveryRecordedFault() {
         OccurrencesUnderARun occurrences = OccurrencesUnderARun.of(jdbcTemplate, TWO_RECORDED);

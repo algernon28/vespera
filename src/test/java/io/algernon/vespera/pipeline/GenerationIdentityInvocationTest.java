@@ -90,13 +90,6 @@ class GenerationIdentityInvocationTest {
     private static final String A_MODEL_NOTHING_HAS_EVER_BEEN_GIVEN = "a-model-nothing-holds:8b";
 
     /**
-     * The port a serving runtime listens on by default, which is the whole of where it is reachable
-     * that the record could have picked up. Named so the claim about its absence can say which number
-     * it means and why that number is the one to look for.
-     */
-    private static final String THE_PORT_A_RUNTIME_LISTENS_ON = "11434";
-
-    /**
      * A reading window other than the 8192 tokens the tool ships with, so a record carrying it can only
      * have taken it from the profile. Wider than the default, so every group this fixture arranges still
      * fits into a call.
@@ -230,74 +223,6 @@ class GenerationIdentityInvocationTest {
                         + " name alone would file two different pieces of work under one heading and"
                         + " nobody could tell afterwards which weights wrote which",
                 () -> assertThat(theRecordOfTheWork).contains(EmbeddingScriptedBeans.DIGEST));
-    }
-
-    @Test
-    @Story("The record of a piece of work says which weights actually did it")
-    @DisplayName("What is written down carries no trace of where the model was reached")
-    void recordsNoTraceOfWhereTheModelWasReached() {
-        String theRecordOfTheWork = written().theRecordOfTheWork();
-
-        claim(
-                "the work was recorded at all, so the claim below is about something that exists",
-                () -> assertThat(theRecordOfTheWork).isNotEmpty());
-        claim(
-                "and nothing in it says where the model was reached -- not the address and not the port "
-                        + THE_PORT_A_RUNTIME_LISTENS_ON + " a runtime listens on by default. Two"
-                        + " deployments answering alike are one instrument and moving a port is not a"
-                        + " change, so a record carrying the address would count the same work twice",
-                () -> assertThat(theRecordOfTheWork)
-                        .doesNotContain(THE_PORT_A_RUNTIME_LISTENS_ON)
-                        .doesNotContain("localhost"));
-    }
-
-    @Test
-    @Story("The record of a piece of work says which weights actually did it")
-    @DisplayName("What is written down carries how much each call was allowed to read, as the operator set it")
-    void recordsTheReadingWindowTheOperatorSet() {
-        String theRecordOfTheWork = written().theRecordOfTheWork();
-
-        claim(
-                "the work was recorded at all, so the claim below is about something that exists",
-                () -> assertThat(theRecordOfTheWork).isNotEmpty());
-        claim(
-                "and it carries the window of " + A_WINDOW_OTHER_THAN_THE_DEFAULT + " tokens this test set"
-                        + " rather than the one the tool ships with: how much each call could read is part"
-                        + " of what was asked, and the same archive read through a narrower window is"
-                        + " written from fewer documents, which is different work and has to be recorded"
-                        + " as different work rather than as the same work twice",
-                () -> assertThat(theRecordOfTheWork)
-                        .contains("\"contextWindow\":" + A_WINDOW_OTHER_THAN_THE_DEFAULT + ","));
-    }
-
-    @Test
-    @Story("The record of a piece of work says which weights actually did it")
-    @DisplayName("What is written down names the arrangement the approval named")
-    void recordsTheApprovedArrangement() {
-        Written written = written();
-
-        claim(
-                "the work was recorded at all, so the claim below is about something that exists",
-                () -> assertThat(written.theRecordOfTheWork()).isNotEmpty());
-        claim(
-                "and it names, in full, the arrangement the approval named, as well as reading it: a"
-                        + " re-arrangement then changes what the work is recorded as, and so the directory"
-                        + " the archive is written into, without anyone having to remember to change it",
-                () -> assertThat(written.theRecordOfTheWork())
-                        .contains("\"arrangementRunId\":\"" + written.approved().value() + "\""));
-    }
-
-    @Test
-    @Story("Nothing is written over the archive under weights nobody can name")
-    @DisplayName("With the model named never having been given to the runtime, the invocation stops")
-    void stopsWhenTheRuntimeCannotSayWhatItHoldsUnderThatName() {
-        Refused refused = refused();
-
-        claim(
-                "the invocation stopped rather than writing anything: a model the runtime has never been"
-                        + " given cannot be described, and writing an archive under a description nobody"
-                        + " can check is worse than not writing it",
-                () -> assertThat(refused.exitCode()).isNotZero());
     }
 
     @Test

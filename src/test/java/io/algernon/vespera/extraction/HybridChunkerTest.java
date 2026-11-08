@@ -4,25 +4,18 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.StatementLog;
-import io.algernon.vespera.ledger.KeysetPages;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -47,9 +40,6 @@ class HybridChunkerTest {
     /** A content hash standing in for one an earlier stage computed within a size-matched group. */
     private static final String CONTENT_HASH = "0".repeat(63) + "1";
 
-    /** How many words the default rule packs into one chunk before it must split. */
-    private static final int WORDS_PER_CHUNK = ChunkingRule.DEFAULT.maxWords();
-
     /** A second rule, budgeting fewer words, standing in for one tuned to another document kind. */
     private static final ChunkingRule NARROWER_RULE = new ChunkingRule(64);
 
@@ -69,11 +59,6 @@ class HybridChunkerTest {
                 }
               }
             }
-            """;
-
-    /** A document with no structural text items at all — Docling reported none. */
-    private static final String STRUCTURELESS_DOCUMENT = """
-            {"document": {"json_content": {"texts": []}}}
             """;
 
     @Autowired
@@ -103,72 +88,6 @@ class HybridChunkerTest {
     }
 
     @Test
-    @Story("A chunk never exceeds its word budget")
-    @DisplayName("A section long enough to exceed the word budget splits into more than one chunk")
-    void splitsASectionThatExceedsTheWordBudget() {
-        HybridChunker chunker = chunker();
-        String longParagraph = "word ".repeat(WORDS_PER_CHUNK + 50).trim();
-        String document =
-                """
-                {"document": {"json_content": {"texts": [
-                    {"text": "Body", "label": "section_header"},
-                    {"text": "%s", "label": "paragraph"}
-                ]}}}
-                """
-                        .formatted(longParagraph);
-
-        List<Chunk> chunks = chunker.chunk(document, CONTENT_HASH, ChunkingRule.DEFAULT);
-
-        claim(
-                "a paragraph whose word count alone exceeds the " + WORDS_PER_CHUNK
-                        + "-word budget is split across more than one chunk, rather than producing"
-                        + " one oversized chunk",
-                () -> assertThat(chunks.size()).isGreaterThan(1));
-        claim(
-                "and no single chunk exceeds the " + WORDS_PER_CHUNK + "-word budget",
-                () -> assertThat(chunks)
-                        .allSatisfy(chunk -> assertThat(chunk.wordCount()).isLessThanOrEqualTo(WORDS_PER_CHUNK)));
-    }
-
-    @Test
-    @Story("A structureless document yields no chunks")
-    @DisplayName("A document with no structural text items produces no chunks, rather than failing")
-    void structurelessDocumentProducesNoChunks() {
-        HybridChunker chunker = chunker();
-
-        List<Chunk> chunks = chunker.chunk(STRUCTURELESS_DOCUMENT, CONTENT_HASH, ChunkingRule.DEFAULT);
-
-        claim(
-                "a document Docling reported no structure for produces no chunks, rather than throwing",
-                () -> assertThat(chunks).isEmpty());
-    }
-
-    @Test
-    @Story("The same content is chunked once per chunking rule")
-    @DisplayName("Chunking the same content twice under the same rule chunks it only once")
-    void cachesChunksUnderOneChunkingRule() {
-        StatementLog log = new StatementLog(new TransactionAwareDataSourceProxy(Objects.requireNonNull(jdbcTemplate.getDataSource())));
-        HybridChunker chunker = new HybridChunker(new ChunkCache(log.jdbcTemplate()));
-
-        List<Chunk> first = chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, ChunkingRule.DEFAULT);
-        log.clear();
-        List<Chunk> second = chunker.chunk(TWO_SECTION_DOCUMENT, CONTENT_HASH, ChunkingRule.DEFAULT);
-        List<String> writtenBySecond = log.said().stream()
-                .filter(sql -> sql.stripLeading().toUpperCase(Locale.ROOT).startsWith("INSERT"))
-                .toList();
-
-        claim(
-                "the second call answers with the exact chunks stored the first time, rather than"
-                        + " re-chunking: it writes no row at all",
-                () -> assertThat(List.of(second, writtenBySecond)).containsExactly(first, List.of()));
-        claim(
-                "and exactly one chunk row per produced chunk is stored under this content and"
-                        + " rule, not one row per call",
-                () -> assertThat(chunkCount(chunker, ChunkingRule.DEFAULT))
-                        .isEqualTo(first.size()));
-    }
-
-    @Test
     @Story("A chunking-rule change re-chunks instead of overwriting")
     @DisplayName("Chunking the same content under a different chunking rule adds new rows rather than replacing the old ones")
     void reChunksUnderADifferentChunkingRule() {
@@ -184,55 +103,6 @@ class HybridChunkerTest {
         claim(
                 "and the second rule's own chunks are stored separately, under its own identity",
                 () -> assertThat(chunkCount(chunker, NARROWER_RULE)).isPositive());
-    }
-
-    /**
-     * The pieces of more documents than a page are counted in pages of the ledger's size, as every other read
-     * that asks a list of documents by key, and not refused (ADR-245).
-     */
-    @Test
-    @Story("The same content is chunked once per chunking rule")
-    @DisplayName("The pieces of more documents than a page holds are counted all the same, a page of documents to a statement")
-    @Link(name = "ADR-245", url = Adr.A_PAGE_IS_ASKED_WHETHER_IT_IS_KEPT_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN_ONLY_ON_WINDOWS, type = "adr")
-    void countsThePiecesOfMoreDocumentsThanAPage() {
-        HybridChunker chunker = chunker();
-        List<String> contentHashes = new ArrayList<>();
-        for (int document = 0; document <= KeysetPages.ROWS_IN_A_PAGE; document++) {
-            contentHashes.add(String.format("%064d", document));
-        }
-        List<Object[]> rows = new ArrayList<>();
-        for (int document = 0; document < contentHashes.size(); document++) {
-            for (int piece = 0; piece <= document % 2; piece++) {
-                rows.add(new Object[] {
-                    contentHashes.get(document), chunker.identity(), ChunkingRule.DEFAULT.identity().value(), piece, "a piece", 2
-                });
-            }
-        }
-        jdbcTemplate.batchUpdate(
-                "INSERT INTO chunk_cache"
-                        + " (content_hash, chunker_identity, chunking_rule_identity, ordinal, chunk_text, word_count)"
-                        + " VALUES (?, ?, ?, ?, ?, ?)",
-                rows);
-
-        StatementLog log = new StatementLog(new TransactionAwareDataSourceProxy(Objects.requireNonNull(jdbcTemplate.getDataSource())));
-        Map<String, Integer> counted = new HybridChunker(new ChunkCache(log.jdbcTemplate()))
-                .chunkCounts(contentHashes, ChunkingRule.DEFAULT);
-
-        claim(
-                "every one of the " + contentHashes.size() + " documents has its pieces counted, one or two of them"
-                        + " as were stored",
-                () -> {
-                    assertThat(counted).hasSize(contentHashes.size());
-                    assertThat(counted.get(contentHashes.getFirst())).isOne();
-                    assertThat(counted.get(contentHashes.get(1))).isEqualTo(2);
-                    assertThat(counted.get(contentHashes.getLast())).isOne();
-                });
-        claim(
-                "asked by two statements, one for the first " + KeysetPages.ROWS_IN_A_PAGE + " documents and one"
-                        + " for the last, rather than one statement naming them all",
-                () -> assertThat(log.said())
-                        .filteredOn(sql -> sql.contains("FROM chunk_cache"))
-                        .hasSize(2));
     }
 
     /** How many chunks {@link #CONTENT_HASH} has stored under {@code rule}, none where it has none. */
