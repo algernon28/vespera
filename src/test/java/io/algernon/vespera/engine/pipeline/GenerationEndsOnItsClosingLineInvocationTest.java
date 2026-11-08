@@ -52,8 +52,8 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
-@Epic("Synthesis")
-@Feature("Writing over the groups")
+@Epic("Architecture")
+@Feature("Process exit")
 @Issue("773")
 @Link(name = "ADR-364", url = Adr.THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK, type = "adr")
 class GenerationEndsOnItsClosingLineInvocationTest {
