@@ -8,7 +8,7 @@
 // script is held here, as the guard is, and .github/workflows/build.yml runs this file in both jobs.
 //
 // What is held is the script the website module ships, at the place the jar carries it from:
-// src/main/resources/io/algernon/vespera/website/website.js, which website.TheWebsiteIsSelfContainedTest holds
+// src/main/resources/io/algernon/vespera/publish/website/website.js, which website.TheWebsiteIsSelfContainedTest holds
 // the drawn website.js equal to, byte for byte. It is run in a context of its own with no network and a
 // small document of the test's, which holds the two elements every page of the website holds for its search,
 // the query, id "search", and the place what it finds is written, id "search-results" (the Java test holds
@@ -32,7 +32,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const WEBSITE_JS = resolve(repo, "src/main/resources/io/algernon/vespera/website/website.js");
+const WEBSITE_JS = resolve(repo, "src/main/resources/io/algernon/vespera/publish/website/website.js");
 
 const THE_INDEX = [
   {

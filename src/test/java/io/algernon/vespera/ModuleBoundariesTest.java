@@ -41,6 +41,7 @@ import org.springframework.modulith.core.ApplicationModules;
 @Link(name = "ADR-101", url = Adr.THE_RUN_ENDS_AT_THE_GENERATED_DOCUMENTS, type = "adr")
 @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
 @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+@Link(name = "ADR-367", url = Adr.THE_JARS_PACKAGES_LIE_UNDER_ENGINE_PUBLISH_AND_UI, type = "adr")
 class ModuleBoundariesTest {
 
     private static final ApplicationModules MODULES = ApplicationModules.of(VesperaApplication.class);
@@ -193,8 +194,10 @@ class ModuleBoundariesTest {
     }
 
     /**
-     * A package under the application root that is not one of the eleven is a module nobody decided
-     * on. Catching it here is cheaper than finding it once things depend on it. And each of the eleven is
+     * A package annotated {@code @ApplicationModule} that is not one of the eleven is a module nobody decided
+     * on. Catching it here is cheaper than finding it once things depend on it. Since ADR-367 a module is a package
+     * that carries the annotation, found under {@code engine} or {@code publish}, so a package left without it is
+     * not seen here and {@code TheJarsCodeLiesUnderEngineAndPublishAndUiTest} holds that there is none. And each of the eleven is
      * there: the tree the operator is handed is drawn by a module of its own, which no stage's version names
      * (ADR-274 §4, §5), and the one module that opens a connection to Confluence is one of its own too
      * (ADR-308 §7, §10), and so is the website's (ADR-333 §1); what each declares is held above.

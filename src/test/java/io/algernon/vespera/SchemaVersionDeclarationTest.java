@@ -3,7 +3,7 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.algernon.vespera.ledger.SchemaVersionGuard;
+import io.algernon.vespera.engine.ledger.SchemaVersionGuard;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -31,7 +31,7 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * ADR-059's other half: every module that owns tables states the schema it was built against.
  *
- * <p>{@link io.algernon.vespera.ledger.SchemaVersionGuard} already refuses a module whose recorded
+ * <p>{@link io.algernon.vespera.engine.ledger.SchemaVersionGuard} already refuses a module whose recorded
  * version is not the one its code expects, and {@code SchemaVersionGuardTest} pins that refusal. But
  * a module that never calls the guard at all is refused by nothing: it reads and writes a database
  * it has made no claim about, and the first sign of trouble is a column that is not there. That is

@@ -3,18 +3,18 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.algernon.vespera.embedding.DocumentCluster;
-import io.algernon.vespera.embedding.DocumentClusters;
-import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.synthesis.Arrangement;
-import io.algernon.vespera.synthesis.ClusterFault;
-import io.algernon.vespera.synthesis.ClusterFaults;
-import io.algernon.vespera.synthesis.Clusters;
-import io.algernon.vespera.deliverable.Deliverable;
-import io.algernon.vespera.synthesis.RecordedCluster;
-import io.algernon.vespera.synthesis.SynthesisDoc;
-import io.algernon.vespera.synthesis.SynthesisDocs;
-import io.algernon.vespera.synthesis.SynthesisStatement;
+import io.algernon.vespera.engine.embedding.DocumentCluster;
+import io.algernon.vespera.engine.embedding.DocumentClusters;
+import io.algernon.vespera.engine.ledger.RunId;
+import io.algernon.vespera.engine.synthesis.Arrangement;
+import io.algernon.vespera.engine.synthesis.ClusterFault;
+import io.algernon.vespera.engine.synthesis.ClusterFaults;
+import io.algernon.vespera.engine.synthesis.Clusters;
+import io.algernon.vespera.engine.deliverable.Deliverable;
+import io.algernon.vespera.engine.synthesis.RecordedCluster;
+import io.algernon.vespera.engine.synthesis.SynthesisDoc;
+import io.algernon.vespera.engine.synthesis.SynthesisDocs;
+import io.algernon.vespera.engine.synthesis.SynthesisStatement;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -51,9 +51,9 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
 class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
 
-    private static final String DELIVERABLE = "io.algernon.vespera.deliverable.";
+    private static final String DELIVERABLE = "io.algernon.vespera.engine.deliverable.";
 
-    private static final String PIPELINE = "io.algernon.vespera.pipeline.";
+    private static final String PIPELINE = "io.algernon.vespera.engine.pipeline.";
 
     @Test
     @Story("No table of the last three stages is read a whole run at a time")
@@ -177,7 +177,7 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
                         || java.util.stream.BaseStream.class.isAssignableFrom(type));
     }
 
-    /** Whether {@code type} is {@code List<io.algernon.vespera.deliverable.Plugin>}, and nothing wider. */
+    /** Whether {@code type} is {@code List<io.algernon.vespera.engine.deliverable.Plugin>}, and nothing wider. */
     private static boolean isThePluginBeans(Type type) {
         return type instanceof ParameterizedType parameterized
                 && parameterized.getRawType() == List.class

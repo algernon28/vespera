@@ -89,7 +89,7 @@ class ChromaIsRemovedTest {
     private static final String VECTOR_STORE_TYPES = "org/springframework/ai/vectorstore/";
 
     /** The configuration class that deferred the store's connection, which goes with the store. */
-    private static final String THE_CLASS_THAT_DEFERRED_THE_STORE = "io.algernon.vespera.pipeline.VectorStoreConfiguration";
+    private static final String THE_CLASS_THAT_DEFERRED_THE_STORE = "io.algernon.vespera.engine.pipeline.VectorStoreConfiguration";
 
     /** The file the application ships with, read as Spring reads it. */
     private static final String SHIPPED_CONFIGURATION = "application.yaml";

@@ -55,8 +55,11 @@ class TheBuildRecordsNoVersionAShallowCloneCannotGiveTest {
     /** The script the build runs when it generates its resources, read from the checkout the tests run in. */
     private static final Path THE_SCRIPT = Path.of(".mvn", "scripts", "implementation-versions.groovy");
 
-    /** Where the script looks for modules, under the base folder it is given: one folder each. */
-    private static final String MODULES = "src/main/java/io/algernon/vespera";
+    /**
+     * Where the script looks for modules, under the base folder it is given: one folder each, under {@code engine} or
+     * {@code publish} (ADR-367). The three the fixture adds are all of {@code engine}.
+     */
+    private static final String MODULES = "src/main/java/io/algernon/vespera/engine";
 
     /** Where the script writes, under the build folder it is given. */
     private static final String WRITTEN =
@@ -154,6 +157,32 @@ class TheBuildRecordsNoVersionAShallowCloneCannotGiveTest {
         claim(
                 "and the build warns for corpus and ledger, in that order, and not for pipeline",
                 () -> assertThat(written.warnings()).containsExactly(warningFor("corpus"), warningFor("ledger")));
+    }
+
+    @Test
+    @Story("A build records a version for each module wherever its folder lies, and for nothing that is no module")
+    @DisplayName("A module under publish is recorded by its folder's name beside one under engine, and the control panel's folder is recorded for none")
+    @Link(name = "ADR-367", url = Adr.THE_JARS_PACKAGES_LIE_UNDER_ENGINE_PUBLISH_AND_UI, type = "adr")
+    void aModuleUnderPublishIsRecordedAndTheControlPanelsFolderIsNot(@TempDir Path repository) throws IOException {
+        assumeTrue(FixtureGit.runs(), "git is not on the path, and the build asks it for every module's version");
+        git(repository, "init", "--quiet");
+        for (String folder : List.of("engine/ledger", "publish/website", "ui")) {
+            Path file = repository.resolve("src/main/java/io/algernon/vespera").resolve(folder).resolve("Changed.java");
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, "first");
+        }
+        git(repository, "add", "--all");
+        git(repository, "commit", "--quiet", "--message", "adds a module of each folder and the control panel's");
+        String only = git(repository, "rev-parse", "HEAD");
+        Written written = stamp(repository);
+
+        claim(
+                "the build records ledger, of engine, and website, of publish, each by its folder's name, with the one"
+                        + " commit that touched its folder, and nothing for ui, the control panel's folder, which is"
+                        + " no module and holds no stage",
+                () -> assertThat(written.versions())
+                        .containsExactly(Map.entry("ledger", only), Map.entry("website", only)));
+        claim("and the build warns of nothing", () -> assertThat(written.warnings()).isEmpty());
     }
 
     /** The line the script logs for a module it records as unknown, whatever the reason. */

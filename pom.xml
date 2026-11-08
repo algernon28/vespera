@@ -288,7 +288,7 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <!-- ADR-342 section 2: the jar's Start-Class is the entry point that opens the window or runs the command line. -->
-                    <mainClass>io.algernon.EntryPoint</mainClass>
+                    <mainClass>io.algernon.vespera.EntryPoint</mainClass>
                 </configuration>
             </plugin>
             <plugin>

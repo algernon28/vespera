@@ -43,24 +43,27 @@ const README = "README.md";
 const ADR_DIR = "docs/adr";
 const ADR_INDEX = ADR_DIR + "/README.md";
 const MAIN = "src/main/java/io/algernon/vespera";
+// The capability modules lie one folder below one of these two (ADR-367); the control panel's folder, `ui`, is none.
+const ENGINE = MAIN + "/engine";
+const PUBLISH = MAIN + "/publish";
 const TEST = "src/test/java";
 const POM = "pom.xml";
 const APPLICATION_YAML = "src/main/resources/application.yaml";
 const COMPOSE = "compose.yaml";
-const COMMANDS = MAIN + "/pipeline/VesperaCommand.java";
+const COMMANDS = ENGINE + "/pipeline/VesperaCommand.java";
 /**
  * VesperaCommand.java, a command named by a constant, `name = ServeCommand.NAME` (ADR-333 §8), written as the text the
  * constant holds, read from that class in `pipeline`, so that the checks reading `@Command(name = "...")` see it.
  */
 function commandsSource() {
   return readFileSync(COMMANDS, "utf8").replace(/(@Command\(\s*name = )([A-Z]\w*)\.([A-Z_]+)\b/g, (whole, head, cls, constant) => {
-    const file = `${MAIN}/pipeline/${cls}.java`;
+    const file = `${ENGINE}/pipeline/${cls}.java`;
     const held = existsSync(file) && new RegExp(`\\b${constant} = "(\\w+)";`).exec(readFileSync(file, "utf8"));
     return held ? `${head}"${held[1]}"` : whole;
   });
 }
-const WORKING_DIRECTORY_OPTION = MAIN + "/pipeline/WorkingDirectoryOption.java";
-const PROFILE = MAIN + "/profile/Profile.java";
+const WORKING_DIRECTORY_OPTION = ENGINE + "/pipeline/WorkingDirectoryOption.java";
+const PROFILE = ENGINE + "/profile/Profile.java";
 // No trailing slash: the list form is /issues?labels=..., and /issues/?labels=... is a 404.
 const ISSUE_API = "https://api.github.com/repos/algernon28/vespera/issues";
 
@@ -158,7 +161,7 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
 // and a package on disk the file names nowhere — the tenth module nobody documented.
 {
   const NAME = "the module list";
-  const listed = claim(/as packages under `io\.algernon\.vespera`: ([^.]+)\./, NAME);
+  const listed = claim(/as packages under `io\.algernon\.vespera\.engine` and `io\.algernon\.vespera\.publish`: ([^.]+)\./, NAME);
   const total = claim(/\*\*(\w+) capability-shaped modules\*\*/, NAME);
   // Two forms, because "none is still design only" is a real state and a sentence that
   // simply dropped the clause would turn this check off -- the defect this file exists
@@ -170,7 +173,7 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
     const named = backticked(listed[1]);
     const absent = gap.length > 2 ? backticked(gap[2]) : [];
     const present = named.filter((n) => !absent.includes(n));
-    const onDisk = subdirs(MAIN);
+    const onDisk = [...subdirs(ENGINE), ...subdirs(PUBLISH)];
     const wrong = [];
     if (named.length !== wordNumber(total[1])) wrong.push(`the file says ${total[1]} modules and names ${named.length}`);
     if (present.length !== wordNumber(gap[1])) wrong.push(`the file says ${gap[1]} exist and implies ${present.length}`);
@@ -382,7 +385,7 @@ function readmeSection(heading, name) {
   // says vespera serve reads no YAML file, application-local.yaml among them. The port and the property are read off
   // ServeCommand, and "reads no YAML file" holds only while ServeCommand's code, its comments aside, names none.
   const NAME = "what README says of vespera serve";
-  const SERVE_COMMAND = MAIN + "/pipeline/ServeCommand.java";
+  const SERVE_COMMAND = ENGINE + "/pipeline/ServeCommand.java";
   if (!existsSync(SERVE_COMMAND)) fail(NAME, `${SERVE_COMMAND} is not there, and README's vespera serve is read against it`);
   else {
     const source = readFileSync(SERVE_COMMAND, "utf8");
@@ -443,7 +446,7 @@ function readmeSection(heading, name) {
     // Measurement, census's own pointer (ADR-061), which census refreshes and nobody else writes
     // (ADR-062).
     const written = (type) => {
-      const record = new RegExp(`public record ${type}\\(([^)]*)\\)`).exec(readFileSync(`${MAIN}/profile/${type}.java`, "utf8"));
+      const record = new RegExp(`public record ${type}\\(([^)]*)\\)`).exec(readFileSync(`${ENGINE}/profile/${type}.java`, "utf8"));
       return record ? [...record[1].matchAll(/(\w+) (\w+)(?:,|$)/g)].filter((c) => c[1] !== "Measurement").map((c) => c[2]).sort() : null;
     };
     const text = written("TextValue");
@@ -746,7 +749,19 @@ function markerPattern(source, whole = false) {
   const declares = (path, method) => [...source(path).matchAll(DECLARATION(method))].some((m) => !NOT_A_TYPE.has(m[1]));
   const looksLikeATest = (simple) => /.(?:Test|IT)$/.test(simple) || testFiles.has(simple);
   /** The test files a class may be, its package's tail matched where it has one. */
-  const filesOf = (pkg, simple) => (testFiles.get(simple) ?? []).filter((p) => !pkg || p.endsWith(`/${pkg.replaceAll(".", "/")}/${simple}.java`));
+  // A record names a test by the package it lay in when the record was written, and a settled record is not edited: the
+  // packages ADR-367 moved are read as where they lie now. The control panel's `controlpanel` is `vespera.ui`, the entry
+  // point's `io.algernon` is `io.algernon.vespera`, and a module's `io.algernon.vespera.<module>` lies under `engine`, or
+  // under `publish` for the two plugins' modules. A short name, `pipeline.Class`, is matched by its tail and needs none.
+  const MOVED_MODULES = /^io\.algernon\.vespera\.(ledger|corpus|extraction|similarity|embedding|synthesis|deliverable|profile|pipeline)(?=\.|$)/;
+  const MOVED_PLUGINS = /^io\.algernon\.vespera\.(confluence|website)(?=\.|$)/;
+  const nowAt = (pkg) => pkg
+    .replace(/^io\.algernon\.controlpanel(?=\.|$)/, "io.algernon.vespera.ui")
+    .replace(/^controlpanel(?=\.|$)/, "ui")
+    .replace(/^io\.algernon$/, "io.algernon.vespera")
+    .replace(MOVED_MODULES, "io.algernon.vespera.engine.$1")
+    .replace(MOVED_PLUGINS, "io.algernon.vespera.publish.$1");
+  const filesOf = (pkg, simple) => (testFiles.get(simple) ?? []).filter((p) => !pkg || p.endsWith(`/${nowAt(pkg).replaceAll(".", "/")}/${simple}.java`));
   const holdsNested = (files, nested) => files.some((p) => new RegExp(`\\b(?:class|record|interface|enum) ${nested}\\b`).test(source(p)));
   // Packages, a class in CamelCase, classes nested in it, and a member: a test's name is a method, anything else is not.
   const QUALIFIED = /^((?:[a-z][a-z0-9]*\.)*)([A-Z][A-Za-z0-9]*[a-z][A-Za-z0-9]*)((?:\.[A-Z][a-z][A-Za-z0-9]*)*)(?:\.(\w+))?(?:\([^)]*\))?$/;

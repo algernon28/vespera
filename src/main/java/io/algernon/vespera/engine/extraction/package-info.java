@@ -1,0 +1,27 @@
+/**
+ * Docling's client and extraction cache: converting one document per call, and never converting the
+ * same content under the same engine twice.
+ *
+ * <p>A capability module: it may depend on {@code ledger} and nothing else horizontal (ADR-040). It
+ * does not know what a stage is — only {@code pipeline} does. Stage 2's rules are here: what an answer
+ * earns, the counts of failures in a row and what follows from them, and the resolution of extraction
+ * faults, which writes the verdicts that resolve them (ADR-189). {@code pipeline} holds the step that
+ * calls them and the text that names it.
+ *
+ * <p><strong>One horizontal dependency is declared beyond that, and it is the only one in the
+ * tree</strong>: {@code corpus}, for {@code DetectedFormat} and {@code DetectedSubtype} alone
+ * (ADR-100). Docling offers no way to state an input format, so the filename is the one lever there
+ * is, and deriving it from what stage 1 found is knowledge about Docling — which of its pipelines a
+ * class of file reaches — rather than knowledge about a stage. The same two enumerations serve two
+ * more rules over a detected format: what a seed the floor stopped is sent as, and which formats list
+ * their pictures (ADR-226), and the first splits stage 3's word counts (ADR-282). The purpose widens,
+ * not the declaration. It belongs behind this module's client, beside the {@code sentOptions} the
+ * extractor identity is built from, so that the two cannot drift. The alternative of a second
+ * enumeration here, translated by {@code pipeline}, would
+ * buy the unbroken rule with a copy of the vocabulary that has to track the original.
+ *
+ * <p>The dependency is on two closed enumerations that hold no behaviour and depend on nothing.
+ * Widening it to anything else in {@code corpus} is a decision, not a convenience.
+ */
+@org.springframework.modulith.ApplicationModule(id = "extraction", allowedDependencies = {"ledger", "corpus"})
+package io.algernon.vespera.engine.extraction;
