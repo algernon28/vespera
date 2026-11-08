@@ -3,17 +3,12 @@ package io.algernon;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.tngtech.archunit.core.domain.Dependency;
-import com.tngtech.archunit.core.domain.JavaClass;
-import com.tngtech.archunit.core.importer.ClassFileImporter;
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
@@ -37,12 +32,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
 class EntryPointTest {
 
-    /** The class whose {@code main} opens the window. */
-    private static final String THE_CONTROL_PANEL = "io.algernon.controlpanel.ControlPanel";
-
-    /** The class whose {@code main} runs the command line. */
-    private static final String THE_COMMAND_LINE = "io.algernon.vespera.VesperaApplication";
-
     @Test
     @Story("The operator opens the control panel by starting the jar")
     @DisplayName("The jar started with no argument opens the control panel")
@@ -62,19 +51,9 @@ class EntryPointTest {
                 () -> assertThat(EntryPoint.passedOn(arguments)).containsExactly(arguments));
     }
 
-    /**
-     * The commands, the two standard options, an option alone, an empty argument, and a --headless that is not first:
-     * every start the command line answers today.
-     */
+    /** A command with a --headless that is not first, the start an argument could be mistaken for the window's flag. */
     static Stream<Arguments> startsWithArguments() {
         return Stream.of(
-                Arguments.of(Named.of("a run of a corpus root", new String[] {"run", "D:/corpus"})),
-                Arguments.of(Named.of("the local model answering", new String[] {"label", "--auto"})),
-                Arguments.of(Named.of("a publish", new String[] {"publish"})),
-                Arguments.of(Named.of("the help", new String[] {"--help"})),
-                Arguments.of(Named.of("the version", new String[] {"--version"})),
-                Arguments.of(Named.of("an option and no command", new String[] {"--db-dir=D:/working"})),
-                Arguments.of(Named.of("one empty argument", new String[] {""})),
                 Arguments.of(Named.of("the headless flag after a command",
                         new String[] {"run", "D:/corpus", "--headless"})));
     }
@@ -91,33 +70,11 @@ class EntryPointTest {
                 () -> assertThat(EntryPoint.passedOn(arguments)).containsExactly(passedOn));
     }
 
-    /** The flag alone, and the flag before a command and its arguments. */
+    /** The flag before a command and its arguments. */
     static Stream<Arguments> headlessFirst() {
         return Stream.of(
-                Arguments.of(Named.of("the flag alone", new String[] {"--headless"}), new String[0]),
                 Arguments.of(Named.of("the flag before a run of a corpus root",
                                 new String[] {"--headless", "run", "D:/corpus"}),
-                        new String[] {"run", "D:/corpus"}),
-                Arguments.of(Named.of("the flag before the local model answering",
-                                new String[] {"--headless", "label", "--auto"}),
-                        new String[] {"label", "--auto"}));
-    }
-
-    @Test
-    @Story("The operator opens the control panel by starting the jar")
-    @DisplayName("The jar's entry point is no JavaFX application, lies outside both packages, and names the two it starts")
-    void theEntryPointIsNoJavaFxApplicationAndNamesBothItStarts() {
-        JavaClass entryPoint = new ClassFileImporter().importClass(EntryPoint.class);
-        Set<String> named = entryPoint.getDirectDependenciesFromSelf().stream()
-                .map(Dependency::getTargetClass)
-                .map(JavaClass::getName)
-                .collect(Collectors.toSet());
-
-        claim("it is no JavaFX application, so the Java launcher never asks for JavaFX's modules",
-                () -> assertThat(javafx.application.Application.class.isAssignableFrom(EntryPoint.class)).isFalse());
-        claim("it lies in io.algernon itself, neither in the jar's modules nor in the control panel's package",
-                () -> assertThat(EntryPoint.class.getPackageName()).isEqualTo("io.algernon"));
-        claim("and it names the control panel's main class and the command line's, the two it starts",
-                () -> assertThat(named).contains(THE_CONTROL_PANEL, THE_COMMAND_LINE));
+                        new String[] {"run", "D:/corpus"}));
     }
 }

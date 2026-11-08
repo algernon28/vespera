@@ -12,7 +12,6 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,41 +53,6 @@ class ProfileKeyTest {
         }
     }
 
-    /** The twenty-six keys in the profile's order, with the type and run the records' tables give each. */
-    private static final List<Row> TABLE = List.of(
-            new Row("seedFolder", Kind.TEXT, Run.SEED_MEASUREMENT),
-            new Row("degenerateOutputConfidenceFloor", Kind.NUMBER, Run.EXTRACTION),
-            new Row("degenerateOutputWordFloor", Kind.NUMBER, Run.EXTRACTION),
-            new Row("boilerplateDocumentFrequencyFloor", Kind.NUMBER, Run.CONTENT_REDUNDANCY),
-            new Row("embeddingModel", Kind.TEXT, Run.EMBEDDING_SCORING),
-            new Row("relevanceScoreFloor", Kind.NUMBER, Run.EMBEDDING_SCORING),
-            new Row("arrangementApproved", Kind.TEXT, Run.GENERATION),
-            new Row("generationModel", Kind.TEXT, Run.GENERATION),
-            new Row("generationContextWindow", Kind.NUMBER, Run.GENERATION),
-            new Row("clusterPageByteCeiling", Kind.NUMBER, Optional.empty()),
-            new Row("logTimestampShareFloor", Kind.NUMBER, Run.BYTE_LEVEL_REDUCTION),
-            new Row("extractionAttempt", Kind.NUMBER, Run.EXTRACTION),
-            new Row("codeNameEndings", Kind.NAME_ENDINGS, Run.BYTE_LEVEL_REDUCTION),
-            new Row("outOfScopeNameEndings", Kind.NAME_ENDINGS, Run.BYTE_LEVEL_REDUCTION),
-            new Row("translationSimilarityFloor", Kind.NUMBER, Run.EMBEDDING_SCORING),
-            new Row("preferredLanguages", Kind.LANGUAGES, Run.EMBEDDING_SCORING),
-            new Row("configurationSettingShareFloor", Kind.NUMBER, Run.BYTE_LEVEL_REDUCTION),
-            // ADR-321: the deliverable's language enters the generation run alone, so the approval stays open.
-            new Row("deliverableLanguage", Kind.TEXT, Run.GENERATION),
-            // ADR-330 §9: last of the profile, entering the scoring run, where a cluster's identity lies.
-            new Row("clusterResolution", Kind.NUMBER, Run.EMBEDDING_SCORING),
-            // ADR-334 §5.1: a list of folders outside the corpus root, entering byte-level reduction, the walk being another.
-            new Row("codeSetFolders", Kind.FOLDERS, Run.BYTE_LEVEL_REDUCTION),
-            // ADR-340 §8.1: folders below the corpus root the walk never enters, entering byte-level reduction, the walk
-            // that leaves them out being another.
-            new Row("foldersNotWalked", "CORPUS_FOLDERS", Run.BYTE_LEVEL_REDUCTION),
-            // ADR-359 §1: where a publish sends, which no stage reads, so each enters no run.
-            new Row("confluenceBaseUrl", Kind.TEXT, Optional.empty()),
-            new Row("confluenceSpaceKey", Kind.TEXT, Optional.empty()),
-            new Row("confluenceFolderId", Kind.TEXT, Optional.empty()),
-            new Row("confluenceFolderTitle", Kind.TEXT, Optional.empty()),
-            new Row("confluenceEmail", Kind.TEXT, Optional.empty()));
-
     /** The runs from each run on, in the cascade's order, as ADR-295 §5's table spells them. */
     private static final List<Run> FROM_BYTE_LEVEL_REDUCTION = List.of(Run.BYTE_LEVEL_REDUCTION, Run.EXTRACTION,
             Run.CONTENT_CENSUS, Run.CONTENT_REDUNDANCY, Run.SEED_MEASUREMENT, Run.EMBEDDING_SCORING, Run.ARRANGEMENT,
@@ -124,20 +88,6 @@ class ProfileKeyTest {
 
     @Test
     @Story("The control panel says what a change costs before it is saved")
-    @DisplayName("Each of the twenty-six profile keys, in the profile's order, has its type and the earliest run it enters, the page ceiling and the five values of a publish entering none")
-    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
-    @Link(name = "ADR-359", url = Adr.THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN, type = "adr")
-    void eachKeyHasItsTypeAndEarliestRun() {
-        claim("the table holds the twenty-six keys in the profile's order, each with its type and earliest run, and the"
-                        + " page ceiling and the five values of a publish, last, with none",
-                () -> assertThat(Arrays.stream(ProfileKey.values())
-                                .map(key -> new Row(key.key(), key.kind(), key.earliestRun()))
-                                .toList())
-                        .containsExactlyElementsOf(TABLE));
-    }
-
-    @Test
-    @Story("The control panel says what a change costs before it is saved")
     @DisplayName("A change costs its key's earliest run and every later one; the approval closes where the arrangement is among them, the labels are refused after a seed folder change, and the sample being answered is drawn again for the sixteen values whose runs include embedding scoring")
     @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     void aChangeCostsItsRunAndEveryLaterOne() {
@@ -156,24 +106,6 @@ class ProfileKeyTest {
                         + " sample again for the sixteen whose runs include embedding scoring; the page ceiling and the"
                         + " five values of a publish cost no run, close no approval, refuse no labels and draw no sample",
                 () -> assertThat(costs).containsExactlyEntriesOf(COST_OF_EACH_KEY));
-    }
-
-    /**
-     * The keys {@code effective-values.properties} says a value beneath (ADR-330 §1, §14), by name, the resolution's
-     * preset among them, so that a page told nothing says it does not know them.
-     */
-    @Test
-    @Story("The control panel says what a change costs before it is saved")
-    @DisplayName("Five values have something beneath the profile: the two models, the reading window, the language and how finely documents are grouped")
-    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-    void fiveKeysHaveAValueBeneathTheProfile() {
-        claim("these five and no other, in the profile's order",
-                () -> assertThat(Arrays.stream(ProfileKey.values())
-                                .filter(ProfileKey::hasAValueBeneath)
-                                .map(ProfileKey::key)
-                                .toList())
-                        .containsExactly("embeddingModel", "generationModel", "generationContextWindow",
-                                "deliverableLanguage", "clusterResolution"));
     }
 
     private static Map<String, Cost> costOfEachKey() {

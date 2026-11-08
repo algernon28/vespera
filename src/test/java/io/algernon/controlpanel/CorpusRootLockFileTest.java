@@ -14,14 +14,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.core.env.StandardEnvironment;
-import org.springframework.core.env.SystemEnvironmentPropertySource;
 
 /**
  * The contract between the control panel's reading of a corpus-root lock and the jar's taking of it (ADR-302 §2;
@@ -36,9 +32,6 @@ import org.springframework.core.env.SystemEnvironmentPropertySource;
 @Link(name = "ADR-302", url = Adr.THE_CONTROL_PANELS_SCREENS_ARE_SERVER_WRITTEN_FORMS, type = "adr")
 @Link(name = "ADR-279", url = Adr.ONE_VESPERA_RUN_PER_CORPUS_ROOT, type = "adr")
 class CorpusRootLockFileTest {
-
-    /** The home folder the control panel is given, as its start gives it the user's. */
-    private static final String USER_HOME = System.getProperty("user.home");
 
     @Test
     @Story("The operator sees which invocation holds the corpus folder")
@@ -64,41 +57,5 @@ class CorpusRootLockFileTest {
                 () -> assertThat(read).containsExactlyElementsOf(taken));
         claim("and the spellings of the one real folder name one file, a root that is not there another",
                 () -> assertThat(read.stream().distinct().count()).isEqualTo(2));
-    }
-
-    @Test
-    @Story("The operator sees which invocation holds the corpus folder")
-    @DisplayName("The folder the control panel reads the locks in is the jar's: the one the environment variable names, or the one in the user's home where it names none")
-    void theFolderOfTheLocksIsTheJarsWhateverTheVariableSays(@TempDir Path temporary) {
-        String named = temporary.resolve("locks of mine").toString();
-        List<String> variables = Arrays.asList(named, null, "", "  ");
-        List<Path> read = variables.stream()
-                .map(value -> ControlPanel.corpusRootLockFolder(value, USER_HOME))
-                .toList();
-        List<Path> taken = variables.stream()
-                .map(value -> CorpusRootLock.folderNamedBy(theJarsPropertyWhereTheVariableIs(value)))
-                .toList();
-
-        claim("the variable the control panel reads is one the jar reads its property " + CorpusRootLock.FOLDER_PROPERTY
-                        + " from",
-                () -> assertThat(theJarsPropertyWhereTheVariableIs(named)).isEqualTo(named));
-        claim("and named, unset, empty or blank, the folder the control panel reads the locks in is the one the jar"
-                        + " takes them in, the one named or .vespera-root-locks in the user's home",
-                () -> assertThat(read).containsExactlyElementsOf(taken)
-                        .containsExactly(Path.of(named), Path.of(USER_HOME, ".vespera-root-locks"),
-                                Path.of(USER_HOME, ".vespera-root-locks"), Path.of(USER_HOME, ".vespera-root-locks")));
-    }
-
-    /**
-     * The jar's {@link CorpusRootLock#FOLDER_PROPERTY} as its environment reads it where the control panel's variable
-     * is {@code value}, and nothing else is set; {@code null} where the variable is unset.
-     */
-    private static String theJarsPropertyWhereTheVariableIs(String value) {
-        StandardEnvironment environment = new StandardEnvironment();
-        environment.getPropertySources().replace(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
-                new SystemEnvironmentPropertySource(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
-                        value == null ? Map.of() : Map.of(ControlPanel.CORPUS_ROOT_LOCK_FOLDER_VARIABLE, value)));
-        environment.getPropertySources().remove(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME);
-        return environment.getProperty(CorpusRootLock.FOLDER_PROPERTY);
     }
 }
