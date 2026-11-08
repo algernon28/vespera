@@ -3,12 +3,12 @@
 - **Date**: 2026-11-08
 - **Status**: accepted on 2026-11-08.
 - **Settles**: the size of the Java test suite, which the operator asked to be cut to no more than six or seven hundred tests, its integration tests to the fewest the build needs.
-- **Amends**: every record from ADR-050 on whose Tests section names a test this cut deleted; the record keeps the name, and `docs/retired-tests.txt` says it is gone.
+- **Amends**: [ADR-337](0337-every-claim-can-fail-a-decision-is-held-once-and-a-records-tests-name-tests-that-exist.md) §5, and the rule of `docs/adr/README.md` it cites, for the records up to ADR-367: a record that names a test this decision removed, in its `## Tests` section or anywhere else in its text, keeps the name, and `docs/retired-tests.txt` says it is gone (§4). From ADR-368 on, ADR-337 §5 stands as written.
 - **Keeps**: [ADR-052](0052-the-test-report-is-written-for-a-reader-outside-the-project.md)'s four conventions, and the seven standards a test is held to, for every test that stays; [ADR-320](0320-a-publish-sends-each-page-whole-its-files-before-its-body-before-it-creates-the-next-and-says-how-far-it-has-got.md) §6, the publish's tests tagged `confluence` and skipped by CI.
 
 ## Context
 
-The suite had grown to 722 test files and 2,856 methods annotated as tests, most decisions held by a unit test and again by an invocation test that starts a Spring context, and many by several of each. Surefire ran about 3,250 executions, counting each parameterized case, and failsafe 25 integration test classes of about 95 more. A run of the unit tests took the better part of an hour on a cloud machine, and was killed for memory before it finished when anything else ran beside it.
+The suite had grown to 722 test files and 2,856 methods annotated as tests, most decisions held by a unit test and again by an invocation test that starts a Spring context, and many by several of each. Surefire ran about 3,250 executions, counting each parameterized case, and failsafe 25 integration test classes of about 95 more. A run of the unit tests takes the better part of an hour on a cloud machine.
 
 ## Decision
 
@@ -16,23 +16,23 @@ The suite had grown to 722 test files and 2,856 methods annotated as tests, most
 
 The Java suite under `src/test/java` holds at most 700 test methods, each annotated `@Test`, `@ParameterizedTest`, `@RepeatedTest` or `@TestFactory` counted once. A test added past it is paid for by one taken out. The node tests under `src/test/hooks`, `src/test/docs` and `src/test/website` are not counted: they hold the guard and the documentation scripts, not the application.
 
-### 2. What was cut, and in what order
+### 2. Which test goes
 
-Each module's tests were cut to a share of the ceiling, in this order:
+When a test is added past the ceiling, or the suite is cut to it, a test goes by this order:
 
 1. A claim held twice: a unit test and an invocation test holding the same rule, near-identical variants of one test, a claim also held by a neighbour.
-2. Of two tests holding one decision, the dearer: an invocation test, which starts a Spring context, gave way to a plain unit test.
-3. Then the least valuable, until the share was met. What stays holds verdict logic, the minting of run identities, the ledger's integrity, the refusals and failure paths that protect the operator's data, the census's identity rules on NTFS, and the architecture rules `AGENTS.md` names.
+2. Of two tests holding one decision, the dearer: an invocation test, which starts a Spring context, gives way to a plain unit test.
+3. Then the least valuable. What stays holds verdict logic, the minting of run identities, the ledger's integrity, the refusals and failure paths that protect the operator's data, the census's identity rules on NTFS, the architecture rules `AGENTS.md` names, the website's sandbox and the publish's host, token and foreign pages, and each copy the control panel holds as text of a table of the jar's, held to the jar's by a test (ADR-361 §2, ADR-324 §6).
 
 A parameterized test keeps one or two representative cases: folding several tests into one parameterized test of as many cases saves nothing.
 
 ### 3. Seven integration tests
 
-Seven stay: `CliExitIT` and `PackagedJarIT`, which need only failsafe's phase; `VesperaApplicationIT`, `DoclingClientIT`, `OllamaClientIT` and `ClusterSynthesisIT`, which need a Docker daemon and hold the application's contract with the tools it runs; and `PublishUpdatesOneTreeInPlaceIT`, tagged `confluence`, which holds the publish against its in-process stub. The eighteen others are deleted; what they held of the jar's locks, closing line and refusals is held, where it is still held, by the unit and invocation tests beside them.
+Seven stay: `CliExitIT` and `PackagedJarIT`, which need only failsafe's phase; `VesperaApplicationIT`, `DoclingClientIT`, `OllamaClientIT` and `ClusterSynthesisIT`, which need a Docker daemon and hold the application's contract with the tools it runs; and `PublishUpdatesOneTreeInPlaceIT`, tagged `confluence`, which holds the publish against its in-process stub. There are no others; what an integration test held of the jar's locks, closing line and refusals is held, where it is held, by the unit and invocation tests beside them.
 
 ### 4. The records keep their names
 
-A record's Tests section is not rewritten: the names it holds are what held it when it was accepted. `docs/retired-tests.txt` lists, one `ADR-NNN Name` a line, each name a record holds that this cut deleted, and `docs/check-claims.mjs` reads a listed name as retired rather than missing. A line naming a test that exists, or a name no record holds, fails the check, so the list cannot hide a name that comes back or a typo made later.
+A record up to ADR-367 is not rewritten: the names it holds are what held it when it was accepted. `docs/retired-tests.txt` lists, one `ADR-NNN Name` a line, each name a record's `## Tests` section holds that this decision removed, and `docs/check-claims.mjs` reads a listed name as retired rather than missing. A line naming a test that exists, or a name no record holds, fails the check, so the list cannot hide a name that comes back or a typo made later; and a line for ADR-368 or a later record fails it, since a later record's section is corrected in place by ADR-337 §5.
 
 ### 5. Run ids
 
@@ -45,9 +45,9 @@ No run id moves: no class under `src/main` changes.
 
 ## Consequences
 
-- The suite holds 661 methods annotated as tests. Surefire runs 649 executions, none failing, 6 skipped on assumptions a Linux machine cannot meet, and failsafe 24 in the seven classes: 673 in all, from about 3,350.
-- What a cut left with no test and decides a verdict, a run's identity, the refusal of a value no run can be made under, the website's sandbox, or the publish's host, token and foreign pages, is held again by one to three tests each.
+- The suite holds 667 methods annotated as tests, from 2,856; failsafe's seven classes hold 24.
 - Many decisions are held by one test where they were held by several, and some by none: what a record names in `docs/retired-tests.txt` is a claim no test holds now.
+- A name a record holds outside its `## Tests` section, in its Decision or a Keeps line, is not read by the claims check, and may name a removed test.
 
 ## What this does not decide
 
@@ -56,5 +56,5 @@ No run id moves: no class under `src/main` changes.
 
 ## Tests
 
-- `docs/check-claims.mjs` holds §1, failing when the methods annotated as tests under `src/test/java` pass 700, and §4, reading `docs/retired-tests.txt`.
+- `docs/check-claims.mjs` holds §1, failing when the methods annotated as tests under `src/test/java` pass 700, and §4, reading `docs/retired-tests.txt` and refusing a line of ADR-368 or later; `src/test/docs/check-claims.test.mjs` holds both on fixtures: 700 methods pass and 701 fail, a listed name that exists or that no record holds fails, a listed name is not reported missing, and a line of ADR-368 is refused.
 - `docs/check-claims.mjs` holds §3 through `AGENTS.md`'s list of the integration tests, which it compares with the `*IT` classes on disk.

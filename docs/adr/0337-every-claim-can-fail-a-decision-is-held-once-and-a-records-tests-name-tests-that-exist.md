@@ -1,5 +1,7 @@
 # ADR-337 — Every claim can fail, a decision is held once, and a record's Tests name tests that exist
 
+> **Partly amended — see [ADR-368](0368-the-test-suite-holds-at-most-seven-hundred-tests-and-seven-integration-tests.md).** Of §5: a record up to ADR-367 that names a test ADR-368 removed keeps the name, which `docs/retired-tests.txt` lists as retired and the claims check reads so; from ADR-368 on, a record's section is corrected in place as §5 says.
+
 - **Date**: 2026-11-03
 - **Status**: accepted on 2026-11-03.
 - **Keeps**: [ADR-052](0052-the-test-report-is-written-for-a-reader-outside-the-project.md): every assertion stays inside `TestSteps.claim`, and every test keeps its `@Story` and `@DisplayName`; a merge never takes a node out of the report's tree (§3).
