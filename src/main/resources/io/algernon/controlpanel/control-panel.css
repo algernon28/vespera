@@ -11,9 +11,63 @@
     -vespera-accent: #4c3fb1;
     -vespera-accent-ink: #ffffff;
     -vespera-bad: #b3282d;
+    -vespera-faint: #6f6a85;
     -fx-font-size: 13px;
     -fx-base: #efedf3;
     -fx-background: -vespera-ground;
+    -fx-text-fill: -vespera-ink;
+}
+
+/* the dark theme: the same tokens redefined, every pair at WCAG AA (4.5:1) or better; Modena derives the controls from -fx-base */
+.root.dark, .dark-dialog {
+    -vespera-ink: #ecebf3;
+    -vespera-dim: #aeaac2;
+    -vespera-surface: #25232f;
+    -vespera-ground: #1a1922;
+    -vespera-rule: #3b3949;
+    -vespera-accent: #b0a6ff;
+    -vespera-accent-ink: #16132b;
+    -vespera-bad: #ff8f94;
+    -vespera-faint: #8e8aa6;
+    -fx-base: #2c2a38;
+    -fx-background: -vespera-ground;
+    -fx-control-inner-background: #211f2a;
+    -fx-text-fill: -vespera-ink;
+    -fx-text-background-color: -vespera-ink;
+    -fx-text-inner-color: -vespera-ink;
+    -fx-prompt-text-fill: -vespera-dim;
+    -fx-focus-color: -vespera-accent;
+    -fx-faint-focus-color: transparent;
+}
+
+/* the theme switch: a pill, its knob on the right where dark is chosen */
+.theme-switch {
+    -fx-background-color: -vespera-dim;
+    -fx-background-radius: 12px;
+    -fx-padding: 2px;
+    -fx-min-width: 46px;
+    -fx-pref-width: 46px;
+    -fx-max-width: 46px;
+    -fx-min-height: 24px;
+    -fx-pref-height: 24px;
+    -fx-max-height: 24px;
+    -fx-cursor: hand;
+}
+
+.theme-switch:selected {
+    -fx-background-color: -vespera-accent;
+}
+
+.theme-switch .knob {
+    -fx-fill: -vespera-surface;
+}
+
+.dark-dialog.dialog-pane,
+.dark-dialog .dialog-pane {
+    -fx-background-color: -vespera-surface;
+}
+
+.dark-dialog .label {
     -fx-text-fill: -vespera-ink;
 }
 
@@ -67,7 +121,7 @@
 }
 
 .grey {
-    -fx-text-fill: #a29db8;
+    -fx-text-fill: -vespera-faint;
 }
 
 .key-name,

@@ -70,6 +70,18 @@ interface Dialogs {
         }
     };
 
+    /** Gives a dialog the window's stylesheet and, where the window is dark, the dark tokens: a dialog is a scene of its own. */
+    private static void themed(javafx.scene.control.DialogPane pane, Window over) {
+        if (over.getScene() == null || over.getScene().getRoot() == null) {
+            return;
+        }
+        javafx.scene.Parent root = over.getScene().getRoot();
+        pane.getStylesheets().addAll(root.getStylesheets());
+        if (root.getStyleClass().contains("dark")) {
+            pane.getStyleClass().add("dark-dialog");
+        }
+    }
+
     /** The system's dialogs over {@code owner}, a document handed over by {@code showDocument} with its address. */
     static Dialogs of(Supplier<Window> owner, Consumer<String> showDocument) {
         return new Dialogs() {
@@ -89,6 +101,7 @@ interface Dialogs {
                 Window over = owner.get();
                 if (over != null) {
                     ask.initOwner(over);
+                    themed(ask.getDialogPane(), over);
                 }
                 return ask.showAndWait();
             }
@@ -101,6 +114,7 @@ interface Dialogs {
                 Window over = owner.get();
                 if (over != null) {
                     ask.initOwner(over);
+                    themed(ask.getDialogPane(), over);
                 }
                 return ask.showAndWait().filter(answer -> answer == goOn).isPresent();
             }

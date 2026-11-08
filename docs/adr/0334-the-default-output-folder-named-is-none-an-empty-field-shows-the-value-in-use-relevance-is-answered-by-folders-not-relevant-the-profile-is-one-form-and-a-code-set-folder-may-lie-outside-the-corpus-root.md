@@ -8,7 +8,7 @@
 
 > **Partly amended — see [ADR-345](0345-the-cockpit-replaces-the-browser-control-panel-its-tree-writes-the-folders-not-walked-and-publish-offers-each-destination.md).** Of §6: the list of folders not relevant stands beneath the Inclusions tab's tree in the control panel's window, added to by `not-relevant-add` and taken from by `not-relevant-remove`; its file, its one action and its answers are unchanged. The rest of this record stands.
 
-> **Partly amended — see [ADR-366](0366-the-window-shows-a-provenance-on-one-line-behind-edit-reason-a-list-as-tags-a-code-set-by-its-folder-and-no-label-file.md).** Of §4: no file holds a rename of a set. Of §5.5: the absolute `folder` of `code-set-names.yaml` goes with the file, which nothing reads. Of §6: in the window relevance is answered by the folders not relevant alone, Command options offering no label file of the operator's own; `vespera label <file>` stays the command line's. The rest of this record stands.
+> **Partly amended — see [ADR-368](0368-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §4: no file holds a rename of a set. Of §5.5: the absolute `folder` of `code-set-names.yaml` goes with the file, which nothing reads. Of §6: in the window relevance is answered by the folders not relevant alone, Command options offering no label file of the operator's own; `vespera label <file>` stays the command line's. The rest of this record stands.
 
 - **Date**: 2026-11-03
 - **Status**: accepted on 2026-11-03.

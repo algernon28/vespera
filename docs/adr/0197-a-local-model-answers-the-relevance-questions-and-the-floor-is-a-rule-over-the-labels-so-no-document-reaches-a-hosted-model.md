@@ -6,7 +6,7 @@
 
 > **Read with [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md).** §6 keeps the operator's documents from any party but their owner; a publish, which sends the Confluence rendering to the owner's own Confluence tenancy, keeps it. This record stands whole.
 
-> **Read with [ADR-366](0366-the-window-shows-a-provenance-on-one-line-behind-edit-reason-a-list-as-tags-a-code-set-by-its-folder-and-no-label-file.md).** The control panel passes `vespera label` no file: its answers are given in the Inclusions tab, by folder (ADR-334 §6). `vespera label <file>`, and §6's refusal of `--auto` with a file, stand on the command line. This record stands whole.
+> **Read with [ADR-368](0368-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** The control panel passes `vespera label` no file: its answers are given in the Inclusions tab, by folder (ADR-334 §6). `vespera label <file>`, and §6's refusal of `--auto` with a file, stand on the command line. This record stands whole.
 
 - **Date**: 2026-10-05
 - **Status**: accepted

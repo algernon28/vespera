@@ -2,7 +2,7 @@
 
 > **Partly amended — see [ADR-359](0359-the-publish-reads-its-confluence-values-from-the-profile-and-the-control-panel-passes-the-token-to-its-child-alone.md).** Of §1 and §4: a publish's child inherits no `VESPERA_CONFLUENCE_*` variable from the window, and is given `VESPERA_STARTED_BY=control-panel` and, where Confluence is ticked, the API token Publish asks for in a masked field, as `VESPERA_CONFLUENCE_TOKEN`; `ChildCommand` gains `withConfluenceToken`, and `ChildCommandTest.publishIsTheJarsPublishCommandAndAddsNoConfluenceValue` holds of a publish given no token. The rest stands.
 
-> **Partly amended — see [ADR-366](0366-the-window-shows-a-provenance-on-one-line-behind-edit-reason-a-list-as-tags-a-code-set-by-its-folder-and-no-label-file.md).** Of §4: `label <file>` is never passed, Command options offering no label file; the entries never passed are four, `vespera help`, `vespera version`, `serve db-dir` and `label <file>`. The rest of this record stands.
+> **Partly amended — see [ADR-368](0368-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §4: `label <file>` is never passed, Command options offering no label file; the entries never passed are four, `vespera help`, `vespera version`, `serve db-dir` and `label <file>`. The rest of this record stands.
 
 - **Date**: 2026-11-05
 - **Status**: accepted on 2026-11-05.

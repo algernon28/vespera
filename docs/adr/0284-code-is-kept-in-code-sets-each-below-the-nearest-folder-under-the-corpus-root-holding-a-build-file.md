@@ -4,7 +4,7 @@
 
 > **Partly amended — see [ADR-334](0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md).** Of §2, §7, §8 and §9: a code set folder outside the corpus root anchors a set as the first folder under the corpus root does, its folder spelt absolute in `code_set`, `code_set_member` and `code-set-names.yaml`, its default name its last element. The rest of this record stands.
 
-> **Partly amended — see [ADR-366](0366-the-window-shows-a-provenance-on-one-line-behind-edit-reason-a-list-as-tags-a-code-set-by-its-folder-and-no-label-file.md).** Of §9 and §10: a code set is named by its folder alone. `code-set-names.yaml` is read by nothing and written by nothing, `CodeSetNames` goes, and no entry is dormant; a file left in a working directory stays as it is, read, written and deleted by nothing. The rest of this record stands.
+> **Partly amended — see [ADR-368](0368-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §9 and §10: a code set is named by its folder alone. `code-set-names.yaml` is read by nothing and written by nothing, `CodeSetNames` goes, and no entry is dormant; a file left in a working directory stays as it is, read, written and deleted by nothing. The rest of this record stands.
 
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.

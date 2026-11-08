@@ -2612,13 +2612,14 @@ public final class Adr {
             FILE + "0365-the-cockpits-charts-carry-a-legend-and-a-value-on-each-sample-and-a-running-step-or-leg-says-its-whole-percent.md";
 
     /**
-     * ADR-366 -- a profile value's provenance is one line of selectable text cut with an ellipsis, behind an Edit
-     * reason link that opens it whole in an editable box; a profile row is its title, whose tooltip holds the key and
-     * the description, its control, its cost, its reports and its provenance; a list value is removable tags; a code
-     * set is named by its folder alone, code-set-names.yaml read by nothing; and the window offers no label file.
+     * ADR-368 -- a profile row is one line, a toggle, its title over its key in brackets, and its control, the toggle
+     * opening its short description, the value in use, its cost line and warnings and its reports by title; the texts are
+     * profile-texts.json's; a value's provenance is in its title's tooltip alone, and a value changed in the window is
+     * saved with set in the control panel; a cut line shows an ellipsis; a list value is removable tags; a code set is
+     * named by its folder alone, code-set-names.yaml read by nothing; and the window offers no label file.
      */
-    public static final String THE_WINDOW_SHOWS_A_PROVENANCE_ON_ONE_LINE_AND_A_LIST_AS_TAGS =
-            FILE + "0366-the-window-shows-a-provenance-on-one-line-behind-edit-reason-a-list-as-tags-a-code-set-by-its-folder-and-no-label-file.md";
+    public static final String A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP =
+            FILE + "0368-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md";
 
     private Adr() {
     }

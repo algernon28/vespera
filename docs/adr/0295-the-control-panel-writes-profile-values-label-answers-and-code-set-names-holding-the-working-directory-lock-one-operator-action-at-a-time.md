@@ -8,7 +8,7 @@
 
 > **Partly amended — see [ADR-343](0343-the-note-saved-with-a-profile-value-is-filled-in-for-the-operator-set-in-the-control-panel-or-the-provenance-already-saved-and-a-value-changed-under-its-old-note-is-saved-with-the-filled-in-one.md).** Of §3: the control panel offers a provenance, the note filled in for the operator, the provenance the file states or `set in the control panel`. Of §4: its refusal of a blank provenance stays for every write, and the window, saving none, never meets it. The rest of this record stands.
 
-> **Partly amended — see [ADR-366](0366-the-window-shows-a-provenance-on-one-line-behind-edit-reason-a-list-as-tags-a-code-set-by-its-folder-and-no-label-file.md).** Of §2: the control panel no longer writes `code-set-names.yaml`, a write naming it refused as any file not among its own. §7 goes, and `CodeSetRenames` of §9 with it: a code set is named by its folder alone. The rest of this record stands.
+> **Partly amended — see [ADR-368](0368-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §2: the control panel no longer writes `code-set-names.yaml`, a write naming it refused as any file not among its own. §7 goes, and `CodeSetRenames` of §9 with it: a code set is named by its folder alone. The rest of this record stands.
 
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.

@@ -4,7 +4,7 @@
 
 > **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of §1: the button `label-auto`, Have the local model answer, gives way to the top bar's box `label-auto`, Autolabel, Label with it ticked starting `label --auto` by the same checks; it is kept nowhere, and the next step's form `label-auto` goes. The rest of this record stands.
 
-> **Partly amended — see [ADR-366](0366-the-window-shows-a-provenance-on-one-line-behind-edit-reason-a-list-as-tags-a-code-set-by-its-folder-and-no-label-file.md).** Of §2 and §3: `label <file>` is never passed, Command options offering no label file; the entries never passed are four, `vespera help`, `vespera version`, `serve db-dir` and `label <file>`. The rest of this record stands.
+> **Partly amended — see [ADR-368](0368-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §2 and §3: `label <file>` is never passed, Command options offering no label file; the entries never passed are four, `vespera help`, `vespera version`, `serve db-dir` and `label <file>`. The rest of this record stands.
 
 - **Date**: 2026-11-03
 - **Status**: accepted on 2026-11-03.
